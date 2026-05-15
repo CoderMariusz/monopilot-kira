@@ -47,10 +47,12 @@
     ],
     "test_strategy": [
       "RED: extend events.test.ts.",
-      "GREEN: append events."
+      "GREEN: append events.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/lib/outbox/events.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not change event payload contracts here (separate task)."
+      "Do not change event payload contracts here (separate task).",
+      "Do not introduce a parallel outbox event registry; the settings/outbox events.ts module is the single source of truth."
     ],
     "skills": [
       "test-driven-development"

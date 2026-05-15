@@ -1,6 +1,6 @@
 {
   "title": "T-018 — API: Manufacturing operation allergen additions CRUD",
-  "prompt": "Implement /api/technical/manufacturing-operations/allergens endpoints per §10.4 and TEC-042. GET lists by manufacturing_operation_name. POST creates (manufacturing_operation_name, allergen_code, reason). DELETE by composite key. Validate manufacturing_operation_name in reference_tables.manufacturing_operations.row_key (per V-TEC-63). Permission technical.allergens.edit. RED tests/api/manufacturing-op-allergens.test.ts. Run: `pnpm vitest run tests/api/manufacturing-op-allergens.test.ts`.",
+  "prompt": "# T-018 — API: Manufacturing operation allergen additions CRUD\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §10.4, §6.5, §10.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCRUD on manufacturing_operation_allergen_additions table with reference_table FK validation.\n\nUsed by allergen cascade rule when computing FG allergens (UNION RM allergens via BOM components + manufacturing operation allergens added). Org-scoped with RLS.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/manufacturing-operations/allergens/route.ts [create]\n- lib/technical/allergens/manufacturing-op.ts [create]\n- tests/api/manufacturing-op-allergens.test.ts [create]\n\n## Out of scope\n- Cascade rule (T-024)\n- UI (TEC-042)\n\n## Acceptance criteria\n1. Given POST with manufacturing_operation_name not in reference_table, when validated, then 422 V-TEC-63.\n2. Given valid POST, when GET runs, then row appears for that manufacturing_operation_name.\n3. Given DELETE, when audit_log queried, then action='manufacturing_op.allergen.delete' exists.\n\n## Test strategy\n- RED tests for FK validation + audit.\n- Run: pnpm vitest run tests/api/manufacturing-op-allergens.test.ts\n\n## Risk red lines\n- Do not allow ad-hoc manufacturing_operation_name values — must reference Reference table.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -54,7 +54,11 @@
       "Run: pnpm vitest run tests/api/manufacturing-op-allergens.test.ts"
     ],
     "risk_red_lines": [
-      "Do not allow ad-hoc manufacturing_operation_name values — must reference Reference table."
+      "Do not allow ad-hoc manufacturing_operation_name values — must reference Reference table.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

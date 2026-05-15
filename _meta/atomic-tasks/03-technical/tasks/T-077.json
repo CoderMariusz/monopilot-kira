@@ -1,6 +1,6 @@
 {
   "title": "T-077 — TO actuals inventory/location/shelf-life non-conformance trigger contract",
-  "prompt": "# T-077 — TO actuals trigger inventory/location/shelf-life non-conformance only\n\nWire the Technical-side contract for Transfer Order actuals: transfer events may update or review inventory/location/lot/shelf-life status in owning modules and may emit Technical/Quality non-conformance for shelf-life, temperature, location eligibility or lot status issues. They must never update factory_specs, BOM, supplier_specs or cost_per_kg. Provide idempotent handler/service for `to.transfer_actual_recorded` with typed reasons LOCATION_NOT_ALLOWED, LOT_STATUS_HOLD, SHELF_LIFE_TOO_SHORT, TEMPERATURE_EXCURSION. RED first: tests prove spec/BOM/cost tables remain unchanged.",
+  "prompt": "# T-077 — TO actuals inventory/location/shelf-life non-conformance trigger contract\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §9.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTechnical-side TO actuals non-conformance boundary contract without spec/BOM/cost mutation.\n\nThis task documents and enforces the boundary. If warehouse/inventory tables are absent, use event/outbox assertions and immutable master-data fixtures. Non-conformance ownership can be Quality event until 09-QUALITY schema exists. No app UI in this task. Non-conformance emission must use the shared contract from T-082 when present; until 09-QUALITY exists, persist/emit the exact outbox event shape defined there.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/lib/technical/to-actuals-review.ts [create]\n- apps/web/events/handlers/to-transfer-actual-recorded.ts [create]\n- tests/integration/technical/to-actuals-review.test.ts [create]\n\n## Acceptance criteria\n1. Given transfer actual has shelf-life below FG requirement, then SHELF_LIFE_TOO_SHORT non-conformance is emitted and factory_specs/BOM/supplier_specs/cost are unchanged.\n2. Given transfer actual has location not allowed for allergen segregation, then LOCATION_NOT_ALLOWED is emitted with lot/location references.\n3. Given event retries with same idempotency key, then no duplicate non-conformance is created.\n4. Given transfer actual proposes spec-like attributes, then handler ignores them and records boundary violation for review.\n5. Given a variance is classified from to.transfer_actual_recorded, then emitted non_conformance.requested payload conforms to T-082 and includes source_event_id, idempotency_key, source_module, entity refs, reason codes and severity.\n\n## Test strategy\n- RED integration test with immutable master-data snapshots around handler.\n- Run: pnpm vitest run tests/integration/technical/to-actuals-review.test.ts\n\n## Risk red lines\n- Do not implement warehouse transfer logic.\n- Do not mutate Technical master data from TO actuals.\n- Do not own Quality investigation workflow.\n- Do not invent a PO/TO-specific NCR payload that diverges from T-082.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -45,7 +45,7 @@
     "prd_task_id": "T-077",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§9.4"
     ],
     "subcategory": "to-non-conformance",
@@ -72,7 +72,11 @@
       "Do not implement warehouse transfer logic.",
       "Do not mutate Technical master data from TO actuals.",
       "Do not own Quality investigation workflow.",
-      "Do not invent a PO/TO-specific NCR payload that diverges from T-082."
+      "Do not invent a PO/TO-specific NCR payload that diverges from T-082.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-072",
@@ -82,6 +86,7 @@
     "parallel_safe_with": [
       "T-076"
     ],
-    "description": "Technical-side TO actuals non-conformance boundary contract without spec/BOM/cost mutation."
+    "description": "Technical-side TO actuals non-conformance boundary contract without spec/BOM/cost mutation.",
+    "out_of_scope": []
   }
 }

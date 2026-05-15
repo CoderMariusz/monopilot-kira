@@ -1,6 +1,6 @@
 {
   "title": "T-074 — RM usability validation shared decision service",
-  "prompt": "# T-074 — RM usability validation shared decision service\n\nCreate `validateRmUsability` as the shared Technical decision used by BOM line add/edit, factory_spec approval, PO actual review and Production material issue. Inputs: org_id, component_item_id, target_fg_item_id or bom_header_id, supplier_code when known, context enum `bom_edit|factory_spec_approval|po_receipt_review|production_issue`. Checks: item status active, supplier approved, active non-expired supplier_spec, allergen compatibility against target FG/BOM, cost_review_blocked false, spec_review_blocked false, and QC/release read-model usable when applicable. Return structured result with `usable:boolean`, check rows, blocking reasons, warning reasons and remediation links. RED first: each failing criterion produces deterministic code.",
+  "prompt": "# T-074 — RM usability validation shared decision service\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.1, §7.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nShared RM usability decision service and server-side enforcement contract.\n\nThis task must centralize semantics; do not duplicate ad-hoc checks in BOM actions. Supplier approval may be read from supplier_specs.supplier_status in Phase 1 or supplier master if available. Lab/QC status is read-only from Quality-owned read model; absence of required QC status must be a typed warning/block according to context. No UI implementation in this task. Enforcement consumers must call this service at BOM line add/edit, bundle approval, PO receipt review, and Production material issue seams; failing hard-block checks must be machine-readable for UI panels and APIs.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/lib/technical/rm-usability.ts [create]\n- apps/web/lib/technical/rm-usability.test.ts [create]\n- apps/web/actions/technical/boms/validate-component.ts [create]\n- tests/actions/technical/rm-usability.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given item status is blocked, when validateRmUsability runs, then usable=false and reason code ITEM_NOT_ACTIVE is returned.\n2. Given supplier_spec is expired or missing, then reason code SUPPLIER_SPEC_NOT_ACTIVE is returned.\n3. Given RM allergens conflict with target FG allergen constraints, then reason code ALLERGEN_CONFLICT is returned with allergen codes.\n4. Given all checks pass, then usable=true and all check rows are green with source references.\n5. Given context=bom_edit and validateRmUsability returns a blocking reason, then BOM line add/edit service rejects the change with the same code and no line mutation.\n6. Given context=factory_spec_approval and Quality read model says required QC release is missing, then approval is blocked or warned according to configured rule and the response includes QC_RELEASE_MISSING.\n7. Given UI consumers request the report shape, then check rows include label, code, severity, source, remediation_href and evidence timestamp.\n\n## Test strategy\n- Create unit RED table tests for every reason code.\n- Run: pnpm vitest run apps/web/lib/technical/rm-usability.test.ts tests/actions/technical/rm-usability.integration.test.ts\n\n## Risk red lines\n- Do not own lab workflow in Technical; consume read model only.\n- Do not silently approve unknown supplier/spec data.\n- Do not return unstructured strings only; callers need typed codes.\n- Do not let UI-only warnings replace server-side enforcement for hard blocks.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -45,7 +45,7 @@
     "prd_task_id": "T-074",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.1",
       "§7.6"
     ],
@@ -76,7 +76,11 @@
       "Do not own lab workflow in Technical; consume read model only.",
       "Do not silently approve unknown supplier/spec data.",
       "Do not return unstructured strings only; callers need typed codes.",
-      "Do not let UI-only warnings replace server-side enforcement for hard blocks."
+      "Do not let UI-only warnings replace server-side enforcement for hard blocks.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-001",
@@ -87,6 +91,7 @@
       "T-073",
       "T-075"
     ],
-    "description": "Shared RM usability decision service and server-side enforcement contract."
+    "description": "Shared RM usability decision service and server-side enforcement contract.",
+    "out_of_scope": []
   }
 }

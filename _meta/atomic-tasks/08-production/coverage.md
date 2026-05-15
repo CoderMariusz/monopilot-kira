@@ -62,11 +62,19 @@ Readiness target: >95% docs/meta/prototype/task readiness before ACP import/exec
 | MODAL-08-01 Release WO | deprecated | `release_wo_modal` removal note | none | Explicitly deprecated; do not implement in Production. |
 | MODAL-08-02..15 | UX modal section | all non-deprecated modal labels | `T-046`..`T-051` | OK; UI tasks require screenshot + trace evidence. |
 
+## Canonical wo_outputs ownership (2026-05-14 decision)
+
+- 08-PRODUCTION T-003 is the canonical owner of the `wo_outputs` table. It defines the production-runtime shape (batch_number, qa_status, V-PROD-24 unique-per-org-per-year, catch_weight_details, allergen cascade hooks, R13 audit cols) and the RLS policy via `app.current_org_id()`.
+- 04-PLANNING-BASIC T-005 owns the upstream planning projection `schedule_outputs` (planned_wo_id, output_role, expected_qty, allocation_pct, disposition, downstream_wo_id). Planning never writes to `wo_outputs`.
+- Materialization contract: on WO start, 08-production runtime reads each `schedule_outputs` row for the WO and projects it into a `wo_outputs` row, populating production-only columns (batch_number, qa_status, etc.). The output_type enum is the same set ('primary','co_product','by_product') so the projection is a 1:1 enum mapping.
+- See `_meta/audits/2026-05-14-fixer-F5-wo-outputs-and-quality-gate.md`.
+
 ## Cross-module dependencies recorded
 
 - 01-NPD `T-097`: canonical factory release read-model owner.
 - 03-TECHNICAL `T-080`/`T-081`: active factory spec/BOM approval, allergen profile, factory-use adapters.
 - 04-PLANNING-BASIC `T-001`: WO snapshot with active BOM/spec IDs before Production runtime.
+- 04-PLANNING-BASIC `T-005`: planning-side `schedule_outputs` projection — upstream of canonical `wo_outputs` (08-production T-003) per 2026-05-14 decision.
 - 05-WAREHOUSE: LP availability/status, putaway, inventory adjustment, warehouse LP state.
 - 06-SCANNER-P1: scanner execute/consume/output/waste flows and signed deep-link handoff.
 - 02-SETTINGS: rule registry, permissions, flags, production lines/machines/operators, D365 capability registry.
@@ -77,3 +85,41 @@ Readiness target: >95% docs/meta/prototype/task readiness before ACP import/exec
 - `_meta/atomic-tasks/08-production/_validate.py`: PASS after hardening (`55 tasks validated`).
 - `manifest.json`: references all `T-001`..`T-055` task files.
 - No unresolved P1 PRD/UX/prototype coverage gaps remain. Remaining non-P1 item: `tweaks_panel` internal/devtools surface is explicitly hidden/migration candidate and not a readiness blocker.
+
+## Coverage rows (gold-standard re-author 2026-05-14)
+
+Re-author pass aligning 08-PRODUCTION atomic tasks to the NPD/Settings gold standard (full prompt sections, sub-module `parent_feature`, explicit `out_of_scope` + `parallel_safe_with`, T3-ui `prototype_match`/`prototype_index_entry`/`ui_evidence_policy`, `frontend-design` skill on UI tasks, explicit `pnpm vitest run …` test commands, explicit prototype `file:lines` anchors in prompt header). 16 tasks re-authored: T-001 (E1), T-041..T-055.
+
+| Task | Sub-module (parent_feature) | task_type | PRD anchors | Prototype anchor (UI) |
+|---|---|---|---|---|
+| T-001 | 08-PROD E1 Execution Core | T2-api | §1.1A, §1.2, §7.1 FR-08-E1-001A, §7.2 FR-08-E2-001 | — |
+| T-041 | 08-PROD E5 INTEGRATIONS stage 2 | T2-api | §8.2.7, §6 D8, §7.5, §5.1#7, §5.4 | — |
+| T-042 | 08-PROD E5 INTEGRATIONS stage 2 | T2-api | §8.2.7, §5.5, §3.2 | — |
+| T-043 | 08-PROD E7 Allergen Gate | T2-api | §8.2.6, §6 D10, §7.7, §7.1 FR-08-E1-001, §5.3 | — |
+| T-044 | 08-PROD E6 Dashboard+OEE | T2-api | §6 D7, §7.6, §8.1 SCR-08-07, §8.1 SCR-08-11 | — |
+| T-045 | 08-PROD E6 Dashboard+OEE | T2-api | §8.1 SCR-08-10, MODAL-08-15, §6 D5/D6/D7, §5.2 | — |
+| T-046 | 08-PROD E6 Dashboard+OEE | T3-ui | §8.1 SCR-08-01, SCR-08-02, MODAL-08-02, §1.1A | production/dashboard.jsx:3-229; wo-list.jsx:3-104; wo-detail.jsx:3-87; modals.jsx:10-29 |
+| T-047 | 08-PROD E2/E3 Consumption+Output+Genealogy | T3-ui | §8.1 SCR-08-02, SCR-08-12, §7.2-7.4 | production/wo-detail.jsx:256-345,346-408,453-503,504-530; modals.jsx:208-240 |
+| T-048 | 08-PROD E7 Allergen Gate | T3-ui | §8.1 SCR-08-03, MODAL-08-11, §6 D10, §7.7 | production/other-screens.jsx:294-390; modals.jsx:306-326 |
+| T-049 | 08-PROD E3/E4/E6 Waste+Downtime+OEE | T3-ui | §8.1 SCR-08-04/05/07, §6 D5/D6/D7 | production/new-screens.jsx:4-209; other-screens.jsx:4-121,124-212; modals.jsx:31-79,147-166,290-304 |
+| T-050 | 08-PROD E4/E6 Shifts+LineDetail+Settings | T3-ui | §8.1 SCR-08-08/09/10/11, MODAL-08-12..15 | production/other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:328-349,400-459,462-519,522-597 |
+| T-051 | 08-PROD E5 INTEGRATIONS stage 2 | T3-ui | §8.1 SCR-08-06, MODAL-08-10, §8.2.7, §3.2 | production/other-screens.jsx:499-557; modals.jsx:242-288 |
+| T-052 | 08-PROD end-to-end evidence | T4-e2e | §8.2.1-8.2.4, §1.1A, §7.5 | — |
+| T-053 | 08-PROD scanner contract evidence | T4-e2e | §8.1 SCR-08-12, §8.2.2, §8.2.3 | — |
+| T-054 | 08-PROD exception evidence | T4-e2e | §1.1A, §8.1 SCR-08-03, MODAL-08-04/05, §6 D3, §7.2 FR-08-E2-006, §6 D10 | — |
+| T-055 | 08-PROD operations closeout evidence | T4-e2e | §8.1 SCR-08-05/08/11, §8.2.7, §6 D7, §7.4 | — |
+
+**T-002..T-040 (39 tasks) already at gold standard prior to this pass** — confirmed by spot survey (E1/E2/E3/E4/E6 sub-module parent_features, complete `out_of_scope`/`parallel_safe_with`/`acceptance_criteria`/`test_strategy`/`risk_red_lines`/`scope_files` arrays, exact `pnpm vitest run …` test commands, V-PROD validation refs). No content changes applied to those files.
+
+**Contradictions found + resolved:**
+1. T-001 previously used `parent_feature: "08-PRODUCTION execution core"` (free text). Re-aligned to `08-PROD E1 Execution Core` per Epic E1 §7.1 FR-08-E1-001A.
+2. T-041..T-055 previously used `parent_feature: "08-PRODUCTION full module readiness"` (Wave-Next bulk parent). Re-mapped to the correct Epic sub-modules (E5/E6/E7) per PRD §7.4-7.7 ownership.
+3. T-046..T-051 were missing `prototype_match: true`, `prototype_index_entry`, `ui_evidence_policy` — added per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.
+4. T-043 prompt was missing explicit `segregation_required` hard-block surface contract (PRD §6 D10 step 6) — now in prompt + AC + red-lines.
+5. T-045 prompt was missing the BL-PROD-04 `prod_oee_targets` effective-date windowing fix — now explicit in implementation contract + migration scope + AC.
+
+## Permission-enum addition 2026-05-14
+
+| PRD/review ref | Task file | Sub-module | Type | Status | Notes |
+|---|---|---|---|---|---|
+| §3.2, §12, §13 (RBAC enum delta — closes _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md GAP) | tasks/T-056.json | 08-PRODUCTION RBAC enum addition | T1-schema | added | 17 `production.*` strings appended to packages/rbac/src/permissions.enum.ts + ALL_<MODULE>_PERMISSIONS export |

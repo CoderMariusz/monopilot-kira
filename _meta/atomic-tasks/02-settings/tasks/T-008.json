@@ -51,10 +51,12 @@
     ],
     "test_strategy": [
       "RED: assert shape + trigger + MV refresh.",
-      "GREEN: emit migration + plpgsql function."
+      "GREEN: emit migration + plpgsql function.",
+      "Run `pnpm --filter @monopilot/db test:integration -- reference-tables.test`."
     ],
     "risk_red_lines": [
-      "Do not create dedicated per-table tables; PRD enforces generic storage."
+      "Do not create dedicated per-table tables; PRD enforces generic storage.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

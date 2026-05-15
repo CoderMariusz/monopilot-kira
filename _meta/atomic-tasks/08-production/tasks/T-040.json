@@ -25,7 +25,7 @@
     "context_budget": "30k",
     "estimated_effort": "2-3h",
     "description": "signOffShift Server Action with V-PROD-SHIFT-002 gate checklist + PIN + KPI snapshot.",
-    "details": "Atomic gate checklist queries (5 checks). PIN verification via 02-SETTINGS infra. KPI snapshot stored on shift_end_event row. Shift Lead role required.",
+    "details": "Atomic gate checklist queries (5 checks). PIN verification via 02-SETTINGS infra. KPI snapshot stored on shift_end_event row. Shift Lead role required. Foundation citation: Regulatory e-sign approval must use foundation e-sign primitive (T-124); do not reinvent dual-sign/PBKDF2 locally. — see `00-foundation/tasks/T-124.json`.",
     "scope_files": [
       "apps/web/app/(production)/shifts/actions.ts [modify]",
       "packages/api-services/production/sign-off-shift.ts [create]",
@@ -52,7 +52,8 @@
     "risk_red_lines": [
       "Do not allow sign-off with unresolved gates",
       "Do not skip PIN verification",
-      "Do not allow non-Shift-Lead role"
+      "Do not allow non-Shift-Lead role",
+      "Foundation contract: Regulatory e-sign approval must use foundation e-sign primitive (T-124); do not reinvent dual-sign/PBKDF2 locally. (cite 00-foundation/T-124)."
     ],
     "skills": [
       "test-driven-development",
@@ -78,6 +79,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-124",
+        "contract": "Regulatory e-sign approval must use foundation e-sign primitive (T-124); do not reinvent dual-sign/PBKDF2 locally."
+      }
+    ]
   }
 }

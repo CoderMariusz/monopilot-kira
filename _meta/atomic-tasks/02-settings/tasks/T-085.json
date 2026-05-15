@@ -43,10 +43,13 @@
       "Header mismatch blocks."
     ],
     "test_strategy": [
-      "RED: write spec + fixtures. GREEN: ensure UI."
+      "RED: write spec + fixtures. GREEN: ensure UI.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/reference-csv.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/reference-csv.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not skip the two-step preview/commit pattern."
+      "Do not skip the two-step preview/commit pattern.",
+      "Do not parse files in the browser; bound row count and stream parsing on the server only."
     ],
     "skills": [
       "test-driven-development"

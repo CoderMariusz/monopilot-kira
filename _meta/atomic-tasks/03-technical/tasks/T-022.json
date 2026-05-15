@@ -1,6 +1,6 @@
 {
   "title": "T-022 — API: Routings + routing_operations CRUD",
-  "prompt": "Implement /api/technical/items/[item_code]/routings (list, create version) and nested /operations (sequence editor) per §12.4 + V-TEC-60..63. Validate: V-TEC-60 (op_no contiguous, no gaps), V-TEC-61 (each op has line_id OR machine_id), V-TEC-62 (run_time_per_unit_sec > 0), V-TEC-63 (manufacturing_operation_name in reference_tables.manufacturing_operations.row_key). Approve workflow mirrors BOM (draft -> approved -> active with prior superseded). Audit log. RED tests/api/routings.test.ts. Run: `pnpm vitest run tests/api/routings.test.ts`.",
+  "prompt": "# T-022 — API: Routings + routing_operations CRUD\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §12.1, §12.2, §12.4, §12.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoutings CRUD with sequence + resource validation; approve/publish workflow.\n\nUse the same supersede pattern as BOMs. Cost preview computation lives separately (T-023). manufacturing_operation_name link to bom_lines field used for cross-checks but no DB FK.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/routings/route.ts [create]\n- app/api/technical/items/[item_code]/routings/[version]/route.ts [create]\n- lib/technical/routing/service.ts [create]\n- tests/api/routings.test.ts [create]\n\n## Out of scope\n- Cost preview (T-023)\n- Resource utilization Gantt computation (Phase 2 detail)\n\n## Acceptance criteria\n1. Given operations [1,2,4], when POST runs, then 422 V-TEC-60 (gap).\n2. Given op without line_id and machine_id, when POST, then 422 V-TEC-61.\n3. Given run_time_per_unit_sec=0 for production op, when POST, then 422 V-TEC-62.\n4. Given manufacturing_operation_name not in reference_table, when POST, then 422 V-TEC-63.\n\n## Test strategy\n- RED tests for each V-TEC-60..63 violation.\n- Run: pnpm vitest run tests/api/routings.test.ts\n\n## Risk red lines\n- Do not delete routing rows (soft supersede only).\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -57,7 +57,11 @@
       "Run: pnpm vitest run tests/api/routings.test.ts"
     ],
     "risk_red_lines": [
-      "Do not delete routing rows (soft supersede only)."
+      "Do not delete routing rows (soft supersede only).",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

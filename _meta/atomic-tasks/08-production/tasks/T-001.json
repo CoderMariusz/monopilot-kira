@@ -1,12 +1,10 @@
 {
-  "title": "T-001 — Production canonical factory release runtime preflight",
-  "prompt": "# T-001 — Production canonical factory release runtime preflight\n\nImplement the Production runtime guard that prevents START, material consumption, output registration, and scanner/desktop runtime mutations from using a WO whose FG/WIP/BOM/spec bundle is not admitted by the canonical factory release read model. This is one atomic API/service task for 08-PRODUCTION. Do not create a Production-owned release enum, do not revive ReleaseWoModal, and do not infer factory usability from D365 Built/export/preload/sync or local `bom_released=true`.\n\nProduction must read the WO snapshot produced by Planning and verify the canonical `active_bom_header_id` and `active_factory_spec_id` against the release read model owned by 01-NPD T-097 and adapted by Technical T-080/T-081. Only `approved_for_factory` and `released_to_factory` are runtime-usable. `pending_npd_release`, `pending_technical_approval`, `blocked`, missing active IDs, revoked/changed release rows, or mismatched WO snapshot must block START and downstream runtime mutations with typed `release_blockers`. Production may show blocked WOs for visibility and deep-link to Planning/Technical remediation, but it must not select a newer/latest BOM/spec or release the WO itself.\n\nScope includes START preflight, scanner consume-to-WO backend, output registration backend, production dashboard/list/detail badge data, and D365 confirmation outbox separation. D365 WO confirmation push remains an asynchronous post-event integration; it cannot approve/release/unlock factory use and must not change the canonical release status.\n\nRED first: tests must fail for pending Technical approval, blocked release, missing active IDs, D365 Built/export no-op, local bom_released no-op, snapshot mismatch, and approved/released success. Then implement guards and badge/blocker mapping. Close with tests and evidence.",
+  "title": "T-001 — Factory release runtime preflight guard (08-PROD-a, §1.1A / FR-08-E1-001A)",
+  "prompt": "# T-001 — Factory release runtime preflight guard\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §1.1A, §1.2, §7.1 FR-08-E1-001A, §7.2 FR-08-E2-001\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the Production runtime preflight guard that admits a WO into START / material consumption / output registration only when the canonical factory release read model (owned by 01-NPD T-097, adapted by 03-TECHNICAL T-080/T-081) reports `approved_for_factory` or `released_to_factory` for the WO snapshot's `active_bom_header_id` + `active_factory_spec_id`. All other states return typed `release_blockers` without mutating runtime state.\n\n## Implementation contract\n1. apps/web/lib/production/factory-release-runtime-guards.ts exports `assertFactoryReleaseRuntimeAdmitted(wo)` returning either `{ admitted: true }` or `{ admitted: false, blockers: ReleaseBlocker[] }`.\n2. Reads the canonical read model via the 03-TECHNICAL adapter (T-080/T-081); never queries `latest` BOM/spec, D365 sync flags, or local `bom_released`.\n3. Maps canonical statuses: `approved_for_factory` | `released_to_factory` → admit; `pending_npd_release` | `pending_technical_approval` | `blocked` | missing `active_bom_header_id` | missing `active_factory_spec_id` | snapshot mismatch (active IDs differ from canonical row) → blocker.\n4. D365 push success/failure must never change canonical release state nor admit a WO.\n5. Wired into start-wo, consume-to-WO, output registration services as a single-line guard; UI surfaces (dashboard, WO list, WO detail badge) read the same blockers via a thin service.\n\n## Files\n- apps/web/lib/production/factory-release-runtime-guards.ts [create]\n- apps/web/lib/production/dashboard-service.ts [modify]\n- packages/api-services/production/start-wo.ts [modify]\n- packages/api-services/production/consume-to-wo.ts [modify]\n- packages/api-services/production/register-output.ts [modify]\n- tests/lib/production/factory-release-runtime-guards.test.ts [create]\n- tests/actions/production/work-order-start-release-preflight.test.ts [create]\n\n## Acceptance criteria\n1. Given a WO whose snapshot `active_bom_header_id` and `active_factory_spec_id` match the canonical row and status is `approved_for_factory` or `released_to_factory`, when START is invoked, then preflight returns `admitted: true` and runtime state mutates normally.\n2. Given canonical status is `pending_npd_release`, `pending_technical_approval`, `blocked`, or any required active ID is missing/mismatched, when any of START / consume-to-WO / output registration is invoked, then service returns typed `release_blockers` and no runtime mutation occurs.\n3. Given a WO has D365 Built/export/synced metadata or local `bom_released=true` but the canonical row is not factory-usable, when admit is requested, then result is blocked and `release_blockers` includes the canonical reason (D365 metadata is not consulted).\n\n## Test strategy\n- RED: write tests/lib/production/factory-release-runtime-guards.test.ts + tests/actions/production/work-order-start-release-preflight.test.ts asserting the status matrix, missing/mismatched active IDs, and D365/local flag no-op before the guard exists.\n- Run `pnpm vitest run tests/lib/production/factory-release-runtime-guards.test.ts tests/actions/production/work-order-start-release-preflight.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not revive or implement Production ReleaseWoModal / DRAFT→READY release flow (deprecated per `prototype-index-production.json`).\n- Do not create a Production-owned release enum/model.\n- Do not infer factory availability from D365 Built/export/sync or local `bom_released` flags.\n- Do not select a newer/latest BOM/spec at START time.\n",
   "labels": [
     "prd",
-    "production",
-    "release-status",
-    "read-model",
-    "runtime-guard",
+    "api",
+    "release-gate",
     "T2-api"
   ],
   "priority": 50,
@@ -14,10 +12,71 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§1.1A",
+      "§1.2",
+      "§7.1 FR-08-E1-001A",
+      "§7.2 FR-08-E2-001"
+    ],
+    "category": "api",
+    "subcategory": "factory-release-runtime-preflight",
+    "task_type": "T2-api",
+    "parent_feature": "08-PROD E1 Execution Core",
+    "context_budget": "35k",
+    "estimated_effort": "3-4h",
+    "description": "Production runtime preflight + typed release_blockers for canonical factory release read model; admits only approved/released active_bom_header_id + active_factory_spec_id, ignores D365 sync.",
+    "details": "Single service `assertFactoryReleaseRuntimeAdmitted` consumed by start-wo, consume-to-WO, output registration services and dashboard/list/detail badge service. Canonical read model is owned by 01-NPD T-097 and adapted by 03-TECHNICAL T-080/T-081; if the canonical adapter is not yet present, fail loudly rather than emitting fallback logic. Snapshot mismatch (WO active IDs differ from canonical active row) blocks with `release_blockers=[snapshot_mismatch]` rather than auto-selecting newer BOM/spec. D365 confirmation push is an asynchronous side-effect after local production events and must never modify canonical release state.",
+    "scope_files": [
+      "apps/web/lib/production/factory-release-runtime-guards.ts [create]",
+      "apps/web/lib/production/dashboard-service.ts [modify]",
+      "packages/api-services/production/start-wo.ts [modify]",
+      "packages/api-services/production/consume-to-wo.ts [modify]",
+      "packages/api-services/production/register-output.ts [modify]",
+      "tests/lib/production/factory-release-runtime-guards.test.ts [create]",
+      "tests/actions/production/work-order-start-release-preflight.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the canonical release read model itself (01-NPD T-097)",
+      "Do not implement the Technical approval/transition adapter (03-TECHNICAL T-080/T-081)",
+      "Do not build UI surfaces (T-046 wires blocker badges into dashboard/list/detail)",
+      "Do not implement Planning WO snapshot capture (04-PLANNING-BASIC T-001)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-010"
+    ],
+    "acceptance_criteria": [
+      "Given a WO whose snapshot active_bom_header_id+active_factory_spec_id match the canonical row and status is approved_for_factory or released_to_factory, when START is invoked, then preflight returns admitted:true and runtime state mutates normally.",
+      "Given canonical status is pending_npd_release/pending_technical_approval/blocked or any required active ID is missing/mismatched, when START/consume-to-WO/output registration is invoked, then service returns typed release_blockers and no runtime mutation occurs.",
+      "Given a WO has D365 Built/export/synced metadata or local bom_released=true but the canonical row is not factory-usable, when admit is requested, then result is blocked and D365 metadata is not consulted as approval evidence.",
+      "Given an LP/lot has an active quality hold (v_active_holds), when WO consume is attempted, then the operation is rejected with 409 quality_hold_active and an outbox event production.consume.blocked is emitted (consume gate per 09-quality T-064)."
+    ],
+    "test_strategy": [
+      "RED: write tests/lib/production/factory-release-runtime-guards.test.ts + tests/actions/production/work-order-start-release-preflight.test.ts covering status matrix, missing/mismatched active IDs and D365/local flag no-op before the guard exists.",
+      "Run 'pnpm vitest run tests/lib/production/factory-release-runtime-guards.test.ts tests/actions/production/work-order-start-release-preflight.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
+    ],
+    "risk_red_lines": [
+      "Do not revive or implement Production ReleaseWoModal / DRAFT→READY release flow (deprecated label).",
+      "Do not create a Production-owned release enum/model.",
+      "Do not infer factory availability from D365 Built/export/sync or local bom_released flags.",
+      "Do not select a newer/latest BOM/spec at START time.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -40,48 +99,6 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prd_task_id": "T-001",
-    "prd_refs": [
-      "§1.1A Factory release read-model contract",
-      "§1.2 Module boundaries",
-      "§7.1 FR-08-E1-001A",
-      "§7.2 FR-08-E2-001",
-      "_meta/prototype-labels/prototype-index-production.json"
-    ],
-    "category": "api",
-    "subcategory": "factory-release-runtime-preflight",
-    "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION execution core",
-    "context_budget": "35k",
-    "estimated_effort": "3-4h",
-    "description": "Production runtime preflight and blocker mapping for canonical factory release read model.",
-    "details": "One task type: API/service/action tests. UI visual implementation is not included except returning blocker/badge data for existing Production screens. The canonical model is owned by 01-NPD T-097; Technical T-080/T-081 handles approval/adaptation; Planning snapshots active IDs. If canonical implementation is not present, stop with a blocker rather than inventing fallback status logic.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given WO snapshot active_bom_header_id or active_factory_spec_id differs from the canonical active row, Production blocks and requires Planning/Technical remediation rather than selecting latest BOM/spec.\n- Given D365 confirmation push succeeds/fails, canonical release status is not changed by Production integration code.",
-    "scope_files": [
-      "apps/web/lib/production/factory-release-runtime-guards.ts [create]",
-      "apps/web/actions/production/work-orders/*.ts",
-      "apps/web/actions/production/scanner/*.ts",
-      "apps/web/lib/production/dashboard-service.ts",
-      "tests/lib/production/factory-release-runtime-guards.test.ts [create]",
-      "tests/actions/production/work-order-start-release-preflight.test.ts [create]"
-    ],
-    "acceptance_criteria": [
-      "Given WO snapshot active IDs match canonical status approved_for_factory or released_to_factory, START succeeds and runtime state mutates normally.",
-      "Given canonical status is pending_npd_release, pending_technical_approval or blocked, START and scanner runtime mutations fail with typed release_blockers and no runtime mutation.",
-      "Given WO has D365 Built/export/synced metadata or local bom_released=true but canonical status is not factory-usable, Production remains blocked.",
-      "Given the task is closed out, when reviewers inspect evidence, then these additional requirements are proven together: Given WO snapshot active_bom_header_id or active_factory_spec_id differs from the canonical active row, Production blocks and requires Planning/Technical remediation rather than selecting latest BOM/spec.; Given D365 confirmation push succeeds/fails, canonical release status is not changed by Production integration code."
-    ],
-    "test_strategy": [
-      "RED unit tests for runtime guard status matrix, missing/mismatched active IDs and D365/local flag no-op.",
-      "RED action tests for START, consume-to-WO and output registration preflight behavior.",
-      "Run: pnpm vitest run tests/lib/production/factory-release-runtime-guards.test.ts tests/actions/production/work-order-start-release-preflight.test.ts"
-    ],
-    "risk_red_lines": [
-      "Do not revive or implement Production ReleaseWoModal / DRAFT→READY release flow.",
-      "Do not create a Production-owned release enum/model.",
-      "Do not infer factory availability from D365 Built/export/sync or local bom_released flags.",
-      "Do not select a newer/latest BOM/spec at START time."
-    ],
-    "dependencies": [],
     "cross_module_dependencies": [
       {
         "module": "01-npd",
@@ -102,6 +119,11 @@
         "module": "04-planning-basic",
         "task_id": "T-001",
         "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs before Production runtime."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "T-064",
+        "reason": "Quality consume gate (v_active_holds) — every LP/WO consume operation must call holdsGuard(lpId, lotId) before mutating consumption/output state. Active hold returns 409 quality_hold_active and emits production.consume.blocked outbox event (PRD §16.4 V-PROD-02/V-PROD-16)."
       }
     ]
   }

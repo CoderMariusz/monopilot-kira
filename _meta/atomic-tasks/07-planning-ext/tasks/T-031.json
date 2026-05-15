@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§8.1 SCR-07-01",
-      "§3.4"
+      "§3.2"
     ],
     "category": "ui",
     "subcategory": "panel-side",
@@ -25,7 +25,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Lazy-loading side Sheet showing WO detail + 4 action buttons with RBAC-gated Override.",
-    "details": "shadcn Sheet (controlled). Lazy fetch on open. 4 actions wired to existing API endpoints. RBAC hides Override for Scheduling Officer. Parity with prototype enforced via RTL snapshot.",
+    "details": "PRD anchor corrected from §3.4 to §3.2 by Fixer F12 2026-05-14 (anchor sweep; §3.4 does not exist — approve/reject/override RBAC rules are in §3.2 RBAC matrix). shadcn Sheet (controlled). Lazy fetch on open. 4 actions wired to existing API endpoints. RBAC hides Override for Scheduling Officer. Parity with prototype enforced via RTL snapshot.",
     "scope_files": [
       "apps/web/src/components/scheduler/AssignmentSidePanel.tsx [create]",
       "apps/web/src/components/scheduler/use-assignment-detail.ts [create]",
@@ -45,7 +45,8 @@
     "acceptance_criteria": [
       "Given a Gantt block click, when panel opens, then it lazy-fetches WO detail + renders 4 action buttons",
       "Given the rendered panel, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx:365-451, then it has the same allergen warning, same 4 action buttons in same order, and same shadcn primitives (Sheet, Button, Badge) — parity verified by RTL snapshot + checklist",
-      "Given Scheduling Officer role, when panel renders, then [Override] button is hidden"
+      "Given Scheduling Officer role, when panel renders, then [Override] button is hidden",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write __tests__/AssignmentSidePanel.test.tsx covering lazy load + parity + RBAC visibility",
@@ -58,7 +59,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -72,7 +74,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -80,6 +85,15 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx:365-451` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
+    ]
   }
 }

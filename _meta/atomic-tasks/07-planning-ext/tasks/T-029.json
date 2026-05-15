@@ -26,7 +26,7 @@
     "context_budget": "30k",
     "estimated_effort": "1h",
     "description": "Add 3 emitters: matrix.version.published, assignment.overridden, assignments.bulk_approved (single batched row).",
-    "details": "Extends T-028 module with three emitters. bulk_approved must always be a single outbox_events row with array payload regardless of batch size.",
+    "details": "Extends T-028 module with three emitters. bulk_approved must always be a single outbox_events row with array payload regardless of batch size. Foundation citation: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. — see `00-foundation/tasks/T-112.json`.",
     "scope_files": [
       "apps/web/src/lib/outbox/emitters/scheduler.ts [modify]",
       "apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [modify]"
@@ -51,7 +51,8 @@
     "risk_red_lines": [
       "Do not emit per-id row in bulk_approved",
       "Do not skip transactional guard",
-      "Do not invent event_type names beyond §9.8"
+      "Do not invent event_type names beyond §9.8",
+      "Foundation contract: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. (cite 00-foundation/T-112)."
     ],
     "skills": [
       "test-driven-development",
@@ -77,6 +78,16 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-028"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "contract": "Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape."
+      }
+    ]
   }
 }

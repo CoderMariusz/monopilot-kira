@@ -1,6 +1,6 @@
 {
   "title": "T-066 — Docs: TEC-031 Regulatory Compliance Dashboard prototype gap brief",
-  "prompt": "Write engineering brief for missing TEC-031 'Regulatory Compliance Dashboard' prototype per §9.5 [SPEC-DRIVEN UI]. Output: design/specs/TEC-031-regulatory-dashboard.md covering: KPI tile per regulation (EU 1169/2011, FSMA 204, BRCGS v9, ISO 22000, EU 2023/915, GS1 Digital Link, Peppol) + per-FG flag table (missing shelf-life / missing allergen declaration / missing BRCGS training link). Include the V-TEC-30..33 surfacing rules. Implementation is now in scope via T-087 as a spec-driven UI task; this brief remains supporting documentation.",
+  "prompt": "# T-066 — Docs: TEC-031 Regulatory Compliance Dashboard prototype gap brief\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §9.3, §9.5 TEC-031, §4A TEC-031\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBrief unblocking TEC-031 prototype work.\n\nDocument each regulation tile (data source + threshold), the per-FG flag table contract, and the ATP/cleaning evidence cross-link to 09-QUALITY.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-031-regulatory-dashboard.md [create]\n\n## Out of scope\n- Prototype JSX\n- Implementation\n\n## Acceptance criteria\n1. Given the brief, when reviewed, then it lists 7 regulation tiles, their data sources, and threshold rules.\n2. Given the brief, when read by a UX designer, then it is sufficient to draft the prototype.\n\n## Test strategy\n- Manual review by Quality Lead.\n- No automated tests for docs.\n\n## Risk red lines\n- Do not bind hard data sources that are not yet shipped.\n- Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -51,7 +51,11 @@
     ],
     "risk_red_lines": [
       "Do not bind hard data sources that are not yet shipped.",
-      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task."
+      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

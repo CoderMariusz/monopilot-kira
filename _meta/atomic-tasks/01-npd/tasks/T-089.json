@@ -1,6 +1,6 @@
 {
   "title": "T-089 — GDPR right-to-erasure function (fa/prod_detail/brief PII redaction) (NPD misc)",
-  "prompt": "# T-089 — GDPR right-to-erasure\n\nPRD: docs/prd/01-NPD-PRD.md §15 Compliance (right-to-erasure) + Foundation §15 GDPR scope\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSECURITY DEFINER function gdpr_redact_user_pii(user_id) that pseudonymises (does not delete) PII columns on fa/prod_detail/brief that reference the subject user — preserving FK integrity and audit_events history while satisfying GDPR Art. 17 right-to-erasure.\n\n## Implementation contract\n1. Migration packages/db/migrations/0089_gdpr_redact_pii.sql defines gdpr_redact_user_pii(target_user_id UUID) RETURNS jsonb (counts per table) SECURITY DEFINER scoped to service role.\n2. Function pseudonymises created_by_user, updated_by_user, locked_by_user, completed_by_user, owner_user_id, uploaded_by_user, approver_user_id columns to a placeholder UUID '00000000-0000-0000-0000-000000000000' across fa, prod_detail, brief, formulations, gate_checklist_items, gate_approvals, risks, compliance_docs.\n3. audit_events row 'gdpr.erasure_executed' written per invocation with target_user_id + counts.\n4. Server Action wrapper apps/web/app/(admin)/gdpr/_actions/redact-user.ts — RBAC admin only.\n\n## Files\n- packages/db/migrations/0089_gdpr_redact_pii.sql [create]\n- apps/web/app/(admin)/gdpr/_actions/redact-user.ts [create]\n- apps/web/app/(admin)/gdpr/_actions/__tests__/redact-user.test.ts [create]\n\n## Acceptance criteria\n1. Given a user with FK references in fa.created_by_user (3 rows) + risks.owner_user_id (2 rows), when gdpr_redact_user_pii(user_id) runs, then all 5 rows now reference the placeholder UUID and the returned jsonb counts equal {fa:3, risks:2, ...} per §15 erasure contract\n2. Given the function runs, when audit_events is queried, then a row 'gdpr.erasure_executed' exists with target_user_id + counts payload per Foundation §15 GDPR audit\n3. Given a non-admin calls the redactUser Server Action, when the action runs, then it rejects with FORBIDDEN per Foundation §15 + admin-only RBAC\n\n## Test strategy\n- RED: __tests__/redact-user.test.ts with seeded multi-table FK references + audit + RBAC before function exists\n- Run 'pnpm --filter db migrate && pnpm --filter web test redact-user'\n\n## Risk red lines\n- Do not DELETE rows (must pseudonymise to preserve FK + audit)\n- Do not skip audit_events emission\n- Do not run with INVOKER rights (must be SECURITY DEFINER scoped to service role)",
+  "prompt": "# T-089 — GDPR right-to-erasure\n\nPRD: docs/prd/01-NPD-PRD.md §15 Compliance (right-to-erasure) + Foundation §15 GDPR scope\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSECURITY DEFINER function gdpr_redact_user_pii(user_id) that pseudonymises (does not delete) PII columns on fa/prod_detail/brief that reference the subject user — preserving FK integrity and audit_events history while satisfying GDPR Art. 17 right-to-erasure.\n\n## Implementation contract\n1. Migration packages/db/migrations/0089_gdpr_redact_pii.sql defines gdpr_redact_user_pii(target_user_id UUID) RETURNS jsonb (counts per table) SECURITY DEFINER scoped to service role.\n2. Function pseudonymises created_by_user, updated_by_user, locked_by_user, completed_by_user, owner_user_id, uploaded_by_user, approver_user_id columns to a placeholder UUID '00000000-0000-0000-0000-000000000000' across fa, prod_detail, brief, formulations, gate_checklist_items, gate_approvals, risks, compliance_docs.\n3. audit_events row 'gdpr.erasure_executed' written per invocation with target_user_id + counts.\n4. Server Action wrapper apps/web/app/(admin)/gdpr/_actions/redact-user.ts — RBAC admin only.\n5. Foundation GDPR registry wire-up: in `packages/db/src/erasure/npd.ts` add `import { registerErasureHandler } from '@monopilot/gdpr'; registerErasureHandler('npd', runNpdErasure);` per `_foundation/contracts/gdpr.md` (foundation T-113). `runNpdErasure(orgId, subjectId)` wraps a call to `gdpr_redact_user_pii(target_user_id)` so the centralized `runErasure(orgId, subjectId)` dispatcher invokes it for the NPD domain. Confirm a unit test calls `runErasure(orgId, subjectId)` and observes the NPD handler invoked (counts returned + audit_events row written).\n\n## Files\n- packages/db/migrations/0089_gdpr_redact_pii.sql [create]\n- apps/web/app/(admin)/gdpr/_actions/redact-user.ts [create]\n- apps/web/app/(admin)/gdpr/_actions/__tests__/redact-user.test.ts [create]\n\n## Acceptance criteria\n1. Given a user with FK references in fa.created_by_user (3 rows) + risks.owner_user_id (2 rows), when gdpr_redact_user_pii(user_id) runs, then all 5 rows now reference the placeholder UUID and the returned jsonb counts equal {fa:3, risks:2, ...} per §15 erasure contract\n2. Given the function runs, when audit_events is queried, then a row 'gdpr.erasure_executed' exists with target_user_id + counts payload per Foundation §15 GDPR audit\n3. Given a non-admin calls the redactUser Server Action, when the action runs, then it rejects with FORBIDDEN per Foundation §15 + admin-only RBAC\n4. Given the foundation GDPR registry is initialized (foundation T-113 `@monopilot/gdpr`), when `runErasure(orgId, subjectId)` is called, then the NPD handler `runNpdErasure` is invoked and returns the count of redacted rows; audit_events row 'gdpr.erasure_executed' is written\n\n## Test strategy\n- RED: __tests__/redact-user.test.ts with seeded multi-table FK references + audit + RBAC before function exists\n- Run 'pnpm --filter db migrate && pnpm --filter web test redact-user'\n\n## Risk red lines\n- Do not DELETE rows (must pseudonymise to preserve FK + audit)\n- Do not skip audit_events emission\n- Do not run with INVOKER rights (must be SECURITY DEFINER scoped to service role)",
   "labels": [
     "prd",
     "data",
@@ -24,11 +24,13 @@
     "context_budget": "50k",
     "estimated_effort": "3h",
     "description": "SECURITY DEFINER gdpr_redact_user_pii function pseudonymising user FK refs across fa/prod_detail/brief/formulations/gates/risks/docs.",
-    "details": "Function pseudonymises FK refs to placeholder UUID, writes audit_events, returns jsonb counts. Server Action wrapper RBAC admin only.",
+    "details": "Function pseudonymises FK refs to placeholder UUID, writes audit_events, returns jsonb counts. Server Action wrapper RBAC admin only. Registers an NPD erasure handler with the foundation `@monopilot/gdpr` registry via `registerErasureHandler('npd', npdErasureFn)` per `_foundation/contracts/gdpr.md` (foundation T-113). The handler still owns the underlying SQL function (`gdpr_redact_user_pii`) but exposes its dispatch entry to the centralized `runErasure(orgId, subjectId)` path.",
     "scope_files": [
       "packages/db/migrations/0089_gdpr_redact_pii.sql [create]",
       "apps/web/app/(admin)/gdpr/_actions/redact-user.ts [create]",
-      "apps/web/app/(admin)/gdpr/_actions/__tests__/redact-user.test.ts [create]"
+      "apps/web/app/(admin)/gdpr/_actions/__tests__/redact-user.test.ts [create]",
+      "packages/db/src/erasure/npd.ts [create]",
+      "packages/db/src/erasure/__tests__/npd-erasure-registration.test.ts [create]"
     ],
     "out_of_scope": [
       "Do not implement full data export (separate Foundation task)",
@@ -39,7 +41,8 @@
       "T-054",
       "T-063",
       "T-080",
-      "T-083"
+      "T-083",
+      "00-foundation/T-113"
     ],
     "parallel_safe_with": [
       "T-090",
@@ -48,7 +51,8 @@
     "acceptance_criteria": [
       "Given a user with FK references in fa.created_by_user (3 rows) + risks.owner_user_id (2 rows), when gdpr_redact_user_pii(user_id) runs, then all 5 rows now reference the placeholder UUID and the returned jsonb counts equal {fa:3, risks:2, ...} per §15 erasure contract",
       "Given the function runs, when audit_events is queried, then a row 'gdpr.erasure_executed' exists with target_user_id + counts payload per Foundation §15 GDPR audit",
-      "Given a non-admin calls the redactUser Server Action, when the action runs, then it rejects with FORBIDDEN per Foundation §15 + admin-only RBAC"
+      "Given a non-admin calls the redactUser Server Action, when the action runs, then it rejects with FORBIDDEN per Foundation §15 + admin-only RBAC",
+      "Given the foundation GDPR registry is initialized (per foundation T-113 `@monopilot/gdpr`), when `runErasure(orgId, subjectId)` is called, then the NPD handler `runNpdErasure` is invoked, returns the count of redacted rows, and an `audit_events` row `gdpr.erasure_executed` is written with the NPD per-table counts."
     ],
     "test_strategy": [
       "RED: __tests__/redact-user.test.ts with seeded multi-table FK references + audit + RBAC before function exists",
@@ -57,7 +61,8 @@
     "risk_red_lines": [
       "Do not DELETE rows (must pseudonymise)",
       "Do not skip audit_events emission",
-      "Do not run with INVOKER rights"
+      "Do not run with INVOKER rights",
+      "Do not ship the SECURITY DEFINER function without registering an erasure handler with the foundation `@monopilot/gdpr` registry (foundation T-113) — module-private erasure functions are forbidden by `_foundation/contracts/gdpr.md`."
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +88,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-113",
+        "reason": "Registers `npd` domain handler with the centralized `@monopilot/gdpr` registry per `_foundation/contracts/gdpr.md`. Without this wire-up the foundation `runErasure(orgId, subjectId)` dispatch path skips NPD tables."
+      }
+    ]
   }
 }

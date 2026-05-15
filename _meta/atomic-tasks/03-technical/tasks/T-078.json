@@ -1,6 +1,6 @@
 {
   "title": "T-078 — UX implementation red-lines: factory_spec, BOM SSOT, RM usability, PO/TO and optional D365",
-  "prompt": "# T-078 — Apply final Technical UX red-lines to existing prototypes\n\nWhen implementing any 03-TECHNICAL UI task, apply UX §0A red-lines on top of existing prototype parity. Preserve structural, visual and interaction parity with the referenced prototype files, but change production copy/guards to FG/WIP naming, Technical-owned factory_spec, shared BOM SSOT, clone-on-edit approval banner, RM usability panel, supplier_specs Phase 1 review language, PO/TO non-conformance trigger language, Quality-owned lab read-only labels, and optional D365 disabled states. This governance task does not build a screen by itself; it adds required acceptance criteria to all downstream UI closeouts.",
+  "prompt": "# T-078 — UX implementation red-lines: factory_spec, BOM SSOT, RM usability, PO/TO and optional D365\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4, prototypes/design/03-TECHNICAL-UX.md §0A\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nUI governance red-lines applied to Technical prototype-derived implementation tasks.\n\nUse this as a UI governance task for ACP agents. Existing prototype labels may contain FA/PR or D365-first assumptions; agents must preserve layout and interactions while correcting domain copy and blocking states per PRD v3.3. For BOM detail, prototype path `prototypes/design/Monopilot Design System/technical/bom-detail.jsx:650-930` is the visual anchor; for modals, use `prototypes/design/Monopilot Design System/technical/modals.jsx:94-180` and `prototypes/design/Monopilot Design System/technical/modals.jsx:371-475` where relevant. T-083 provides the local production copy/guard red-line overlay and must be treated as the concrete checklist for UI closeout copy assertions.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- prototypes/design/03-TECHNICAL-UX.md [create]\n- _meta/atomic-tasks/03-technical/tasks/T-032..T-063.json [create]\n- _meta/atomic-tasks/03-technical/tasks/T-083.json [create]\n\n## Acceptance criteria\n1. Given a UI implementation references `prototypes/design/Monopilot Design System/technical/bom-detail.jsx:650-930`, then it preserves structural, visual and interaction parity while showing FG/WIP naming and the active-edit creates new draft approval banner.\n2. Given a BOM component modal references `prototypes/design/Monopilot Design System/technical/modals.jsx:133-170`, then it preserves structural, visual and interaction parity while adding the RM usability check rows.\n3. Given D365 UI references `prototypes/design/Monopilot Design System/technical/modals.jsx:475-540`, then it preserves structural, visual and interaction parity and includes a disabled optional-integration state.\n4. Given any Supplier Specs or Lab Results tab is implemented, then copy states supplier_specs are Technical Phase 1 master data and lab status is Quality-owned read-only.\n5. Given T-083 red-line overlay exists, then UI task closeout references it and proves legacy copy/D365-first wording was not carried from prototypes into production UI.\n6. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- For each UI task closeout, require screenshot/DOM assertions for legacy prototype parity plus domain red-line assertions.\n- Run the UI task-specific vitest/playwright command named in that task.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not rewrite prototype files for visual churn.\n- Do not keep FA/PR in production copy except when showing legacy imported source values.\n- Do not make this governance task a standalone screen implementation.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
   "labels": [
     "prd",
     "ui",
@@ -44,7 +44,7 @@
     "prd_task_id": "T-078",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.4",
       "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
@@ -73,7 +73,15 @@
     "risk_red_lines": [
       "Do not rewrite prototype files for visual churn.",
       "Do not keep FA/PR in production copy except when showing legacy imported source values.",
-      "Do not make this governance task a standalone screen implementation."
+      "Do not make this governance task a standalone screen implementation.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
     ],
     "dependencies": [
       "T-083"
@@ -88,6 +96,7 @@
       "T-055"
     ],
     "description": "UI governance red-lines applied to Technical prototype-derived implementation tasks.",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "out_of_scope": []
   }
 }

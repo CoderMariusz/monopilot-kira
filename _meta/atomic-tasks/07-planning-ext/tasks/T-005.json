@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "0.5-1h",
     "description": "Create forecast_actuals table with UNIQUE (tenant, product, week) for SMAPE tracking.",
-    "details": "Migration 0074 emits CREATE TABLE forecast_actuals per §9.6 DDL with UNIQUE constraint, ENABLE RLS, tenant policy. Drizzle schema mirrors columns with NUMERIC(12,2) for actual_qty_kg and NUMERIC(5,2) for smape. RED test verifies UNIQUE rejection and RLS isolation.",
+    "details": "Migration 0074 emits CREATE TABLE forecast_actuals per §9.6 DDL with UNIQUE constraint, ENABLE RLS, tenant policy. Drizzle schema mirrors columns with NUMERIC(12,2) for actual_qty_kg and NUMERIC(5,2) for smape. RED test verifies UNIQUE rejection and RLS isolation. RLS policies must explicitly reference the foundation `app.current_org_id()` function (Wave0 v4.3 lock; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Do not use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads.",
     "scope_files": [
       "packages/db/migrations/0074_forecast_actuals.sql [create]",
       "packages/db/src/schema/forecast_actuals.ts [create]",
@@ -47,13 +47,15 @@
       "Run 'pnpm --filter db migrate && pnpm --filter db test forecast-actuals'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
       "Do not skip RLS",
       "Do not relax (tenant, product, week) UNIQUE",
       "Do not change smape column type from NUMERIC(5,2)"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -75,6 +77,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-008",
+      "T-011"
+    ]
   }
 }

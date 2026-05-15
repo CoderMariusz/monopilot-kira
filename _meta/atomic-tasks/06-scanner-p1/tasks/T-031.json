@@ -61,16 +61,20 @@
     ],
     "test_strategy": [
       "RED: write scn-020-receive-po.test.tsx asserting parity + GS1 auto-fill + catch-weight branch before implementation",
-      "Run 'pnpm --filter scanner test scn-020-receive-po'"
+      "Run 'pnpm --filter scanner test scn-020-receive-po'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not allow over-receipt without surfacing server error",
       "Do not strip GS1 parse failure error banner",
-      "Do not navigate to done before 200"
+      "Do not navigate to done before 200",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -96,6 +100,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "po_item_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [

@@ -51,10 +51,12 @@
     ],
     "test_strategy": [
       "RED: shape + cascade + CHECK reject test.",
-      "GREEN: emit migration."
+      "GREEN: emit migration.",
+      "Run `pnpm --filter @monopilot/db test:integration -- tenant-l2.test`."
     ],
     "risk_red_lines": [
-      "Do not couple tenant_variations to per-tenant DB schema (L4 deferred)."
+      "Do not couple tenant_variations to per-tenant DB schema (L4 deferred).",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

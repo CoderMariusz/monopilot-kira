@@ -1,7 +1,12 @@
 {
   "title": "T-034 — QA-004 Test Templates page + template_create_modal (parity)",
-  "prompt": "# T-034 — QA-004 Test Templates page + template_create_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.5 row '(extra) Test Templates QA-004' (FR-QA-004), §8.5 prototypes qa_templates + template_create_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/templates` Server Component listing inspection test templates (catalog of reusable parameter sets) plus TemplateCreateModal Client Component to add a new template (name, description, parameters JSONB).\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0122_quality_test_templates.sql` adds quality_test_templates table {id, org_id, code, label, parameters JSONB, created_by, created_at, ext_jsonb} with RLS tenant_isolation and UNIQUE(org_id, code).\n2. Server Action `createTestTemplate(input)` validates uniqueness + non-empty parameters.\n3. List page reads listTestTemplates(filters); columns Code | Label | Param count | Created by | Updated.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54` (qa_templates) and `quality/modals.jsx:209-245` (template_create_modal).\n\n## Files\n- packages/db/migrations/0122_quality_test_templates.sql [create]\n- apps/web/src/app/quality/templates/page.tsx [create]\n- apps/web/src/server/quality/templates.ts [create]\n- apps/web/src/components/quality/templates/TemplateCreateModal.tsx [create]\n- apps/web/src/components/quality/templates/__tests__/templates.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/other-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54, then it has parity with the prototype on structure (filter input + Add Template button + 5-col Table Code/Label/ParamCount/CreatedBy/Updated), visuals (shadcn Table/Input/Button only), and interaction (row click → template detail (P2 stub), Add Template opens TemplateCreateModal) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:209-245, then it has parity on structure (header + code + label + parameters JSONB Editor + Cancel/Create footer), visuals (shadcn Dialog/Form/Input/Textarea/Button), and interaction (Create disabled until code length>=3 and parameters non-empty) — verified by RTL plus parity checklist\n3. Given a duplicate code submitted, when createTestTemplate runs, then it rejects with V-QA-TEMPLATE-DUP and writes nothing",
-  "labels": ["prd", "ui", "qa-templates", "T3-ui"],
+  "prompt": "# T-034 — QA-004 Test Templates page + template_create_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.5 row '(extra) Test Templates QA-004' (FR-QA-004), §8.5 prototypes qa_templates + template_create_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/templates` Server Component listing inspection test templates (catalog of reusable parameter sets) plus TemplateCreateModal Client Component to add a new template (name, description, parameters JSONB).\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0122_quality_test_templates.sql` adds quality_test_templates table {id, org_id, code, label, parameters JSONB, created_by, created_at, ext_jsonb} with RLS tenant_isolation and UNIQUE(org_id, code).\n2. Server Action `createTestTemplate(input)` validates uniqueness + non-empty parameters.\n3. List page reads listTestTemplates(filters); columns Code | Label | Param count | Created by | Updated.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54` (qa_templates) and `quality/modals.jsx:209-245` (template_create_modal).\n\n## Prototype parity\nCanonical prototype: `prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54` (label `qa_templates`).\nCloseout must demonstrate structural, visual, and interaction parity vs this anchor per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (RTL snapshot + parity checklist + screenshots; Playwright trace where applicable).\n\n## Files\n- packages/db/migrations/0122_quality_test_templates.sql [create]\n- apps/web/src/app/quality/templates/page.tsx [create]\n- apps/web/src/server/quality/templates.ts [create]\n- apps/web/src/components/quality/templates/TemplateCreateModal.tsx [create]\n- apps/web/src/components/quality/templates/__tests__/templates.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/other-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54, then it has parity with the prototype on structure (filter input + Add Template button + 5-col Table Code/Label/ParamCount/CreatedBy/Updated), visuals (shadcn Table/Input/Button only), and interaction (row click → template detail (P2 stub), Add Template opens TemplateCreateModal) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:209-245, then it has parity on structure (header + code + label + parameters JSONB Editor + Cancel/Create footer), visuals (shadcn Dialog/Form/Input/Textarea/Button), and interaction (Create disabled until code length>=3 and parameters non-empty) — verified by RTL plus parity checklist\n3. Given a duplicate code submitted, when createTestTemplate runs, then it rejects with V-QA-TEMPLATE-DUP and writes nothing",
+  "labels": [
+    "prd",
+    "ui",
+    "qa-templates",
+    "T3-ui"
+  ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,9 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-034",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§8.5"],
+    "prd_refs": [
+      "§8.5"
+    ],
     "category": "ui",
     "subcategory": "qa-templates",
     "task_type": "T3-ui",
@@ -33,7 +40,11 @@
       "Do not implement template-to-spec materialization (out of scope)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-031", "T-032", "T-033"],
+    "parallel_safe_with": [
+      "T-031",
+      "T-032",
+      "T-033"
+    ],
     "acceptance_criteria": [
       "Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/other-screens.jsx:3-54, then it has parity on structure (filter input + Add Template button + 5-col Table Code/Label/ParamCount/CreatedBy/Updated), visuals (shadcn primitives only), and interaction (row click stub-routes, Add Template opens TemplateCreateModal) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:209-245, then it has parity on structure (header + code + label + parameters editor + Cancel/Create footer), visuals (shadcn Dialog/Form/Input/Textarea/Button), and interaction (Create disabled until code length>=3 and parameters non-empty) — verified by RTL plus parity checklist",
@@ -47,16 +58,32 @@
       "Do not allow duplicate code per tenant",
       "Do not skip RLS on quality_test_templates"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "qa_templates"
   }
 }

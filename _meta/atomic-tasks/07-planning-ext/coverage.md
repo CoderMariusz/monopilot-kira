@@ -78,3 +78,70 @@ All labels have concrete JSX file paths and line ranges in `prototypes/design/Mo
 - JSON parse / label count script over `_meta/prototype-labels/prototype-index-planning-ext.json` and `_meta/prototype-labels/master-index.json`
 
 No unresolved gap rows remain in this coverage file.
+
+## Coverage rows (gold-standard re-author 2026-05-14)
+
+| Task | Sub-module | task_type | PRD §refs | Title |
+|---|---|---|---|---|
+| T-001 | schema-scheduler | T1-schema | §9.1, §9.2, §5.1.1, §5.4.4, OQ-EXT-09 | T-001 — scheduler_runs table + RLS + indexes |
+| T-002 | schema-scheduler | T1-schema | §9.3, §15.4 | T-002 — scheduler_assignments table + RLS + indexes |
+| T-003 | schema-matrix | T1-schema | §9.4, §6 D5 | T-003 — changeover_matrix + changeover_matrix_versions tables |
+| T-004 | schema-forecast | T1-schema | §9.5, §4.1.4, §4.2 | T-004 — demand_forecasts table + RLS + supersession index |
+| T-005 | schema-forecast | T1-schema | §9.6, §11.2 | T-005 — forecast_actuals table + RLS |
+| T-006 | schema-scenarios | T1-schema | §9.7, §17.1 PLE-008 | T-006 — scheduler_scenarios table (P2 what-if) |
+| T-007 | schema-matrix | T1-schema | §17.1 PLE-010, §16.2 OQ-EXT-04 | T-007 — matrix_review_request table (PLE-010) |
+| T-008 | schema-config | T1-schema | §17.1 PLE-005, §17.3 | T-008 — scheduler_config table (PLE-005) |
+| T-009 | schema-matrix | T1-schema | §17.1 PLE-012, §17.3 | T-009 — changeover_matrix_drafts staging table (PLE-012) |
+| T-010 | seed-matrix | T5-seed | §4.1.3, §7.2 FR-07-E2-001, §15.3 | T-010 — seed default changeover_matrix (14 EU + Mustard + NONE) |
+| T-011 | seed-reference | T5-seed | §8.2 | T-011 — seed override_reason_codes reference table |
+| T-012 | endpoint-post | T2-api | §8.2, §5.1.1, §7.1 | T-012 — POST /api/scheduler/run endpoint + queue dispatch |
+| T-013 | endpoint-get | T2-api | §8.2, §8.3 | T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints |
+| T-014 | endpoint-post | T2-api | §8.2, §9.3, §15.4 V-SCHED-07 | T-014 — POST /api/scheduler/assignments/:id/approve |
+| T-015 | endpoint-post | T2-api | §8.2, §9.3, §15.4 V-SCHED-02, V-SCHED-03, V-SCHED-04, V-SCHED-08 | T-015 — POST /api/scheduler/assignments/:id/override |
+| T-016 | endpoint-post | T2-api | §8.2, §9.3 | T-016 — POST /api/scheduler/assignments/:id/reject |
+| T-017 | endpoint-post | T2-api | §16.2 OQ-EXT-06, §17.1 PLE-004 | T-017 — POST /api/scheduler/assignments/bulk_approve |
+| T-018 | endpoint-mixed | T2-api | §8.2, §7.2 FR-07-E2-002 | T-018 — GET/POST /api/scheduler/changeover-matrix endpoints |
+| T-019 | endpoint-post | T2-api | §8.2, §7.3, §8.3 | T-019 — POST /api/scheduler/forecasts/upload (manual CSV) |
+| T-020 | endpoint-get | T2-api | §8.2 | T-020 — GET /api/scheduler/forecasts (filter + pagination) |
+| T-021 | service-scaffold | T2-api | §1.4, §5.1.1, §5.4.1, §13.1 | T-021 — Python solver microservice scaffold (FastAPI) |
+| T-022 | algorithm-greedy | T2-api | §6 D1, §10.1, §7.1 FR-07-E1-002 | T-022 — Greedy assignment algorithm in solver service |
+| T-023 | algorithm-local-search | T2-api | §6 D1, §10.1 | T-023 — Local search refinement (swap pairs, move between lines) |
+| T-024 | idempotency | T2-api | §5.1.2 R14, §8.2 | T-024 — Idempotency: UUID v7 + 1h cache for scheduler_runs |
+| T-025 | dsl-rule | T1-schema | §10.1, §6 D2 | T-025 — DSL rule finite_capacity_solver_v1 registered in 02-SETTINGS |
+| T-026 | dsl-rule | T1-schema | §10.2, §6 D2, Appendix B | T-026 — DSL rule allergen_sequencing_optimizer_v2 registered in 02-SETTINGS |
+| T-027 | dsl-rule | T1-schema | §10.3, §15.4 V-SCHED-10, Appendix B | T-027 — DSL rule disposition_bridge_v1 registered (P2 standby) |
+| T-028 | outbox-emitter | T2-api | §9.8, §5.1.3 | T-028 — Outbox emitters: scheduler.run.completed + assignment.approved |
+| T-029 | outbox-emitter | T2-api | §9.8, §17.1 PLE-013, §17.1 PLE-004 | T-029 — Outbox emitters: matrix.version.published + assignment.overridden + bulk_approved |
+| T-030 | screen-gantt | T3-ui | §8.1 SCR-07-01, §4.1.5, §16.2 OQ-EXT-05 | T-030 — SCR-07-01 Scheduler Dashboard Gantt (read-only) |
+| T-031 | panel-side | T3-ui | §8.1 SCR-07-01, §3.4 | T-031 — Assignment Side Panel (open on Gantt block click) |
+| T-032 | modal-run | T3-ui | §4.1.6, §8.1 | T-032 — MODAL-07-01 Run Scheduler modal (run_scheduler_modal) |
+| T-033 | modal-override | T3-ui | §8.2, §15.4 V-SCHED-02/03/04/08 | T-033 — Override Assignment Modal (override_assignment_modal) |
+| T-034 | modal-reschedule | T3-ui | §8.1 SCR-07-01 | T-034 — Reschedule WO Modal (reschedule_wo_modal) |
+| T-035 | modal-bulk-approve | T3-ui | §8.1, §16.2 OQ-EXT-06 | T-035 — Approve All modal (approve_all_modal) |
+| T-036 | screen-matrix-editor | T3-ui | §8.1 SCR-07-02, §6 D5 | T-036 — SCR-07-02 Changeover Matrix Editor (heatmap + tabs) |
+| T-037 | modal-cell-edit | T3-ui | §8.1 SCR-07-02, §17.1 PLE-013, V-CM-04 | T-037 — Matrix Cell Edit Modal (matrix_cell_edit_modal) |
+| T-038 | modal-publish | T3-ui | §17.1 PLE-013, §8.1 SCR-07-02 | T-038 — Matrix Publish Modal (matrix_publish_modal) |
+| T-039 | modal-import | T3-ui | §17.1 PLE-012, V-CM-01, V-CM-02, V-CM-03, V-CM-04 | T-039 — Matrix CSV Import Modal (matrix_import_modal) — 3-stage state machine |
+| T-040 | modal-diff | T3-ui | §17.1 PLE-011 | T-040 — Matrix Diff Modal (matrix_diff_modal) — cross-version compare |
+| T-041 | modal-review-request | T3-ui | §17.1 PLE-010, §16.2 OQ-EXT-04 | T-041 — Request Review Modal (request_review_modal) — PLE-010 |
+| T-042 | forecast-screen | T3-ui | §8.1 SCR-07-03, §17.1 PLE forecast coverage, §15.4 V-SCHED-09 | T-042 — Forecast Upload screen and manual forecast management UI |
+| T-043 | run-history-index | T3-ui | §8.1 SCR-07-04, §17.1 PLE-001, §18 matrix | T-043 — Scheduler Run History index UI |
+| T-044 | run-detail | T3-ui | §17.1 PLE-002, §9.2, §9.3 | T-044 — Scheduler Run Detail page |
+| T-045 | rerun-modal | T3-ui | §17.1 PLE-009, §16.2 OQ-EXT-09, R14 | T-045 — Re-run Confirmation Modal |
+| T-046 | capacity-projection | T3-ui | §17.1 PLE-003, §11.1, §15.4 V-SCHED-04 | T-046 — Capacity Projection screen |
+| T-047 | pending-assignment-queue | T3-ui | §17.1 PLE-004, §8.1 Zone D, §16.2 OQ-EXT-06 | T-047 — Pending Assignment Queue full page |
+| T-048 | scheduler-settings | T3-ui | §17.1 PLE-005, Appendix B feature flags | T-048 — Scheduler Settings screen |
+| T-049 | rule-viewer | T3-ui | §17.1 PLE-006, §10 business rules | T-049 — Scheduler Rule Registry viewer |
+| T-050 | sequencing-v2-overlay | T3-ui | §17.1 PLE-007, §10.2, §16.2 OQ-EXT-09 | T-050 — Sequencing v2 preview and commit overlay |
+| T-051 | disable-v2-modal | T3-ui | §17.1 PLE-013, §10.2 fallback | T-051 — Disable Optimizer v2 Modal |
+| T-052 | what-if-simulation | T3-ui | §8.1 SCR-07-05, §17.1 PLE-008, §9.7 | T-052 — What-If Simulation screen (P2 gated) |
+| T-053 | disposition-bridge | T4-wiring-test | §7.4 Epic E4, §10.3, §17.1 PLE disposition, §15.4 V-SCHED-10 | T-053 — Disposition Bridge P2 backend and decision modal |
+| T-054 | prophet-forecaster | T2-api | §7.3 Epic E3, §4.2 P2, §9.5-§9.6, §15.3 | T-054 — Prophet forecaster microservice and forecast actuals jobs (P2) |
+| T-055 | factory-release-input-guard | T2-api | §5.5 input data, §15 dependencies, Wave0 factory release decisions | T-055 — Factory release and D365 posture guard for scheduler inputs |
+| T-056 | scheduler-e2e-prototype-coverage | T4-wiring-test | §13.1 P1 checklist, §18 UI matrix, prototype-index-planning-ext.json | T-056 — Scheduler end-to-end flow and prototype label marker tests |
+| T-057 | readiness-closeout | docs | coverage.md, manifest.json, _validate.py | T-057 — 07-EXT ACP/readiness closeout report task |
+## Permission-enum addition 2026-05-14
+
+| PRD/review ref | Task file | Sub-module | Type | Status | Notes |
+|---|---|---|---|---|---|
+| §3.1, §3.2 (RBAC enum delta — closes _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md GAP) | tasks/T-058.json | 07-PLANNING-EXT RBAC enum addition | T1-schema | added | 11 `scheduler.*` strings appended to packages/rbac/src/permissions.enum.ts + ALL_<MODULE>_PERMISSIONS export |

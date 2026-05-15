@@ -33,7 +33,7 @@ Target: 95%+ docs/meta/prototype/task readiness for ACP import and autonomous im
 | §5.2..§5.3 | Suppliers and supplier_products schema | `suppliers.jsx` labels | T-041, T-042, T-043, T-044 | tasked |
 | §5.4 | purchase_orders + po_lines schema | PO list/detail/modals | T-002, T-009..T-013, T-035..T-040, T-059 | tasked |
 | §5.5 | transfer_orders + to_lines + to_line_lps schema | TO list/detail/modals | T-003, T-014..T-016, T-046..T-049, T-060 | tasked |
-| §5.6..§5.11 | work_orders, materials, operations, outputs, dependencies, reservations, status history | WO list/detail/gantt/cascade/reservations/sequencing | T-004..T-006, T-017..T-026, T-050..T-057, T-062..T-064 | tasked |
+| §5.6..§5.11 | work_orders, materials, operations, schedule_outputs (planning projection), dependencies, reservations, status history | WO list/detail/gantt/cascade/reservations/sequencing | T-004..T-006, T-017..T-026, T-050..T-057, T-062..T-064 | tasked |
 | §5.12, §14 | planning_settings and status/field visibility/D365 config | `plan_settings` | T-006, T-028, T-029, T-058, T-065 | tasked |
 | §6.1 | Supplier master CRUD | `plan_supplier_list`, `plan_supplier_detail`, `supplier_form_modal`, `deactivate_supplier_modal` | T-041, T-042, T-043, T-044 | tasked |
 | §6.2..§6.4 | PO fast flow, line defaults, approvals, warehouse handoff | `po_fast_flow_wizard`, `add_po_line_modal`, `po_approval_modal`, `po_bulk_import_modal` | T-010..T-013, T-035..T-040, T-059 | tasked |
@@ -92,8 +92,21 @@ Target: 95%+ docs/meta/prototype/task readiness for ACP import and autonomous im
 | PLN-040..042 | supplier list/detail/form/sub-table | T-043, T-044 | Screenshot + Playwright trace | tasked |
 | PLN-044..051 | composed/inline/P2 diagnostics | T-045, T-050..T-058, T-064, T-065 | Screenshot + Playwright trace where P1 | tasked/deferred per PRD |
 
+## Canonical wo_outputs ownership (2026-05-14 decision)
+
+- 08-PRODUCTION T-003 is the canonical owner of `wo_outputs` (production-runtime shape: batch_number, qa_status, V-PROD-24, catch_weight_details, allergen cascade, R13 audit).
+- 04-PLANNING-BASIC T-005 creates `schedule_outputs` (planning-time projection: planned_wo_id, output_role, expected_qty, allocation_pct, disposition, downstream_wo_id) and never `wo_outputs`.
+- Materialization contract: on WO start, 08-production projects each `schedule_outputs` row into the canonical `wo_outputs` table, adding production-only columns.
+- All planning-side primary/co-product/byproduct creation paths (T-018 WO create, T-019 cascade) write to `schedule_outputs`. Any references to "wo_outputs" in planning tasks (T-004 out_of_scope note, T-022 LP carryover note) point at the canonical 08-production table that has already been materialized.
+- See `_meta/audits/2026-05-14-fixer-F5-wo-outputs-and-quality-gate.md` for the full reconciliation log.
+
 ## Notes
 
 - `tasked` means ACP-ready future implementation coverage exists; this hardening did not implement application code.
 - Spec-driven UI tasks T-064/T-065 intentionally set `prototype_match=false`; they are accepted because PRD/UX define them as inline/composed surfaces and they still require screenshots and traces.
 - Remaining non-P1 / P2 diagnostics (for example true finite-capacity optimizer, react-flow DAG production graph, ScannerQueuePreview diagnostic) are explicitly deferred in PRD and do not block 95% Planning Basic readiness.
+## Permission-enum addition 2026-05-14
+
+| PRD/review ref | Task file | Sub-module | Type | Status | Notes |
+|---|---|---|---|---|---|
+| §3 (RBAC enum delta — closes _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md GAP) | tasks/T-066.json | 04-PLANNING-BASIC RBAC enum addition | T1-schema | added | 15 `planning.*` strings appended to packages/rbac/src/permissions.enum.ts + ALL_<MODULE>_PERMISSIONS export |

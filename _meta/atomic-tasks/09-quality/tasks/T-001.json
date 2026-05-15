@@ -9,7 +9,7 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-001",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§6.3", "§16.3", "§14.1"],
+    "prd_refs": ["§6.3", "§16.3", "§14.1", "§5.1"],
     "category": "data",
     "subcategory": "reference-tables",
     "task_type": "T1-schema",
@@ -17,7 +17,7 @@
     "context_budget": "30k",
     "estimated_effort": "1h",
     "description": "Register quality_hold_reasons reference table + seed 8 baseline rows + server helper for hold reason options.",
-    "details": "Migration 0090 inserts the reference_tables registry entry with schema_json {code,label,category,default_hold_duration_days,default_priority,i18n} and seeds 8 rows. TypeScript helper getHoldReasonOptions queries reference_tables_rows under tenant RLS. Test asserts row count, ordering, and JSON-schema validation rejection for missing fields.",
+    "details": "Migration 0090 inserts the reference_tables registry entry with schema_json {code,label,category,default_hold_duration_days,default_priority,i18n} and seeds 8 rows. TypeScript helper getHoldReasonOptions queries reference_tables_rows under tenant RLS. Test asserts row count, ordering, and JSON-schema validation rejection for missing fields. PRD anchor verification (gold-standard pass 2026-05-14): §16.3 'Cross-PRD consistency impact' (line 1824) explicitly lists `quality_hold_reasons` among the reference tables migrated from hardcoded as part of the 02-SETTINGS v3.0 §8 additions; §6.3 `quality_holds.reason_code_id` is the consumer FK; §5.1 BRCGS Issue 10 + 21 CFR Part 11 + EU FIC drives the audit/retention shape; §14.1 locale coverage (pl/en/uk/ro) drives the i18n column.",
     "scope_files": [
       "packages/db/migrations/0090_quality_hold_reasons_reftable.sql [create]",
       "apps/web/src/server/quality/holdReasons.ts [create]",

@@ -29,7 +29,8 @@
     "test_strategy": [
       "RED: targeted tests for org-scoped list, resend Pending/Expired, revoke Pending, Accepted immutable, and typed blockers.",
       "GREEN: implement lifecycle helpers/actions against existing auth/db/audit/outbox primitives.",
-      "Run targeted auth/db tests plus typecheck/lint for changed packages."
+      "Run targeted auth/db tests plus typecheck/lint for changed packages.",
+      "Run `pnpm --filter @monopilot/web vitest run Exact files discovered before editing`."
     ],
     "risk_red_lines": [
       "Do not duplicate invite creation semantics outside T-017.",
@@ -75,6 +76,17 @@
     "prd_task_id": "T-124",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "context_budget": "40k",
-    "estimated_effort": "2-4h"
+    "estimated_effort": "2-4h",
+    "out_of_scope": [
+      "broaden scope beyond invitation lifecycle (sign-up flows, password reset, MFA enrollment)",
+      "mutate auth.users or roles_catalog enum strings",
+      "implement future-phase bulk-invite (CSV) wizard"
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

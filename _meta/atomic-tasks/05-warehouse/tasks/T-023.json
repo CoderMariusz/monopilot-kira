@@ -1,13 +1,14 @@
 {
-  "title": "T-023 — GS1-128 barcode parser service",
-  "prompt": "# T-023 — GS1-128 barcode parser service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §7.4 (FR-WH-009), §15.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`parseGs1Barcode(input)` shared service handling Application Identifiers (01) GTIN, (10) Lot, (17) Expiry, (11) Manufacture, (37) Count, (310x) Net Weight, (21) Serial.\n\n## Implementation contract\n`packages/barcode-parser/src/gs1-parser.ts`. Support FNC1-separated and parentheses-format. Return typed object {gtin?, lot?, expiry?, manufactureDate?, count?, netWeightKg?, serial?} plus `parseErrors[]` and `raw`. SLO <100ms.\n\n## Files (scope)\n- packages/barcode-parser/src/gs1-parser.ts [create]\n- packages/barcode-parser/src/__tests__/gs1-parser.test.ts [create]\n- packages/barcode-parser/package.json [create]\n\n## Acceptance criteria\n1. Given parentheses input '(01)05012345678900(10)B-2026-04-15(17)260501', when parsed, then gtin='05012345678900', lot='B-2026-04-15', expiry=2026-05-01.\n2. Given FNC1-separated input with same AIs, when parsed, then the same object is returned.\n3. Given (3103)001840 (kg with 3 decimals), when parsed, then netWeightKg equals 1.840.\n4. Given malformed input '(99)abc', when parsed, then a parseError row is returned and known fields stay undefined.\n\n## Test strategy\n- RED: gs1-parser.test.ts covers four scenarios above plus performance assertion <100ms median.\n- Run `pnpm --filter barcode-parser test`.\n\n## Risk red lines\n- Do not throw on unknown AI — collect into parseErrors.\n- Do not import warehouse code from this package.\n- Do not depend on Next.js APIs.",
+  "title": "T-023 — GS1-128 barcode parser service (WH §7.4, §15.2)",
+  "prompt": "# T-023 — GS1-128 barcode parser service (WH §7.4, §15.2)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §7.4, §15.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement shared `barcode-parser-service.ts` extracting AIs from GS1-128 / FNC1 / parentheses-format barcodes: (01) GTIN-14, (10) lot, (17) expiry YYMMDD, (11) production date YYMMDD, (37) count, (310x) net weight kg. <100 ms P95. Falls back to manual on parse error.\n\n## Implementation contract\n1. `packages/barcode/src/gs1-128-parser.ts`: exported `parseGs1128(input: string): ParsedGs1Result` returning `{ais: {gtin?, lot?, expiry?, manufactureDate?, count?, netWeightKg?}, raw: string, format: 'fnc1'|'parens'|'unknown', errors: string[]}`.\n2. Supports both FNC1 (`\\u001d`-separated) and parentheses (`(01)0123...(10)BATCH`) formats.\n3. (17) and (11) parsed as YYMMDD → ISO date (1990-2089 window).\n4. (310x) decimal indicator digit drives decimal placement.\n5. Errors collected (not thrown) so the wrapper service can audit-log parse failures.\n\n## Files\n- packages/barcode-parser/src/gs1-parser.ts [create]\n- packages/barcode-parser/src/__tests__/gs1-parser.test.ts [create]\n- packages/barcode-parser/package.json [create]\n\n## Acceptance criteria\n1. Given input `'(01)09506000123450(10)ABC123(17)260815'`, when parsed, then `{gtin:'09506000123450', lot:'ABC123', expiry:'2026-08-15'}`.\n2. Given an FNC1 input with `\\u001d` separators, when parsed, then the same AIs are extracted.\n3. Given input `'(310x)123456'` with x=3, when parsed, then `netWeightKg=123.456`.\n4. Given malformed input, when parsed, then `errors[]` is non-empty and ais are partial-or-empty, never throwing.\n\n## Test strategy\n- RED: `packages/barcode/src/__tests__/gs1-128-parser.test.ts` covering FNC1, parens, malformed, decimal-indicator, leap-year boundary.\n- Run `pnpm --filter barcode test gs1-128-parser`.\n\n## Risk red lines\n- Do not throw on parse errors — collect into `errors[]`.\n- Do not hardcode decimal places for (310x) — read indicator digit.\n- Do not skip the 1990-2089 century-rollover window for YYMMDD.",
   "labels": [
     "prd",
-    "api",
+    "service",
     "barcode",
-    "T2-api"
+    "gs1",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +22,11 @@
     "category": "api",
     "subcategory": "barcode",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-grn",
+    "parent_feature": "05-warehouse-b",
     "context_budget": "25k",
     "estimated_effort": "1-2h",
-    "description": "Shared GS1-128 parser for warehouse + scanner modules.",
-    "details": "Pure package, framework-free. Handles FNC1 + parentheses. Returns typed object plus parseErrors. <100ms median.",
+    "description": "Implement shared `barcode-parser-service.ts` extracting AIs from GS1-128 / FNC1 / parentheses-format barcodes: (01) GTIN-14, (10) lot, (17) expiry YYMMDD, (11) production date YYMMDD, (37) count, (310x) net weight kg. <100 ms P95. Falls back to manual on parse error.",
+    "details": "Implement shared `barcode-parser-service.ts` extracting AIs from GS1-128 / FNC1 / parentheses-format barcodes: (01) GTIN-14, (10) lot, (17) expiry YYMMDD, (11) production date YYMMDD, (37) count, (310x) net weight kg. <100 ms P95. Falls back to manual on parse error. `packages/barcode/src/gs1-128-parser.ts`: exported `parseGs1128(input: string): ParsedGs1Result` returning `{ais: {gtin?, lot?, expiry?, manufactureDate?, count?, netWeightKg?}, raw: string, format: 'fnc1'|'parens'|'unknown', errors: string[]}`. Supports both FNC1 (`\\u001d`-separated) and parentheses (`(01)0123...(10)BATCH`) formats.",
     "scope_files": [
       "packages/barcode-parser/src/gs1-parser.ts [create]",
       "packages/barcode-parser/src/__tests__/gs1-parser.test.ts [create]",
@@ -43,23 +44,24 @@
       "T-024"
     ],
     "acceptance_criteria": [
-      "Given parentheses input '(01)05012345678900(10)B-2026-04-15(17)260501', when parsed, then gtin/lot/expiry equal the PRD example values",
-      "Given FNC1-separated input with same AIs, when parsed, then the same object is returned",
-      "Given (3103)001840 net weight, when parsed, then netWeightKg=1.840",
-      "Given malformed '(99)abc', when parsed, then a parseError row is returned and known fields stay undefined"
+      "Given input `'(01)09506000123450(10)ABC123(17)260815'`, when parsed, then `{gtin:'09506000123450', lot:'ABC123', expiry:'2026-08-15'}`.",
+      "Given an FNC1 input with `\\u001d` separators, when parsed, then the same AIs are extracted.",
+      "Given input `'(310x)123456'` with x=3, when parsed, then `netWeightKg=123.456`.",
+      "Given malformed input, when parsed, then `errors[]` is non-empty and ais are partial-or-empty, never throwing."
     ],
     "test_strategy": [
-      "RED: gs1-parser.test.ts covers four scenarios + median runtime <100ms",
-      "Run 'pnpm --filter barcode-parser test'"
+      "RED: `packages/barcode/src/__tests__/gs1-128-parser.test.ts` covering FNC1, parens, malformed, decimal-indicator, leap-year boundary.",
+      "Run `pnpm --filter barcode test gs1-128-parser`."
     ],
     "risk_red_lines": [
-      "Do not throw on unknown AI",
-      "Do not import warehouse-specific modules",
-      "Do not depend on Next.js APIs"
+      "Do not throw on parse errors — collect into `errors[]`.",
+      "Do not hardcode decimal places for (310x) — read indicator digit.",
+      "Do not skip the 1990-2089 century-rollover window for YYMMDD."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -85,7 +87,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -111,7 +113,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

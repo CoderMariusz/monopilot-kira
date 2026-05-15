@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1h",
     "description": "Create matrix_review_request table per OQ-EXT-04 with justification CHECK, partial unique on pending, RLS.",
-    "details": "Migration 0076 emits CREATE TABLE matrix_review_request per PLE-010 DDL. Partial unique index ensures only one pending request per (tenant, allergen pair, line). justification CHECK enforces business rule. Drizzle schema mirrors columns. RED test verifies CHECK rejection and partial unique semantics with NULL line_id.",
+    "details": "Migration 0076 emits CREATE TABLE matrix_review_request per PLE-010 DDL. Partial unique index ensures only one pending request per (tenant, allergen pair, line). justification CHECK enforces business rule. Drizzle schema mirrors columns. RED test verifies CHECK rejection and partial unique semantics with NULL line_id. RLS policies must explicitly reference the foundation `app.current_org_id()` function (Wave0 v4.3 lock; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Do not use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads.",
     "scope_files": [
       "packages/db/migrations/0076_matrix_review_request.sql [create]",
       "packages/db/src/schema/matrix_review_request.ts [create]",
@@ -50,13 +50,15 @@
       "Run 'pnpm --filter db migrate && pnpm --filter db test matrix-review-request'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
       "Do not relax justification length CHECK below 10",
       "Do not skip RLS",
       "Do not omit COALESCE(line_id, '') in partial unique index"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,6 +80,9 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-009"
+    ]
   }
 }

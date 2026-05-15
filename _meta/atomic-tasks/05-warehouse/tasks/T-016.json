@@ -1,13 +1,13 @@
 {
-  "title": "T-016 — LP create + numbering sequence service",
-  "prompt": "# T-016 — LP create + numbering sequence service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §6.3 (FR-WH-001).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide `createLicensePlate(input)` service that allocates the next LP number per (tenant, warehouse) sequence and inserts a row.\n\n## Implementation contract\nIn `apps/web/lib/services/warehouse/lp-create.ts` expose async function returning created LP. Use a Postgres sequence `lp_seq_{tenant_id}_{warehouse_id}` created lazily, formatted with `warehouse_settings.lp_number_prefix` + zero-padded `lp_number_sequence_length`. Allow manual override when `allow_manual_lp_number=true`. Insert audit fields. Emit nothing here (T-047 emits).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-create.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-create.test.ts [create]\n\n## Acceptance criteria\n1. Given two consecutive calls for tenant A / warehouse X, when service runs, then second LP_number is exactly first+1 padded to length.\n2. Given allow_manual_lp_number=true and operator passes 'LP-CUSTOM-1', when service runs, then row is created with lp_number='LP-CUSTOM-1'.\n3. Given the same custom number is reused, when service runs, then it raises a unique-violation error from V-WH-LP-001.\n\n## Test strategy\n- RED: lp-create.test.ts with two fixtures (auto sequence and manual override + duplicate).\n- Run `pnpm --filter web test lp-create`.\n\n## Risk red lines\n- Do not bypass the sequence (race condition).\n- Do not skip RLS (must run inside transaction with app.tenant_id set).\n- Do not emit outbox events here.",
+  "title": "T-016 — LP create + per-warehouse numbering service (WH §6.3)",
+  "prompt": "# T-016 — LP create + per-warehouse numbering service (WH §6.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `createLicensePlate` service that allocates `lp_number = settings.lp_number_prefix + zero-padded sequence` per (org_id, warehouse_id) via a Postgres sequence, with optional manual override gated by `allow_manual_lp_number`.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/lp-create.ts`: function `createLicensePlate(input, ctx)` returning created LP. Allocates `lp_number` via Postgres sequence `lp_number_seq_{org}_{warehouse}` (lazily created) and pads to `lp_number_sequence_length` (default 8).\n2. Manual override accepted only when `settings.allow_manual_lp_number=true`; uniqueness re-validated via `UNIQUE(org_id, warehouse_id, lp_number)`.\n3. Emits no outbox event directly — caller (GRN/output) emits via T-047 wiring.\n4. Returns typed Drizzle insert result.\n\n## Files\n- apps/web/lib/services/warehouse/lp-create.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-create.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh warehouse, when `createLicensePlate` is called 3 times, then `lp_number` values are 'LP00000001', 'LP00000002', 'LP00000003' (per settings).\n2. Given two warehouses in the same tenant, when each gets its first LP, then both are 'LP00000001' (per-warehouse sequence, not per-tenant).\n3. Given `allow_manual_lp_number=false`, when a manual `lp_number='CUSTOM-1'` is supplied, then the service rejects with a clear error.\n4. Given `allow_manual_lp_number=true` and a duplicate manual number, when supplied, then the DB unique constraint surfaces a 409-equivalent service error.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/lp-create.test.ts` asserting per-warehouse sequence isolation + manual override gating.\n- Run `pnpm --filter web test lp-create`.\n\n## Risk red lines\n- Do not use a single global sequence — per-warehouse is required.\n- Do not bypass `allow_manual_lp_number` gate.\n- Do not call outbox emit here — T-047 owns wiring.\n\n## Dependencies\n- T-002\n- T-009\n- T-012",
   "labels": [
     "prd",
-    "api",
+    "service",
     "lp-core",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-lp-core",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "createLicensePlate service allocating LP number via per-(tenant, warehouse) sequence.",
-    "details": "Lazy sequence creation; padded format from warehouse_settings; manual override path; unique-violation surfaced as 409. Audit columns set; outbox emission deferred to T-047.",
+    "description": "Implement `createLicensePlate` service that allocates `lp_number = settings.lp_number_prefix + zero-padded sequence` per (org_id, warehouse_id) via a Postgres sequence, with optional manual override gated by `allow_manual_lp_number`.",
+    "details": "Implement `createLicensePlate` service that allocates `lp_number = settings.lp_number_prefix + zero-padded sequence` per (org_id, warehouse_id) via a Postgres sequence, with optional manual override gated by `allow_manual_lp_number`. `apps/web/lib/services/warehouse/lp-create.ts`: function `createLicensePlate(input, ctx)` returning created LP. Allocates `lp_number` via Postgres sequence `lp_number_seq_{org}_{warehouse}` (lazily created) and pads to `lp_number_sequence_length` (default 8). Manual override accepted only when `settings.allow_manual_lp_number=true`; uniqueness re-validated via `UNIQUE(org_id, warehouse_id, lp_number)`. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`).",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-create.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/lp-create.test.ts [create]"
@@ -44,18 +44,21 @@
       "T-018"
     ],
     "acceptance_criteria": [
-      "Given two consecutive calls for tenant A warehouse X, when run, then second LP_number = first+1 padded to length",
-      "Given allow_manual_lp_number=true and 'LP-CUSTOM-1', when run, then row persists with that value",
-      "Given duplicate manual number, when run, then service raises a unique-violation error"
+      "Given a fresh warehouse, when `createLicensePlate` is called 3 times, then `lp_number` values are 'LP00000001', 'LP00000002', 'LP00000003' (per settings).",
+      "Given two warehouses in the same tenant, when each gets its first LP, then both are 'LP00000001' (per-warehouse sequence, not per-tenant).",
+      "Given `allow_manual_lp_number=false`, when a manual `lp_number='CUSTOM-1'` is supplied, then the service rejects with a clear error.",
+      "Given `allow_manual_lp_number=true` and a duplicate manual number, when supplied, then the DB unique constraint surfaces a 409-equivalent service error."
     ],
     "test_strategy": [
-      "RED: lp-create.test.ts covers auto-sequence and manual override + duplicate",
-      "Run 'pnpm --filter web test lp-create'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/lp-create.test.ts` asserting per-warehouse sequence isolation + manual override gating.",
+      "Run `pnpm --filter web test lp-create`."
     ],
     "risk_red_lines": [
-      "Do not bypass the sequence",
-      "Do not skip RLS context",
-      "Do not emit outbox here"
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
+      "Do not use a single global sequence — per-warehouse is required.",
+      "Do not bypass `allow_manual_lp_number` gate.",
+      "Do not call outbox emit here — T-047 owns wiring."
     ],
     "skills": [
       "test-driven-development",
@@ -85,7 +88,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -111,7 +114,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

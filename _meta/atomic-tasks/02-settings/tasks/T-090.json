@@ -42,10 +42,12 @@
       "Unknown is non-throwing."
     ],
     "test_strategy": [
-      "RED: write tests. GREEN: implement."
+      "RED: write tests. GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/lib/tenant/dept-resolver.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not silently swallow errors — return action='unknown' explicitly."
+      "Do not silently swallow errors — return action='unknown' explicitly.",
+      "Do not extend scope beyond listed files; CODEOWNERS review must remain narrowly attributable."
     ],
     "skills": [
       "test-driven-development"

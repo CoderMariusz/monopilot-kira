@@ -1,6 +1,6 @@
 {
   "title": "T-018 — API: WO create + BOM snapshot → wo_materials",
-  "prompt": "Implement Server Action `createWorkOrder(input)` per PRD §8.1 (FR-PLAN-017) + §8.2 (FR-PLAN-020). Steps:\n1. Auto-select active BOM (FR-PLAN-018) by query `bom WHERE product_id = wo.product_id AND effective_from <= scheduled_date AND (effective_to IS NULL OR effective_to > scheduled_date)` ORDER BY effective_from DESC LIMIT 1. User override allowed.\n2. Snapshot bom_items → wo_materials with required_qty = bom_item.qty * (wo.planned_quantity / bom.output_qty) * (1 + scrap_percent/100). Default material_source='stock'.\n3. Copy routing_operations → wo_operations (FR-PLAN-019).\n4. Create wo_outputs row with output_role='primary', allocation_pct=100% (cascade generation T-019 will adjust for co-products).\n5. Calls T-017 for numbering.\n6. Status='DRAFT'. Outbox event 'wo.created'.\n\nV-PLAN-WO-001 (planned_quantity > 0). V-PLAN-WO-002 enforced at release time, not create.\n\nRED test asserts BOM snapshot math, primary output insertion, immutable post-release rule.",
+  "prompt": "Implement Server Action `createWorkOrder(input)` per PRD §8.1 (FR-PLAN-017) + §8.2 (FR-PLAN-020). Steps:\n1. Auto-select active BOM (FR-PLAN-018) by query `bom WHERE product_id = wo.product_id AND effective_from <= scheduled_date AND (effective_to IS NULL OR effective_to > scheduled_date)` ORDER BY effective_from DESC LIMIT 1. User override allowed.\n2. Snapshot bom_items → wo_materials with required_qty = bom_item.qty * (wo.planned_quantity / bom.output_qty) * (1 + scrap_percent/100). Default material_source='stock'.\n3. Copy routing_operations → wo_operations (FR-PLAN-019).\n4. Create `schedule_outputs` row (planning-side projection per 2026-05-14 decision; canonical wo_outputs owned by 08-production T-003) with output_role='primary', allocation_pct=100% (cascade generation T-019 will adjust for co-products). On WO start, 08-production materializes schedule_outputs into the canonical wo_outputs.\n5. Calls T-017 for numbering.\n6. Status='DRAFT'. Outbox event 'wo.created'.\n\nV-PLAN-WO-001 (planned_quantity > 0). V-PLAN-WO-002 enforced at release time, not create.\n\nRED test asserts BOM snapshot math, primary output insertion, immutable post-release rule.",
   "labels": [
     "prd",
     "api",
@@ -46,7 +46,7 @@
     ],
     "acceptance_criteria": [
       "Given a BOM with output_qty=10 and a bom_item qty=2 + scrap_percent=5, when WO planned_quantity=20 is created, then wo_materials.required_qty = 2 * (20/10) * 1.05 = 4.20.",
-      "Given a WO post-create, when wo_outputs is queried, then exactly 1 row exists with output_role='primary' and allocation_pct=100.00.",
+      "Given a WO post-create, when schedule_outputs is queried, then exactly 1 row exists with output_role='primary' and allocation_pct=100.00 (canonical wo_outputs is 08-production T-003 and is populated at WO start, not at create).",
       "Given a WO at status='RELEASED', when an attempt to update wo_materials.required_qty is made, then the service refuses with HTTP 409 'WO_RELEASED_MATERIALS_IMMUTABLE'.",
       "Given `pnpm vitest run src/server/actions/planning/__tests__/wo-create.test.ts`, when run, then 0 failures."
     ],
@@ -57,7 +57,8 @@
     "risk_red_lines": [
       "Do not mutate wo_materials post-release — ADR-002 immutability is load-bearing.",
       "Do not skip BOM auto-select when bom_id is unspecified — must respect §8.1.",
-      "Do not create wo_outputs primary allocation_pct < 100 in non-cascade path."
+      "Do not create schedule_outputs primary allocation_pct < 100 in non-cascade path.",
+      "Do not write to canonical `wo_outputs` table (owned by 08-production T-003) — planning writes to `schedule_outputs` only; production materializes on WO start (2026-05-14 decision)."
     ],
     "skills": [
       "test-driven-development",

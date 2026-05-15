@@ -1,53 +1,111 @@
 {
-  "title": "T-100 — BOM tab and formulation version read models for NPD release traceability",
-  "prompt": "T-100 — BOM tab and formulation version read models for NPD release traceability\nImplement this Wave0 missing NPD backend/read-model task. Discover files first; no app code outside scope; D365 is not SSOT; Technical approval controls factory use.",
+  "title": "T-100 — Stage-Gate G4 Launched closeout + Trial/Pilot/Handoff/Packaging LEGACY successor mapping (NPD-f §17.11.6)",
+  "prompt": "# T-100 — Stage-Gate G4 Launched closeout + LEGACY successor mapping\n\nPRD: docs/prd/01-NPD-PRD.md §17.11.6 (LEGACY notes [BL-NPD-02]), §17.2 (Gate definitions), §17.6 (Gate advancement flow), §17.12 (Pipeline View Modes G4→Launched arrow)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/stage-gate-screens.jsx (pipeline kanban — Launched column)\n\n## Goal\nWhen an NPD project advances from G4 to `Launched`, formally close out the four legacy R&D stages (Trial, Pilot, Handoff, Packaging) by writing successor-anchor evidence rows that bind each legacy stage to its canonical successor location per the §17.11.6 migration map. This task closes the coverage.md note: \"§17.11.6 LEGACY (Trial/Pilot/Handoff/Packaging) is not deprecated. These stages return as part of NPD and must be represented in Stage-Gate flow coverage\" — currently no task creates the binding rows.\n\n## Migration map (§17.11.6, authoritative)\n\n| Legacy stage | Successor location bound on G4→Launched |\n|---|---|\n| Trial    | `product.shelf_life` set + allergens cascade recomputed for current `bom_header_id` |\n| Pilot    | First Production WO created against the released FG (08-PRODUCTION T-016..T-022 contract) recorded as `npd_project_pilot_wo_id` |\n| Handoff  | Stage-Gate G4 e-sign event (T-124 e-sign primitive) + initial shared BOM version (T-093) both present and approved-for-factory |\n| Packaging| Brief packaging cols C14–C19 frozen-copy snapshotted onto the released FG; MRP dept marked complete |\n\n## Implementation contract\n1. New DB migration `packages/db/migrations/00xx_npd_legacy_closeout.sql` adds table `npd_legacy_closeout`:\n   - `id uuid PK`, `org_id uuid NOT NULL` (RLS via `app.current_org_id()`), `npd_project_id uuid NOT NULL FK`, `fg_product_code text NOT NULL`, `closed_at timestamptz NOT NULL DEFAULT now()`, `closed_by uuid NOT NULL`, `release_event_id uuid NOT NULL FK -> outbox events`,\n   - `trial_shelf_life_set boolean`, `trial_allergens_cascade_recomputed_at timestamptz`,\n   - `pilot_wo_id uuid NULL FK -> production wo (soft FK; cross-module 08-PROD)`,\n   - `handoff_g4_esign_id uuid NOT NULL FK -> e_sign_events`, `handoff_bom_header_id uuid NOT NULL FK -> bom_headers`,\n   - `packaging_snapshot_jsonb jsonb NOT NULL`, `packaging_mrp_complete boolean NOT NULL`,\n   - UNIQUE(npd_project_id) — one closeout row per project; ENABLE+FORCE ROW LEVEL SECURITY; R13 audit cols.\n2. New Server Action `apps/web/app/(npd)/pipeline/_actions/close-out-legacy-stages.ts` invoked by the existing G4→Launched gate transition (T-058 advanceGate API):\n   - Reads project + FG release state (T-097), validates approved_for_factory, validates G4 e-sign exists, snapshots Brief C14–C19, writes one `npd_legacy_closeout` row in a single tx, emits `npd.project.legacy_stages_closed` outbox event with the four successor anchor IDs.\n   - On any precondition failure: returns typed error code (`TRIAL_SHELF_LIFE_MISSING` | `PILOT_WO_NOT_LINKED` | `HANDOFF_BOM_NOT_APPROVED` | `PACKAGING_MRP_INCOMPLETE`) and does NOT advance gate; gate transition rolls back.\n3. Pipeline UI (§17.12 kanban Launched column) shows a closeout-status pill on each Launched card with 4 sub-indicators (Trial / Pilot / Handoff / Packaging) reading from the `npd_legacy_closeout` row; missing successor anchors render as warning chip with the typed error code from step 2.\n\n## Files\n- packages/db/migrations/00xx_npd_legacy_closeout.sql [create]\n- packages/db/src/schema/npd-legacy-closeout.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/close-out-legacy-stages.ts [create]\n- apps/web/app/(npd)/pipeline/_actions/__tests__/close-out-legacy-stages.test.ts [create]\n- apps/web/app/(npd)/pipeline/_components/launched-card-closeout-pill.tsx [create]\n- apps/web/app/(npd)/pipeline/_components/__tests__/launched-card-closeout-pill.test.tsx [create]\n\n## Acceptance criteria\n1. Given an NPD project at G4 with approved-for-factory release state, valid G4 e-sign, linked Pilot WO id, frozen Brief C14-C19 snapshot and MRP=complete, when an authorized user advances the gate to Launched, then exactly one `npd_legacy_closeout` row is inserted with all four successor anchor IDs populated and the `npd.project.legacy_stages_closed` outbox event is emitted with those IDs per §17.11.6 migration map.\n2. Given a G4 project missing the Pilot WO link, when the user advances to Launched, then the Server Action returns typed error `PILOT_WO_NOT_LINKED`, the gate stays at G4, no `npd_legacy_closeout` row is written, and the Launched-column closeout pill renders the warning chip with the error code per §17.6 gate advancement flow.\n3. Given two simultaneous Launched transitions for the same project (race), when both attempts run, then exactly one row is created (UNIQUE(npd_project_id)) and the second attempt returns a typed `ALREADY_CLOSED` idempotent response.\n4. Given two orgs each have a project advancing to Launched, when both queries run under their own `app.current_org_id()` session, then each only sees its own closeout row (RLS verified).\n5. Given the prototype `npd/stage-gate-screens.jsx` Launched column card, when the implemented `launched-card-closeout-pill` is rendered, then it has the same 4 sub-indicator dots (Trial/Pilot/Handoff/Packaging) in the same order and colors as the prototype — verified by RTL snapshot + parity checklist per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED 1: vitest `apps/web/app/(npd)/pipeline/_actions/__tests__/close-out-legacy-stages.test.ts` asserts AC 1 (happy path), AC 2 (PILOT_WO_NOT_LINKED rollback), AC 3 (race idempotency), AC 4 (RLS isolation) — fails before Server Action exists.\n- RED 2: RTL test `launched-card-closeout-pill.test.tsx` snapshots the 4 sub-indicator dots vs prototype and asserts warning chip surfacing per error code (AC 5).\n- Run `pnpm --filter db migrate && pnpm --filter web test close-out-legacy-stages && pnpm --filter web test launched-card-closeout-pill`.\n- UI evidence: attach Playwright trace and screenshot per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Prototype parity\nReuse the existing pipeline Launched column from `prototypes/design/Monopilot Design System/npd/stage-gate-screens.jsx`; only the closeout pill is new. Do not redesign the column header, drag-handles, card layout, or status colors — match 1:1.\n\n## Risk red lines\n- Do not let `Built` (D365) or D365 export alone trigger this closeout — only the real G4→Launched gate advancement (§17.11.6 successor map plus T-097 release state must be `approved_for_factory` or stronger).\n- Do not in-place mutate Brief packaging cols — packaging closeout MUST be a frozen JSONB snapshot per §17.11.6 Packaging row (post-release mutation requires a new BOM/spec version + Technical approval).\n- Do not stamp the closeout row without a real G4 e-sign event id — the handoff anchor is e-sign, not a mock or self-attestation.\n- Do not allow the Server Action to backdate `closed_at` — clock is server-side `now()` only, R13 audit row records actor + reason.\n- Do not implement gate adjacency bypass: Launched is only reachable from G4 per §17.12 adjacency guard; reverse moves are admin-only via `revertGate`.\n",
   "labels": [
     "monopilot-kira",
     "01-npd",
-    "wave0-hardening"
+    "stage-gate-g4",
+    "legacy-closeout",
+    "schema-api-ui"
   ],
-  "priority": 80,
+  "priority": 70,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "description": "T-100 — BOM tab and formulation version read models for NPD release traceability",
-    "details": "T-100 — BOM tab and formulation version read models for NPD release traceability",
+    "prd_task_id": "T-100",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§17.11.6",
+      "§17.6",
+      "§17.12"
+    ],
+    "category": "integration",
+    "subcategory": "stage-gate-launched-legacy-closeout",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-f Stage-Gate Pipeline",
+    "context_budget": "70k",
+    "estimated_effort": "5-6h",
+    "description": "Schema + Server Action + Launched-card UI pill that binds each legacy R&D stage (Trial/Pilot/Handoff/Packaging) to its §17.11.6 successor anchor on G4→Launched gate transition, closing the coverage gap explicitly flagged in coverage.md and the original T-099 stub title.",
+    "details": "Per coverage.md: '§17.11.6 LEGACY (Trial/Pilot/Handoff/Packaging) is not deprecated. These stages return as part of NPD and must be represented in Stage-Gate flow coverage.' Currently no task creates the binding rows that prove each legacy stage's successor anchor exists at Launched. This task adds the canonical npd_legacy_closeout row written transactionally inside the existing G4→Launched gate Server Action, with a typed-error rollback path and a Launched-column UI pill surfacing the four sub-indicators. References shared BOM SSOT (T-092/T-093/T-096), factory release state (T-097), e-sign primitive (T-124 in 00-foundation), G4 gate advance (T-058), and 08-Production WO link (cross-module soft FK).",
     "scope_files": [
-      "Existing NPD/BOM files discovered before editing",
-      "Targeted tests created beside implementation"
+      "packages/db/migrations/00xx_npd_legacy_closeout.sql [create]",
+      "packages/db/src/schema/npd-legacy-closeout.ts [create]",
+      "apps/web/app/(npd)/pipeline/_actions/close-out-legacy-stages.ts [create]",
+      "apps/web/app/(npd)/pipeline/_actions/__tests__/close-out-legacy-stages.test.ts [create]",
+      "apps/web/app/(npd)/pipeline/_components/launched-card-closeout-pill.tsx [create]",
+      "apps/web/app/(npd)/pipeline/_components/__tests__/launched-card-closeout-pill.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Do not redesign the Stage-Gate kanban / table / split layouts (T-059/T-060/T-061)",
+      "Do not implement gate adjacency guard (T-058)",
+      "Do not modify factory release state model (T-097) or shared BOM SSOT schema (T-092)",
+      "Do not implement the Pilot WO creation flow itself (08-PRODUCTION T-016..T-022) — only the soft-FK linkage",
+      "Do not modify Brief packaging col schema (T-024..T-029) — only snapshot consumption"
+    ],
+    "dependencies": [
+      "T-058",
+      "T-093",
+      "T-095",
+      "T-096",
+      "T-097",
+      "T-098"
+    ],
+    "parallel_safe_with": [
+      "T-099"
+    ],
+    "cross_module_dependencies": [
+      "00-FOUNDATION:T-124 e-sign primitive (handoff anchor)",
+      "00-FOUNDATION:T-040 R13 audit_events",
+      "08-PRODUCTION: WO entity (Pilot WO soft FK, no hard reference required)"
     ],
     "acceptance_criteria": [
-      "Schema/read model supports required NPD evidence or traceability.",
-      "Gate/release readers expose typed blockers/status and are org-scoped.",
-      "D365 is not treated as source of truth.",
-      "Targeted tests and closeout evidence are provided."
+      "Given an NPD project at G4 with approved-for-factory release state, valid G4 e-sign, linked Pilot WO id, frozen Brief C14-C19 snapshot and MRP=complete, when an authorized user advances the gate to Launched, then exactly one npd_legacy_closeout row is inserted with all four successor anchor IDs populated and the npd.project.legacy_stages_closed outbox event is emitted with those IDs per §17.11.6",
+      "Given a G4 project missing the Pilot WO link, when the user advances to Launched, then the Server Action returns typed error PILOT_WO_NOT_LINKED, the gate stays at G4, no closeout row is written, and the Launched-column closeout pill renders the warning chip with the error code per §17.6",
+      "Given two simultaneous Launched transitions for the same project, when both attempts run, then exactly one row is created (UNIQUE(npd_project_id)) and the second returns typed ALREADY_CLOSED idempotent response; and given two orgs each advance their own projects, each only sees its own closeout row under app.current_org_id() (RLS verified)",
+      "Given the prototype `prototypes/design/Monopilot Design System/npd/stage-gate-screens.jsx:1-200` Launched column card, when the implemented launched-card-closeout-pill is rendered, then it has the same 4 sub-indicator dots (Trial/Pilot/Handoff/Packaging) in the same order and colors — verified by RTL snapshot + parity checklist per UI-PROTOTYPE-PARITY-POLICY.md"
     ],
     "test_strategy": [
-      "Run targeted tests"
+      "RED 1: vitest apps/web/app/(npd)/pipeline/_actions/__tests__/close-out-legacy-stages.test.ts asserts AC 1 (happy path) + AC 2 (typed error rollback) + AC 3 (race idempotency) + AC 4 (RLS isolation) before Server Action exists",
+      "RED 2: RTL test launched-card-closeout-pill.test.tsx snapshots 4 sub-indicator dots vs prototype and asserts warning chip surfacing per error code (AC 5)",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test close-out-legacy-stages && pnpm --filter web test launched-card-closeout-pill'",
+      "For UI parity, capture Playwright trace + screenshot per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md and attach paths in closeout"
     ],
     "risk_red_lines": [
-      "No D365 as SSOT",
-      "No mocked Technical final approval"
+      "Do not let Built (D365) or D365 export alone trigger this closeout — only real G4→Launched gate advancement with T-097 release state approved_for_factory or stronger",
+      "Do not in-place mutate Brief packaging cols — packaging closeout MUST be a frozen JSONB snapshot per §17.11.6 (post-release mutation requires new BOM/spec version + Technical approval)",
+      "Do not stamp the closeout row without a real G4 e-sign event id — handoff anchor is e-sign, not a mock or self-attestation",
+      "Do not allow the Server Action to backdate closed_at — clock is server-side now() only, R13 audit row records actor + reason",
+      "Do not implement gate adjacency bypass: Launched is only reachable from G4 per §17.12 adjacency guard; reverse moves are admin-only via revertGate"
     ],
     "skills": [
-      "repo-navigation",
-      "testing"
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "discover",
-        "test",
-        "closeout"
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
       ]
     },
-    "task_type": "T2-api",
-    "dependencies": [
-      "T-064",
-      "T-065",
-      "T-092",
-      "T-093",
-      "T-097"
-    ]
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "stage_gate_pipeline_kanban",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

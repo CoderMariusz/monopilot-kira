@@ -15,7 +15,7 @@
     "prd_task_id": "T-010",
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
-      "§4.1.3",
+      "§4.1 (was §4.1.3)",
       "§7.2 FR-07-E2-001",
       "§15.3"
     ],
@@ -26,7 +26,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-2h",
     "description": "Seed default 16x16 changeover_matrix (14 EU + Mustard + NONE) for Apex tenant; line_id NULL.",
-    "details": "Idempotent seed creates one matrix version row (active) + 256 changeover_matrix rows. Same-pair rows = 0 min; NONE pair = 5-15 min; allergen pairs = 30-60 min with cleaning + ATP. No per-line overrides seeded. Seed-runner registers script for `pnpm db seed`.",
+    "details": "Idempotent seed creates one matrix version row (active) + 256 changeover_matrix rows. Same-pair rows = 0 min; NONE pair = 5-15 min; allergen pairs = 30-60 min with cleaning + ATP. No per-line overrides seeded. Seed-runner registers script for `pnpm db seed`. PRD-anchor remediation: corrected §4.1.3 to nearest real heading (07-PLANNING-EXT-PRD has only §5.1 (Architecture), §5.4 (Performance), §4.1 (Phase 1 MVP) headings — no sub-numbered sub-headings exist).",
     "scope_files": [
       "packages/db/seeds/0001_changeover_matrix_default.ts [create]",
       "packages/db/src/seed-runner.ts [modify]",
@@ -56,7 +56,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,6 +79,9 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-011"
+    ]
   }
 }

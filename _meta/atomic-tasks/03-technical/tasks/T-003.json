@@ -1,6 +1,6 @@
 {
   "title": "T-003 — Migration: item_cost_history table",
-  "prompt": "Create Drizzle migration for `item_cost_history` per §5.3 and §11.1-11.2. Columns: id UUID PK, org_id NOT NULL, item_id FK items NOT NULL, cost_per_kg NUMERIC(10,4) NOT NULL, currency CHAR(3) NOT NULL DEFAULT 'PLN', effective_from DATE NOT NULL, effective_to DATE, source TEXT CHECK in ('manual','d365_sync','supplier_update','variance_roll'), created_by UUID FK users(id), created_at TIMESTAMPTZ DEFAULT now(). Index idx_item_cost_active(org_id,item_id,effective_from DESC). Enable RLS org_id-scoped. RED tests assert insert/RLS/index. Command: `pnpm vitest run tests/db/cost.migration.test.ts`.",
+  "prompt": "# T-003 — Migration: item_cost_history table\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §5.3, §11.1, §11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCost history table with effective dates, source attribution, RLS.\n\ncurrency stays CHAR(3) — ISO 4217 validated at API layer (V-TEC-52). source CHECK enforces the four allowed enum values. Do not back-fill items.cost_per_kg — that runs in T-021 (cost API).\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_item_cost_history.sql [create]\n- db/schema/cost-history.ts [create]\n- tests/db/cost.migration.test.ts [create]\n\n## Out of scope\n- Cost API endpoints\n- UI\n\n## Acceptance criteria\n1. Given migration applied, when describing item_cost_history, then all 9 columns and CHECK on source exist.\n2. Given two cost rows for same item, when querying with idx_item_cost_active, then ordering is effective_from DESC.\n3. Given RLS enabled, when no org context, then SELECT returns 0 rows.\n\n## Test strategy\n- RED test: insert two rows for same item across orgs and assert isolation under RLS.\n- Run: pnpm vitest run tests/db/cost.migration.test.ts\n\n## Risk red lines\n- Do not duplicate cost_per_kg field — it stays denormalized on items.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "data",
@@ -56,7 +56,11 @@
       "Run: pnpm vitest run tests/db/cost.migration.test.ts"
     ],
     "risk_red_lines": [
-      "Do not duplicate cost_per_kg field — it stays denormalized on items."
+      "Do not duplicate cost_per_kg field — it stays denormalized on items.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

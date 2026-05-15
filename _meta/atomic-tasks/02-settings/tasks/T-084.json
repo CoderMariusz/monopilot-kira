@@ -46,10 +46,13 @@
       "Concurrent edit detected."
     ],
     "test_strategy": [
-      "RED: write spec. GREEN: ensure UI + Zod regen wired."
+      "RED: write spec. GREEN: ensure UI + Zod regen wired.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/schema-wizard.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/schema-wizard.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not modify L1 schema in this test path."
+      "Do not modify L1 schema in this test path.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

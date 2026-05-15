@@ -36,7 +36,9 @@
     "out_of_scope": [
       "Do not implement PO receive UI here (T-031)",
       "Do not implement supervisor over-receipt override",
-      "Do not implement label printing"
+      "Do not implement label printing",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-013",
@@ -54,16 +56,20 @@
     ],
     "test_strategy": [
       "RED: write scn-030-receive-to.test.tsx asserting parity + partial accept + out-of-list error before implementation",
-      "Run 'pnpm --filter scanner test scn-030-receive-to'"
+      "Run 'pnpm --filter scanner test scn-030-receive-to'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not call API for out-of-list scan",
       "Do not navigate to done before all commits",
-      "Do not omit un-scanned warning"
+      "Do not omit un-scanned warning",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -89,6 +95,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "to_scan_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [

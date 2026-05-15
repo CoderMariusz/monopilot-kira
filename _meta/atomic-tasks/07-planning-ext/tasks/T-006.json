@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "0.5-1h",
     "description": "Create scheduler_scenarios table for P2 what-if simulations with RLS and FK to baseline scheduler_runs.",
-    "details": "Migration 0075 emits CREATE TABLE scheduler_scenarios per §9.7 DDL. scenario_params JSONB and result_summary JSONB hold scenario inputs/outputs. RLS + tenant policy. Drizzle schema with proper UUID/JSONB/TIMESTAMPTZ types. RED test verifies FK + RLS.",
+    "details": "Migration 0075 emits CREATE TABLE scheduler_scenarios per §9.7 DDL. scenario_params JSONB and result_summary JSONB hold scenario inputs/outputs. RLS + tenant policy. Drizzle schema with proper UUID/JSONB/TIMESTAMPTZ types. RED test verifies FK + RLS. RLS policies must explicitly reference the foundation `app.current_org_id()` function (Wave0 v4.3 lock; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Do not use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads.",
     "scope_files": [
       "packages/db/migrations/0075_scheduler_scenarios.sql [create]",
       "packages/db/src/schema/scheduler_scenarios.ts [create]",
@@ -50,13 +50,15 @@
       "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-scenarios'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
       "Do not couple this table to scheduler_assignments",
       "Do not skip RLS",
       "Do not enforce scenario_params shape at DB layer"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,6 +80,9 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-002"
+    ]
   }
 }

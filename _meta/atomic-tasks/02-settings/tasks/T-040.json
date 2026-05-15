@@ -44,10 +44,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/lib/cascade/manufacturing-ops-lookup.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not silently substitute without logging."
+      "Do not silently substitute without logging.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

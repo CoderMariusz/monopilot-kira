@@ -1,13 +1,14 @@
 {
-  "title": "T-043 — ZPL label generation service + print endpoint",
-  "prompt": "# T-043 — ZPL label generation service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §15.1, §15.3, V-WH-LABEL-001/003/004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nGenerate a ZPL 4×6 label for an LP and POST it to the printer's TCP socket; expose `POST /api/warehouse/license-plates/:id/print-label`.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/zpl-renderer.ts` exposes `renderLpLabelZpl(lp, copies)`. `apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts` accepts {copies, printer_id?} and sends ZPL via TCP to printer.ip:9100. Validate copies in 1..10 (V-WH-LABEL-004). Validate GTIN-14 check digit (V-WH-LABEL-001). Verify printer online flag (V-WH-LABEL-003) — fail with 503 + retry hint when offline.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/zpl-renderer.ts [create]\n- apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts [create]\n- apps/web/lib/services/warehouse/__tests__/zpl-renderer.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP with batch and expiry, when renderLpLabelZpl runs, then output contains barcode (Code 128) of LP number and the expiry date.\n2. Given copies=11, when endpoint is hit, then 422 returns with V-WH-LABEL-004 reason.\n3. Given printer.online=false, when endpoint is hit, then 503 returns with retry hint and no TCP write occurs.\n4. Given GTIN check-digit invalid, when renderLpLabelZpl runs, then it raises V-WH-LABEL-001.\n\n## Test strategy\n- RED: zpl-renderer.test.ts covers content, copies bound, printer offline, GTIN check.\n- Run `pnpm --filter web test zpl-renderer`.\n\n## Risk red lines\n- Do not embed printer secrets in ZPL.\n- Do not skip GTIN validation.\n- Do not retry indefinitely on TCP failure.",
+  "title": "T-043 — ZPL label generation + print endpoint (WH §15.1, §15.3)",
+  "prompt": "# T-043 — ZPL label generation + print endpoint (WH §15.1, §15.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §15.1, §15.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement ZPL renderer for 4×6\" LP label (Code 128 + QR + product/qty/batch/expiry/location/date_code) and `POST /api/warehouse/license-plates/:id/print-label` sending ZPL to printer over TCP:9100 (configurable). Print-on-receipt option supported.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/zpl-renderer.ts`: function `renderLpLabelZpl({lp}): string` producing valid ZPL II per template (Code128 LP_number, QR LP URL, product code/name, qty+UoM+CW, batch+supplier_batch, expiry red ≤7d, location, date_code, operator).\n2. `apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts`: POST → render → send via printer-service-client (TCP socket to printer.ip:port from warehouse_settings printer config).\n3. Pre-check: printer online (last_heartbeat < 60 s) else queue or reject per V-WH-LABEL-003.\n4. Copies: settings.label_copies_default or per-call override (1-10 range V-WH-LABEL-004).\n\n## Files\n- apps/web/lib/services/warehouse/zpl-renderer.ts [create]\n- apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts [create]\n- apps/web/lib/services/warehouse/__tests__/zpl-renderer.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP with all fields, when `renderLpLabelZpl` runs, then output starts with `^XA` and ends with `^XZ`, contains a `^BCN` (Code128) with LP number, and a `^BQN` (QR) with the LP URL.\n2. Given expiry_date is within 7 days, when rendered, then a `^FR` red-text invert or marker is present.\n3. Given copies=15, when POST, then validation rejects (V-WH-LABEL-004).\n4. Given printer offline + queue=false, when POST, then 409 with `printer_offline=true`.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/zpl-renderer.test.ts` asserting ZPL syntax + AI presence + copies gate + offline path.\n- Run `pnpm --filter web test zpl-renderer`.\n\n## Risk red lines\n- Do not skip printer-online check (V-WH-LABEL-003).\n- Do not embed HTML or non-ZPL escape sequences.\n- Do not allow copies > 10.\n\n## Dependencies\n- T-002\n- T-009",
   "labels": [
     "prd",
-    "api",
+    "service",
     "labels",
-    "T2-api"
+    "zpl",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +22,11 @@
     "category": "api",
     "subcategory": "labels",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-labels",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "30k",
     "estimated_effort": "2h",
-    "description": "ZPL renderer + print endpoint with copies bound, GTIN check, printer-online guard.",
-    "details": "TCP socket send to printer.ip:9100; copies 1..10; offline printer 503; barcode includes LP number + QR LP URL.",
+    "description": "Implement ZPL renderer for 4×6\" LP label (Code 128 + QR + product/qty/batch/expiry/location/date_code) and `POST /api/warehouse/license-plates/:id/print-label` sending ZPL to printer over TCP:9100 (configurable). Print-on-receipt option supported.",
+    "details": "Implement ZPL renderer for 4×6\" LP label (Code 128 + QR + product/qty/batch/expiry/location/date_code) and `POST /api/warehouse/license-plates/:id/print-label` sending ZPL to printer over TCP:9100 (configurable). Print-on-receipt option supported. `apps/web/lib/services/warehouse/zpl-renderer.ts`: function `renderLpLabelZpl({lp}): string` producing valid ZPL II per template (Code128 LP_number, QR LP URL, product code/name, qty+UoM+CW, batch+supplier_batch, expiry red ≤7d, location, date_code, operator). `apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts`: POST → render → send via printer-service-client (TCP socket to printer.ip:port from warehouse_settings printer config).",
     "scope_files": [
       "apps/web/lib/services/warehouse/zpl-renderer.ts [create]",
       "apps/web/app/api/warehouse/license-plates/[id]/print-label/route.ts [create]",
@@ -46,19 +47,19 @@
       "T-046"
     ],
     "acceptance_criteria": [
-      "Given an LP with batch and expiry, when renderLpLabelZpl runs, then output contains a Code 128 barcode of LP number and the expiry date",
-      "Given copies=11, when endpoint is hit, then 422 returns with V-WH-LABEL-004 reason",
-      "Given printer.online=false, when endpoint is hit, then 503 returns with retry hint and no TCP write occurs",
-      "Given GTIN check-digit invalid, when renderLpLabelZpl runs, then V-WH-LABEL-001 raises"
+      "Given an LP with all fields, when `renderLpLabelZpl` runs, then output starts with `^XA` and ends with `^XZ`, contains a `^BCN` (Code128) with LP number, and a `^BQN` (QR) with the LP URL.",
+      "Given expiry_date is within 7 days, when rendered, then a `^FR` red-text invert or marker is present.",
+      "Given copies=15, when POST, then validation rejects (V-WH-LABEL-004).",
+      "Given printer offline + queue=false, when POST, then 409 with `printer_offline=true`."
     ],
     "test_strategy": [
-      "RED: zpl-renderer.test.ts covers content, copies bound, printer offline, GTIN check",
-      "Run 'pnpm --filter web test zpl-renderer'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/zpl-renderer.test.ts` asserting ZPL syntax + AI presence + copies gate + offline path.",
+      "Run `pnpm --filter web test zpl-renderer`."
     ],
     "risk_red_lines": [
-      "Do not embed printer secrets in ZPL",
-      "Do not skip GTIN validation",
-      "Do not retry indefinitely on TCP failure"
+      "Do not skip printer-online check (V-WH-LABEL-003).",
+      "Do not embed HTML or non-ZPL escape sequences.",
+      "Do not allow copies > 10."
     ],
     "skills": [
       "test-driven-development",
@@ -88,7 +89,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

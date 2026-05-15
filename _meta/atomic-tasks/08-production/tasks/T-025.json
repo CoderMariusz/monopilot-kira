@@ -48,7 +48,8 @@
     "acceptance_criteria": [
       "Given consume-to-wo succeeds, when SELECT lp_genealogy WHERE source_lp_id=:lp, then row with operation_type='consume', target_wo_id matching, qty matching qty_consumed",
       "Given transaction error in genealogy INSERT, when service runs, then full rollback (no consumption row persists)",
-      "Given 100 sequential consumptions, when count lp_genealogy WHERE target_wo_id=:wo, then count=100"
+      "Given 100 sequential consumptions, when count lp_genealogy WHERE target_wo_id=:wo, then count=100",
+      "Given an LP/lot has an active quality hold (v_active_holds), when WO consume is attempted, then the operation is rejected with 409 quality_hold_active and an outbox event production.consume.blocked is emitted (consume gate per 09-quality T-064)."
     ],
     "test_strategy": [
       "RED: integration test asserting genealogy row + rollback before adapter exists",
@@ -57,7 +58,8 @@
     "risk_red_lines": [
       "Do not allow silent genealogy failure",
       "Do not write outside consumption transaction",
-      "Do not modify lp_genealogy schema"
+      "Do not modify lp_genealogy schema",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +85,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "09-quality",
+        "task_id": "T-064",
+        "reason": "Quality consume gate (v_active_holds) — every LP/WO consume operation must call holdsGuard(lpId, lotId) before mutating consumption/output state. Active hold returns 409 quality_hold_active and emits production.consume.blocked outbox event (PRD §16.4 V-PROD-02/V-PROD-16)."
+      }
+    ]
   }
 }

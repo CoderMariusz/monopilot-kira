@@ -1,10 +1,12 @@
 {
-  "title": "T-047 — UI parity: consumption, output, waste, genealogy and scanner-linked cards",
-  "prompt": "# T-047 — UI parity: consumption, output, waste, genealogy and scanner-linked cards\n\nPRD/UX refs: SCR-08-02, SCR-08-12, prototype labels consumption_tab,output_tab,genealogy_tab,history_tab,scanner_modal\n\nGoal: Build WO execution tabs for consumption/output/waste/genealogy/history and scanner deep-link cards.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/wo-detail.jsx:90-358 and modals.jsx:246-278. Scanner cards issue signed 15-minute single-use deep links but do not mutate production data. Consumption/output tabs must surface FEFO, over-consumption approval status, catch weight, label PDF and QA hold badges from APIs.\n\nScope files:\n- apps/web/app/production/wos/[id]/consume/page.tsx [create]\n- apps/web/app/production/wos/[id]/output/page.tsx [create]\n- apps/web/app/production/wos/[id]/waste/page.tsx [create]\n- apps/web/components/production/scanner-deeplink-card.tsx [create]\n- prototypes/design/Monopilot Design System/production/wo-detail.jsx:90-358\n- prototypes/design/Monopilot Design System/production/modals.jsx:246-278\n\nAcceptance criteria:\n1. Tabs match prototype labels and render loading/empty/error states\n2. Scanner deep links are signed single-use tokens with no desktop mutation side effects\n3. Closeout includes screenshots for consumption/output/waste tabs and Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-047 — UI: WO detail tabs (consumption/output/waste/genealogy/history) + scanner deep-link cards (SCR-08-02 / SCR-08-12)",
+  "prompt": "# T-047 — WO detail tabs + scanner deep-link cards UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-02, SCR-08-12, §7.2-7.4 (consumption/output/waste FRs)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/wo-detail.jsx:256-345 (consumption_tab), :346-408 (output_tab), :453-503 (genealogy_tab), :504-530 (history_tab); production/modals.jsx:208-240 (scanner_modal)\n\n## Goal\nBuild the consumption/output/waste/genealogy/history tabs of the WO detail page (the shell from T-046) and the scanner-linked reference cards pattern for SCR-08-12. Tabs surface FEFO badges, over-consumption flags, catch-weight status, QA holds, label PDF, BOM snapshot version, and append-only event log; scanner cards issue 15-minute signed single-use deep-links and do not mutate data.\n\n## Implementation contract\n1. apps/web/app/production/wos/[id]/consume/page.tsx (RSC) — consumption_tab parity: BOM components table with planned/consumed/remaining + Progress + FEFO/auto-consumed/over-consumption badges; LP scan log sidebar (ScrollArea); operator hints card (next FEFO pick, batch fit, ETA); `Scan next LP` opens scanner deep-link card.\n2. apps/web/app/production/wos/[id]/output/page.tsx (RSC) — output_tab parity: primary outputs + co-products + by-products tables with QA badge, label print link, catch-weight mode toggle; `Register output LP` opens RegisterOutputModal (separate task; here only the open trigger + empty placeholder).\n3. apps/web/app/production/wos/[id]/waste/page.tsx (RSC) — waste tab: events list (category/qty/reason/operator) with link to waste_modal trigger.\n4. apps/web/app/production/wos/[id]/genealogy/page.tsx (RSC) — genealogy_tab parity: two-column tree (consumed inputs / output LPs), forward/backward toggle via `?direction=`, shipment links section, Export mock-recall JSON Server Action stub.\n5. apps/web/app/production/wos/[id]/history/page.tsx (RSC) — history_tab parity: append-only `wo_events` table with Tx column + Export JSON link.\n6. apps/web/components/production/scanner-deeplink-card.tsx ('use client') — generates signed JWT (15-min single-use, `{wo_id, line_id, action, operator_id, exp}`), renders QR code + copy-link; no desktop mutation side effect.\n7. Literal `data-prototype-label` markers: `consumption_tab`, `output_tab`, `genealogy_tab`, `history_tab`, `scanner_modal`. All copy via next-intl.\n\n## Acceptance criteria\n1. Given the consumption/output/waste/genealogy/history tabs render, when compared to prototypes/design/Monopilot Design System/production/wo-detail.jsx:256-530 and modals.jsx:208-240, then per-tab parity holds: BOM table + FEFO/over-consumption/auto-consumed badges + LP log sidebar (consumption); primary/co/by-product tables + QA badge + label link (output); waste events list; two-column genealogy tree with forward/backward toggle; append-only history table + Export JSON — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given a Shift Lead clicks `Open on Scanner` on a consumption card, when the action fires, then a signed JWT with `{wo_id, line_id, action='CONSUME_LP', operator_id, exp}` (≤15 min) is generated and rendered as QR + copy-link without any Production data being mutated.\n3. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback) for consumption/output/waste/genealogy/history surfaces.\n\n## Test strategy\n- RED: apps/web/app/production/wos/[id]/__tests__/tabs.test.tsx + apps/web/components/production/__tests__/scanner-deeplink-card.test.tsx asserting per-tab parity, badge variants, JWT contract (15-min single-use, no mutation), and `data-prototype-label` markers before code exists.\n- Run `pnpm vitest run apps/web/app/production/wos/[id]/__tests__/tabs.test.tsx apps/web/components/production/__tests__/scanner-deeplink-card.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not let scanner deep-link cards mutate Production data — they are issuance-only.\n- Do not bypass JWT signing/expiry (15-min, single-use claim).\n- Do not paste prototype JSX verbatim; translate to shadcn primitives + next-intl.\n- Do not render Tx hash or actor PII (use denormalized `actor_name`).\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "wo-tabs",
+    "scanner-cards",
+    "T3-ui"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,25 +16,37 @@
     "prd_task_id": "T-047",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-02",
-      "SCR-08-12",
-      "prototype labels consumption_tab,output_tab,genealogy_tab,history_tab,scanner_modal"
+      "§8.1 SCR-08-02",
+      "§8.1 SCR-08-12",
+      "§7.2",
+      "§7.3",
+      "§7.4"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: consumption, output, waste, genealogy",
+    "category": "ui",
+    "subcategory": "wo-detail-tabs-and-scanner-cards",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Build WO execution tabs for consumption/output/waste/genealogy/history and scanner deep-link cards.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/wo-detail.jsx:90-358 and prototypes/design/Monopilot Design System/production/modals.jsx:246-278. Scanner cards issue signed 15-minute single-use deep links but do not mutate production data. Consumption/output tabs must surface FEFO, over-consumption approval status, catch weight, label PDF and QA hold badges from APIs.",
+    "parent_feature": "08-PROD E2/E3 Consumption + Output + Genealogy",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "WO detail consumption/output/waste/genealogy/history tabs + SCR-08-12 scanner deep-link cards pattern; cards issue signed 15-min single-use JWTs and never mutate Production data.",
+    "details": "Parity per tab against prototypes/design/Monopilot Design System/production/wo-detail.jsx:256-530 (consumption_tab/output_tab/genealogy_tab/history_tab) and modals.jsx:208-240 (scanner_modal). FEFO/over-consumption/auto-consumed badges derived from server data not client-computed. LP scan log uses ScrollArea. Genealogy uses forward/backward URL param. History table is INSERT-only (no UPDATE/DELETE per audit). Scanner cards generate signed JWT with claims {wo_id, line_id, action, operator_id, exp} and never mutate Production data — issuance only. UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/production/wos/[id]/consume/page.tsx [create]",
       "apps/web/app/production/wos/[id]/output/page.tsx [create]",
       "apps/web/app/production/wos/[id]/waste/page.tsx [create]",
+      "apps/web/app/production/wos/[id]/genealogy/page.tsx [create]",
+      "apps/web/app/production/wos/[id]/history/page.tsx [create]",
       "apps/web/components/production/scanner-deeplink-card.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/wo-detail.jsx:90-358",
-      "prototypes/design/Monopilot Design System/production/modals.jsx:246-278"
+      "apps/web/app/production/wos/[id]/__tests__/tabs.test.tsx [create]",
+      "apps/web/components/production/__tests__/scanner-deeplink-card.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/wo-detail.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement RegisterOutputModal (separate task)",
+      "Do not implement scanner PWA (06-SCANNER-P1)",
+      "Do not implement label PDF generation (T-033)",
+      "Do not implement allergen changeover screen (T-048)"
     ],
     "dependencies": [
       "T-023",
@@ -42,24 +56,36 @@
       "T-030",
       "T-031",
       "T-032",
-      "T-033"
+      "T-033",
+      "T-046"
+    ],
+    "parallel_safe_with": [
+      "T-048",
+      "T-049",
+      "T-050",
+      "T-051"
     ],
     "acceptance_criteria": [
-      "Tabs match prototype labels and render loading/empty/error states",
-      "Scanner deep links are signed single-use tokens with no desktop mutation side effects",
-      "Closeout includes screenshots for consumption/output/waste tabs and Playwright trace"
+      "Given the consumption/output/waste/genealogy/history tabs render, when compared to prototypes/design/Monopilot Design System/production/wo-detail.jsx:256-530 and modals.jsx:208-240, then per-tab parity holds (BOM+FEFO/over-consumption/auto-consumed badges + LP log; primary/co/by-product tables + QA badge + label link; waste list; two-column genealogy with forward/backward toggle; append-only history table + Export JSON) — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given a Shift Lead clicks Open on Scanner on a consumption card, when the action fires, then a signed JWT with {wo_id, line_id, action='CONSUME_LP', operator_id, exp} (<=15 min) is generated and rendered as QR + copy-link without any Production data being mutated.",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback) for consumption/output/waste/genealogy/history."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/production/wos/[id]/__tests__/tabs.test.tsx + apps/web/components/production/__tests__/scanner-deeplink-card.test.tsx asserting per-tab parity, badge variants, JWT 15-min single-use no-mutation contract and data-prototype-label markers before code exists.",
+      "Run 'pnpm vitest run apps/web/app/production/wos/[id]/__tests__/tabs.test.tsx apps/web/components/production/__tests__/scanner-deeplink-card.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not let scanner deep-link cards mutate Production data.",
+      "Do not bypass JWT signing/expiry (15-min, single-use claim).",
+      "Do not paste prototype JSX verbatim.",
+      "Do not render Tx hash or actor PII."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -84,23 +110,25 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "consumption_tab,output_tab,genealogy_tab,history_tab,scanner_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "06-scanner-p1",
-        "task_id": "T-080..T-084",
-        "reason": "Scanner consumes Production deep links and production runtime endpoints for consume/output/waste/execute."
+        "task_id": "external-scanner-contract",
+        "reason": "Scanner consumes deep-link JWT and SCN-080..084 endpoints; here Production only issues the token."
       },
       {
         "module": "05-warehouse",
-        "task_id": "T-001..T-057",
-        "reason": "LP availability, status, QA hold, putaway and inventory adjustments are Warehouse-owned contracts."
+        "task_id": "external-warehouse-contract",
+        "reason": "LP availability/status/QA-hold/putaway data shown in tabs comes from Warehouse."
       },
       {
         "module": "09-quality",
         "task_id": "external-quality-contract",
-        "reason": "QA holds/sampling/inspection requests are Quality-owned cross-module contract; keep adapter seam typed until Quality task ID is finalized."
+        "reason": "QA hold badge on output_tab links to Quality module."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

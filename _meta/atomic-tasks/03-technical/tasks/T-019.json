@@ -1,6 +1,6 @@
 {
   "title": "T-019 — API: Allergen contamination risk matrix CRUD",
-  "prompt": "Implement /api/technical/allergens/contamination-risk endpoints per §10.5 and TEC-043. GET by line_id and/or machine_id. POST/PUT upsert (line_id|machine_id, allergen_code, risk_level, mitigation, last_assessed_at, assessed_by). Validate risk_level enum. V-TEC-43 warning surfacing: GET also returns coverage gaps (active line/machine × EU-14 allergens missing entries). Permission technical.allergens.edit. RED tests/api/contamination-risk.test.ts. Run: `pnpm vitest run tests/api/contamination-risk.test.ts`.",
+  "prompt": "# T-019 — API: Allergen contamination risk matrix CRUD\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §10.5, §10.8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCross-contamination risk grid CRUD with coverage-gap report.\n\nCoverage gap = LEFT JOIN production_lines × allergens_reference (EU-14) without entries. Useful for V-TEC-43 dashboard. Permission gate uses technical.allergens.edit on writes.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/allergens/contamination-risk/route.ts [create]\n- lib/technical/allergens/contamination.ts [create]\n- tests/api/contamination-risk.test.ts [create]\n\n## Out of scope\n- Allergen changeover gate (08-PRODUCTION cross-cuts)\n- UI\n\n## Acceptance criteria\n1. Given line L1 has entry only for A01, when GET /contamination-risk?line_id=L1, then response includes 'gaps' array of remaining EU-14 codes.\n2. Given POST risk_level='extreme', when validated, then 422 (not in enum).\n3. Given valid upsert, when re-POST same key, then update wins (no duplicate).\n\n## Test strategy\n- RED tests for gap computation + enum + upsert.\n- Run: pnpm vitest run tests/api/contamination-risk.test.ts\n\n## Risk red lines\n- Do not couple to 08-PRODUCTION allergen gate code here.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -53,7 +53,11 @@
       "Run: pnpm vitest run tests/api/contamination-risk.test.ts"
     ],
     "risk_red_lines": [
-      "Do not couple to 08-PRODUCTION allergen gate code here."
+      "Do not couple to 08-PRODUCTION allergen gate code here.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

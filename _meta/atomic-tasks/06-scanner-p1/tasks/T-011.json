@@ -57,7 +57,9 @@
     "risk_red_lines": [
       "Do not let client override org_id or user_id",
       "Do not block the request on PostHog failure",
-      "Do not exceed batch size 50"
+      "Do not exceed batch size 50",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
     "skills": [
       "test-driven-development",
@@ -84,6 +86,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "00-foundation: scanner routing/session/RLS baseline",
       "02-settings: PIN policy, locale, scanner device defaults"

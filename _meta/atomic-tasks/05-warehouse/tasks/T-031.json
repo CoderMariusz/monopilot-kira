@@ -1,13 +1,13 @@
 {
-  "title": "T-031 — Reservation create service (RM root only)",
-  "prompt": "# T-031 — Reservation create service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §9.4 (FR-WH-016), V-WH-FEFO-005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`reserveLp(lpId, woId, woMaterialId, qty)` Server Action that creates a hard-lock lp_reservations row only when the wo_material is RM root (material_source='stock').\n\n## Implementation contract\n`apps/web/lib/services/warehouse/reservation-create.ts`. Validate item_type_snapshot != 'intermediate' AND wo_materials.material_source='stock'. Insert lp_reservations(reservation_type='hard_lock'); update LP.reserved_for_wo_id, LP.reserved_qty (+= qty), LP.status → 'reserved' if qty == LP.qty else stays 'available' partial. Concurrent conflict (partial-unique violation) returns 409 with conflicting WO info.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/reservation-create.ts [create]\n- apps/web/lib/services/warehouse/__tests__/reservation-create.test.ts [create]\n\n## Acceptance criteria\n1. Given an RM-root wo_material, when reserveLp runs with qty=full LP qty, then a lp_reservations row exists and LP.status='reserved'.\n2. Given material_source='upstream_wo_output', when reserveLp runs, then it returns V-WH-FEFO-005 validation error and creates no row.\n3. Given a partial reservation (qty < LP.qty), when reserveLp runs, then LP.status remains 'available' and reserved_qty increments by qty.\n4. Given a parallel reservation attempt on the same active row, when it commits, then it returns 409 with conflicting WO info.\n\n## Test strategy\n- RED: reservation-create.test.ts covers four scenarios using two-tx fixture.\n- Run `pnpm --filter web test reservation-create`.\n\n## Risk red lines\n- Do not allow reservations on intermediate LPs.\n- Do not skip partial-unique conflict handling.\n- Do not bypass single-transaction guarantee.",
+  "title": "T-031 — Reservation create service (RM root only) (WH §9.4)",
+  "prompt": "# T-031 — Reservation create service (RM root only) (WH §9.4)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §9.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `createReservation` service for RM root materials only (wo_materials.material_source='stock'). Intermediate cascade (material_source='upstream_wo_output') is hard-blocked (V-WH-FEFO-005). Hard-lock via partial unique constraint.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/reservation-create.ts`: function `createReservation({wo_id, wo_material_id, lp_id, reserved_qty})`.\n2. Pre-check: load wo_materials.material_source — if `='upstream_wo_output'`, reject with V-WH-FEFO-005.\n3. INSERT into lp_reservations with reservation_type='hard_lock'; rely on partial unique (T-004) for concurrent safety — on conflict return 409 with current holder info.\n4. Update LP: `reserved_for_wo_id`, `reserved_qty += reserved_qty`, `status='reserved'`.\n5. Emit outbox `lp.reserved`.\n\n## Files\n- apps/web/lib/services/warehouse/reservation-create.ts [create]\n- apps/web/lib/services/warehouse/__tests__/reservation-create.test.ts [create]\n\n## Acceptance criteria\n1. Given a stock-source wo_material, when reservation created, then a row in lp_reservations exists, LP.status='reserved', LP.reserved_for_wo_id set, outbox emitted.\n2. Given an upstream-wo-output wo_material, when reservation attempted, then service rejects with V-WH-FEFO-005.\n3. Given concurrent creates on the same LP, when both run, then exactly one succeeds and the other gets a 409 with `current_holder` info.\n4. Given `reserved_qty > (lp.quantity - lp.reserved_qty)`, when called, then service rejects with V-WH-FEFO-004.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/reservation-create.test.ts` asserting source-gate, concurrency, qty CHECK, outbox.\n- Run `pnpm --filter web test reservation-create`.\n\n## Risk red lines\n- Do not allow reservation for upstream_wo_output (Q6 revised).\n- Do not bypass partial unique with app-level locking.\n- Do not skip outbox.\n\n## Dependencies\n- T-004\n- T-002",
   "labels": [
     "prd",
-    "api",
+    "service",
     "reservations",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "reservations",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-fefo",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "25k",
     "estimated_effort": "1-2h",
-    "description": "Hard-lock reservation create for RM-root wo_materials per Q6 revised scope.",
-    "details": "Block intermediate LPs; partial reservation supported; concurrent conflict 409. Single transaction.",
+    "description": "Implement `createReservation` service for RM root materials only (wo_materials.material_source='stock'). Intermediate cascade (material_source='upstream_wo_output') is hard-blocked (V-WH-FEFO-005). Hard-lock via partial unique constraint.",
+    "details": "Implement `createReservation` service for RM root materials only (wo_materials.material_source='stock'). Intermediate cascade (material_source='upstream_wo_output') is hard-blocked (V-WH-FEFO-005). Hard-lock via partial unique constraint. `apps/web/lib/services/warehouse/reservation-create.ts`: function `createReservation({wo_id, wo_material_id, lp_id, reserved_qty})`. Pre-check: load wo_materials.material_source — if `='upstream_wo_output'`, reject with V-WH-FEFO-005.",
     "scope_files": [
       "apps/web/lib/services/warehouse/reservation-create.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/reservation-create.test.ts [create]"
@@ -44,19 +44,19 @@
       "T-033"
     ],
     "acceptance_criteria": [
-      "Given an RM-root wo_material and reserveLp with qty=LP.qty, when run, then lp_reservations row exists and LP.status='reserved'",
-      "Given material_source='upstream_wo_output', when run, then V-WH-FEFO-005 error returns",
-      "Given partial reservation qty<LP.qty, when run, then LP.status stays 'available' and reserved_qty increments",
-      "Given a parallel reservation on the same active row, when it commits, then 409 returns with conflicting WO info"
+      "Given a stock-source wo_material, when reservation created, then a row in lp_reservations exists, LP.status='reserved', LP.reserved_for_wo_id set, outbox emitted.",
+      "Given an upstream-wo-output wo_material, when reservation attempted, then service rejects with V-WH-FEFO-005.",
+      "Given concurrent creates on the same LP, when both run, then exactly one succeeds and the other gets a 409 with `current_holder` info.",
+      "Given `reserved_qty > (lp.quantity - lp.reserved_qty)`, when called, then service rejects with V-WH-FEFO-004."
     ],
     "test_strategy": [
-      "RED: reservation-create.test.ts covers four scenarios with two-tx conflict fixture",
-      "Run 'pnpm --filter web test reservation-create'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/reservation-create.test.ts` asserting source-gate, concurrency, qty CHECK, outbox.",
+      "Run `pnpm --filter web test reservation-create`."
     ],
     "risk_red_lines": [
-      "Do not reserve intermediate LPs",
-      "Do not skip 409 conflict handling",
-      "Do not bypass single-transaction guarantee"
+      "Do not allow reservation for upstream_wo_output (Q6 revised).",
+      "Do not bypass partial unique with app-level locking.",
+      "Do not skip outbox."
     ],
     "skills": [
       "test-driven-development",
@@ -86,7 +86,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -112,7 +112,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

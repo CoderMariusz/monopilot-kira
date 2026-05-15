@@ -1,6 +1,6 @@
 {
   "title": "T-029 — Wiring: D365 push worker (WO confirmations) + DLQ retry",
-  "prompt": "Per §13.4 + §13.7. Implement outbox consumer for `wo.confirmation` events: build D365 Production Journal payload, POST to `/api/services/ProductionJournalService/SubmitJournal` with x-idempotency-key. 3× exponential backoff (1s/5s/25s). On failure write d365_sync_dlq row with error_message NOT NULL. Provide POST /api/technical/d365/dlq/[id]/retry endpoint for admin to retry/mark resolved. Permission technical.d365.sync.trigger. RED tests/wiring/d365-push.test.ts. Run: `pnpm vitest run tests/wiring/d365-push.test.ts`.",
+  "prompt": "# T-029 — Wiring: D365 push worker (WO confirmations) + DLQ retry\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §13.4, §13.5, §13.7, §13.10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nD365 push worker for WO confirmations with retry + DLQ + idempotency.\n\nOutbox event 'wo.confirmation' is produced by 08-PRODUCTION (not part of this task). Here build the consumer + retry mechanism. Idempotency same scheme as pull (T-028). Successful push flips d365_sync_jobs.status='completed'. KPI: ≥95% success rate target.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- lib/integrations/d365/push.ts [create]\n- app/api/technical/d365/dlq/[id]/retry/route.ts [create]\n- tests/wiring/d365-push.test.ts [create]\n\n## Out of scope\n- Pull (T-028)\n- DLQ UI (T-058)\n\n## Acceptance criteria\n1. Given mocked D365 returns 500 three times, when worker runs with retry policy, then row inserted into d365_sync_dlq with error_message NOT NULL.\n2. Given DLQ row, when retry endpoint called and mock returns 200, then DLQ.resolved_at set.\n3. Given duplicate idempotency_key, when D365 returns 409, then job marked completed (already accepted).\n4. Given user without technical.d365.sync.trigger, when retry endpoint called, then 403.\n\n## Test strategy\n- RED tests covering retry/backoff and DLQ semantics.\n- Run: pnpm vitest run tests/wiring/d365-push.test.ts\n\n## Risk red lines\n- Do not retry forever — cap at 3 then DLQ.\n- Do not push when integration.d365.enabled=false.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -56,7 +56,11 @@
     ],
     "risk_red_lines": [
       "Do not retry forever — cap at 3 then DLQ.",
-      "Do not push when integration.d365.enabled=false."
+      "Do not push when integration.d365.enabled=false.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

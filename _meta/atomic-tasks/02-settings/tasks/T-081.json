@@ -45,10 +45,13 @@
       "Expired link returns 410."
     ],
     "test_strategy": [
-      "RED: write suite. GREEN: ensure flows work."
+      "RED: write suite. GREEN: ensure flows work.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/invite-accept.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/invite-accept.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not bypass token TTL in test by writing past timestamps without clock advance."
+      "Do not bypass token TTL in test by writing past timestamps without clock advance.",
+      "Do not mark E2E green without recording trace artifacts (Playwright trace.zip per failing path)."
     ],
     "skills": [
       "test-driven-development"

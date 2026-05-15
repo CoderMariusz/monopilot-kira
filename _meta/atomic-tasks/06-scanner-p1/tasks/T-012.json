@@ -40,7 +40,9 @@
     "out_of_scope": [
       "Do not implement SCN-home content here (T-023)",
       "Do not implement ScanInput/Camera/Manual primitives here (T-013/T-014/T-015)",
-      "Do not wire AuthContext provider here (T-025 owns timeout modal; AuthContext is a thin SWR wrapper inside layout)"
+      "Do not wire AuthContext provider here (T-025 owns timeout modal; AuthContext is a thin SWR wrapper inside layout)",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -56,16 +58,20 @@
     ],
     "test_strategy": [
       "RED: write scanner-layout.test.tsx asserting 5-slot order + dark theme + guest fallback before implementation",
-      "Run 'pnpm --filter scanner test scanner-layout && pnpm --filter scanner build'"
+      "Run 'pnpm --filter scanner test scanner-layout && pnpm --filter scanner build'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not duplicate desktop sidebar",
       "Do not import desktop authenticated layout",
-      "Do not block render on SyncStatus subscription failure"
+      "Do not block render on SyncStatus subscription failure",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -91,6 +97,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "home_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [

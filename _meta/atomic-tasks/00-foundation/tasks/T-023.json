@@ -49,7 +49,8 @@
       "Run 'pnpm --filter @monopilot/gs1 test'"
     ],
     "risk_red_lines": [
-      "Do not invent custom mod-10 — match GS1 General Specs 24.0"
+      "Do not invent custom mod-10 — match GS1 General Specs 24.0",
+      "Do not amend prior GS1 migration files in place — add a new forward-only migration if rules change"
     ],
     "skills": [
       "test-driven-development",

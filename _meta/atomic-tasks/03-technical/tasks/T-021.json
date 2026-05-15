@@ -1,6 +1,6 @@
 {
   "title": "T-021 — API: Cost history endpoints (POST/GET /api/technical/items/:code/cost)",
-  "prompt": "Implement cost endpoints per §11.1-11.6 + V-TEC-50..53. POST body: { cost_per_kg, currency, effective_from, source, notes? }. Logic: insert into item_cost_history; close prior active row by setting its effective_to = effective_from-1; update items.cost_per_kg = new value (denormalized). Validate V-TEC-50 (cost>=0), V-TEC-51 (effective_from<=today for active), V-TEC-52 (currency in ISO 4217 list), V-TEC-53 (>20% delta vs current requires X-Approver-Id header). GET returns timeline (descending). Permission technical.cost.edit. RED tests/api/cost.test.ts. Run: `pnpm vitest run tests/api/cost.test.ts`.",
+  "prompt": "# T-021 — API: Cost history endpoints (POST/GET /api/technical/items/:code/cost)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §11.1, §11.2, §11.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCost POST with V-TEC-50..53 + history close + denormalized current cost.\n\nISO 4217 list lives in lib/shared/iso4217.ts (create if absent). Approver requirement only fires when source ∈ {manual,supplier_update}; d365_sync and variance_roll bypass V-TEC-53. Audit log entry on every write.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/cost/route.ts [create]\n- lib/technical/cost/service.ts [create]\n- lib/shared/iso4217.ts [create]\n- tests/api/cost.test.ts [create]\n\n## Out of scope\n- Cost roll-up (10-FINANCE)\n- D365 cost diff UI\n\n## Acceptance criteria\n1. Given current cost 10.0, when POST cost_per_kg=12.5 source='manual' without approver header, then 422 V-TEC-53 (>20% delta).\n2. Given POST cost_per_kg=-1, when validated, then 422 V-TEC-50.\n3. Given valid POST, when committed, then prior history row.effective_to = new.effective_from - 1 day, and items.cost_per_kg updated.\n4. Given GET, when called, then rows ordered by effective_from DESC.\n\n## Test strategy\n- RED tests across V-TEC-50/51/52/53 paths.\n- Run: pnpm vitest run tests/api/cost.test.ts\n\n## Risk red lines\n- Do not insert negative cost.\n- Do not skip audit log.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -59,7 +59,11 @@
     ],
     "risk_red_lines": [
       "Do not insert negative cost.",
-      "Do not skip audit log."
+      "Do not skip audit log.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

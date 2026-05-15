@@ -1,6 +1,6 @@
 {
   "title": "T-005 — Migration: lab_results and supplier_specs tables",
-  "prompt": "Create Drizzle migration for §5.5 lab_results and supplier_specs. `lab_results`(id PK, org_id, item_id FK items nullable, work_order_id UUID nullable, test_type TEXT CHECK in ('atp_swab','allergen_elisa','micro_apc','nutrition'), test_code, result_value NUMERIC(14,4), result_unit, result_status TEXT CHECK in ('pass','fail','inconclusive','pending'), threshold_rlu NUMERIC(10,2), tested_at, lab_provider, notes, created_by, created_at). `supplier_specs`(id PK, org_id, item_id FK items NOT NULL, supplier_code TEXT, spec_document_url, spec_version, issued_date, expiry_date, declared_allergens TEXT[], declared_attrs JSONB DEFAULT '{}', uploaded_at, uploaded_by). RLS org_id-scoped. Index idx_lab_results_item(org_id,item_id,tested_at DESC). RED command: `pnpm vitest run tests/db/lab-supplier.migration.test.ts`.",
+  "prompt": "# T-005 — Migration: lab_results and supplier_specs tables\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §5.5, §10.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLab results + supplier specs tables with RLS and result-status enum.\n\nATP swab threshold default 10 RLU (V-TEC-44 trigger lives in T-026, not here). work_order_id FK lives in 08-PRODUCTION; here it is a soft UUID column. declared_allergens stored as TEXT[] (Postgres array) — supplier-declared codes resolved against allergens_reference at API layer.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_lab_supplier.sql [create]\n- db/schema/lab.ts [create]\n- db/schema/supplier-specs.ts [create]\n- tests/db/lab-supplier.migration.test.ts [create]\n\n## Out of scope\n- ATP threshold trigger (T-026)\n- Lab UI (T-049)\n- Supplier portal API (Phase 2)\n\n## Acceptance criteria\n1. Given migration applied, when inserting lab_result with invalid test_type, then CHECK rejects.\n2. Given supplier_specs row, when reading declared_allergens, then it returns TEXT[] array.\n3. Given RLS active, when no org context, then both tables return 0 rows.\n\n## Test strategy\n- RED test for CHECK + RLS + array column.\n- Run: pnpm vitest run tests/db/lab-supplier.migration.test.ts\n\n## Risk red lines\n- Do not implement ATP auto-fail trigger here — it is its own task (T-026).\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "data",
@@ -57,7 +57,11 @@
       "Run: pnpm vitest run tests/db/lab-supplier.migration.test.ts"
     ],
     "risk_red_lines": [
-      "Do not implement ATP auto-fail trigger here — it is its own task (T-026)."
+      "Do not implement ATP auto-fail trigger here — it is its own task (T-026).",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

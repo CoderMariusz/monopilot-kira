@@ -53,7 +53,8 @@
     ],
     "test_strategy": [
       "RED: shape + CHECK reject test.",
-      "GREEN: emit migration."
+      "GREEN: emit migration.",
+      "Run `pnpm --filter @monopilot/db test:integration -- sso-scim-ip.test`."
     ],
     "risk_red_lines": [
       "Do not introduce plaintext secret column.",

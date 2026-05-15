@@ -1,13 +1,13 @@
 {
-  "title": "T-007 — pick_overrides table migration",
-  "prompt": "# T-007 — pick_overrides table migration\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §5.7, §9.6.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `pick_overrides` table to audit FEFO/FIFO deviations per Q6B pattern.\n\n## Implementation contract\nAdd `packages/db/src/schema/pick-overrides.ts` per §5.7: id, tenant_id, pick_request_id (varchar 64), wo_id, to_line_id, suggested_lp_id FK, picked_lp_id FK, reason_code ENUM ('batch_exhaustion','qa_release','physical_accessibility','line_priority','operator_decision','other'), reason_text, confirmed_by, confirmed_at, delta_days INT.\nCHECK: when reason_code='other' then reason_text NOT NULL (DB trigger or app-level — choose CHECK with COALESCE NULLIF for app-friendly behavior).\n\n## Files (scope)\n- packages/db/src/schema/pick-overrides.ts [create]\n- packages/db/migrations/0NN_pick_overrides.sql [create]\n- packages/db/src/schema/pick-overrides.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when pick_overrides is inspected, then PRD §5.7 columns exist with the 6-value reason_code enum.\n2. Given INSERT with reason_code='other' and reason_text NULL, when committed, then DB raises a CHECK violation.\n3. Given INSERT with picked_lp_id == suggested_lp_id, when committed, then DB raises a CHECK violation.\n\n## Test strategy\n- RED: pick-overrides.test.ts asserts the three behaviors.\n- Run `pnpm --filter db migrate && pnpm --filter db test pick-overrides`.\n\n## Risk red lines\n- Do not allow other-reason without text.\n- Do not log overrides where picked == suggested (defeats audit).\n- Do not implement service logic.",
+  "title": "T-007 — pick_overrides audit table (WH §5.7, §9.6)",
+  "prompt": "# T-007 — pick_overrides audit table (WH §5.7, §9.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §5.7, §9.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `pick_overrides` audit log capturing every FEFO/FIFO deviation per Q6B pattern (operator must confirm warning + reason). KPI source for `override_rate` <5% target.\n\n## Implementation contract\n1. Migration `0NN_pick_overrides.sql`: per §5.7 columns including `pick_request_id VARCHAR(64)`, `wo_id`, `to_line_id`, `suggested_lp_id`, `picked_lp_id`, `reason_code ENUM('batch_exhaustion','qa_release','physical_accessibility','line_priority','operator_decision','other')`, `reason_text`, `confirmed_by`, `confirmed_at`, `delta_days INT`.\n2. CHECK `reason_code='other' IMPLIES reason_text IS NOT NULL AND length(reason_text) >= 10`.\n3. Indexes: `(wo_id, confirmed_at DESC)`, `(confirmed_at)` for KPI rolling window queries.\n4. RLS + tenant policy.\n5. Drizzle schema.\n\n## Files\n- packages/db/src/schema/pick-overrides.ts [create]\n- packages/db/migrations/0NN_pick_overrides.sql [create]\n- packages/db/src/schema/pick-overrides.test.ts [create]\n\n## Acceptance criteria\n1. Given an insert with `reason_code='other'` and empty `reason_text`, when attempted, then the CHECK rejects it.\n2. Given an insert with `picked_lp_id = suggested_lp_id` (no real deviation), when committed, then it succeeds (override audit can log no-op confirmations).\n3. Given RLS, when tenant B reads tenant A's overrides, then zero rows are returned.\n\n## Test strategy\n- RED: `packages/db/src/schema/pick-overrides.test.ts` asserting reason CHECK + RLS.\n- Run `pnpm --filter db migrate && pnpm --filter db test pick-overrides`.\n\n## Risk red lines\n- Do not allow `reason_code='other'` without `reason_text` (V-WH-FEFO-002).\n- Do not omit RLS.\n\n## Dependencies\n- T-002",
   "labels": [
     "prd",
     "data",
     "pick-overrides",
-    "T1-schema"
+    "t1-schema"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +21,11 @@
     "category": "data",
     "subcategory": "pick-overrides",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "20k",
     "estimated_effort": "0.5-1h",
-    "description": "Create pick_overrides table for FEFO/FIFO deviation audit (Q6B).",
-    "details": "Drizzle schema + migration. CHECK reason_text required when reason_code='other'; CHECK picked_lp_id != suggested_lp_id.",
+    "description": "Create `pick_overrides` audit log capturing every FEFO/FIFO deviation per Q6B pattern (operator must confirm warning + reason). KPI source for `override_rate` <5% target.",
+    "details": "Create `pick_overrides` audit log capturing every FEFO/FIFO deviation per Q6B pattern (operator must confirm warning + reason). KPI source for `override_rate` <5% target. Migration `0NN_pick_overrides.sql`: per §5.7 columns including `pick_request_id VARCHAR(64)`, `wo_id`, `to_line_id`, `suggested_lp_id`, `picked_lp_id`, `reason_code ENUM('batch_exhaustion','qa_release','physical_accessibility','line_priority','operator_decision','other')`, `reason_text`, `confirmed_by`, `confirmed_at`, `delta_days INT`. CHECK `reason_code='other' IMPLIES reason_text IS NOT NULL AND length(reason_text) >= 10`.",
     "scope_files": [
       "packages/db/src/schema/pick-overrides.ts [create]",
       "packages/db/migrations/0NN_pick_overrides.sql [create]",
@@ -48,18 +48,17 @@
       "T-009"
     ],
     "acceptance_criteria": [
-      "Given the migration runs, when pick_overrides is inspected, then §5.7 columns and 6-value reason_code enum exist",
-      "Given INSERT with reason_code='other' and reason_text NULL, when committed, then DB raises CHECK violation",
-      "Given INSERT with picked_lp_id == suggested_lp_id, when committed, then DB raises CHECK violation"
+      "Given an insert with `reason_code='other'` and empty `reason_text`, when attempted, then the CHECK rejects it.",
+      "Given an insert with `picked_lp_id = suggested_lp_id` (no real deviation), when committed, then it succeeds (override audit can log no-op confirmations).",
+      "Given RLS, when tenant B reads tenant A's overrides, then zero rows are returned."
     ],
     "test_strategy": [
-      "RED: pick-overrides.test.ts asserts the two CHECK behaviors and enum",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test pick-overrides'"
+      "RED: `packages/db/src/schema/pick-overrides.test.ts` asserting reason CHECK + RLS.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test pick-overrides`."
     ],
     "risk_red_lines": [
-      "Do not allow other-reason without text",
-      "Do not allow picked == suggested",
-      "Do not embed service logic"
+      "Do not allow `reason_code='other'` without `reason_text` (V-WH-FEFO-002).",
+      "Do not omit RLS."
     ],
     "skills": [
       "test-driven-development",
@@ -89,7 +88,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -115,7 +114,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

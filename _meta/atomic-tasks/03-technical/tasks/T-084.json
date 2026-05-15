@@ -1,6 +1,6 @@
 {
   "title": "T-084 — Technical sensory evaluation contract/read model",
-  "prompt": "# T-084 — Technical sensory evaluation contract/read model\n\nAdd the Technical-owned sensory evaluation contract/read model needed by NPD approval policy. NPD may mark sensory N/A/not_required unless org policy requires Technical sensory evidence, but Technical must own the reusable contract: sensory panels/sessions, attributes, pass/fail/hold result, linked item/project/work_order, evidence attachments, reviewer, and read API for NPD/Quality. Docs/meta task only defines implementation contract and tests; no prototype code.",
+  "prompt": "# T-084 — Technical sensory evaluation contract/read model\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5, §17, prototypes/design/03-TECHNICAL-UX.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTechnical sensory evaluation contract/read model\n\nDefine a Technical-owned sensory evaluation contract/read model for product/project/work-order sensory evidence. NPD approval may treat sensory as N/A/not_required unless org policy requires it; this task gives NPD and Quality a stable Technical read adapter for required/pending/pass/fail/hold states without moving NPD gate ownership into Technical. Include schema/API contract and tests only; no UI/prototype implementation.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/lib/technical/sensory/*.ts [create]\n- db/migrations/0xxx_technical_sensory.sql [create]\n- tests/lib/technical/sensory-contract.test.ts [create]\n\n## Acceptance criteria\n1. Given org policy requires sensory for a product, Technical read model exposes required/pending/pass/fail status to NPD approval.\n2. Given sensory is not required, adapter returns not_required and NPD can proceed without fake Technical evidence.\n3. Given sensory result is fail/hold, downstream release guards can show SENSORIAL_BLOCKED reason.\n\n## Test strategy\n- RED contract tests for required/not_required/pass/fail/hold mapping.\n- Run: pnpm vitest run tests/lib/technical/sensory-contract.test.ts\n\n## Risk red lines\n- Do not move NPD gate ownership into Technical.\n- Do not implement external lab/sensory vendor integrations.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -69,8 +69,14 @@
     ],
     "risk_red_lines": [
       "Do not move NPD gate ownership into Technical.",
-      "Do not implement external lab/sensory vendor integrations."
+      "Do not implement external lab/sensory vendor integrations.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
-    "dependencies": []
+    "dependencies": [],
+    "out_of_scope": [],
+    "parallel_safe_with": []
   }
 }

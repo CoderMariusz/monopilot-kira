@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T12:00:00Z",
   "generator": "wave-next-production-full-readiness-hardening",
   "pipeline_name": "kira_dev",
-  "task_count": 55,
+  "task_count": 56,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -60,7 +60,8 @@
     "tasks/T-052.json",
     "tasks/T-053.json",
     "tasks/T-054.json",
-    "tasks/T-055.json"
+    "tasks/T-055.json",
+    "tasks/T-056.json"
   ],
   "coverage_file": "coverage.md"
 }

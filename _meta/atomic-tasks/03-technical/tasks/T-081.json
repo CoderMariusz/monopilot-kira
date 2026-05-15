@@ -1,6 +1,6 @@
 {
   "title": "T-081 — Technical release adapter for NPD T-097 canonical release model",
-  "prompt": "# T-081 — Technical release adapter for NPD T-097 canonical release model\n\nImplement Technical adapters only for the canonical release model owned by 01-NPD T-097. Do not create a competing shared/Technical release enum. Discovery is mandatory: inspect the NPD release contract produced by `_meta/atomic-tasks/01-npd/tasks/T-097.json` and the implementation files it names, then bind Technical factory_specs and shared BOM headers to that canonical status/transition model.\n\nTechnical adapter responsibilities: map canonical statuses to Technical factory-use labels/actions, expose typed guards for factory_specs and BOM bundle approval, keep D365 sync status separate, enforce released-record immutability/clone-on-write, and return badge metadata/blocking reason codes for UI tasks. Initial factory_spec created by NPD Builder starts `in_review`; NPD G4 closes NPD, while Technical factory_spec+BOM approval unlocks factory use.\n\nRED first: illegal transitions, direct edits to released records, accidental D365 gating, and duplicate local enum creation must fail deterministically.",
+  "prompt": "# T-081 — Technical release adapter for NPD T-097 canonical release model\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4, prototypes/design/03-TECHNICAL-UX.md §0A\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTechnical adapters for the NPD-owned canonical release model; no competing Technical release model.\n\nNPD T-097 is canonical. This task imports/uses that model and adds Technical adapter functions for factory_specs and shared BOM bundle approval only. If the canonical implementation is not yet present, stop with a clear blocker referencing 01-npd/T-097 rather than inventing a fallback enum.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/lib/technical/release-state-adapters.ts [create]\n- apps/web/lib/technical/factory-spec-release-guards.ts [create]\n- tests/lib/technical/release-state-adapters.test.ts [create]\n- tests/lib/technical/factory-spec-release-guards.test.ts [create]\n\n## Acceptance criteria\n1. Given canonical NPD T-097 release model exists, Technical adapters import/use it and no duplicate Technical/shared release enum is introduced.\n2. Given factory_spec is created from NPD Builder, adapter maps initial canonical status to `in_review` and visible pending factory availability.\n3. Given Technical approves factory_spec+BOM bundle, adapter maps canonical status to factory-usable approved/released UI state without changing D365 sync status.\n4. Given released/approved_for_factory record receives direct update attempt, guard returns RELEASED_RECORD_IMMUTABLE and requires clone-on-write.\n5. Given UI asks for badge metadata, adapter returns stable label, color token, allowed actions and blocking reason codes.\n\n## Test strategy\n- RED tests for adapter import/mapping to NPD T-097 canonical model.\n- RED tests for illegal transitions, clone-on-write and D365 independence.\n- Run: pnpm vitest run tests/lib/technical/release-state-adapters.test.ts tests/lib/technical/factory-spec-release-guards.test.ts\n\n## Risk red lines\n- Do not create a competing release enum/model in Technical.\n- Do not conflate local release status with D365 sync status.\n- Do not treat NPD G4 as factory-use approval; Technical approval remains required.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "architecture",
@@ -42,7 +42,7 @@
     "prd_task_id": "T-081",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.4",
       "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
@@ -75,7 +75,11 @@
     "risk_red_lines": [
       "Do not create a competing release enum/model in Technical.",
       "Do not conflate local release status with D365 sync status.",
-      "Do not treat NPD G4 as factory-use approval; Technical approval remains required."
+      "Do not treat NPD G4 as factory-use approval; Technical approval remains required.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [],
     "cross_module_dependencies": [
@@ -84,6 +88,8 @@
         "task_id": "T-097",
         "reason": "Canonical release model owner; Technical T-081 is adapter only."
       }
-    ]
+    ],
+    "out_of_scope": [],
+    "parallel_safe_with": []
   }
 }

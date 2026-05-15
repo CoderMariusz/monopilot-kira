@@ -1,6 +1,6 @@
 {
   "title": "T-076 — PO actuals Technical review/non-conformance trigger contract",
-  "prompt": "# T-076 — PO actuals trigger Technical review/non-conformance\n\nWire the Technical-side contract for Purchase Order receipt actuals: when receiving records actual supplier, actual price/cost, actual spec version/document, actual allergens or declared attrs that differ from approved Technical master data, create a Technical review/non-conformance event and do not update supplier_specs or items.cost_per_kg directly. Provide an idempotent handler for cross-module event `po.receipt_actual_recorded` with typed variance reasons: SUPPLIER_MISMATCH, PRICE_VARIANCE, SPEC_VERSION_MISMATCH, ALLERGEN_MISMATCH, DECLARED_ATTR_MISMATCH. RED first: event processing creates review rows and leaves master data unchanged.",
+  "prompt": "# T-076 — PO actuals Technical review/non-conformance trigger contract\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTechnical-side PO actuals review/non-conformance event handler contract without master-data mutation.\n\nThis is a cross-module wiring contract; implement only Technical-side handler/tests if the event bus exists, or a typed service plus integration test seam if purchasing module is not present. Review approval can later call supplier_specs or cost history explicit approval actions. Non-conformance can be an outbox event if 09-QUALITY tables are not present yet. No UI in this task. Non-conformance emission must use the shared contract from T-082 when present; until 09-QUALITY exists, persist/emit the exact outbox event shape defined there.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/lib/technical/po-actuals-review.ts [create]\n- apps/web/events/handlers/po-receipt-actual-recorded.ts [create]\n- tests/integration/technical/po-actuals-review.test.ts [create]\n\n## Acceptance criteria\n1. Given PO actual price exceeds tolerance, when event is processed, then a Technical review/non-conformance is emitted and items.cost_per_kg is unchanged.\n2. Given PO actual supplier differs from approved supplier_spec supplier, then SUPPLIER_MISMATCH is recorded and supplier_specs is unchanged.\n3. Given the same PO event is processed twice, then only one review/non-conformance exists for the idempotency key.\n4. Given review is approved later, then master data changes only through explicit supplier_spec/cost approval action, not inside the event handler.\n5. Given a variance is classified from po.receipt_actual_recorded, then emitted non_conformance.requested payload conforms to T-082 and includes source_event_id, idempotency_key, source_module, entity refs, reason codes and severity.\n\n## Test strategy\n- RED integration test with fixture item, supplier_spec and item_cost_history before handler code.\n- Run: pnpm vitest run tests/integration/technical/po-actuals-review.test.ts\n\n## Risk red lines\n- Do not implement purchasing UI or PO module.\n- Do not update supplier_specs or cost_per_kg inside receipt handler.\n- Do not emit duplicate non-conformance on event retry.\n- Do not invent a PO/TO-specific NCR payload that diverges from T-082.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -45,7 +45,7 @@
     "prd_task_id": "T-076",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§11.2"
     ],
     "subcategory": "po-non-conformance",
@@ -72,7 +72,11 @@
       "Do not implement purchasing UI or PO module.",
       "Do not update supplier_specs or cost_per_kg inside receipt handler.",
       "Do not emit duplicate non-conformance on event retry.",
-      "Do not invent a PO/TO-specific NCR payload that diverges from T-082."
+      "Do not invent a PO/TO-specific NCR payload that diverges from T-082.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-003",
@@ -82,6 +86,7 @@
     "parallel_safe_with": [
       "T-077"
     ],
-    "description": "Technical-side PO actuals review/non-conformance event handler contract without master-data mutation."
+    "description": "Technical-side PO actuals review/non-conformance event handler contract without master-data mutation.",
+    "out_of_scope": []
   }
 }

@@ -1,6 +1,6 @@
 {
   "title": "T-030 — API: D365 connection test + feature flag gate",
-  "prompt": "Per §13.6 + V-TEC-70. Implement GET /api/technical/d365/health (admin only) calling D365 ping endpoint with stored credentials; returns { connected: bool, latency_ms, last_sync_at, version }. Also implement gate utility `assertD365Enabled()` used by all D365 endpoints — checks feature flag `integration.d365.enabled` AND that 5 Apex D365 constants from 02-SETTINGS §11 are populated (V-SET-42). RED tests/api/d365-health.test.ts. Run: `pnpm vitest run tests/api/d365-health.test.ts`.",
+  "prompt": "# T-030 — API: D365 connection test + feature flag gate\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §13.6, §13.10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nConnection test endpoint + feature-flag gate utility for all D365 endpoints.\n\nPermission gate: technical.d365.sync.trigger or 'owner' role. Returns sanitized info — no secrets in payload. assertD365Enabled used as guard.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/d365/health/route.ts [create]\n- lib/integrations/d365/gate.ts [create]\n- tests/api/d365-health.test.ts [create]\n\n## Out of scope\n- Pull/push (T-028/T-029)\n\n## Acceptance criteria\n1. Given integration.d365.enabled=false, when assertD365Enabled invoked, then throws Disabled error.\n2. Given any of 5 Apex constants empty, when assertD365Enabled invoked, then throws V-SET-42 error.\n3. Given valid config, when GET /health called, then JSON includes connected, latency_ms, last_sync_at.\n\n## Test strategy\n- RED tests for gate + sanitized health response.\n- Run: pnpm vitest run tests/api/d365-health.test.ts\n\n## Risk red lines\n- Do not return secrets in health response.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -51,7 +51,11 @@
       "Run: pnpm vitest run tests/api/d365-health.test.ts"
     ],
     "risk_red_lines": [
-      "Do not return secrets in health response."
+      "Do not return secrets in health response.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

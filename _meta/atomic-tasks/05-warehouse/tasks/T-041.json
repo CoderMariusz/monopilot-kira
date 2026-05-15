@@ -1,13 +1,15 @@
 {
-  "title": "T-041 — Scanner login endpoint (username + PIN)",
-  "prompt": "# T-041 — Scanner login endpoint\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §13.3 (FR-WH-027), V-WH-SCAN-001/004.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`POST /api/warehouse/scanner/login` accepting {username, pin} and returning {session_token, expires_at}. PIN bcrypt-hashed in `users.scanner_pin_hash`. 5-fail rate limit per username.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/login/route.ts`. Validate PIN against bcrypt hash; on success issue HMAC-signed token (TTL = warehouse_settings.scanner_idle_timeout_sec, default 300s); insert `scanner_sessions` row. Track failures in `scanner_login_attempts`; lockout 10min after 5 fails. Add migration for `users.scanner_pin_hash` column if not yet present, plus the two new tables.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/login/route.ts [create]\n- packages/db/src/schema/scanner-sessions.ts [create]\n- packages/db/src/schema/scanner-login-attempts.ts [create]\n- packages/db/migrations/0NN_scanner_auth.sql [create]\n- apps/web/app/api/warehouse/scanner/login/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given valid {username, pin}, when endpoint is hit, then 200 with session_token and expires_at; row exists in scanner_sessions.\n2. Given a wrong PIN 5 times in a row, when 6th attempt occurs, then 429 returns with V-WH-SCAN-004 lockout reason.\n3. Given an issued token, when `validateScannerSession(token)` runs >TTL after issue, then it returns expired=true.\n\n## Test strategy\n- RED: route.test.ts covers happy login, lockout, TTL expiry.\n- Run `pnpm --filter web test scanner-login`.\n\n## Risk red lines\n- Do not store PIN in plaintext.\n- Do not skip lockout.\n- Do not reuse the password column.",
+  "title": "T-041 — Scanner login endpoint (username + PIN) (WH §13.3)",
+  "prompt": "# T-041 — Scanner login endpoint (username + PIN) (WH §13.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §13.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `POST /api/warehouse/scanner/login` accepting username+PIN, validating against bcrypt-hashed `users.scanner_pin_hash`, issuing a session token with TTL=`scanner_idle_timeout_sec`. Rate-limit 5 fails → 10 min lockout (V-WH-SCAN-004).\n\n## Implementation contract\n1. `apps/web/app/api/warehouse/scanner/login/route.ts` + service `apps/web/lib/services/warehouse/scanner-auth.ts`.\n2. PIN: 4-6 digits, validated against bcrypt-hashed users.scanner_pin_hash.\n3. On success: issue HMAC-signed session token (e.g., JWT or opaque token w/ Redis), expiry = settings.scanner_idle_timeout_sec.\n4. Rate limit: 5 fails per username within 10 min → reject with 429 + lockout window.\n5. First-login forced PIN setup if hash NULL.\n\n## Files\n- apps/web/app/api/warehouse/scanner/login/route.ts [create]\n- packages/db/src/schema/scanner-sessions.ts [create]\n- packages/db/src/schema/scanner-login-attempts.ts [create]\n- packages/db/migrations/0NN_scanner_auth.sql [create]\n- apps/web/app/api/warehouse/scanner/login/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given valid username+PIN, when POST, then `{session_token, expires_at}` returned with TTL=300s.\n2. Given 5 wrong PIN attempts in 10 min, when 6th try, then 429 with lockout message (V-WH-SCAN-004).\n3. Given the user's `scanner_pin_hash` is NULL, when login attempted, then a `requires_pin_setup` response is returned.\n4. Given the issued token is presented to /scanner/inventory, when called, then it validates.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/scanner-auth.test.ts` asserting bcrypt validation, rate limit, token issue.\n- Run `pnpm --filter web test scanner-auth`.\n\n## Risk red lines\n- Do not store PIN in plaintext or weak hash (bcrypt cost ≥10).\n- Do not skip rate limit (V-WH-SCAN-004).\n- Do not reuse the user's web password as PIN.\n\n## Dependencies\n- T-009",
   "labels": [
     "prd",
-    "api",
-    "scanner-auth",
-    "T2-api"
+    "service",
+    "scanner",
+    "auth",
+    "security",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +22,11 @@
     "category": "auth",
     "subcategory": "scanner-auth",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-scanner",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "30k",
     "estimated_effort": "2h",
-    "description": "Scanner login (username + PIN) with HMAC token, lockout, and session table.",
-    "details": "bcrypt PIN hash; HMAC token w/ TTL; 5-fail lockout 10min; scanner_sessions + scanner_login_attempts tables.",
+    "description": "Implement `POST /api/warehouse/scanner/login` accepting username+PIN, validating against bcrypt-hashed `users.scanner_pin_hash`, issuing a session token with TTL=`scanner_idle_timeout_sec`. Rate-limit 5 fails → 10 min lockout (V-WH-SCAN-004).",
+    "details": "Implement `POST /api/warehouse/scanner/login` accepting username+PIN, validating against bcrypt-hashed `users.scanner_pin_hash`, issuing a session token with TTL=`scanner_idle_timeout_sec`. Rate-limit 5 fails → 10 min lockout (V-WH-SCAN-004). `apps/web/app/api/warehouse/scanner/login/route.ts` + service `apps/web/lib/services/warehouse/scanner-auth.ts`. PIN: 4-6 digits, validated against bcrypt-hashed users.scanner_pin_hash.",
     "scope_files": [
       "apps/web/app/api/warehouse/scanner/login/route.ts [create]",
       "packages/db/src/schema/scanner-sessions.ts [create]",
@@ -46,22 +48,24 @@
       "T-042"
     ],
     "acceptance_criteria": [
-      "Given valid username+pin, when endpoint is hit, then 200 with session_token and a scanner_sessions row exists",
-      "Given a wrong PIN 5 times, when 6th attempt occurs, then 429 returns with V-WH-SCAN-004 lockout",
-      "Given an issued token validated >TTL after issue, when validateScannerSession runs, then expired=true"
+      "Given valid username+PIN, when POST, then `{session_token, expires_at}` returned with TTL=300s.",
+      "Given 5 wrong PIN attempts in 10 min, when 6th try, then 429 with lockout message (V-WH-SCAN-004).",
+      "Given the user's `scanner_pin_hash` is NULL, when login attempted, then a `requires_pin_setup` response is returned.",
+      "Given the issued token is presented to /scanner/inventory, when called, then it validates."
     ],
     "test_strategy": [
-      "RED: route.test.ts covers happy, lockout, expiry",
-      "Run 'pnpm --filter web test scanner-login'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/scanner-auth.test.ts` asserting bcrypt validation, rate limit, token issue.",
+      "Run `pnpm --filter web test scanner-auth`."
     ],
     "risk_red_lines": [
-      "Do not store PIN plaintext",
-      "Do not skip lockout",
-      "Do not reuse password column"
+      "Do not store PIN in plaintext or weak hash (bcrypt cost ≥10).",
+      "Do not skip rate limit (V-WH-SCAN-004).",
+      "Do not reuse the user's web password as PIN."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -87,7 +91,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -113,7 +117,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

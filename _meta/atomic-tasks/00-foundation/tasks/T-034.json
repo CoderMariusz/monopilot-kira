@@ -51,7 +51,8 @@
       "Run 'pnpm --filter @monopilot/ops test:e2e'"
     ],
     "risk_red_lines": [
-      "Do not write to audit_events with retention_class!='operational' from this job — taxonomy is fixed in T-009"
+      "Do not write to audit_events with retention_class!='operational' from this job — taxonomy is fixed in T-009",
+      "Do not regress the existing audit_events tests — operational vs business retention split must remain green"
     ],
     "skills": [
       "test-driven-development",

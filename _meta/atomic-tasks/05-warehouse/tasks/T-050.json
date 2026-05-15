@@ -1,22 +1,77 @@
 {
-  "title": "T-050 — Warehouse stock movement and adjustment UI surfaces",
-  "prompt": "# T-050 — Warehouse stock movement and adjustment UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement stock movements list, movement modal, manager approvals, and cycle-count quick adjustment P1 stub with prototype parity.\n\n## Implementation contract\nBuild stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal. Include partial-move split notice, >10% threshold approval state, reason-code validation, side-panel detail, and P1 stub messaging for full cycle counts.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/movements/** [create]\n- apps/web/components/warehouse/movements/** [create]\n- prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given movement list renders, when compared to prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx label stock_movement_list_page, then filters, tabs, side-panel, quantities, and approval warnings match.\n2. Given stock_move_modal receives qty less than LP qty, then it shows the partial split cascade notice and blocks invalid qty greater than LP qty.\n3. Given cycle_count_quick_adjustment_modal delta is greater than 10%, then footer action changes to Submit for Approval and reason_code remains mandatory.\n4. Given components are inspected, then data-prototype-label markers exist for stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal.\n\n## Test strategy\n- RED: component tests for movement modal validation and delta threshold behavior.\n- GREEN: Playwright test side-panel open/close and approval tab flows.\n- Run pnpm test and pnpm playwright test --grep @warehouse-movement-ui.\n\n## Risk red lines\n- Do not treat full cycle counts as P1.\n- Do not allow adjustment without reason.\n- Do not move blocked LPs through this UI.",
+  "title": "T-050 — UI: Stock movement & adjustment surfaces — WH-006/007/M-14 (WH §8.1-8.8)",
+  "prompt": "# T-050 — UI: Stock movement & adjustment surfaces — WH-006/007/M-14 (WH §8.1-8.8)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §8.1, §8.2, §8.3, §8.5, §8.8, §16.6 WH-006/007/M-14\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:3-136 (stock_movement_list_page)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:334-445 (stock_move_modal)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:1051-1103 (cycle_count_quick_adjustment_modal)\n\n## Goal\nImplement /(app)/warehouse/movements list + Sheet detail + StockMove modal + CycleCount quick-adjust modal + Manager-Approvals tab with 1:1 prototype parity and >10% approval gate.\n\n## Implementation contract\n1. RSC list page + client island Sheet on row click (replaces prototype absolute-positioned .mv-side).\n2. Stock Move modal with react-hook-form discriminated-union schema per move_type; ≥10% deltaPct triggers 'Submit for approval' button + alert-amber warning.\n3. Cycle-count quick-adjust modal: P1-stub banner + delta auto-compute + same approval gate (T-029 service).\n4. Manager-Approvals tab listing pending movement_approvals with approve/reject actions (RBAC-gated).\n5. All 3 root elements expose `data-prototype-label`.\n\n## Files\n- apps/web/app/(app)/warehouse/movements/** [create]\n- apps/web/components/warehouse/movements/** [create]\n- prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Prototype parity\n- prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:3-136 (stock_movement_list_page)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:334-445 (stock_move_modal)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:1051-1103 (cycle_count_quick_adjustment_modal)\n- Evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Acceptance criteria\n1. Given /warehouse/movements renders, when compared to prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:3-136 (stock_movement_list_page), then layout, tabs, filter bar, qty color rules match (RTL snapshot).\n2. Given the Stock Move modal computes delta>10%, when submit clicked, then button label becomes 'Submit for approval' and the request routes to T-028 approval path.\n3. Given the Cycle-Count Quick-Adjust modal opens, when the P1-stub Alert is visible, then it states full WH-E14 is P2 (BL-WH-01).\n4. Given a row in stock_movement_list_page is clicked, when expanded, then a shadcn Sheet slides in from the right (not the prototype absolute-positioned .mv-side).\n\nNote: UI closeout must include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a 5th AC, hoisted to process layer by Fixer F6 2026-05-14).\n\n## Test strategy\n- RED: Playwright + RTL covering 3 labels, >10% gate, P1-stub banner, Sheet side-panel.\n- Run `pnpm --filter web test warehouse-mov-ui && pnpm playwright test --project=chromium --grep @warehouse-mov-ui`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not bypass the >10% approval gate.\n- Do not build the full cycle-count workflow (P2 WH-E14).\n- Do not use the prototype absolute-positioned side panel — use shadcn Sheet.\n\n## Dependencies\n- T-025\n- T-026\n- T-027\n- T-028\n- T-029",
   "labels": [
     "prd",
     "ui",
+    "movements",
     "prototype-parity",
-    "T3-ui"
+    "t3-ui"
   ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
     "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§8.1",
+      "§8.2",
+      "§8.3",
+      "§8.5",
+      "§8.8",
+      "§16.6 WH-006/007/M-14"
+    ],
+    "category": "ui",
+    "subcategory": "stock-move-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "05-warehouse-ui-c",
     "context_budget": "35k",
+    "estimated_effort": "1.5d",
+    "description": "Implement /(app)/warehouse/movements list + Sheet detail + StockMove modal + CycleCount quick-adjust modal + Manager-Approvals tab with 1:1 prototype parity and >10% approval gate.",
+    "details": "Implement /(app)/warehouse/movements list + Sheet detail + StockMove modal + CycleCount quick-adjust modal + Manager-Approvals tab with 1:1 prototype parity and >10% approval gate. RSC list page + client island Sheet on row click (replaces prototype absolute-positioned .mv-side). Stock Move modal with react-hook-form discriminated-union schema per move_type; ≥10% deltaPct triggers 'Submit for approval' button + alert-amber warning. AC count consolidated from 5→4 by Fixer F6 2026-05-14 (no coverage lost; the procedural closeout-evidence AC was relocated to test_strategy + UI-PROTOTYPE-PARITY-POLICY.md compliance via `ui_evidence_policy` and the checkpoint_policy.closeout_requires fields — closeout must still attach screenshot/Playwright trace artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/movements/** [create]",
+      "apps/web/components/warehouse/movements/** [create]",
+      "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No full P2 cycle count workflow",
+      "No capacity engine beyond documented warning stubs"
+    ],
+    "dependencies": [
+      "T-025",
+      "T-026",
+      "T-027",
+      "T-028",
+      "T-029"
+    ],
+    "parallel_safe_with": [
+      "T-048",
+      "T-049"
+    ],
+    "acceptance_criteria": [
+      "Given /warehouse/movements renders, when compared to prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx:3-136 (stock_movement_list_page), then layout, tabs, filter bar, qty color rules match (RTL snapshot).",
+      "Given the Stock Move modal computes delta>10%, when submit clicked, then button label becomes 'Submit for approval' and the request routes to T-028 approval path.",
+      "Given the Cycle-Count Quick-Adjust modal opens, when the P1-stub Alert is visible, then it states full WH-E14 is P2 (BL-WH-01).",
+      "Given a row in stock_movement_list_page is clicked, when expanded, then a shadcn Sheet slides in from the right (not the prototype absolute-positioned .mv-side)."
+    ],
+    "test_strategy": [
+      "RED: Playwright + RTL covering 3 labels, >10% gate, P1-stub banner, Sheet side-panel.",
+      "Run `pnpm --filter web test warehouse-mov-ui && pnpm playwright test --project=chromium --grep @warehouse-mov-ui`.",
+      "Closeout-evidence check (hoisted from former AC5): UI closeout MUST include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence. Verified by reviewer checklist + checkpoint_policy.closeout_requires."
+    ],
+    "risk_red_lines": [
+      "Do not bypass the >10% approval gate.",
+      "Do not build the full cycle-count workflow (P2 WH-E14).",
+      "Do not use the prototype absolute-positioned side panel — use shadcn Sheet."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -33,10 +88,16 @@
         "git_status"
       ]
     },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -63,65 +124,8 @@
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
     ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prd_task_id": "T-050",
-    "prd_refs": [
-      "§8.1",
-      "§8.2",
-      "§8.3",
-      "§8.5",
-      "§8.8",
-      "§16.6 WH-006/007/M-14"
-    ],
-    "category": "ui",
-    "subcategory": "stock-move-ui",
-    "task_type": "T3-ui",
-    "parent_feature": "warehouse-stock-moves",
-    "estimated_effort": "1.5d",
-    "description": "Implement stock movements list, movement modal, manager approvals, and cycle-count quick adjustment P1 stub with prototype parity.",
-    "details": "Build stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal. Include partial-move split notice, >10% threshold approval state, reason-code validation, side-panel detail, and P1 stub messaging for full cycle counts.",
-    "scope_files": [
-      "apps/web/app/(app)/warehouse/movements/** [create]",
-      "apps/web/components/warehouse/movements/** [create]",
-      "prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx",
-      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
-    ],
-    "out_of_scope": [
-      "No full P2 cycle count workflow",
-      "No capacity engine beyond documented warning stubs"
-    ],
-    "dependencies": [
-      "T-025",
-      "T-026",
-      "T-027",
-      "T-028",
-      "T-029"
-    ],
-    "parallel_safe_with": [
-      "T-048",
-      "T-049"
-    ],
-    "acceptance_criteria": [
-      "Given movement list renders, when compared to prototypes/design/Monopilot Design System/warehouse/movement-screens.jsx label stock_movement_list_page, then filters, tabs, side-panel, quantities, and approval warnings match.",
-      "Given stock_move_modal receives qty less than LP qty, then it shows the partial split cascade notice and blocks invalid qty greater than LP qty.",
-      "Given cycle_count_quick_adjustment_modal delta is greater than 10%, then footer action changes to Submit for Approval and reason_code remains mandatory.",
-      "Given components are inspected, then data-prototype-label markers exist for stock_movement_list_page, stock_move_modal, and cycle_count_quick_adjustment_modal."
-    ],
-    "test_strategy": [
-      "RED: component tests for movement modal validation and delta threshold behavior.",
-      "GREEN: Playwright test side-panel open/close and approval tab flows.",
-      "Run pnpm test and pnpm playwright test --grep @warehouse-movement-ui."
-    ],
-    "risk_red_lines": [
-      "Do not treat full cycle counts as P1.",
-      "Do not allow adjustment without reason.",
-      "Do not move blocked LPs through this UI."
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "prototype_match": true,
+    "prototype_index_entry": "stock_movement_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

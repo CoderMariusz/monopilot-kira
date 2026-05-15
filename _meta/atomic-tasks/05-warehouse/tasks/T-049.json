@@ -1,22 +1,77 @@
 {
-  "title": "T-049 — Warehouse GRN desktop UI surfaces",
-  "prompt": "# T-049 — Warehouse GRN desktop UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.\n\n## Implementation contract\nBuild the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/grn/** [create]\n- apps/web/components/warehouse/grn/** [create]\n- prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given Receive from PO opens, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.\n2. Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.\n3. Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx.\n4. Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page.\n\n## Test strategy\n- RED: Playwright tests for PO wizard step transitions and required field failures.\n- GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.\n- Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test.\n\n## Risk red lines\n- Do not auto-split a PO line; operator-entered rows are authoritative.\n- Do not auto-complete GRNs without explicit Complete Receipt.\n- Do not create new LPs for normal TO receive when source LPs already exist.",
+  "title": "T-049 — UI: GRN surfaces (PO wizard + TO modal + list + detail) — WH-004-PO/WH-005/WH-010 (WH §7.1-7.5)",
+  "prompt": "# T-049 — UI: GRN surfaces (PO wizard + TO modal + list + detail) — WH-004-PO/WH-005/WH-010 (WH §7.1-7.5)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §7.1, §7.2, §7.3, §7.4, §7.7, §16.6 WH-004-PO/WH-005/WH-010\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-77 (grn_list_page)\nPrototype: prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:83-157 (grn_detail_page)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:24-280 (grn_from_po_wizard)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:283-331 (grn_from_to_modal)\n\n## Goal\nImplement /(app)/warehouse/grns list + detail + GRN-from-PO 3-step wizard + GRN-from-TO modal with 1:1 prototype parity, multi-LP-per-line useFieldArray, GS1 auto-fill, and over-receipt warnings.\n\n## Implementation contract\n1. RSC list page + detail page + client-island wizard/modal under `apps/web/app/(app)/warehouse/grns/`.\n2. PO wizard: 3 steps (select PO, multi-row per line via `useFieldArray`, review+complete) matching prototype 24-280.\n3. TO modal: transit-LP receive checklist with per-row destination location picker, scan input for GS1.\n4. GS1 scan auto-fill calls T-023 parser; visual cues (green=OK, red=error).\n5. Over-receipt: warning Alert + Manager override option per §7.3.\n6. All 4 root elements expose `data-prototype-label`.\n\n## Files\n- apps/web/app/(app)/warehouse/grn/** [create]\n- apps/web/components/warehouse/grn/** [create]\n- prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Prototype parity\n- prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-77 (grn_list_page)\n- prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:83-157 (grn_detail_page)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:24-280 (grn_from_po_wizard)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:283-331 (grn_from_to_modal)\n- Evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Acceptance criteria\n1. Given /warehouse/grns renders, when compared to prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-77 (grn_list_page), prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:83-157 (grn_detail_page), then layout, tabs, filter bar, status badges match (RTL snapshot + parity checklist).\n2. Given the GRN-from-PO wizard step 2 renders, when operator adds 3 rows for one PO line with different batches/expirations, then 3 LPs are created on complete and the wizard never auto-splits/merges.\n3. Given a GS1-128 string is pasted/scanned in step 2, when parsed, then batch/expiry/qty/CW fields are pre-filled (T-023 integration).\n4. Given SUM(rows.qty) > ordered × (1 + tolerance%), when complete clicked, then an Over-Receipt Alert appears with Manager override (RBAC-gated).\n\nNote: UI closeout must include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a 5th AC, hoisted to process layer by Fixer F6 2026-05-14).\n\n## Test strategy\n- RED: Playwright + RTL covering 4 labels, multi-LP wizard, GS1 auto-fill, over-receipt path.\n- Run `pnpm --filter web test warehouse-grn-ui && pnpm playwright test --project=chromium --grep @warehouse-grn-ui`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not auto-split or merge grn_items rows on the client.\n- Do not bypass over-receipt tolerance/manager-override gating.\n- Do not paste prototype JSX verbatim.\n\n## Dependencies\n- T-021\n- T-022\n- T-023\n- T-024\n- T-043",
   "labels": [
     "prd",
     "ui",
+    "grn",
     "prototype-parity",
-    "T3-ui"
+    "t3-ui"
   ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-049",
     "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§7.1",
+      "§7.2",
+      "§7.3",
+      "§7.4",
+      "§7.7",
+      "§16.6 WH-004-PO/WH-005/WH-010"
+    ],
+    "category": "ui",
+    "subcategory": "grn-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "05-warehouse-ui-b",
     "context_budget": "35k",
+    "estimated_effort": "2d",
+    "description": "Implement /(app)/warehouse/grns list + detail + GRN-from-PO 3-step wizard + GRN-from-TO modal with 1:1 prototype parity, multi-LP-per-line useFieldArray, GS1 auto-fill, and over-receipt warnings.",
+    "details": "Implement /(app)/warehouse/grns list + detail + GRN-from-PO 3-step wizard + GRN-from-TO modal with 1:1 prototype parity, multi-LP-per-line useFieldArray, GS1 auto-fill, and over-receipt warnings. RSC list page + detail page + client-island wizard/modal under `apps/web/app/(app)/warehouse/grns/`. PO wizard: 3 steps (select PO, multi-row per line via `useFieldArray`, review+complete) matching prototype 24-280. AC count consolidated from 5→4 by Fixer F6 2026-05-14 (no coverage lost; the procedural closeout-evidence AC was relocated to test_strategy + UI-PROTOTYPE-PARITY-POLICY.md compliance via `ui_evidence_policy` and the checkpoint_policy.closeout_requires fields — closeout must still attach screenshot/Playwright trace artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/grn/** [create]",
+      "apps/web/components/warehouse/grn/** [create]",
+      "prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No scanner mobile receive flow",
+      "No PO schema changes"
+    ],
+    "dependencies": [
+      "T-021",
+      "T-022",
+      "T-023",
+      "T-024",
+      "T-043"
+    ],
+    "parallel_safe_with": [
+      "T-048",
+      "T-050"
+    ],
+    "acceptance_criteria": [
+      "Given /warehouse/grns renders, when compared to prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:3-77 (grn_list_page), prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx:83-157 (grn_detail_page), then layout, tabs, filter bar, status badges match (RTL snapshot + parity checklist).",
+      "Given the GRN-from-PO wizard step 2 renders, when operator adds 3 rows for one PO line with different batches/expirations, then 3 LPs are created on complete and the wizard never auto-splits/merges.",
+      "Given a GS1-128 string is pasted/scanned in step 2, when parsed, then batch/expiry/qty/CW fields are pre-filled (T-023 integration).",
+      "Given SUM(rows.qty) > ordered × (1 + tolerance%), when complete clicked, then an Over-Receipt Alert appears with Manager override (RBAC-gated)."
+    ],
+    "test_strategy": [
+      "RED: Playwright + RTL covering 4 labels, multi-LP wizard, GS1 auto-fill, over-receipt path.",
+      "Run `pnpm --filter web test warehouse-grn-ui && pnpm playwright test --project=chromium --grep @warehouse-grn-ui`.",
+      "Closeout-evidence check (hoisted from former AC5): UI closeout MUST include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence. Verified by reviewer checklist + checkpoint_policy.closeout_requires."
+    ],
+    "risk_red_lines": [
+      "Do not auto-split or merge grn_items rows on the client.",
+      "Do not bypass over-receipt tolerance/manager-override gating.",
+      "Do not paste prototype JSX verbatim."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -33,10 +88,16 @@
         "git_status"
       ]
     },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -63,65 +124,8 @@
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
     ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prd_task_id": "T-049",
-    "prd_refs": [
-      "§7.1",
-      "§7.2",
-      "§7.3",
-      "§7.4",
-      "§7.7",
-      "§16.6 WH-004-PO/WH-005/WH-010"
-    ],
-    "category": "ui",
-    "subcategory": "grn-ui",
-    "task_type": "T3-ui",
-    "parent_feature": "warehouse-grn",
-    "estimated_effort": "2d",
-    "description": "Implement GRN from PO wizard, GRN from TO modal, GRN list, and GRN detail with prototype parity.",
-    "details": "Build the multi-LP per PO line workflow exactly as the UX specifies: manual row entry, GS1 scan auto-fill cues, per-row batch/expiry/location, review and complete, success/error states, and TO transit-to-destination receiving.",
-    "scope_files": [
-      "apps/web/app/(app)/warehouse/grn/** [create]",
-      "apps/web/components/warehouse/grn/** [create]",
-      "prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx",
-      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
-    ],
-    "out_of_scope": [
-      "No scanner mobile receive flow",
-      "No PO schema changes"
-    ],
-    "dependencies": [
-      "T-021",
-      "T-022",
-      "T-023",
-      "T-024",
-      "T-043"
-    ],
-    "parallel_safe_with": [
-      "T-048",
-      "T-050"
-    ],
-    "acceptance_criteria": [
-      "Given Receive from PO opens, when compared to prototypes/design/Monopilot Design System/warehouse/modals.jsx label grn_from_po_wizard, then the 3-step flow and multi-LP row table match prototype structure and copy.",
-      "Given a TO receive modal opens, when an LP is checked as received, then Destination Location is required and visible inline as in grn_from_to_modal.",
-      "Given GRN list/detail render, then routes, filters, LP created links, export controls, and empty/error states match prototypes/design/Monopilot Design System/warehouse/grn-screens.jsx.",
-      "Given components are inspected, then data-prototype-label markers exist for grn_from_po_wizard, grn_from_to_modal, grn_list_page, and grn_detail_page."
-    ],
-    "test_strategy": [
-      "RED: Playwright tests for PO wizard step transitions and required field failures.",
-      "GREEN: component tests for multi-row add/remove, over/under-receipt warnings, and GS1 parsed badges.",
-      "Run pnpm playwright test --grep @warehouse-grn-ui and pnpm test."
-    ],
-    "risk_red_lines": [
-      "Do not auto-split a PO line; operator-entered rows are authoritative.",
-      "Do not auto-complete GRNs without explicit Complete Receipt.",
-      "Do not create new LPs for normal TO receive when source LPs already exist."
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "prototype_match": true,
+    "prototype_index_entry": "grn_from_po_wizard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

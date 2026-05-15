@@ -1,6 +1,6 @@
 {
-  "title": "T-003 — Drizzle migration: wo_outputs table + output_type enum + RLS",
-  "prompt": "# T-003 — Drizzle migration: wo_outputs table + output_type enum + RLS\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §9.4, §16.4 V-PROD-03/04/24\n\n## Goal\nAdd Drizzle migration creating output_type_enum ('primary','co_product','by_product') and wo_outputs table per §9.4 with batch_number uniqueness per tenant per year (V-PROD-24), QA status tracking, and RLS.\n\n## Implementation contract\npackages/db/schema/production/wo-outputs.ts: pgEnum output_type_enum, table wo_outputs with PK id UUID, transaction_id UUID UNIQUE (R14), tenant_id, wo_id REFERENCES work_orders, output_type enum NOT NULL, item_id REFERENCES items, lp_id REFERENCES license_plates, qty_kg NUMERIC(12,3) CHECK >0, catch_weight_details JSONB, batch_number text NOT NULL, expiry_date DATE NOT NULL, qa_status text DEFAULT 'PENDING', label_printed_at, registered_by/at, ext_jsonb. Add UNIQUE constraint (tenant_id, batch_number, EXTRACT(YEAR FROM registered_at)) implementing V-PROD-24. Indexes idx_outputs_wo, idx_outputs_lp, idx_outputs_batch, idx_outputs_qa_status. RLS by tenant_id.\n\n## Files (scope)\n- packages/db/schema/production/wo-outputs.ts [create]\n- packages/db/schema/production/enums.ts [modify or create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_outputs.sql [create]\n- packages/db/__tests__/wo-outputs-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given output_type_enum created, when SELECT enum_range(NULL::output_type_enum) runs, then returns ['primary','co_product','by_product']\n2. Given two outputs with same batch_number in same tenant+year, when INSERT runs, then second fails with unique_violation (V-PROD-24)\n3. Given qty_kg=0, when INSERT runs, then CHECK constraint rejects\n\n## Test strategy\n- RED: schema test asserting enum values and batch_number unique constraint before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-outputs-schema'\n\n## Risk red lines\n- Do not change enum values (would break downstream consumers)\n- Do not weaken V-PROD-24 batch uniqueness\n- Do not allow qty_kg <= 0",
+  "title": "T-003 — Drizzle migration: wo_outputs table (canonical) + output_type enum + RLS",
+  "prompt": "# T-003 — Drizzle migration: wo_outputs table (canonical) + output_type enum + RLS\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §9.4, §16.4 V-PROD-03/04/24\n\n## Goal\n08-production T-003 is the canonical owner of `wo_outputs` (2026-05-14 decision). Add Drizzle migration creating output_type_enum ('primary','co_product','by_product') and the canonical `wo_outputs` table per §9.4 with batch_number uniqueness per org per year (V-PROD-24), QA status tracking, R13 audit cols, and RLS via foundation `app.current_org_id()`.\n\n## Cross-module relationship\nMaterialized from `schedule_outputs` (04-planning-basic T-005) when `wo.start` event fires. Production-only columns (batch_number, qa_status, V-PROD-24 unique-per-year, allergen cascade hooks, R13 audit) are populated at materialization time, not at planning time. Planning never inserts into `wo_outputs` — it writes to `schedule_outputs` and 08-production projects on WO start. The schedule_outputs.output_role enum carries over as wo_outputs.output_type (same set: 'primary','co_product','by_product').\n\n## Implementation contract\npackages/db/schema/production/wo-outputs.ts: pgEnum output_type_enum, table wo_outputs with PK id UUID, transaction_id UUID UNIQUE (R14), org_id (Wave0 v4.3 — never tenant_id), wo_id REFERENCES work_orders, output_type enum NOT NULL, item_id REFERENCES items, lp_id REFERENCES license_plates, qty_kg NUMERIC(12,3) CHECK >0, catch_weight_details JSONB, batch_number text NOT NULL, expiry_date DATE NOT NULL, qa_status text DEFAULT 'PENDING', label_printed_at, registered_by/at, ext_jsonb. Add UNIQUE constraint (org_id, batch_number, EXTRACT(YEAR FROM registered_at)) implementing V-PROD-24. Indexes idx_outputs_wo, idx_outputs_lp, idx_outputs_batch, idx_outputs_qa_status. RLS policy `wo_outputs_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`) + ENABLE + FORCE ROW LEVEL SECURITY. Never read `current_setting('app.tenant_id'|'app.current_org_id')` GUC.\n\n## Files (scope)\n- packages/db/schema/production/wo-outputs.ts [create]\n- packages/db/schema/production/enums.ts [modify or create]\n- packages/db/schema/production/index.ts [modify]\n- packages/db/migrations/NNNN_wo_outputs.sql [create]\n- packages/db/__tests__/wo-outputs-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given output_type_enum created, when SELECT enum_range(NULL::output_type_enum) runs, then returns ['primary','co_product','by_product']\n2. Given two outputs with same batch_number in same org+year, when INSERT runs, then second fails with unique_violation (V-PROD-24)\n3. Given qty_kg=0, when INSERT runs, then CHECK constraint rejects\n4. Given `pg_policies` is inspected, when policies for wo_outputs are listed, then the qual/withcheck reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.\n\n## Test strategy\n- RED: schema test asserting enum values, batch_number unique constraint, and pg_policies reference `app.current_org_id()` before schema exists\n- Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-outputs-schema'\n\n## Risk red lines\n- Do not change enum values (would break downstream consumers + planning schedule_outputs.output_role projection)\n- Do not weaken V-PROD-24 batch uniqueness\n- Do not allow qty_kg <= 0\n- Do not duplicate `wo_outputs` in any planning module — 08-production T-003 is the only canonical owner (per 2026-05-14 decision; planning uses schedule_outputs in 04 T-005).",
   "labels": [
     "prd",
     "data",
@@ -26,8 +26,8 @@
     "parent_feature": "08-PROD E3 Output+Waste",
     "context_budget": "28k",
     "estimated_effort": "1-2h",
-    "description": "wo_outputs Drizzle table with output_type enum, batch_number uniqueness per tenant/year, QA status, RLS.",
-    "details": "Mirror §9.4 SQL: PK id UUID, transaction_id UNIQUE for R14, output_type pgEnum ('primary','co_product','by_product'), qty_kg CHECK >0, batch_number text NOT NULL with UNIQUE (tenant_id, batch_number, year_part_of_registered_at) enforcing V-PROD-24. Indexes: idx_outputs_wo, idx_outputs_lp, idx_outputs_batch, idx_outputs_qa_status (composite tenant_id+qa_status). RLS by tenant_id.",
+    "description": "Canonical wo_outputs Drizzle table (2026-05-14 decision) with output_type enum, batch_number uniqueness per org/year, QA status, RLS via app.current_org_id(). Materialized from planning's schedule_outputs (04 T-005) on WO start.",
+    "details": "Mirror §9.4 SQL: PK id UUID, transaction_id UNIQUE for R14, output_type pgEnum ('primary','co_product','by_product'), qty_kg CHECK >0, batch_number text NOT NULL with UNIQUE (org_id, batch_number, year_part_of_registered_at) enforcing V-PROD-24. Indexes: idx_outputs_wo, idx_outputs_lp, idx_outputs_batch, idx_outputs_qa_status (composite org_id+qa_status). RLS via app.current_org_id() on org_id column. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Cross-module: planning's 04 T-005 schedule_outputs is the upstream planning projection; production materializes schedule_outputs rows into wo_outputs on WO start, adding production-only fields (batch_number, qa_status, catch_weight_details, etc.).",
     "scope_files": [
       "packages/db/schema/production/wo-outputs.ts [create]",
       "packages/db/schema/production/enums.ts [create or modify]",
@@ -38,7 +38,8 @@
     "out_of_scope": [
       "Do not implement output API endpoints",
       "Do not implement label printing",
-      "Do not modify license_plates table"
+      "Do not modify license_plates table",
+      "Do not implement materialization projection from schedule_outputs (that is a separate 08-production runtime task on WO start)"
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -52,17 +53,21 @@
     ],
     "acceptance_criteria": [
       "Given enum applied, when enum_range(NULL::output_type_enum) runs, then ['primary','co_product','by_product'] returned",
-      "Given two outputs same tenant+year+batch_number, when INSERT runs, then unique_violation raised (V-PROD-24)",
-      "Given qty_kg=0 INSERT, when run, then CHECK rejects"
+      "Given two outputs same org+year+batch_number, when INSERT runs, then unique_violation raised (V-PROD-24)",
+      "Given qty_kg=0 INSERT, when run, then CHECK rejects",
+      "Given pg_policies is inspected, when wo_outputs policies are listed, then the qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC reads"
     ],
     "test_strategy": [
-      "RED: schema test asserting enum + batch year-scoped UNIQUE before schema exists",
+      "RED: schema test asserting enum + batch year-scoped UNIQUE + pg_policies app.current_org_id() reference before schema exists",
       "Run 'pnpm --filter db drizzle:generate && pnpm --filter db test wo-outputs-schema'"
     ],
     "risk_red_lines": [
-      "Do not change enum values",
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
+      "Do not change enum values (would break planning schedule_outputs.output_role projection)",
       "Do not weaken V-PROD-24 batch uniqueness",
-      "Do not allow qty_kg<=0"
+      "Do not allow qty_kg<=0",
+      "Do not permit any other module to (re)create `wo_outputs` — 08-production T-003 is the sole canonical owner (planning uses schedule_outputs in 04 T-005)."
     ],
     "skills": [
       "test-driven-development",
@@ -88,6 +93,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-005",
+        "reason": "Planning-side schedule_outputs table is the upstream projection (2026-05-14 decision); 08-production T-003 owns the canonical wo_outputs and materializes schedule_outputs into wo_outputs on WO start, adding production-only columns (batch_number, qa_status, V-PROD-24, etc.)."
+      }
+    ]
   }
 }

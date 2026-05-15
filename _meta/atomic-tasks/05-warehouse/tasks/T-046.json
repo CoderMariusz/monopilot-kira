@@ -1,13 +1,13 @@
 {
-  "title": "T-046 — Location deactivate guard service",
-  "prompt": "# T-046 — Location deactivate guard\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §14.6 (FR-WH-041), V-WH-DASH-002.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`deactivateLocation(locationId)` Server Action that blocks deactivation when ≥1 active LP (status IN available/reserved) is present.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/location-deactivate.ts`. Count active LPs at the location. If >0 return V-WH-DASH-002 error 'cannot_deactivate_location_with_active_lps' (count, location_path) — UI surfaces explicit message. Otherwise set locations.active=false, append audit row, emit outbox 'location.deactivated' (deferred T-047).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/location-deactivate.ts [create]\n- apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]\n\n## Acceptance criteria\n1. Given a location with 3 active LPs, when deactivateLocation runs, then it returns V-WH-DASH-002 with count=3 and the row stays active=true.\n2. Given a location with 0 active LPs, when run, then locations.active=false and audit row exists.\n3. Given Operator caller, when run, then RBAC error returns (Admin only per §14.6).\n\n## Test strategy\n- RED: location-deactivate.test.ts covers blocked, allowed, RBAC.\n- Run `pnpm --filter web test location-deactivate`.\n\n## Risk red lines\n- Do not count consumed/shipped/blocked LPs as active.\n- Do not bypass Admin RBAC.\n- Do not skip audit row.",
+  "title": "T-046 — Location deactivate guard service (WH §14.6)",
+  "prompt": "# T-046 — Location deactivate guard service (WH §14.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §14.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `deactivateLocation` guard: deactivate is blocked if ≥1 active LP (`status IN ('available','reserved')`) is present at the location or its descendants (V-WH-DASH-002).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/location-deactivate.ts`: function `deactivateLocation({location_id})`.\n2. Pre-check: `SELECT COUNT(*) FROM license_plates lp JOIN locations loc ON loc.id=lp.location_id WHERE loc.path <@ (SELECT path FROM locations WHERE id=:location_id) AND lp.status IN ('available','reserved')`.\n3. If count > 0 → reject with `{blocked: true, active_lp_count, reason: 'lps_present'}`.\n4. Else UPDATE locations.active=false + outbox `location.deactivated`.\n5. RBAC Admin+.\n\n## Files\n- apps/web/lib/services/warehouse/location-deactivate.ts [create]\n- apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]\n\n## Acceptance criteria\n1. Given a location with 3 active LPs (or 3 in descendants), when deactivate attempted, then service rejects with active_lp_count=3.\n2. Given a location with only consumed/shipped LPs, when deactivate attempted, then it succeeds.\n3. Given a non-Admin user, when called, then RBAC rejects.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts` asserting LP-presence guard (incl. descendants via ltree), RBAC, success path.\n- Run `pnpm --filter web test location-deactivate`.\n\n## Risk red lines\n- Do not skip the descendants check (ltree `@>` required).\n- Do not allow non-Admin deactivate.\n\n## Dependencies\n- T-002",
   "labels": [
     "prd",
-    "api",
+    "service",
     "locations",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 120,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "locations",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-locations",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Block location deactivation when active LPs exist; Admin-only.",
-    "details": "Active = status IN ('available','reserved'). Audit row + outbox emission deferred T-047.",
+    "description": "Implement `deactivateLocation` guard: deactivate is blocked if ≥1 active LP (`status IN ('available','reserved')`) is present at the location or its descendants (V-WH-DASH-002).",
+    "details": "Implement `deactivateLocation` guard: deactivate is blocked if ≥1 active LP (`status IN ('available','reserved')`) is present at the location or its descendants (V-WH-DASH-002). `apps/web/lib/services/warehouse/location-deactivate.ts`: function `deactivateLocation({location_id})`. Pre-check: `SELECT COUNT(*) FROM license_plates lp JOIN locations loc ON loc.id=lp.location_id WHERE loc.path <@ (SELECT path FROM locations WHERE id=:location_id) AND lp.status IN ('available','reserved')`.",
     "scope_files": [
       "apps/web/lib/services/warehouse/location-deactivate.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts [create]"
@@ -41,18 +41,17 @@
       "T-045"
     ],
     "acceptance_criteria": [
-      "Given a location with 3 active LPs, when run, then V-WH-DASH-002 returns with count=3 and active stays true",
-      "Given a location with 0 active LPs, when run, then active=false and audit row exists",
-      "Given Operator caller, when run, then RBAC error returns"
+      "Given a location with 3 active LPs (or 3 in descendants), when deactivate attempted, then service rejects with active_lp_count=3.",
+      "Given a location with only consumed/shipped LPs, when deactivate attempted, then it succeeds.",
+      "Given a non-Admin user, when called, then RBAC rejects."
     ],
     "test_strategy": [
-      "RED: location-deactivate.test.ts covers blocked, allowed, RBAC",
-      "Run 'pnpm --filter web test location-deactivate'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/location-deactivate.test.ts` asserting LP-presence guard (incl. descendants via ltree), RBAC, success path.",
+      "Run `pnpm --filter web test location-deactivate`."
     ],
     "risk_red_lines": [
-      "Do not count non-active LPs",
-      "Do not bypass Admin RBAC",
-      "Do not skip audit"
+      "Do not skip the descendants check (ltree `@>` required).",
+      "Do not allow non-Admin deactivate."
     ],
     "skills": [
       "test-driven-development",
@@ -82,7 +81,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -108,7 +107,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

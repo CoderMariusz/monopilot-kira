@@ -1,13 +1,14 @@
 {
-  "title": "T-028 — Adjustment service + 10% threshold gate",
-  "prompt": "# T-028 — Adjustment service + 10% threshold gate\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §8.5 (FR-WH-014), V-WH-MOV-004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`adjustLp(lpId, newQty, reasonCode, reasonText?)` Server Action with 10% delta threshold routing to manager approval queue.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-adjustment.ts`. Validate reason_code present. If |delta|/LP.qty > 0.10 OR delta > 0 (qty increase), insert into `movement_approvals` with status='pending' rather than applying directly. Otherwise apply: update LP.qty, insert stock_moves(move_type='adjustment'), insert lp_genealogy(operation_type='adjustment'). On final-zero qty, status→'consumed'. New table `movement_approvals` (id, tenant_id, lp_id, requested_qty, delta, reason_code, reason_text, requested_by, requested_at, approved_by, approved_at, status enum pending/approved/rejected).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-adjustment.ts [create]\n- packages/db/src/schema/movement-approvals.ts [create]\n- packages/db/migrations/0NN_movement_approvals.sql [create]\n- apps/web/lib/services/warehouse/__tests__/lp-adjustment.test.ts [create]\n\n## Acceptance criteria\n1. Given LP qty=100 and adjust to 95 (5% delta) by Operator, when service runs, then qty=95 immediately and a stock_moves(adjustment) row exists.\n2. Given LP qty=100 and adjust to 80 (20% delta), when service runs, then movement_approvals row pending=true is created and LP.qty stays 100.\n3. Given LP qty=100 and adjust to 110 (qty increase), when service runs, then movement_approvals row is created regardless of percentage.\n4. Given missing reason_code, when service runs, then V-WH-MOV-005 validation error returns.\n\n## Test strategy\n- RED: lp-adjustment.test.ts covers four scenarios + new schema.\n- Run `pnpm --filter web test lp-adjustment`.\n\n## Risk red lines\n- Do not auto-approve >10% deltas.\n- Do not allow qty increase without approval.\n- Do not delete LP at qty=0 (audit-preserving).",
+  "title": "T-028 — Adjustment service + >10% manager-approval gate (WH §8.5)",
+  "prompt": "# T-028 — Adjustment service + >10% manager-approval gate (WH §8.5)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §8.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `adjustLpQuantity` service: delta ≤10% self-approved; |delta|>10% → write into `movement_approvals` pending Manager approval; positive delta (increase) always Manager-approval. Threshold is `settings.adjustment_approval_threshold_pct` (default 10).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/adjustment.ts`: function `adjustLpQuantity({lp_id, new_qty, reason_code, reason_text})`.\n2. Compute `delta = new_qty - current_qty`, `delta_pct = |delta|/current_qty * 100`.\n3. If `delta < 0 AND delta_pct ≤ threshold`: apply directly (LP.quantity = new_qty, stock_moves(move_type='adjustment', quantity=delta), lp_genealogy(operation_type='adjustment')).\n4. Else: INSERT `movement_approvals(lp_id, requested_qty, current_qty, reason_code, reason_text, status='pending', requested_by)`; LP unchanged.\n5. Separate `approveAdjustment({approval_id, approver_id})` service (Manager-only) applies pending and inserts the same stock_moves+genealogy rows.\n6. reason_code mandatory; reason_text required when reason_code='other' (≥10 chars).\n\n## Files\n- apps/web/lib/services/warehouse/lp-adjustment.ts [create]\n- packages/db/src/schema/movement-approvals.ts [create]\n- packages/db/migrations/0NN_movement_approvals.sql [create]\n- apps/web/lib/services/warehouse/__tests__/lp-adjustment.test.ts [create]\n\n## Acceptance criteria\n1. Given LP 100 → 95 (delta=-5, 5%), when adjusted, then LP.quantity=95 directly and stock_moves row exists.\n2. Given LP 100 → 80 (delta=-20, 20%), when adjusted, then no LP change occurs and movement_approvals row exists with status='pending' (V-WH-MOV-004).\n3. Given a pending approval, when approved by a Manager, then LP qty updates and stock_moves+genealogy are written.\n4. Given LP 100 → 110 (positive delta), when adjusted, then it always routes to approval regardless of pct.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/adjustment.test.ts` asserting threshold routing + positive-delta always-approval + approval path + reason gate.\n- Run `pnpm --filter web test adjustment`.\n\n## Risk red lines\n- Do not apply >10% adjustments without approval.\n- Do not apply positive deltas without approval.\n- Do not skip reason_code.\n\n## Dependencies\n- T-002\n- T-006\n- T-003",
   "labels": [
     "prd",
-    "api",
+    "service",
     "adjustment",
-    "T2-api"
+    "approval",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "adjustment",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-stock-moves",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "LP adjustment with 10% delta threshold and qty-increase always-approval; new movement_approvals table.",
-    "details": "Single transaction. New table movement_approvals; reason_code required; LP qty=0 → status='consumed' (no delete).",
+    "description": "Implement `adjustLpQuantity` service: delta ≤10% self-approved; |delta|>10% → write into `movement_approvals` pending Manager approval; positive delta (increase) always Manager-approval. Threshold is `settings.adjustment_approval_threshold_pct` (default 10).",
+    "details": "Implement `adjustLpQuantity` service: delta ≤10% self-approved; |delta|>10% → write into `movement_approvals` pending Manager approval; positive delta (increase) always Manager-approval. Threshold is `settings.adjustment_approval_threshold_pct` (default 10). `apps/web/lib/services/warehouse/adjustment.ts`: function `adjustLpQuantity({lp_id, new_qty, reason_code, reason_text})`. Compute `delta = new_qty - current_qty`, `delta_pct = |delta|/current_qty * 100`.",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-adjustment.ts [create]",
       "packages/db/src/schema/movement-approvals.ts [create]",
@@ -45,19 +46,19 @@
       "T-029"
     ],
     "acceptance_criteria": [
-      "Given LP.qty=100, adjust to 95 by Operator, when run, then qty=95 immediately and adjustment stock_move exists",
-      "Given LP.qty=100, adjust to 80, when run, then a pending movement_approvals row is created and LP.qty stays 100",
-      "Given LP.qty=100, adjust to 110, when run, then a pending movement_approvals row is created",
-      "Given missing reason_code, when run, then V-WH-MOV-005 error returns"
+      "Given LP 100 → 95 (delta=-5, 5%), when adjusted, then LP.quantity=95 directly and stock_moves row exists.",
+      "Given LP 100 → 80 (delta=-20, 20%), when adjusted, then no LP change occurs and movement_approvals row exists with status='pending' (V-WH-MOV-004).",
+      "Given a pending approval, when approved by a Manager, then LP qty updates and stock_moves+genealogy are written.",
+      "Given LP 100 → 110 (positive delta), when adjusted, then it always routes to approval regardless of pct."
     ],
     "test_strategy": [
-      "RED: lp-adjustment.test.ts covers four scenarios + new table",
-      "Run 'pnpm --filter web test lp-adjustment'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/adjustment.test.ts` asserting threshold routing + positive-delta always-approval + approval path + reason gate.",
+      "Run `pnpm --filter web test adjustment`."
     ],
     "risk_red_lines": [
-      "Do not auto-approve >10% deltas",
-      "Do not allow qty increase without approval",
-      "Do not delete LP at qty=0"
+      "Do not apply >10% adjustments without approval.",
+      "Do not apply positive deltas without approval.",
+      "Do not skip reason_code."
     ],
     "skills": [
       "test-driven-development",
@@ -87,7 +88,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -113,7 +114,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

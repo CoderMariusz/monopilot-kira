@@ -1,6 +1,6 @@
 {
   "title": "T-071 — Docs: ADR-002 + ADR-008 + ADR-028 + ADR-029 cross-reference notes for 03-TECHNICAL",
-  "prompt": "Write a concise ADR cross-ref note for 03-TECHNICAL at design/specs/03-TECHNICAL-ADR-notes.md. Cover: ADR-002 (BOM snapshot pattern — implemented in T-002 + T-025), ADR-008 (audit_log mutation tracking — implemented across T-009/T-010/T-011/T-013/T-014/T-016/T-017/T-021), ADR-028 (schema-driven cols implemented via T-001 ext_jsonb + T-027 propagation), ADR-029 (rule registry — cascade rule deployed in T-024). Each ADR section ends with the canonical task reference and the file/line touched.",
+  "prompt": "# T-071 — Docs: ADR-002 + ADR-008 + ADR-028 + ADR-029 cross-reference notes for 03-TECHNICAL\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §16\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nADR cross-reference notes mapping each ADR to its task implementations.\n\nUseful for reviewers + closeout traceability. No code changes — pure docs.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/03-TECHNICAL-ADR-notes.md [create]\n\n## Out of scope\n- Editing the ADRs themselves\n\n## Acceptance criteria\n1. Given the note exists, when reviewed, then 4 ADRs are cross-referenced with task IDs.\n2. Given a reviewer reads it, when tracing closeout, then they can map ADR-029 cascade rule to T-024 directly.\n\n## Test strategy\n- Manual review.\n- No automated tests.\n\n## Risk red lines\n- Do not edit ADR source files.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -50,7 +50,11 @@
       "No automated tests."
     ],
     "risk_red_lines": [
-      "Do not edit ADR source files."
+      "Do not edit ADR source files.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

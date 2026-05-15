@@ -1,13 +1,14 @@
 {
-  "title": "T-045 — Inventory value RBAC server-side gating",
-  "prompt": "# T-045 — Inventory value RBAC server-side gating\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §14.5 (FR-WH-040), V-WH-DASH-001.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nServer function `getInventoryValueIfAllowed(session)` returns inventory value rows only when session.role IN ('Manager','Planner','Admin'); other roles get null/omit.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/inventory-value-rbac.ts`. Pull session via auth; gate the value column server-side. Returns either {totalValueGbp, perWarehouse[]} or null. All inventory APIs (T-039, T-070 inventory browser) MUST call through this helper to avoid client-side leakage.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/inventory-value-rbac.ts [create]\n- apps/web/lib/services/warehouse/__tests__/inventory-value-rbac.test.ts [create]\n\n## Acceptance criteria\n1. Given session.role='Manager', when called, then a {totalValueGbp, perWarehouse[]} object returns with non-null totals.\n2. Given session.role='Operator', when called, then null returns and no SQL hits items.cost.\n3. Given the helper is grepped for usages in inventory route handlers, when checked at lint time, then any direct SUM(qty*items.cost) outside this helper raises a CI lint warning.\n\n## Test strategy\n- RED: inventory-value-rbac.test.ts covers role gating + lint coverage.\n- Run `pnpm --filter web test inventory-value-rbac`.\n\n## Risk red lines\n- Do not query items.cost without RBAC gate.\n- Do not let role be passed from client.\n- Do not bypass middleware-derived session.",
+  "title": "T-045 — Inventory-value RBAC server-side gating (WH §14.5)",
+  "prompt": "# T-045 — Inventory-value RBAC server-side gating (WH §14.5)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §14.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement server-side gating on the inventory-value column: only roles in (Manager, Planner, Admin) see SUM(LP.qty × items.cost) values; other roles get null/omitted columns (V-WH-DASH-001).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/inventory-value.ts`: `getInventoryValue({warehouse_id, user_role}): {value: Decimal|null, currency, suppressed: bool}`.\n2. If role ∉ ('Manager','Planner','Admin') → `{value: null, suppressed: true}` (no SUM computed, value never leaves DB).\n3. Inventory Browser RSC (T-053) calls this for the value column; never include cost in responses to unauthorized roles.\n4. Caches per-tenant Redis 60s (settings.dashboard_cache_ttl_sec).\n\n## Files\n- apps/web/lib/services/warehouse/inventory-value-rbac.ts [create]\n- apps/web/lib/services/warehouse/__tests__/inventory-value-rbac.test.ts [create]\n\n## Acceptance criteria\n1. Given a Manager calls the API, when invoked, then `value` is a Decimal sum across active LPs.\n2. Given an Operator calls the API, when invoked, then `value=null, suppressed=true` and the actual SUM is never computed.\n3. Given the cache key is hit within 60 s, when invoked, then DB query is NOT re-executed.\n4. Given the role gate evaluates server-side, when a client tampers with role param, then the server uses the session role and ignores it.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/inventory-value.test.ts` asserting role gate, suppression, cache, server-side trust.\n- Run `pnpm --filter web test inventory-value`.\n\n## Risk red lines\n- Do not compute SUM for unauthorized roles (data minimization).\n- Do not trust client-side role hints.\n- Do not cache cross-tenant.",
   "labels": [
     "prd",
-    "api",
+    "service",
     "rbac",
-    "T2-api"
+    "inventory-value",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "auth",
     "subcategory": "rbac",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-dashboard",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Server-side RBAC helper gating inventory value disclosure per V-WH-DASH-001.",
-    "details": "Single helper for all inventory consumers; ESLint rule prevents bypass.",
+    "description": "Implement server-side gating on the inventory-value column: only roles in (Manager, Planner, Admin) see SUM(LP.qty × items.cost) values; other roles get null/omitted columns (V-WH-DASH-001).",
+    "details": "Implement server-side gating on the inventory-value column: only roles in (Manager, Planner, Admin) see SUM(LP.qty × items.cost) values; other roles get null/omitted columns (V-WH-DASH-001). `apps/web/lib/services/warehouse/inventory-value.ts`: `getInventoryValue({warehouse_id, user_role}): {value: Decimal|null, currency, suppressed: bool}`. If role ∉ ('Manager','Planner','Admin') → `{value: null, suppressed: true}` (no SUM computed, value never leaves DB).",
     "scope_files": [
       "apps/web/lib/services/warehouse/inventory-value-rbac.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/inventory-value-rbac.test.ts [create]"
@@ -41,18 +42,19 @@
       "T-046"
     ],
     "acceptance_criteria": [
-      "Given session.role='Manager', when called, then a {totalValueGbp, perWarehouse[]} object returns",
-      "Given session.role='Operator', when called, then null returns and items.cost is not queried",
-      "Given any direct SUM(qty*items.cost) outside this helper, when CI lints, then a warning raises"
+      "Given a Manager calls the API, when invoked, then `value` is a Decimal sum across active LPs.",
+      "Given an Operator calls the API, when invoked, then `value=null, suppressed=true` and the actual SUM is never computed.",
+      "Given the cache key is hit within 60 s, when invoked, then DB query is NOT re-executed.",
+      "Given the role gate evaluates server-side, when a client tampers with role param, then the server uses the session role and ignores it."
     ],
     "test_strategy": [
-      "RED: inventory-value-rbac.test.ts covers gating + lint",
-      "Run 'pnpm --filter web test inventory-value-rbac'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/inventory-value.test.ts` asserting role gate, suppression, cache, server-side trust.",
+      "Run `pnpm --filter web test inventory-value`."
     ],
     "risk_red_lines": [
-      "Do not query items.cost without gate",
-      "Do not trust client-supplied role",
-      "Do not bypass middleware session"
+      "Do not compute SUM for unauthorized roles (data minimization).",
+      "Do not trust client-side role hints.",
+      "Do not cache cross-tenant."
     ],
     "skills": [
       "test-driven-development",
@@ -82,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -108,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

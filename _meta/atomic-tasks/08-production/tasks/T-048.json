@@ -1,10 +1,11 @@
 {
-  "title": "T-048 — UI parity: allergen changeover screen and full gate modal",
-  "prompt": "# T-048 — UI parity: allergen changeover screen and full gate modal\n\nPRD/UX refs: SCR-08-03, MODAL-08-11, prototype labels changeover_screen,changeover_gate_modal\n\nGoal: Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and expand modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.\n\nScope files:\n- apps/web/app/production/changeover/[event_id]/page.tsx [create]\n- apps/web/components/production/changeover-gate-modal.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390\n- prototypes/design/Monopilot Design System/production/modals.jsx:344-364\n\nAcceptance criteria:\n1. Changeover screen shows medium/high/segregated states and required evidence\n2. Dual sign-off UI remains disabled until cleaning/ATP requirements pass\n3. Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-048 — UI: allergen changeover screen + full gate modal (SCR-08-03 / MODAL-08-11)",
+  "prompt": "# T-048 — Allergen changeover screen + dual sign-off gate modal UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-03, MODAL-08-11, §6 D10, §7.7 (Allergen Gate FRs)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 (changeover_screen); production/modals.jsx:306-326 (changeover_gate_modal — prototype stub explicitly expanded per Wave Next hardening)\n\n## Goal\nReplace the prototype changeover stub with a full multi-step allergen changeover wizard: risk-level banner, cleaning checklist with photo evidence, ATP swab grid + RLU threshold display + auto PASS/FAIL, dual sign-off (shift_lead + quality_lead) with PIN, and a typed `segregation_required` hard-block surface. Wires to T-043 endpoints.\n\n## Implementation contract\n1. apps/web/app/production/changeover/[event_id]/page.tsx (RSC) — changeover_screen parity: header (from WO → to WO, allergens delta, risk badge), 5-step status panel (Done/In Progress/Locked) driven by `changeover_steps.status`, cleaning checklist (`changeover_checklist_items` with `requires_photo`), ATP section (RLU input + locations + threshold + auto PASS/FAIL from `prod_settings.atp_rlu_threshold`), dual sign-off section (only enabled when checklist+ATP pass), Release-next-WO button disabled until both signed.\n2. apps/web/components/production/changeover-gate-modal.tsx ('use client') — shadcn Dialog expanding the prototype stub: dual signer slots (Shift Lead + Quality Lead) reading server-derived `quality_signer_id`; PIN input per signer (masked, server-verified via T-043); `Sign & advance` disabled until Quality assigned; segregation hard-block renders an Alert with typed reason and disables all sign-off controls.\n3. Cleaning checklist photo upload uses Vercel Blob; URL stored on `changeover_checklist_items.photo_url`; `requires_photo=true` blocks step completion until photo uploaded.\n4. Literal `data-prototype-label` markers: `changeover_screen`, `changeover_gate_modal`. All copy via next-intl. axe accessibility pass required (focus trap on Dialog, ARIA on dual sign-off).\n\n## Acceptance criteria\n1. Given the changeover screen renders, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and modals.jsx:306-326 (expanded per Wave Next hardening), then it has the same 5-step status panel + cleaning checklist + ATP grid + dual sign-off layout — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given a step requires a photo and none is uploaded, when the operator attempts to mark it complete, then the action is rejected client-side and server-side with `photo_required` and the step remains LOCKED.\n3. Given the changeover row has `segregation_required=true`, when the screen renders, then all sign-off controls are disabled, a typed `segregation_hard_block` Alert is shown, and the Release-next-WO button cannot be enabled in Production.\n\n## Test strategy\n- RED: apps/web/app/production/changeover/[event_id]/__tests__/changeover.test.tsx + apps/web/components/production/__tests__/changeover-gate-modal.test.tsx asserting parity, photo-required block, dual sign-off enablement order, segregation hard-block, and `data-prototype-label` markers before code exists.\n- Run `pnpm vitest run apps/web/app/production/changeover/[event_id]/__tests__/changeover.test.tsx apps/web/components/production/__tests__/changeover-gate-modal.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not allow sign-off to submit before checklist + ATP requirements pass (server-derived disabled state).\n- Do not show PIN value in the DOM (masked input, no client logging).\n- Do not let Production override `segregation_required` — disable the control, never silently bypass.\n- Do not paste prototype JSX verbatim; translate to shadcn primitives + next-intl.\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "allergen-gate",
+    "T3-ui"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -14,43 +15,64 @@
     "prd_task_id": "T-048",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-03",
+      "§8.1 SCR-08-03",
       "MODAL-08-11",
-      "prototype labels changeover_screen,changeover_gate_modal"
+      "§6 D10",
+      "§7.7"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: allergen changeover screen and full g",
+    "category": "ui",
+    "subcategory": "allergen-changeover-and-gate-modal",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Replace changeover stub with full cleaning checklist, ATP capture, risk badges and dual sign-off UI.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and expand prototypes/design/Monopilot Design System/production/modals.jsx:344-364 to PRD/UX requirements: risk-level banner, cleaning steps with photo evidence, ATP grid for high risk, shift lead + quality lead PIN sign-off, segregated hard-block state.",
+    "parent_feature": "08-PROD E7 Allergen Gate",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "Expand prototype stub into full SCR-08-03 changeover wizard + MODAL-08-11 dual sign-off; segregation_required hard-block surfaced and unbypassable.",
+    "details": "Parity against prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 (5 status sections, cleaning checklist, allergen-in/out info, Release-next-WO disabled state) and modals.jsx:306-326 (dual signature boxes, Quality select, PIN per signer — Wave Next hardening expands prototype stub into the full PRD spec). Photo upload to Vercel Blob; requires_photo=true blocks step completion. ATP auto PASS/FAIL derived from prod_settings.atp_rlu_threshold. Sign-off enablement is server-derived (not local state). Segregation hard-block renders as a typed Alert and disables all controls. axe accessibility pass required (focus trap, ARIA). UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/production/changeover/[event_id]/page.tsx [create]",
       "apps/web/components/production/changeover-gate-modal.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390",
-      "prototypes/design/Monopilot Design System/production/modals.jsx:344-364"
+      "apps/web/app/production/changeover/[event_id]/__tests__/changeover.test.tsx [create]",
+      "apps/web/components/production/__tests__/changeover-gate-modal.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement the runtime endpoints (T-043)",
+      "Do not implement ATP device integration (P2 via 09-QUALITY)",
+      "Do not own the changeover_matrix (07-PLANNING-EXT)",
+      "Do not change allergen profile schema (03-TECHNICAL)"
     ],
     "dependencies": [
-      "T-043"
+      "T-043",
+      "T-046"
+    ],
+    "parallel_safe_with": [
+      "T-047",
+      "T-049",
+      "T-050",
+      "T-051"
     ],
     "acceptance_criteria": [
-      "Changeover screen shows medium/high/segregated states and required evidence",
-      "Dual sign-off UI remains disabled until cleaning/ATP requirements pass",
-      "Closeout includes screenshots for incomplete, ATP fail, and completed gate plus trace"
+      "Given the changeover screen renders, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:294-390 and modals.jsx:306-326 (expanded per Wave Next hardening), then it has the same 5-step status panel + cleaning checklist + ATP grid + dual sign-off layout — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given a step requires a photo and none is uploaded, when the operator attempts to mark it complete, then the action is rejected client-side and server-side with photo_required and the step remains LOCKED.",
+      "Given segregation_required=true, when the screen renders, then all sign-off controls are disabled, a typed segregation_hard_block Alert is shown, and Release-next-WO cannot be enabled in Production."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/production/changeover/[event_id]/__tests__/changeover.test.tsx + apps/web/components/production/__tests__/changeover-gate-modal.test.tsx asserting parity, photo-required block, dual sign-off enablement order, segregation hard-block and data-prototype-label markers before code exists.",
+      "Run 'pnpm vitest run apps/web/app/production/changeover/[event_id]/__tests__/changeover.test.tsx apps/web/components/production/__tests__/changeover-gate-modal.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not allow sign-off to submit before checklist + ATP requirements pass.",
+      "Do not show PIN value in the DOM.",
+      "Do not let Production override segregation_required.",
+      "Do not paste prototype JSX verbatim."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -75,16 +97,19 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "changeover_screen,changeover_gate_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "03-technical",
         "task_id": "T-080",
-        "reason": "Allergen profile and segregation matrix."
+        "reason": "Allergen profile + segregation matrix source."
       },
       {
         "module": "09-quality",
         "task_id": "external-quality-contract",
-        "reason": "ATP and QA sign-off policy."
+        "reason": "ATP/QA sign-off policy seam."
       }
     ]
   }

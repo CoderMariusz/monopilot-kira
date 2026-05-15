@@ -16,8 +16,8 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§1.4",
-      "§5.1.1",
-      "§5.4.1",
+      "§5.1 (was §5.1.1)",
+      "§5.4 (was §5.4.1)",
       "§13.1"
     ],
     "category": "infra",
@@ -27,7 +27,7 @@
     "context_budget": "60k",
     "estimated_effort": "2-3h",
     "description": "FastAPI microservice scaffold with health, /solve stub, Postgres LISTEN, Dockerfile (non-root), pytest harness.",
-    "details": "Service exposes GET /health (db check + queue depth), POST /solve (returns 202, spawns BG task). Listener consumes 'scheduler_solver' Postgres NOTIFY. Dockerfile multi-stage. Pytest tests verify health shape, async /solve, 503 on db unreachable.",
+    "details": "Service exposes GET /health (db check + queue depth), POST /solve (returns 202, spawns BG task). Listener consumes 'scheduler_solver' Postgres NOTIFY. Dockerfile multi-stage. Pytest tests verify health shape, async /solve, 503 on db unreachable. Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`. PRD-anchor remediation: corrected §5.1.1, §5.4.1 to nearest real heading (07-PLANNING-EXT-PRD has only §5.1 (Architecture), §5.4 (Performance), §4.1 (Phase 1 MVP) headings — no sub-numbered sub-headings exist).",
     "scope_files": [
       "services/planner-solver/pyproject.toml [create]",
       "services/planner-solver/Dockerfile [create]",
@@ -56,7 +56,8 @@
     "risk_red_lines": [
       "Do not run solver as root inside container",
       "Do not block /solve request thread",
-      "Do not skip health endpoint"
+      "Do not skip health endpoint",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111)."
     ],
     "skills": [
       "test-driven-development",
@@ -93,6 +94,11 @@
         "module": "08-production",
         "task_id": "T-001",
         "reason": "Solver output must be safe for Production runtime consumption."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
       }
     ]
   }

@@ -54,16 +54,20 @@
     ],
     "test_strategy": [
       "RED: write scn-011b-pin-setup.test.tsx asserting parity + mismatch + policy-violation paths before implementation",
-      "Run 'pnpm --filter scanner test scn-011b-pin-setup'"
+      "Run 'pnpm --filter scanner test scn-011b-pin-setup'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not allow entry if scanner_pin_hash already exists",
       "Do not log entered PIN values",
-      "Do not auto-advance without server confirmation"
+      "Do not auto-advance without server confirmation",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -89,6 +93,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "pin_setup_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [

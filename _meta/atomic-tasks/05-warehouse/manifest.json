@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T00:00:00Z",
   "generator": "wave-next-3-warehouse-hardening",
   "pipeline_name": "kira_dev",
-  "task_count": 57,
+  "task_count": 58,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -62,7 +62,8 @@
     "tasks/T-054.json",
     "tasks/T-055.json",
     "tasks/T-056.json",
-    "tasks/T-057.json"
+    "tasks/T-057.json",
+    "tasks/T-058.json"
   ],
   "coverage_file": "coverage.md"
 }

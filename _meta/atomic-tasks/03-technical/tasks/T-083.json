@@ -1,6 +1,6 @@
 {
   "title": "T-083 — Local UI prototype copy red-lines for Technical final decisions",
-  "prompt": "# T-083 — Local UI prototype copy red-lines for Technical final decisions\n\nCreate a local production red-line overlay/checklist for Technical UI implementers so prototype parity does not preserve obsolete domain copy. Do not rewrite prototype JSX for visual churn. Produce a small Technical red-lines document or data fixture consumed by UI tasks that maps prototype labels to production copy/guards: FG/WIP not FA/PR, Technical-owned factory_spec/internal_product_spec, shared BOM SSOT, clone-on-write release banner, RM usability rows, PO/TO NCR trigger language, Quality lab read-only labels, and D365 optional disabled state. Validate that T-038/T-039/T-060/T-078/T-080 reference these red-lines. RED first: lint/test fails if UI tasks keep known forbidden copy in production components.",
+  "prompt": "# T-083 — Local UI prototype copy red-lines for Technical final decisions\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4, prototypes/design/03-TECHNICAL-UX.md §0A\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLocal copy/guard red-line source for Technical UI tasks, keeping prototypes as visual anchors but correcting production semantics.\n\nThis is not app feature implementation. It creates a local copy contract or checklist in allowed PRD/UX/coverage/manifest/tasks scope and task acceptance criteria that implementation agents must follow. Prototype JSX remains an anchor; production UI copy must apply this overlay. Include forbidden legacy terms and allowed exceptions for imported source values/audit history. It complements T-078 rather than depending on it, to avoid a circular implementation dependency.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- prototypes/design/03-TECHNICAL-UX.md [create]\n- _meta/atomic-tasks/03-technical/tasks/T-038.json [create]\n- _meta/atomic-tasks/03-technical/tasks/T-039.json [create]\n- _meta/atomic-tasks/03-technical/tasks/T-060.json [create]\n- _meta/atomic-tasks/03-technical/tasks/T-078.json [create]\n- _meta/atomic-tasks/03-technical/tasks/T-080.json [create]\n\n## Acceptance criteria\n1. Given UI task uses prototypes/design/Monopilot Design System/technical/bom-detail.jsx:3-60 or prototypes/design/Monopilot Design System/technical/modals.jsx:168-243, then structural, visual and interaction parity remains required while production copy applies this red-line overlay.\n2. Given production UI copy is reviewed, then FA/PR/D365-first wording is absent except explicit legacy imported-source/audit labels.\n3. Given a released BOM/spec edit UI is implemented, then clone-on-write banner copy is present and in-place edit copy is absent.\n4. Given RM component selection UI is implemented, then approved supplier, active supplier_spec, allergens, item active, cost/spec review and QC/release checks are listed with typed server codes.\n5. Given lab result status appears in Technical UI, then it is labelled Quality-owned read-only and no Technical approval action is shown.\n6. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- Add/require UI copy assertions in each referenced UI task closeout.\n- Run relevant task tests named in T-038/T-039/T-060/T-078/T-080.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not edit prototype files for cosmetic churn.\n- Do not let prototype legacy labels override PRD §0 decisions.\n- Do not make D365 mandatory for local Technical workflows.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
   "labels": [
     "prd",
     "ui",
@@ -42,7 +42,7 @@
     "prd_task_id": "T-083",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.4",
       "prototypes/design/03-TECHNICAL-UX.md §0A"
     ],
@@ -78,7 +78,15 @@
     "risk_red_lines": [
       "Do not edit prototype files for cosmetic churn.",
       "Do not let prototype legacy labels override PRD §0 decisions.",
-      "Do not make D365 mandatory for local Technical workflows."
+      "Do not make D365 mandatory for local Technical workflows.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -86,6 +94,7 @@
       "T-081",
       "T-082"
     ],
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "out_of_scope": []
   }
 }

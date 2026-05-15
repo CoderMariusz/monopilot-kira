@@ -1,13 +1,13 @@
 {
-  "title": "T-033 — Pick override audit service",
-  "prompt": "# T-033 — Pick override audit service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §9.6, V-WH-FEFO-002.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`logPickOverride(input)` server function inserting a `pick_overrides` row when picked LP differs from FEFO suggestion.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/pick-override-log.ts`. Compute delta_days = (picked.expiry - suggested.expiry). Validate reason_code in enum; reason_text required if 'other' (V-WH-FEFO-002 + DB CHECK). Used by both desktop pick and Scanner consume-to-WO endpoint (T-034).\n\n## Files (scope)\n- apps/web/lib/services/warehouse/pick-override-log.ts [create]\n- apps/web/lib/services/warehouse/__tests__/pick-override-log.test.ts [create]\n\n## Acceptance criteria\n1. Given suggested LP expiry 2026-05-01 and picked LP expiry 2026-05-10, when logPickOverride runs, then delta_days=9 and a pick_overrides row exists.\n2. Given reason_code='other' without reason_text, when called, then V-WH-FEFO-002 error returns.\n3. Given suggested.id == picked.id, when called, then service rejects (no override needed) and returns no-op response.\n\n## Test strategy\n- RED: pick-override-log.test.ts covers happy path, invalid reason text, no-op same LP.\n- Run `pnpm --filter web test pick-override-log`.\n\n## Risk red lines\n- Do not log when suggested == picked.\n- Do not skip reason_text for 'other'.\n- Do not call this during reservation creation (only during actual pick/consume).",
+  "title": "T-033 — Pick override audit service (WH §9.6)",
+  "prompt": "# T-033 — Pick override audit service (WH §9.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §9.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `recordPickOverride` service writing a pick_overrides row whenever picked_lp ≠ suggested_lp. Used by Scanner consume-to-WO (T-034) and desktop FEFO deviation modal.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/pick-override.ts`: function `recordPickOverride({pick_request_id, wo_id, to_line_id, suggested_lp_id, picked_lp_id, reason_code, reason_text, confirmed_by})`.\n2. Compute `delta_days = picked.expiry_date - suggested.expiry_date` (NULL-safe).\n3. INSERT pick_overrides row.\n4. Aggregate-side: a separate KPI service (out-of-scope here) reads pick_overrides for the dashboard override_rate metric.\n\n## Files\n- apps/web/lib/services/warehouse/pick-override-log.ts [create]\n- apps/web/lib/services/warehouse/__tests__/pick-override-log.test.ts [create]\n\n## Acceptance criteria\n1. Given suggested expiry 2026-05-01 and picked expiry 2026-05-10, when audit recorded, then delta_days=9.\n2. Given reason_code='other' without reason_text ≥10 chars, when called, then service rejects (V-WH-FEFO-002 — DB CHECK from T-007).\n3. Given the row is inserted, when outbox is inspected, then a `pick.override_recorded` event is emitted (or wired via T-047).\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/pick-override.test.ts` asserting delta calculation, reason gate, RLS.\n- Run `pnpm --filter web test pick-override`.\n\n## Risk red lines\n- Do not skip reason_code (V-WH-FEFO-002).\n- Do not allow picked_lp = suggested_lp without explicit flag (no-op confirmations OK but caller decides).\n\n## Dependencies\n- T-007",
   "labels": [
     "prd",
-    "api",
+    "service",
     "pick-override",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "pick-override",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-fefo",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Audit log for FEFO/FIFO deviations.",
-    "details": "Compute delta_days; validate reason; no-op if picked == suggested.",
+    "description": "Implement `recordPickOverride` service writing a pick_overrides row whenever picked_lp ≠ suggested_lp. Used by Scanner consume-to-WO (T-034) and desktop FEFO deviation modal.",
+    "details": "Implement `recordPickOverride` service writing a pick_overrides row whenever picked_lp ≠ suggested_lp. Used by Scanner consume-to-WO (T-034) and desktop FEFO deviation modal. `apps/web/lib/services/warehouse/pick-override.ts`: function `recordPickOverride({pick_request_id, wo_id, to_line_id, suggested_lp_id, picked_lp_id, reason_code, reason_text, confirmed_by})`. Compute `delta_days = picked.expiry_date - suggested.expiry_date` (NULL-safe).",
     "scope_files": [
       "apps/web/lib/services/warehouse/pick-override-log.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/pick-override-log.test.ts [create]"
@@ -43,18 +43,17 @@
       "T-032"
     ],
     "acceptance_criteria": [
-      "Given expiries 2026-05-01 vs 2026-05-10, when run, then delta_days=9 and a pick_overrides row exists",
-      "Given reason_code='other' without reason_text, when run, then V-WH-FEFO-002 error returns",
-      "Given suggested.id == picked.id, when run, then no-op response returns"
+      "Given suggested expiry 2026-05-01 and picked expiry 2026-05-10, when audit recorded, then delta_days=9.",
+      "Given reason_code='other' without reason_text ≥10 chars, when called, then service rejects (V-WH-FEFO-002 — DB CHECK from T-007).",
+      "Given the row is inserted, when outbox is inspected, then a `pick.override_recorded` event is emitted (or wired via T-047)."
     ],
     "test_strategy": [
-      "RED: pick-override-log.test.ts covers happy path, invalid text, no-op",
-      "Run 'pnpm --filter web test pick-override-log'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/pick-override.test.ts` asserting delta calculation, reason gate, RLS.",
+      "Run `pnpm --filter web test pick-override`."
     ],
     "risk_red_lines": [
-      "Do not log when suggested==picked",
-      "Do not skip reason_text for 'other'",
-      "Do not call during reservation creation"
+      "Do not skip reason_code (V-WH-FEFO-002).",
+      "Do not allow picked_lp = suggested_lp without explicit flag (no-op confirmations OK but caller decides)."
     ],
     "skills": [
       "test-driven-development",
@@ -84,7 +83,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

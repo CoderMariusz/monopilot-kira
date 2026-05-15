@@ -1,6 +1,6 @@
 {
   "title": "T-075 — supplier_specs Phase 1 governance and review states",
-  "prompt": "# T-075 — supplier_specs Phase 1 governance\n\nExtend supplier_specs Phase 1 schema/actions so it can support internal upload/view/review/approval and RM usability without becoming a supplier portal. Required fields if absent: supplier_status, spec_version not null, effective_from, expiry_date, lifecycle_status `draft|active|expired|superseded|blocked`, review_status `pending|approved|rejected|blocked`, review_notes, cost_review_blocked, spec_review_blocked, approved_by, approved_at, rejected_by, rejected_at, rejection_reason, spec_document_url, document_sha256, document_mime_type, declared_allergens, declared_attrs, certificate_refs. Enforce at most one active approved non-expired spec per org,item,supplier through a partial unique index or equivalent safe constraint. Add Technical actions for upload metadata, view detail, submit review, approve, reject/block. RED first: tests prove expired/blocked/rejected specs cannot satisfy RM usability.",
+  "prompt": "# T-075 — supplier_specs Phase 1 governance and review states\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §5.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nsupplier_specs Phase 1 governance fields, review states and uniqueness constraints.\n\nPhase 1 is Technical-maintained master data with upload/view/review actions. Supplier portal upload, supplier negotiation and external document workflow are out of scope. PO actuals may reference observed spec data and create review/non-conformance but cannot mutate supplier_specs without explicit Technical approval path. Keep object storage integration minimal: persist metadata/url/hash, do not implement supplier portal.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_supplier_specs_phase1.sql [create]\n- db/schema/supplier-specs.ts [create]\n- apps/web/actions/technical/supplier-specs/*.ts [create]\n- tests/db/supplier-specs-phase1.test.ts [create]\n- tests/actions/technical/supplier-specs.test.ts [create]\n\n## Acceptance criteria\n1. Given two active approved supplier_specs for same org,item,supplier overlap, then the database or service rejects the second active record.\n2. Given expiry_date is in the past, then lifecycle_status resolves expired and RM usability cannot pass.\n3. Given PO review proposes supplier spec change, then supplier_specs remains unchanged until approveSupplierSpecReview is called by Technical role.\n4. Given supplier_status is blocked, then RM usability returns SUPPLIER_NOT_APPROVED.\n5. Given Technical uploads supplier spec metadata/document reference, then record starts draft or pending review and is visible in supplier_specs list/detail.\n6. Given reviewer approves supplier_spec, then lifecycle/review status allows RM usability only if non-expired and supplier_status is approved.\n7. Given reviewer rejects/blocks supplier_spec, then RM usability fails with explicit reason and prior active approved spec is not overwritten.\n\n## Test strategy\n- Add RED migration tests for status enums and active uniqueness.\n- Run: pnpm vitest run tests/db/supplier-specs-phase1.test.ts tests/actions/technical/supplier-specs.test.ts\n\n## Risk red lines\n- Do not build supplier portal.\n- Do not automatically overwrite supplier_specs from PO actuals.\n- Do not remove declared_allergens compatibility with existing allergen cascade.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "data",
@@ -44,7 +44,7 @@
     "prd_task_id": "T-075",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§5.5"
     ],
     "subcategory": "supplier-specs-phase1",
@@ -74,7 +74,11 @@
     "risk_red_lines": [
       "Do not build supplier portal.",
       "Do not automatically overwrite supplier_specs from PO actuals.",
-      "Do not remove declared_allergens compatibility with existing allergen cascade."
+      "Do not remove declared_allergens compatibility with existing allergen cascade.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-005"
@@ -83,6 +87,7 @@
       "T-074",
       "T-076"
     ],
-    "description": "supplier_specs Phase 1 governance fields, review states and uniqueness constraints."
+    "description": "supplier_specs Phase 1 governance fields, review states and uniqueness constraints.",
+    "out_of_scope": []
   }
 }

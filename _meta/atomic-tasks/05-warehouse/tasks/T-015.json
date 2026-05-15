@@ -1,13 +1,14 @@
 {
-  "title": "T-015 — Seed fifo_strategy_v1 DSL rule",
-  "prompt": "# T-015 — Seed fifo_strategy_v1 DSL rule\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §9.1, §9.3.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nSeed the rule registry with `fifo_strategy_v1` for non-expiring goods picking — orders by created_at ASC.\n\n## Implementation contract\nJSON DSL `packages/db/seed/rules/fifo-strategy-v1.json` (inputs identical to FEFO; outputs sorted by created_at ASC with qa_status gating). Seed script upserts.\n\n## Files (scope)\n- packages/db/seed/rules/fifo-strategy-v1.json [create]\n- packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/fifo-strategy-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 input shape.\n2. Given two LPs created at 09:00 and 10:00, when the rule executes, then 09:00 LP ranks first.\n3. Given an LP with qa_status='FAILED', when the rule executes with defaults, then it is excluded.\n\n## Test strategy\n- RED: fifo-strategy-v1.test.ts seeds two LP fixtures and asserts FIFO order + FAILED exclusion.\n- Run `pnpm --filter db test fifo-strategy-v1`.\n\n## Risk red lines\n- Do not include FAILED/HOLD/QUARANTINED LPs.\n- Do not let rule become editable at runtime.\n- Do not duplicate FEFO logic — order by created_at only.",
+  "title": "T-015 — Seed fifo_strategy_v1 DSL rule (WH §9.1, §9.3, ADR-029)",
+  "prompt": "# T-015 — Seed fifo_strategy_v1 DSL rule (WH §9.1, §9.3, ADR-029)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §9.1, §9.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSeed `fifo_strategy_v1` for non-expiring goods (packaging/supplies) — ORDER BY created_at ASC, same qa_status whitelist. Default `items.picking_strategy` for products with no expiry.\n\n## Implementation contract\n1. Seed `packages/db/src/seeds/fifo-strategy-v1.ts` upserting rule_id='fifo_strategy_v1', kind='pick_strategy', payload (sort by created_at ASC only).\n2. Same `runPickStrategy` helper as T-014 reads payload generically.\n3. Version 1.0; admin read-only per ADR-029.\n\n## Files\n- packages/db/seed/rules/fifo-strategy-v1.json [create]\n- packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]\n- packages/db/seed/rules/__tests__/fifo-strategy-v1.test.ts [create]\n\n## Acceptance criteria\n1. Given the seed runs, when rule_registry is queried for `rule_id='fifo_strategy_v1'`, then version=1 and payload sort = [{col:'created_at',dir:'asc'}].\n2. Given a product with `picking_strategy='fifo'`, when the FEFO/FIFO query runs, then fifo_strategy_v1 is loaded and applied.\n\n## Test strategy\n- RED: `packages/db/src/seeds/__tests__/fifo-strategy-v1.test.ts` asserting payload + helper application.\n- Run `pnpm --filter db test fifo-strategy-v1`.\n\n## Risk red lines\n- Do not include `expiry_date` in fifo sort — FIFO is by-receipt date only.\n- Do not hardcode strategy choice in services.\n\n## Dependencies\n- T-002",
   "labels": [
     "prd",
     "data",
     "rule-registry",
-    "T5-seed"
+    "fifo",
+    "t5-seed"
   ],
-  "priority": 100,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +22,11 @@
     "category": "data",
     "subcategory": "rule-registry",
     "task_type": "T5-seed",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "20k",
     "estimated_effort": "0.5-1h",
-    "description": "Seed fifo_strategy_v1 DSL rule for non-expiring goods picking.",
-    "details": "Order by created_at ASC. qa_status gating defaults to PASSED/RELEASED.",
+    "description": "Seed `fifo_strategy_v1` for non-expiring goods (packaging/supplies) — ORDER BY created_at ASC, same qa_status whitelist. Default `items.picking_strategy` for products with no expiry.",
+    "details": "Seed `fifo_strategy_v1` for non-expiring goods (packaging/supplies) — ORDER BY created_at ASC, same qa_status whitelist. Default `items.picking_strategy` for products with no expiry. Seed `packages/db/src/seeds/fifo-strategy-v1.ts` upserting rule_id='fifo_strategy_v1', kind='pick_strategy', payload (sort by created_at ASC only). Same `runPickStrategy` helper as T-014 reads payload generically.",
     "scope_files": [
       "packages/db/seed/rules/fifo-strategy-v1.json [create]",
       "packages/db/seed/rules/fifo-strategy-v1.seed.ts [create]",
@@ -44,18 +45,16 @@
       "T-014"
     ],
     "acceptance_criteria": [
-      "Given the seed runs, when rule_registry is queried, then fifo_strategy_v1 v1.0 exists with §9.1 inputs",
-      "Given two LPs (09:00 and 10:00), when the rule executes, then 09:00 LP ranks first",
-      "Given an LP with qa_status='FAILED', when the rule executes, then it is excluded"
+      "Given the seed runs, when rule_registry is queried for `rule_id='fifo_strategy_v1'`, then version=1 and payload sort = [{col:'created_at',dir:'asc'}].",
+      "Given a product with `picking_strategy='fifo'`, when the FEFO/FIFO query runs, then fifo_strategy_v1 is loaded and applied."
     ],
     "test_strategy": [
-      "RED: fifo-strategy-v1.test.ts with two-LP fixture asserting order + FAILED exclusion",
-      "Run 'pnpm --filter db test fifo-strategy-v1'"
+      "RED: `packages/db/src/seeds/__tests__/fifo-strategy-v1.test.ts` asserting payload + helper application.",
+      "Run `pnpm --filter db test fifo-strategy-v1`."
     ],
     "risk_red_lines": [
-      "Do not include disallowed qa_status",
-      "Do not embed FEFO sort key",
-      "Do not allow admin runtime edits"
+      "Do not include `expiry_date` in fifo sort — FIFO is by-receipt date only.",
+      "Do not hardcode strategy choice in services."
     ],
     "skills": [
       "test-driven-development",
@@ -85,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -111,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

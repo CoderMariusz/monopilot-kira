@@ -1,6 +1,6 @@
 {
   "title": "T-006 — Drizzle schema: wo_material_reservations + planning_settings",
-  "prompt": "Add Drizzle pgTable definitions for `wo_material_reservations` per §5.10 (revised v3.1 — RM root only) and `planning_settings` per §5.12 + §14.1. Reservations columns: id, tenant_id, wo_id FK, wo_material_id FK, lp_id (uuid), quantity, reservation_type enum ('hard_lock'|'soft_plan'), reserved_at, reserved_by, released_at NULL, released_by NULL, release_reason enum ('consumed'|'cancelled'|'wo_cancelled'|'admin_override'). Partial unique index `lp_active_reservation_unique` on (lp_id) WHERE released_at IS NULL.\n\nplanning_settings: 30+ columns per §14.1 including po_/to_/wo_ prefixes, default_intermediate_disposition, intermediate_cascade_max_depth, sequencing_enabled_default, d365_so_trigger_enabled, status_display JSONB, field_visibility JSONB. UNIQUE(tenant_id) on settings.\n\nGenerate migration `0006_planning_reservations_settings.sql`. RED test asserts partial-unique on (lp_id) WHERE released_at IS NULL.",
+  "prompt": "Add Drizzle pgTable definitions for `wo_material_reservations` per §5.10 (revised v3.1 — RM root only) and `planning_settings` per §5.12 + §14.1. Reservations columns: id, org_id, wo_id FK, wo_material_id FK, lp_id (uuid), quantity, reservation_type enum ('hard_lock'|'soft_plan'), reserved_at, reserved_by, released_at NULL, released_by NULL, release_reason enum ('consumed'|'cancelled'|'wo_cancelled'|'admin_override'). Partial unique index `lp_active_reservation_unique` on (lp_id) WHERE released_at IS NULL.\n\nplanning_settings: 30+ columns per §14.1 including po_/to_/wo_ prefixes, default_intermediate_disposition, intermediate_cascade_max_depth, sequencing_enabled_default, d365_so_trigger_enabled, status_display JSONB, field_visibility JSONB. UNIQUE(org_id) on settings.\n\nGenerate migration `0006_planning_reservations_settings.sql`. RED test asserts partial-unique on (lp_id) WHERE released_at IS NULL.",
   "labels": [
     "prd",
     "data",
@@ -27,7 +27,7 @@
     "context_budget": "30k",
     "estimated_effort": "1-2h",
     "description": "Reservations + planning_settings tables. Hard-lock partial-unique index is the load-bearing constraint.",
-    "details": "Insert guard V-PLAN-RES-005 (material_source='stock' check) is service-layer, not DB. CHECK constraint on planning_settings.intermediate_cascade_max_depth BETWEEN 1 AND 20 (V-PLAN-SET-002). status_display JSONB seeded via separate seed task T-029. Defaults per §14.1 (po_default_lead_time_days=7, wo_number_format='WIP-{SUFFIX}-{NNNNNNN}', default_intermediate_disposition='to_stock').",
+    "details": "Insert guard V-PLAN-RES-005 (material_source='stock' check) is service-layer, not DB. CHECK constraint on planning_settings.intermediate_cascade_max_depth BETWEEN 1 AND 20 (V-PLAN-SET-002). status_display JSONB seeded via separate seed task T-029. Defaults per §14.1 (po_default_lead_time_days=7, wo_number_format='WIP-{SUFFIX}-{NNNNNNN}', default_intermediate_disposition='to_stock'). RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`).",
     "scope_files": [
       "src/db/schema/planning/reservations.ts [create]",
       "src/db/schema/planning/planning_settings.ts [create]",
@@ -52,6 +52,8 @@
       "Run vitest + drizzle-kit generate + tsc."
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
       "Do not weaken the partial-unique constraint — V-PLAN-RES-001 hard-lock relies on DB enforcement.",
       "Do not add reservations for material_source='upstream_wo_output' — service layer must reject (V-PLAN-RES-005)."
     ],

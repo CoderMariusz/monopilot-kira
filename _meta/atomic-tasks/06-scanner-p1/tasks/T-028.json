@@ -35,7 +35,9 @@
     "out_of_scope": [
       "Do not implement TO receive here (T-029)",
       "Do not implement putaway here (T-030)",
-      "Do not build SCN-020 UI here (T-031)"
+      "Do not build SCN-020 UI here (T-031)",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-027"
@@ -56,7 +58,9 @@
     "risk_red_lines": [
       "Do not allow qty=0",
       "Do not skip transaction around lp+grn_row insert",
-      "Do not let client override org_id or user_id"
+      "Do not let client override org_id or user_id",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +87,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "03-technical: product and GS1 data contracts",
       "05-warehouse: LP lifecycle, locations, GRN/TO/putaway contracts"

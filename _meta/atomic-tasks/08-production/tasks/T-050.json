@@ -1,10 +1,12 @@
 {
-  "title": "T-050 — UI parity: shifts, line detail, analytics hub and production settings",
-  "prompt": "# T-050 — UI parity: shifts, line detail, analytics hub and production settings\n\nPRD/UX refs: SCR-08-08, SCR-08-09, SCR-08-10, SCR-08-11, MODAL-08-12..15\n\nGoal: Build shift management, line detail, analytics hub and production settings surfaces.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match other-screens.jsx:215-291,393-496,560-649; new-screens.jsx:212-478; modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.\n\nScope files:\n- apps/web/app/production/shifts/page.tsx [create]\n- apps/web/app/production/analytics/page.tsx [create]\n- apps/web/app/production/settings/page.tsx [create]\n- apps/web/app/production/lines/[id]/page.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:215-649\n- prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478\n\nAcceptance criteria:\n1. Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs\n2. Shift end blocks unresolved gates and settings forms audit changes\n3. Closeout includes screenshots for shifts, line detail, settings, analytics and trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-050 — UI: shifts + line detail + analytics hub + production settings (SCR-08-08/09/10/11)",
+  "prompt": "# T-050 — Shifts / Line detail / Analytics hub / Settings UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-08, SCR-08-09, SCR-08-10, SCR-08-11, MODAL-08-12/13/14/15\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/other-screens.jsx:215-291 (shifts_screen), :393-496 (analytics_screen), :560-649 (settings_screen); new-screens.jsx:212-478 (line_detail); modals.jsx:328-349 (assign_crew_modal), :400-459 (shift_start_modal), :462-519 (shift_end_modal), :522-597 (oee_target_edit_modal)\n\n## Goal\nBuild the four 2026-04-30-reconciliation surfaces: SCR-08-08 Shifts (crew + handover + sign-off), SCR-08-09 Analytics hub, SCR-08-10 Settings, SCR-08-11 Line detail (status ribbon + OEE mini-dashboard + 6 tabs + SSE live event sidebar). Wires to T-039/T-040 shift actions, T-044 SSE/OEE, T-045 settings.\n\n## Implementation contract\n1. apps/web/app/production/shifts/page.tsx (RSC) — shifts_screen parity: crew assignment grid filtered by `users.line_certifications` (V-PROD-SHIFT-001), per-line summary cards (KPIs from `shift_kpi_summary`), handover textarea (`shift_handovers`), end-of-shift sign-off checklist; modals AssignCrew/ShiftStart/ShiftEnd as shadcn Dialogs with PIN + V-PROD-SHIFT-002 server-side gate from T-040.\n2. apps/web/app/production/lines/[id]/page.tsx (RSC) — line_detail parity: status ribbon, OEE mini-dashboard (3 gauges + composite + 8h sparkline from `oee_snapshots`), 6 tabs via URL param (Today's Output / Yield Rolling 4h / Downtime / OEE / Shift Log / Live Events); Live Events sidebar uses `/api/lines/[id]/events` SSE from T-044 (resolves BL-PROD-01 by querying `lp_outputs` instead of mock).\n3. apps/web/app/production/analytics/page.tsx (RSC) — analytics_screen parity: sticky filter bar, 5 KPI cards with period delta + target reference (per §2.4), 6 charts via Recharts, Operator KPIs table from `operator_kpis_monthly` view (Shift Lead+).\n4. apps/web/app/production/settings/page.tsx (RSC) — settings_screen parity: 8 accordion sections (per §8.1 SCR-08-10), each form wires to T-045 Server Actions; Prod Manager RBAC guard with disabled inputs + Tooltip for non-PM; MODAL-08-15 OEE Target Edit Dialog with effective-date window (BL-PROD-04 resolved via T-045).\n5. Literal `data-prototype-label` markers: `shifts_screen`, `line_detail`, `analytics_screen`, `settings_screen`, `assign_crew_modal`, `shift_start_modal`, `shift_end_modal`, `oee_target_edit_modal`.\n\n## Acceptance criteria\n1. Given the four surfaces render with prototype-shaped data, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:215-291,393-496,560-649 and new-screens.jsx:212-478, then per-surface parity holds (crew+handover+sign-off for Shifts; status+OEE mini+6 tabs+SSE sidebar for Line; 5 KPI+6 charts+operator KPIs for Analytics; 8 accordion sections for Settings) — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given the End-of-Shift sign-off panel has an unresolved gate (open downtime, missing handover, or QA hold), when Shift Lead clicks `[Sign Off Shift]`, then the Dialog returns the typed `unresolved_gates` from T-040 and the action does not persist.\n3. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for shifts, line detail, analytics, settings (incl. OEE Target Edit modal) and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback).\n\n## Test strategy\n- RED: apps/web/app/production/__tests__/shifts-lines-analytics-settings.test.tsx + apps/web/components/production/__tests__/shift-modals.test.tsx asserting per-surface parity, SSE wiring, unresolved-gates blocker, Prod Manager RBAC guard, and `data-prototype-label` markers before code exists.\n- Run `pnpm vitest run apps/web/app/production/__tests__/shifts-lines-analytics-settings.test.tsx apps/web/components/production/__tests__/shift-modals.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not bypass V-PROD-SHIFT-001 (line certification) or V-PROD-SHIFT-002 (unresolved gates).\n- Do not let non-Prod-Manager users mutate Production Settings (disabled inputs + server-side guard).\n- Do not skip BL-PROD-01 fix on Line Detail today's-output (must use `lp_outputs` query).\n- Do not store OEE target edits in memory — must use `prod_oee_targets` window from T-045.\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "shifts",
+    "line-detail",
+    "T3-ui"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,50 +16,76 @@
     "prd_task_id": "T-050",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-08",
-      "SCR-08-09",
-      "SCR-08-10",
-      "SCR-08-11",
-      "MODAL-08-12..15"
+      "§8.1 SCR-08-08",
+      "§8.1 SCR-08-09",
+      "§8.1 SCR-08-10",
+      "§8.1 SCR-08-11",
+      "MODAL-08-12",
+      "MODAL-08-13",
+      "MODAL-08-14",
+      "MODAL-08-15"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: shifts, line detail, analytics hub an",
+    "category": "ui",
+    "subcategory": "shifts-lines-analytics-settings",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Build shift management, line detail, analytics hub and production settings surfaces.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:215-291,393-496,560-649; prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478; prototypes/design/Monopilot Design System/production/modals.jsx:366-386,438-557,560-635. Shift actions use T-039/T-040; settings use T-045; line detail uses T-044 SSE and OEE snapshots.",
+    "parent_feature": "08-PROD E4/E6 Shifts + Line Detail + Settings",
+    "context_budget": "55k",
+    "estimated_effort": "6-8h",
+    "description": "Shifts + Line detail + Analytics hub + Production Settings surfaces + crew/shift/OEE-target modals; wired to T-039/T-040/T-044/T-045 with RBAC + V-PROD-SHIFT gates.",
+    "details": "Parity per surface: shifts_screen at other-screens.jsx:215-291 (crew assignments + per-line summary + handover + sign-off checklist); line_detail at new-screens.jsx:212-478 (status ribbon + 3-gauge mini-OEE + 8h sparkline + 6 tabs + SSE Live Events sidebar resolving BL-PROD-01); analytics_screen at other-screens.jsx:393-496 (5 KPI + 6 charts + operator_kpis_monthly table); settings_screen at other-screens.jsx:560-649 (8 accordion sections per PRD §8.1 SCR-08-10); modals assign_crew at modals.jsx:328-349, shift_start at :400-459, shift_end at :462-519, oee_target_edit at :522-597. V-PROD-SHIFT-001 (line certification) and V-PROD-SHIFT-002 (unresolved gates) enforced via server actions T-039/T-040. OEE target edit uses prod_oee_targets effective-date window via T-045 (BL-PROD-04 resolution). RBAC: Prod Manager gates settings; non-PM users see disabled inputs + Tooltip. UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/production/shifts/page.tsx [create]",
+      "apps/web/app/production/lines/[id]/page.tsx [create]",
       "apps/web/app/production/analytics/page.tsx [create]",
       "apps/web/app/production/settings/page.tsx [create]",
-      "apps/web/app/production/lines/[id]/page.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/other-screens.jsx:215-649",
-      "prototypes/design/Monopilot Design System/production/new-screens.jsx:212-478"
+      "apps/web/components/production/shift-modals.tsx [create]",
+      "apps/web/components/production/oee-target-edit-modal.tsx [create]",
+      "apps/web/app/production/__tests__/shifts-lines-analytics-settings.test.tsx [create]",
+      "apps/web/components/production/__tests__/shift-modals.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/new-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement DLQ admin UI (T-051)",
+      "Do not implement waste/downtime/OEE screens (T-049)",
+      "Do not own RBAC primitives (02-SETTINGS §14)",
+      "Do not implement Tweaks Panel (SCR-08-13 flag-gated)"
     ],
     "dependencies": [
       "T-039",
       "T-040",
       "T-044",
-      "T-045"
+      "T-045",
+      "T-046"
+    ],
+    "parallel_safe_with": [
+      "T-047",
+      "T-048",
+      "T-049",
+      "T-051"
     ],
     "acceptance_criteria": [
-      "Shift/settings/line/analytics screens render with prototype labels and URL-driven tabs",
-      "Shift end blocks unresolved gates and settings forms audit changes",
-      "Closeout includes screenshots for shifts, line detail, settings, analytics and trace"
+      "Given the four surfaces render with prototype-shaped data, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:215-291,393-496,560-649 and new-screens.jsx:212-478, then per-surface parity holds (crew+handover+sign-off for Shifts; status+mini-OEE+6 tabs+SSE for Line; 5 KPI+6 charts+operator KPIs for Analytics; 8 accordion sections for Settings) — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given the End-of-Shift sign-off panel has an unresolved gate, when Shift Lead clicks Sign Off Shift, then the Dialog returns typed unresolved_gates from T-040 and the action does not persist.",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for shifts, line detail, analytics, settings (incl. OEE Target Edit modal) and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback)."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/production/__tests__/shifts-lines-analytics-settings.test.tsx + apps/web/components/production/__tests__/shift-modals.test.tsx asserting per-surface parity, SSE wiring, unresolved-gates blocker, Prod Manager RBAC and data-prototype-label markers before code exists.",
+      "Run 'pnpm vitest run apps/web/app/production/__tests__/shifts-lines-analytics-settings.test.tsx apps/web/components/production/__tests__/shift-modals.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not bypass V-PROD-SHIFT-001 or V-PROD-SHIFT-002.",
+      "Do not let non-Prod-Manager users mutate Production Settings.",
+      "Do not skip BL-PROD-01 fix on Line Detail today-output.",
+      "Do not store OEE target edits in memory."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -82,13 +110,20 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "shifts_screen,line_detail,analytics_screen,settings_screen,assign_crew_modal,shift_start_modal,shift_end_modal,oee_target_edit_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "02-settings",
         "task_id": "T-020",
-        "reason": "Machine/line registry and operator certifications."
+        "reason": "Machine/line registry and operator certifications source."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-126",
+        "reason": "RBAC role guard helpers for Prod Manager."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

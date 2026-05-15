@@ -1,6 +1,6 @@
 {
   "title": "T-027 — Wiring: Schema-driven L3 extension propagation from 02-SETTINGS",
-  "prompt": "Per §6.3 + KPI 'schema-driven extensions propagate within 5s'. Implement listener that subscribes to reference_schemas changes for entity='items' (02-SETTINGS §6) and rebuilds the runtime Zod schema used by item-create/edit endpoints. Cache invalidation broadcast via existing in-process pub/sub or NATS-style channel. RED tests/wiring/schema-propagation.test.ts. Run: `pnpm vitest run tests/wiring/schema-propagation.test.ts`.",
+  "prompt": "# T-027 — Wiring: Schema-driven L3 extension propagation from 02-SETTINGS\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.3, §14.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nListener that rebuilds item Zod schema when 02-SETTINGS reference_schemas change.\n\nUse existing internal event bus. After change emit, subsequent POST /items must validate against new schema. Cache TTL <=5s for KPI compliance.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- lib/technical/items/schema-cache.ts [create]\n- tests/wiring/schema-propagation.test.ts [create]\n\n## Out of scope\n- 02-SETTINGS schema wizard UI\n\n## Acceptance criteria\n1. Given reference_schemas adds field 'organic_certified', when POST /items omits it but it's required, then 422 within 5s of schema change.\n2. Given schema removed, when POST runs, then field is no longer required.\n3. Given cache invalidation event missed, when TTL expires, then schema reload still occurs within 5s.\n\n## Test strategy\n- RED tests with simulated schema mutation + timing.\n- Run: pnpm vitest run tests/wiring/schema-propagation.test.ts\n\n## Risk red lines\n- Do not require app restart — must hot-reload.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -51,7 +51,11 @@
       "Run: pnpm vitest run tests/wiring/schema-propagation.test.ts"
     ],
     "risk_red_lines": [
-      "Do not require app restart — must hot-reload."
+      "Do not require app restart — must hot-reload.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

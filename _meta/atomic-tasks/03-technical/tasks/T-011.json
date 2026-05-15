@@ -1,6 +1,6 @@
 {
   "title": "T-011 — API: Item deactivate (POST /api/technical/items/:item_code/deactivate) with V-TEC-05",
-  "prompt": "Implement POST /api/technical/items/[item_code]/deactivate per §6.2 and V-TEC-05. Body: { reason: 'discontinued'|'recipe_change'|'d365_mismatch'|'other', notes?: string, target_status: 'deprecated'|'blocked' }. Status transition rules: blocked->active requires owner approval flag (return 403 unless approver field also set). Soft transition only — never DELETE rows. Audit log entry with action='item.deactivate'. Permission gate: technical.items.deactivate. RED tests/api/items-deactivate.test.ts. Run: `pnpm vitest run tests/api/items-deactivate.test.ts`.",
+  "prompt": "# T-011 — API: Item deactivate (POST /api/technical/items/:item_code/deactivate) with V-TEC-05\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.2, §6.4, §6.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nItem deactivate endpoint enforcing reason + audit + status transition rules.\n\nReason enum mirrors UI TEC-081 modal options. blocked->active reverse path requires explicit approver_user_id property and owner permission. Active BOMs referencing this item should not be auto-deactivated.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/deactivate/route.ts [create]\n- lib/technical/items/lifecycle.ts [create]\n- tests/api/items-deactivate.test.ts [create]\n\n## Out of scope\n- BOM side-effects\n- UI\n\n## Acceptance criteria\n1. Given item active, when POST deactivate with reason='discontinued', then status='deprecated' and audit row written.\n2. Given POST without reason field, when validated, then 422 returned.\n3. Given item blocked, when POST to set active without approver_user_id, then 403 V-TEC-05 returned.\n4. Given user without technical.items.deactivate, when POST runs, then 403.\n\n## Test strategy\n- RED tests for each reason path + missing approver case.\n- Run: pnpm vitest run tests/api/items-deactivate.test.ts\n\n## Risk red lines\n- Do not delete rows.\n- Do not auto-deactivate dependent BOMs.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -55,7 +55,11 @@
     ],
     "risk_red_lines": [
       "Do not delete rows.",
-      "Do not auto-deactivate dependent BOMs."
+      "Do not auto-deactivate dependent BOMs.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

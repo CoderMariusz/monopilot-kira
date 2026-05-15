@@ -50,10 +50,12 @@
     ],
     "test_strategy": [
       "RED: 4 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/schema/wizard.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not execute DDL from this action — that lives in approver tooling out of scope."
+      "Do not execute DDL from this action — that lives in approver tooling out of scope.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

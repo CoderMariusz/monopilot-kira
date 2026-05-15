@@ -1,10 +1,11 @@
 {
-  "title": "T-053 — E2E scanner-linked desktop cards and Production endpoint contract",
-  "prompt": "# T-053 — E2E scanner-linked desktop cards and Production endpoint contract\n\nPRD/UX refs: SCR-08-12, 06-SCANNER-P1 cross-flow\n\nGoal: Create Playwright coverage and artifact evidence for E2E scanner-linked desktop cards and Production endpoint contract.\n\nImplementation details:\nVerify desktop scanner cards generate signed short-lived tokens and scanner contract calls to consume/output/waste endpoints update Production read models and desktop tabs. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.\n\nScope files:\n- apps/web/e2e/production.spec.ts [create/modify]\n- apps/web/e2e/fixtures/production.ts [create/modify]\n- apps/web/playwright.config.ts [modify if artifact retention missing]\n\nAcceptance criteria:\n1. Playwright test covers the named flow with deterministic seeded data\n2. Assertions verify UI state, server-side data changes, and typed blocker/audit evidence\n3. Closeout includes screenshot paths and Playwright trace artifact paths\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-053 — E2E scanner-linked desktop cards + Production endpoint contract (SCR-08-12)",
+  "prompt": "# T-053 — E2E scanner deep-link cards + endpoint contract\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-12, §8.2.2, §8.2.3, 06-SCANNER-P1 cross-flow\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright spec covering the SCR-08-12 scanner-linked desktop cards pattern + the production endpoint contract consumed by 06-SCANNER-P1. Verifies that a Shift Lead can open a scanner deep-link card on `/production/wos/[id]/consume`, the generated JWT is valid for ≤15min single-use, and that posting consume-to-WO with that token updates Production read models and the consumption tab.\n\n## Implementation contract\n1. apps/web/e2e/production.spec.ts adds `test.describe('scanner deep-link cards')` block: open WO detail → consume tab → click `Open on Scanner`, capture JWT from QR/copy-link, post to `/api/production/scanner/consume-to-wo` with the token + a seeded LP, assert UI consumption tab refreshes with new LP scan log row.\n2. Token assertions: signed with `SCANNER_JWT_SECRET`, claims `{wo_id, line_id, action='CONSUME_LP', operator_id, exp}` and `exp - iat <= 900` seconds; second POST with same token is rejected `401 token_replayed` (single-use claim).\n3. apps/web/e2e/fixtures/production.ts adds helper to mint/verify JWT and to verify Production data has no mutation when only the card is rendered (no POST).\n4. Playwright config retains trace/screenshot/video; tenant-scoped cleanup after run.\n\n## Acceptance criteria\n1. Given a Shift Lead opens the consume tab and clicks `Open on Scanner`, when the card renders, then a JWT with claims `{wo_id, line_id, action='CONSUME_LP', operator_id, exp}` is visible (QR + copy-link), no Production row was mutated, and `exp - iat <= 900` seconds.\n2. Given the JWT is used once via `POST /api/production/scanner/consume-to-wo`, when the request succeeds, then the consumption tab live-refreshes the LP scan log row; a second POST with the same token returns 401 `token_replayed` and no second consumption row is created.\n3. Given the task is closed out, when reviewers inspect evidence, then closeout lists trace/screenshot/video paths plus the `pnpm --filter web exec playwright test production.spec.ts -g \"scanner deep-link cards\"` command output.\n\n## Test strategy\n- RED: write the `scanner deep-link cards` describe + JWT mint/verify fixture before code exists; the spec must fail because the deep-link card and consume route are not in place.\n- Run `pnpm --filter web exec playwright test production.spec.ts -g \"scanner deep-link cards\" --trace=on`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not let card rendering mutate Production data (issuance only).\n- Do not bypass single-use / 15-min expiry semantics on the JWT.\n- Do not log JWT contents server-side at INFO level (PII / replay risk).\n- Do not assert against scanner PWA internals (06-SCANNER-P1 owns those).\n",
   "labels": [
     "prd",
-    "T4-e2e",
-    "e2e"
+    "e2e",
+    "scanner",
+    "T4-e2e"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,21 +15,28 @@
     "prd_task_id": "T-053",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-12",
-      "06-SCANNER-P1 cross-flow"
+      "§8.1 SCR-08-12",
+      "§8.2.2",
+      "§8.2.3"
     ],
-    "category": "production-readiness",
-    "subcategory": "E2E scanner-linked desktop cards and Production ",
+    "category": "e2e",
+    "subcategory": "scanner-deeplink-cards-contract",
     "task_type": "T4-e2e",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Create Playwright coverage and artifact evidence for E2E scanner-linked desktop cards and Production endpoint contract.",
-    "details": "Verify desktop scanner cards generate signed short-lived tokens and scanner contract calls to consume/output/waste endpoints update Production read models and desktop tabs. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.",
+    "parent_feature": "08-PROD scanner contract evidence",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Playwright spec asserting SCR-08-12 deep-link card issuance + Production scanner endpoint contract; JWT 15-min single-use, card-only render does not mutate data.",
+    "details": "Walks consume tab → Open on Scanner → captures JWT → posts to /api/production/scanner/consume-to-wo → asserts live refresh. Asserts JWT claim set + 15-min expiry + single-use replay rejection. Fixture mints/verifies token. Card-only render proves zero data mutation. Tenant-scoped cleanup. Closeout includes trace/screenshot/video paths.",
     "scope_files": [
       "apps/web/e2e/production.spec.ts [create/modify]",
       "apps/web/e2e/fixtures/production.ts [create/modify]",
       "apps/web/playwright.config.ts [modify if artifact retention missing]"
+    ],
+    "out_of_scope": [
+      "Do not assert scanner PWA internals (06-SCANNER-P1)",
+      "Do not cover output / waste deep-link variants (T-055 closeout slice)",
+      "Do not implement deep-link card UI (T-047)",
+      "Do not implement consume-to-WO route (T-023)"
     ],
     "dependencies": [
       "T-023",
@@ -36,18 +44,27 @@
       "T-030",
       "T-047"
     ],
+    "parallel_safe_with": [
+      "T-052",
+      "T-054",
+      "T-055"
+    ],
     "acceptance_criteria": [
-      "Playwright test covers the named flow with deterministic seeded data",
-      "Assertions verify UI state, server-side data changes, and typed blocker/audit evidence",
-      "Closeout includes screenshot paths and Playwright trace artifact paths"
+      "Given a Shift Lead opens the consume tab and clicks Open on Scanner, when the card renders, then a JWT with claims {wo_id, line_id, action='CONSUME_LP', operator_id, exp} is visible (QR + copy-link), no Production row was mutated, and exp - iat <= 900 seconds.",
+      "Given the JWT is used once via POST /api/production/scanner/consume-to-wo, when the request succeeds, then the consumption tab live-refreshes the LP scan log row; a second POST with the same token returns 401 token_replayed and no second consumption row is created.",
+      "Given the task is closed out, when reviewers inspect evidence, then closeout lists trace/screenshot/video paths plus the playwright test command output."
     ],
     "test_strategy": [
-      "RED: write Playwright spec that fails before target UI/API slices exist",
-      "GREEN: run pnpm --filter web exec playwright test production.spec.ts --trace=on"
+      "RED: write the scanner deep-link cards describe + JWT mint/verify fixture before code exists; spec must fail because card and route are missing.",
+      "Run 'pnpm --filter web exec playwright test production.spec.ts -g \"scanner deep-link cards\" --trace=on'",
+      "Capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not let card rendering mutate Production data.",
+      "Do not bypass single-use / 15-min expiry semantics on the JWT.",
+      "Do not log JWT contents server-side at INFO level.",
+      "Do not assert against scanner PWA internals."
     ],
     "skills": [
       "test-driven-development",
@@ -76,6 +93,13 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "cross_module_dependencies": [
+      {
+        "module": "06-scanner-p1",
+        "task_id": "external-scanner-contract",
+        "reason": "Scanner consumes the deep-link JWT and the Production scanner endpoints; here Production owns the contract test for the issuance side."
+      }
+    ]
   }
 }

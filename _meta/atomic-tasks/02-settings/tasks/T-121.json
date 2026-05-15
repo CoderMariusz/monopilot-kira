@@ -42,7 +42,8 @@
       "GREEN: build screen and wire existing import/export actions where available.",
       "Run page test, typecheck, lint.",
       "Add RTL tests for per-entity permission filtering, authorization-policy import dry-run blocker, unsupported import message, and recent job statuses.",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/import-export/page.test.tsx`."
     ],
     "risk_red_lines": [
       "Global Import/Export is Phase 1 scope per PO 2026-05-03; do not mark it out-of-scope or Phase 3.",

@@ -416,3 +416,9 @@
 - Auth/settings enforcement blocker patch 2026-05-03: T-002 mixed-namespace permission regex fixed; T-020 now owns server-side V-SET-43/V-SET-44 flag enforcement; T-122 deepened for schema/actions/UI/tests; T-123 added as the active `technical_product_spec_approval_gate_v1` rule seed.
 - Wave0 readiness patch: added T-124/T-125/T-126/T-127, split T-122, removed T-020 cycle and tightened onboarding parity/settings.flags.edit policy.
 - Gap polish 2026-05-09: SET-034 Schema Shadow Preview is now tracked by T-128; SET-100 Language Picker is now tracked by T-129. SET-015/017/019 edit screens are explicitly deferred because T-105/T-106/T-107 cover the corresponding infrastructure list/tree surfaces and intentionally defer edit-screen atomization. SET-051 Reference Table Detail is covered by T-067's `/settings/reference/[code]` route, while SET-050 remains the reference table index/list surface.
+
+## Permission-enum governance 2026-05-14
+
+| Task | PRD ref | Type | Notes |
+|---|---|---|---|
+| T-130 | §3 [D2] Permission model | T2-api (governance) | ESLint enum-lock guard for `packages/rbac/src/permissions.enum.ts`. Materializes the mechanised gate that all 9 per-module permission-enum tasks (01-npd T-101, 03-technical T-091, 04-planning-basic T-066, 05-warehouse T-058, 06-scanner-p1 T-049, 07-planning-ext T-058, 08-production T-056, **09-quality T-065**, 14-multi-site T-031) cited as "02-settings T-046" — but T-046 is `SET-006 Onboarding Completion`, not the guard. T-130 closes that gap by creating the `tooling/eslint-rules` workspace + `no-direct-permissions-enum-edit` rule + baseline snapshot + registration in `packages/rbac/.eslintrc.cjs`. P0 blocker. Reviewer R2 §3.1 + audit `2026-05-14-permission-enum-addition.md`. Note: 09-quality reference corrected from T-037 (ncr_reports schema) to T-065 (perm-enum) by F10 reconciliation 2026-05-14.

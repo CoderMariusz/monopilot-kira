@@ -47,10 +47,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases (using mocked Resend).",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/email/config.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not store provider API key in DB; use vault."
+      "Do not store provider API key in DB; use vault.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

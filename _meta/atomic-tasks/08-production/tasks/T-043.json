@@ -1,8 +1,10 @@
 {
-  "title": "T-043 — Allergen changeover runtime endpoints and start-gate evaluator",
-  "prompt": "# T-043 — Allergen changeover runtime endpoints and start-gate evaluator\n\nPRD/UX refs: §8.2.6, §7.1 FR-08-E1-001, SCR-08-03, MODAL-08-11\n\nGoal: Implement cleaning-step, ATP result, dual sign-off endpoints and wire allergen_changeover_gate_v1 into WO START.\n\nImplementation details:\nUse changeover_events and allergen_changeover_validations. The evaluator compares current/next allergen profile from the WO factory spec/BOM snapshot, creates or loads a changeover_event, blocks START with 423 for medium/high/segregated requirements, records cleaning checklist and ATP readings, and unlocks only after required dual sign-off. Segregated hard-block returns a typed blocker and cannot be overridden in Production.\n\nScope files:\n- packages/api-services/production/allergen-changeover.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/cleaning-step/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/atp-result/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/sign-off/route.ts [create]\n- packages/api-services/production/start-wo.ts [modify]\n\nAcceptance criteria:\n1. START returns 423 and redirect_url when required changeover is incomplete\n2. Cleaning/ATP/sign-off endpoints persist auditable records with signer roles\n3. Completed required dual sign-off permits START without selecting a new BOM/spec\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-043 — Allergen changeover runtime endpoints + START-gate evaluator (08-PROD-g, §8.2.6 / FR-08-E7-001)",
+  "prompt": "# T-043 — Allergen changeover runtime endpoints + START-gate evaluator\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.2.6, §6 D10, §7.7 FR-08-E7-001..008, §7.1 FR-08-E1-001\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the cleaning-step, ATP result and dual sign-off endpoints backing `allergen_changeover_validations` (T-007) and wire the `allergen_changeover_gate_v1` DSL rule (T-014) into the START service (T-016) so START returns 423 with a typed redirect when a required changeover is incomplete.\n\n## Implementation contract\n1. `packages/api-services/production/allergen-changeover.ts` exports `evaluateChangeoverGate(woId)` (compute allergen_delta vs previous WO on the line from changeover_matrix), `recordCleaningStep`, `recordAtpResult`, `recordSignOff`.\n2. `POST /api/production/changeover-events/[id]/cleaning-step` — `{ step_id, operator_id, timestamp, photo_url? }` writes `changeover_checklist_items.completed=true`.\n3. `POST /api/production/changeover-events/[id]/atp-result` — `{ test_method, locations[], rlu_value, status }`; auto-PASS/FAIL vs configured `prod_settings.atp_rlu_threshold`.\n4. `POST /api/production/changeover-events/[id]/sign-off` — `{ signer_role (shift_lead|quality_lead), user_id, pin_confirmed, timestamp }`; verifies PIN server-side, writes a row in `changeover_gate_signatures`.\n5. Modify `packages/api-services/production/start-wo.ts` so it calls `evaluateChangeoverGate` after the canonical release preflight (T-001); on `cleaning_required` / `atp_required` / dual-sign-off incomplete, returns `423 { error: 'allergen_changeover_required', changeover_event_id, redirect_url: '/production/changeover/<event_id>' }` and does not mutate runtime state. `segregation_required=true` is a hard-block that cannot be overridden in Production.\n\n## Files\n- packages/api-services/production/allergen-changeover.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/cleaning-step/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/atp-result/route.ts [create]\n- apps/web/app/api/production/changeover-events/[id]/sign-off/route.ts [create]\n- packages/api-services/production/start-wo.ts [modify]\n- packages/api-services/production/__tests__/allergen-changeover.test.ts [create]\n- packages/api-services/production/__tests__/start-wo-allergen-gate.test.ts [create]\n\n## Acceptance criteria\n1. Given a WO whose changeover requires cleaning + ATP and dual sign-off is incomplete, when POST START is called, then the service returns 423 with `error='allergen_changeover_required'`, `changeover_event_id`, and `redirect_url='/production/changeover/<id>'`, and no `wo_executions.started_at` is written.\n2. Given cleaning checklist is complete and an ATP result with `rlu_value <= prod_settings.atp_rlu_threshold` plus both shift_lead + quality_lead PIN-confirmed sign-offs exist, when POST START is called, then START succeeds without selecting a newer BOM/spec and using the existing canonical `active_bom_header_id` + `active_factory_spec_id`.\n3. Given `segregation_required=true` in the changeover matrix row, when sign-off is attempted or START is invoked, then the service returns a typed `segregation_hard_block` blocker and cannot be overridden in Production.\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/allergen-changeover.test.ts + start-wo-allergen-gate.test.ts asserting 423/redirect, dual-sign-off pass, and segregation hard-block before code exists.\n- Run `pnpm vitest run packages/api-services/production/__tests__/allergen-changeover.test.ts packages/api-services/production/__tests__/start-wo-allergen-gate.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not allow sign-off without server-side PIN verification (BRCGS Issue 10 §5.3).\n- Do not let Production override `segregation_required` — that originates in 07-PLANNING-EXT changeover_matrix and 03-TECHNICAL allergen profile.\n- Do not select a newer/latest BOM/spec at START time after passing the allergen gate; preserve canonical snapshot per T-001.\n- Do not delete or mutate prior `allergen_changeover_validations` rows (7-year retention per §5.5).\n",
   "labels": [
     "prd",
+    "api",
+    "allergen-gate",
     "T2-api"
   ],
   "priority": 80,
@@ -14,24 +16,33 @@
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "§8.2.6",
+      "§6 D10",
+      "§7.7 FR-08-E7-001..008",
       "§7.1 FR-08-E1-001",
-      "SCR-08-03",
-      "MODAL-08-11"
+      "§5.3"
     ],
-    "category": "production-readiness",
-    "subcategory": "Allergen changeover runtime endpoints and start-",
+    "category": "api",
+    "subcategory": "allergen-changeover-runtime",
     "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Implement cleaning-step, ATP result, dual sign-off endpoints and wire allergen_changeover_gate_v1 into WO START.",
-    "details": "Use changeover_events and allergen_changeover_validations. The evaluator compares current/next allergen profile from the WO factory spec/BOM snapshot, creates or loads a changeover_event, blocks START with 423 for medium/high/segregated requirements, records cleaning checklist and ATP readings, and unlocks only after required dual sign-off. Segregated hard-block returns a typed blocker and cannot be overridden in Production.",
+    "parent_feature": "08-PROD E7 Allergen Gate",
+    "context_budget": "38k",
+    "estimated_effort": "3-4h",
+    "description": "Cleaning-step/ATP/dual sign-off endpoints + allergen_changeover_gate_v1 wiring into START so blocked changeovers return 423 redirect without mutating runtime.",
+    "details": "Evaluator reads previous WO on the line, computes allergen_delta vs current WO's factory_spec/BOM allergen profile, consults changeover_matrix (07-PLANNING-EXT §9.4), and decides cleaning_required/atp_required/dual_signoff_required/segregation_required. Cleaning/ATP/sign-off endpoints are idempotent (transaction_id) and PIN-verified server-side against users.pin_hash. START service first runs canonical release preflight (T-001), then calls evaluateChangeoverGate. Segregation is a hard-block originating in 03-TECHNICAL allergen profile + 07-PLANNING-EXT changeover_matrix and cannot be overridden in Production.",
     "scope_files": [
       "packages/api-services/production/allergen-changeover.ts [create]",
       "apps/web/app/api/production/changeover-events/[id]/cleaning-step/route.ts [create]",
       "apps/web/app/api/production/changeover-events/[id]/atp-result/route.ts [create]",
       "apps/web/app/api/production/changeover-events/[id]/sign-off/route.ts [create]",
-      "packages/api-services/production/start-wo.ts [modify]"
+      "packages/api-services/production/start-wo.ts [modify]",
+      "packages/api-services/production/__tests__/allergen-changeover.test.ts [create]",
+      "packages/api-services/production/__tests__/start-wo-allergen-gate.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the changeover UI / dual sign-off panel (T-048)",
+      "Do not own the changeover_matrix table (07-PLANNING-EXT §9.4)",
+      "Do not implement ATP device integration (P2 via 09-QUALITY)",
+      "Do not change allergen profile schema (03-TECHNICAL §10.4)"
     ],
     "dependencies": [
       "T-001",
@@ -40,22 +51,32 @@
       "T-014",
       "T-016"
     ],
+    "parallel_safe_with": [
+      "T-041",
+      "T-042",
+      "T-044",
+      "T-045"
+    ],
     "acceptance_criteria": [
-      "START returns 423 and redirect_url when required changeover is incomplete",
-      "Cleaning/ATP/sign-off endpoints persist auditable records with signer roles",
-      "Completed required dual sign-off permits START without selecting a new BOM/spec"
+      "Given a WO whose changeover requires cleaning+ATP and dual sign-off is incomplete, when POST START is called, then service returns 423 with error='allergen_changeover_required', changeover_event_id and redirect_url, and no wo_executions.started_at is written.",
+      "Given cleaning complete + ATP rlu_value<=threshold + both shift_lead+quality_lead PIN-confirmed sign-offs, when POST START is called, then START succeeds without selecting a newer BOM/spec and using the existing canonical active_bom_header_id+active_factory_spec_id.",
+      "Given segregation_required=true, when sign-off is attempted or START is invoked, then service returns typed segregation_hard_block and cannot be overridden in Production."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: __tests__/allergen-changeover.test.ts + start-wo-allergen-gate.test.ts asserting 423 redirect, dual-sign-off pass and segregation hard-block before code exists.",
+      "Run 'pnpm vitest run packages/api-services/production/__tests__/allergen-changeover.test.ts packages/api-services/production/__tests__/start-wo-allergen-gate.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not allow sign-off without server-side PIN verification.",
+      "Do not let Production override segregation_required.",
+      "Do not select a newer/latest BOM/spec at START time after passing the allergen gate.",
+      "Do not delete or mutate prior allergen_changeover_validations rows."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -68,8 +89,6 @@
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
-        "screenshots_or_artifacts",
-        "playwright_traces_or_artifacts",
         "deviations_from_prd",
         "git_status"
       ]
@@ -84,12 +103,17 @@
       {
         "module": "03-technical",
         "task_id": "T-080",
-        "reason": "Allergen matrix and active factory_spec source."
+        "reason": "Allergen profile + factory spec source of truth."
+      },
+      {
+        "module": "07-planning-ext",
+        "task_id": "external-changeover-matrix",
+        "reason": "changeover_matrix (cleaning/ATP/segregation rules) owned by 07-PLANNING-EXT §9.4."
       },
       {
         "module": "09-quality",
         "task_id": "external-quality-contract",
-        "reason": "ATP/QA sign-off may be Quality-owned by policy."
+        "reason": "ATP/QA sign-off seam (P2 device integration)."
       }
     ]
   }

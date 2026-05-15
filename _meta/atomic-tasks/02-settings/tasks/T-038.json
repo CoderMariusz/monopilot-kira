@@ -51,10 +51,12 @@
     ],
     "test_strategy": [
       "RED: 4 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/reference/manufacturing-ops.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not change marker from 'ORG-CONFIG'."
+      "Do not change marker from 'ORG-CONFIG'.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

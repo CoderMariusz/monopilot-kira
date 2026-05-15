@@ -1,6 +1,6 @@
 {
   "title": "T-026 — Wiring: ATP swab auto-fail trigger (V-TEC-44) + WO close gate emit",
-  "prompt": "Per §10.6 + V-TEC-44 — ATP swab `result_value > threshold_rlu` must auto-set status='fail' AND emit a `lab.fail` event consumed by 08-PRODUCTION WO close gate. Implementation lives in lib/technical/lab/atp-fail.ts as a service called from POST /lab-results (T-020) and via DB trigger backstop (so D365 inserts also catch it). Add a Postgres trigger `lab_results_atp_autofail_trigger` that runs BEFORE INSERT setting result_status when test_type='atp_swab'. Outbox event 'lab.fail' published on fail. RED tests/wiring/atp-fail.test.ts. Run: `pnpm vitest run tests/wiring/atp-fail.test.ts`.",
+  "prompt": "# T-026 — Wiring: ATP swab auto-fail trigger (V-TEC-44) + WO close gate emit\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §10.6, §10.8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDB trigger + service ensuring ATP swab fail propagates and emits outbox event.\n\nThreshold default 10 RLU pulled from reference_tables.alert_thresholds.row_key='atp_swab_rlu_max'. Outbox event payload: { item_id, work_order_id, test_code, result_value, threshold_rlu }. The 08-PRODUCTION close gate consumer is downstream — only emit here.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_atp_autofail_trigger.sql [create]\n- lib/technical/lab/atp-fail.ts [create]\n- tests/wiring/atp-fail.test.ts [create]\n\n## Out of scope\n- Allergen changeover gate\n- WO state machine\n\n## Acceptance criteria\n1. Given direct INSERT into lab_results with test_type='atp_swab', value=15, threshold=10, when committed, then result_status='fail'.\n2. Given fail row written, when outbox queue inspected, then 'lab.fail' event present with item_id and value.\n3. Given test_type='allergen_elisa' and result_status='pass' provided, when inserted, then trigger does not modify status.\n\n## Test strategy\n- RED tests covering DB trigger + outbox emit.\n- Run: pnpm vitest run tests/wiring/atp-fail.test.ts\n\n## Risk red lines\n- Do not consume the event here (08-PRODUCTION side).\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -54,7 +54,11 @@
       "Run: pnpm vitest run tests/wiring/atp-fail.test.ts"
     ],
     "risk_red_lines": [
-      "Do not consume the event here (08-PRODUCTION side)."
+      "Do not consume the event here (08-PRODUCTION side).",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

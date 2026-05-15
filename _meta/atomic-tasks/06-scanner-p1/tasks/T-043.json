@@ -12,58 +12,19 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
-    "category": "api",
-    "context_budget": "25k",
-    "estimated_effort": "2-4h",
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
-    "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
-      "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status",
-        "mobile_390x844_screenshot",
-        "playwright_trace"
-      ]
-    },
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prototype_evidence_required": {
-      "viewport": "390x844",
-      "artifacts": [
-        "screenshot",
-        "Playwright trace"
-      ],
-      "parity_dimensions": [
-        "structure",
-        "visual",
-        "interaction"
-      ]
-    },
     "prd_task_id": "T-043",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.5 FR-SC-BE-053",
       "§8.5 FR-SC-BE-054",
       "§8.5 FR-SC-BE-055"
     ],
+    "category": "api",
     "subcategory": "quality-scanner-api",
     "task_type": "T2-api",
     "parent_feature": "06-e Production Output and QA",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
     "description": "Implement scanner-facing Quality pending-inspections, inspect, and failure-reason endpoints.",
     "details": "1. Add quality scanner pending-inspections, inspect, and failure-reasons handlers. 2. Enforce org-site RLS and quality.inspect permission. 3. PASS, HOLD, and FAIL update LP qa_status and status per contract; FAIL creates a basic NCR reference. 4. Audit every decision with scanner_audit_log metadata.",
     "scope_files": [
@@ -76,7 +37,9 @@
     "out_of_scope": [
       "Do not implement unrelated scanner flows in this task",
       "Do not change PRD decisions or prototype source during implementation",
-      "Do not bypass module contract validation"
+      "Do not bypass module contract validation",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-011"
@@ -95,8 +58,36 @@
     "risk_red_lines": [
       "Do not rely on client-side permission guard only",
       "Do not allow FAIL without failure_reason_id or valid other note",
-      "Do not expose cross-site LPs"
+      "Do not expose cross-site LPs",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "05-warehouse: LP qa_status and status lifecycle",
       "09-quality: inspection and NCR reason contracts",

@@ -1,6 +1,6 @@
 {
   "title": "T-010 — API: Item detail and update (GET/PUT /api/technical/items/:item_code)",
-  "prompt": "Implement GET and PUT for /api/technical/items/[item_code] per §6.2. GET returns item with related counts (active BOMs, allergen profile entries count, last cost effective_from, last D365 sync). PUT accepts partial update; re-validates V-TEC-01..04. Both org-scoped via RLS. Permission gate: technical.items.edit on PUT. Audit log entry on PUT (ADR-008) using audit_log table. RED tests/api/items-detail.test.ts. Run: `pnpm vitest run tests/api/items-detail.test.ts`.",
+  "prompt": "# T-010 — API: Item detail and update (GET/PUT /api/technical/items/:item_code)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.2, §6.4, §6.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nItem detail GET and PUT endpoints with audit and validations.\n\nAudit log row inserts before/after JSON of changed fields and userId. Use Drizzle transactions. 404 when item_code not found in current org.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/route.ts [create]\n- lib/technical/items/service.ts [create]\n- tests/api/items-detail.test.ts [create]\n\n## Out of scope\n- Status transitions (T-011)\n- BOM-side data\n\n## Acceptance criteria\n1. Given item exists in org A, when GET as org A, then 200 with related counts; when GET as org B, then 404 (RLS).\n2. Given PUT updates name, when committed, then audit_log row contains old+new name.\n3. Given PUT to deprecated item where field protected, when run, then 409.\n4. Given invalid weight_mode update breaking V-TEC-02, when PUT runs, then 422.\n\n## Test strategy\n- RED tests: cross-org GET, audit emission on PUT, V-TEC validation on PUT.\n- Run: pnpm vitest run tests/api/items-detail.test.ts\n\n## Risk red lines\n- Do not allow PUT to change item_code (immutable after create).\n- Do not return private_jsonb unless requester role is owner.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -55,7 +55,11 @@
     ],
     "risk_red_lines": [
       "Do not allow PUT to change item_code (immutable after create).",
-      "Do not return private_jsonb unless requester role is owner."
+      "Do not return private_jsonb unless requester role is owner.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

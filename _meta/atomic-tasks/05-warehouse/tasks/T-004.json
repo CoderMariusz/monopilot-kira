@@ -1,11 +1,11 @@
 {
-  "title": "T-004 — lp_reservations table migration",
-  "prompt": "# T-004 — lp_reservations table migration\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §5.4, §9.4.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `lp_reservations` table for hard-lock RM-root reservations with the partial-unique constraint preventing parallel reservations.\n\n## Implementation contract\nAdd `packages/db/src/schema/lp-reservations.ts` per §5.4: id, tenant_id, lp_id, wo_id, wo_material_id, reserved_qty (decimal(14,4)), reservation_type ENUM ('hard_lock'), reserved_at, reserved_by, released_at, released_by, release_reason ENUM ('consumed','cancelled','wo_cancelled','admin_override'). Partial unique: `UNIQUE(lp_id) WHERE released_at IS NULL`. CHECK reserved_qty > 0.\n\n## Files (scope)\n- packages/db/src/schema/lp-reservations.ts [create]\n- packages/db/migrations/0NN_lp_reservations.sql [create]\n- packages/db/src/schema/lp-reservations.test.ts [create]\n\n## Acceptance criteria\n1. Given two active reservations (released_at NULL) target the same lp_id, when the second inserts, then DB raises unique violation.\n2. Given the second reservation is created after the first sets released_at=NOW(), when committed, then it succeeds.\n3. Given INSERT with reserved_qty=0, when committed, then DB raises a CHECK violation.\n\n## Test strategy\n- RED: lp-reservations.test.ts covers the three scenarios above with tx rollback.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-reservations`.\n\n## Risk red lines\n- Do not drop the partial-unique constraint (V-WH-FEFO-003).\n- Do not allow reservations against intermediate LPs at schema level (enforcement is service-layer, but document in TS comment per Q6 revised).\n- Do not implement service logic here (T-031 owns).",
+  "title": "T-004 — lp_reservations table + partial-unique RM-root-only constraint (WH §5.4, §9.4)",
+  "prompt": "# T-004 — lp_reservations table + partial-unique RM-root-only constraint (WH §5.4, §9.4)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §5.4, §9.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `lp_reservations` with RM-root-only scope per Q6 (revised C2 Sesja 2): intermediate cascade NEVER reserves (V-WH-FEFO-005). Enforce partial-unique `UNIQUE(lp_id) WHERE released_at IS NULL` so an LP cannot be hard-locked twice in parallel.\n\n## Implementation contract\n1. Migration `0NN_lp_reservations.sql`: table per §5.4 with `lp_id`, `wo_id`, `wo_material_id`, `reserved_qty`, `reservation_type='hard_lock'` (P1 only), `reserved_at/by`, `released_at/by`, `release_reason` ENUM ('consumed','cancelled','wo_cancelled','admin_override').\n2. Partial unique constraint: `CREATE UNIQUE INDEX lp_reservations_active ON lp_reservations(lp_id) WHERE released_at IS NULL`.\n3. CHECK `reserved_qty > 0`.\n4. RLS + tenant policy.\n5. Drizzle schema + Insert/Select types.\n\n## Files\n- packages/db/src/schema/lp-reservations.ts [create]\n- packages/db/migrations/0NN_lp_reservations.sql [create]\n- packages/db/src/schema/lp-reservations.test.ts [create]\n\n## Acceptance criteria\n1. Given two transactions concurrently insert `lp_reservations` for the same LP with `released_at IS NULL`, when both commit, then exactly one succeeds and the other fails on the partial unique index (409 Conflict semantics).\n2. Given a reservation row has `released_at` set, when a new reservation is inserted for the same LP, then it succeeds.\n3. Given RLS is enabled, when tenant B reads reservations created by tenant A, then zero rows are returned.\n4. Given `reservation_type='soft_plan'` is attempted, when inserted, then the CHECK or enum constraint rejects it (P1 hard_lock only).\n\n## Test strategy\n- RED: `packages/db/src/schema/lp-reservations.test.ts` asserting partial-unique concurrency + RLS + reservation_type CHECK.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-reservations`.\n\n## Risk red lines\n- Do not allow `material_source='upstream_wo_output'` reservations (V-WH-FEFO-005 — service layer enforces; schema allows but tests must cover service guard).\n- Do not use full UNIQUE(lp_id) — that would block release+re-reserve.\n- Do not omit RLS.\n\n## Dependencies\n- T-002",
   "labels": [
     "prd",
     "data",
     "reservations",
-    "T1-schema"
+    "t1-schema"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -21,11 +21,11 @@
     "category": "data",
     "subcategory": "reservations",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "25k",
     "estimated_effort": "1h",
-    "description": "Create lp_reservations table with partial-unique active-reservation constraint per §5.4.",
-    "details": "Drizzle schema + migration. Partial UNIQUE(lp_id) WHERE released_at IS NULL enforces V-WH-FEFO-003. CHECK reserved_qty > 0. Service logic deferred to T-031.",
+    "description": "Create `lp_reservations` with RM-root-only scope per Q6 (revised C2 Sesja 2): intermediate cascade NEVER reserves (V-WH-FEFO-005). Enforce partial-unique `UNIQUE(lp_id) WHERE released_at IS NULL` so an LP cannot be hard-locked twice in parallel.",
+    "details": "Create `lp_reservations` with RM-root-only scope per Q6 (revised C2 Sesja 2): intermediate cascade NEVER reserves (V-WH-FEFO-005). Enforce partial-unique `UNIQUE(lp_id) WHERE released_at IS NULL` so an LP cannot be hard-locked twice in parallel. Migration `0NN_lp_reservations.sql`: table per §5.4 with `lp_id`, `wo_id`, `wo_material_id`, `reserved_qty`, `reservation_type='hard_lock'` (P1 only), `reserved_at/by`, `released_at/by`, `release_reason` ENUM ('consumed','cancelled','wo_cancelled','admin_override'). Partial unique constraint: `CREATE UNIQUE INDEX lp_reservations_active ON lp_reservations(lp_id) WHERE released_at IS NULL`.",
     "scope_files": [
       "packages/db/src/schema/lp-reservations.ts [create]",
       "packages/db/migrations/0NN_lp_reservations.sql [create]",
@@ -48,22 +48,24 @@
       "T-009"
     ],
     "acceptance_criteria": [
-      "Given two active reservations target same lp_id, when the second inserts, then DB raises unique violation",
-      "Given the first reservation sets released_at=NOW() before the second commits, when the second commits, then it succeeds",
-      "Given INSERT with reserved_qty=0, when committed, then DB raises a CHECK violation"
+      "Given two transactions concurrently insert `lp_reservations` for the same LP with `released_at IS NULL`, when both commit, then exactly one succeeds and the other fails on the partial unique index (409 Conflict semantics).",
+      "Given a reservation row has `released_at` set, when a new reservation is inserted for the same LP, then it succeeds.",
+      "Given RLS is enabled, when tenant B reads reservations created by tenant A, then zero rows are returned.",
+      "Given `reservation_type='soft_plan'` is attempted, when inserted, then the CHECK or enum constraint rejects it (P1 hard_lock only)."
     ],
     "test_strategy": [
-      "RED: lp-reservations.test.ts covers active-conflict, sequential ok, and CHECK qty",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test lp-reservations'"
+      "RED: `packages/db/src/schema/lp-reservations.test.ts` asserting partial-unique concurrency + RLS + reservation_type CHECK.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test lp-reservations`."
     ],
     "risk_red_lines": [
-      "Do not drop the partial-unique constraint",
-      "Do not allow reserved_qty <= 0",
-      "Do not add service logic here"
+      "Do not allow `material_source='upstream_wo_output'` reservations (V-WH-FEFO-005 — service layer enforces; schema allows but tests must cover service guard).",
+      "Do not use full UNIQUE(lp_id) — that would block release+re-reserve.",
+      "Do not omit RLS."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -89,7 +91,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -115,7 +117,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

@@ -1,7 +1,12 @@
 {
   "title": "T-016 — QA-011 hold detail page + hold_release_modal (prototype parity)",
-  "prompt": "# T-016 — QA-011 hold detail page + hold_release_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.2 QA-011 + QUA-101, §8.5 prototypes hold_detail + hold_release_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/holds/:id` Server Component showing the hold detail (audit history, items, linked NCR/inspection) plus the HoldReleaseModal Client Component for release flow with EsignBlock primitive (T-012).\n\n## Implementation contract\n1. `apps/web/src/app/quality/holds/[id]/page.tsx` reads getHoldDetail(id) (T-010); renders Card with metadata, item list, audit history list (last 50 quality_audit_log rows for record_id).\n2. `apps/web/src/components/quality/holds/HoldReleaseModal.tsx` shadcn Dialog with Disposition Select, Release notes Textarea, embedded EsignBlock; submits to releaseQualityHold (T-007).\n3. Role guard: only quality_lead (or prod_manager when SoD allows) sees the Release button.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286` (hold_detail) and `quality/modals.jsx:99-156` (hold_release_modal).\n\n## Files\n- apps/web/src/app/quality/holds/[id]/page.tsx [create]\n- apps/web/src/components/quality/holds/HoldReleaseModal.tsx [create]\n- apps/web/src/components/quality/holds/__tests__/holdDetail.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/holds-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286, then it has parity with the prototype on structure (header card + items table + audit history list + linked records sidebar in same regions/order), visuals (shadcn Card/Table/Badge primitives, signed banner uses Alert variant=success when released), and interaction (Release button visible only to quality_lead, opens HoldReleaseModal) — verified by RTL test plus parity checklist in pipeline_inputs.details\n2. Given the HoldReleaseModal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:99-156, then it has parity with the prototype on structure (Disposition Select + Release notes Textarea + EsignBlock; footer Cancel/Sign in same order), visual parity (red-bordered destructive footer per MODAL-SCHEMA §4), and interaction parity (SoD warning copy when caller=created_by and priority=critical, Sign disabled until disposition!=Pending and notes>=10 chars and PIN ready) — verified by RTL plus parity checklist\n3. Given a successful release flow with valid pin_proof, when releaseQualityHold returns ok, then the modal closes, the page revalidates, and the audit history shows a new SIGN row",
-  "labels": ["prd", "ui", "hold-detail-release", "T3-ui"],
+  "prompt": "# T-016 — QA-011 hold detail page + hold_release_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.2 QA-011 + QUA-101, §8.5 prototypes hold_detail + hold_release_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `/quality/holds/:id` Server Component showing the hold detail (audit history, items, linked NCR/inspection) plus the HoldReleaseModal Client Component for release flow with EsignBlock primitive (T-012).\n\n## Implementation contract\n1. `apps/web/src/app/quality/holds/[id]/page.tsx` reads getHoldDetail(id) (T-010); renders Card with metadata, item list, audit history list (last 50 quality_audit_log rows for record_id).\n2. `apps/web/src/components/quality/holds/HoldReleaseModal.tsx` shadcn Dialog with Disposition Select, Release notes Textarea, embedded EsignBlock; submits to releaseQualityHold (T-007).\n3. Role guard: only quality_lead (or prod_manager when SoD allows) sees the Release button.\n4. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286` (hold_detail) and `quality/modals.jsx:99-156` (hold_release_modal).\n\n## Prototype parity\nCanonical prototype: `prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286` (label `hold_detail`).\nCloseout must demonstrate structural, visual, and interaction parity vs this anchor per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (RTL snapshot + parity checklist + screenshots; Playwright trace where applicable).\n\n## Files\n- apps/web/src/app/quality/holds/[id]/page.tsx [create]\n- apps/web/src/components/quality/holds/HoldReleaseModal.tsx [create]\n- apps/web/src/components/quality/holds/__tests__/holdDetail.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/holds-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286, then it has parity with the prototype on structure (header card + items table + audit history list + linked records sidebar in same regions/order), visuals (shadcn Card/Table/Badge primitives, signed banner uses Alert variant=success when released), and interaction (Release button visible only to quality_lead, opens HoldReleaseModal) — verified by RTL test plus parity checklist in pipeline_inputs.details\n2. Given the HoldReleaseModal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:99-156, then it has parity with the prototype on structure (Disposition Select + Release notes Textarea + EsignBlock; footer Cancel/Sign in same order), visual parity (red-bordered destructive footer per MODAL-SCHEMA §4), and interaction parity (SoD warning copy when caller=created_by and priority=critical, Sign disabled until disposition!=Pending and notes>=10 chars and PIN ready) — verified by RTL plus parity checklist\n3. Given a successful release flow with valid pin_proof, when releaseQualityHold returns ok, then the modal closes, the page revalidates, and the audit history shows a new SIGN row",
+  "labels": [
+    "prd",
+    "ui",
+    "hold-detail-release",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-016",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§8.2 QA-011", "§8.3 QUA-101", "§8.5"],
+    "prd_refs": [
+      "§8.2 QA-011",
+      "§8.3 QUA-101",
+      "§8.5"
+    ],
     "category": "ui",
     "subcategory": "hold-detail",
     "task_type": "T3-ui",
@@ -31,8 +40,17 @@
       "Do not implement audit-trail PDF download (P2)",
       "Do not implement override flow (delete-with-reason, T-061)"
     ],
-    "dependencies": ["T-007", "T-009", "T-010", "T-012"],
-    "parallel_safe_with": ["T-013", "T-014", "T-015"],
+    "dependencies": [
+      "T-007",
+      "T-009",
+      "T-010",
+      "T-012"
+    ],
+    "parallel_safe_with": [
+      "T-013",
+      "T-014",
+      "T-015"
+    ],
     "acceptance_criteria": [
       "Given the page renders, when compared to prototypes/design/Monopilot Design System/quality/holds-screens.jsx:164-286, then it has parity on structure (header card + items table + audit history + linked records sidebar in same regions), visuals (shadcn Card/Table/Badge/Alert primitives only), and interaction (Release button visible only to quality_lead, opens HoldReleaseModal) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given the HoldReleaseModal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:99-156, then it matches on structural parity (Disposition Select + Release notes Textarea + EsignBlock + Cancel/Sign footer in same order), visual parity (red-bordered destructive footer per MODAL-SCHEMA §4), and interaction parity (SoD warning when caller=created_by and priority=critical, Sign disabled until disposition!=Pending and notes>=10 chars and PIN ready) — verified by RTL plus parity checklist",
@@ -47,16 +65,32 @@
       "Do not allow client to compute or send signature_hash",
       "Do not omit SoD warning when caller==created_by and priority==critical"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "hold_detail"
   }
 }

@@ -44,10 +44,12 @@
       "Idempotent."
     ],
     "test_strategy": [
-      "RED: write test. GREEN: emit migration + seed."
+      "RED: write test. GREEN: emit migration + seed.",
+      "Run `pnpm --filter @monopilot/db test:integration -- role-categories.test`."
     ],
     "risk_red_lines": [
-      "Do not let categories drive permission resolution."
+      "Do not let categories drive permission resolution.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

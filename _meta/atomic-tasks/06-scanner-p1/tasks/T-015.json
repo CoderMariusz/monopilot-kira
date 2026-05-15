@@ -35,7 +35,9 @@
     "out_of_scope": [
       "Do not implement reason picker here (modal owned by SCN-040/050/080)",
       "Do not implement camera fallback here (T-014)",
-      "Do not implement scan-first input here (T-013)"
+      "Do not implement scan-first input here (T-013)",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -49,16 +51,20 @@
     ],
     "test_strategy": [
       "RED: write manual-input.test.tsx asserting parity + text submit + qty backspace before implementation",
-      "Run 'pnpm --filter scanner test manual-input'"
+      "Run 'pnpm --filter scanner test manual-input'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not allow non-numeric input in mode='qty'",
       "Do not allow empty submit",
-      "Do not exceed 100 chars in text mode"
+      "Do not exceed 100 chars in text mode",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -84,6 +90,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "qty_keypad_sheet",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [

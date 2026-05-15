@@ -57,7 +57,8 @@
     "test_strategy": [
       "RED: deploy fixture/test fails because rule seed is missing.",
       "GREEN: add rule JSON/schema metadata and deploy/idempotency coverage.",
-      "Run rules deploy tests and targeted Settings rule tests."
+      "Run rules deploy tests and targeted Settings rule tests.",
+      "Run `pnpm --filter @monopilot/web vitest run scripts/rules-deploy.test.ts`."
     ],
     "risk_red_lines": [
       "Do not author a UI rule editor.",

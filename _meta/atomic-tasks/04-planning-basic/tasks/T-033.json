@@ -15,8 +15,8 @@
     "prd_task_id": "T-033",
     "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
-      "§3.2",
-      "§3.3"
+      "§3 (was §3.2)",
+      "§3 (was §3.3)"
     ],
     "category": "auth",
     "subcategory": "planning-rbac",
@@ -25,7 +25,7 @@
     "context_budget": "30k",
     "estimated_effort": "2-3h",
     "description": "Centralized permission helper wired into all planning endpoints with role→permission matrix.",
-    "details": "Helper in `src/server/lib/rbac.ts`. Role→permission matrix consumed from 02-SETTINGS §10 helper. ForbiddenError type maps to HTTP 403. Wire via Next.js middleware for /api/planning/* routes plus explicit calls inside Server Actions.",
+    "details": "Helper in `src/server/lib/rbac.ts`. Role→permission matrix consumed from 02-SETTINGS §10 helper. ForbiddenError type maps to HTTP 403. Wire via Next.js middleware for /api/planning/* routes plus explicit calls inside Server Actions. PRD-anchor remediation: corrected §3.2, §3.3 to nearest real heading (04-PLANNING-BASIC-PRD has §3 (Personas & RBAC) parent — sub-numbered §3.2/§3.3 exist as ### subsections but are referenced via §3 anchor + inline marker per gold standard).",
     "scope_files": [
       "src/server/lib/rbac.ts [create]",
       "src/server/lib/__tests__/rbac.test.ts [create]",

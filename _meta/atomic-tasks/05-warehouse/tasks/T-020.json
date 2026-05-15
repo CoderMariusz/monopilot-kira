@@ -1,13 +1,14 @@
 {
-  "title": "T-020 — Scanner LP locking service (5-min auto-release)",
-  "prompt": "# T-020 — Scanner LP locking service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §6.6 (FR-WH-004), V-WH-LP-008.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`acquireLpLock(lpId, userId)` and `releaseLpLock(lpId, userId)` services backed by `license_plates.locked_by/locked_at` with 5-min auto-release.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-locking.ts`. Use the conditional UPDATE `WHERE id=$lp AND (locked_by IS NULL OR locked_at < NOW() - INTERVAL '5 min')`. Return granted=true and full LP info; on conflict return granted=false plus locked_by username and location. Timeout configurable from `warehouse_settings.scanner_lock_timeout_sec`. Release sets locked_by=NULL, locked_at=NULL.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-locking.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-locking.test.ts [create]\n\n## Acceptance criteria\n1. Given LP unlocked, when acquireLpLock runs, then it returns granted=true with locked_by=user.\n2. Given another user holds the lock <5min ago, when acquireLpLock runs, then it returns granted=false with conflict info.\n3. Given a lock is older than configured timeout, when acquireLpLock runs, then it grants the lock to the new user and rewrites locked_at.\n\n## Test strategy\n- RED: lp-locking.test.ts using time-stub to simulate stale lock.\n- Run `pnpm --filter web test lp-locking`.\n\n## Risk red lines\n- Do not implement client-side timing for release.\n- Do not lock LPs in status='consumed'/'shipped'.\n- Do not bypass conditional UPDATE (race risk).",
+  "title": "T-020 — Scanner LP locking service (5-min auto-release) (WH §6.6)",
+  "prompt": "# T-020 — Scanner LP locking service (5-min auto-release) (WH §6.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `acquireLpLock` + `releaseLpLock` services using the §6.6 atomic UPDATE pattern: lock granted only if `locked_by IS NULL OR locked_at < NOW() - INTERVAL '5 min'`. Returns conflict info (user, location, duration) when held.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/lp-lock.ts`: `acquireLpLock({lp_id, user_id})` and `releaseLpLock({lp_id, user_id})`.\n2. Atomic SQL UPDATE per §6.6 pattern; row-affected=1 → granted; row-affected=0 → query current holder and return `{locked_by, locked_at, location, duration_min}` for UI conflict popup.\n3. Lock timeout is `settings.scanner_lock_timeout_sec` (default 300).\n4. Release validates user_id matches locked_by; admin force-unlock lives in T-044.\n\n## Files\n- apps/web/lib/services/warehouse/lp-locking.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-locking.test.ts [create]\n\n## Acceptance criteria\n1. Given LP is unlocked, when user A acquires, then row-affected=1 and `locked_by=A, locked_at=NOW()`.\n2. Given LP is locked by user A 2 min ago, when user B attempts acquire, then service returns `{conflict: true, locked_by: 'A', duration_min: 2}` and the row is unchanged.\n3. Given LP is locked by user A 6 min ago, when user B attempts acquire, then it succeeds (5-min auto-release).\n4. Given user A releases their own lock, when called, then `locked_by` is set NULL.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/lp-lock.test.ts` asserting atomicity (parallel attempts), 5-min auto-release, conflict response shape.\n- Run `pnpm --filter web test lp-lock`.\n\n## Risk red lines\n- Do not use SELECT-then-UPDATE — must be atomic single UPDATE.\n- Do not allow non-owner release (admin force-unlock lives in T-044).\n- Do not hardcode 5 min — read from settings.\n\n## Dependencies\n- T-002\n- T-009",
   "labels": [
     "prd",
-    "api",
+    "service",
     "lp-core",
-    "T2-api"
+    "scanner-lock",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-lp-core",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Scanner LP locking with 5-min auto-release via conditional UPDATE.",
-    "details": "Conditional UPDATE pattern; configurable timeout. Force-unlock is a separate flow (T-044).",
+    "description": "Implement `acquireLpLock` + `releaseLpLock` services using the §6.6 atomic UPDATE pattern: lock granted only if `locked_by IS NULL OR locked_at < NOW() - INTERVAL '5 min'`. Returns conflict info (user, location, duration) when held.",
+    "details": "Implement `acquireLpLock` + `releaseLpLock` services using the §6.6 atomic UPDATE pattern: lock granted only if `locked_by IS NULL OR locked_at < NOW() - INTERVAL '5 min'`. Returns conflict info (user, location, duration) when held. `apps/web/lib/services/warehouse/lp-lock.ts`: `acquireLpLock({lp_id, user_id})` and `releaseLpLock({lp_id, user_id})`. Atomic SQL UPDATE per §6.6 pattern; row-affected=1 → granted; row-affected=0 → query current holder and return `{locked_by, locked_at, location, duration_min}` for UI conflict popup.",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-locking.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/lp-locking.test.ts [create]"
@@ -42,18 +43,19 @@
       "T-019"
     ],
     "acceptance_criteria": [
-      "Given LP unlocked, when acquireLpLock runs, then granted=true and locked_by is set to the caller",
-      "Given another user holds the lock <5min ago, when acquireLpLock runs, then granted=false with conflict info",
-      "Given the lock is older than configured timeout, when acquireLpLock runs, then it grants the lock to the new user and rewrites locked_at"
+      "Given LP is unlocked, when user A acquires, then row-affected=1 and `locked_by=A, locked_at=NOW()`.",
+      "Given LP is locked by user A 2 min ago, when user B attempts acquire, then service returns `{conflict: true, locked_by: 'A', duration_min: 2}` and the row is unchanged.",
+      "Given LP is locked by user A 6 min ago, when user B attempts acquire, then it succeeds (5-min auto-release).",
+      "Given user A releases their own lock, when called, then `locked_by` is set NULL."
     ],
     "test_strategy": [
-      "RED: lp-locking.test.ts uses time-stub for stale lock",
-      "Run 'pnpm --filter web test lp-locking'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/lp-lock.test.ts` asserting atomicity (parallel attempts), 5-min auto-release, conflict response shape.",
+      "Run `pnpm --filter web test lp-lock`."
     ],
     "risk_red_lines": [
-      "Do not handle release client-side",
-      "Do not lock consumed/shipped LPs",
-      "Do not bypass the conditional UPDATE pattern"
+      "Do not use SELECT-then-UPDATE — must be atomic single UPDATE.",
+      "Do not allow non-owner release (admin force-unlock lives in T-044).",
+      "Do not hardcode 5 min — read from settings."
     ],
     "skills": [
       "test-driven-development",
@@ -83,7 +85,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -109,7 +111,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

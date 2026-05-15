@@ -51,10 +51,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/tenant/variations.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not allow rule_variant pointing to non-existent version."
+      "Do not allow rule_variant pointing to non-existent version.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

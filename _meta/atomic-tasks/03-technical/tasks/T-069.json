@@ -1,6 +1,6 @@
 {
   "title": "T-069 — Docs: TEC-092 ECO Phase-2 marker (Phase 1 out-of-scope)",
-  "prompt": "Add a Phase-2 marker note for TEC-092 ECO (Engineering Change Order) per §7A + §4.4 line 108. Output: design/specs/TEC-092-eco-phase2.md confirming that the ECO prototypes (eco_screen, eco_change_request_modal, eco_approval_modal) are tracked for traceability but are explicitly OUT OF SCOPE for Phase 1. Include hand-off pointers for the Phase-2 backlog.",
+  "prompt": "# T-069 — Docs: TEC-092 ECO Phase-2 marker (Phase 1 out-of-scope)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §4.4, §7A TEC-092\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPhase-2 marker note for ECO so prototypes are not orphaned.\n\nNote links the three ECO prototypes (eco_screen, eco_change_request_modal, eco_approval_modal) and the §4.4 exclusion. Include suggested Phase-2 acceptance criteria scaffolding for future re-decomposition.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-092-eco-phase2.md [create]\n\n## Out of scope\n- Implementation\n- Prototype changes\n\n## Acceptance criteria\n1. Given the note exists, when reviewed, then it confirms ECO is Phase-2 and lists the three prototypes.\n2. Given the note, when planning Phase-2, then it provides scaffolding for re-decomposition.\n\n## Test strategy\n- Manual review.\n- No automated tests.\n\n## Risk red lines\n- Do not draft Phase-1 ECO tasks.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -50,7 +50,11 @@
       "No automated tests."
     ],
     "risk_red_lines": [
-      "Do not draft Phase-1 ECO tasks."
+      "Do not draft Phase-1 ECO tasks.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

@@ -1,6 +1,6 @@
 {
   "title": "T-007 — Migration: d365_sync_jobs and d365_sync_dlq",
-  "prompt": "Create Drizzle migration per §5.7 D365 sync state. `d365_sync_jobs`(id PK, org_id, direction TEXT CHECK in ('pull','push'), target_entity TEXT CHECK in ('items','bom','formula','wo_confirmation','journal'), status TEXT default 'scheduled' CHECK in ('scheduled','running','completed','failed','dlq'), records_processed INT default 0, records_failed INT default 0, started_at, completed_at, error_summary, trigger_source TEXT CHECK in ('cron','manual','event'), idempotency_key TEXT UNIQUE, created_at). `d365_sync_dlq`(id PK, sync_job_id FK d365_sync_jobs, record_key TEXT NOT NULL, payload JSONB NOT NULL, error_message TEXT NOT NULL, retry_count INT default 0, last_retry_at, resolved_at, resolution, created_at). RLS org_id-scoped. RED command: `pnpm vitest run tests/db/d365.migration.test.ts`.",
+  "prompt": "# T-007 — Migration: d365_sync_jobs and d365_sync_dlq\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §5.7, §13.1, §13.5, §13.7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nD365 sync jobs + DLQ tables, idempotency_key UNIQUE, RLS isolation.\n\nDLQ.error_message NOT NULL enforces V-TEC-71. idempotency_key UNIQUE enforces V-TEC-72 (duplicate detection becomes 409 at API layer). 7-year retention is policy not schema — document in ADR.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_d365_sync.sql [create]\n- db/schema/d365.ts [create]\n- tests/db/d365.migration.test.ts [create]\n\n## Out of scope\n- Pull worker (T-029)\n- Push worker (T-030)\n- DLQ UI (T-058)\n\n## Acceptance criteria\n1. Given migration applied, when inserting two rows with same idempotency_key, then second insert fails with unique-violation.\n2. Given DLQ row attempted with empty error_message, then NOT NULL rejects.\n3. Given RLS active, when org context absent, then no rows visible across both tables.\n\n## Test strategy\n- RED tests for UNIQUE idempotency + NOT NULL DLQ + RLS.\n- Run: pnpm vitest run tests/db/d365.migration.test.ts\n\n## Risk red lines\n- Do not connect to live D365 in tests — schema-only here.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "data",
@@ -57,7 +57,11 @@
       "Run: pnpm vitest run tests/db/d365.migration.test.ts"
     ],
     "risk_red_lines": [
-      "Do not connect to live D365 in tests — schema-only here."
+      "Do not connect to live D365 in tests — schema-only here.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

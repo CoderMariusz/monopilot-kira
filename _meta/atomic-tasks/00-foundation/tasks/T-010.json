@@ -49,7 +49,8 @@
       "Run 'pnpm --filter @monopilot/db test:integration -- tenant-idp-config'"
     ],
     "risk_red_lines": [
-      "MFA-by-default for both org.access.admin and org.schema.admin is a F-U5 success criterion — do not relax it"
+      "MFA-by-default for both org.access.admin and org.schema.admin is a F-U5 success criterion — do not relax it",
+      "Do not weaken or skip the MFA enforcement test in CI — F-U5 success criterion gates merge"
     ],
     "skills": [
       "test-driven-development",

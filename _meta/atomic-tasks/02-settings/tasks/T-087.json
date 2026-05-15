@@ -43,10 +43,13 @@
       "Impersonation bypass works."
     ],
     "test_strategy": [
-      "RED: write spec. GREEN: ensure middleware behavior."
+      "RED: write spec. GREEN: ensure middleware behavior.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/ip-allowlist.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/ip-allowlist.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not trust X-Forwarded-For in production unless behind a known proxy."
+      "Do not trust X-Forwarded-For in production unless behind a known proxy.",
+      "Do not relax CSRF protection or cookie SameSite/Secure attributes on auth-adjacent surfaces."
     ],
     "skills": [
       "test-driven-development"

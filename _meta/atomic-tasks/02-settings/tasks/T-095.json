@@ -46,10 +46,12 @@
     ],
     "test_strategy": [
       "RED: write docs link-check test.",
-      "GREEN: write decisions doc."
+      "GREEN: write decisions doc.",
+      "Run `pnpm --filter @monopilot/web vitest run _meta/decisions/2026-04-30-settings-d1-d8.md`."
     ],
     "risk_red_lines": [
-      "Do not re-open settled decisions; reference PRD v3.5."
+      "Do not re-open settled decisions; reference PRD v3.5.",
+      "Do not edit unrelated ADRs or PRDs; the change must be additive and traceable."
     ],
     "skills": [
       "requesting-code-review"

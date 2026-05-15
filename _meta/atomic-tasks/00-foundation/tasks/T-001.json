@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
     "prd_refs": [
       "§5",
-      "§4.2-AMENDMENT"
+      "§4.2"
     ],
     "category": "infra",
     "subcategory": "scaffold",
@@ -25,7 +25,7 @@
     "context_budget": "35k",
     "estimated_effort": "1-2h",
     "description": "Bootstrap pnpm monorepo with apps/web (Next.js 16 App Router, RSC, TypeScript 5 strict) and packages/ workspace ready to host db/ui/rbac/outbox/i18n.",
-    "details": "Create root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 16 App Router (TypeScript strict, eslint-config-next, Tailwind CSS v4 — CSS-first config: @import \"tailwindcss\" in globals.css + @theme {} for token overrides; no tailwind.config.ts). Add tsconfig base with paths '@monopilot/*' resolving to packages. Add Vitest config and a single smoke test that boots Next.js dev server in test mode and asserts GET / returns 200. Add Playwright skeleton config (no specs yet). Add CI script 'pnpm build && pnpm test:smoke && pnpm lint'.",
+    "details": "PRD anchor corrected from §4.2-AMENDMENT to §4.2 by Fixer F12 2026-05-14 (anchor sweep). Create root pnpm-workspace.yaml listing apps/* and packages/*. Initialise apps/web with Next.js 16 App Router (TypeScript strict, eslint-config-next, Tailwind CSS v4 — CSS-first config: @import \"tailwindcss\" in globals.css + @theme {} for token overrides; no tailwind.config.ts). Add tsconfig base with paths '@monopilot/*' resolving to packages. Add Vitest config and a single smoke test that boots Next.js dev server in test mode and asserts GET / returns 200. Add Playwright skeleton config (no specs yet). Add CI script 'pnpm build && pnpm test:smoke && pnpm lint'.",
     "scope_files": [
       "pnpm-workspace.yaml [create]",
       "package.json [create]",

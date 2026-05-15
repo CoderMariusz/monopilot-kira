@@ -1,6 +1,6 @@
 {
-  "title": "T-005 — Drizzle schema: wo_outputs + wo_dependencies + wo_status_history",
-  "prompt": "Add Drizzle pgTable definitions for `wo_outputs`, `wo_dependencies`, `wo_status_history` per PRD §5.8 + §5.9 + §5.11. wo_outputs: id, tenant_id, wo_id FK, product_id FK, output_role enum ('primary'|'co_product'|'byproduct'), planned_qty, uom, actual_qty, allocation_pct DECIMAL(5,2), disposition enum ('to_stock'|'direct_continue'|'pending_decision'), downstream_wo_id FK NULL, output_lp_id NULL, notes. Add partial unique index ensuring one primary per WO. wo_dependencies: id, tenant_id, parent_wo_id FK, child_wo_id FK, material_link FK (wo_materials), required_qty, created_at. UNIQUE(tenant_id, parent_wo_id, child_wo_id). wo_status_history: wo_id, from_status, to_status, action, user_id, override_reason TEXT, timestamp, context_jsonb.\n\nGenerate migration `0005_planning_wo_outputs_dag.sql`. RED test asserts partial-unique primary constraint and UNIQUE on dependencies.",
+  "title": "T-005 — Drizzle schema: schedule_outputs (planning projection) + wo_dependencies + wo_status_history",
+  "prompt": "Add Drizzle pgTable definitions for `schedule_outputs`, `wo_dependencies`, `wo_status_history` per PRD §5.8 + §5.9 + §5.11.\n\n## Canonical wo_outputs ownership (2026-05-14 decision)\n08-PRODUCTION T-003 is the canonical owner of `wo_outputs` (production-runtime shape: batch_number, qa_status, V-PROD-24, catch_weight_details, allergen cascade, R13 audit). Planning side does NOT create `wo_outputs` — it creates a planning-time projection table `schedule_outputs` that the production-side materializer projects into `wo_outputs` on WO start.\n\n## schedule_outputs (planning projection)\nColumns:\n- id UUID PK\n- org_id UUID NOT NULL (Wave0 v4.3 lock — never tenant_id)\n- planned_wo_id UUID FK work_orders(id) ON DELETE CASCADE\n- product_id UUID FK\n- output_role enum ('primary'|'co_product'|'byproduct')\n- expected_qty NUMERIC(12,3) NOT NULL\n- uom TEXT NOT NULL\n- allocation_pct DECIMAL(5,2) NOT NULL\n- disposition enum ('to_stock'|'direct_continue'|'pending_decision') DEFAULT 'to_stock'\n- downstream_wo_id UUID FK work_orders(id) NULL\n- notes TEXT NULL\n- created_at TIMESTAMPTZ NOT NULL DEFAULT now()\n- updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n\nIndexes: partial-unique `schedule_outputs_one_primary_per_wo` on (org_id, planned_wo_id) WHERE output_role='primary'; index `idx_schedule_outputs_planned_wo` (planned_wo_id); partial index `idx_schedule_outputs_downstream` (downstream_wo_id) WHERE downstream_wo_id IS NOT NULL.\n\n## wo_dependencies (DAG edges)\nid, org_id, parent_wo_id FK, child_wo_id FK, material_link FK (wo_materials), required_qty, created_at. UNIQUE(org_id, parent_wo_id, child_wo_id). Cycle prevention is service-layer (DFS topo sort) — DB only enforces UNIQUE.\n\n## wo_status_history\nwo_id, from_status, to_status, action, user_id, override_reason TEXT, timestamp, context_jsonb. History rows are permanent; never delete on WO delete.\n\n## RLS\nRLS on all three tables via `app.current_org_id()` foundation function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Policy `<table>_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`). ENABLE + FORCE ROW LEVEL SECURITY. Never `current_setting('app.tenant_id'|'app.current_org_id')` GUC.\n\n## Materialization contract\nOn WO start event (consumed by 08-production T-003 materializer / T-001 runtime preflight), the planning-side `schedule_outputs` rows are projected into the canonical `wo_outputs` table owned by 08-production. Production-only columns (batch_number, qa_status, V-PROD-24, catch_weight_details, allergen cascade, R13 audit) are populated by 08-production at materialization time and never by planning.\n\nGenerate migration `0005_planning_schedule_outputs_dag.sql`. RED test asserts partial-unique primary constraint, UNIQUE on dependencies, pg_policies references `app.current_org_id()` and contains no GUC reads, and that no `wo_outputs` table is created by this migration.",
   "labels": [
     "prd",
     "data",
@@ -26,31 +26,36 @@
     "parent_feature": "planning-wo",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "Schema for wo_outputs (primary/co/byproduct), wo_dependencies (DAG edges), wo_status_history.",
-    "details": "Cycle prevention is service-layer (DFS topo sort) — DB only enforces UNIQUE(tenant_id, parent_wo_id, child_wo_id) per §5.9. Partial unique index `wo_outputs_one_primary_per_wo` on (tenant_id, wo_id) WHERE output_role='primary'. allocation_pct sum check = 100% deferred to service layer (V-PLAN-WO-004 — warn, not block by default). disposition default 'to_stock' (per §14.1, P1 enforces only to_stock).",
+    "description": "Schema for schedule_outputs (planning projection of primary/co/byproduct), wo_dependencies (DAG edges), wo_status_history. Planning-side outputs use schedule_outputs; canonical wo_outputs is owned by 08-production T-003 per 2026-05-14 decision.",
+    "details": "Cycle prevention is service-layer (DFS topo sort) — DB only enforces UNIQUE(org_id, parent_wo_id, child_wo_id) per §5.9. Partial unique index `schedule_outputs_one_primary_per_wo` on (org_id, planned_wo_id) WHERE output_role='primary'. allocation_pct sum check = 100% deferred to service layer (V-PLAN-WO-004 — warn, not block by default). disposition default 'to_stock' (per §14.1, P1 enforces only to_stock). RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Materialization into canonical `wo_outputs` (owned by 08-production T-003) happens on WO start; planning never writes to `wo_outputs`.",
     "scope_files": [
-      "src/db/schema/planning/wo_outputs_dag.ts [create]",
-      "src/db/schema/planning/__tests__/wo_outputs_dag.test.ts [create]",
-      "src/db/migrations/0005_planning_wo_outputs_dag.sql [create]"
+      "src/db/schema/planning/schedule_outputs_dag.ts [create]",
+      "src/db/schema/planning/__tests__/schedule_outputs_dag.test.ts [create]",
+      "src/db/migrations/0005_planning_schedule_outputs_dag.sql [create]"
     ],
     "out_of_scope": [
       "Cascade generation algorithm (T-019)",
-      "Cycle detection service (T-020)"
+      "Cycle detection service (T-020)",
+      "Canonical wo_outputs table — owned by 08-production T-003 (do not create here)",
+      "Materialization projection schedule_outputs → wo_outputs on WO start (owned by 08-production)"
     ],
     "dependencies": [
       "T-004"
     ],
     "acceptance_criteria": [
-      "Given the schema loads, when introspected, then all 3 tables export expected columns including the 3 enums.",
-      "Given the migration is generated, when grepped, then partial-unique on (tenant_id, wo_id) WHERE output_role='primary' exists.",
-      "Given `pnpm vitest run src/db/schema/planning/__tests__/wo_outputs_dag.test.ts`, when run, then 0 failures.",
-      "Given `pnpm tsc --noEmit`, when run, then no errors."
+      "Given the schema loads, when introspected, then schedule_outputs + wo_dependencies + wo_status_history export expected columns including the 3 enums, with org_id NOT NULL on each.",
+      "Given the migration is generated, when grepped, then partial-unique on (org_id, planned_wo_id) WHERE output_role='primary' exists AND no `wo_outputs` table is created (canonical wo_outputs owned by 08-production T-003).",
+      "Given `pg_policies` is inspected, when policies for schedule_outputs/wo_dependencies/wo_status_history are listed, then the qual/withcheck reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.",
+      "Given `pnpm vitest run src/db/schema/planning/__tests__/schedule_outputs_dag.test.ts` and `pnpm tsc --noEmit`, when run, then 0 failures and no type errors."
     ],
     "test_strategy": [
-      "RED test asserts presence of partial-unique primary index + UNIQUE dependency edge constraint.",
+      "RED test asserts presence of partial-unique primary index on schedule_outputs, UNIQUE dependency edge constraint, pg_policies referencing app.current_org_id(), and absence of any `wo_outputs` table in this migration.",
       "Run vitest + drizzle-kit generate + tsc."
     ],
     "risk_red_lines": [
+      "Do NOT create `wo_outputs` table — that table is owned by 08-production T-003 (canonical per 2026-05-14 decision). Planning side uses `schedule_outputs` (this task) and materializes into `wo_outputs` on WO start via 08-production logic.",
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
       "Do not enforce cycle-free at DB layer — performance-prohibitive on insert.",
       "Do not delete wo_status_history rows on WO delete — history is permanent."
     ],
@@ -80,6 +85,11 @@
       "close": "spark_low_risk_else_opus"
     },
     "cross_module_dependencies": [
+      {
+        "module": "08-production",
+        "task_id": "T-003",
+        "reason": "Canonical wo_outputs owner (production-runtime shape: batch_number, qa_status, V-PROD-24, catch_weight_details, allergen cascade, R13 audit). Planning emits schedule_outputs; 08-production T-003 materializes into wo_outputs on WO start (2026-05-14 decision)."
+      },
       {
         "module": "06-scanner-p1",
         "task_id": "CONTRACT",

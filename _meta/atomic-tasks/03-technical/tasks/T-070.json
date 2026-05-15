@@ -1,6 +1,6 @@
 {
   "title": "T-070 — Seed: manufacturing_operations + alert_thresholds + iso4217 baseline",
-  "prompt": "Add seed migration that populates the reference rows depended on by 03-TECHNICAL: reference_tables.manufacturing_operations.row_keys for Apex baseline (Mix, Cook, Cool, Coat, Slice, Roast, Bake, Pack — match Phase D Builder N+1 §6.1) AND reference_tables.alert_thresholds rows (atp_swab_rlu_max=10, catch_weight_variance_pct=5). Idempotent — uses ON CONFLICT DO NOTHING. RED tests/db/seed-baseline.test.ts verifies presence. Run: `pnpm vitest run tests/db/seed-baseline.test.ts`.",
+  "prompt": "# T-070 — Seed: manufacturing_operations + alert_thresholds + iso4217 baseline\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.1, §10.6, §8.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIdempotent seed for manufacturing_operations + alert_thresholds reference rows.\n\nOrg-scoped seeds run per org tenant. Uses 02-SETTINGS reference_tables. ATP threshold default 10 RLU, catch-weight variance 5%, plus an example list of 8 manufacturing operations.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/seeds/03-technical-baseline.sql [create]\n- tests/db/seed-baseline.test.ts [create]\n\n## Out of scope\n- Org-specific custom rows\n\n## Acceptance criteria\n1. Given seed runs against a fresh org, when applied, then 8 manufacturing_operations rows exist for that org.\n2. Given seed runs twice, when applied second time, then no duplicate rows.\n3. Given alert_thresholds row 'atp_swab_rlu_max' missing, when seed runs, then it is created with value=10.\n\n## Test strategy\n- RED test for idempotency + presence.\n- Run: pnpm vitest run tests/db/seed-baseline.test.ts\n\n## Risk red lines\n- Do not seed across orgs blindly — must accept org_id parameter.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "data",
@@ -49,7 +49,11 @@
       "Run: pnpm vitest run tests/db/seed-baseline.test.ts"
     ],
     "risk_red_lines": [
-      "Do not seed across orgs blindly — must accept org_id parameter."
+      "Do not seed across orgs blindly — must accept org_id parameter.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

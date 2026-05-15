@@ -1,6 +1,6 @@
 {
   "title": "T-025 — Wiring: BOM snapshot pattern at WO creation (ADR-002)",
-  "prompt": "Implement BOM snapshot capture per §7.1 + ADR-002. Provide an internal service `createBomSnapshot(orgId, workOrderId, itemId)` in lib/technical/bom/snapshot.ts that: resolves active BOM header for itemId, joins lines + co_products, writes flattened JSON to bom_snapshots. 08-PRODUCTION will call this on WO insert (not implemented here). Provide hook stub + integration test that simulates the call. RED tests/wiring/bom-snapshot.test.ts. Run: `pnpm vitest run tests/wiring/bom-snapshot.test.ts`.",
+  "prompt": "# T-025 — Wiring: BOM snapshot pattern at WO creation (ADR-002)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §7.1, §7.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nService producing immutable BOM snapshots at WO creation; idempotent per WO+BOM key.\n\nSnapshot JSON shape mirrors API output of T-012 detail. Idempotency check: existing (work_order_id, bom_header_id) snapshot returns existing row. Org-scoped.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- lib/technical/bom/snapshot.ts [create]\n- tests/wiring/bom-snapshot.test.ts [create]\n\n## Out of scope\n- WO state machine (08-PRODUCTION)\n- Snapshot viewer UI\n\n## Acceptance criteria\n1. Given an active BOM with 2 lines + 1 co-product, when createBomSnapshot called, then snapshot_json contains 1 header + 2 lines + 1 co_product.\n2. Given snapshot already exists for (WO,BOM) pair, when called again, then no new row written and same row returned.\n3. Given itemId without active BOM, when called, then exception 'NO_ACTIVE_BOM' raised.\n\n## Test strategy\n- RED tests for shape + idempotency + error path.\n- Run: pnpm vitest run tests/wiring/bom-snapshot.test.ts\n\n## Risk red lines\n- Do not allow mutation of an existing snapshot.\n- Do not include private_jsonb in snapshot.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -54,7 +54,11 @@
     ],
     "risk_red_lines": [
       "Do not allow mutation of an existing snapshot.",
-      "Do not include private_jsonb in snapshot."
+      "Do not include private_jsonb in snapshot.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

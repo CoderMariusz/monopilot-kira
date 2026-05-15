@@ -1,6 +1,6 @@
 {
   "title": "T-002 — scheduler_assignments table + RLS + indexes",
-  "prompt": "# T-002 — scheduler_assignments table + RLS + indexes\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §9.3, §15.4 V-SCHED-04\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_assignments` table holding draft/approved/rejected/overridden WO assignments produced by solver, with tenant RLS, four indexes, and FK chain to scheduler_runs(run_id) ON DELETE CASCADE.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0071_scheduler_assignments.sql`: CREATE TYPE assignment_status ENUM (draft|approved|rejected|overridden), CREATE TABLE scheduler_assignments per §9.3 DDL.\n2. RLS policy on tenant_id; four indexes: idx_scheduler_assignments_run, _wo, _status, _time.\n3. Drizzle schema in `packages/db/src/schema/scheduler_assignments.ts`.\n4. RED test asserts RLS, FK cascade, optimizer_score numeric precision (10,2).\n\n## Files\n- packages/db/migrations/0071_scheduler_assignments.sql [create]\n- packages/db/src/schema/scheduler_assignments.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-assignments.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, RLS enabled, four specified indexes exist\n2. Given a scheduler_runs row deleted, when ON DELETE CASCADE fires, then all child scheduler_assignments rows are removed\n3. Given two tenants, when each SELECTs, then each sees only its own assignments\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS + numeric(10,2) precision\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-assignments'\n\n## Risk red lines\n- Do not omit ON DELETE CASCADE on run_id FK\n- Do not skip RLS policy\n- Do not relax assignment_status enum to TEXT",
+  "prompt": "# T-002 — scheduler_assignments table + RLS + indexes\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §9.3, §15.4 V-SCHED-04\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_assignments` table holding draft/approved/rejected/overridden WO assignments produced by solver, with org-scoped RLS via the foundation `app.current_org_id()` function, four indexes, and FK chain to scheduler_runs(run_id) ON DELETE CASCADE.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0071_scheduler_assignments.sql`: CREATE TYPE assignment_status ENUM (draft|approved|rejected|overridden), CREATE TABLE scheduler_assignments per §9.3 DDL with `org_id uuid not null`.\n2. ENABLE+FORCE ROW LEVEL SECURITY + policy `scheduler_assignments_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`) — never `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC. Four indexes: idx_scheduler_assignments_run, _wo, _status, _time.\n3. Drizzle schema in `packages/db/src/schema/scheduler_assignments.ts`.\n4. RED test asserts RLS (via app_user + app.set_org_context per org), FK cascade, optimizer_score numeric precision (10,2).\n\n## Files\n- packages/db/migrations/0071_scheduler_assignments.sql [create]\n- packages/db/src/schema/scheduler_assignments.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-assignments.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, org_id NOT NULL, RLS+FORCE ROW LEVEL SECURITY enabled, four specified indexes exist\n2. Given a scheduler_runs row deleted, when ON DELETE CASCADE fires, then all child scheduler_assignments rows are removed\n3. Given two orgs and app.set_org_context called per org, when each SELECTs as app_user, then each sees only its own assignments\n4. Given pg_policies is inspected, when the scheduler_assignments policy is listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS (via app.set_org_context as app_user) + numeric(10,2) precision\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-assignments'\n\n## Risk red lines\n- Do not read `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` directly — use the foundation `app.current_org_id()` function so the NULL-safe setter contract is preserved.\n- Do not use `tenant_id` as the business-scope column; per Wave0 v4.3 lock it is `org_id`.\n- Do not omit ON DELETE CASCADE on run_id FK\n- Do not skip RLS / FORCE ROW LEVEL SECURITY policy\n- Do not relax assignment_status enum to TEXT",
   "labels": [
     "prd",
     "data",
@@ -24,8 +24,8 @@
     "parent_feature": "07-EXT-a finite-capacity engine",
     "context_budget": "40k",
     "estimated_effort": "1-2h",
-    "description": "Create scheduler_assignments table with RLS, status enum, FK cascade to scheduler_runs, four indexes, and override audit columns.",
-    "details": "Migration 0071 emits CREATE TYPE assignment_status, CREATE TABLE scheduler_assignments per §9.3 DDL with override_original_* columns, ENABLE RLS, four indexes. Drizzle schema mirrors columns with NUMERIC(10,2) precision for optimizer_score. RED test verifies cascade delete and tenant isolation.",
+    "description": "Create scheduler_assignments table (org_id-scoped) with foundation app.current_org_id() RLS, status enum, FK cascade to scheduler_runs, four indexes, and override audit columns.",
+    "details": "Migration 0071 emits CREATE TYPE assignment_status, CREATE TABLE scheduler_assignments per §9.3 DDL with `org_id uuid not null` + override_original_* columns, ENABLE+FORCE ROW LEVEL SECURITY with policy `scheduler_assignments_org_context` USING/WITH CHECK `org_id = app.current_org_id()`, four indexes. Drizzle schema mirrors columns with NUMERIC(10,2) precision for optimizer_score. RED test verifies cascade delete and org isolation via app_user + app.set_org_context. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §Tenant-context).",
     "scope_files": [
       "packages/db/migrations/0071_scheduler_assignments.sql [create]",
       "packages/db/src/schema/scheduler_assignments.ts [create]",
@@ -41,22 +41,26 @@
       "T-001"
     ],
     "acceptance_criteria": [
-      "Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, RLS enabled, four indexes exist",
+      "Given migration 0071 applied, when \\d scheduler_assignments runs, then all §9.3 columns present, org_id NOT NULL, RLS+FORCE ROW LEVEL SECURITY enabled, four indexes exist",
       "Given a scheduler_runs row is deleted, when cascade fires, then all child scheduler_assignments rows are removed",
-      "Given two tenants insert assignments, when each SELECTs under app.tenant_id, then each only sees its own rows"
+      "Given two orgs insert assignments, when each SELECTs as app_user post app.set_org_context(session_token, org_id), then each only sees its own rows (RLS via app.current_org_id())",
+      "Given pg_policies is inspected, when the scheduler_assignments policy is listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC"
     ],
     "test_strategy": [
-      "RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS + numeric(10,2)",
+      "RED: write packages/db/__tests__/scheduler-assignments.test.ts asserting cascade + RLS (via app.set_org_context as app_user) + numeric(10,2)",
       "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-assignments'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id.",
       "Do not omit ON DELETE CASCADE on run_id FK",
-      "Do not skip RLS policy on scheduler_assignments",
+      "Do not skip RLS/FORCE ROW LEVEL SECURITY policy on scheduler_assignments",
       "Do not relax assignment_status to TEXT"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,6 +82,9 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-006"
+    ]
   }
 }

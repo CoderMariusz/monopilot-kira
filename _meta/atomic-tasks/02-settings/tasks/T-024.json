@@ -45,10 +45,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/lib/schema/zod-runtime.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not eval untrusted user-supplied JSON Schema; sanitize input first."
+      "Do not eval untrusted user-supplied JSON Schema; sanitize input first.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

@@ -1,13 +1,13 @@
 {
-  "title": "T-024 — Under-receipt PO line force-close service",
-  "prompt": "# T-024 — Under-receipt PO line force-close\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §7.3 (FR-WH-008), V-WH-GRN-008.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`forceClosePoLine(poLineId, reasonCode, reasonText?)` Server Action moving a partially-received PO line to status='force_closed' with audit log.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/po-line-force-close.ts`. Validate reasonCode IN ('under_delivery','supplier_discontinued','quality_reject','other'). reason_text required when 'other'. Update po_lines.status='force_closed', append audit row 'po_line.force_closed'. RBAC: Manager or Admin.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/po-line-force-close.ts [create]\n- apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts [create]\n\n## Acceptance criteria\n1. Given a partial-received PO line, when forceClosePoLine runs with reason_code='under_delivery', then po_lines.status='force_closed' and an audit row exists.\n2. Given reason_code='other' without reason_text, when forceClosePoLine runs, then it returns V-WH-GRN-008 validation error.\n3. Given the caller is an Operator (no Manager role), when forceClosePoLine runs, then it returns an RBAC error.\n\n## Test strategy\n- RED: po-line-force-close.test.ts covers happy path, missing reason_text, RBAC.\n- Run `pnpm --filter web test po-line-force-close`.\n\n## Risk red lines\n- Do not delete the PO line — only set status.\n- Do not allow Operator role.\n- Do not skip audit log entry.",
+  "title": "T-024 — Under-receipt PO line force-close service (WH §7.3)",
+  "prompt": "# T-024 — Under-receipt PO line force-close service (WH §7.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §7.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `forceClosePoLine` service for under-delivery scenarios: operator/manager explicitly closes a PO line with partial receipt, recording reason_code + reason_text + audit row.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/po-line-force-close.ts`: function `forceClosePoLine({po_line_id, reason_code, reason_text})`.\n2. reason_code ENUM: 'under_delivery','supplier_discontinued','quality_reject','other'.\n3. RBAC: Manager+.\n4. UPDATE po_lines.status='force_closed', insert `po_line_force_close_log` row, emit outbox `po_line.force_closed`.\n\n## Files\n- apps/web/lib/services/warehouse/po-line-force-close.ts [create]\n- apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts [create]\n\n## Acceptance criteria\n1. Given a PO line with partial receipt 60/100, when force-closed with reason_code='supplier_discontinued', then po_line.status='force_closed' and an audit row exists.\n2. Given reason_code='other' without reason_text, when called, then service rejects with V-WH-GRN-008.\n3. Given a non-Manager user, when called, then RBAC rejects.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts` asserting reason gate, RBAC, audit row.\n- Run `pnpm --filter web test po-line-force-close`.\n\n## Risk red lines\n- Do not allow force-close without reason_code (V-WH-GRN-008).\n- Do not bypass RBAC.\n\n## Dependencies\n- T-005",
   "labels": [
     "prd",
-    "api",
+    "service",
     "grn",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "grn",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-grn",
+    "parent_feature": "05-warehouse-b",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Force-close partial PO line with audit; Manager/Admin RBAC.",
-    "details": "Update status='force_closed'; insert audit row; reason_code+text validation per V-WH-GRN-008.",
+    "description": "Implement `forceClosePoLine` service for under-delivery scenarios: operator/manager explicitly closes a PO line with partial receipt, recording reason_code + reason_text + audit row.",
+    "details": "Implement `forceClosePoLine` service for under-delivery scenarios: operator/manager explicitly closes a PO line with partial receipt, recording reason_code + reason_text + audit row. `apps/web/lib/services/warehouse/po-line-force-close.ts`: function `forceClosePoLine({po_line_id, reason_code, reason_text})`. reason_code ENUM: 'under_delivery','supplier_discontinued','quality_reject','other'.",
     "scope_files": [
       "apps/web/lib/services/warehouse/po-line-force-close.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts [create]"
@@ -43,18 +43,17 @@
       "T-023"
     ],
     "acceptance_criteria": [
-      "Given a partial PO line, when forceClosePoLine runs with under_delivery, then status='force_closed' and audit row appended",
-      "Given reason_code='other' without reason_text, when run, then V-WH-GRN-008 error returns",
-      "Given an Operator caller, when run, then an RBAC error returns"
+      "Given a PO line with partial receipt 60/100, when force-closed with reason_code='supplier_discontinued', then po_line.status='force_closed' and an audit row exists.",
+      "Given reason_code='other' without reason_text, when called, then service rejects with V-WH-GRN-008.",
+      "Given a non-Manager user, when called, then RBAC rejects."
     ],
     "test_strategy": [
-      "RED: po-line-force-close.test.ts covers happy path, missing text, RBAC",
-      "Run 'pnpm --filter web test po-line-force-close'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/po-line-force-close.test.ts` asserting reason gate, RBAC, audit row.",
+      "Run `pnpm --filter web test po-line-force-close`."
     ],
     "risk_red_lines": [
-      "Do not hard-delete PO line",
-      "Do not allow Operator role",
-      "Do not skip audit"
+      "Do not allow force-close without reason_code (V-WH-GRN-008).",
+      "Do not bypass RBAC."
     ],
     "skills": [
       "test-driven-development",
@@ -84,7 +83,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

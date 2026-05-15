@@ -1,22 +1,76 @@
 {
-  "title": "T-056 — Warehouse cross-module contract tests",
-  "prompt": "# T-056 — Warehouse cross-module contract tests\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd contract tests for Warehouse dependencies with Settings, Technical, Planning, Scanner, Production, Quality, and Shipping.\n\n## Implementation contract\nVerify only documented contracts are consumed/produced: Settings rule/locations/printers, Technical item/shelf-life/catch-weight fields, Planning PO/TO/WO handoffs, Scanner endpoints, Production consume/output events, Quality status history, and Shipping Phase 2 shelf-life rule consumer contract.\n\n## Files (scope)\n- packages/contracts/warehouse/** [create]\n- apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]\n- _meta/atomic-tasks/05-warehouse/coverage.md\n\n## Acceptance criteria\n1. Given Planning emits PO/TO/WO fixtures, then Warehouse GRN, reservation, and consume contract tests accept only documented statuses and fields.\n2. Given Scanner calls warehouse endpoints, then LP lookup, barcode validate, FEFO suggest, lock, and consume-to-WO contracts return documented response shapes and error codes.\n3. Given Quality changes qa_status, then Warehouse gates pick/consume/ship according to V-WH-LP-006 without owning the transition definitions.\n4. Given 11-SHIPPING reads shelf_life_rules, then Warehouse exposes the P1 CRUD/read contract while enforcement remains marked as downstream Phase 2.\n\n## Test strategy\n- RED: Pact/OpenAPI-style fixtures fail for undocumented fields/statuses.\n- GREEN: integration tests run against seeded contract fixtures with tenant boundaries.\n- Run pnpm test --filter contracts -- warehouse and pnpm playwright test --grep @warehouse-contracts.\n\n## Risk red lines\n- Do not introduce D365 as source of truth.\n- Do not duplicate Quality transition ownership in Warehouse.\n- Do not make Shipping enforcement part of Warehouse P1 execution.",
+  "title": "T-056 — Cross-module contract tests (Settings ↔ Scanner ↔ Planning ↔ Production ↔ Quality ↔ Shipping) (WH §13, §16.5, §16.6)",
+  "prompt": "# T-056 — Cross-module contract tests (Settings ↔ Scanner ↔ Planning ↔ Production ↔ Quality ↔ Shipping) (WH §13, §16.5, §16.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §13, §16.5, §16.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd contract tests asserting Warehouse APIs and outbox events conform to the contracts consumed by 06-SCANNER, 04-PLANNING, 08-PRODUCTION, 09-QUALITY, 11-SHIPPING. Detects breaking shape changes early.\n\n## Implementation contract\n1. Pact-style or JSON-schema contract tests under `apps/web/e2e/warehouse/contracts/`.\n2. Validate: T-039 scanner inventory shape, T-040 lookup shapes, T-042 FEFO suggest shape, T-034 consume-to-WO request/response, T-010 outbox event shapes for every event consumed cross-module.\n3. Assert RBAC enforcement at every cross-module boundary (e.g., 09-QUALITY qa_status writes are owner-only).\n4. Assert RLS holds when cross-module reads issue queries with multi-tenant context.\n\n## Files\n- packages/contracts/warehouse/** [create]\n- apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]\n- _meta/atomic-tasks/05-warehouse/coverage.md\n\n## Acceptance criteria\n1. Given the Scanner inventory contract is exercised, when a cross-module consumer parses the response, then it matches the published Zod schema.\n2. Given the lp.consumed outbox event is emitted, when 04-PLANNING/08-PRODUCTION consumers parse it, then no schema drift is detected.\n3. Given any cross-module write attempts a forbidden mutation (e.g., direct LP qa_status edit by 11-SHIPPING), then RBAC rejects.\n4. Given tenant_b reads a Warehouse contract response intended for tenant_a, then RLS blocks (zero rows).\n\n## Test strategy\n- RED: failing schema-validation tests for each consumer.\n- GREEN: ensure schemas/events match the Zod/JSON-schema definitions.\n- Run `pnpm test --runInBand warehouse-contracts`.\n\n## Risk red lines\n- Do not let any consumer parse without schema validation.\n- Do not skip RBAC/RLS assertions at cross-module boundaries.\n- Do not version-bump shared schemas without coordinated migration.\n\n## Dependencies\n- T-021\n- T-022\n- T-030\n- T-034\n- T-035\n- T-039\n- T-040\n- T-042\n- T-047",
   "labels": [
     "prd",
-    "integration",
+    "test",
     "contracts",
-    "T4-wiring-test"
+    "cross-module",
+    "t4-wiring-test"
   ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-056",
     "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§13",
+      "§16.5",
+      "§16.6"
+    ],
+    "category": "integration",
+    "subcategory": "cross-module-contracts",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "05-warehouse-wave0-closeout",
     "context_budget": "35k",
+    "estimated_effort": "1.5d",
+    "description": "Add contract tests asserting Warehouse APIs and outbox events conform to the contracts consumed by 06-SCANNER, 04-PLANNING, 08-PRODUCTION, 09-QUALITY, 11-SHIPPING. Detects breaking shape changes early.",
+    "details": "Add contract tests asserting Warehouse APIs and outbox events conform to the contracts consumed by 06-SCANNER, 04-PLANNING, 08-PRODUCTION, 09-QUALITY, 11-SHIPPING. Detects breaking shape changes early. Pact-style or JSON-schema contract tests under `apps/web/e2e/warehouse/contracts/`. Validate: T-039 scanner inventory shape, T-040 lookup shapes, T-042 FEFO suggest shape, T-034 consume-to-WO request/response, T-010 outbox event shapes for every event consumed cross-module.",
+    "scope_files": [
+      "packages/contracts/warehouse/** [create]",
+      "apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]",
+      "_meta/atomic-tasks/05-warehouse/coverage.md"
+    ],
+    "out_of_scope": [
+      "No app implementation outside contract fixtures",
+      "No 11-SHIPPING P2 UI"
+    ],
+    "dependencies": [
+      "T-021",
+      "T-022",
+      "T-030",
+      "T-034",
+      "T-035",
+      "T-039",
+      "T-040",
+      "T-042",
+      "T-047"
+    ],
+    "parallel_safe_with": [
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given the Scanner inventory contract is exercised, when a cross-module consumer parses the response, then it matches the published Zod schema.",
+      "Given the lp.consumed outbox event is emitted, when 04-PLANNING/08-PRODUCTION consumers parse it, then no schema drift is detected.",
+      "Given any cross-module write attempts a forbidden mutation (e.g., direct LP qa_status edit by 11-SHIPPING), then RBAC rejects.",
+      "Given tenant_b reads a Warehouse contract response intended for tenant_a, then RLS blocks (zero rows)."
+    ],
+    "test_strategy": [
+      "RED: failing schema-validation tests for each consumer.",
+      "GREEN: ensure schemas/events match the Zod/JSON-schema definitions.",
+      "Run `pnpm test --runInBand warehouse-contracts`."
+    ],
+    "risk_red_lines": [
+      "Do not let any consumer parse without schema validation.",
+      "Do not skip RBAC/RLS assertions at cross-module boundaries.",
+      "Do not version-bump shared schemas without coordinated migration."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -33,10 +87,16 @@
         "git_status"
       ]
     },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -62,65 +122,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prd_task_id": "T-056",
-    "prd_refs": [
-      "§13",
-      "§16.5",
-      "§16.6"
-    ],
-    "category": "integration",
-    "subcategory": "cross-module-contracts",
-    "task_type": "T4-wiring-test",
-    "parent_feature": "warehouse-cross-module-contracts",
-    "estimated_effort": "1.5d",
-    "description": "Add contract tests for Warehouse dependencies with Settings, Technical, Planning, Scanner, Production, Quality, and Shipping.",
-    "details": "Verify only documented contracts are consumed/produced: Settings rule/locations/printers, Technical item/shelf-life/catch-weight fields, Planning PO/TO/WO handoffs, Scanner endpoints, Production consume/output events, Quality status history, and Shipping Phase 2 shelf-life rule consumer contract.",
-    "scope_files": [
-      "packages/contracts/warehouse/** [create]",
-      "apps/web/e2e/contracts/warehouse-cross-module.spec.ts [create]",
-      "_meta/atomic-tasks/05-warehouse/coverage.md"
-    ],
-    "out_of_scope": [
-      "No app implementation outside contract fixtures",
-      "No 11-SHIPPING P2 UI"
-    ],
-    "dependencies": [
-      "T-021",
-      "T-022",
-      "T-030",
-      "T-034",
-      "T-035",
-      "T-039",
-      "T-040",
-      "T-042",
-      "T-047"
-    ],
-    "parallel_safe_with": [
-      "T-055"
-    ],
-    "acceptance_criteria": [
-      "Given Planning emits PO/TO/WO fixtures, then Warehouse GRN, reservation, and consume contract tests accept only documented statuses and fields.",
-      "Given Scanner calls warehouse endpoints, then LP lookup, barcode validate, FEFO suggest, lock, and consume-to-WO contracts return documented response shapes and error codes.",
-      "Given Quality changes qa_status, then Warehouse gates pick/consume/ship according to V-WH-LP-006 without owning the transition definitions.",
-      "Given 11-SHIPPING reads shelf_life_rules, then Warehouse exposes the P1 CRUD/read contract while enforcement remains marked as downstream Phase 2."
-    ],
-    "test_strategy": [
-      "RED: Pact/OpenAPI-style fixtures fail for undocumented fields/statuses.",
-      "GREEN: integration tests run against seeded contract fixtures with tenant boundaries.",
-      "Run pnpm test --filter contracts -- warehouse and pnpm playwright test --grep @warehouse-contracts."
-    ],
-    "risk_red_lines": [
-      "Do not introduce D365 as source of truth.",
-      "Do not duplicate Quality transition ownership in Warehouse.",
-      "Do not make Shipping enforcement part of Warehouse P1 execution."
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

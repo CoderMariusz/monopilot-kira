@@ -16,7 +16,8 @@
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "verification-before-completion"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [

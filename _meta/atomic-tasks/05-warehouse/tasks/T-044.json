@@ -1,13 +1,14 @@
 {
-  "title": "T-044 — Force-unlock scanner LP service (Admin)",
-  "prompt": "# T-044 — Force-unlock scanner LP service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §6.11 (FR-WH-036), V-WH-LP-011.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`forceUnlockLp(lpId, reason)` Server Action allowing Admin to clear a scanner lock with mandatory audit.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-force-unlock.ts`. RBAC: Admin only. Update license_plates SET locked_by=NULL, locked_at=NULL WHERE id=$lp; insert audit row 'scanner_lock_force_released' (admin_user_id, target_lp, original_holder, lock_duration_sec, reason). Reject if lock already free.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-force-unlock.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP locked by another user and Admin caller, when forceUnlockLp runs, then locked_by/locked_at clear and audit row 'scanner_lock_force_released' exists.\n2. Given a Manager caller (not Admin), when called, then RBAC error returns per V-WH-LP-011.\n3. Given the LP is already unlocked, when called, then a no-op response returns and no audit row is added.\n\n## Test strategy\n- RED: lp-force-unlock.test.ts covers Admin success, RBAC denial, no-op.\n- Run `pnpm --filter web test lp-force-unlock`.\n\n## Risk red lines\n- Do not allow non-Admin role.\n- Do not skip the audit row.\n- Do not log when already unlocked (avoid noise).",
+  "title": "T-044 — Force-unlock scanner LP service (Admin only) (WH §6.11)",
+  "prompt": "# T-044 — Force-unlock scanner LP service (Admin only) (WH §6.11)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6.11\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `forceUnlockLp` Admin-only service used by WH-101 force-unlock modal: deletes the LP lock + writes `scanner_lock_force_released` audit row (V-WH-LP-011).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/lp-force-unlock.ts`: function `forceUnlockLp({lp_id, reason_text})`.\n2. RBAC: Admin only (server-side enforced).\n3. UPDATE license_plates SET locked_by=NULL, locked_at=NULL WHERE id=lp_id.\n4. INSERT audit row `scanner_lock_force_released(admin_user_id, target_lp_id, original_holder_id, original_locked_at, reason_text, at)`.\n5. Emit outbox `lp.scanner_lock_force_released`.\n\n## Files\n- apps/web/lib/services/warehouse/lp-force-unlock.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts [create]\n\n## Acceptance criteria\n1. Given an Admin force-unlocks an LP locked by another user, when called, then the lock is cleared and an audit row exists referencing both admin and original holder.\n2. Given a Manager attempts force-unlock, when called, then RBAC rejects (V-WH-LP-011).\n3. Given the LP was not locked, when called, then service is a no-op but still writes an audit row.\n4. Given reason_text is empty, when called, then service rejects.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts` asserting RBAC + audit row + outbox.\n- Run `pnpm --filter web test lp-force-unlock`.\n\n## Risk red lines\n- Do not allow non-Admin (V-WH-LP-011).\n- Do not skip the audit row.\n\n## Dependencies\n- T-020",
   "labels": [
     "prd",
-    "api",
-    "lp-core",
-    "T2-api"
+    "service",
+    "scanner-lock",
+    "admin",
+    "t2-api"
   ],
-  "priority": 120,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-lp-core",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Admin-only force-unlock scanner LP with audit row 'scanner_lock_force_released'.",
-    "details": "Single transaction; no-op when already unlocked.",
+    "description": "Implement `forceUnlockLp` Admin-only service used by WH-101 force-unlock modal: deletes the LP lock + writes `scanner_lock_force_released` audit row (V-WH-LP-011).",
+    "details": "Implement `forceUnlockLp` Admin-only service used by WH-101 force-unlock modal: deletes the LP lock + writes `scanner_lock_force_released` audit row (V-WH-LP-011). `apps/web/lib/services/warehouse/lp-force-unlock.ts`: function `forceUnlockLp({lp_id, reason_text})`. RBAC: Admin only (server-side enforced).",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-force-unlock.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts [create]"
@@ -42,18 +43,18 @@
       "T-046"
     ],
     "acceptance_criteria": [
-      "Given Admin caller and LP locked by other user, when run, then locked_by/locked_at clear and audit row exists",
-      "Given Manager caller, when run, then RBAC error returns",
-      "Given the LP is already unlocked, when run, then no-op returns and no audit row added"
+      "Given an Admin force-unlocks an LP locked by another user, when called, then the lock is cleared and an audit row exists referencing both admin and original holder.",
+      "Given a Manager attempts force-unlock, when called, then RBAC rejects (V-WH-LP-011).",
+      "Given the LP was not locked, when called, then service is a no-op but still writes an audit row.",
+      "Given reason_text is empty, when called, then service rejects."
     ],
     "test_strategy": [
-      "RED: lp-force-unlock.test.ts covers Admin success, RBAC, no-op",
-      "Run 'pnpm --filter web test lp-force-unlock'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/lp-force-unlock.test.ts` asserting RBAC + audit row + outbox.",
+      "Run `pnpm --filter web test lp-force-unlock`."
     ],
     "risk_red_lines": [
-      "Do not allow non-Admin",
-      "Do not skip audit",
-      "Do not log no-op cases"
+      "Do not allow non-Admin (V-WH-LP-011).",
+      "Do not skip the audit row."
     ],
     "skills": [
       "test-driven-development",
@@ -83,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -109,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

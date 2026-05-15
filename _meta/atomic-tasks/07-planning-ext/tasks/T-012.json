@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§8.2",
-      "§5.1.1",
+      "§5.1 (was §5.1.1)",
       "§7.1"
     ],
     "category": "api",
@@ -26,7 +26,7 @@
     "context_budget": "60k",
     "estimated_effort": "2-3h",
     "description": "Implement POST /api/scheduler/run with Zod validation, RBAC guard, idempotency check, NOTIFY-based dispatch, concurrent-run limit.",
-    "details": "Route handler validates body via Zod, enforces RBAC (Planner Advanced for schedule), checks idempotency (run_id within 1h returns cached), enforces 3-concurrent-runs limit (429), inserts scheduler_runs row, NOTIFYs solver channel. Returns 202 Accepted with estimated_completion_at. Runs in Server Action pattern with Drizzle DB session bound to tenant_id.",
+    "details": "Route handler validates body via Zod, enforces RBAC (Planner Advanced for schedule), checks idempotency (run_id within 1h returns cached), enforces 3-concurrent-runs limit (429), inserts scheduler_runs row, NOTIFYs solver channel. Returns 202 Accepted with estimated_completion_at. Runs in Server Action pattern with Drizzle DB session bound to tenant_id. Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`. Foundation citation: Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint. — see `00-foundation/tasks/T-121.json`. PRD-anchor remediation: corrected §5.1.1 to nearest real heading (07-PLANNING-EXT-PRD has only §5.1 (Architecture), §5.4 (Performance), §4.1 (Phase 1 MVP) headings — no sub-numbered sub-headings exist).",
     "scope_files": [
       "apps/web/src/app/api/scheduler/run/route.ts [create]",
       "apps/web/src/lib/scheduler/run-validator.ts [create]",
@@ -55,7 +55,9 @@
     "risk_red_lines": [
       "Do not bypass RBAC guard",
       "Do not call solver synchronously",
-      "Do not skip idempotency cache check"
+      "Do not skip idempotency cache check",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111).",
+      "Foundation contract: Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint. (cite 00-foundation/T-121)."
     ],
     "skills": [
       "test-driven-development",
@@ -97,6 +99,16 @@
         "module": "03-technical",
         "task_id": "T-081",
         "reason": "Technical adapter exposes active factory spec/BOM guard data."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-121",
+        "contract": "Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint."
       }
     ]
   }

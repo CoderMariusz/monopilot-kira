@@ -46,10 +46,12 @@
     ],
     "test_strategy": [
       "RED: assert table shape + constraint rejection.",
-      "GREEN: emit migration."
+      "GREEN: emit migration.",
+      "Run `pnpm --filter @monopilot/db test:integration -- schema-metadata.test`."
     ],
     "risk_red_lines": [
-      "Do not shortcut by allowing free-form data_type values."
+      "Do not shortcut by allowing free-form data_type values.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

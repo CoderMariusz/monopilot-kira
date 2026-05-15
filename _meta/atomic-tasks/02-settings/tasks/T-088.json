@@ -43,10 +43,13 @@
       "URL param honors category."
     ],
     "test_strategy": [
-      "RED: write spec. GREEN: ensure UI + mapping."
+      "RED: write spec. GREEN: ensure UI + mapping.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/users-categories.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/users-categories.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not change role permission resolution to category-keyed; categories are presentational only."
+      "Do not change role permission resolution to category-keyed; categories are presentational only.",
+      "Do not mark E2E green without recording trace artifacts (Playwright trace.zip per failing path)."
     ],
     "skills": [
       "test-driven-development"

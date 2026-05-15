@@ -1,6 +1,6 @@
 {
   "title": "T-068 — Docs: TEC-052 Cost Import from D365 prototype gap brief",
-  "prompt": "Write engineering brief for missing TEC-052 'Cost Import from D365' prototype per §11.5 [SPEC-DRIVEN UI]. Output: design/specs/TEC-052-cost-import-d365.md covering: D365 cost pull endpoint -> diff preview table (current vs incoming, percent delta, source) -> batch confirm with audit note. Cross-link to T-028 pull worker and T-021 cost write path. Implementation is now in scope via T-089 as a spec-driven UI task; this brief remains supporting documentation.",
+  "prompt": "# T-068 — Docs: TEC-052 Cost Import from D365 prototype gap brief\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §11.5 TEC-052, §4A TEC-052\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBrief unblocking TEC-052 prototype design.\n\nDocument diff preview row schema (current cost, incoming cost, delta, source), the batch-confirm guardrails (V-TEC-53 high-variance approver), and audit note format.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-052-cost-import-d365.md [create]\n\n## Out of scope\n- Prototype JSX\n- Implementation\n\n## Acceptance criteria\n1. Given the brief, when reviewed, then diff preview schema, V-TEC-53 enforcement, and audit-note flow are specified.\n2. Given the brief, when read by a designer, then a labelled prototype can be produced.\n\n## Test strategy\n- Manual review.\n- No automated tests for docs.\n\n## Risk red lines\n- Do not require live D365 access for this doc.\n- D365 work must be optional integration/export/import from Monopilot-owned data; no strategic dependency or silent canonical overwrite.\n- Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -54,7 +54,11 @@
     "risk_red_lines": [
       "Do not require live D365 access for this doc.",
       "D365 work must be optional integration/export/import from Monopilot-owned data; no strategic dependency or silent canonical overwrite.",
-      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task."
+      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

@@ -48,7 +48,8 @@
     "acceptance_criteria": [
       "Given lp_id == fefo_suggested_lp_id, when POST, then fefo_adherence_flag=true and reason null",
       "Given deviation without reason, when POST, then 422 listing fefo_deviation_reason",
-      "Given deviation with reason 'expired_alt', when POST, then 200 + flag false + reason persisted"
+      "Given deviation with reason 'expired_alt', when POST, then 200 + flag false + reason persisted",
+      "Given an LP/lot has an active quality hold (v_active_holds), when WO consume is attempted, then the operation is rejected with 409 quality_hold_active and an outbox event production.consume.blocked is emitted (consume gate per 09-quality T-064)."
     ],
     "test_strategy": [
       "RED: tests asserting all 3 paths before service change",
@@ -57,7 +58,8 @@
     "risk_red_lines": [
       "Do not accept free-text reason",
       "Do not invert flag logic when suggestion absent",
-      "Do not allow values outside enum"
+      "Do not allow values outside enum",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +85,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "09-quality",
+        "task_id": "T-064",
+        "reason": "Quality consume gate (v_active_holds) — every LP/WO consume operation must call holdsGuard(lpId, lotId) before mutating consumption/output state. Active hold returns 409 quality_hold_active and emits production.consume.blocked outbox event (PRD §16.4 V-PROD-02/V-PROD-16)."
+      }
+    ]
   }
 }
