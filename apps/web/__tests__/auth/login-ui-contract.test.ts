@@ -2,12 +2,20 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const appRoot = path.resolve(__dirname, '../../app/[locale]/login');
+const webRoot = path.resolve(__dirname, '../..');
+const appRoot = path.join(webRoot, 'app/[locale]/login');
 
 function readIfExists(relativePath: string) {
   const absolutePath = path.join(appRoot, relativePath);
   const exists = existsSync(absolutePath);
   expect(exists, `${relativePath} must exist for T-126 login UI`).toBe(true);
+  return exists ? readFileSync(absolutePath, 'utf8') : '';
+}
+
+function readWebFile(relativePath: string) {
+  const absolutePath = path.join(webRoot, relativePath);
+  const exists = existsSync(absolutePath);
+  expect(exists, `${relativePath} must exist for AUTH-UI-PARITY-001`).toBe(true);
   return exists ? readFileSync(absolutePath, 'utf8') : '';
 }
 
@@ -26,6 +34,10 @@ function readLoginSources() {
 
   visit(appRoot);
   return files.map((file) => readFileSync(file, 'utf8')).join('\n');
+}
+
+function firstExisting(paths: string[]) {
+  return paths.map((candidate) => path.join(webRoot, candidate)).find((candidate) => existsSync(candidate));
 }
 
 describe('T-126 login UI contract', () => {
@@ -90,5 +102,66 @@ describe('T-126 login UI contract', () => {
     expect(source).toMatch(/redirect\(`\/\$\{locale\}\/?`\)|redirect\(`\/\$\{locale\}\/`\)/);
     expect(source).toContain('resetPasswordForEmail');
     expect(source).toContain('NEXT_PUBLIC_SITE_URL');
+  });
+});
+
+describe('AUTH-UI-PARITY-001 prototype parity RED contract', () => {
+  it('uses the prototype light gradient shell instead of a dark/default login surface', () => {
+    const layout = readIfExists('layout.tsx');
+
+    expect(layout, 'login shell should translate prototype radial + linear soft gradient').toMatch(
+      /radial-gradient|bg-\[radial-gradient|from-\[#f8fafc\]|from-slate-50/,
+    );
+    expect(layout, 'prototype shell is light; dark slate shell is visual drift').not.toMatch(/bg-slate-9\d\d|bg-black/);
+    expect(layout, 'prototype centers a 480px card column').toMatch(/480px|max-w-\[480px\]|w-\[480px\]/);
+  });
+
+  it('pins the prototype card and brand lockup hierarchy on the sign-in route', () => {
+    const page = readIfExists('page.tsx');
+
+    expect(page, 'card should keep prototype 12px radius, 36px padding, subtle border/shadow').toMatch(
+      /rounded-\[12px\]|rounded-xl/,
+    );
+    expect(page).toMatch(/p-\[36px\]|px-\[36px\]|py-\[36px\]/);
+    expect(page, 'brand mark is the 36px M tile, not a larger MP badge').toMatch(/h-9[^\n]*w-9|h-\[36px\][^\n]*w-\[36px\]/);
+    expect(page).toMatch(/>\s*M\s*</);
+    expect(page, 'title/subtitle text should match prototype copy').toMatch(/Welcome back/);
+    expect(page).toMatch(/Sign in to your MES workspace/);
+  });
+
+  it('pins sign-in affordances and footer links from prototypes/auth/login.html', () => {
+    const source = readLoginSources();
+
+    expect(source).toMatch(/Work email/);
+    expect(source).toMatch(/you@company\.com/);
+    expect(source).toMatch(/Remember me for 30 days/);
+    expect(source).toMatch(/Contact your admin/);
+    expect(source).toMatch(/©\s*2026\s*MonoPilot MES|&copy;\s*2026\s*MonoPilot MES/);
+    expect(source).toMatch(/Privacy/);
+    expect(source).toMatch(/Terms/);
+    expect(source).toMatch(/Status/);
+  });
+
+  it('pins the forgot-password info banner and reset-sent state machine', () => {
+    const forgotPage = readIfExists('forgot-password/page.tsx');
+
+    expect(forgotPage).toMatch(/The link expires in|30 minutes/);
+    expect(forgotPage, 'forgot success should use prototype sent-art/inbox state, not only a small banner').toMatch(
+      /sent-art|Check your inbox|reset link to|✉|envelope/i,
+    );
+    expect(forgotPage).toMatch(/Try a different email|Didn't get it/);
+  });
+
+  it('requires Tailwind utilities to be generated for app and workspace UI sources', () => {
+    const globals = readWebFile('app/globals.css');
+    const postcssPath = firstExisting(['postcss.config.mjs', 'postcss.config.js', 'postcss.config.cjs']);
+
+    expect(globals).toContain('@import "tailwindcss"');
+    expect(globals, 'Tailwind v4 must scan local app and workspace UI package sources').toMatch(
+      /@source\s+["'][^"']*(\.\/|\.\.\/)app[^"']*["'][\s\S]*@source\s+["'][^"']*(packages\/ui|@monopilot\/ui|\.\.\/\.\.\/packages\/ui)[^"']*["']|@source\s+["'][^"']*(packages\/ui|@monopilot\/ui|\.\.\/\.\.\/packages\/ui)[^"']*["'][\s\S]*@source\s+["'][^"']*(\.\/|\.\.\/)app[^"']*["']/,
+    );
+    expect(postcssPath, 'apps/web needs an explicit PostCSS config for Tailwind utility generation').toBeTruthy();
+    const postcss = postcssPath ? readFileSync(postcssPath, 'utf8') : '';
+    expect(postcss).toContain('@tailwindcss/postcss');
   });
 });
