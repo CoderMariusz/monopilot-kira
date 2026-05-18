@@ -45,7 +45,6 @@ type SecurityPolicyRow = {
 const FORBIDDEN = 'forbidden' as const;
 const PASSWORD_MIN_LENGTH_FLOOR = 8;
 const ALLOWED_MFA_METHODS = new Set(['totp', 'sms', 'email']);
-const STRONG_PASSWORD_PATTERN = /^(?=.{12,128}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).*$/;
 const ADMIN_ROLE_CODES = ['owner', 'admin', 'module_admin'] as const;
 
 type ParsePolicyResult = {
@@ -158,10 +157,6 @@ function parseInput(input: UpsertSecurityPolicyInput | null | undefined): ParseP
 
   const passwordComplexity = input.password_complexity ?? 'standard';
   if (!['standard', 'strong'].includes(passwordComplexity)) {
-    return { error: 'invalid_input' };
-  }
-
-  if (passwordComplexity === 'strong' && !STRONG_PASSWORD_PATTERN.test('Aa1!aaaaaaaa')) {
     return { error: 'invalid_input' };
   }
 
