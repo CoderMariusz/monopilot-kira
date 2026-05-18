@@ -1,7 +1,12 @@
 {
   "title": "T-024 — spec_sign_modal (pre-flight checklist + EsignBlock, parity)",
-  "prompt": "# T-024 — spec_sign_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §11.3 V-QA-SPEC-002/005, §13.2, §8.5 prototype spec_sign_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `SpecSignModal` Client Component that runs server-computed pre-flight checklist (V-QA-SPEC-002 params have test_method, V-QA-SPEC-003 min<=target<=max, V-QA-SPEC-005 role=quality_lead) and on PASS allows EsignBlock to capture pin_proof; on Sign click submits to approveSpec (T-019).\n\n## Implementation contract\n1. `apps/web/src/components/quality/specs/SpecSignModal.tsx` shadcn Dialog.\n2. Calls Server Action `getSpecApprovalChecklist(specId)` returning [{key, label, passed:bool, message?}].\n3. Renders read-only Checkbox list (each item disabled with green/red icon).\n4. Sign button enabled only when all items passed AND EsignBlock has produced valid pin_proof.\n5. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/modals.jsx:159-206`.\n\n## Files\n- apps/web/src/components/quality/specs/SpecSignModal.tsx [create]\n- apps/web/src/server/quality/getSpecApprovalChecklist.ts [create]\n- apps/web/src/components/quality/specs/__tests__/SpecSignModal.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:159-206, then it has parity with the prototype on structure (header + read-only checklist + EsignBlock + Cancel/Sign footer in same order), visuals (shadcn Dialog/Checkbox/Alert/Button only — no native checkbox), and interaction (checklist items are read-only/server-computed, Sign disabled until all items pass AND PIN ready) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given the checklist has at least one failing item, when the user enters a valid PIN, then the Sign button stays disabled and a tooltip 'qa.spec.checklist_unmet' is shown\n3. Given all checks pass and pin_proof is valid, when the user clicks Sign, then approveSpec(specId, pin_proof) is called once and the modal closes on success",
-  "labels": ["prd", "ui", "spec-sign-modal", "T3-ui"],
+  "prompt": "# T-024 — spec_sign_modal\n\nPRD: docs/prd/09-QUALITY-PRD.md §11.3 V-QA-SPEC-002/005, §13.2, §8.5 prototype spec_sign_modal\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild `SpecSignModal` Client Component that runs server-computed pre-flight checklist (V-QA-SPEC-002 params have test_method, V-QA-SPEC-003 min<=target<=max, V-QA-SPEC-005 role=quality_lead) and on PASS allows EsignBlock to capture pin_proof; on Sign click submits to approveSpec (T-019).\n\n## Implementation contract\n1. `apps/web/src/components/quality/specs/SpecSignModal.tsx` shadcn Dialog.\n2. Calls Server Action `getSpecApprovalChecklist(specId)` returning [{key, label, passed:bool, message?}].\n3. Renders read-only Checkbox list (each item disabled with green/red icon).\n4. Sign button enabled only when all items passed AND EsignBlock has produced valid pin_proof.\n5. 1:1 parity vs `prototypes/design/Monopilot Design System/quality/modals.jsx:159-206`.\n\n## Prototype parity\nCanonical prototype: `prototypes/design/Monopilot Design System/quality/modals.jsx:159-206` (label `spec_sign_modal`).\nCloseout must demonstrate structural, visual, and interaction parity vs this anchor per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (RTL snapshot + parity checklist + screenshots; Playwright trace where applicable).\n\n## Files\n- apps/web/src/components/quality/specs/SpecSignModal.tsx [create]\n- apps/web/src/server/quality/getSpecApprovalChecklist.ts [create]\n- apps/web/src/components/quality/specs/__tests__/SpecSignModal.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:159-206, then it has parity with the prototype on structure (header + read-only checklist + EsignBlock + Cancel/Sign footer in same order), visuals (shadcn Dialog/Checkbox/Alert/Button only — no native checkbox), and interaction (checklist items are read-only/server-computed, Sign disabled until all items pass AND PIN ready) — verified by RTL plus parity checklist in pipeline_inputs.details\n2. Given the checklist has at least one failing item, when the user enters a valid PIN, then the Sign button stays disabled and a tooltip 'qa.spec.checklist_unmet' is shown\n3. Given all checks pass and pin_proof is valid, when the user clicks Sign, then approveSpec(specId, pin_proof) is called once and the modal closes on success",
+  "labels": [
+    "prd",
+    "ui",
+    "spec-sign-modal",
+    "T3-ui"
+  ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-024",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§11.3", "§13.2", "§8.5"],
+    "prd_refs": [
+      "§11.3",
+      "§13.2",
+      "§8.5"
+    ],
     "category": "ui",
     "subcategory": "spec-sign-modal",
     "task_type": "T3-ui",
@@ -30,8 +39,16 @@
       "Do not implement EsignBlock primitive (T-012)",
       "Do not allow direct DB writes from this modal"
     ],
-    "dependencies": ["T-012", "T-019", "T-023"],
-    "parallel_safe_with": ["T-021", "T-022", "T-023"],
+    "dependencies": [
+      "T-012",
+      "T-019",
+      "T-023"
+    ],
+    "parallel_safe_with": [
+      "T-021",
+      "T-022",
+      "T-023"
+    ],
     "acceptance_criteria": [
       "Given the modal renders, when compared to prototypes/design/Monopilot Design System/quality/modals.jsx:159-206, then it has parity on structure (header + read-only checklist + EsignBlock + Cancel/Sign footer in same order), visuals (shadcn Dialog/Checkbox/Alert/Button only), and interaction (checklist read-only/server-computed, Sign disabled until all pass AND PIN ready) — verified by RTL plus parity checklist in pipeline_inputs.details",
       "Given the checklist has at least one failing item, when the user enters a valid PIN, then the Sign button stays disabled with tooltip key qa.spec.checklist_unmet",
@@ -46,16 +63,32 @@
       "Do not allow Sign click to send a hash (server computes)",
       "Do not call approveSpec more than once on rapid double-click (debounce)"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
       "red": "hermes_gpt55",
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_entry": "spec_sign_modal"
   }
 }

@@ -1,0 +1,101 @@
+{
+  "title": "T-017 — Auto-MWO from downtime consumer (V-MNT-22, D-MNT-4) + downtime linkage Server Action",
+  "prompt": "# T-017 — Downtime → auto-MWO consumer\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §7.1 D-MNT-4, §11.6 V-MNT-22, §6.2 data flow, §9.5 (mwo.downtime_event_id)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nClose CIG-3 cross-module gap (Auditor A): subscribe to 08-production `downtime.created` outbox events; when 08-production emits a downtime event with `create_maintenance_task=true` (M06 checkbox), create an MWO `state='requested'`, `source='auto_downtime'`, `downtime_event_id=<event.id>`. Also expose `linkMwoToDowntimeEvent` Server Action used by MWO Detail Downtime tab (T-022).\n\n## Pre-flight\nVerify 08-production `downtime_events` table exists and emits outbox event `downtime.created`. If 08-production §8.2.5 (T-035..T-040) has NOT landed in main yet, the consumer module is still safe to write — the dispatcher (T-012) will gracefully discard events for unknown types. Add a feature flag `mnt.auto_downtime_consumer.enabled` (default true) to short-circuit.\n\n## Implementation contract\n1. `apps/worker/src/maintenance/auto-downtime-consumer.ts` registered as outbox consumer for event_type `downtime.created` in `apps/worker/cron.ts` (or event-driven runner).\n2. Consumer:\n   - Validates payload Zod schema (defined in `packages/events/src/downtime.ts` — if absent, import a minimal local schema and add a STUB comment requiring 08-production to publish a canonical schema).\n   - If `payload.create_maintenance_task=true`: insert maintenance_work_orders row `state='requested'`, `source='auto_downtime'`, `downtime_event_id=payload.id`, `equipment_id=payload.equipment_id`, `priority=mapSeverityToPriority(payload.severity)`, `requester_user_id=payload.reporter_user_id`, `requester_reason=payload.reason`.\n   - V-MNT-22: assert `downtime_event_id NOT NULL` for source='auto_downtime'.\n   - Anti-dup: idempotency_key = `format('mwo:auto_downtime:%s', payload.id)` (OQ-MNT-02 anti-dup window 1h — also enforced by unique idempotency_key constraint).\n3. `apps/web/app/maintenance/_actions/link-downtime.ts` Server Action `linkMwoToDowntimeEvent({mwoId, downtimeEventId})`:\n   - RBAC mnt.mwo.assign (manager-tier).\n   - UPDATE mwo SET downtime_event_id, source='auto_downtime' (if previously manual).\n   - Emit outbox `mwo.downtime_linked` event.\n4. Vitest with Testcontainers: consumer creates MWO on valid payload; rejects payload without equipment_id; idempotency dedup; linkMwoToDowntimeEvent updates row and emits event.\n\n## Files\n- apps/worker/src/maintenance/auto-downtime-consumer.ts [create]\n- apps/worker/src/maintenance/__tests__/auto-downtime-consumer.test.ts [create]\n- apps/web/app/maintenance/_actions/link-downtime.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/link-downtime.test.ts [create]\n\n## Acceptance criteria\n1. Given a `downtime.created` outbox event with `create_maintenance_task=true`, when consumer runs, then one MWO row `state='requested'`, `source='auto_downtime'`, `downtime_event_id=payload.id` is created.\n2. Given the consumer runs twice on the same outbox event (replay), when checked, then exactly one MWO exists (idempotency_key dedup).\n3. Given an outbox event with `create_maintenance_task=false`, when consumer runs, then no MWO is created.\n4. Given linkMwoToDowntimeEvent({mwoId, downtimeEventId}), when called, then mwo.downtime_event_id is set and outbox row `mwo.downtime_linked` is written.\n\n## Test strategy\n- RED: two vitest files asserting all four ACs.\n- Run `pnpm --filter @monopilot/worker test maintenance/auto-downtime-consumer` and `pnpm --filter @monopilot/web vitest run link-downtime`.\n\n## Risk red lines\n- Do not create MWO without idempotency_key — replay would duplicate.\n- Do not bypass V-MNT-22 (`downtime_event_id NOT NULL` for source='auto_downtime').\n- Do not subscribe to 08-production tables directly — use outbox events only (no cross-module DB dependency).\n- Do not block the consumer on malformed payload — log + DLQ + continue.\n- Do not invent a downtime schema if 08-production has not published one — use a minimal local STUB schema and escalate to 08-production owner before merging.",
+  "labels": [
+    "prd",
+    "worker",
+    "outbox-consumer",
+    "cross-module",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§7.1 D-MNT-4",
+      "§11.6",
+      "§6.2",
+      "§9.5"
+    ],
+    "category": "worker",
+    "subcategory": "auto-downtime-consumer",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Outbox consumer for 08-production downtime.created → auto-MWO + linkMwoToDowntimeEvent Server Action. Closes CIG-3 cross-module gap.",
+    "details": "Cross-module CIG-3 closer. Anti-dup via idempotency_key (OQ-MNT-02 anti-dup window 1h). Feature-flagged for safe rollout. Outbox events (mwo.requested auto_downtime, mwo.downtime_linked) are dispatched via foundation T-112 outbox primitive so 15-OEE MTBF/MTTR consumers receive them.",
+    "scope_files": [
+      "apps/worker/src/maintenance/auto-downtime-consumer.ts [create]",
+      "apps/worker/src/maintenance/__tests__/auto-downtime-consumer.test.ts [create]",
+      "apps/web/app/maintenance/_actions/link-downtime.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/link-downtime.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "08-production downtime_events producer (08-production)",
+      "Production WO consumption ⇄ Quality hold gate CIG (08-production T-PROD-QA-HOLD-GATE)",
+      "UI Downtime linkage modal (T-022 covers MNT-M-04)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-012"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-016"
+    ],
+    "acceptance_criteria": [
+      "Given downtime.created outbox event with create_maintenance_task=true, when consumer runs, then one MWO row state='requested', source='auto_downtime', downtime_event_id=payload.id is created",
+      "Given consumer runs twice on same event (replay), when checked, then exactly one MWO exists",
+      "Given event with create_maintenance_task=false, when consumer runs, then no MWO is created",
+      "Given linkMwoToDowntimeEvent({mwoId, downtimeEventId}), when called, then mwo.downtime_event_id is set and outbox mwo.downtime_linked is written"
+    ],
+    "test_strategy": [
+      "RED: two vitest files asserting four ACs",
+      "Run `pnpm --filter @monopilot/worker test auto-downtime-consumer` and `pnpm --filter @monopilot/web vitest run link-downtime`"
+    ],
+    "risk_red_lines": [
+      "Do not create MWO without idempotency_key",
+      "Do not bypass V-MNT-22 (downtime_event_id NOT NULL for source='auto_downtime')",
+      "Do not subscribe to 08-production tables — outbox events only",
+      "Do not block consumer on malformed payload — DLQ + continue",
+      "Do not invent downtime schema if 08-production has not published — use a minimal local Zod schema with a STUB comment and raise a cross-module dependency gap in the closeout report; escalate to 08-production owner before merging"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

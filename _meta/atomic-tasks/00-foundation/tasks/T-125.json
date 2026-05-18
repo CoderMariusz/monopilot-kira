@@ -1,0 +1,101 @@
+{
+  "title": "T-125 / FT-001 — withOrgContext HOF wraps Server Actions in app.set_org_context() tx",
+  "prompt": "# T-125 / FT-001 — withOrgContext Server Action / route-handler HOF\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — §5 RLS, §8 multi-tenant, §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nAudit source: `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §4.1, §4.2, §1.3 (FT-001 P0); `_meta/audits/2026-05-14-tenant-context-remediation.md`; `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md` FT-001.\nACP import shape: top-level TaskCreate only (`title`, `prompt`, `labels`, `priority`, `max_attempts`, `pipeline_name`, `pipeline_inputs`). Do not add generated ACP fields. `pipeline_inputs.root_path` is mandatory.\n\n## Goal\nClose the **#1 foot-gun** in the system: every Server Action and route handler must enter a DB transaction with the non-spoofable foundation setter `app.set_org_context(session_token, org_id)` already called, so that RLS policies reading `app.current_org_id()` resolve to the caller's org and not NULL (which would silently return 0 rows or — worse — allow leakage if a future policy regressed).\n\nDeliver a single Higher-Order Function `withOrgContext` that wraps any Server Action or route handler, reads the tenant/org and user IDs from the JWT/session, opens a DB transaction on the `app_user` connection, calls `SELECT app.set_org_context($1::uuid, $2::uuid)` with `(session_token_uuid, org_id_uuid)`, runs the wrapped handler inside that tx, commits on success and rolls back on thrown error. Also expose a thin Next.js wrapper so route-level usage is one-liner.\n\n## Implementation contract\n1. New file `packages/db/src/with-org-context.ts` exports:\n   - `withOrgContext<T>(args: { sessionToken: string; orgId: string; userId: string }, handler: (tx: DrizzleTransaction) => Promise<T>): Promise<T>` — opens a tx on the `app_user` connection, executes `SELECT app.set_org_context($1::uuid, $2::uuid)` with `(sessionToken, orgId)` first, then `SET LOCAL app.current_user_id = $1::uuid` so audit triggers (T-009 et al.) can read the actor, then runs `handler(tx)`, commits on success, rolls back on any thrown error.\n   - The user-facing wrapper signature is intentionally `(orgId, userId)` but internally calls `app.set_org_context(session_token, org_id)` because `app.set_org_context` in `packages/db/migrations/002-rls-baseline.sql` takes `(session_token uuid, org uuid)` — the `session_token` is the row key written by trusted auth middleware into `app.session_org_contexts` (T-011). The `userId` is forwarded to the actor GUC only, not to the setter.\n   - Errors thrown from `handler` cause `ROLLBACK` and re-throw; PG `28000` (invalid_authorization_specification) from `app.set_org_context` surfaces as a typed `OrgContextRejected` error.\n2. Next.js wrapper `apps/web/lib/auth/with-org-context-route.ts` that adapts a route handler `(req: NextRequest) => Promise<Response>` by reading `sessionToken`, `orgId`, `userId` from the Supabase session (T-011) and delegating to `withOrgContext`. Returns 401 if any of those are missing; never acquires a DB connection in that path.\n3. Tests (vitest + testcontainers Postgres 16):\n   - `packages/db/__tests__/with-org-context.test.ts`:\n     - Seed `tenants`, two `organizations` rows (org_A, org_B), one `app.session_org_contexts` row per org per user.\n     - Connect as `app_user` (never superuser).\n     - Run two HOF calls **in parallel** (interleaved transactions) — one bound to org_A reading `organizations` and one bound to org_B reading `organizations`. Each must see exactly its own org row and zero of the other org's rows.\n     - Throw inside the handler → assert ROLLBACK happened (no audit row written, no side effects).\n     - Call `withOrgContext` with an `orgId` for which no `session_org_contexts` row exists → assert `OrgContextRejected` thrown (PG 28000) and no state mutation.\n     - Source-grep assertion: the helper file contains zero occurrences of `current_setting('app.tenant_id')`, `current_setting('app.current_org_id')`, and `SET LOCAL app.current_org_id` — only `app.set_org_context(...)` calls and a `SET LOCAL app.current_user_id` for actor capture.\n4. Update `_meta/atomic-tasks/00-foundation/coverage.md` under a new section `## Tenant-context remediation 2026-05-14`.\n5. Update `_meta/atomic-tasks/00-foundation/manifest.json` task_count and tasks list.\n\n## Files (scope)\n- `packages/db/src/with-org-context.ts` [create]\n- `packages/db/__tests__/with-org-context.test.ts` [create]\n- `apps/web/lib/auth/with-org-context-route.ts` [create]\n- `_meta/atomic-tasks/00-foundation/manifest.json` [modify]\n- `_meta/atomic-tasks/00-foundation/coverage.md` [modify]\n\n## Out of scope\n- Per-Server-Action retrofit of every existing actions/*.ts — module-level work tracked separately.\n- The session_org_contexts write path (T-011 / auth middleware territory).\n- Replacing the `app.set_org_context(session_token, org)` SQL signature.\n- GDPR / audit-retention / outbox-worker production callers.\n\n## Acceptance criteria\n1. Given two orgs A and B with valid app.session_org_contexts rows, when withOrgContext({orgId:A,...}, fn) and withOrgContext({orgId:B,...}, fn) run concurrently as app_user against any RLS-scoped table, then each handler's SELECT sees only its own org rows (zero leakage in interleaved transactions).\n2. Given a handler throws, when withOrgContext returns, then the wrapping transaction has been ROLLED BACK (proven by a witness audit-table assertion: no row appended).\n3. Given an orgId without a matching app.session_org_contexts row, when withOrgContext runs, then OrgContextRejected (PG 28000) is thrown before the handler is invoked, and the tx is rolled back.\n4. Given the helper source is inspected, when grep'd for current_setting('app.tenant_id'|'app.current_org_id') and SET LOCAL app.current_org_id, then zero matches are found; AND Given a Next.js route handler is wrapped via with-org-context-route.ts, when the request has no Supabase session, then 401 is returned and no DB connection is acquired.\n## Test strategy\n- RED: write `packages/db/__tests__/with-org-context.test.ts` with all 5 ACs (parallel interleaved tx, ROLLBACK on throw, OrgContextRejected, source-grep, 401-without-session) before the helper exists.\n- Use testcontainers Postgres 16; apply `packages/db/migrations/*.sql` in order; connect as `app_user` (never superuser).\n- Run `pnpm --filter @monopilot/db test:integration -- with-org-context`.\n\n## Risk red lines\n- Do not read `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` directly — use the foundation `app.current_org_id()` function so the NULL-safe setter contract is preserved.\n- Do not use `SET LOCAL app.current_org_id` to fake org context — it is spoofable by any `app_user` and bypasses the `app.session_org_contexts` trust check.\n- Do not connect as superuser in tests — RLS is bypassed for superuser and the test becomes meaningless.\n- Do not swallow `app.set_org_context` errors (e.g. PG 28000) — surface them as typed errors so callers can return 401.\n- Do not commit the wrapping transaction if the handler throws.\n- Do not log the `sessionToken` in plaintext (re-use `@monopilot/observability` redact allowlist, T-117).\n\n## Dependencies (must be complete first)\n- T-006 (organizations/users baseline)\n- T-007 (`app.set_org_context` + `app.current_org_id` functions + `002-rls-baseline.sql`)\n- T-011 (auth middleware writes `app.session_org_contexts`)\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED test before implementation) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "rls",
+    "platform-primitive",
+    "T2-api",
+    "p0-blocker",
+    "FT-001"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-125",
+    "carry_forward_id": "FT-001",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5 RLS",
+      "§8 multi-tenant",
+      "§W0-v4.3"
+    ],
+    "category": "auth",
+    "subcategory": "org-context-hof",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION platform primitives",
+    "context_budget": "60k",
+    "estimated_effort": "2-3h",
+    "description": "Server Action / route-handler HOF that opens a tx, calls app.set_org_context(session_token, org_id), runs the handler, commits on success and rolls back on error — the missing FT-001 P0 platform primitive that closes the #1 foot-gun.",
+    "details": "Adds `packages/db/src/with-org-context.ts` exporting `withOrgContext({sessionToken, orgId, userId}, fn)` which opens a tx on the `app_user` connection, invokes `SELECT app.set_org_context($1::uuid, $2::uuid)` with (sessionToken, orgId), `SET LOCAL app.current_user_id = $1::uuid`, runs `fn(tx)`, commits on success, rolls back on any throw. PG 28000 from the setter surfaces as `OrgContextRejected`. Adds Next.js wrapper `apps/web/lib/auth/with-org-context-route.ts`. Tests use vitest + testcontainers Postgres 16, connect as `app_user`, prove parallel interleaved txs across two orgs do not leak rows even when RLS-scoped tables are read concurrently. Source-grep assertion verifies the helper never reads `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` and never writes `SET LOCAL app.current_org_id`. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §Tenant-context).\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/db/src/with-org-context.ts [create]",
+      "packages/db/__tests__/with-org-context.test.ts [create]",
+      "apps/web/lib/auth/with-org-context-route.ts [create]",
+      "_meta/atomic-tasks/00-foundation/manifest.json [modify]",
+      "_meta/atomic-tasks/00-foundation/coverage.md [modify]"
+    ],
+    "out_of_scope": [
+      "Per-Server-Action retrofit of every existing actions/*.ts file (module-level work).",
+      "The session_org_contexts write path (T-011 auth middleware).",
+      "Changing the app.set_org_context(session_token, org) SQL signature in 002-rls-baseline.sql.",
+      "GDPR / audit-retention / outbox-worker production callers."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-007",
+      "T-011"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given two orgs A and B with valid app.session_org_contexts rows, when withOrgContext({orgId:A,...}, fn) and withOrgContext({orgId:B,...}, fn) run concurrently as app_user against any RLS-scoped table, then each handler's SELECT sees only its own org rows (zero leakage in interleaved transactions).",
+      "Given a handler throws, when withOrgContext returns, then the wrapping transaction has been ROLLED BACK (proven by a witness audit-table assertion: no row appended).",
+      "Given an orgId without a matching app.session_org_contexts row, when withOrgContext runs, then OrgContextRejected (PG 28000) is thrown before the handler is invoked, and the tx is rolled back.",
+      "Given the helper source is inspected, when grep'd for current_setting('app.tenant_id'|'app.current_org_id') and SET LOCAL app.current_org_id, then zero matches are found; AND Given a Next.js route handler is wrapped via with-org-context-route.ts, when the request has no Supabase session, then 401 is returned and no DB connection is acquired."
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/with-org-context.test.ts with all 5 ACs (parallel interleaved tx, ROLLBACK on throw, OrgContextRejected on missing session_token, source-grep, 401-without-session) before the helper exists.",
+      "Use testcontainers Postgres 16; apply packages/db/migrations/*.sql in order; connect as app_user (never superuser).",
+      "Run 'pnpm --filter @monopilot/db test:integration -- with-org-context'."
+    ],
+    "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use SET LOCAL app.current_org_id to fake org context — it is spoofable by any app_user and bypasses the app.session_org_contexts trust check.",
+      "Do not connect as superuser in tests — RLS is bypassed for superuser and the test becomes meaningless.",
+      "Do not swallow app.set_org_context errors (e.g. PG 28000) — surface them as typed errors so callers can return 401.",
+      "Do not commit the wrapping transaction if the handler throws.",
+      "Do not log the sessionToken in plaintext (reuse @monopilot/observability redact allowlist, T-117)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

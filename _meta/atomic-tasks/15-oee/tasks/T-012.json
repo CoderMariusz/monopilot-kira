@@ -1,0 +1,94 @@
+{
+  "title": "T-012 — /api/oee/heatmap Server endpoint + per-week MV read + cell-drill (OEE §10.2)",
+  "prompt": "# T-012 — Heatmap API endpoint\n\nPRD: docs/prd/15-OEE-PRD.md §10.2 (Per-shift Heatmap), §11 V-OEE-ACCESS, §12.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer loader + JSON Route Handler returning per-shift heatmap data for OEE-002: one week (7 days × 3 shifts × up to 10 lines = max 210 cells) sourced from `oee_shift_metrics` MV. Includes cell-drill endpoint returning detailed A/P/Q metrics for a single (line, day, shift) triple. Performance target P95 < 2s per §10.2.\n\n## Pre-flight\nRead Wave1 T-125 `withOrgContext`, T-121 rate-limit, T-117 tracer; existing API pattern; oee_shift_metrics MV (T-006).\n\n## Implementation contract\n1. Server loader `apps/web/app/(oee)/heatmap/loader.ts`: accepts `weekStart: ISO date`, `lineFilter?: string[]`; reads oee_shift_metrics WHERE shift_date BETWEEN weekStart AND weekStart+6 AND org_id=app.current_org_id(); shape `{ cells: HeatmapCell[], weekStart, kpis: { factoryAvg: number, bestLine: { id, oee }, worstLine: { id, oee }, totalOutput: number } }`.\n2. Cell-drill Server Action `apps/web/app/(oee)/heatmap/actions/cell-drill.ts`: accepts `(line_id, shift_date, shift_id)`, returns full row from oee_shift_metrics plus a gap-count from oee_snapshots (NULL slots) per cell_drill_modal contract.\n3. Optional Route Handler `apps/web/app/api/oee/heatmap/route.ts` for SWR client refresh.\n4. Auth: withOrgContext (Wave1 T-125), report_access_gate_v1 (V-OEE-ACCESS-2), Wave1 T-121 rate-limit (60 req/min/user), V-OEE-ACCESS-4 site_id filter via `user_sites`.\n5. Observability: Wave1 T-117 trace span tagged with route, weekStart, org_id, cell_count, duration_ms; Wave1 T-118 histogram metric `oee_heatmap_load_duration_ms`.\n6. Vitest: (a) 401/403 access gates, (b) RLS isolation across orgs, (c) rate-limit at 61 req/min, (d) shape ≤ 210 cells for 10 lines × 21 (day×shift) cols, (e) p95 duration < 2000ms in benchmark test against seeded MV with 1k rows.\n\n## Files\n- apps/web/app/(oee)/heatmap/loader.ts [create]\n- apps/web/app/(oee)/heatmap/actions/cell-drill.ts [create]\n- apps/web/app/api/oee/heatmap/route.ts [create]\n- apps/web/app/(oee)/heatmap/__tests__/loader.test.ts [create]\n- apps/web/app/api/oee/heatmap/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given no session, when GET /api/oee/heatmap?weekStart=2026-04-13 runs, then response is 401 (V-OEE-ACCESS-1).\n2. Given valid session, when loader runs with 10 seeded lines × 21 day-shift cells, then response includes ≤ 210 cells and factoryAvg/bestLine/worstLine KPIs.\n3. Given two orgs each with shift_metrics rows for week W, when withOrgContext(orgA) invokes the loader, then only orgA cells are returned (V-OEE-ACCESS-3).\n4. Given 1000 seeded shift_metrics rows, when loader runs 20 times, then p95 duration < 2000 ms (§10.2 performance gate).\n\n## Test strategy\n- RED: vitest oee/heatmap-loader + route asserting four ACs including the perf benchmark.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/heatmap && pnpm --filter @monopilot/web vitest run app/api/oee/heatmap`.\n\n## Risk red lines\n- Do not compute synchronously in request path — read from oee_shift_metrics MV only (D-OEE-1).\n- Do not skip site_id filter for users with restricted `user_sites` membership (V-OEE-ACCESS-4).\n- Do not bypass Wave1 T-121 rate-limit or T-117 observability.\n- Do not exceed 210 cells per response — server cap; if >210 (multi-site future), paginate.\n- Do not return raw oee_snapshots (per-minute) in heatmap response — use MV only for perf.",
+  "labels": [
+    "prd",
+    "api",
+    "rls",
+    "T2-api"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.2",
+      "§11",
+      "§12.1"
+    ],
+    "category": "api",
+    "subcategory": "heatmap",
+    "task_type": "T2-api",
+    "parent_feature": "15-OEE-c",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Heatmap Server loader + cell-drill Server Action + Route Handler reading oee_shift_metrics with RLS + report_access_gate_v1 + rate-limit + perf gate p95 < 2s.",
+    "details": "Drives OEE-002 (T-015) and cell_drill_modal (OEE-M-007, T-015 modal). Sourced from oee_shift_metrics MV — no per-minute snapshot reads here (perf). 210-cell cap is intentional (10 lines × 21 cells per §10.2 layout).",
+    "scope_files": [
+      "apps/web/app/(oee)/heatmap/loader.ts [create]",
+      "apps/web/app/(oee)/heatmap/actions/cell-drill.ts [create]",
+      "apps/web/app/api/oee/heatmap/route.ts [create]",
+      "apps/web/app/(oee)/heatmap/__tests__/loader.test.ts [create]",
+      "apps/web/app/api/oee/heatmap/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Page UI (T-015)",
+      "Compare-weeks diff endpoint (OEE-M-010 P1.5 / BL-OEE-05)",
+      "Anomaly endpoints (P2)"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given no session, when GET /api/oee/heatmap?weekStart=2026-04-13 runs, then response is 401 (V-OEE-ACCESS-1)",
+      "Given valid session, when loader runs with 10 seeded lines × 21 cells, then response includes ≤ 210 cells and factoryAvg/bestLine/worstLine KPIs",
+      "Given two orgs with shift_metrics rows for week W, when withOrgContext(orgA) invokes the loader, then only orgA cells are returned",
+      "Given 1000 seeded shift_metrics rows, when loader runs 20 times, then p95 duration < 2000 ms (§10.2)"
+    ],
+    "test_strategy": [
+      "RED: vitest oee/heatmap-loader + route asserting four ACs including perf benchmark",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/heatmap` and `pnpm --filter @monopilot/web vitest run app/api/oee/heatmap`"
+    ],
+    "risk_red_lines": [
+      "Do not compute synchronously — MV only (D-OEE-1)",
+      "Do not skip site_id filter (V-OEE-ACCESS-4)",
+      "Do not bypass Wave1 T-121 / T-117",
+      "Do not exceed 210-cell cap per response",
+      "Do not return raw oee_snapshots in heatmap response"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

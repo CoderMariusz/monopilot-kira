@@ -1,0 +1,103 @@
+{
+  "title": "T-038 — NCR Server Actions: create/update-status/assign/close (V-QA-NCR-001..007)",
+  "prompt": "# T-038 — NCR Server Actions (create/submit/assign/update-status/close)\n\nPRD: docs/prd/09-QUALITY-PRD.md §11.4 V-QA-NCR-001..007, §5.3 signature evidence pattern, §7.1 09-d-02, §13.2 e-signature 21 CFR Part 11\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the 5 NCR Server Actions (createNcrDraft, submitNcr, updateNcrStatus, assignNcr, closeNcr) enforcing V-QA-NCR-001..007 server-side, including 21 CFR Part 11 e-sign and dual-sign SoD on critical close. Reserve quality.ncr.* permission strings.\n\n## Implementation contract\n1. apps/web/src/server/quality/ncr/actions.ts — 5 Server Actions, Zod-validated inputs, role guards, RBAC checks via packages/rbac.\n2. createNcrDraft → INSERT status='draft', server-clock detected_at, response_due_at auto from GENERATED column (T-037); audit log INSERT.\n3. submitNcr → draft→open; enforces V-QA-NCR-003 (yield_issue cross-field), V-QA-NCR-004 (allergen_deviation must link to allergen_changeover_validation or ccp_deviation reference); description.length>=20.\n4. updateNcrStatus → state machine open→investigating→awaiting_capa; quality_lead role.\n5. assignNcr → sets assigned_to + investigator_id; emits inspection_assigned-style outbox event quality.ncr.assigned.\n6. closeNcr → enforces V-QA-NCR-005 (rootCause + closure_signature_hash); V-QA-NCR-006 critical-severity dual sign: second signer MUST have different user_id AND have role 'prod_manager' AND a fresh authenticated session; closure_signature_hash computed server-side via hash(userId||isoTimestamp||ncrId||rootCause); status='closed'; closed_at=NOW().\n7. DB trigger prevent_ncr_closed_update in migration 0111 blocks UPDATE on rows WHERE closed_at IS NOT NULL.\n8. PBKDF2 PIN verification reuses shared verifyPin Server Action (see translation-notes-quality §E-Signature).\n9. Permissions reserved (packages/rbac/src/permissions.enum.ts): quality.ncr.create, quality.ncr.submit, quality.ncr.assign, quality.ncr.update_status, quality.ncr.close, quality.ncr.close.critical, quality.ncr.read.\n\n## Files\n- apps/web/src/server/quality/ncr/actions.ts [create]\n- apps/web/src/server/quality/ncr/__tests__/actions.test.ts [create]\n- apps/web/src/server/quality/ncr/zodSchemas.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/db/migrations/0131_ncr_prevent_closed_update_trigger.sql [create]\n\n## Acceptance criteria (Given-When-Then)\n1. Given an authenticated quality_lead, when createNcrDraft(...) is called, then status='draft', response_due_at = detected_at + severity-mapped interval, audit log INSERT row exists\n2. Given a draft NCR with type='yield_issue' AND target_yield_pct=NULL, when submitNcr is called, then it returns 422 error.code='V-QA-NCR-003'\n3. Given critical NCR, when closeNcr is called with secondSignerUserId === session.userId, then 409 error.code='V-QA-NCR-006'; happy path with distinct prod_manager + matching PINs sets status='closed' with both signature audit rows and emits quality.ncr.closed outbox event\n4. Given closed NCR, when UPDATE attempt runs, then prevent_ncr_closed_update trigger rejects the change\n\n## Test strategy (RED first)\n- RED: ncr/__tests__/actions.test.ts asserting all 4 AC paths before action code exists\n- Run 'pnpm --filter web test ncr/actions' + 'pnpm --filter db migrate'\n\n## Risk red lines\n- Do not compute closure_signature_hash on client (audit B §3 red-line lift)\n- Do not allow same-user dual sign (V-QA-NCR-006 server-side check)\n- Do not rely on client clock for closed_at / signature timestamps\n- Do not skip permissions enum reservation for quality.ncr.*\n- Do not bypass PBKDF2 PIN verification (translation-notes-quality §E-Signature)",
+  "labels": [
+    "prd",
+    "api",
+    "ncr",
+    "T2-api"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-038",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.4",
+      "§5.3",
+      "§7.1",
+      "§13.2"
+    ],
+    "category": "api",
+    "subcategory": "ncr-server-actions",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Server Actions for the NCR lifecycle: createNcrDraft, submitNcr, updateNcrStatus, assignNcr, closeNcr — enforcing all V-QA-NCR-001..007 validations and 21 CFR Part 11 e-sign on close.",
+    "details": "apps/web/src/server/quality/ncr/actions.ts exports 5 Server Actions. createNcrDraft: insert with status='draft', auto-set severity-driven response_due_at via GENERATED column (T-037), accept reference_type+reference_id with FK validation. submitNcr: status='draft'→'open', enforces description.length>=20 (V-QA-NCR-005-prereq), V-QA-NCR-003 (yield_issue requires target_yield+actual_yield+claim_pct), V-QA-NCR-004 (allergen_deviation must link allergen_changeover_validation_id or ccp_deviation reference_id). updateNcrStatus: transitions via state machine open→investigating→awaiting_capa, role guard quality_lead. assignNcr: sets assigned_to + investigator_id, role guard. closeNcr: enforces V-QA-NCR-005 (rootCause + closure_signature_hash required) and V-QA-NCR-006 (critical severity requires dual sign — second signer user_id MUST differ from first signer; second signer's session must be active and have role 'prod_manager'). PIN verification via shared verifyPin Server Action using PBKDF2 (translation-notes-quality §E-Signature; audit B §3 red-line). On close: status='closed', closed_at=now() (server clock — never client), closure_signature_hash computed server-side as hash(user_id||iso_timestamp||ncr_id||rootCause). DB trigger prevent_ncr_closed_update blocks future UPDATEs on closed rows. All actions emit outbox events to quality.ncr.* (T-040 wires the channel) and write to quality_audit_log (T-009 owner). Permissions reserved: quality.ncr.create, quality.ncr.submit, quality.ncr.assign, quality.ncr.update_status, quality.ncr.close.create.critical (separate permission for critical close), quality.ncr.read. PRD anchors (verified 2026-05-14): §11.4 V-QA-NCR-001..007; §5.3 signature evidence pattern; §7.1 09-d-02 NCR CRUD scope; §13.2 e-signature 21 CFR Part 11 implementation.",
+    "scope_files": [
+      "apps/web/src/server/quality/ncr/actions.ts [create]",
+      "apps/web/src/server/quality/ncr/__tests__/actions.test.ts [create]",
+      "apps/web/src/server/quality/ncr/zodSchemas.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/db/migrations/0131_ncr_prevent_closed_update_trigger.sql [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement outbox publisher here (T-040)",
+      "Do not implement auto-create wiring from GRN/inspection here (T-041)",
+      "Do not build UI here (T-043/T-044/T-045/T-046)",
+      "Do not implement full CAPA workflow (P2 Epic 8G, BL-QA-01)"
+    ],
+    "dependencies": [
+      "T-037",
+      "T-009",
+      "T-012"
+    ],
+    "parallel_safe_with": [
+      "T-039"
+    ],
+    "acceptance_criteria": [
+      "Given an authenticated quality_lead, when createNcrDraft({type:'quality',severity:'minor',title:'X',description:'Y',reference_type:'lp',reference_id:UUID}) is called, then an ncr_reports row exists with status='draft', server-clock detected_at, response_due_at = detected_at + 7 days, and a quality_audit_log INSERT row exists",
+      "Given an existing draft NCR with type='yield_issue' AND target_yield_pct=NULL, when submitNcr(id) is called, then it returns 422 with error.code='V-QA-NCR-003' and the row stays in status='draft'",
+      "Given a critical-severity open NCR, when closeNcr(id, {rootCause:'...', firstSignerPin:'123456', secondSignerPin:'654321', secondSignerUserId:DIFFERENT_USER}) is called by quality_lead AND the second PIN matches a 'prod_manager' user, then status='closed', closure_signature_hash is non-null, both first+second signature audit rows exist, and the outbox emits a quality.ncr.closed event; if secondSignerUserId === session.userId, the action returns 409 with error.code='V-QA-NCR-006'",
+      "Given a closed NCR, when any UPDATE attempt runs (direct DB or via updateNcrStatus), then the trigger prevent_ncr_closed_update rejects with SQLSTATE 23505/45000 and the row is unchanged"
+    ],
+    "test_strategy": [
+      "RED: write apps/web/src/server/quality/ncr/__tests__/actions.test.ts asserting all 4 AC paths (createNcrDraft path, submitNcr V-QA-NCR-003 reject, closeNcr critical dual-sign happy path + same-user SoD reject, prevent_ncr_closed_update trigger) before actions implementation exists",
+      "Run 'pnpm --filter web test ncr/actions' + 'pnpm --filter db migrate' for trigger"
+    ],
+    "risk_red_lines": [
+      "Do not compute closure_signature_hash on client (translation-notes-quality §M-07; audit B §3 red-line)",
+      "Do not allow V-QA-NCR-006 dual-sign with the same user_id as first signer (server-side check against session; never trust client second-signer payload)",
+      "Do not rely on client clock for closed_at / response_due_at — server clock only (§5.3)",
+      "Do not skip permissions registration: quality.ncr.create, quality.ncr.submit, quality.ncr.assign, quality.ncr.update_status, quality.ncr.close, quality.ncr.close.critical, quality.ncr.read must exist in packages/rbac/src/permissions.enum.ts",
+      "Do not bypass PBKDF2 PIN verification (audit B §3; BL-QA-06 is keylogger risk — keypad is medium-prio UI follow-up, not a Server Action concern)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "00-foundation:T-124",
+      "00-foundation:T-125",
+      "02-settings:T-091",
+      "09-quality:T-037",
+      "09-quality:T-039"
+    ]
+  }
+}

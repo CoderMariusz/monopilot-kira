@@ -1,6 +1,6 @@
 {
   "title": "T-009 — API: Item create (POST /api/technical/items) with V-TEC-01..04 validation",
-  "prompt": "Implement POST /api/technical/items per §6.2 + V-TEC-01..04. Zod schema validates: item_code unique per org (V-TEC-01), item_code pattern per type (RM<digits>|SALT-XX for rm; WIP-<2-letter-suffix>-<7-digit-sequence> for intermediate; FG<digits> for fg), weight_mode='catch' requires nominal_weight, gross_weight_max and variance_tolerance_pct (V-TEC-02), intermediate requires WIP code pattern (V-TEC-03), d365_item_id unique when set (V-TEC-04). Insert via Drizzle within transaction. Permission gate: technical.items.create. RED tests/api/items-create.test.ts. Run: `pnpm vitest run tests/api/items-create.test.ts`.",
+  "prompt": "# T-009 — API: Item create (POST /api/technical/items) with V-TEC-01..04 validation\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.2, §6.6, §3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nItem create endpoint with full Zod validation per V-TEC-01..04 and RBAC.\n\nZod schema lives in lib/technical/items/schemas.ts. Extension fields validated against reference_schemas (02-SETTINGS) — fetch active schema for items at request time and merge into Zod object. RBAC enforced via permission resolver checking technical.items.create.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/route.ts [create]\n- lib/technical/items/schemas.ts [create]\n- lib/technical/items/service.ts [create]\n- tests/api/items-create.test.ts [create]\n\n## Out of scope\n- Bulk import CSV (separate spec-driven UI task T-085)\n- D365 push\n\n## Acceptance criteria\n1. Given duplicate item_code for same org, when POST runs, then 409 returned with V-TEC-01 error code.\n2. Given weight_mode='catch' missing nominal_weight, when POST runs, then 422 with V-TEC-02 error.\n3. Given item_type='intermediate' with item_code='RM1234', when POST runs, then 422 V-TEC-03 violation.\n4. Given user lacks technical.items.create, when POST runs, then 403 returned.\n\n## Test strategy\n- RED tests covering each V-TEC-01..04 violation path.\n- Run: pnpm vitest run tests/api/items-create.test.ts\n\n## Risk red lines\n- Do not perform any D365 pull/push side effects in this endpoint.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -56,7 +56,11 @@
       "Run: pnpm vitest run tests/api/items-create.test.ts"
     ],
     "risk_red_lines": [
-      "Do not perform any D365 pull/push side effects in this endpoint."
+      "Do not perform any D365 pull/push side effects in this endpoint.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

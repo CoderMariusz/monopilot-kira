@@ -1,10 +1,11 @@
 {
-  "title": "T-052 — E2E happy path: approved WO start, consume, output, complete and D365 enqueue",
-  "prompt": "# T-052 — E2E happy path: approved WO start, consume, output, complete and D365 enqueue\n\nPRD/UX refs: §8.2.1-8.2.4, UX flows §5\n\nGoal: Create Playwright coverage and artifact evidence for E2E happy path: approved WO start, consume, output, complete and D365 enqueue.\n\nImplementation details:\nSeed an approved WO snapshot with active_bom_header_id and active_factory_spec_id, start it, consume material, register output, complete gates, and assert D365 outbox enqueued without treating D365 as source-of-truth. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.\n\nScope files:\n- apps/web/e2e/production.spec.ts [create/modify]\n- apps/web/e2e/fixtures/production.ts [create/modify]\n- apps/web/playwright.config.ts [modify if artifact retention missing]\n\nAcceptance criteria:\n1. Playwright test covers the named flow with deterministic seeded data\n2. Assertions verify UI state, server-side data changes, and typed blocker/audit evidence\n3. Closeout includes screenshot paths and Playwright trace artifact paths\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-052 — E2E happy path: approved WO start → consume → output → complete → D365 enqueue (§8.2.1-8.2.4)",
+  "prompt": "# T-052 — E2E happy path: approved WO → D365 enqueue\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.2.1, §8.2.2, §8.2.3, §8.2.4, §1.1A, §7.5 (Epic E5 INTEGRATIONS)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright spec covering the full happy path on an approved WO: START preflight admits, scanner consume-to-WO succeeds, output registration with catch-weight, COMPLETE passes `closed_production_strict_v1`, and `production_outbox_events` row is enqueued with `status='pending'` (dispatcher delivery proven via T-041 unit tests, not asserted live here). Asserts D365 metadata is never the source-of-truth for admission.\n\n## Implementation contract\n1. apps/web/e2e/production.spec.ts adds `test.describe('happy path')` block that walks the UI from `/production` → WO detail → consume tab → output tab → complete dialog.\n2. apps/web/e2e/fixtures/production.ts seeds: a tenant, a line, an operator with PIN, a canonical release row `released_to_factory` for `active_bom_header_id` + `active_factory_spec_id`, a WO snapshot referencing those IDs, and an LP available for consumption.\n3. Assertions verify: (a) UI state transitions (status badge IN_PROGRESS → COMPLETED), (b) DB rows in `wo_executions`, `wo_material_consumption`, `wo_outputs`, `production_outbox_events`, (c) no canonical release row was mutated, (d) `data-prototype-label` markers present at each step.\n4. Playwright config keeps `trace='on'`, `screenshot='only-on-failure'` and `video='retain-on-failure'`; outputs land under `apps/web/test-results/`.\n5. Clean up tenant-scoped data after each run (org-scoped helper in fixtures).\n\n## Acceptance criteria\n1. Given a tenant with a `released_to_factory` WO snapshot, when the happy-path Playwright test runs end-to-end, then UI shows IN_PROGRESS → COMPLETED, `wo_executions.completed_at` is set, exactly one `production_outbox_events` row of `event_type='wo.completed'` is created in `status='pending'`, and the canonical release row is unchanged.\n2. Given the spec finishes (pass or fail), when artifacts are inspected, then `apps/web/test-results/` contains the trace.zip, screenshot(s), and a video for the run.\n3. Given the task is closed out, when reviewers inspect evidence, then closeout lists trace/screenshot/video artifact paths plus the `pnpm --filter web exec playwright test production.spec.ts --trace=on` command output.\n\n## Test strategy\n- RED: write apps/web/e2e/production.spec.ts `happy path` describe + fixtures before any UI/API slice exists; the spec must fail with `wo_executions` missing or release admit returning blockers.\n- Run `pnpm --filter web exec playwright test production.spec.ts -g \"happy path\" --trace=on`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not treat D365 sync/export/Built as production release source-of-truth in fixtures.\n- Do not skip canonical release row seeding (no shortcuts via D365 metadata).\n- Do not leak test data across tenants — always clean up by tenant_id.\n- Do not assert live D365 delivery in this spec (covered by T-041 dispatcher unit tests).\n",
   "labels": [
     "prd",
-    "T4-e2e",
-    "e2e"
+    "e2e",
+    "happy-path",
+    "T4-e2e"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,21 +15,31 @@
     "prd_task_id": "T-052",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "§8.2.1-8.2.4",
-      "UX flows §5"
+      "§8.2.1",
+      "§8.2.2",
+      "§8.2.3",
+      "§8.2.4",
+      "§1.1A",
+      "§7.5"
     ],
-    "category": "production-readiness",
-    "subcategory": "E2E happy path: approved WO start, consume, outp",
+    "category": "e2e",
+    "subcategory": "wo-happy-path",
     "task_type": "T4-e2e",
-    "parent_feature": "08-PRODUCTION full module readiness",
+    "parent_feature": "08-PROD end-to-end evidence",
     "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Create Playwright coverage and artifact evidence for E2E happy path: approved WO start, consume, output, complete and D365 enqueue.",
-    "details": "Seed an approved WO snapshot with active_bom_header_id and active_factory_spec_id, start it, consume material, register output, complete gates, and assert D365 outbox enqueued without treating D365 as source-of-truth. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.",
+    "estimated_effort": "3-4h",
+    "description": "Playwright happy-path spec across approved WO start/consume/output/complete + D365 outbox enqueue; canonical release row never mutated.",
+    "details": "Single describe block walking /production → WO detail → consume → output → complete. Fixtures seed canonical release row (released_to_factory), WO snapshot, LP and operator PIN per tenant. Assertions cover UI status transitions, DB row inserts in wo_executions/wo_material_consumption/wo_outputs/production_outbox_events, no canonical mutation, and data-prototype-label markers at each step. Playwright config retains trace/screenshot/video. Tenant-scoped cleanup after each run.",
     "scope_files": [
       "apps/web/e2e/production.spec.ts [create/modify]",
       "apps/web/e2e/fixtures/production.ts [create/modify]",
       "apps/web/playwright.config.ts [modify if artifact retention missing]"
+    ],
+    "out_of_scope": [
+      "Do not assert live D365 delivery (covered by T-041)",
+      "Do not implement UI surfaces (T-046, T-047 own those)",
+      "Do not cover exception paths (T-054)",
+      "Do not seed cross-tenant data"
     ],
     "dependencies": [
       "T-016",
@@ -39,18 +50,29 @@
       "T-046",
       "T-047"
     ],
+    "parallel_safe_with": [
+      "T-053",
+      "T-054",
+      "T-055"
+    ],
     "acceptance_criteria": [
-      "Playwright test covers the named flow with deterministic seeded data",
-      "Assertions verify UI state, server-side data changes, and typed blocker/audit evidence",
-      "Closeout includes screenshot paths and Playwright trace artifact paths"
+      "Given a tenant with a released_to_factory WO snapshot, when the happy-path Playwright test runs end-to-end, then UI shows IN_PROGRESS → COMPLETED, wo_executions.completed_at is set, exactly one production_outbox_events row of event_type='wo.completed' is created in status='pending', and the canonical release row is unchanged.",
+      "Given the spec finishes, when artifacts are inspected, then apps/web/test-results/ contains the trace.zip, screenshot(s), and a video for the run.",
+      "Given the task is closed out, when reviewers inspect evidence, then closeout lists trace/screenshot/video artifact paths plus the playwright test command output.",
+      "Given an LP/lot has an active quality hold (v_active_holds), when WO consume is attempted, then the operation is rejected with 409 quality_hold_active and an outbox event production.consume.blocked is emitted (consume gate per 09-quality T-064)."
     ],
     "test_strategy": [
-      "RED: write Playwright spec that fails before target UI/API slices exist",
-      "GREEN: run pnpm --filter web exec playwright test production.spec.ts --trace=on"
+      "RED: write apps/web/e2e/production.spec.ts happy-path describe + fixtures before any UI/API slice exists; spec must fail with wo_executions missing or release admit returning blockers.",
+      "Run 'pnpm --filter web exec playwright test production.spec.ts -g \"happy path\" --trace=on'",
+      "Capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not treat D365 sync/export/Built as production release source-of-truth in fixtures.",
+      "Do not skip canonical release row seeding.",
+      "Do not leak test data across tenants.",
+      "Do not assert live D365 delivery in this spec.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
     ],
     "skills": [
       "test-driven-development",
@@ -79,23 +101,28 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "01-npd",
         "task_id": "T-097",
-        "reason": "Canonical factory release read-model owner."
+        "reason": "Canonical factory release read-model owner; fixture must seed against this contract."
       },
       {
         "module": "03-technical",
         "task_id": "T-080",
-        "reason": "Technical BOM/factory_spec approval emits factory-use state."
+        "reason": "Technical BOM/factory_spec approval contract; fixture must seed valid active IDs."
       },
       {
         "module": "04-planning-basic",
         "task_id": "T-001",
-        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs."
+        "reason": "Planning snapshots active_bom_header_id/active_factory_spec_id; fixture mirrors snapshot."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "T-064",
+        "reason": "Quality consume gate (v_active_holds) — every LP/WO consume operation must call holdsGuard(lpId, lotId) before mutating consumption/output state. Active hold returns 409 quality_hold_active and emits production.consume.blocked outbox event (PRD §16.4 V-PROD-02/V-PROD-16)."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

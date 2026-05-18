@@ -32,7 +32,7 @@
       "src/db/migrations/0004_planning_work_orders.sql [create]"
     ],
     "out_of_scope": [
-      "wo_outputs / wo_dependencies (T-005)",
+      "schedule_outputs / wo_dependencies (T-005) — note: canonical wo_outputs is owned by 08-production T-003 per 2026-05-14 decision; planning side uses schedule_outputs",
       "WO state machine rule (T-024)",
       "Reservations table (T-006)"
     ],

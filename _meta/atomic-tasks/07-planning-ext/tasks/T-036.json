@@ -44,7 +44,8 @@
     "acceptance_criteria": [
       "Given seeded 16x16 matrix, when page renders, then 256 cells render with heatmap colors and Tabs Default/Per-Line/Reviews are visible",
       "Given the rendered editor, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245, then it has same Tab structure, same heatmap legend, same action buttons in same order, and same shadcn primitives (Tabs, Card, Button, Badge) — parity by RTL snapshot + checklist",
-      "Given a BLOCKED cell, when Planner clicks, then [Request Review] button appears and clicking opens request_review_modal"
+      "Given a BLOCKED cell, when Planner clicks, then [Request Review] button appears and clicking opens request_review_modal",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write __tests__/MatrixEditor.test.tsx covering heatmap + parity + BLOCKED cell flow",
@@ -57,7 +58,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -71,7 +73,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -89,6 +94,15 @@
         "module": "03-technical",
         "contract": "Allergen code taxonomy."
       }
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/matrix-screens.jsx:12-245` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
     ]
   }
 }

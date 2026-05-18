@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§8.1 SCR-07-01",
-      "§4.1.5",
+      "§4.1",
       "§16.2 OQ-EXT-05"
     ],
     "category": "ui",
@@ -26,7 +26,7 @@
     "context_budget": "60k",
     "estimated_effort": "3-4h",
     "description": "Read-only horizontal Gantt scheduler dashboard (Y=lines, X=time) with allergen color blocks, changeover stripes, top bar, KPI strip.",
-    "details": "Server Component loads active run; client GanttBoard renders grid with CSS grid (no drag handlers per OQ-EXT-05). Allergen color tokens from design system. Click WO opens side panel. Parity contract: structural (lanes per line, blocks per WO), visual (allergen tokens, shadcn Card/Badge/Button), interaction (click only, no drag). Translation notes: useState for filters, useForm for run modal, controlled state for line filter; mock PEXT_LINES → Drizzle query in loader.",
+    "details": "PRD anchor corrected from §4.1.5 to §4.1 by Fixer F12 2026-05-14 (anchor sweep; §4.1 item 5 = Scheduler dashboard/GanttView, no deeper heading exists). Server Component loads active run; client GanttBoard renders grid with CSS grid (no drag handlers per OQ-EXT-05). Allergen color tokens from design system. Click WO opens side panel. Parity contract: structural (lanes per line, blocks per WO), visual (allergen tokens, shadcn Card/Badge/Button), interaction (click only, no drag). Translation notes: useState for filters, useForm for run modal, controlled state for line filter; mock PEXT_LINES → Drizzle query in loader.",
     "scope_files": [
       "apps/web/src/app/scheduler/page.tsx [create]",
       "apps/web/src/components/scheduler/GanttBoard.tsx [create]",
@@ -45,7 +45,8 @@
     "acceptance_criteria": [
       "Given a completed scheduler_run with 5 assignments, when /scheduler renders, then Gantt shows 5 WO blocks colored by allergen_group, top bar with horizon toggle/line filter/[Run Scheduler], KPI strip at bottom",
       "Given the production page renders, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx:9-363, then it has the same Y-axis lines list, same X-axis day default, same allergen color tokens, and same shadcn primitives (Card, Badge, Button) — parity verified by RTL snapshot + checklist (structural + visual + interaction)",
-      "Given a user clicks a WO block, when click fires, then side panel opens; drag handlers are absent (RTL asserts no onDragStart)"
+      "Given a user clicks a WO block, when click fires, then side panel opens; drag handlers are absent (RTL asserts no onDragStart)",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write apps/web/src/components/scheduler/__tests__/GanttBoard.test.tsx covering grid + parity snapshot + drag-handler absence",
@@ -58,7 +59,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -72,7 +74,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -92,6 +97,15 @@
         "task_id": "T-001",
         "reason": "Dashboard metadata must align with Production runtime blockers."
       }
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/dashboard.jsx:9-363` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
     ]
   }
 }

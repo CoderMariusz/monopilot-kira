@@ -1,0 +1,108 @@
+{
+  "title": "T-019 — SSCC server-side generation service + ZPL print queue stub (11-shipping-e)",
+  "prompt": "# T-019 — SSCC generation service + ZPL print queue\n\nPRD: docs/prd/11-SHIPPING-PRD.md §13.1 SSCC-18 generation, §13.2 GS1-128 barcode, §11 V-SHIP-PACK-02/03/04, V-SHIP-LBL-02/03, §6 D-SHP-4 GS1 compliance\nPrototype refs: prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:317-336 (sscc_label_preview_component), :224-314 (sscc_labels_queue_page); modals.jsx:702-739 (sscc_preview_reprint_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nNode service `sscc-generation-service.ts` wrapping Postgres `generate_sscc()` (T-018) and a ZPL print queue stub. Server-side only (V-SHIP-LBL-03 mod-10 check; never client).\n\n## Implementation contract\n1. `apps/web/lib/services/sscc-generation-service.ts` exports:\n   - `generateSsccForBox(boxId): Promise<string>` — calls Postgres generate_sscc(org_id, extension=0); INSERTs into `sscc_labels` table (new table this task introduces: org_id, sscc, shipment_box_id FK, generated_at, printed_at NULL, printer_id NULL); UPDATEs shipment_boxes.sscc. Atomic single tx.\n   - `enqueueZplJob(ssccId, printerId)` — INSERT into `zpl_print_jobs` table (org_id, sscc_id FK, printer_id FK references printers (02-SETTINGS), zpl_text text, status text CHECK ('queued','printing','printed','failed'), enqueued_at, printed_at NULL). Returns jobId.\n   - `reprintSscc(ssccId, reason)` — re-enqueues ZPL job + audits to shipping_audit_log; outbox `shipping.sscc.reprinted` permission `ship.pack.close`.\n   - `verifySscc(sscc18: string): { valid: boolean, gs1_prefix: string, serial: string, checkDigit: { computed, embedded, match } }` — pure utility for QA/auditing.\n2. Migration adds `sscc_labels` + `zpl_print_jobs` tables (RLS via app.current_org_id() + R13).\n3. ZPL text generated server-side per GS1-128 spec — contains AI(00)<SSCC18> + AI(02)<GTIN> + AI(10)<LOT> + AI(15)<BBE> at minimum.\n4. P1: ZPL job dequeue is a stub — `apps/worker/src/jobs/zpl-print.ts` registers a 10s interval consumer that marks queued jobs as `printed` after fake 1s delay (real printer integration P2). Use @monopilot/worker T-111 JobRegistry.\n5. All mutations under `withOrgContext`. No GUC reads. PII redact (none here but pino default).\n\n## Files\n- apps/web/lib/services/sscc-generation-service.ts [create]\n- apps/web/lib/services/__tests__/sscc-generation-service.test.ts [create]\n- packages/db/migrations/00XX_shipping_sscc_labels_zpl.sql [create]\n- packages/db/src/schema/shipping/sscc-labels.ts [create]\n- apps/worker/src/jobs/zpl-print.ts [create]\n- apps/worker/src/jobs/__tests__/zpl-print.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingSsccReprinted]\n\n## Acceptance criteria\n1. Given a shipment_box without sscc, when generateSsccForBox runs, then a row is INSERTed into sscc_labels and shipment_boxes.sscc UPDATEd in the same tx; sscc is 18 digits and passes mod-10 (V-SHIP-LBL-03).\n2. Given organizations.gs1_company_prefix is NULL, when generateSsccForBox runs, then the Postgres function raises and the service rethrows V-SHIP-PACK-03 (no row created).\n3. Given enqueueZplJob runs, when sscc + printer exist, then zpl_print_jobs row INSERTed with status='queued'; the apps/worker consumer marks it 'printed' within 30s (test uses fake timer).\n4. Given verifySscc('123456789012345670') is called, when the function runs, then it returns { valid: true|false, gs1_prefix, serial, checkDigit: { computed, embedded, match } } based on mod-10 server-side.\n5. Given grep current_setting('app.tenant_id'|'app.current_org_id') on sscc-generation-service.ts, when run, then zero matches.\n6. Given two concurrent generateSsccForBox calls for the same org, when run, then atomic counter (T-018) guarantees no duplicate sscc returned.\n\n## Test strategy\n- RED: vitest with testcontainers Postgres + fake timers; assert AC 1-6 + GS1 test vectors for mod-10.\n- Run `pnpm --filter @monopilot/web vitest run sscc-generation-service.test.ts && pnpm --filter @monopilot/worker vitest run zpl-print.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not compute mod-10 client-side.\n- Do not enqueue ZPL outside DB tx as sscc_labels INSERT.\n- Do not skip outbox event for reprintSscc (audit).\n- Do not bypass V-SHIP-PACK-03 gs1_prefix gate.\n- Do not call mutations outside withOrgContext.\n- Do not introduce printer integrations in P1 (stub only).",
+  "labels": [
+    "prd",
+    "backend",
+    "service",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§13.1",
+      "§13.2",
+      "§11 V-SHIP-PACK-02",
+      "§11 V-SHIP-PACK-03",
+      "§11 V-SHIP-PACK-04",
+      "§11 V-SHIP-LBL-02",
+      "§11 V-SHIP-LBL-03",
+      "§6 D-SHP-4"
+    ],
+    "category": "backend",
+    "subcategory": "service-sscc",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-e",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "SSCC-18 server-side generation service + ZPL print queue stub + verifySscc utility; consumer of T-018 generate_sscc().",
+    "details": "Adds sscc_labels + zpl_print_jobs tables. apps/worker consumer is a stub for P1 (no real printer integration). GS1-128 ZPL contains AI(00)(02)(10)(15) at minimum.",
+    "scope_files": [
+      "apps/web/lib/services/sscc-generation-service.ts [create]",
+      "apps/web/lib/services/__tests__/sscc-generation-service.test.ts [create]",
+      "packages/db/migrations/00XX_shipping_sscc_labels_zpl.sql [create]",
+      "packages/db/src/schema/shipping/sscc-labels.ts [create]",
+      "apps/worker/src/jobs/zpl-print.ts [create]",
+      "apps/worker/src/jobs/__tests__/zpl-print.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement real printer integrations (Phase 2).",
+      "Do not build UI here (T-022)."
+    ],
+    "dependencies": [
+      "T-018",
+      "T-031",
+      "00-foundation/T-111",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-020",
+      "T-023"
+    ],
+    "cross_module_dependencies": [
+      "02-settings (organizations.gs1_company_prefix, printers)",
+      "00-foundation/T-111 (apps/worker JobRegistry)"
+    ],
+    "acceptance_criteria": [
+      "Given a shipment_box without sscc, when generateSsccForBox runs, then sscc_labels row INSERTed + shipment_boxes.sscc UPDATED in same tx; AND given organizations.gs1_company_prefix is NULL, when generateSsccForBox runs, then service rethrows V-SHIP-PACK-03 and no DB write.",
+      "Given enqueueZplJob runs with sscc + printer, when apps/worker consumes the job, then ZPL sent to printer and job status becomes 'delivered' (or 'failed' with DLQ on printer error).",
+      "Given verifySscc(18-digit), when function runs, then returns { valid, gs1_prefix, serial, checkDigit: { computed, embedded, matches } }.",
+      "Given two concurrent generateSsccForBox calls for same org, when run, then atomic counter guarantees no duplicate SSCC; AND grep current_setting('app.tenant_id'|'app.current_org_id') on sscc-generation-service.ts returns zero matches."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + fake timers asserting AC 1-6 + GS1 test vectors for mod-10.",
+      "Run `pnpm --filter @monopilot/web vitest run sscc-generation-service.test.ts && pnpm --filter @monopilot/worker vitest run zpl-print.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not compute mod-10 client-side.",
+      "Do not enqueue ZPL outside DB tx as sscc_labels INSERT.",
+      "Do not skip outbox for reprintSscc (audit).",
+      "Do not bypass V-SHIP-PACK-03 gate.",
+      "Do not call mutations outside withOrgContext.",
+      "Do not introduce real printer integrations in P1."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

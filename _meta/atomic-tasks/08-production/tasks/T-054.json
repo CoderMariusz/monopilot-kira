@@ -1,10 +1,11 @@
 {
-  "title": "T-054 — E2E exception gates: blocked release, allergen, over-consumption, completion failure",
-  "prompt": "# T-054 — E2E exception gates: blocked release, allergen, over-consumption, completion failure\n\nPRD/UX refs: §1.1A, SCR-08-03, MODAL-08-05, MODAL-08-04\n\nGoal: Create Playwright coverage and artifact evidence for E2E exception gates: blocked release, allergen, over-consumption, completion failure.\n\nImplementation details:\nCover negative flows: missing active IDs block Start, allergen required redirects, over-consumption requires approval, and closed_production_strict failure requires Production Manager override. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.\n\nScope files:\n- apps/web/e2e/production.spec.ts [create/modify]\n- apps/web/e2e/fixtures/production.ts [create/modify]\n- apps/web/playwright.config.ts [modify if artifact retention missing]\n\nAcceptance criteria:\n1. Playwright test covers the named flow with deterministic seeded data\n2. Assertions verify UI state, server-side data changes, and typed blocker/audit evidence\n3. Closeout includes screenshot paths and Playwright trace artifact paths\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-054 — E2E exception gates: blocked release / allergen / over-consumption / completion (§1.1A, SCR-08-03, MODAL-08-05)",
+  "prompt": "# T-054 — E2E exception gates\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §1.1A, §8.1 SCR-08-03, MODAL-08-04 (Resume), MODAL-08-05 (Complete), §6 D3 (closed_production_strict), §7.2 FR-08-E2-006 (over-consumption approval), §6 D10 (allergen gate)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright spec covering the four negative paths Production must enforce: (1) missing/blocked canonical release row blocks START with typed blockers, (2) allergen changeover required redirects to SCR-08-03, (3) over-consumption requires Shift Lead approval, (4) `closed_production_strict_v1` failure on Complete requires Prod Manager override with reason.\n\n## Implementation contract\n1. apps/web/e2e/production.spec.ts adds `test.describe('exception gates')` with four `test()` cases (one per gate).\n2. apps/web/e2e/fixtures/production.ts adds gate-specific seeders: `seedBlockedRelease`, `seedAllergenRequired`, `seedOverConsumptionAttempt`, `seedIncompleteOutputs`.\n3. Per gate, the spec asserts: (a) UI state (button disabled / 423 redirect / approval modal / override modal), (b) typed `release_blockers` or `gate_failures` payload, (c) DB invariants — no `wo_executions.started_at` / `completed_at` written for blocked transitions; consumed/output rows match assertions.\n4. Override paths (Shift Lead approve, Prod Manager force complete) are also exercised with PIN-confirmed flows and produce audit_log rows.\n5. Playwright config retains trace/screenshot/video; tenant-scoped cleanup after run.\n\n## Acceptance criteria\n1. Given a WO whose canonical release is `pending_technical_approval`, when the user navigates to the WO and tries Start, then the Start button is disabled, typed `release_blockers` are visible, the Open-in-Planning deep-link is present, and no `wo_executions.started_at` is written.\n2. Given an allergen changeover requirement, when Start is invoked, then the spec is redirected to `/production/changeover/<event_id>`, and after walking cleaning + ATP + dual sign-off the second Start succeeds without selecting a new BOM/spec.\n3. Given an over-consumption attempt exceeding 5% tolerance, when the operator submits the consume-to-WO call, then it returns 409 `requires_approval=true`, the Shift Lead approval modal opens, a PIN-confirmed approve produces an `audit_log` row, and the consumption is recorded; alternatively, a Prod Manager `closed_production_strict_v1` override on Complete is captured with `override_reason_code` in audit_log.\n\n## Test strategy\n- RED: write the four `exception gates` test cases + seeders before the corresponding API / UI slices exist; each case must fail with the expected blocker reason.\n- Run `pnpm --filter web exec playwright test production.spec.ts -g \"exception gates\" --trace=on`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not bypass typed blocker contracts (each gate must return a typed payload, not a generic 500).\n- Do not let an unauthorized role override `closed_production_strict_v1` (Prod Manager only).\n- Do not skip audit_log on approve/override paths.\n- Do not allow a newer BOM/spec to be selected after the allergen gate clears.\n",
   "labels": [
     "prd",
-    "T4-e2e",
-    "e2e"
+    "e2e",
+    "exception-gates",
+    "T4-e2e"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -15,22 +16,31 @@
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "§1.1A",
-      "SCR-08-03",
+      "§8.1 SCR-08-03",
+      "MODAL-08-04",
       "MODAL-08-05",
-      "MODAL-08-04"
+      "§6 D3",
+      "§7.2 FR-08-E2-006",
+      "§6 D10"
     ],
-    "category": "production-readiness",
-    "subcategory": "E2E exception gates: blocked release, allergen, ",
+    "category": "e2e",
+    "subcategory": "exception-gates",
     "task_type": "T4-e2e",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Create Playwright coverage and artifact evidence for E2E exception gates: blocked release, allergen, over-consumption, completion failure.",
-    "details": "Cover negative flows: missing active IDs block Start, allergen required redirects, over-consumption requires approval, and closed_production_strict failure requires Production Manager override. Tests must capture screenshots and retain trace.zip/video artifacts under test-results or configured Playwright output. Use deterministic seed fixtures and clean up org-scoped data after each run.",
+    "parent_feature": "08-PROD exception evidence",
+    "context_budget": "45k",
+    "estimated_effort": "4-5h",
+    "description": "Playwright spec covering 4 negative gates: blocked release, allergen changeover, over-consumption approval, closed_production_strict override; typed blockers and audit_log emission asserted.",
+    "details": "Four `test()` cases inside one describe block; per-gate seeder fixtures keep the spec deterministic. Gate behaviour asserts both UI state and DB invariants. Override flows (Shift Lead approve / Prod Manager force-complete) require PIN and produce audit_log rows. No newer BOM/spec selection after allergen gate clears (canonical snapshot preserved per T-001).",
     "scope_files": [
       "apps/web/e2e/production.spec.ts [create/modify]",
       "apps/web/e2e/fixtures/production.ts [create/modify]",
       "apps/web/playwright.config.ts [modify if artifact retention missing]"
+    ],
+    "out_of_scope": [
+      "Do not cover happy path (T-052)",
+      "Do not cover scanner deep-link cards (T-053)",
+      "Do not cover operations closeout (T-055)",
+      "Do not implement allergen runtime endpoints (T-043)"
     ],
     "dependencies": [
       "T-001",
@@ -40,22 +50,32 @@
       "T-046",
       "T-048"
     ],
+    "parallel_safe_with": [
+      "T-052",
+      "T-053",
+      "T-055"
+    ],
     "acceptance_criteria": [
-      "Playwright test covers the named flow with deterministic seeded data",
-      "Assertions verify UI state, server-side data changes, and typed blocker/audit evidence",
-      "Closeout includes screenshot paths and Playwright trace artifact paths"
+      "Given a WO whose canonical release is pending_technical_approval, when the user tries Start, then the Start button is disabled, typed release_blockers are visible, an Open-in-Planning deep-link is present, and no wo_executions.started_at is written.",
+      "Given an allergen changeover requirement, when Start is invoked, then the spec is redirected to /production/changeover/<event_id>, and after walking cleaning + ATP + dual sign-off the second Start succeeds without selecting a new BOM/spec.",
+      "Given an over-consumption attempt exceeding 5% tolerance, when the operator submits, then it returns 409 requires_approval=true, the Shift Lead approval modal opens, a PIN-confirmed approve produces an audit_log row and the consumption is recorded; alternatively, a Prod Manager closed_production_strict_v1 override on Complete is captured with override_reason_code in audit_log."
     ],
     "test_strategy": [
-      "RED: write Playwright spec that fails before target UI/API slices exist",
-      "GREEN: run pnpm --filter web exec playwright test production.spec.ts --trace=on"
+      "RED: write the four exception gates test cases + seeders before the corresponding API/UI slices exist; each case must fail with the expected blocker reason.",
+      "Run 'pnpm --filter web exec playwright test production.spec.ts -g \"exception gates\" --trace=on'",
+      "Capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not bypass typed blocker contracts.",
+      "Do not let unauthorized roles override closed_production_strict_v1.",
+      "Do not skip audit_log on approve/override paths.",
+      "Do not allow a newer BOM/spec to be selected after the allergen gate clears."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -80,23 +100,23 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "01-npd",
         "task_id": "T-097",
-        "reason": "Canonical factory release read-model owner."
+        "reason": "Canonical factory release read-model owner; fixture seeds pending/blocked variants."
       },
       {
         "module": "03-technical",
         "task_id": "T-080",
-        "reason": "Technical BOM/factory_spec approval emits factory-use state."
+        "reason": "Allergen profile + factory_spec approval source."
       },
       {
         "module": "04-planning-basic",
         "task_id": "T-001",
-        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs."
+        "reason": "Planning WO snapshot active IDs; fixture mirrors the snapshot contract."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

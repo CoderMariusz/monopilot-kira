@@ -1,0 +1,101 @@
+{
+  "title": "T-052 — ccp_deviation_escalation_v1 DSL rule registration (09-e-03)",
+  "prompt": "# T-052 — ccp_deviation_escalation_v1 DSL rule registration\n\nPRD: §10.1 rule registry, §10.2 rule definition (verbatim JSON), §11.5 V-QA-CCP-003, §7.1 09-e-03\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRegister ccp_deviation_escalation_v1 DSL rule in rule_definitions per §10.2 verbatim JSON. Trigger on haccp_monitoring_records.after_insert_or_update; on within_limits=false AND deviation_threshold_seconds exceeded → auto-create NCR via T-041 + notify hygiene_lead/quality_lead/prod_manager + auto-hold WO if severity=critical.\n\n## Implementation contract\n1. Migration 0144 emits INSERT INTO rule_definitions per §10.2 verbatim JSON (rule_code='ccp_deviation_escalation_v1', tier='L1', trigger, condition with within_limits=false + threshold_seconds, actions: auto_create_ncr with severity_map, notify, auto_hold conditional on severity=critical).\n2. apps/web/src/server/quality/ccp/ruleHandler.ts — DSL rule action handlers: auto_create_ncr invokes T-041 autoCreate.ts; notify writes notification rows; auto_hold creates a quality_holds row (T-007 hold create Server Action with reference_type='wo').\n3. Hookup into monitorCcpTick (T-051) so the rule engine evaluates after insert.\n\n## Files\n- packages/db/migrations/0144_ccp_deviation_escalation_v1.sql [create]\n- apps/web/src/server/quality/ccp/ruleHandler.ts [create]\n- apps/web/src/server/quality/ccp/__tests__/ruleHandler.test.ts [create]\n- apps/web/src/server/quality/haccp/actions.ts [modify]\n\n## Acceptance criteria\n1. Given migration 0144 applied, when SELECT * FROM rule_definitions WHERE rule_code='ccp_deviation_escalation_v1' runs, then 1 row exists with tier='L1' and definition JSON verbatim per §10.2\n2. Given a haccp_monitoring_records insert with within_limits=false AND ccp.deviation_threshold_seconds=0 AND ccp.hazard_type='biological', when the rule fires, then T-041 autoCreate is called with severity='critical', a quality.ncr.created event is emitted, and a quality_holds row is created via the auto_hold action with reason='ccp_deviation_escalation' priority='critical'\n3. Given the same insert but ccp.hazard_type='chemical', when the rule fires, then NCR severity='major' per the rule severity_map and auto_hold is NOT triggered (severity != critical)\n4. Given the rule_definitions row exists, when rule-simulator runs against the last 90d of haccp_monitoring_records (audit/rule-testing pattern per §10.4), then it reports zero false positives vs current behavior (records that today would not have escalated should still not escalate)\n\n## Test strategy (RED first)\n- RED: ccp/__tests__/ruleHandler.test.ts asserting all 4 ACs (rule row insert, biological=critical+hold, chemical=major no-hold, rule-simulator zero-FP) before code\n- Run 'pnpm --filter db migrate && pnpm --filter web test ccp/ruleHandler'\n\n## Risk red lines\n- Do not deviate from §10.2 verbatim JSON (tier, trigger, severity_map, actions)\n- Do not bypass T-041 autoCreate — single auto-create path enforced (translation-notes §M-08)\n- Do not auto-hold for non-critical (severity_map drives auto_hold conditional)\n- Rule registration must use rule_definitions table (02-SETTINGS §7) and be read-only at runtime per §10.4",
+  "labels": [
+    "prd",
+    "api",
+    "dsl-rule",
+    "T2-api"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-052",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§10.2",
+      "§11.5",
+      "§7.1"
+    ],
+    "category": "api",
+    "subcategory": "dsl-rule-registration",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "45k",
+    "estimated_effort": "3h",
+    "description": "Register ccp_deviation_escalation_v1 DSL rule + implement rule action handlers (auto_create_ncr, notify, auto_hold) + wire into monitorCcpTick.",
+    "details": "Migration 0144 inserts the rule_definitions row per §10.2 verbatim JSON: tier='L1', trigger='haccp_monitoring_records.after_insert_or_update', condition checks within_limits=false AND ccp.deviation_threshold_seconds <= seconds_since_last_in_limits_reading, actions auto_create_ncr (with severity_map biological/allergen→critical, chemical/physical→major, default→minor), notify (hygiene_lead/quality_lead/prod_manager + in_app + email_if_critical), auto_hold conditional on severity=critical. ruleHandler.ts action handlers call T-041 autoCreate for NCR, write notification rows, and call hold create Server Action for auto_hold. monitorCcpTick (T-051) invokes the rule engine after the GENERATED within_limits is computed. PRD anchors verified: §10.1 rule registry (3-row table); §10.2 verbatim JSON (lines 1382-1426); §11.5 V-QA-CCP-003 (rule auto-creates NCR); §7.1 09-e-03 scope.",
+    "scope_files": [
+      "packages/db/migrations/0144_ccp_deviation_escalation_v1.sql [create]",
+      "apps/web/src/server/quality/ccp/ruleHandler.ts [create]",
+      "apps/web/src/server/quality/ccp/__tests__/ruleHandler.test.ts [create]",
+      "apps/web/src/server/quality/haccp/actions.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not register qa_status_state_machine_v1 (T-008 owner)",
+      "Do not register batch_release_gate_v1 (P2, EPIC 8F)",
+      "Do not implement NCR autoCreate.ts (T-041 owner)"
+    ],
+    "dependencies": [
+      "T-047",
+      "T-051",
+      "T-041",
+      "T-008"
+    ],
+    "parallel_safe_with": [
+      "T-053",
+      "T-054",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0144 applied, when SELECT FROM rule_definitions WHERE rule_code='ccp_deviation_escalation_v1' runs, then 1 row exists with tier='L1' and definition JSON matching §10.2 verbatim",
+      "Given a within_limits=false insert on a biological CCP, when the rule fires, then T-041 autoCreate is called with severity='critical', quality.ncr.created event emits, and an auto_hold quality_holds row is created with reason='ccp_deviation_escalation' priority='critical'",
+      "Given a within_limits=false insert on a chemical CCP, when the rule fires, then severity='major' and auto_hold is NOT triggered",
+      "Given the rule registered, when rule-simulator runs against 90d historic monitoring records (§10.4 pattern), then zero false positives are reported (no record that today would not escalate, escalates under the new rule)"
+    ],
+    "test_strategy": [
+      "RED: ruleHandler.test.ts asserting all 4 ACs (rule row, biological→critical+hold, chemical→major no-hold, simulator 0-FP) before code",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test ccp/ruleHandler'"
+    ],
+    "risk_red_lines": [
+      "Do not deviate from §10.2 verbatim JSON (tier, trigger, severity_map, actions)",
+      "Do not bypass T-041 autoCreate for NCR creation (single audit/outbox path)",
+      "Do not auto-hold non-critical severity (severity_map drives auto_hold conditional)",
+      "Use rule_definitions table from 02-SETTINGS §7 (read-only at runtime per §10.4)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "02-settings:T-091",
+      "09-quality:T-038",
+      "09-quality:T-051"
+    ]
+  }
+}

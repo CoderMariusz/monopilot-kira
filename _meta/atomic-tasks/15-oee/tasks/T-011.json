@@ -1,0 +1,95 @@
+{
+  "title": "T-011 — /api/oee/line/[id]/trend Server endpoint + rate-limit + report_access_gate (OEE §10.1, §11 V-OEE-ACCESS)",
+  "prompt": "# T-011 — Per-line 24h trend API endpoint\n\nPRD: docs/prd/15-OEE-PRD.md §10.1 (Per-line 24h Trend), §11 V-OEE-ACCESS-1..4, §12.1 (consumer reads)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer-side data loader for OEE-001 (Per-line 24h Trend dashboard): read oee_snapshots (last 1h/6h/24h window) + downtime_events (top 3 causes) + active changeover_events (markers). Enforces RLS via `withOrgContext` (Wave1 T-125), reuses `report_access_gate_v1` rule (V-OEE-ACCESS-2 referenced from 12-REPORTING), applies Wave1 T-121 rate-limit (60 req/min/user), emits Wave1 T-117 trace span.\n\n## Pre-flight\nRead: existing API/Server-Action pattern in `apps/web/app/api/` or analogous modules; Wave1 T-125 `withOrgContext` helper; Wave1 T-121 rate-limit middleware; existing `report_access_gate_v1` rule (12-REPORTING).\n\n## Implementation contract\n1. Server-side loader `apps/web/app/(oee)/line/[id]/trend/loader.ts` (RSC loader function called from page.tsx in T-014):\n   - Accepts: `lineId`, `window: '1h'|'6h'|'24h'`, `shiftFilter?: string` (URL search params).\n   - Wraps query in `withOrgContext` (Wave1 T-125) so RLS uses `app.current_org_id()` per V-OEE-ACCESS-3.\n   - Runs `report_access_gate_v1` from 12-REPORTING rule registry against (user_role, 'oee.line.trend'); on deny returns 403 (V-OEE-ACCESS-2).\n   - Drizzle reads: oee_snapshots ordered by snapshot_minute DESC for the window; downtime_events grouped by category for the window; latest changeover_events for the line.\n   - Returns shape `{ snapshots: TrendPoint[], topDowntime: DowntimeCause[], changeovers: ChangeoverMarker[], lastAggregationAt: Date, target: { oee_target_pct: number } }` (target sourced from oee_alert_thresholds per line, falling back to tenant default per §13.1 Apex 70%).\n2. Optional Next.js Route Handler `apps/web/app/api/oee/line/[id]/trend/route.ts` for SWR client refresh (per §10.1 setInterval 60s) returning the same shape as JSON; gated by Wave1 T-121 rate-limit (60 req/min/user, sliding window) + 401 if session absent (V-OEE-ACCESS-1).\n3. Observability: Wave1 T-117 trace span tagged with route, lineId, window, org_id, snapshot_count, duration_ms; structured log via T-116 on every error path.\n4. Vitest: (a) 401 when session absent, (b) 403 when role lacks `oee.dashboard.read` via report_access_gate_v1, (c) RLS isolation across two orgs returns 0 rows for cross-org line_id, (d) rate-limit kicks at 61 req/min returning 429, (e) shape matches contract for happy path, (f) trace span emitted with documented attributes.\n\n## Files\n- apps/web/app/(oee)/line/[id]/trend/loader.ts [create]\n- apps/web/app/api/oee/line/[id]/trend/route.ts [create]\n- apps/web/app/api/oee/line/[id]/trend/__tests__/route.test.ts [create]\n- apps/web/app/(oee)/line/[id]/trend/__tests__/loader.test.ts [create]\n\n## Acceptance criteria\n1. Given no session, when GET /api/oee/line/LINE_01/trend?window=24h runs, then response is 401 (V-OEE-ACCESS-1).\n2. Given a session with role lacking oee.dashboard.read, when the loader is called, then it returns 403 via report_access_gate_v1 (V-OEE-ACCESS-2).\n3. Given two orgs each with snapshots for a same-named line, when `withOrgContext(orgA)` invokes the loader, then only orgA snapshots are returned (V-OEE-ACCESS-3 RLS via app.current_org_id()).\n4. Given 61 requests in a minute from the same user, when the 61st arrives, then the response is 429 (Wave1 T-121 rate-limit) and a structured log is emitted.\n\n## Test strategy\n- RED: vitest oee/line-trend-route + loader asserting four ACs.\n- Run `pnpm --filter @monopilot/web vitest run app/api/oee/line && pnpm --filter @monopilot/web vitest run app/(oee)/line`.\n\n## Risk red lines\n- Do not compute OEE synchronously in this endpoint — read from oee_snapshots / MVs only (D-OEE-1).\n- Do not use `current_setting()` for tenant scope — use `withOrgContext`/`app.current_org_id()` (Wave1 T-125).\n- Do not skip Wave1 T-121 rate-limit — abuse vector on a polling endpoint.\n- Do not skip Wave1 T-117 trace span — observability required on every compute path.\n- Do not bypass report_access_gate_v1 — V-OEE-ACCESS-2 reuses the 12-REPORTING rule.",
+  "labels": [
+    "prd",
+    "api",
+    "rls",
+    "T2-api"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§11",
+      "§12.1"
+    ],
+    "category": "api",
+    "subcategory": "line-trend",
+    "task_type": "T2-api",
+    "parent_feature": "15-OEE-c",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Per-line 24h trend Server loader + JSON Route Handler with withOrgContext/RLS, report_access_gate_v1, Wave1 rate-limit + observability.",
+    "details": "Drives OEE-001 (T-014). 60s SWR client refresh per §10.1. report_access_gate_v1 reuse closes V-OEE-ACCESS-2 (no parallel access logic in 15-OEE). target sourced from oee_alert_thresholds per-line override, falling back to tenant default 70% per §13.1 Apex baseline.",
+    "scope_files": [
+      "apps/web/app/(oee)/line/[id]/trend/loader.ts [create]",
+      "apps/web/app/api/oee/line/[id]/trend/route.ts [create]",
+      "apps/web/app/api/oee/line/[id]/trend/__tests__/route.test.ts [create]",
+      "apps/web/app/(oee)/line/[id]/trend/__tests__/loader.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Page UI (T-014)",
+      "Heatmap loader (T-012)",
+      "Summary loader (T-013)",
+      "Anomaly endpoints (P2)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-012",
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given no session, when GET /api/oee/line/LINE_01/trend?window=24h runs, then response is 401 (V-OEE-ACCESS-1)",
+      "Given a session with role lacking oee.dashboard.read, when the loader is called, then it returns 403 via report_access_gate_v1 (V-OEE-ACCESS-2)",
+      "Given two orgs each with snapshots for a same-named line, when withOrgContext(orgA) invokes the loader, then only orgA snapshots are returned",
+      "Given 61 requests in a minute from the same user, when the 61st arrives, then the response is 429 (Wave1 T-121) and a structured log is emitted"
+    ],
+    "test_strategy": [
+      "RED: vitest oee/line-trend-route + loader asserting four ACs",
+      "Run `pnpm --filter @monopilot/web vitest run app/api/oee/line` and `pnpm --filter @monopilot/web vitest run app/(oee)/line`"
+    ],
+    "risk_red_lines": [
+      "Do not compute OEE synchronously — read from oee_snapshots / MVs only (D-OEE-1)",
+      "Do not use current_setting() — use withOrgContext/app.current_org_id() (Wave1 T-125)",
+      "Do not skip Wave1 T-121 rate-limit on polling endpoint",
+      "Do not skip Wave1 T-117 trace span",
+      "Do not bypass report_access_gate_v1"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

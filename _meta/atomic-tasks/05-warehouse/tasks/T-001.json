@@ -1,11 +1,11 @@
 {
-  "title": "T-001 — Warehouse enum locks (lp_status, lp_qa_status, item_type_snapshot, lp_source)",
-  "prompt": "# T-001 — Warehouse enum locks\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §5.2, §6.1, §6.2.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nLock the four core warehouse enums in Drizzle so downstream migrations and services share the exact value sets.\n\n## Implementation contract\nAdd four pgEnum definitions in `packages/db/src/schema/warehouse-enums.ts`:\n- `lp_status` = ['available','reserved','consumed','shipped','blocked','merged']\n- `lp_qa_status` = ['PENDING','PASSED','FAILED','HOLD','RELEASED','QUARANTINED','COND_APPROVED']\n- `item_type_snapshot` = ['rm','intermediate','fg','co_product','byproduct']\n- `lp_source` = ['grn','wo_output','split','merge','adjustment']\nEmit a Drizzle migration `0NN_warehouse_enums.sql` creating the types. Export TS unions from same file. No table references yet.\n\n## Files (scope)\n- packages/db/src/schema/warehouse-enums.ts [create]\n- packages/db/migrations/0NN_warehouse_enums.sql [create]\n- packages/db/src/schema/warehouse-enums.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\dT lp_status` is queried, then it returns 6 values exactly matching PRD §5.2.\n2. Given the TS module is imported, when consumers reference `LpStatus` union, then it resolves to the 6-string literal type.\n3. Given the test runs, when an invalid value is checked against the union, then a type error is raised at compile time and a runtime guard rejects it.\n\n## Test strategy\n- RED: write `warehouse-enums.test.ts` that imports the unions and asserts `assertNever` style guard rejects 'foo'.\n- Run `pnpm --filter db migrate && pnpm --filter db test`.\n\n## Risk red lines\n- Do not add stray values not in PRD §5.2.\n- Do not collapse `qa_status` letter-case.\n- Do not create tables in this migration.",
+  "title": "T-001 — Lock 4 warehouse enums (lp_status / lp_qa_status / item_type_snapshot / lp_source) (WH §5.2, §6.1, §6.2)",
+  "prompt": "# T-001 — Lock 4 warehouse enums (lp_status / lp_qa_status / item_type_snapshot / lp_source) (WH §5.2, §6.1, §6.2)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §5.2, §6.1, §6.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLock the four core warehouse Postgres enums + matching TypeScript unions so every downstream table, migration, service, and Drizzle query shares an identical value set (ADR-001 LP-as-only-inventory baseline).\n\n## Implementation contract\n1. Create `packages/db/src/schema/warehouse-enums.ts` with `pgEnum` declarations for: lp_status = ['available','reserved','consumed','shipped','blocked','merged']; lp_qa_status = ['PENDING','PASSED','FAILED','HOLD','RELEASED','QUARANTINED','COND_APPROVED']; item_type_snapshot = ['rm','intermediate','fg','co_product','byproduct']; lp_source = ['grn','wo_output','split','merge','adjustment'].\n2. Emit Drizzle migration `0NN_warehouse_enums.sql` creating the four types via `CREATE TYPE ... AS ENUM (...)` in dependency-free order (no FKs yet).\n3. Export typed string-literal unions (`LpStatus`, `LpQaStatus`, `ItemTypeSnapshot`, `LpSource`) and `ALL_LP_STATUSES` etc. as `as const` tuples for runtime guards.\n4. Add runtime `isLpStatus(v: string): v is LpStatus` predicates used by services in later tasks.\n\n## Files\n- packages/db/src/schema/warehouse-enums.ts [create]\n- packages/db/migrations/0NN_warehouse_enums.sql [create]\n- packages/db/src/schema/warehouse-enums.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs against an empty DB, when `\\dT lp_status` is queried, then it returns exactly 6 values matching PRD §5.2 in the same order.\n2. Given a consumer imports `LpQaStatus`, when they assign 'passed' (lowercase) or any value outside the 7-state set, then TypeScript raises a type error at compile time.\n3. Given the runtime guard `isLpStatus('merged')` runs, when validated against lp_status, then it returns true; given `isLpStatus('archived')` runs, then it returns false.\n4. Given the migration is applied twice, when re-run, then it is idempotent (or guarded with `DROP TYPE IF EXISTS` only when the migration is regenerated).\n\n## Test strategy\n- RED: `packages/db/src/schema/warehouse-enums.test.ts` asserting (a) each tuple length, (b) presence of every PRD §5.2 value, (c) `assertNever`-style exhaustiveness for `LpStatus` switch.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-enums` and capture results in CLOSEOUT.\n\n## Risk red lines\n- Do not add stray enum values not in PRD §5.2.\n- Do not lowercase qa_status (UPPER_SNAKE is the wire format).\n- Do not create any tables, columns, or FK references in this migration — enums only.\n- Do not collapse `item_type_snapshot` enum into `item_type`; the snapshot variant is ADR-002 critical.",
   "labels": [
     "prd",
     "data",
     "enum-lock",
-    "T1-schema"
+    "t1-schema"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -22,11 +22,11 @@
     "category": "data",
     "subcategory": "enum-lock",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "25k",
     "estimated_effort": "1h",
-    "description": "Lock four warehouse enums (lp_status, lp_qa_status, item_type_snapshot, lp_source) so downstream tables share identical value sets.",
-    "details": "Create pgEnum definitions in packages/db/src/schema/warehouse-enums.ts and a Drizzle migration that creates the types in Postgres. Export TS string-literal unions for consumers. Verify against PRD §5.2 wording and §6.1 state machine (ADR-029).",
+    "description": "Lock the four core warehouse Postgres enums + matching TypeScript unions so every downstream table, migration, service, and Drizzle query shares an identical value set (ADR-001 LP-as-only-inventory baseline).",
+    "details": "Lock the four core warehouse Postgres enums + matching TypeScript unions so every downstream table, migration, service, and Drizzle query shares an identical value set (ADR-001 LP-as-only-inventory baseline). Create `packages/db/src/schema/warehouse-enums.ts` with `pgEnum` declarations for: lp_status = ['available','reserved','consumed','shipped','blocked','merged']; lp_qa_status = ['PENDING','PASSED','FAILED','HOLD','RELEASED','QUARANTINED','COND_APPROVED']; item_type_snapshot = ['rm','intermediate','fg','co_product','byproduct']; lp_source = ['grn','wo_output','split','merge','adjustment']. Emit Drizzle migration `0NN_warehouse_enums.sql` creating the four types via `CREATE TYPE ... AS ENUM (...)` in dependency-free order (no FKs yet).",
     "scope_files": [
       "packages/db/src/schema/warehouse-enums.ts [create]",
       "packages/db/migrations/0NN_warehouse_enums.sql [create]",
@@ -40,18 +40,20 @@
     "dependencies": [],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the migration runs, when '\\dT lp_status' is queried, then it returns the 6 values exactly matching PRD §5.2",
-      "Given consumers import 'LpQaStatus', when they assign 'passed' (lowercase), then TypeScript raises a type error",
-      "Given the runtime guard is invoked with 'merged', when validated against lp_status, then it returns true"
+      "Given the migration runs against an empty DB, when `\\dT lp_status` is queried, then it returns exactly 6 values matching PRD §5.2 in the same order.",
+      "Given a consumer imports `LpQaStatus`, when they assign 'passed' (lowercase) or any value outside the 7-state set, then TypeScript raises a type error at compile time.",
+      "Given the runtime guard `isLpStatus('merged')` runs, when validated against lp_status, then it returns true; given `isLpStatus('archived')` runs, then it returns false.",
+      "Given the migration is applied twice, when re-run, then it is idempotent (or guarded with `DROP TYPE IF EXISTS` only when the migration is regenerated)."
     ],
     "test_strategy": [
-      "RED: warehouse-enums.test.ts with assertNever guard checks asserting rejection of unknown values",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test' and capture results"
+      "RED: `packages/db/src/schema/warehouse-enums.test.ts` asserting (a) each tuple length, (b) presence of every PRD §5.2 value, (c) `assertNever`-style exhaustiveness for `LpStatus` switch.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test warehouse-enums` and capture results in CLOSEOUT."
     ],
     "risk_red_lines": [
-      "Do not add stray enum values not enumerated in PRD §5.2",
-      "Do not collapse qa_status casing (preserve UPPER_SNAKE)",
-      "Do not create tables in this migration"
+      "Do not add stray enum values not in PRD §5.2.",
+      "Do not lowercase qa_status (UPPER_SNAKE is the wire format).",
+      "Do not create any tables, columns, or FK references in this migration — enums only.",
+      "Do not collapse `item_type_snapshot` enum into `item_type`; the snapshot variant is ADR-002 critical."
     ],
     "skills": [
       "test-driven-development",
@@ -81,7 +83,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

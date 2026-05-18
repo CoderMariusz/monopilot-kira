@@ -1,13 +1,13 @@
 {
-  "title": "T-017 — LP split service",
-  "prompt": "# T-017 — LP split service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §6.4 (FR-WH-002), V-WH-LP-003.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `splitLp(sourceLpId, splitQty, destLocationId?)` Server Action that creates a child LP, decrements source, prorates catch_weight, and inserts genealogy row.\n\n## Implementation contract\nFile `apps/web/lib/services/warehouse/lp-split.ts`. Steps per §6.4 algorithm:\n1) validate (status in available/reserved, 0 < splitQty < source.qty)\n2) create child LP via T-016 inheriting product/uom/batch/expiry/qa_status/manufacture_date/shelf_life_mode_snapshot, prorated catch_weight\n3) UPDATE source.quantity -= splitQty\n4) INSERT lp_genealogy (operation_type='split')\n5) Optional stock_move to destLocationId\nAll within a single transaction.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-split.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-split.test.ts [create]\n\n## Acceptance criteria\n1. Given source.qty=100 and splitQty=40, when service runs, then source becomes qty=60 and child has qty=40 with the same batch.\n2. Given splitQty=0 or splitQty>=source.qty, when service runs, then it returns a validation error and rolls back.\n3. Given service completes, when lp_genealogy is queried, then a row links source as parent and child with operation_type='split' and quantity=splitQty.\n\n## Test strategy\n- RED: lp-split.test.ts covers happy path, invalid qty, and genealogy row.\n- Run `pnpm --filter web test lp-split`.\n\n## Risk red lines\n- Do not perform any step outside one DB transaction.\n- Do not orphan child LP without genealogy.\n- Do not allow split on status='consumed'/'shipped'/'blocked'.",
+  "title": "T-017 — LP split service (WH-008 destination required) (WH §6.4)",
+  "prompt": "# T-017 — LP split service (WH-008 destination required) (WH §6.4)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `splitLicensePlate` service: validates source LP, creates child LP(s) with prorated catch_weight, writes lp_genealogy operation='split', and emits stock_moves to required destination(s). Per 2026-05-03 decision: destination is REQUIRED for every output row (WH-008).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/lp-split.ts`: function `splitLicensePlate({source_lp_id, outputs: [{qty, destination_location_id, label_print}]})`.\n2. Validation: source status IN ('available','reserved'); `SUM(outputs.qty) <= source.quantity`; every output has a non-null `destination_location_id` (Zod schema).\n3. Atomic transaction: update source qty, INSERT children inheriting product/uom/batch/expiry/qa_status/pallet_id/manufacture_date with `catch_weight_kg = parent.cw * (child_qty/parent_qty)`, INSERT lp_genealogy rows (parent→each child, operation='split'), INSERT stock_moves (move_type='transfer' from source.location to destination).\n4. Optional label print queue per output (via T-043).\n\n## Files\n- apps/web/lib/services/warehouse/lp-split.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-split.test.ts [create]\n\n## Acceptance criteria\n1. Given a source LP of 100 BOX, when split into [{qty:40, dest:LocA}, {qty:60, dest:LocB}], then 2 child LPs are created with prorated catch weight, source.quantity becomes 0 (or the parent is left at 0), 2 genealogy rows exist, and 2 stock_moves are inserted.\n2. Given any output row has `destination_location_id IS NULL`, when the service is called, then Zod rejects before any DB write (WH-008).\n3. Given `SUM(outputs.qty) > source.quantity`, when called, then the service rejects with V-WH-LP-003 message.\n4. Given source is `reserved`, when split is attempted, then it succeeds and children inherit reservation status (per §6.4 child inheritance).\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/lp-split.test.ts` asserting destination-required, qty CHECK, prorated catch weight, genealogy insertion.\n- Run `pnpm --filter web test lp-split`.\n\n## Risk red lines\n- Do not make destination optional (WH-008 hard requirement).\n- Do not skip lp_genealogy insert — FSMA 204 depends on it.\n- Do not split outside a single DB transaction (atomicity required).\n\n## Dependencies\n- T-016\n- T-003",
   "labels": [
     "prd",
-    "api",
+    "service",
     "lp-core",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-lp-core",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "35k",
     "estimated_effort": "1-2h",
-    "description": "Implement LP split Server Action that creates child, decrements source, prorates catch_weight, and writes genealogy.",
-    "details": "Single-transaction algorithm per §6.4. Optional stock_move to destination. Catch-weight proration. Status validation per V-WH-LP-003. Decision 2026-05-03: WH-008 split destination is required, not optional; service must reject output rows without destination_location_id.",
+    "description": "Implement `splitLicensePlate` service: validates source LP, creates child LP(s) with prorated catch_weight, writes lp_genealogy operation='split', and emits stock_moves to required destination(s). Per 2026-05-03 decision: destination is REQUIRED for every output row (WH-008).",
+    "details": "Implement `splitLicensePlate` service: validates source LP, creates child LP(s) with prorated catch_weight, writes lp_genealogy operation='split', and emits stock_moves to required destination(s). Per 2026-05-03 decision: destination is REQUIRED for every output row (WH-008). `apps/web/lib/services/warehouse/lp-split.ts`: function `splitLicensePlate({source_lp_id, outputs: [{qty, destination_location_id, label_print}]})`. Validation: source status IN ('available','reserved'); `SUM(outputs.qty) <= source.quantity`; every output has a non-null `destination_location_id` (Zod schema).",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-split.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/lp-split.test.ts [create]"
@@ -42,19 +42,19 @@
       "T-018"
     ],
     "acceptance_criteria": [
-      "Given source.qty=100 and splitQty=40, when service runs, then source.qty=60 and child.qty=40 with same batch",
-      "Given splitQty=0 or splitQty >= source.qty, when service runs, then it returns a validation error and rolls back",
-      "Given service completes, when lp_genealogy is queried, then a row links source→child with operation_type='split' and quantity=40",
-      "Given split output rows are submitted, when any destination_location_id is missing, then the service rejects the split because WH-008 destination is required."
+      "Given a source LP of 100 BOX, when split into [{qty:40, dest:LocA}, {qty:60, dest:LocB}], then 2 child LPs are created with prorated catch weight, source.quantity becomes 0 (or the parent is left at 0), 2 genealogy rows exist, and 2 stock_moves are inserted.",
+      "Given any output row has `destination_location_id IS NULL`, when the service is called, then Zod rejects before any DB write (WH-008).",
+      "Given `SUM(outputs.qty) > source.quantity`, when called, then the service rejects with V-WH-LP-003 message.",
+      "Given source is `reserved`, when split is attempted, then it succeeds and children inherit reservation status (per §6.4 child inheritance)."
     ],
     "test_strategy": [
-      "RED: lp-split.test.ts covers happy/invalid/genealogy paths",
-      "Run 'pnpm --filter web test lp-split'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/lp-split.test.ts` asserting destination-required, qty CHECK, prorated catch weight, genealogy insertion.",
+      "Run `pnpm --filter web test lp-split`."
     ],
     "risk_red_lines": [
-      "Do not perform steps outside one transaction",
-      "Do not split status outside available/reserved",
-      "Do not skip catch_weight proration"
+      "Do not make destination optional (WH-008 hard requirement).",
+      "Do not skip lp_genealogy insert — FSMA 204 depends on it.",
+      "Do not split outside a single DB transaction (atomicity required)."
     ],
     "skills": [
       "test-driven-development",
@@ -84,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -110,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

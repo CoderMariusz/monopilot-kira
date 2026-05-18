@@ -43,7 +43,8 @@
       "Run page test, typecheck, lint.",
       "Add permission-denied/read-only test case for missing invite/admin permissions.",
       "Add RTL permission-denied/read-only test, accepted-immutable test, and loading/empty/error state tests.",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/invitations/page.test.tsx`."
     ],
     "risk_red_lines": [
       "Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.",

@@ -1,0 +1,103 @@
+{
+  "title": "T-058 — QA-050 haccp_plans page (tree sidebar + CCP detail, parity)",
+  "prompt": "# T-058 — QA-050 haccp_plans page (parity)\n\nPRD: §8.5 traceability QA-050 ↔ UX QA-013 ↔ prototype `haccp_plans`; §11.5 V-QA-HACCP-001; §7.1 09-e-05\nPrototype: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:3-106 (haccp_plans)\n\n## Goal\nServer-rendered HACCP plans page with tree sidebar (plans + nested CCPs) + main canvas (selected CCP detail card with spark dots for recent readings) + Approve Plan e-sign hook. 1:1 parity vs prototype.\n\n## Implementation contract\n1. apps/web/src/app/quality/haccp/page.tsx (RSC) loads plans + nested CCPs in one query (LEFT JOIN); URL ?planId= selects plan, ?ccpId= selects CCP.\n2. Tree sidebar: shadcn NavigationMenu or custom ul with L0/L1 indentation; click sets URL searchParam.\n3. CCP detail card: step, hazard, limits, frequency, method, recent 10 monitoring records as inline SVG spark dots (pass/fail color from within_limits boolean, not client-recompute).\n4. Approve Plan button (status='draft' only): opens T-039 ESignBlock modal with meaning='approved'; Server Action activatePlan (T-051) on confirm.\n5. recent readings count + deviations count per CCP: aggregated server-side in JOIN.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:3-106` (haccp_plans).\nParity checklist:\n- haccp-layout (tree sidebar + main detail)\n- Plan tree (HACCP plans + nested CCPs with L0/L1 indent)\n- CCP card with step + hazard + limits + frequency + method\n- Spark dots for last 10 readings (pass/fail color)\n- Approve Plan e-sign button (only when status=draft, role=quality_lead)\n- Recent readings + deviations counts in CCP card\n\n## Files\n- apps/web/src/app/quality/haccp/page.tsx [create]\n- apps/web/src/components/quality/haccp/HaccpTreeSidebar.tsx [create]\n- apps/web/src/components/quality/haccp/CcpDetailCard.tsx [create]\n- apps/web/src/components/quality/haccp/__tests__/haccp.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]\n\n## Acceptance criteria\n1. Compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:3-106 — parity on structure (tree sidebar + CCP card), visuals (shadcn NavigationMenu/Card/Badge/Button + spark dots SVG), interaction (URL searchParam navigation + Approve opens T-039 ESignBlock + role-gated Approve button) — RTL + checklist\n2. Given role=quality_lead AND plan.status='draft', when page renders, then 'Approve Plan' button is visible; on click it opens T-039 ESignBlock with meaning='approved'; on confirm it calls T-051 activatePlan and revalidates\n3. Given role=qa_inspector OR plan.status='active', when page renders, then Approve Plan button is hidden\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: haccp.test.tsx asserting parity + role-gated Approve + ESignBlock open + spark dots from within_limits before implementation\n- Run 'pnpm --filter web test haccp'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim — translate to RSC + shadcn\n- Spark dot pass/fail color is from within_limits (DB GENERATED) — never client-recompute (translation-notes §QA-013)\n- Do not skip role gate on Approve Plan\n- Do not navigate via client state — URL searchParams only",
+  "labels": [
+    "prd",
+    "ui",
+    "haccp",
+    "T3-ui"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-058",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§11.5",
+      "§7.1"
+    ],
+    "category": "ui",
+    "subcategory": "qa-haccp-plans",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "55k",
+    "estimated_effort": "4h",
+    "description": "HACCP plans page (RSC tree sidebar + CCP detail with spark dots + Approve Plan e-sign hook). 1:1 parity vs prototype.",
+    "details": "Server Component loads plans + nested CCPs (LEFT JOIN) and per-CCP recent 10 monitoring records aggregated. Tree sidebar = shadcn NavigationMenu or ul with L0/L1 indent. CCP detail card shows step/hazard/limits/frequency/method + 10 spark dots colored by within_limits (server-fetched). Approve Plan button visible only when status='draft' + role=quality_lead; opens T-039 ESignBlock with meaning='approved'; on confirm calls T-051 activatePlan + page revalidate. URL searchParams: ?planId=, ?ccpId=. Anchor: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:3-106.",
+    "scope_files": [
+      "apps/web/src/app/quality/haccp/page.tsx [create]",
+      "apps/web/src/components/quality/haccp/HaccpTreeSidebar.tsx [create]",
+      "apps/web/src/components/quality/haccp/CcpDetailCard.tsx [create]",
+      "apps/web/src/components/quality/haccp/__tests__/haccp.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not build ccp_monitoring page (T-059) or ccp_deviations (T-060)",
+      "Do not implement Edit CCP / New HACCP Plan (P2 placeholder pages)",
+      "Do not modify HACCP Server Actions (T-051)"
+    ],
+    "dependencies": [
+      "T-047",
+      "T-051",
+      "T-039",
+      "T-057"
+    ],
+    "parallel_safe_with": [
+      "T-059",
+      "T-060",
+      "T-061"
+    ],
+    "acceptance_criteria": [
+      "Given the HACCP plans page renders, when compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:3-106 (haccp_plans), then it matches on structural parity (tree sidebar + CCP detail card + spark dots row), visual parity (shadcn NavigationMenu/Card/Badge/Button + SVG dots), and interaction parity (URL searchParam navigation, Approve opens T-039 ESignBlock, role-gated Approve button) — verified by RTL render plus parity checklist",
+      "Given role=quality_lead AND plan.status='draft', when page renders, then Approve Plan button is visible; on click it opens ESignBlock; on confirm it calls T-051 activatePlan and revalidates",
+      "Given role=qa_inspector OR plan.status='active', when page renders, then Approve Plan is hidden",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: haccp.test.tsx asserting parity + role-gated Approve + ESignBlock open + spark dots derived from DB within_limits before implementation",
+      "Run 'pnpm --filter web test haccp'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim — translate to RSC + shadcn",
+      "Spark dot color from DB within_limits — never client-recompute (translation-notes §QA-013)",
+      "Do not skip role gate on Approve Plan",
+      "Navigation via URL searchParams only"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "09-quality:T-039",
+      "09-quality:T-051"
+    ]
+  }
+}

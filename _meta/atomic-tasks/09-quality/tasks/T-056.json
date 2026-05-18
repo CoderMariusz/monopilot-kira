@@ -1,0 +1,104 @@
+{
+  "title": "T-056 — quality.haccp.* / quality.ccp.* / quality.complaint.* / quality.allergen_gate.* outbox events + permissions consolidation",
+  "prompt": "# T-056 — 09-e outbox events + permissions consolidation\n\nPRD: §12.1 inbound/outbound consumers, §13.3 audit log completeness, §7.1 09-e epics\n\n## Goal\nDeclare typed event contracts for HACCP/CCP/complaint/incident/allergen-gate outbox channels and consolidate the 09-e permission enum surface in packages/rbac.\n\n## Implementation contract\n1. packages/events/src/quality/haccp.ts: QualityHaccpPlanActivatedEvent, QualityCcpReadingRecordedEvent, QualityCcpDeviationCreatedEvent (severity, ccp_id, monitoring_record_id).\n2. packages/events/src/quality/complaint.ts: QualityComplaintCreatedEvent, QualityComplaintEscalatedEvent, QualityComplaintResolvedEvent.\n3. packages/events/src/quality/incident.ts: QualityIncidentCreatedEvent, QualityIncidentCorrectiveActionAddedEvent (overdue:bool), QualityIncidentVerifiedEvent.\n4. packages/events/src/quality/allergenGate.ts: QualityAllergenGateApprovedEvent, QualityAllergenGateRejectedEvent, QualityAllergenGateOverrideApprovedEvent.\n5. All events: required {tenant_id (org_id), occurred_at, actor_user_id, idempotency_key, payload type-specific}. Zod runtime validators.\n6. packages/rbac/src/permissions.enum.ts consolidation: quality.haccp.{create,activate,read}; quality.ccp.{create,monitor,read}; quality.complaint.{create,read,escalate,resolve,export}; quality.incident.{create,read,add_corrective_action,verify,escalate}; quality.allergen_gate.{sign_second,reject,override,read}.\n7. Idempotency-key conventions documented per channel: e.g. quality.ccp.deviation_created uses ccp_id+monitoring_record_id+'deviation_created'.\n\n## Files\n- packages/events/src/quality/haccp.ts [create]\n- packages/events/src/quality/complaint.ts [create]\n- packages/events/src/quality/incident.ts [create]\n- packages/events/src/quality/allergenGate.ts [create]\n- packages/events/src/index.ts [modify]\n- packages/events/__tests__/quality-09e-events.test.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/rbac/__tests__/quality-09e-permissions.test.ts [create]\n\n## Acceptance criteria\n1. Given the events package built, when imported, then 12 quality.{haccp,ccp,complaint,incident,allergen_gate}.* event types are exported each with required {tenant_id, occurred_at, actor_user_id, idempotency_key} and a Zod runtime validator\n2. Given packages/rbac, when loaded, then 18 quality.{haccp,ccp,complaint,incident,allergen_gate}.* permissions are present in the enum (3+3+5+5+4-1 read-collapse = at least 18 strings; assert by canonical list)\n3. Given a replayed QualityCcpDeviationCreatedEvent with identical idempotency_key, when the consumer side processes it, then the deduplication test stub shows it is suppressed (no duplicate downstream side-effect)\n4. Given an event payload missing tenant_id, when the Zod validator runs, then it rejects with 'tenant_id required' error (validators are exhaustive)\n\n## Test strategy (RED first)\n- RED: packages/events/__tests__/quality-09e-events.test.ts + packages/rbac/__tests__/quality-09e-permissions.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter events build && pnpm --filter events test && pnpm --filter rbac test'\n\n## Risk red lines\n- Do not invent event names — use canonical 12 listed above (cross-module event contract pin per audit A §1)\n- All events must carry tenant_id (org_id) for downstream RLS resolution (Wave0)\n- Idempotency keys per channel must be deterministic from payload fields, not random UUIDs\n- Permissions canonical list lives in packages/rbac/src/permissions.enum.ts only (audit B §3 red-line)",
+  "labels": [
+    "prd",
+    "api",
+    "outbox",
+    "T4-wiring-test"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-056",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§13.3",
+      "§7.1"
+    ],
+    "category": "api",
+    "subcategory": "outbox-events-consolidation",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-e cross-cut",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Typed event contracts for 09-e HACCP/CCP/complaint/incident/allergen-gate outbox channels + permissions enum consolidation + idempotency-key conventions.",
+    "details": "4 new packages/events/src/quality/*.ts files exporting 12 typed events (haccp:3 + complaint:3 + incident:3 + allergen_gate:3) plus Zod validators. Each event required {tenant_id, occurred_at, actor_user_id, idempotency_key, payload}. Idempotency-key conventions per channel are deterministic from payload fields. packages/rbac/src/permissions.enum.ts gains 18+ quality.{haccp,ccp,complaint,incident,allergen_gate}.* permissions. Consumer-side dedup test stubs verify replayed events with identical idempotency_key are suppressed.",
+    "scope_files": [
+      "packages/events/src/quality/haccp.ts [create]",
+      "packages/events/src/quality/complaint.ts [create]",
+      "packages/events/src/quality/incident.ts [create]",
+      "packages/events/src/quality/allergenGate.ts [create]",
+      "packages/events/src/index.ts [modify]",
+      "packages/events/__tests__/quality-09e-events.test.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/__tests__/quality-09e-permissions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement consumer-side worker logic (Foundation outbox worker scope)",
+      "Do not modify NCR event package (T-040 already owns quality.ncr.*)",
+      "Do not register cron/scheduler for retry (Foundation FT-040)"
+    ],
+    "dependencies": [
+      "T-040"
+    ],
+    "parallel_safe_with": [
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-054",
+      "T-055"
+    ],
+    "acceptance_criteria": [
+      "Given the events package built, when imported, then 12 quality.{haccp,ccp,complaint,incident,allergen_gate}.* event types are exported with required {tenant_id, occurred_at, actor_user_id, idempotency_key} fields and Zod validators",
+      "Given packages/rbac loaded, when permissions enum is read, then at least 18 quality.{haccp,ccp,complaint,incident,allergen_gate}.* permission strings are present",
+      "Given a replayed QualityCcpDeviationCreatedEvent with identical idempotency_key, when consumed by the dedup stub, then the second event is suppressed",
+      "Given an event payload missing tenant_id, when its Zod validator runs, then it rejects with 'tenant_id required'"
+    ],
+    "test_strategy": [
+      "RED: quality-09e-events.test.ts + quality-09e-permissions.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter events build && pnpm --filter events test && pnpm --filter rbac test'"
+    ],
+    "risk_red_lines": [
+      "Use the 12 canonical event names (audit A §1 cross-module event contract pin)",
+      "All events carry tenant_id for downstream RLS (Wave0)",
+      "Idempotency keys deterministic from payload fields",
+      "Permissions canonical list lives in packages/rbac enum only (audit B §3)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "09-quality:T-051",
+      "09-quality:T-053",
+      "09-quality:T-054",
+      "09-quality:T-055"
+    ]
+  }
+}

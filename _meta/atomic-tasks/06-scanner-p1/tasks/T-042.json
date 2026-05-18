@@ -12,58 +12,19 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
-    "category": "api",
-    "context_budget": "25k",
-    "estimated_effort": "2-4h",
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
-    "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
-      "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status",
-        "mobile_390x844_screenshot",
-        "playwright_trace"
-      ]
-    },
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prototype_evidence_required": {
-      "viewport": "390x844",
-      "artifacts": [
-        "screenshot",
-        "Playwright trace"
-      ],
-      "parity_dimensions": [
-        "structure",
-        "visual",
-        "interaction"
-      ]
-    },
     "prd_task_id": "T-042",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
     "prd_refs": [
       "§8.5 FR-SC-BE-050",
       "§8.5 FR-SC-BE-051",
       "§8.5 FR-SC-BE-052"
     ],
+    "category": "api",
     "subcategory": "production-output-api",
     "task_type": "T2-api",
     "parent_feature": "06-e Production Output and QA",
+    "context_budget": "25k",
+    "estimated_effort": "2-4h",
     "description": "Implement scanner-facing production output, co-product, and waste endpoints with LP genealogy and no-LP waste logging.",
     "details": "1. Add production scanner output, co-product, and waste handlers. 2. Validate WO in executable state with approved WO snapshot, active BOM, active factory spec, and site-line context. 3. Output and co-product create LPs and genealogy; waste creates wo_waste_log only. 4. Emit audit and outbox events for every write.",
     "scope_files": [
@@ -76,7 +37,9 @@
     "out_of_scope": [
       "Do not implement unrelated scanner flows in this task",
       "Do not change PRD decisions or prototype source during implementation",
-      "Do not bypass module contract validation"
+      "Do not bypass module contract validation",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-038",
@@ -96,8 +59,36 @@
     "risk_red_lines": [
       "Do not let D365 metadata unlock scanner production writes",
       "Do not create LPs for waste",
-      "Do not mutate consumed LP genealogy outside the production service transaction"
+      "Do not mutate consumed LP genealogy outside the production service transaction",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "04-planning-basic: WO snapshot and reservation status",
       "05-warehouse: LP lifecycle and genealogy",

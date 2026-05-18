@@ -1,0 +1,79 @@
+{
+  "title": "T-063 — document Radix colon-id axe-core quirk in packages/ui/TESTING.md (FT-003)",
+  "prompt": "# T-063 — document Radix colon-id axe-core quirk in packages/ui/TESTING.md (FT-003)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-003** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (XS effort)\n\n## Goal\nAdd a clearly-titled section to packages/ui/TESTING.md documenting the Radix colon-id axe quirk and the useSanitiseRadixIds remedy.\n\n## Implementation contract\n1. Edit `packages/ui/TESTING.md` (create the file if absent) with a section titled `## Radix colon-id axe-core quirk`.\n2. Include: symptom (axe assertion failure message), root cause (one-line), workaround (import useSanitiseRadixIds), and worked example with vitest snippet.\n3. Update the unit test for the hook to include a doc-block linking to the new section.\n\n## Files (scope)\n- packages/ui/TESTING.md [create-or-modify]\n- packages/ui/src/__tests__/use-sanitise-radix-ids.test.ts [modify]\n\n## Acceptance criteria\n1. Given a reader opens packages/ui/TESTING.md, when they search for `colon`, then they find a section explaining the Radix quirk with cause + workaround + code snippet.\n2. Given the existing useSanitiseRadixIds test, when it runs, then a top-of-file JSDoc block links to the TESTING.md section.\n3. Given `pnpm --filter @monopilot/ui test` is run, then all existing tests still pass.\n\n## Test strategy\n- RED: no new test logic; add the doc-block link and a vitest `describe.skip` placeholder that becomes a real assertion if doc-block is removed.\n- Run `pnpm --filter @monopilot/ui test` to confirm no regression.\n\n## Risk red lines\n- Do not change the hook implementation — docs-only task.\n- Do not modify ESLint or axe-core configuration.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "docs",
+    "wave-d-carry-forward",
+    "radix",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-063",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-003",
+    "category": "docs",
+    "subcategory": "ui-testing",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Document the Radix colon-id quirk that breaks axe-core selectors and how the existing useSanitiseRadixIds hook works around it.",
+    "details": "Radix primitives emit IDs containing a literal colon (e.g. `radix-:r1:`) which breaks axe-core's CSS selector path. T-031 shipped a `useSanitiseRadixIds` workaround but it is undocumented. Add a `packages/ui/TESTING.md` section explaining the bug, why we sanitise, where to import the hook, and a worked example.",
+    "scope_files": [
+      "packages/ui/TESTING.md [create-or-modify]",
+      "packages/ui/src/__tests__/use-sanitise-radix-ids.test.ts [modify]"
+    ],
+    "out_of_scope": [
+      "No new hook variants.",
+      "No new tests beyond doc-block linkage."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a reader opens packages/ui/TESTING.md, when they search for `colon`, then they find a section explaining the Radix quirk with cause + workaround + code snippet.",
+      "Given the existing useSanitiseRadixIds test, when it runs, then a top-of-file JSDoc block links to the TESTING.md section.",
+      "Given `pnpm --filter @monopilot/ui test` is run, then all existing tests still pass."
+    ],
+    "test_strategy": [
+      "RED: no new test logic; add the doc-block link and a vitest `describe.todo` placeholder that becomes a real assertion if doc-block is removed.",
+      "Run `pnpm --filter @monopilot/ui test` to confirm no regression."
+    ],
+    "risk_red_lines": [
+      "Do not change the hook implementation — docs-only task.",
+      "Do not modify ESLint or axe-core configuration."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

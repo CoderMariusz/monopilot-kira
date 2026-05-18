@@ -1,0 +1,118 @@
+{
+  "title": "T-016 — UI: RPT-001 Factory Overview (/reporting/factory-overview) — KPI tiles + combo chart + OEE tile + top 3 + all-lines table (12-REPORTING §15.1, §4.1 #1)",
+  "prompt": "# T-016 — RPT-001 Factory Overview UI\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1 RPT-001, §4.1 #1 (highest-traffic dashboard), §8.1 Factory Overview flow, §13.1 layout standards, §6 D-RPT-9 (OEE consumer tile)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:251-398 (`rpt_factory_overview`)\nUX: prototypes/design/12-REPORTING-UX.md:223-263\n\n## Goal\nServer Component page `/reporting/factory-overview` rendering: KPI row (yield_pct, giveaway_pct, efficiency_pct, total_cases, total_variance_gbp), 13-week combo chart (line + bar), Top 3 Gains / Top 3 Losses mini-panels, All-Lines summary table with drill-to-yield-by-line, OEE Summary tile (consumer of 15-OEE via T-011), Freshness strip, Filter chips, Week selector, Export dropdown. KPIs and formulas from KPI glossary (T-002). Highest-traffic dashboard — Suspense-bound per-tile data fetching + Redis cache 60s.\n\n## Prototype parity\n- Source: `prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:251-398` (`rpt_factory_overview`)\n- UX: `prototypes/design/12-REPORTING-UX.md:223-263`\n- Translation: RPT_FO_KPIS / RPT_FO_TREND mock → Drizzle queries against mv_factory_kpi_week + mv_yield_by_line_week (service helpers T-003); ChartCombo inline SVG → Recharts ComposedChart per BL-RPT-02; OEE tile → T-011 oee-consumer getOeeDailySummary (graceful degradation banner if 15-OEE absent); FreshnessStrip → mv_refresh_log reader; FilterChips + WeekSelector → nuqs URL state; ExportDropdown → triggers Server Action from T-013; all labels → next-intl `reporting.factory_overview.*`.\n\n## Implementation contract\n1. `apps/web/app/(reporting)/factory-overview/page.tsx` (RSC) — parallel-fetch KPI / trend / lines / OEE; Suspense per tile.\n2. Cell components in `apps/web/app/(reporting)/_components/cells/` — YieldCell, GradeBadge, VarianceBadge, SparkLine (reused by T-017+).\n3. Chart wrapper `apps/web/app/(reporting)/_components/charts/combo-chart.tsx` — Recharts ComposedChart with @media print stylesheet.\n4. OEE tile component `apps/web/app/(reporting)/_components/oee-tile.tsx` — renders consumer 15-OEE badge + placeholder when MV absent (T-011 pattern).\n5. Top 3 Gains/Losses computed server-side via `ORDER BY var_gbp DESC LIMIT 3` / `ASC LIMIT 3` (not client array slice — translation-notes red line).\n6. Empty / loading / error / permission states; RTL + Playwright parity test.\n\n## Files\n- apps/web/app/(reporting)/factory-overview/page.tsx [create]\n- apps/web/app/(reporting)/factory-overview/_components/factory-overview-client.tsx [create]\n- apps/web/app/(reporting)/_components/cells/yield-cell.tsx [create]\n- apps/web/app/(reporting)/_components/cells/grade-badge.tsx [create]\n- apps/web/app/(reporting)/_components/cells/variance-badge.tsx [create]\n- apps/web/app/(reporting)/_components/cells/spark-line.tsx [create]\n- apps/web/app/(reporting)/_components/charts/combo-chart.tsx [create]\n- apps/web/app/(reporting)/_components/oee-tile.tsx [create]\n- apps/web/app/(reporting)/factory-overview/__tests__/factory-overview.test.tsx [create]\n- apps/web/messages/{en,pl}/reporting-factory-overview.json [create]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to `prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:251-398`, then it has the same 5 KPI tiles + 13-week combo chart + Top 3 Gains + Top 3 Losses + All-Lines table + OEE tile + Freshness strip — verified by RTL snapshot + Playwright parity.\n2. Given mv_factory_kpi_week has seeded rows for org_A, when the page renders under org_A session, then KPI tiles show weighted_yield_pct, weighted_ga_pct, etc. exactly as computed by T-003 (server-side, not recomputed client-side).\n3. Given 15-OEE module is NOT deployed, when the OEE tile renders, then it shows the 'OEE data unavailable' placeholder (T-011 graceful degradation path).\n4. Given Top 3 Gains/Losses are rendered, when the SQL is inspected via integration test, then it uses ORDER BY var_gbp DESC LIMIT 3 / ASC LIMIT 3 (server-side, not client slice).\n5. Given URL searchParams `?week=2026-W18`, when the page renders, then the WeekSelector reflects that week and all queries filter by week_ending = corresponding Saturday.\n6. Given user without `rpt.dashboard.view`, when accessing /reporting/factory-overview, then middleware (T-009) returns 403 + audit row.\n7. Given UI parity policy, when closeout is reviewed, then Playwright trace + screenshot artifact paths attached; empty / loading / error / permission states tested.\n8. Hardcoded labels are absent — all visible strings via next-intl `reporting.factory_overview.*`.\n\n## Test strategy (RED first)\n- RED: RTL test asserting parity + 5 KPI tiles + chart + tables + OEE-absent path + Top 3 server-side; Playwright visual parity vs prototype.\n- Run `pnpm --filter @monopilot/web test factory-overview && pnpm --filter @monopilot/web playwright test reporting-factory-overview`.\n- GREEN: build RSC + cells + charts + OEE tile.\n\n## Risk red lines\n- Do not import D3 directly into Server Components — Recharts wrapper only (BL-RPT-02).\n- Do not slice Top 3 client-side — server-side ORDER BY LIMIT 3 only.\n- Do not skip @media print CSS on combo chart (BL-RPT-04 for export).\n- Do not paste prototype JSX verbatim — translate to shadcn primitives.\n- Do not skip next-intl wrapping.\n- Do not put long-running queries on the request path — read from MVs only (D-RPT-1).\n- Do not bypass T-011's OEE consumer graceful-degradation pattern; never query oee_daily_summary directly from this page.\n- Do not duplicate KPI formulas in client; consume KPI glossary (T-002) for labels/units.",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1 RPT-001",
+      "§4.1 #1",
+      "§8.1",
+      "§13.1",
+      "§6 D-RPT-9"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "60k",
+    "estimated_effort": "4-6h",
+    "description": "RPT-001 Factory Overview — KPI tiles + combo chart + Top 3 panels + All-Lines table + OEE consumer tile; highest-traffic P1 dashboard.",
+    "details": "Server Component with Suspense per tile. KPI labels from glossary (T-002). OEE tile via T-011 graceful degradation. Top 3 server-side. Recharts ComposedChart. Reusable cell components for downstream dashboards.",
+    "scope_files": [
+      "apps/web/app/(reporting)/factory-overview/page.tsx [create]",
+      "apps/web/app/(reporting)/factory-overview/_components/factory-overview-client.tsx [create]",
+      "apps/web/app/(reporting)/_components/cells/yield-cell.tsx [create]",
+      "apps/web/app/(reporting)/_components/cells/grade-badge.tsx [create]",
+      "apps/web/app/(reporting)/_components/cells/variance-badge.tsx [create]",
+      "apps/web/app/(reporting)/_components/cells/spark-line.tsx [create]",
+      "apps/web/app/(reporting)/_components/charts/combo-chart.tsx [create]",
+      "apps/web/app/(reporting)/_components/oee-tile.tsx [create]",
+      "apps/web/app/(reporting)/factory-overview/__tests__/factory-overview.test.tsx [create]",
+      "apps/web/messages/en/reporting-factory-overview.json [create]",
+      "apps/web/messages/pl/reporting-factory-overview.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement export modal here (T-026)",
+      "Do not implement save_preset_modal here (T-026)",
+      "Do not implement Yield by Line / SKU dashboards (T-017)",
+      "Do not implement OEE Summary dashboard (T-019)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-009",
+      "T-011",
+      "T-015"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-018"
+    ],
+    "cross_module_dependencies": [
+      "15-OEE oee_daily_summary (via T-011 consumer)",
+      "02-SETTINGS i18n next-intl primitive"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:251-398, then it has the same 5 KPI tiles + 13-week combo chart + Top 3 Gains + Top 3 Losses + All-Lines table + OEE tile + Freshness strip — verified by RTL snapshot + Playwright parity",
+      "Given mv_factory_kpi_week has seeded rows for org_A, when the page renders under org_A session, then KPI tiles show weighted_yield_pct, weighted_ga_pct etc. exactly as computed by T-003",
+      "Given 15-OEE module is NOT deployed, when OEE tile renders, then it shows the 'OEE data unavailable' placeholder (T-011 graceful degradation)",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + 5 KPI tiles + chart + tables + OEE-absent path + Top 3 server-side",
+      "Playwright visual parity vs prototype",
+      "Run `pnpm --filter @monopilot/web test factory-overview && pnpm --filter @monopilot/web playwright test reporting-factory-overview`",
+      "For UI parity, capture screenshots/artifacts and Playwright trace where applicable; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not import D3 directly into Server Components — Recharts wrapper only (BL-RPT-02)",
+      "Do not slice Top 3 client-side — server-side ORDER BY LIMIT 3 only",
+      "Do not skip @media print CSS on combo chart (BL-RPT-04)",
+      "Do not paste prototype JSX verbatim — translate to shadcn primitives",
+      "Do not skip next-intl wrapping",
+      "Do not put long-running queries on the request path — read MVs only (D-RPT-1)",
+      "Do not bypass T-011's OEE consumer graceful-degradation pattern; never query oee_daily_summary directly",
+      "Do not duplicate KPI formulas in client; consume KPI glossary T-002"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_factory_overview",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

@@ -1,10 +1,12 @@
 {
-  "title": "T-051 — UI parity: D365 DLQ admin screen and inspect/replay modals",
-  "prompt": "# T-051 — UI parity: D365 DLQ admin screen and inspect/replay modals\n\nPRD/UX refs: SCR-08-06, MODAL-08-10, PROD-012, prototype labels dlq_screen,dlq_inspect_modal\n\nGoal: Build D365 DLQ admin screen with payload inspect, replay and mark-resolved flows.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.\n\nScope files:\n- apps/web/app/admin/integrations/d365/dlq/page.tsx [create]\n- apps/web/components/production/dlq-inspect-modal.tsx [create]\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557\n- prototypes/design/Monopilot Design System/production/modals.jsx:280-326\n\nAcceptance criteria:\n1. DLQ screen matches prototype with empty/loading/error/open states\n2. Replay and mark-resolved require confirmation/notes and show audit result\n3. Closeout includes screenshots for empty and open DLQ plus inspect modal trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-051 — UI: D365 DLQ admin screen + inspect/replay/resolve modals (SCR-08-06 / MODAL-08-10)",
+  "prompt": "# T-051 — D365 DLQ admin UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-06, MODAL-08-10, §8.2.7, §3.2 RBAC (Prod Manager/Admin)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 (dlq_screen); production/modals.jsx:242-288 (dlq_inspect_modal)\n\n## Goal\nBuild the D365 DLQ admin screen under `/admin/integrations/d365/dlq` and the inspect/replay/resolve Dialog. Reads list + health stats from T-042 GET, opens read-only payload inspector, fires audited replay and resolve actions. RBAC: Prod Manager OR Admin only.\n\n## Implementation contract\n1. apps/web/app/admin/integrations/d365/dlq/page.tsx (RSC) — dlq_screen parity: 4-tab connector health strip (Connector/Queue depth/Events in DLQ/Oldest age), 3 tabs (DLQ open / Resolved / All events) with COUNT badges, paginated table with Inspect/Retry inline actions, design-principle Alert (MES is source of truth).\n2. apps/web/components/production/dlq-inspect-modal.tsx ('use client') — shadcn Dialog: metadata grid (Event/Attempts/Moved at/Last error), raw error payload `pre` block (read-only), `Retry push` and `Mark resolved` Server Actions wrapping T-042; `Mark resolved` requires `resolution_note` ≥10 chars (zod) before Submit enables.\n3. RBAC: page returns 403 for users without Prod Manager OR Admin role; non-authorized users see no nav link.\n4. Literal `data-prototype-label` markers: `dlq_screen`, `dlq_inspect_modal`. All copy via next-intl.\n\n## Acceptance criteria\n1. Given the DLQ admin page renders, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:242-288, then it has the same connector health strip + 3 tabs (with COUNT badges) + paginated table + design-principle Alert and the inspect modal has metadata grid + raw payload pre block + Retry + Mark-resolved — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given the Mark-resolved Dialog is open and `resolution_note` is empty or shorter than 10 chars, when user clicks Submit, then it is disabled (and server still 422s if forced) — DLQ row is not mutated.\n3. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for empty DLQ, open DLQ with row, inspect modal opened, and resolve flow plus Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback).\n\n## Test strategy\n- RED: apps/web/app/admin/integrations/d365/dlq/__tests__/dlq-page.test.tsx + apps/web/components/production/__tests__/dlq-inspect-modal.test.tsx asserting parity, RBAC 403, COUNT-badge derivation, Mark-resolved zod gating and `data-prototype-label` markers before code exists.\n- Run `pnpm vitest run apps/web/app/admin/integrations/d365/dlq/__tests__/dlq-page.test.tsx apps/web/components/production/__tests__/dlq-inspect-modal.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not allow non-Prod-Manager/Admin users to load the page or call replay/resolve.\n- Do not delete DLQ rows from the UI (resolve uses audit-preserving status change via T-042).\n- Do not display raw D365 credentials or secrets in payload view.\n- Do not bypass zod `resolution_note` min(10) before enabling Submit.\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "dlq",
+    "admin",
+    "T3-ui"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,44 +16,64 @@
     "prd_task_id": "T-051",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-06",
+      "§8.1 SCR-08-06",
       "MODAL-08-10",
-      "PROD-012",
-      "prototype labels dlq_screen,dlq_inspect_modal"
+      "§8.2.7",
+      "§3.2"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: D365 DLQ admin screen and inspect/rep",
+    "category": "ui",
+    "subcategory": "dlq-admin-and-inspect-modal",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
+    "parent_feature": "08-PROD E5 INTEGRATIONS stage 2",
     "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Build D365 DLQ admin screen with payload inspect, replay and mark-resolved flows.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and prototypes/design/Monopilot Design System/production/modals.jsx:280-326. The screen lives under /admin/integrations/d365/dlq and may be linked from Production sidebar for Prod Manager/Admin. Payload views are read-only; replay/resolve call T-042 actions.",
+    "estimated_effort": "3-4h",
+    "description": "Admin DLQ screen at /admin/integrations/d365/dlq + inspect/replay/resolve Dialog wired to T-042; RBAC-gated for Prod Manager/Admin; resolution_note min(10) zod-gated.",
+    "details": "Parity against prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 (dlq_screen) and modals.jsx:242-288 (dlq_inspect_modal). Connector health strip + 3 tabs (DLQ open/Resolved/All) with COUNT badges + paginated table + design-principle Alert. Inspect Dialog reads payload via T-042 read-only payload route; Retry / Mark resolved call T-042 mutation routes; resolution_note min(10) zod-gated before Submit. RBAC: Prod Manager OR Admin from 02-SETTINGS §14. UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/admin/integrations/d365/dlq/page.tsx [create]",
       "apps/web/components/production/dlq-inspect-modal.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557",
-      "prototypes/design/Monopilot Design System/production/modals.jsx:280-326"
+      "apps/web/app/admin/integrations/d365/dlq/__tests__/dlq-page.test.tsx [create]",
+      "apps/web/components/production/__tests__/dlq-inspect-modal.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement dispatcher/adapter (T-041)",
+      "Do not implement DLQ management API routes (T-042)",
+      "Do not own RBAC primitives (02-SETTINGS §14)",
+      "Do not implement structured-log search deep-link target"
     ],
     "dependencies": [
       "T-042"
     ],
+    "parallel_safe_with": [
+      "T-046",
+      "T-047",
+      "T-048",
+      "T-049",
+      "T-050"
+    ],
     "acceptance_criteria": [
-      "DLQ screen matches prototype with empty/loading/error/open states",
-      "Replay and mark-resolved require confirmation/notes and show audit result",
-      "Closeout includes screenshots for empty and open DLQ plus inspect modal trace"
+      "Given the DLQ admin page renders, when compared to prototypes/design/Monopilot Design System/production/other-screens.jsx:499-557 and modals.jsx:242-288, then it has the same connector health strip + 3 tabs with COUNT badges + paginated table + design-principle Alert and the inspect modal has metadata grid + raw payload pre + Retry + Mark-resolved — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given the Mark-resolved Dialog is open and resolution_note is empty or <10 chars, when user clicks Submit, then it is disabled (and server still 422s if forced) and the DLQ row is not mutated.",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for empty DLQ, open DLQ with row, inspect modal opened, and resolve flow plus Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback)."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/admin/integrations/d365/dlq/__tests__/dlq-page.test.tsx + apps/web/components/production/__tests__/dlq-inspect-modal.test.tsx asserting parity, RBAC 403, COUNT-badge derivation, Mark-resolved zod gating and data-prototype-label markers before code exists.",
+      "Run 'pnpm vitest run apps/web/app/admin/integrations/d365/dlq/__tests__/dlq-page.test.tsx apps/web/components/production/__tests__/dlq-inspect-modal.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not allow non-Prod-Manager/Admin users to load the page or call replay/resolve.",
+      "Do not delete DLQ rows from the UI.",
+      "Do not display raw D365 credentials in payload view.",
+      "Do not bypass zod resolution_note min(10) before enabling Submit."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -76,13 +98,15 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "dlq_screen,dlq_inspect_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "02-settings",
         "task_id": "T-126",
-        "reason": "Authorization policy helpers for Admin/Prod Manager."
+        "reason": "RBAC role guard helpers for Prod Manager / Admin."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

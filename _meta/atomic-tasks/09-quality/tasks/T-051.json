@@ -1,0 +1,98 @@
+{
+  "title": "T-051 — HACCP CRUD APIs (plans + CCPs + monitoring tick) — V-QA-HACCP/CCP",
+  "prompt": "# T-051 — HACCP CRUD APIs\n\nPRD: §11.5 V-QA-HACCP-001..003 + V-QA-CCP-001..005, §7.1 09-e-02, §5.3 signature for biological/allergen CCP\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for HACCP lifecycle: createHaccpPlan, activatePlan (e-sign), addCcp (V-QA-HACCP-002 limits validation), monitorCcpTick (records monitoring + within_limits + conditional e-sign for biological/allergen hazards). Reuse ESignBlock (T-039).\n\n## Implementation contract\n1. apps/web/src/server/quality/haccp/actions.ts — 4 Server Actions.\n2. createHaccpPlan: insert haccp_plans status='draft', V-QA-HACCP-001 requires at least 1 CCP before activate.\n3. activatePlan: status='draft'→'active', e-sign via T-039 ESignBlock, role=quality_lead, meaning='approved'; emits quality.haccp.plan.activated outbox.\n4. addCcp: validates V-QA-HACCP-002 (critical_limit_min OR critical_limit_max NOT NULL) + V-QA-HACCP-003 (monitoring_frequency parseable: regex/pgRegex against {'(\\\\d+)(min|h|d)','batch','continuous','every (\\\\d+) batches'}); sets active=true.\n5. monitorCcpTick: inserts haccp_monitoring_records; within_limits auto-computed by DB GENERATED column; V-QA-CCP-002 (measured_value required if monitoring_method!='observational') server-validated; V-QA-CCP-005 (signature required for hazard_type IN ('biological','allergen')) enforces ESignBlock call before insert; V-QA-CCP-004 (post-deviation requires corrective_action before next tick on same CCP) server-checks last_reading.within_limits=false → next tick must include corrective_action.\n6. Permissions reserved (packages/rbac): quality.haccp.create, quality.haccp.activate, quality.ccp.create, quality.ccp.monitor, quality.ccp.read.\n\n## Files\n- apps/web/src/server/quality/haccp/actions.ts [create]\n- apps/web/src/server/quality/haccp/__tests__/actions.test.ts [create]\n- apps/web/src/server/quality/haccp/zodSchemas.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n\n## Acceptance criteria\n1. Given a draft haccp_plan with 0 CCPs, when activatePlan is called, then it returns 422 error.code='V-QA-HACCP-001'\n2. Given addCcp with monitoring_frequency='every 30 batches', when called, then it passes (regex match); with 'whenever' it returns 422 error.code='V-QA-HACCP-003'\n3. Given monitorCcpTick on a CCP with hazard_type='biological' without providing PIN/signature_hash, when called, then it returns 422 error.code='V-QA-CCP-005'; with valid sign via T-039 then a haccp_monitoring_records row is inserted with signature_hash and within_limits server-computed\n4. Given the last monitoring_record for a CCP had within_limits=false AND no corrective_action recorded, when monitorCcpTick(nextValue) is called without corrective_action, then it returns 422 error.code='V-QA-CCP-004'\n\n## Test strategy (RED first)\n- RED: haccp/__tests__/actions.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter web test haccp/actions'\n\n## Risk red lines\n- Do not allow client-side within_limits — DB GENERATED column is authoritative (T-047)\n- Do not bypass ESignBlock for biological/allergen CCPs (V-QA-CCP-005 + translation-notes §M-08)\n- Do not skip V-QA-CCP-004 prior-deviation gate (audit-critical)\n- Do not hardcode monitoring_frequency parseable strings — keep regex centralized in zodSchemas.ts",
+  "labels": [
+    "prd",
+    "api",
+    "haccp",
+    "T2-api"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-051",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.5",
+      "§7.1",
+      "§5.3"
+    ],
+    "category": "api",
+    "subcategory": "haccp-server-actions",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "4 HACCP Server Actions (createPlan/activate/addCcp/monitorCcpTick) enforcing V-QA-HACCP-001..003 + V-QA-CCP-001..005 + conditional e-sign for biological/allergen hazards (T-039).",
+    "details": "apps/web/src/server/quality/haccp/actions.ts hosts the 4 Server Actions. createHaccpPlan: insert status='draft'. activatePlan: 'draft'→'active' via T-039 ESignBlock, role=quality_lead; emits quality.haccp.plan.activated. addCcp: V-QA-HACCP-002 + V-QA-HACCP-003 (regex monitoring_frequency parseable: (\\\\d+)(min|h|d) | batch | continuous | every (\\\\d+) batches). monitorCcpTick: insert haccp_monitoring_records (within_limits is DB GENERATED via T-047); V-QA-CCP-002, V-QA-CCP-004 prior-deviation gate (last reading within_limits=false AND no corrective_action → next must include corrective_action), V-QA-CCP-005 biological/allergen signature via T-039 ESignBlock. Permissions reserved (packages/rbac): quality.haccp.create, quality.haccp.activate, quality.ccp.create, quality.ccp.monitor, quality.ccp.read. PRD anchors verified: §11.5 validations; §7.1 09-e-02 scope; §5.3 signature evidence pattern.",
+    "scope_files": [
+      "apps/web/src/server/quality/haccp/actions.ts [create]",
+      "apps/web/src/server/quality/haccp/__tests__/actions.test.ts [create]",
+      "apps/web/src/server/quality/haccp/zodSchemas.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not register DSL rule ccp_deviation_escalation_v1 here (T-052)",
+      "Do not implement HACCP UI (T-058/T-059/T-060)",
+      "Do not implement haccp_deviations table or workflows (P2 Epic 8I)"
+    ],
+    "dependencies": [
+      "T-047",
+      "T-039"
+    ],
+    "parallel_safe_with": [
+      "T-052",
+      "T-053",
+      "T-054"
+    ],
+    "acceptance_criteria": [
+      "Given a draft haccp_plan with 0 CCPs, when activatePlan is called, then it returns 422 error.code='V-QA-HACCP-001'",
+      "Given addCcp with monitoring_frequency='every 30 batches', when called, then it passes regex; with 'whenever' it returns 422 error.code='V-QA-HACCP-003'",
+      "Given monitorCcpTick on hazard_type='biological' without signature, when called, then 422 error.code='V-QA-CCP-005'; with valid sign via T-039, the record is inserted with signature_hash and within_limits is server-computed",
+      "Given the last monitoring record for a CCP had within_limits=false AND no corrective_action, when monitorCcpTick is called without corrective_action, then 422 error.code='V-QA-CCP-004'"
+    ],
+    "test_strategy": [
+      "RED: haccp/__tests__/actions.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter web test haccp/actions'"
+    ],
+    "risk_red_lines": [
+      "Do not allow client to set within_limits — DB GENERATED authoritative (T-047)",
+      "Do not bypass ESignBlock for biological/allergen CCPs (V-QA-CCP-005 + translation-notes §M-08)",
+      "Do not skip V-QA-CCP-004 prior-deviation gate",
+      "Centralize monitoring_frequency regex in zodSchemas.ts (no hardcoded re patterns sprinkled across UI)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "00-foundation:T-124",
+      "00-foundation:T-125",
+      "02-settings:T-091"
+    ]
+  }
+}

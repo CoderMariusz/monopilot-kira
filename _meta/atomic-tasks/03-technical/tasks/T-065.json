@@ -1,6 +1,6 @@
 {
   "title": "T-065 — Docs: TEC-025 BOM Snapshots Viewer prototype gap brief",
-  "prompt": "Write engineering brief for missing TEC-025 'BOM Snapshots Viewer' prototype per §7.5 [SPEC-DRIVEN UI]. Output: design/specs/TEC-025-bom-snapshots-viewer.md describing list of immutable snapshots per WO + JSON-diff viewer modal. Document that snapshots are read-only and live in bom_snapshots (T-002 + T-025). Implementation is now in scope via T-086 as a spec-driven UI task; this brief remains supporting documentation.",
+  "prompt": "# T-065 — Docs: TEC-025 BOM Snapshots Viewer prototype gap brief\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §7.5 TEC-025, §4A TEC-025\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBrief documenting the snapshots viewer UX contract for future prototype work.\n\nCover: list filterable by WO + immutability badge; diff modal between snapshot and current BOM; rule: never allow edit. Reuse the diff renderer from T-040.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-025-bom-snapshots-viewer.md [create]\n\n## Out of scope\n- Prototype JSX\n- Implementation\n\n## Acceptance criteria\n1. Given the brief, when reviewed, then it specifies list filters, immutability rules, and diff-modal contract.\n2. Given the brief, when read by a designer, then they can produce a labelled prototype that matches the contract.\n\n## Test strategy\n- Manual review by UX team.\n- No automated tests for docs.\n\n## Risk red lines\n- Do not propose any edit affordance for snapshots.\n- Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -50,7 +50,11 @@
     ],
     "risk_red_lines": [
       "Do not propose any edit affordance for snapshots.",
-      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task."
+      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

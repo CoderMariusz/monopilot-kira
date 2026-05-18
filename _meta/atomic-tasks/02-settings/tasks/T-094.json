@@ -44,10 +44,12 @@
     ],
     "test_strategy": [
       "RED: write docs:lint check that asserts page exists + headings.",
-      "GREEN: write MDX."
+      "GREEN: write MDX.",
+      "Run `pnpm --filter @monopilot/web vitest run docs/02-settings/manufacturing-operations.mdx`."
     ],
     "risk_red_lines": [
-      "Do not paste prototype JSX."
+      "Do not paste prototype JSX.",
+      "Do not edit unrelated ADRs or PRDs; the change must be additive and traceable."
     ],
     "skills": [
       "requesting-code-review"

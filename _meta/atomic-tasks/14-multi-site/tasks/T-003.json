@@ -1,0 +1,105 @@
+{
+  "title": "T-003 \u2014 site_user_access table + 1-primary constraint + RLS (\u00a79.2, V-MS-05, V-MS-06)",
+  "prompt": "# T-003 \u2014 site_user_access + 1-primary unique index\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.2, \u00a711.2 V-MS-05/V-MS-06\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce the `site_user_access` table backing D-MS-11 cross-site RBAC. Enforce V-MS-06 (exactly one is_primary=true per user per org) at DB level via unique partial index. RLS scopes rows to caller's org via app.current_org_id().\n\n## Implementation contract\n1. Migration `packages/db/migrations/0042_site_user_access.sql`:\n   - CREATE TABLE site_user_access per \u00a79.2 DDL: id, org_id, site_id (FK sites), user_id (FK auth.users), role, is_primary DEFAULT false, active DEFAULT true, granted_by, granted_at, revoked_at, UNIQUE(org_id, site_id, user_id, role).\n   - ENABLE + FORCE ROW LEVEL SECURITY.\n   - Policy `sua_org_context` USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id()). Note: app.current_site_id() is intentionally NOT used here \u2014 site_user_access is org-scoped master data; per \u00a76.4 site-level filtering is not applicable to this table.\n   - CREATE INDEX idx_sua_user ON site_user_access(user_id) WHERE active.\n   - CREATE UNIQUE INDEX idx_sua_primary ON site_user_access(org_id, user_id) WHERE is_primary AND active.\n2. Drizzle schema `packages/db/src/schema/site-user-access.ts`.\n3. Tests: V-MS-06 unique-violation when two primaries inserted for same user; V-MS-05 cross-org isolation; FK constraints enforced.\n\n## Files\n- packages/db/migrations/0042_site_user_access.sql [create]\n- packages/db/src/schema/site-user-access.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/site-user-access.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0042 is applied, when \\d site_user_access inspected, then 10 cols + 2 indexes (idx_sua_user, idx_sua_primary) + RLS+FORCE RLS present.\n2. Given a user has is_primary=true row at site_X, when a second is_primary=true row at site_Y for the same (org_id, user_id) is inserted, then DB raises unique_violation (V-MS-06).\n3. Given user A in org_A has site_user_access at site_X, when app_user is in session under org_B, then SELECT returns zero rows (V-MS-05 RLS).\n4. Given site_id FK references sites table, when sites row is set active=false but site_user_access rows still exist, then INSERT to site_user_access for that site succeeds at FK level (active=false is not a FK constraint \u2014 handled separately by V-MS-21 in T-024).\n5. Given pg_policies for site_user_access, when inspected, then policy references app.current_org_id() function (no raw GUC reads).\n\n## Test strategy\n- RED: assert V-MS-06 unique-violation, V-MS-05 RLS isolation, pg_policies grep before migration.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-user-access'.\n\n## Risk red lines\n- Do not use TRIGGER to enforce V-MS-06 \u2014 partial unique index is the canonical mechanism per PRD \u00a79.2.\n- Do not add ON DELETE CASCADE on site_id FK (decommission flow is gated, never cascades).\n- Do not read raw GUCs; use app.current_org_id().\n- Do not couple role column to a hardcoded enum \u2014 roles come from 02-SET roles_catalog reference table.\n- Do not skip FORCE ROW LEVEL SECURITY.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 40,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a79.2",
+      "\u00a711.2 V-MS-05",
+      "\u00a711.2 V-MS-06"
+    ],
+    "category": "data",
+    "subcategory": "schema-site-access",
+    "task_type": "T1-schema",
+    "parent_feature": "14-MULTI-SITE-a core schema",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Create site_user_access (D-MS-11 multi-site users): user\u00d7site\u00d7role assignments with is_primary partial unique index enforcing exactly one primary per user per org (V-MS-06).",
+    "details": "Create site_user_access (D-MS-11 multi-site users): user\u00d7site\u00d7role assignments with is_primary partial unique index enforcing exactly one primary per user per org (V-MS-06). Scope: Introduce the `site_user_access` table backing D-MS-11 cross-site RBAC. Touches: packages/db/migrations/0042_site_user_access.sql, packages/db/src/schema/site-user-access.ts, packages/db/src/schema/index.ts, packages/db/__tests__/site-user-access.test.ts. Constraints: 1. Migration `packages/db/migrations/0042_site_user_access.sql`: - CREATE TABLE site_user_access per \u00a79.2 DDL: id, org_id, site_id (FK sites), user_id (FK auth.users), role, is_primary DEFAULT false, active DEFAULT true, granted_by, granted_at, revoked_at, UNIQUE(org_id, site_id, user_id, role). - ENABLE + FORCE ROW LEVEL SECURITY. - Policy `sua_or. Distinguished from sibling 14-multi-site tasks by its narrow schema-site-access focus against PRD \u00a79.2, \u00a711.2 V-MS-05, \u00a711.2 V-MS-06. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "packages/db/migrations/0042_site_user_access.sql [create]",
+      "packages/db/src/schema/site-user-access.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/site-user-access.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not add UI for assigning users to sites (T-025).",
+      "Do not implement bulk CSV upload here (T-025 bulk modal).",
+      "Do not seed Apex/EDGE user assignments \u2014 activation wizard T-023 handles."
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "Reference.RolePermissions",
+        "reason": "role column FK-soft references roles_catalog from 02-SET \u00a78.1"
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; all site-scoped tasks must carry this cross-module dep."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-004",
+      "T-005"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0042 is applied, when \\\\d site_user_access inspected, then 10 cols + 2 indexes (idx_sua_user, idx_sua_primary) + RLS+FORCE RLS present.",
+      "Given a user has is_primary=true row at site_X, when a second is_primary=true row at site_Y for the same (org_id, user_id) is inserted, then DB raises unique_violation (V-MS-06).",
+      "Given user A in org_A has site_user_access at site_X, when app_user is in session under org_B, then SELECT returns zero rows (V-MS-05 RLS); AND given pg_policies for site_user_access when inspected then policy references app.current_org_id() with no raw GUC reads.",
+      "Given site_id FK references sites table, when sites row is set active=false but site_user_access rows still exist, then INSERT to site_user_access for that site succeeds at FK level \u2014 active=false handled by V-MS-21 in T-024."
+    ],
+    "test_strategy": [
+      "RED: assert V-MS-06 unique-violation + V-MS-05 RLS isolation + pg_policies grep before migration.",
+      "Run 'pnpm --filter @monopilot/db test:integration -- site-user-access'."
+    ],
+    "risk_red_lines": [
+      "Do not use TRIGGER to enforce V-MS-06 \u2014 partial unique index is canonical.",
+      "Do not add ON DELETE CASCADE on site_id FK (decommission is gated, never cascades).",
+      "Do not read raw GUCs; call app.current_org_id().",
+      "Do not couple role to a hardcoded enum \u2014 roles_catalog from 02-SET \u00a78.1.",
+      "Do not skip FORCE ROW LEVEL SECURITY."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

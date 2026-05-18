@@ -1,0 +1,86 @@
+{
+  "title": "T-099 — install @playwright/test + real-Chromium offline PWA E2E spec (FT-039)",
+  "prompt": "# T-099 — install @playwright/test + real-Chromium offline PWA E2E spec (FT-039)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5, §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-039** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nReal-Chromium Playwright spec exercises offline PWA pre-cache and offline navigation.\n\n## Implementation contract\n1. Add `@playwright/test` to devDependencies.\n2. playwright.config.ts: chromium project + baseURL to apps/web preview server.\n3. apps/web/e2e/pwa.spec.ts: navigate, await SW ready, page.context.setOffline(true), navigate to a cached route, assert content renders.\n4. CI command: `pnpm test:e2e:pwa`.\n\n## Files (scope)\n- playwright.config.ts [modify]\n- package.json [modify]\n- apps/web/e2e/pwa.spec.ts [create]\n- apps/web/e2e/.gitignore [create]\n\n## Acceptance criteria\n1. Given Playwright is installed, when `pnpm test:e2e:pwa` runs, then the spec completes in Chromium and reports pass.\n2. Given the spec sets offline, when navigation to a cached route runs, then the page renders without a network error.\n3. Given the spec navigates to an uncached route while offline, then a clear 'offline-fallback' UI is asserted.\n\n## Test strategy\n- RED: write apps/web/e2e/pwa.spec.ts asserting offline navigation before SW is wired (spec must fail).\n- Run `pnpm test:e2e:pwa`.\n\n## Risk red lines\n- Do not run Playwright against production.\n- Do not skip the SW-ready await.\n- Do not commit Playwright trace/video artifacts (.gitignore).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "pwa",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-099",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-039",
+    "category": "ui",
+    "subcategory": "pwa-e2e",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Install @playwright/test (real Chromium) and add an offline PWA E2E spec that verifies service-worker pre-cache + offline navigation.",
+    "details": "T-042 shipped PWA service worker scaffolding but tests stop at vitest. Install Playwright and add a real-Chromium spec that goes offline and verifies cached navigation continues to work.",
+    "scope_files": [
+      "playwright.config.ts [modify]",
+      "package.json [modify]",
+      "apps/web/e2e/pwa.spec.ts [create]",
+      "apps/web/e2e/.gitignore [create]"
+    ],
+    "out_of_scope": [
+      "Do not introduce additional E2E suites in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given Playwright is installed, when `pnpm test:e2e:pwa` runs, then the spec completes in Chromium and reports pass.",
+      "Given the spec sets offline, when navigation to a cached route runs, then the page renders without a network error.",
+      "Given the spec navigates to an uncached route while offline, then a clear 'offline-fallback' UI is asserted."
+    ],
+    "test_strategy": [
+      "RED: write apps/web/e2e/pwa.spec.ts asserting offline navigation before SW is wired (spec must fail).",
+      "Run `pnpm test:e2e:pwa`."
+    ],
+    "risk_red_lines": [
+      "Do not run Playwright against production.",
+      "Do not skip the SW-ready await.",
+      "Do not commit Playwright trace/video artifacts (.gitignore)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

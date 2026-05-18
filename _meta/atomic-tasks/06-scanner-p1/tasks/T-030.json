@@ -56,7 +56,9 @@
     "risk_red_lines": [
       "Do not leave lp.location_id unchanged on success",
       "Do not skip the lp ≠ destination check",
-      "Do not let client override the strategy field"
+      "Do not let client override the strategy field",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +85,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "03-technical: product and GS1 data contracts",
       "05-warehouse: LP lifecycle, locations, GRN/TO/putaway contracts"

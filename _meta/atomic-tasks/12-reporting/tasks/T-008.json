@@ -1,0 +1,109 @@
+{
+  "title": "T-008 — saved_filter_presets + dashboards_catalog schema (RPT-018, RPT-019, RPT-HOME) (12-REPORTING §15.1a, §15.2, §9.3)",
+  "prompt": "# T-008 — Saved filter presets + Dashboards catalog\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1a RPT-018 Save Filter Preset Modal (schema block at lines 1014-1025), §9.3 dashboards_catalog, §15.2 RPT-HOME catalog landing\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `saved_filter_presets` (P1 transactional) + `dashboards_catalog` (metadata-driven dashboards registry; replaces hardcoded RPT_CATALOG). Both org-scoped + RLS-FORCE + Wave0 org_id naming. dashboards_catalog seeds with the 10 P1 dashboards + 15 P2 stubs.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0085_reporting_presets_and_catalog.sql`:\n   - `saved_filter_presets (id UUID PK, org_id UUID NOT NULL, user_id UUID NOT NULL REFERENCES users(id), dashboard_id TEXT NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL, filters JSONB NOT NULL, visibility TEXT CHECK in ('just_me','my_team') DEFAULT 'just_me', created_at TIMESTAMPTZ DEFAULT now(), UNIQUE (org_id, user_id, dashboard_id, slug))` + RLS+FORCE + policy `org_id = app.current_org_id()`.\n   - `dashboards_catalog (id TEXT PK, name TEXT NOT NULL, description TEXT, phase TEXT CHECK in ('P1','P2','P3'), required_role TEXT NOT NULL, feature_flag TEXT, metadata_schema JSONB, enabled_for_orgs UUID[], version TEXT DEFAULT 'v3.0', created_at TIMESTAMPTZ DEFAULT now())` — global reference (no org_id; gated by RBAC at the rule layer).\n   - Seed 10 P1 dashboards (factory-overview, yield-by-line, yield-by-sku, qc-holds, oee-summary, inventory-aging, wo-status, shipment-otd, integration-health, rules-usage) + 15 P2 placeholders with `feature_flag='reporting.v2_dashboards'`.\n2. Drizzle entries.\n3. Server Actions `packages/reporting/src/actions/{save-preset,apply-preset,delete-preset}.ts` — require `rpt.preset.save` / `rpt.preset.delete` permission (T-001), zod-validate name (max 60 chars per RPT-018), slug derivation server-side, duplicate handling by overwrite branch (per RPT-018 spec).\n4. Server Component query helper `getDashboardsCatalog(orgId)` reading dashboards_catalog filtered by feature_flag eval + enabled_for_orgs check.\n5. Vitest contract test: (a) RLS isolation on saved_filter_presets, (b) UNIQUE constraint enforces (org, user, dashboard, slug), (c) team-visibility set without Manager+ role rejected, (d) catalog query returns only flag-on dashboards for a given org, (e) all 10 P1 dashboard ids present after seed.\n\n## Files\n- packages/db/migrations/0085_reporting_presets_and_catalog.sql [create]\n- packages/db/src/schema/reporting-presets.ts [create]\n- packages/db/src/schema/reporting-catalog.ts [create]\n- packages/reporting/src/actions/save-preset.ts [create]\n- packages/reporting/src/actions/apply-preset.ts [create]\n- packages/reporting/src/actions/delete-preset.ts [create]\n- packages/reporting/src/queries/dashboards-catalog.ts [create]\n- packages/reporting/__tests__/presets-and-catalog.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0085 runs, when tables are inspected, then saved_filter_presets has RLS+FORCE + UNIQUE (org_id, user_id, dashboard_id, slug); dashboards_catalog seed contains exactly 10 P1 rows with required_role + 15 P2 rows with feature_flag='reporting.v2_dashboards'.\n2. Given two orgs save presets under their respective app.set_org_context sessions, when each lists presets, then cross-org leak test passes (zero leaks).\n3. Given a user without Manager role attempts to save a preset with visibility='my_team', when the Server Action runs, then it returns `{ error: 'forbidden' }` and writes a report_access_audits row.\n4. Given duplicate (org, user, dashboard, slug), when save-preset Server Action runs in default mode, then it returns `{ error: 'duplicate' }`; when called with overwrite=true (RPT-018 inline overwrite branch), then it UPDATEs the existing row.\n5. Given dashboards_catalog query is called for an org where `reporting.v2_dashboards` flag is OFF, when result is checked, then P2 rows are filtered out (still present in DB, just hidden in result).\n6. Given pg_policies for saved_filter_presets is inspected, when policies are listed, then they reference app.current_org_id() — no current_setting GUC.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/presets-and-catalog.test.ts` covers 6 ACs incl. RLS isolation + RBAC guard + flag-filtered catalog.\n- Run `pnpm --filter @monopilot/reporting test presets-and-catalog`.\n- GREEN: write migration + Drizzle + Server Actions + query helper.\n\n## Risk red lines\n- Do not name scope column tenant_id — Wave0 v4.3 mandates org_id (PRD §15.1a uses tenant_id label; override per Wave0 lock).\n- Do not couple dashboards_catalog rows to org_id — global registry; gated by feature_flag + enabled_for_orgs array + RBAC at the rule layer.\n- Do not allow `visibility='my_team'` save without Manager+ role check in Server Action (RBAC guardrail).\n- Do not store the entire searchParams string as `filters` raw — must be zod-validated JSON shape per dashboard.metadata_schema.\n- Do not let slug derivation accept raw user input — server-side slugify with allowlist [a-z0-9-]; deny anything else.\n- Do not skip RLS+FORCE on saved_filter_presets.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "catalog",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1a RPT-018",
+      "§9.3",
+      "§15.2"
+    ],
+    "category": "data",
+    "subcategory": "transactional-table",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-e",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "saved_filter_presets (org-scoped RLS+FORCE) + dashboards_catalog (global registry with 10 P1 + 15 P2 seeds) + 3 Server Actions for preset CRUD.",
+    "details": "saved_filter_presets enforces UNIQUE (org, user, dashboard, slug); team-visibility requires Manager+. dashboards_catalog is the metadata-driven catalog replacing hardcoded RPT_CATALOG. P2 rows filter by reporting.v2_dashboards flag.",
+    "scope_files": [
+      "packages/db/migrations/0085_reporting_presets_and_catalog.sql [create]",
+      "packages/db/src/schema/reporting-presets.ts [create]",
+      "packages/db/src/schema/reporting-catalog.ts [create]",
+      "packages/reporting/src/actions/save-preset.ts [create]",
+      "packages/reporting/src/actions/apply-preset.ts [create]",
+      "packages/reporting/src/actions/delete-preset.ts [create]",
+      "packages/reporting/src/queries/dashboards-catalog.ts [create]",
+      "packages/reporting/__tests__/presets-and-catalog.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement RPT-HOME UI here (T-015)",
+      "Do not implement save_preset_modal UI here (T-026)",
+      "Do not implement scheduled_reports table here (T-024)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004",
+      "T-006",
+      "T-007",
+      "T-011",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "02-SETTINGS users table (FK)",
+      "02-SETTINGS feature flags storage (reporting.v2_dashboards eval)",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0085 runs, when tables are inspected, then saved_filter_presets has RLS+FORCE + UNIQUE (org_id, user_id, dashboard_id, slug); dashboards_catalog seed contains exactly 10 P1 rows + 15 P2 rows with feature_flag='reporting.v2_dashboards'",
+      "Given dashboards_catalog query is called for an org where reporting.v2_dashboards flag is OFF, when result is checked, then P2 rows are filtered out",
+      "Given migration 0085 runs, when tables are inspected, then saved_filter_presets has RLS+FORCE + UNIQUE (org_id, user_id, dashboard_id, slug); dashboards_catalog seed contains exactly 10 P1 rows + 15 P2 rows with feature_flag='reporting.v2_dashboards'; cross-org isolation verified under each org session.",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then it returns {error:'forbidden'} and writes a report_access_audits row and cross-org leak test passes."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/presets-and-catalog.test.ts covers 6 ACs incl. RLS + RBAC + flag-filtered catalog",
+      "Run `pnpm --filter @monopilot/reporting test presets-and-catalog`",
+      "GREEN: write migration + Drizzle + Server Actions + query helper"
+    ],
+    "risk_red_lines": [
+      "Do not name scope column tenant_id — Wave0 v4.3 mandates org_id",
+      "Do not couple dashboards_catalog rows to org_id — global registry; gated by flag + enabled_for_orgs + RBAC",
+      "Do not allow visibility='my_team' save without Manager+ check in Server Action",
+      "Do not store searchParams raw as filters — zod-validate against dashboards_catalog.metadata_schema",
+      "Do not let slug derivation accept raw user input — server-side slugify with allowlist [a-z0-9-]",
+      "Do not skip RLS+FORCE on saved_filter_presets"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

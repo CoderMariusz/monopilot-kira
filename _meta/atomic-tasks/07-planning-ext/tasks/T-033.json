@@ -44,7 +44,8 @@
     "acceptance_criteria": [
       "Given allergen-incompatible new_line_id, when form is filled, then Alert 'destructive' shows 'Allergen conflict' and submit is blocked",
       "Given the rendered modal, when compared to prototype prototypes/design/Monopilot Design System/planning-ext/modals.jsx:98-212, then it has same wide layout, same field set in same order, same impact preview card, and same shadcn primitives (Dialog, Select, Input, Textarea, Alert, Button) — parity by RTL snapshot + checklist",
-      "Given a 422 V-SCHED-04 overlap response, when submit fires, then toast shows 'Time slot overlap on LINE-X' and form remains open"
+      "Given a 422 V-SCHED-04 overlap response, when submit fires, then toast shows 'Time slot overlap on LINE-X' and form remains open",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED: write __tests__/OverrideAssignmentModal.test.tsx covering allergen alert + parity + 422 toast",
@@ -57,7 +58,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -71,7 +73,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -85,6 +90,19 @@
         "module": "03-technical",
         "contract": "fg_line_compatibility and allergen profile validation."
       }
+    ],
+    "parallel_safe_with": [
+      "T-034",
+      "T-035"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/modals.jsx:98-212` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
     ]
   }
 }

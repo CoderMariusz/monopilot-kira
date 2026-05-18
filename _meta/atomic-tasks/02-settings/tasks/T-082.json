@@ -44,10 +44,13 @@
       "enforce_for_non_admins blocks password login."
     ],
     "test_strategy": [
-      "RED: write suite + fixture. GREEN: implement."
+      "RED: write suite + fixture. GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/sso-saml.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/sso-saml.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not commit real IdP certs/secrets."
+      "Do not commit real IdP certs/secrets.",
+      "Do not relax CSRF protection or cookie SameSite/Secure attributes on auth-adjacent surfaces."
     ],
     "skills": [
       "test-driven-development"

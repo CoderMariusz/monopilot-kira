@@ -1,0 +1,108 @@
+{
+  "title": "T-005 — Address + Allergen Restriction modals (customer_create_modal, address_modal, allergen_restriction_modal) (11-shipping-a)",
+  "prompt": "# T-005 — Customer/Address/Allergen modals\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-003, §15.4 SHIP-004, §11 V-SHIP-SO-02, §11 V-SHIP-LBL-01/02\nPrototype: prototypes/design/Monopilot Design System/shipping/modals.jsx:27-67 (customer_create_modal), :69-94 (address_modal), :96-113 (allergen_restriction_modal)\nUX: prototypes/design/11-SHIPPING-UX.md §4 (Customer Create/Edit, Address Create/Edit, Allergen Restriction Add)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree client-side Dialog modals wired to T-002 Server Actions, with Zod validation and i18n.\n\n## Implementation contract\n1. `customer-create-modal.tsx` — uses shadcn `Dialog` + `Form` (react-hook-form + zodResolver). Fields per modals.jsx:27-67: customer_code, name, email, phone, tax_id, category (enum select), terms_days (coerce.number), credit_limit (hidden behind P2 feature flag — disabled with tooltip). Submit calls `createCustomer` Server Action (T-002). RBAC gate via `ship.so.create`.\n2. `address-modal.tsx` — Fields per modals.jsx:69-94: address_type, is_default, address_line1, address_line2, city, state, postal_code (regex pattern), country_iso2 (Combobox from country reference list), dock_hours (JSON-validated textarea). Submit calls `upsertAddress` Server Action.\n3. `allergen-restriction-modal.tsx` — Fields per modals.jsx:96-113: allergen_id (Select sourced from `allergen_families` ref table, 02-SETTINGS §8), restriction_type ('refuses'|'requires_decl'), notes textarea. Submit calls `saveAllergenRestrictions` Server Action. RBAC gate via `ship.allergen.override`. Inline alert citing `allergen_cascade_v1` rule (SET-050) link.\n4. All labels via next-intl `shipping.customers.*`, `shipping.addresses.*`, `shipping.allergens.*` PL/EN.\n5. All Dialog primitives imported from `packages/ui` only (ESLint guards @radix-ui usage outside packages/ui).\n6. Error/loading/permission/empty states rendered.\n\n## Prototype parity\n- customer_create_modal at modals.jsx:27-67\n- address_modal at modals.jsx:69-94\n- allergen_restriction_modal at modals.jsx:96-113\n\nVerify each modal renders the same field set, validation messages, and button row as prototype. Do not paste JSX verbatim.\n\n## Files\n- apps/web/app/(shipping)/_modals/customer-create-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/address-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/allergen-restriction-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/__tests__/customer-create-modal.test.tsx [create]\n- apps/web/app/(shipping)/_modals/__tests__/address-modal.test.tsx [create]\n- apps/web/app/(shipping)/_modals/__tests__/allergen-restriction-modal.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given customer-create-modal renders, when compared to prototypes/design/Monopilot Design System/shipping/modals.jsx:27-67, then it has the same field set + validation labels + footer button row — RTL snapshot + Playwright screenshot.\n2. Given the user submits customer-create-modal with missing email, when validation runs, then Zod returns 'shipping.customers.errors.email_required' and submit is disabled (not blocking via client-only; Server Action also Zod-validates).\n3. Given address-modal is opened, when V-SHIP-SO-02 path is exercised (no prior shipping address), then submit succeeds and parent customer-detail Addresses tab re-renders with the new row.\n4. Given allergen-restriction-modal is opened by a non-QA user, when the page-level wrapper computes permissions, then the trigger button is hidden / disabled (gate enforced server-side too at saveAllergenRestrictions).\n5. UI closeout includes Playwright screenshots for all 3 modals + RTL coverage + Playwright trace per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: 3 RTL specs asserting parity + Zod errors + Server Action invocation + permission gate.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/\\(shipping\\)/_modals/__tests__/`.\n- Playwright `apps/web/e2e/shipping-customer-modals.spec.ts` captures 3 modal evidence.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not bypass server-side Zod re-validation (client validation is advisory only).\n- Do not hard-code allergen list — source from allergen_families ref table.\n- Do not implement credit_limit UI logic without the P2 feature flag gate.\n- Do not regress accessibility (axe).",
+  "labels": [
+    "prd",
+    "ui",
+    "modals",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-003",
+      "§15.4 SHIP-004",
+      "§11 V-SHIP-SO-02",
+      "§11 V-SHIP-LBL-01",
+      "§11 V-SHIP-LBL-02"
+    ],
+    "category": "ui",
+    "subcategory": "customer-modals",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-a",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "3 modals (customer-create, address, allergen-restriction) translated to shadcn + Zod + Server Actions.",
+    "details": "Prototype refs: modals.jsx:27-67 / :69-94 / :96-113. Use shadcn Dialog from packages/ui + react-hook-form + zodResolver. Country ISO2 list from a typed reference enum. Allergen list from 02-SETTINGS allergen_families. credit_limit hidden behind P2 feature flag.",
+    "scope_files": [
+      "apps/web/app/(shipping)/_modals/customer-create-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/address-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/allergen-restriction-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/__tests__/customer-create-modal.test.tsx [create]",
+      "apps/web/app/(shipping)/_modals/__tests__/address-modal.test.tsx [create]",
+      "apps/web/app/(shipping)/_modals/__tests__/allergen-restriction-modal.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-002).",
+      "Do not implement credit_limit business logic (Phase 2)."
+    ],
+    "dependencies": [
+      "T-002",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-004"
+    ],
+    "cross_module_dependencies": [
+      "02-settings (allergen_families)",
+      "00-foundation/T-123 (Playwright)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given customer-create-modal renders, when compared to prototypes/design/Monopilot Design System/shipping/modals.jsx:27-67, then field set + validation labels + footer button row match — RTL snapshot + Playwright screenshot.",
+      "Given submit with missing email, when validation runs, then Zod returns shipping.customers.errors.email_required and submit is disabled.",
+      "Given address-modal submit (V-SHIP-SO-02 path), when it succeeds, then parent customer-detail Addresses tab re-renders with new row; AND allergen-restriction-modal trigger is hidden/disabled for non-QA users (ship.allergen.override required; server-side gate also enforced).",
+      "UI closeout includes Playwright screenshots for all 3 modals + RTL coverage + Playwright trace per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: 3 RTL specs asserting parity + Zod errors + Server Action invocation + permission gate.",
+      "Run `pnpm --filter @monopilot/web vitest run shipping/_modals`.",
+      "Playwright apps/web/e2e/shipping-customer-modals.spec.ts captures 3 modals."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not bypass server-side Zod re-validation.",
+      "Do not hard-code allergen list — source from allergen_families ref table.",
+      "Do not implement credit_limit UI logic without P2 feature flag.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "customer_create_modal,address_modal,allergen_restriction_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

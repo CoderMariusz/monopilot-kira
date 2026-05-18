@@ -1,6 +1,6 @@
 {
   "title": "T-080 — FactorySpec+BOM bundle approval API/actions",
-  "prompt": "# T-080 — FactorySpec+BOM bundle approval API/actions\n\nBuild the Technical-owned server/API approval path that releases a `factory_specs` record and its shared BOM version as one factory-use bundle. This is the backend/action task only; UI is split to T-090. Implement submit-for-review, get blockers, approve, reject, and explicit split-request handling if policy allows. Approval must verify shared BOM compatibility, RM usability, supplier_specs state, factory_spec version/status through T-081 adapter, Technical approver permission, audit/e-sign evidence when platform support exists, and D365 optional disabled/local mode. RED first: bundle approval cannot partially release unless Technical approver explicitly creates a separate split request; D365 export/preload must not unlock factory use.",
+  "prompt": "# T-080 — FactorySpec+BOM bundle approval API/actions\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4, §7.6, prototypes/design/03-TECHNICAL-UX.md §0A\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBackend/action contract for atomic factory_specs + shared BOM approval bundle.\n\nOne task type: API/actions/service tests. UI panel/modal implementation is T-090. Approval starts from T-079 factory_specs and T-081 release adapter; local dependencies remain 03-TECHNICAL task IDs only. Settings T-122/T-123 authorization dependencies are declared under cross_module_dependencies.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/actions/technical/release-bundles/*.ts [create]\n- apps/web/lib/technical/release-bundle-service.ts [create]\n- tests/actions/technical/release-bundle.test.ts [create]\n- tests/lib/technical/release-bundle-service.test.ts [create]\n\n## Acceptance criteria\n1. Given factory_spec is in_review and BOM is draft/reviewable with passing RM usability, when Technical approver approves bundle, then both move to canonical factory-usable status through T-081 and one audit/evidence bundle id links them.\n2. Given BOM passes but factory_spec fails release blocker, then approval is rejected atomically and neither record is released.\n3. Given D365 integration is disabled, local Technical release still works and D365 sync/export state remains optional integration metadata.\n4. Given released bundle is edited, API creates next draft versions through clone-on-write and keeps released versions immutable.\n5. Given user lacks Technical approval permission from Settings policy, approve/reject actions fail with explicit authorization error.\n\n## Test strategy\n- RED unit/action tests for atomic approve/reject and split prohibition.\n- RED tests for Settings authorization preflight and D365-disabled local release.\n- Run: pnpm vitest run tests/actions/technical/release-bundle.test.ts tests/lib/technical/release-bundle-service.test.ts\n\n## Risk red lines\n- Do not create a second BOM model or NPD-owned factory_spec path.\n- Do not release only one side of the bundle by accident.\n- Do not require D365 to approve local Technical release.\n- Do not mutate released versions in place.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -43,7 +43,7 @@
     "prd_task_id": "T-080",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.4",
       "§7.6",
       "prototypes/design/03-TECHNICAL-UX.md §0A"
@@ -78,7 +78,11 @@
       "Do not create a second BOM model or NPD-owned factory_spec path.",
       "Do not release only one side of the bundle by accident.",
       "Do not require D365 to approve local Technical release.",
-      "Do not mutate released versions in place."
+      "Do not mutate released versions in place.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-079",
@@ -95,6 +99,8 @@
         "task_id": "T-123",
         "reason": "Authorization helper/action/preflight integration consumed by release actions."
       }
-    ]
+    ],
+    "out_of_scope": [],
+    "parallel_safe_with": []
   }
 }

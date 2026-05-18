@@ -1,0 +1,104 @@
+{
+  "title": "T-011 — OEE consumer read-model (oee_daily_summary view via 15-OEE) + graceful degradation (12-REPORTING §6 D-RPT-9, §10/§4.1 #5)",
+  "prompt": "# T-011 — OEE consumer read-model\n\nPRD: docs/prd/12-REPORTING-PRD.md §6 D-RPT-9 (OEE consumer 15-OEE single source of truth), §4.1 #5 (OEE Summary P1 dashboard), §5 Biznesowe (15-OEE oee_daily_summary MV wymagana)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide a thin consumer wrapper over the 15-OEE-owned `oee_daily_summary` MV so reporting dashboards (Factory Overview tile, RPT-005 OEE Summary, P2 Shift Performance) can read with org+site filter without duplicating aggregation logic. 15-OEE module has zero atomic tasks today — implement graceful degradation: if 15-OEE MV is missing, return `{ available: false, placeholder: ... }` so dashboards render the \"OEE data unavailable\" placeholder per D-RPT-9 con-clause.\n\n## Implementation contract\n1. Service helper `packages/reporting/src/queries/oee-consumer.ts`:\n   - `getOeeDailySummary({orgId, siteId, lineId?, dateRange})` → reads `oee_daily_summary` (15-OEE owned).\n   - Detect MV presence via `pg_matviews` query at startup; cache result with 1-min TTL.\n   - If absent → return `{available: false, reason: 'oee_module_not_deployed', placeholder: { yield_pct: null, oee_pct: null, ... }}`.\n   - If present → execute query with `WHERE org_id = app.current_org_id() AND (site_id = $current OR site_id IS NULL)` and return real data.\n   - Subscribe (via outbox consumer pattern) to `oee.snapshot.aggregated` event per D-RPT-9 — increments a local cache counter for smart invalidation (no duplicate aggregation).\n2. Type definition `OeeSummary` derived from KPI glossary T-002 entries (oee_pct, oee_availability_pct, oee_performance_pct, oee_quality_pct).\n3. Outbox subscriber registration in `apps/worker/src/jobs/reporting-oee-subscriber.ts` consuming `oee.snapshot.aggregated` events (Foundation T-112 outbox consumer); on receipt, mark in-memory `oee_cache_counter` for `getDashboardsCatalog` cache invalidation.\n4. Vitest contract test: (a) helper returns placeholder when MV absent, (b) helper returns real data when MV present with seeded rows, (c) cross-org leak test, (d) outbox subscriber increments cache counter on `oee.snapshot.aggregated` event, (e) type definition matches KPI glossary keys exactly.\n\n## Files\n- packages/reporting/src/queries/oee-consumer.ts [create]\n- packages/reporting/src/types/oee.ts [create]\n- apps/worker/src/jobs/reporting-oee-subscriber.ts [create]\n- packages/reporting/__tests__/oee-consumer.test.ts [create]\n\n## Acceptance criteria\n1. Given 15-OEE module is NOT deployed (oee_daily_summary MV absent), when getOeeDailySummary is called, then it returns `{available: false, reason: 'oee_module_not_deployed', placeholder: {...}}` without throwing.\n2. Given 15-OEE oee_daily_summary MV exists and has seeded rows for org_A, when getOeeDailySummary({orgId: org_A_id, ...}) is called under app.set_org_context(org_A) session, then it returns `{available: true, data: [...]}` with rows scoped to org_A only (cross-org leak test passes).\n3. Given `oee.snapshot.aggregated` outbox event is received by the subscriber, when the counter is checked, then it increments by 1 and cache invalidation fires.\n4. Given the type definition is compared to KPI glossary T-002 entries for oee_*, when matched, then the four oee_* keys appear with identical units and weighting (consumer of glossary).\n5. Given a request for OEE summary with no org context, when invoked, then it throws MissingOrgContextError before any SQL is issued.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/oee-consumer.test.ts` covers 5 ACs with testcontainers Postgres in two configurations (MV present and absent).\n- Run `pnpm --filter @monopilot/reporting test oee-consumer`.\n- GREEN: write service helper + types + outbox subscriber.\n\n## Risk red lines\n- Do not duplicate OEE aggregation logic (D-RPT-9 con-clause; 15-OEE owns oee_daily_summary).\n- Do not let helper throw when MV absent — graceful degradation with placeholder (D-RPT-9).\n- Do not read MV without org+site WHERE clause (RLS-via-service-layer per §5 Techniczne; MVs cannot host policies).\n- Do not poll for OEE updates — subscribe to `oee.snapshot.aggregated` via outbox consumer.\n- Do not couple the type definition to 15-OEE internals — read only the KPI keys defined in KPI glossary (T-002).\n- Do not make the placeholder shape configurable per dashboard — fixed schema so UI tasks can render uniformly.",
+  "labels": [
+    "prd",
+    "consumer",
+    "oee",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§6 D-RPT-9",
+      "§4.1 #5",
+      "§5 Biznesowe"
+    ],
+    "category": "consumer",
+    "subcategory": "cross-module-read-model",
+    "task_type": "T2-api",
+    "parent_feature": "12-REPORTING-b",
+    "context_budget": "35k",
+    "estimated_effort": "2-4h",
+    "description": "Thin consumer wrapper over 15-OEE oee_daily_summary MV with graceful degradation when 15-OEE module not deployed. Outbox subscriber for cache invalidation.",
+    "details": "15-OEE has 0 atomic tasks today. Helper must degrade gracefully (placeholder). Cross-org isolation via service-layer org+site filter. Subscribe to oee.snapshot.aggregated via Foundation T-112 outbox consumer.",
+    "scope_files": [
+      "packages/reporting/src/queries/oee-consumer.ts [create]",
+      "packages/reporting/src/types/oee.ts [create]",
+      "apps/worker/src/jobs/reporting-oee-subscriber.ts [create]",
+      "packages/reporting/__tests__/oee-consumer.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement 15-OEE module schemas / MV here",
+      "Do not implement RPT-005 OEE Summary UI here (T-019)",
+      "Do not duplicate OEE aggregation logic"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-009",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "15-OEE oee_daily_summary MV (read-only consumer; module has 0 atomic tasks today)",
+      "15-OEE oee.snapshot.aggregated outbox event (subscriber)",
+      "00-FOUNDATION T-112 outbox worker consumer",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given the OeeSummary type is compared to KPI glossary T-002, when matched, then the four oee_* keys appear with identical units and weighting",
+      "Given 15-OEE module is NOT deployed (oee_daily_summary MV absent), when getOeeDailySummary is called, then it returns {available:false, reason:'oee_module_not_deployed', placeholder:{...}} without throwing",
+      "Given oee_daily_summary MV exists with seeded rows for org_A, when called under org_A session, then returns {available:true, data:[...]} with rows scoped to org_A only",
+      "Given validation and error conditions are triggered, when invoked, then it increments by 1 and cache invalidation fires and throws MissingOrgContextError before SQL."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/oee-consumer.test.ts covers 5 ACs with testcontainers Postgres in two configurations (MV present and absent)",
+      "Run `pnpm --filter @monopilot/reporting test oee-consumer`",
+      "GREEN: write service helper + types + outbox subscriber"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate OEE aggregation (D-RPT-9 con-clause)",
+      "Do not let helper throw when MV absent — graceful degradation with placeholder",
+      "Do not read MV without org+site WHERE clause (RLS-via-service-layer)",
+      "Do not poll for OEE updates — subscribe via outbox",
+      "Do not couple type def to 15-OEE internals — KPI glossary keys only",
+      "Do not make placeholder shape configurable per dashboard"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

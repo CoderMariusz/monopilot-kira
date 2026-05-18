@@ -1,0 +1,98 @@
+{
+  "title": "T-005 — spare_parts + spare_parts_stock + spare_parts_transactions + mwo_spare_parts DDL + RLS (13-d, MNT §9.8-9.11)",
+  "prompt": "# T-005 — Spare parts catalog + stock + transactions\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.8, §9.9, §9.10, §9.11, §7.1 (D-MNT-6 separate-catalog), §11.5 (V-MNT-18..20)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 4 spares tables (`spare_parts`, `spare_parts_stock`, `spare_parts_transactions`, `mwo_spare_parts`) with full RLS. Spare parts catalog is SEPARATE from 03-technical `items` table per D-MNT-6 — different RLS scope (maintenance team vs production). Cross-link to 05-warehouse via optional `warehouse_id` only (no LP picker, no FEFO logic per D-MNT-6).\n\n## Pre-flight\nVerify latest migration #, `equipment`/`mwo` (T-002/T-004) exist, 05-warehouse `warehouses` table — if absent, `warehouse_id` is plain UUID NULL with no FK.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_maintenance_d_spares.sql` with the 4 tables per PRD §9.8-9.11 DDL.\n2. `spare_parts_transactions.txn_type CHECK IN ('receipt','consume','adjust','transfer_out','transfer_in','return')`.\n3. `spare_parts_transactions.id UUID` (UUID v7 idempotency per R14; use `gen_random_uuid()` until app sets v7 — comment).\n4. R13 audit cols on all 4 tables.\n5. ENABLE+FORCE RLS via `app.current_org_id()` + site_user_access (where site_id present).\n6. Indexes per PRD §9.9/9.10: `idx_sp_stock_reorder`, `idx_sp_txn_mwo`, `idx_sp_txn_part_date`.\n7. CHECK constraint: `spare_parts_stock.qty_on_hand >= 0`.\n8. Drizzle schema in `packages/db/src/schema/maintenance/spares.ts`.\n9. Vitest: RLS isolation, txn_type CHECK, qty_on_hand non-negative CHECK, partial index `idx_sp_stock_reorder` selectivity.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_d_spares.sql [create]\n- packages/db/src/schema/maintenance/spares.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/maintenance-d-spares.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when the 4 tables are inspected, then column shape per §9.8-9.11 + CHECK on txn_type + CHECK qty_on_hand>=0 + R13 audit cols + RLS+FORCE RLS are present.\n2. Given two orgs and `app.set_org_context`, when SELECT runs in each session, then RLS isolation holds and policies reference `app.current_org_id()`.\n3. Given INSERT with txn_type='unknown', when executed, then it fails CHECK; same for negative qty_on_hand.\n4. Given `EXPLAIN SELECT … FROM spare_parts_stock WHERE qty_on_hand<=reorder_point`, when run, then `idx_sp_stock_reorder` is used.\n\n## Test strategy\n- RED: maintenance-d-spares.test.ts asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-d-spares`.\n\n## Risk red lines\n- Do not couple this table to 03-technical `items` — D-MNT-6 explicitly mandates separate catalog (different RLS, different lifecycle).\n- Do not add LP/FEFO logic — explicit boundary per UX line 249-254 + translation notes §spares.jsx.\n- Do not add 04-planning/05-warehouse FK CASCADE — soft references only.\n- Do not read current_setting() GUC; use app.current_org_id().\n- Do not name business column tenant_id.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.8",
+      "§9.9",
+      "§9.10",
+      "§9.11",
+      "§7.1",
+      "§11.5"
+    ],
+    "category": "data",
+    "subcategory": "schema-spares",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-d",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Create spare_parts + spare_parts_stock + spare_parts_transactions + mwo_spare_parts (4 tables) with RLS, txn_type/qty_on_hand CHECK, R13 audit; separate from 03-TECH items per D-MNT-6.",
+    "details": "Spares cross-link to 05-warehouse via optional warehouse_id (no FEFO). 05-warehouse spares stock dependency is soft (no FK CASCADE); 04-planning PO integration P2.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_d_spares.sql [create]",
+      "packages/db/src/schema/maintenance/spares.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/maintenance-d-spares.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Reorder Server Action (T-011)",
+      "Spare consume Server Action (T-011)",
+      "UI (T-024, T-025)",
+      "04-planning PO integration (P2)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when the 4 tables are inspected, then column shape per §9.8-9.11 + CHECK constraints + R13 + RLS+FORCE RLS are present",
+      "Given two orgs and app.set_org_context, when SELECT runs in each session, then RLS isolation holds and policies reference app.current_org_id()",
+      "Given INSERT with txn_type='unknown' or qty_on_hand=-1, when executed, then it fails CHECK",
+      "Given EXPLAIN of reorder query, when run, then idx_sp_stock_reorder is used"
+    ],
+    "test_strategy": [
+      "RED: maintenance-d-spares.test.ts asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-d-spares`"
+    ],
+    "risk_red_lines": [
+      "Do not couple spare_parts to 03-technical items (D-MNT-6)",
+      "Do not add LP/FEFO logic",
+      "Do not add 04-planning/05-warehouse FK CASCADE",
+      "Do not name business column tenant_id; do not read current_setting() GUC"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

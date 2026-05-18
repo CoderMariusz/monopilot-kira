@@ -1,13 +1,14 @@
 {
-  "title": "T-012 — Warehouse RLS policies (tenant_id isolation, ADR-003/013)",
-  "prompt": "# T-012 — Warehouse RLS policies\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §3, §16.5 (ADR-003/013).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nEnable Row-Level Security on every warehouse-owned table with tenant_id matching `current_setting('app.tenant_id')::uuid` per ADR-003/013.\n\n## Implementation contract\nMigration `0NN_warehouse_rls.sql` ALTERs each table (license_plates, lp_genealogy, lp_reservations, grns, grn_items, stock_moves, pick_overrides, shelf_life_rules, warehouse_settings) ENABLE ROW LEVEL SECURITY + CREATE POLICY tenant_isolation FOR ALL USING (tenant_id = current_setting('app.tenant_id')::uuid).\nConfirm `app.tenant_id` is set in `packages/db/src/connection.ts` per request middleware (assumed present from 00-FOUNDATION).\n\n## Files (scope)\n- packages/db/migrations/0NN_warehouse_rls.sql [create]\n- packages/db/src/schema/__tests__/warehouse-rls.test.ts [create]\n\n## Acceptance criteria\n1. Given two LPs with different tenant_id, when SELECT runs with `app.tenant_id` set to tenant A, then only tenant A's rows are returned.\n2. Given INSERT with mismatched tenant_id (vs session setting), when committed, then DB raises an RLS violation.\n3. Given `app.tenant_id` is unset, when SELECT runs against license_plates, then DB raises (NULL cast) error or returns 0 rows depending on policy strictness — confirm the chosen behavior is documented.\n\n## Test strategy\n- RED: warehouse-rls.test.ts using two test tenants verifying isolation and forced-deny.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-rls`.\n\n## Risk red lines\n- Do not skip RLS on any warehouse table.\n- Do not use BYPASSRLS roles in production.\n- Do not derive tenant from JWT (per ADR-013 users.org_id only).",
+  "title": "T-012 — Warehouse RLS policies + org isolation audit (WH §3, §16.5, ADR-003/013)",
+  "prompt": "# T-012 — Warehouse RLS policies + org isolation audit (WH §3, §16.5, ADR-003/013)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §3, §16.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nVerify and lock RLS policies on every warehouse org-scoped table (license_plates, lp_genealogy, lp_reservations, grns, grn_items, stock_moves, pick_overrides, shelf_life_rules, warehouse_settings) and add a cross-table integration test proving zero cross-org data leakage. Policies use the foundation `app.current_org_id()` function (see `packages/db/migrations/002-rls-baseline.sql`).\n\n## Implementation contract\n1. Migration `0NN_warehouse_rls_audit.sql`: ensure `ENABLE ROW LEVEL SECURITY` + `<table>_org_context` policy `USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id())` on all 9 tables. Never use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC.\n2. Add `FORCE ROW LEVEL SECURITY` so the table owner cannot bypass policies.\n3. Add integration test `packages/db/test/warehouse/rls-isolation.test.ts` seeding 2 orgs × 9 tables and asserting org_B sees 0 of org_A's rows for every read path (tests connect as `app_user` and call `app.set_org_context(session_token, org_id)` per org).\n\n## Files\n- packages/db/migrations/0NN_warehouse_rls.sql [create]\n- packages/db/src/schema/__tests__/warehouse-rls.test.ts [create]\n\n## Acceptance criteria\n1. Given two orgs seed identical row counts across all 9 warehouse tables, when org_B's session (post `app.set_org_context(session_token, org_B)`) reads any table, then exactly org_B's rows are returned (zero leakage).\n2. Given no `app.set_org_context(...)` has been called in the current transaction (so `app.current_org_id()` returns NULL), when any warehouse table is queried, then no rows are returned (fail-closed).\n3. Given a superuser bypass attempt, when `SET row_security = off` is tried inside a non-superuser session, then it fails (FORCE RLS).\n4. Given pg_policies is inspected, when warehouse policies are listed, then every qual/withcheck references `app.current_org_id()` and contains no `current_setting('app.tenant_id'|'app.current_org_id')` GUC.\n\n## Test strategy\n- RED: `packages/db/test/warehouse/rls-isolation.test.ts` covering every table × every read path; tests use app_user connection + app.set_org_context per org.\n- Run `pnpm --filter db migrate && pnpm --filter db test rls-isolation`.\n\n## Risk red lines\n- Do not read `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` directly — use the foundation `app.current_org_id()` function so the NULL-safe setter contract is preserved.\n- Do not use `tenant_id` as the business-scope column; per Wave0 v4.3 lock it is `org_id`.\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not weaken policies to allow cross-org reads under any role.\n- Do not rely solely on app-layer filtering — DB must enforce.\n\n## Dependencies\n- T-002\n- T-003\n- T-004\n- T-005\n- T-006\n- T-007\n- T-008\n- T-009",
   "labels": [
     "prd",
     "data",
     "rls",
-    "T1-schema"
+    "security",
+    "t1-schema"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +22,11 @@
     "category": "data",
     "subcategory": "rls",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Enable RLS on all warehouse tables and add tenant_isolation policy per ADR-003/013.",
-    "details": "Migration ALTERs nine warehouse tables ENABLE ROW LEVEL SECURITY + CREATE POLICY tenant_isolation. Tests use two-tenant fixture to assert isolation and forced-deny.",
+    "description": "Verify and lock RLS policies on every warehouse org-scoped table (license_plates, lp_genealogy, lp_reservations, grns, grn_items, stock_moves, pick_overrides, shelf_life_rules, warehouse_settings) using foundation app.current_org_id(), plus cross-table integration test.",
+    "details": "Verify and lock RLS policies on every warehouse org-scoped table and add a cross-table integration test proving zero cross-org data leakage. Migration `0NN_warehouse_rls_audit.sql`: ensure `ENABLE ROW LEVEL SECURITY` + `<table>_org_context` policy `USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id())` on all 9 tables. Add `FORCE ROW LEVEL SECURITY`. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §Tenant-context).",
     "scope_files": [
       "packages/db/migrations/0NN_warehouse_rls.sql [create]",
       "packages/db/src/schema/__tests__/warehouse-rls.test.ts [create]"
@@ -49,22 +50,26 @@
       "T-011"
     ],
     "acceptance_criteria": [
-      "Given two LPs in different tenants, when SELECT runs with app.tenant_id=tenantA, then only tenant A rows are returned",
-      "Given INSERT with tenant_id mismatching the session setting, when committed, then DB raises an RLS violation",
-      "Given app.tenant_id is unset, when SELECT runs against license_plates, then the DB returns zero rows or a documented NULL-cast error"
+      "Given two orgs seed identical row counts across all 9 warehouse tables, when org B's session (post app.set_org_context(session_token, org_B)) reads any table, then exactly org B's rows are returned (zero leakage).",
+      "Given no app.set_org_context has been called in the current transaction (app.current_org_id() returns NULL), when any warehouse table is queried, then no rows are returned (fail-closed).",
+      "Given a superuser bypass attempt, when `SET row_security = off` is tried inside a non-superuser session, then it fails (FORCE RLS).",
+      "Given pg_policies is inspected, when warehouse policies are listed, then every qual/withcheck references app.current_org_id() and contains no current_setting('app.tenant_id'|'app.current_org_id') GUC."
     ],
     "test_strategy": [
-      "RED: warehouse-rls.test.ts using two-tenant fixture",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test warehouse-rls'"
+      "RED: `packages/db/test/warehouse/rls-isolation.test.ts` covering every table × every read path; tests use app_user connection + app.set_org_context per org.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test rls-isolation`."
     ],
     "risk_red_lines": [
-      "Do not skip RLS on any warehouse table",
-      "Do not use BYPASSRLS roles in production",
-      "Do not derive tenant from JWT"
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id.",
+      "Do not skip FORCE ROW LEVEL SECURITY.",
+      "Do not weaken policies to allow cross-org reads under any role.",
+      "Do not rely solely on app-layer filtering — DB must enforce."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -90,7 +95,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

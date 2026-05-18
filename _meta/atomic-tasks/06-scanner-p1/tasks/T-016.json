@@ -34,7 +34,9 @@
     "out_of_scope": [
       "Do not enforce server-side permission here (every endpoint owns its check)",
       "Do not implement SCN-home denial banner UX here (T-023)",
-      "Do not implement supervisor override here"
+      "Do not implement supervisor override here",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -44,23 +46,27 @@
       "T-015"
     ],
     "acceptance_criteria": [
-      "Given the scanner UI is implemented, when compared with `prototypes/design/Monopilot Design System/scanner/flow-receive.jsx:1-260`, then it preserves mobile structural parity, visual parity, and interaction parity for the screen/flow at viewport 390x844, captures screenshot and Playwright trace artifacts, and documents any intentional divergence from PRD/UX. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+      "Given the production scanner UI/wiring renders, when compared to `prototypes/design/Monopilot Design System/scanner/home.jsx:7-61` at mobile viewport 390x844, then structural, visual, and interaction parity is preserved (touch targets >=48dp, scanner dark tokens, badge+PIN auth, scanner.* permissions enforced).",
       "Given roles=['scanner.access','warehouse.operator'], when usePermission('warehouse.receive') runs, then allowed=true",
       "Given roles missing 'production.operator', when a SCN-080 page wrapped by withScannerPermission mounts, then the user is redirected to /scanner?denied=production.consume and the wrapped component never renders",
-      "Given empty roles array, when usePermission('quality.inspect') runs, then allowed=false and reason='missing scanner.access'"
+      "Given empty roles array, when usePermission('quality.inspect') runs, then allowed=false and reason='missing scanner.access' UI closeout includes 390x844 screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write permission-guard.test.tsx asserting all three ACs before implementation",
-      "Run 'pnpm --filter scanner test permission-guard'"
+      "Run 'pnpm --filter scanner test permission-guard'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not rely solely on client-side guard",
       "Do not allow bypass via unauthenticated layout fallback",
-      "Do not redirect into a loop when /scanner itself is denied"
+      "Do not redirect into a loop when /scanner itself is denied",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -86,18 +92,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_evidence_required": {
-      "viewport": "390x844",
-      "artifacts": [
-        "screenshot",
-        "Playwright trace"
-      ],
-      "parity_dimensions": [
-        "structure",
-        "visual",
-        "interaction"
-      ]
-    },
+    "prototype_match": true,
+    "prototype_index_entry": "home_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       "00-foundation: scanner routing/session/RLS baseline",
       "02-settings: PIN policy, locale, scanner device defaults"

@@ -1,0 +1,107 @@
+{
+  "title": "T-028 — Rate-limit + observability wiring for maintenance Server Actions (Wave1 T-121, T-116..T-118)",
+  "prompt": "# T-028 — Rate-limit + observability for maintenance\n\nWave1 deps: T-121 (rate-limit primitive), T-116..T-118 (observability primitives — logger, tracing, metrics)\nPRD: docs/prd/13-MAINTENANCE-PRD.md §6.4, §14.2 (RLS audit)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWire all maintenance Server Actions (T-010 mwo-state, T-011 spare-parts, T-014 loto, T-015 calibration, T-016 sanitation, T-017 link-downtime) to Foundation rate-limit + observability primitives. Emit structured logs with `module='maintenance'`, span attrs with `mwo.id`/`spare.id`/`instrument.id`, and per-org rate limit buckets.\n\n## Pre-flight\nVerify Wave1 T-121 rate-limit primitive (`packages/rate-limit/src/index.ts` or similar) and Wave1 T-116..T-118 observability primitives (likely `packages/observability/src/{logger,tracer,metrics}.ts`).\n\n## Implementation contract\n1. `apps/web/app/maintenance/_lib/with-observability.ts` — higher-order Server Action wrapper that:\n   - Creates OpenTelemetry span `maintenance.<action_name>` with attrs `org_id`, `user_id`, `action`, and action-specific entity ids (mwo_id, spare_id, instrument_id).\n   - Records structured log with `module='maintenance'`, `action`, duration, success/failure, error_code.\n   - Increments counter `maintenance.actions.total{action, status}` and histogram `maintenance.actions.duration_ms`.\n2. `apps/web/app/maintenance/_lib/with-rate-limit.ts` — wrapper applying per-(org, user) rate limit buckets per Foundation T-121:\n   - mwo write actions: 60/min/user.\n   - calibration record: 30/min/user.\n   - LOTO apply/clear: 10/min/user (safety: low rate).\n   - spare consume/adjust: 120/min/user.\n   - downtime link: 30/min/user.\n3. Each existing Server Action from T-010/T-011/T-014/T-015/T-016/T-017 wrapped: `export const requestMwo = withObservability(withRateLimit({ bucket: 'mnt.mwo.write', limit: 60 }, _requestMwo));`.\n4. Vitest covering: log includes module='maintenance' and action name; span attrs include entity id; rate limit returns 429 with `Retry-After` header after limit exceeded; histogram records duration.\n\n## Files\n- apps/web/app/maintenance/_lib/with-observability.ts [create]\n- apps/web/app/maintenance/_lib/with-rate-limit.ts [create]\n- apps/web/app/maintenance/_actions/mwo-state.ts [modify — wrap actions]\n- apps/web/app/maintenance/_actions/spare-parts.ts [modify]\n- apps/web/app/maintenance/_actions/loto.ts [modify]\n- apps/web/app/maintenance/_actions/calibration.ts [modify]\n- apps/web/app/maintenance/_actions/sanitation.ts [modify]\n- apps/web/app/maintenance/_actions/link-downtime.ts [modify]\n- apps/web/app/maintenance/_lib/__tests__/observability.test.ts [create]\n- apps/web/app/maintenance/_lib/__tests__/rate-limit.test.ts [create]\n\n## Acceptance criteria\n1. Given any maintenance Server Action runs, when logs are inspected, then a structured log row with `module='maintenance'`, `action`, `duration_ms`, `status` is present and a span `maintenance.<action_name>` is started + ended.\n2. Given a user calls requestMwo 61 times within 60 seconds, when 61st call settles, then it returns 429 with `Retry-After` header.\n3. Given LOTO applyLoto called 11 times within 60 seconds, when 11th call settles, then 429 (low safety-bucket limit).\n4. Given Prometheus counters are scraped, when checked, then `maintenance.actions.total{action='requestMwo',status='success'}` increments per successful call.\n5. Given an action throws an error, when log emitted, then status='failure' + error_code captured.\n\n## Test strategy\n- RED: two vitest files asserting all five ACs.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_lib`.\n\n## Risk red lines\n- Do not bypass Foundation rate-limit/observability primitives — they own the registry.\n- Do not log raw PINs or PII — never include `verifierPin`, certifications full text, hourly_rate in span attrs or logs.\n- Do not skip rate limit on safety-critical LOTO actions — safety bucket is mandatory.\n- Do not introduce a parallel observability stack.\n- Do not over-aggressively rate-limit reads (these wrappers cover writes only).",
+  "labels": [
+    "prd",
+    "observability",
+    "rate-limit",
+    "T4-wiring-test"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-028",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§6.4",
+      "§14.2"
+    ],
+    "category": "infra",
+    "subcategory": "observability-rate-limit",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Wire 6 Server Action modules through Foundation rate-limit (T-121) + observability (T-116..T-118) HoC wrappers; safety-bucket low limit on LOTO.",
+    "details": "PII-redaction in logs/spans is mandatory (no PINs, no certifications text, no hourly_rate). Safety bucket 10/min/user for LOTO actions. LOTO and calibration actions delegate PIN verification to @monopilot/e-sign foundation primitive (T-124) — signEvent/dualSign with replay nonce + paired audit (retention='security'); rate-limit wrappers must not intercept or log e-sign payloads.",
+    "scope_files": [
+      "apps/web/app/maintenance/_lib/with-observability.ts [create]",
+      "apps/web/app/maintenance/_lib/with-rate-limit.ts [create]",
+      "apps/web/app/maintenance/_actions/mwo-state.ts [modify]",
+      "apps/web/app/maintenance/_actions/spare-parts.ts [modify]",
+      "apps/web/app/maintenance/_actions/loto.ts [modify]",
+      "apps/web/app/maintenance/_actions/calibration.ts [modify]",
+      "apps/web/app/maintenance/_actions/sanitation.ts [modify]",
+      "apps/web/app/maintenance/_actions/link-downtime.ts [modify]",
+      "apps/web/app/maintenance/_lib/__tests__/observability.test.ts [create]",
+      "apps/web/app/maintenance/_lib/__tests__/rate-limit.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Foundation primitive itself (Wave1)",
+      "Dashboard cards visualizing metrics (12-reporting)",
+      "Read-action rate limiting (writes only)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-010",
+      "T-011",
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-017"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given any maintenance Server Action runs, when logs are inspected, then a structured log row with module=maintenance, action, duration_ms, status is present and a span maintenance.<action_name> is started+ended",
+      "Given user calls requestMwo 61 times within 60 seconds, when 61st call settles, then returns 429 with Retry-After header; given LOTO applyLoto called 11 times within 60s, when 11th call settles, then 429 (low safety-bucket limit 10/min)",
+      "Given Prometheus counters scraped, when checked, then maintenance.actions.total{action=requestMwo,status=success} increments per successful call",
+      "Given an action throws an error, when log emitted, then status=failure + error_code captured; no raw PINs, certifications text, or hourly_rate in span attrs or logs"
+    ],
+    "test_strategy": [
+      "RED: two vitest files asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_lib`"
+    ],
+    "risk_red_lines": [
+      "Do not bypass Foundation rate-limit/observability primitives",
+      "Do not log raw PINs, certifications, or hourly_rate",
+      "Do not skip rate limit on safety-critical LOTO",
+      "Do not introduce parallel observability stack",
+      "Do not rate-limit reads (writes only)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

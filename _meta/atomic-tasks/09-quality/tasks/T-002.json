@@ -9,7 +9,7 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-002",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§6.3", "§8 SCN-072", "§16.3"],
+    "prd_refs": ["§6.3", "§8.1", "§16.3", "§11.2"],
     "category": "data",
     "subcategory": "reference-tables",
     "task_type": "T1-schema",
@@ -17,7 +17,7 @@
     "context_budget": "25k",
     "estimated_effort": "1h",
     "description": "Register qa_failure_reasons reference table + seed 7 scanner + 3 desktop rows + server helper.",
-    "details": "Migration 0091 inserts registry row with schema_json {code,label,scanner_visible,severity_default,category,i18n}. Seeds 10 rows (7 scanner-visible matching 06-SCN §8.5, 3 desktop-only). Helper getFailureReasons supports scannerVisible filter under tenant RLS. Tests cover count, filter, validator rejection.",
+    "details": "Migration 0091 inserts registry row with schema_json {code,label,scanner_visible,severity_default,category,i18n}. Seeds 10 rows (7 scanner-visible matching 06-SCN §8.5, 3 desktop-only). Helper getFailureReasons supports scannerVisible filter under tenant RLS. Tests cover count, filter, validator rejection. PRD anchor verification (gold-standard pass 2026-05-14): the legacy citation `§8 SCN-072` was tightened — SCN-072 lives in the §8.1 scanner sub-table (line 970+), not in a free-standing §8 anchor; the real anchors are §6.3 (consumer FK `quality_inspections.fail_reason_code_id`), §8.1 (scanner table row SCN-072 documenting the 7 canonical scanner reasons), §11.2 V-QA-INSP-006 (fail_reason_code_id OR fail_reason_notes NOT NULL), and §16.3 (cross-PRD reference-table migration directive).",
     "scope_files": [
       "packages/db/migrations/0091_qa_failure_reasons_reftable.sql [create]",
       "apps/web/src/server/quality/failureReasons.ts [create]",
@@ -42,7 +42,7 @@
     "risk_red_lines": [
       "Do not hardcode failure reasons in scanner code (06-SCN §8.5 must read this reference table)",
       "Do not omit i18n jsonb column",
-      "Do not deviate from the 7 canonical scanner reasons listed in §8 SCN-072"
+      "Do not deviate from the 7 canonical scanner reasons listed in §8.1 row SCN-072"
     ],
     "skills": ["test-driven-development", "requesting-code-review"],
     "checkpoint_policy": {

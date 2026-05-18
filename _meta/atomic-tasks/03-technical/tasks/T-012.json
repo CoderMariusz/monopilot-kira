@@ -1,6 +1,6 @@
 {
   "title": "T-012 — API: BOM list and detail (GET /api/technical/items/:code/boms[, /:version])",
-  "prompt": "Implement GET /api/technical/items/[item_code]/boms (list versions for an item) and GET /api/technical/items/[item_code]/boms/[version] (header + lines + co_products joined). Per §7.1, ordering: list newest version first; detail returns flattened BOM JSON identical in shape to bom_snapshots.snapshot_json. Org-scoped (RLS). RED tests/api/bom-read.test.ts. Run: `pnpm vitest run tests/api/bom-read.test.ts`.",
+  "prompt": "# T-012 — API: BOM list and detail (GET /api/technical/items/:code/boms[, /:version])\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §7.1, §7.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBOM list per item and BOM detail (flattened header+lines+co-products) endpoints.\n\nUse Drizzle joins. Detail response keys: header, lines, co_products. Shape matches snapshot_json contract so the same renderer can be reused for snapshots viewer (TEC-025).\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/boms/route.ts [create]\n- app/api/technical/items/[item_code]/boms/[version]/route.ts [create]\n- lib/technical/bom/queries.ts [create]\n- tests/api/bom-read.test.ts [create]\n\n## Out of scope\n- BOM create/edit (T-013)\n- Snapshot viewer\n- Approval\n\n## Acceptance criteria\n1. Given item has BOM v1 and v2, when GET /boms, then v2 returns first.\n2. Given BOM v1 has 3 lines + 1 co-product, when GET /boms/1, then JSON includes header + 3 lines + 1 co_product entry.\n3. Given org B requests org A BOM, when GET runs, then 404 due to RLS.\n\n## Test strategy\n- RED tests cross-org RLS + JSON shape matches snapshot_json contract.\n- Run: pnpm vitest run tests/api/bom-read.test.ts\n\n## Risk red lines\n- Do not bypass RLS via privileged client.\n- Do not include audit-only fields in response.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -57,7 +57,11 @@
     ],
     "risk_red_lines": [
       "Do not bypass RLS via privileged client.",
-      "Do not include audit-only fields in response."
+      "Do not include audit-only fields in response.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

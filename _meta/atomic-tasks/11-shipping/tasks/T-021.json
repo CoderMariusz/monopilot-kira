@@ -1,0 +1,118 @@
+{
+  "title": "T-021 — UI: packing_station_workbench + packing_stations_selector + ship_confirm/pack_close modals (SHIP-017/030) (11-shipping-e)",
+  "prompt": "# T-021 — Packing Station UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-017 Packing Station Workbench, §15.4 SHIP-030 Packing Stations Selector, §15.4 SHIP-024 Ship Confirmation, §11 V-SHIP-PACK-*, V-SHIP-SHIP-*\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-017 Packing Station\nPrototypes:\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:4-45 (packing_stations_selector_page)\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:47-220 (packing_station_workbench_page)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:577-607 (pack_close_carton_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:609-700 (ship_confirm_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:792-807 (carrier_create_edit_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component pages + 3 modals for pack workflow (station selector → workbench → close box → ship confirm).\n\n## GS1 prefix source\nAll SSCC labels read `organizations.gs1_company_prefix` from the organizations table (02-settings). Always read from organizations table, never from env config.\n\n## Implementation contract\n1. `/(shipping)/pack/page.tsx` (RSC) renders `packing_stations_selector_page` per prototype (4-45): list of `packing_stations` + their `printers` health status; user selects a station which sets a cookie/session var.\n2. `/(shipping)/pack/[stationId]/page.tsx` renders `packing_station_workbench_page` (47-220): active pack session, assigned pick_list_lines, current carton, weighing scale read, sscc preview.\n3. Modals:\n   - `pack-close-carton-modal.tsx` (modals.jsx:577-607) — confirms box weight + content + triggers closeBox (T-020).\n   - `ship-confirm-modal.tsx` (modals.jsx:609-700) — confirms shipment after BOL + sscc + QA checks; calls confirmShipment (T-020). Shows D365 push status panel (Phase 1 enqueued; Phase 2 cadence).\n   - `carrier-create-edit-modal.tsx` (modals.jsx:792-807) — used in shipping settings.\n4. Real-time: `packing_station_workbench_page` subscribes to `pack_session_updates` via SWR poll (5s) — Phase 1 simple polling (Phase 2 Realtime channel).\n5. Permission gates: `ship.pack.close` for closeBox; `ship.ship.confirm` for ship-confirm modal.\n6. Four states per page + i18n `shipping.pack.*`.\n\n## Prototype parity\n- pack-screens.jsx:4-45 (selector) — list rows with health status badge per printer\n- pack-screens.jsx:47-220 (workbench) — pack session header + assigned lines + active carton + sscc preview + Close Box CTA + Confirm Shipment CTA\n- modals.jsx:577-607 (close) — weight input + variance hint + Confirm button\n- modals.jsx:609-700 (ship) — pre-flight checklist (sscc all assigned ✓, BOL generated ✓, no critical QA holds ✓, D365 outbox enqueue ✓) + Confirm button + last_synced_at\n- modals.jsx:792-807 (carrier) — name/SCAC code/contact form\n\nKnown bug fix: BL-SHIP-14 (Ship confirm — DLQ kick button missing from retry cadence UI) — add `Replay DLQ` button visible to ship.dlq.replay holders.\nDo not paste prototype JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/pack/page.tsx [create]\n- apps/web/app/(shipping)/pack/_components/station-selector.tsx [create]\n- apps/web/app/(shipping)/pack/[stationId]/page.tsx [create]\n- apps/web/app/(shipping)/pack/[stationId]/_components/workbench.tsx [create]\n- apps/web/app/(shipping)/_modals/pack-close-carton-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/ship-confirm-modal.tsx [create]\n- apps/web/app/(shipping)/_modals/carrier-create-edit-modal.tsx [create]\n- apps/web/app/(shipping)/pack/__tests__/workbench.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/pack-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the workbench renders, when compared to prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:47-220, then header + active carton + sscc preview + Close Box + Confirm Shipment CTAs match — RTL snapshot + Playwright screenshot.\n2. Given ship-confirm-modal opens, when prerequisites are met (sscc all assigned, BOL generated, no critical QA holds), then Confirm button is enabled; when any failing, then Confirm is disabled with red row in checklist.\n3. Given pack-close-carton-modal submits weight outside variance, when Zod runs, then V-SHIP-PACK-04 warning is shown and submit disabled (server still re-validates).\n4. Given session has ship.dlq.replay permission, when ship-confirm-modal renders post-failure, then a Replay DLQ button is visible (BL-SHIP-14 fix).\n5. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL asserting parity + checklist gating + variance Zod + permission gate + Replay DLQ visibility.\n- Run `pnpm --filter @monopilot/web vitest run pack/workbench.test.tsx`.\n- Playwright `apps/web/e2e/shipping-pack-flow.spec.ts` covers selector → workbench → close box → confirm shipment.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not perpetuate BL-SHIP-14.\n- Do not regress accessibility (axe).\n- Do not implement real-time channel in P1 (5s SWR poll only).\n\n## BRCGS audit trail\nPOD/signed-BOL uploads store SHA-256 hash + retention_until = signed_at + 7 years (BRCGS Issue 9 §3.5 / §14.4).\n",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-017",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-017",
+      "§15.4 SHIP-030",
+      "§15.4 SHIP-024",
+      "§11 V-SHIP-PACK-04",
+      "§11 V-SHIP-SHIP-01",
+      "§11 V-SHIP-SHIP-02",
+      "§11 V-SHIP-SHIP-03"
+    ],
+    "category": "ui",
+    "subcategory": "packing-station",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-e",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Packing station selector + workbench + 3 modals (pack-close-carton, ship-confirm, carrier-create-edit) + BL-SHIP-14 Replay DLQ button fix.",
+    "details": "P1 uses 5s SWR poll (Phase 2 Realtime channel). Ship-confirm checklist gates Confirm button on T-020 server-side re-validation. BL-SHIP-14 fix: Replay DLQ button visible to ship.dlq.replay holders.",
+    "scope_files": [
+      "apps/web/app/(shipping)/pack/page.tsx [create]",
+      "apps/web/app/(shipping)/pack/_components/station-selector.tsx [create]",
+      "apps/web/app/(shipping)/pack/[stationId]/page.tsx [create]",
+      "apps/web/app/(shipping)/pack/[stationId]/_components/workbench.tsx [create]",
+      "apps/web/app/(shipping)/_modals/pack-close-carton-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/ship-confirm-modal.tsx [create]",
+      "apps/web/app/(shipping)/_modals/carrier-create-edit-modal.tsx [create]",
+      "apps/web/app/(shipping)/pack/__tests__/workbench.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-020).",
+      "Do not implement Realtime channel (Phase 2).",
+      "Do not implement scanner pack UI (06-SCANNER-P1 owns SHIP-018 per §15.2)."
+    ],
+    "dependencies": [
+      "T-019",
+      "T-020",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-022",
+      "T-024"
+    ],
+    "cross_module_dependencies": [
+      "02-settings (packing_stations, printers)",
+      "06-scanner-p1 (SHIP-018 pack scanner owned there)",
+      "00-foundation/T-123 (Playwright)",
+      "09-quality/T-064 (consume gate — packing workbench calls holdsGuard before closeBox/confirmShipment; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given workbench renders, when compared to prototypes/design/Monopilot Design System/shipping/pack-screens.jsx:47-220, then header + active carton + sscc preview (gs1_company_prefix from organizations, 02-settings) + CTAs match prototype (structural parity checklist).",
+      "Given ship-confirm-modal opens with all prerequisites met, when render, then Confirm enabled; when any prerequisite fails (including critical quality hold via 09-quality T-064 holdsGuard), then Confirm disabled with specific blocker tooltip.",
+      "Given pack-close submits weight outside variance, when Zod runs, then V-SHIP-PACK-04 warning shown and submit disabled; AND given ship.dlq.replay session post-failure, then Replay DLQ button visible; AND POD record stores SHA-256 hash + retention_until = now + 7y (BRCGS §3.5).",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + checklist gating + variance Zod + permission gate + Replay DLQ visibility.",
+      "Run `pnpm --filter @monopilot/web vitest run pack/workbench.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-pack-flow.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not perpetuate BL-SHIP-14.",
+      "Do not regress accessibility.",
+      "Do not implement Realtime channel in P1.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — packing workbench must call holdsGuard before confirmShipment.",
+      "POD audit trail uses SHA-256 hash + 7-year retention (BRCGS Issue 9 §3.5) — do not allow truncation or premature deletion of confirmation records."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "packing_stations_selector_page,packing_station_workbench_page,pack_close_carton_modal,ship_confirm_modal,carrier_create_edit_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

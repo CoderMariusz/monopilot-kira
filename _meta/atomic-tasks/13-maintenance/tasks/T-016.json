@@ -1,0 +1,99 @@
+{
+  "title": "T-016 — Sanitation checklist Server Action + ATP gate + allergen dual e-sign (V-MNT-15..17, D-MNT-14)",
+  "prompt": "# T-016 — Sanitation completion with dual sign-off\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §11.4 (V-MNT-15..17), §7.2 D-MNT-14 (allergen cross-module event), §9.14, §14.3, §14.5 (BRCGS dual sign-off)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `completeSanitation` Server Action that records `sanitation_checklists` row. If `allergen_change_flag=true`, V-MNT-15..17 enforce dual e-sign + ATP test threshold + cross-module outbox event `sanitation.allergen_change.completed` to 08-production `allergen_changeover_gate_v1`.\n\n## Pre-flight\nVerify T-006 (sanitation_checklists), T-001 (perms — need new `mnt.sanit.complete` or reuse `mnt.mwo.sign`; reuse mnt.mwo.sign per §4 RBAC matrix; do NOT add new perm). Verify Wave1 T-124 e-sign primitive. Verify `maintenance_alert_thresholds.atp_rlu_threshold` from T-013.\n\n## Implementation contract\n1. `apps/web/app/maintenance/_actions/sanitation.ts`:\n   - `completeSanitation({mwoId, lineId, cipProgram, tempC, concentrationPct, durationMin, flowRateLPerMin, allergenChangeFlag, allergensRemoved[], atpTestResultRlu, firstSignedBy, firstSignerPin, secondSignedBy?, secondSignerPin?, completedAt})`:\n     - If `allergenChangeFlag=true`:\n       - V-MNT-15: firstSignedBy AND secondSignedBy AND atpTestResultRlu MUST be NOT NULL → else `SANITATION_DUAL_SIGNOFF_REQUIRED`.\n       - V-MNT-17: firstSignedBy != secondSignedBy → else `SANITATION_SAME_SIGNER`.\n       - V-MNT-16: atpTestResultRlu < `maintenance_alert_thresholds.atp_rlu_threshold` (default 30) → else `SANITATION_ATP_FAIL`.\n       - Verify both PINs via Wave1 T-124 e-sign primitive.\n       - Emit outbox event `sanitation.allergen_change.completed` consumed by 08-production `allergen_changeover_gate_v1` (D-MNT-14).\n     - Else (allergen_change_flag=false): emit outbox `sanitation.completed` only.\n     - Insert sanitation_checklists row inside transaction; retention_until auto-set by GENERATED column (T-006).\n2. Zod schema requires both signers + ATP when allergenChangeFlag=true.\n3. Vitest with Testcontainers + mocked e-sign covering: V-MNT-15 missing dual sign-off blocked; V-MNT-17 same-signer blocked; V-MNT-16 atp>=threshold blocked; non-allergen path emits only `sanitation.completed`; allergen path emits `sanitation.allergen_change.completed`.\n\n## Files\n- apps/web/app/maintenance/_actions/sanitation.ts [create]\n- apps/web/app/maintenance/_actions/sanitation.schema.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/sanitation.test.ts [create]\n\n## Acceptance criteria\n1. Given completeSanitation with allergenChangeFlag=true and secondSignedBy=NULL, when called, then fails `SANITATION_DUAL_SIGNOFF_REQUIRED` (V-MNT-15).\n2. Given completeSanitation with firstSignedBy === secondSignedBy, when called, then fails `SANITATION_SAME_SIGNER` (V-MNT-17).\n3. Given atpTestResultRlu=45 and threshold=30, when called, then fails `SANITATION_ATP_FAIL` (V-MNT-16).\n4. Given allergenChangeFlag=true and all guards pass, when called, then sanitation_checklists row is inserted AND outbox row event_type='sanitation.allergen_change.completed' is written with payload {mwo_id, line_id, allergens_removed, atp_test_result_rlu}.\n5. Given allergenChangeFlag=false, when called, then sanitation_checklists row is inserted AND outbox row event_type='sanitation.completed' is written (no allergen variant).\n\n## Test strategy\n- RED: vitest asserting all five ACs with Testcontainers + mocked e-sign.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/sanitation.test.ts`.\n\n## Risk red lines\n- Do not skip ATP threshold load from `maintenance_alert_thresholds` — config-driven per L2 §13.2.\n- Do not bypass Wave1 T-124 e-sign for PIN verification.\n- Do not emit `sanitation.allergen_change.completed` for non-allergen path — D-MNT-14 cross-module routing requires specificity.\n- Do not allow same-signer sign-off (V-MNT-17 critical BRCGS).\n- Do not store ATP RLU as text — INT only.",
+  "labels": [
+    "prd",
+    "api",
+    "server-action",
+    "compliance",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§11.4",
+      "§7.2 D-MNT-14",
+      "§9.14",
+      "§14.3",
+      "§14.5"
+    ],
+    "category": "api",
+    "subcategory": "sanitation-actions",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "completeSanitation with V-MNT-15..17 dual e-sign + ATP threshold + cross-module sanitation.allergen_change.completed event to 08-production allergen_changeover_gate_v1.",
+    "details": "Reuses Wave1 T-124 e-sign primitive. ATP threshold loaded from maintenance_alert_thresholds (T-013).",
+    "scope_files": [
+      "apps/web/app/maintenance/_actions/sanitation.ts [create]",
+      "apps/web/app/maintenance/_actions/sanitation.schema.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/sanitation.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "08-production allergen_changeover_gate_v1 consumer (08-production task)",
+      "UI (T-022 mwo detail sanitation tab)",
+      "P2 21 CFR full e-sign hash chain"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-012",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-017"
+    ],
+    "acceptance_criteria": [
+      "Given allergenChangeFlag=true and secondSignedBy=NULL, when called, then fails SANITATION_DUAL_SIGNOFF_REQUIRED (V-MNT-15); given firstSignedBy===secondSignedBy, then fails SANITATION_SAME_SIGNER (V-MNT-17)",
+      "Given atpTestResultRlu=45 and threshold=30 (from maintenance_alert_thresholds), when called, then fails SANITATION_ATP_FAIL (V-MNT-16)",
+      "Given allergenChangeFlag=true and all guards pass, when called, then row inserted AND outbox sanitation.allergen_change.completed written with full payload (cross-module to 08-production allergen_changeover_gate_v1 per D-MNT-14)",
+      "Given allergenChangeFlag=false, when called, then row inserted AND outbox sanitation.completed written (no allergen variant)"
+    ],
+    "test_strategy": [
+      "RED: vitest with Testcontainers + mocked e-sign asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/sanitation.test.ts`"
+    ],
+    "risk_red_lines": [
+      "Do not skip ATP threshold load from maintenance_alert_thresholds",
+      "Do not bypass Wave1 T-124 e-sign for PIN",
+      "Do not emit allergen variant for non-allergen path",
+      "Do not allow same-signer (V-MNT-17 critical)",
+      "Do not store ATP RLU as text — INT"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

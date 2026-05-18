@@ -47,10 +47,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/rules/registry.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not introduce write endpoints in this task."
+      "Do not introduce write endpoints in this task.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

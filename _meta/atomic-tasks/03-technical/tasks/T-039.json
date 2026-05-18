@@ -1,6 +1,6 @@
 {
   "title": "T-039 — UI: TEC-022 BOM Edit modals (component add + version save)",
-  "prompt": "Build BOM line editor modal (`bom_component_add_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:192-243) used to add or modify a BOM line, plus `bom_version_save_modal` prototypes/design/Monopilot Design System/technical/modals.jsx:168-190 for save-as-new-version/clone-on-write flow. Add RM usability panel and released-edit guard per T-074/T-081/T-083. RED tests/ui/tec-022-bom-edit.test.tsx. Run: `pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx`.",
+  "prompt": "# T-039 — UI: TEC-022 BOM Edit modals (component add + version save)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §7.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/technical/modals.jsx:192-243` (bom_component_add_modal); `prototypes/design/Monopilot Design System/technical/modals.jsx:168-190` (bom_version_save_modal)\n\n## Goal\nBOM line add/edit modal + version save modal aligned with prototype dialogs.\n\nUse shadcn Dialog + Form. manufacturing_operation_name picker lists row_keys from reference_tables.manufacturing_operations. Component selection must call/show validateRmUsability results before save. If source BOM is released/active/approved, Save means create next draft version; in-place save is disabled.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/(app)/technical/boms/[id]/_components/component-add-modal.tsx [create]\n- app/(app)/technical/boms/[id]/_components/version-save-modal.tsx [create]\n- tests/ui/tec-022-bom-edit.test.tsx [create]\n\n## Out of scope\n- BOM detail page (T-038)\n\n## Acceptance criteria\n1. Given the component-add modal opens, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:192-243, then the field set, action button order, and shadcn primitives match — structural + visual + interaction parity verified by RTL.\n2. Given the version-save modal opens, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:168-190, then the field set and Save/Cancel button order match — structural + visual + interaction parity verified.\n3. Given the user submits an invalid quantity (0), when validated, then inline error appears.\n4. Given the modal saves successfully, when API returns 200, then modal closes and parent table refreshes.\n5. Given selected RM fails usability, when user attempts Save, then server/client block save with the typed failing code and no BOM line mutation.\n6. Given source BOM is released/active/approved, when modal opens, then copy states Save as new draft version and in-place edit is not offered.\n7. Given D365 integration is disabled, then no D365-required fields block local BOM component save.\n8. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- RED tests for parity + validation paths.\n- Run: pnpm vitest run tests/ui/tec-022-bom-edit.test.tsx\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not allow saving without manufacturing_operation_name picked.\n- Do not treat RM usability as cosmetic-only.\n- Do not mutate released BOM lines in place.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Canonical anchor: `prototypes/design/Monopilot Design System/technical/modals.jsx:192-243` (bom_component_add_modal) — see `_meta/prototype-labels/prototype-index-technical.json` entry and `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Canonical anchor: `prototypes/design/Monopilot Design System/technical/modals.jsx:168-190` (bom_version_save_modal) — see `_meta/prototype-labels/prototype-index-technical.json` entry and `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
   "labels": [
     "prd",
     "ui",
@@ -62,7 +62,15 @@
     "risk_red_lines": [
       "Do not allow saving without manufacturing_operation_name picked.",
       "Do not treat RM usability as cosmetic-only.",
-      "Do not mutate released BOM lines in place."
+      "Do not mutate released BOM lines in place.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
     ],
     "skills": [
       "test-driven-development",
@@ -89,6 +97,8 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_match": true,
+    "prototype_index_entry": "bom_component_add_modal"
   }
 }

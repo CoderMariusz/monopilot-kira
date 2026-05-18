@@ -1,0 +1,99 @@
+{
+  "title": "T-016 — UI: OEE-003 Per-day OEE Summary page + 3 tabs (oee_daily_summary_page, 15-OEE-d)",
+  "prompt": "# T-016 — OEE-003 Per-day Summary page UI\n\nPRD: docs/prd/15-OEE-PRD.md §10.3, §15.1, §15.5 (tabs), §15.7 + UX prototypes/design/15-OEE-UX.md:528-674 (Summary tab), :1037 (Six Big Losses tab), :1041 (Changeover tab)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/oee/dashboard.jsx:1-198 (oee_daily_summary_page)\n\n## Goal\nServer Component page `/oee/summary` rendering 5 KPI cards row + 3 shadcn Tabs (T1=Summary default, T2=Six Big Losses → T-018 component, T3=Changeover Analysis → T-018 component) + freshness banner + factoryAvg footer row, matching prototype 1:1. Drives OEE-003 — host for OEE-003.T1/T2/T3 per §15.5.\n\n## Implementation contract\n1. `apps/web/app/(oee)/summary/page.tsx` (RSC) calls T-013 loader with URL params (?date=YYYY-MM-DD default yesterday computed server-side, ?line=, ?tab=summary|losses|changeover, ?sort=col+dir).\n2. `SummaryClient` ('use client'): renders 5 KPI Cards, shadcn Tabs (state synced to ?tab=), TanStack Table with server-side sort via searchParam.\n3. Three tabs (composite components):\n   - T1 Summary table (default): per-line OEE/A/P/Q + best/worst shift + top downtime reason + factoryAvg footer row (computed server-side via SQL window function per translation note).\n   - T2 Six Big Losses: import T-018 `<SixBigLossesTab>`.\n   - T3 Changeover Analysis: import T-018 `<ChangeoverTab>` (out-of-scope dispatches to OEE-M-006 detail modal which is in T-020).\n4. Freshness Alert banner: server reads oee_daily_summary.last_refreshed_at; render warning Alert if `isStale=true` from T-013 loader (> 20 min).\n5. Export trigger button → opens OEE-M-002 modal (T-020 modal suite).\n6. RTL test snapshot + parity checklist (5 KPI cards + 3 tabs + freshness banner + factoryAvg footer).\n\n## Files\n- apps/web/app/(oee)/summary/page.tsx [create]\n- apps/web/app/(oee)/summary/_components/summary-client.tsx [create]\n- apps/web/app/(oee)/summary/_components/summary-table.tsx [create]\n- apps/web/app/(oee)/summary/_components/__tests__/summary-client.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:1-198 (oee_daily_summary_page), then it has the same 5 KPI cards + 3-tab Tabs + freshness banner + factoryAvg footer layout — verified by RTL snapshot + parity checklist.\n2. Given URL ?tab=losses, when page renders, then the Six Big Losses tab content (T-018 component) is visible and tab state is synced to URL.\n3. Given T-013 loader returns isStale=true, when page renders, then a shadcn Alert banner is shown with the freshness warning and last_refreshed_at timestamp.\n4. Given the task is closed out, when reviewers inspect evidence, then factoryAvg footer row is computed server-side from SQL window function (not client-side reduce) — verified by checking the loader contract — and UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy\n- RED: RTL test asserting parity + tab URL sync + freshness banner + factoryAvg footer.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary`.\n\n## Risk red lines\n- Do not compute factoryAvg client-side via Array.reduce — server-side SQL window function per translation note.\n- Do not paste prototype JSX verbatim.\n- Do not skip the freshness banner — required by translation note + §11 V-OEE-DATA-4 visibility.\n- Do not couple T-018 components inline — import them as separate modules (parallel-safe with T-018).\n- Do not use HTML <select> for line filter — shadcn Select.",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-003",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.3",
+      "§15.1",
+      "§15.5"
+    ],
+    "category": "ui",
+    "subcategory": "daily-summary-page",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "60k",
+    "estimated_effort": "3-5h",
+    "description": "OEE-003 Per-day Summary page + 3 tabs (Summary/Six Big Losses/Changeover) matching oee_daily_summary_page prototype.",
+    "details": "Parity checklist: 5 KPI cards row, 3-tab Tabs synced to URL ?tab=, factoryAvg footer (server SQL), freshness Alert at >20 min, export trigger (OEE-M-002 in T-020), per-line sparkline column (Recharts mini). T2/T3 tab components implemented in T-018; this task only imports.\n\nAdditional acceptance detail: factoryAvg footer row computed server-side from SQL window function per translation note (not client-side reduce); UI closeout includes screenshot/artifact + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "apps/web/app/(oee)/summary/page.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/summary-client.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/summary-table.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/__tests__/summary-client.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Six Big Losses + Changeover tab components (T-018)",
+      "Export modal OEE-M-002 (T-020)",
+      "Annotate Downtime modal OEE-M-001 (T-020)"
+    ],
+    "dependencies": [
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-017",
+      "T-018"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:1-198 (oee_daily_summary_page), then it has the same 5 KPI cards + 3-tab Tabs + freshness banner + factoryAvg footer layout — verified by RTL snapshot + parity checklist",
+      "Given URL ?tab=losses, when page renders, then the Six Big Losses tab content (T-018) is visible and tab state is synced to URL",
+      "Given T-013 loader returns isStale=true, when page renders, then a shadcn Alert banner is shown with freshness warning and last_refreshed_at timestamp",
+      "Given the task is closed out, when reviewers inspect evidence, then factoryAvg footer is server-side SQL window function (not client reduce) per translation note + UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + tab URL sync + freshness banner + factoryAvg footer",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary`",
+      "Capture screenshots and Playwright trace for UI parity; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not compute factoryAvg client-side via Array.reduce — server-side SQL",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip the freshness banner",
+      "Do not couple T-018 components inline — import as separate modules",
+      "Do not use HTML <select> for line filter"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_daily_summary_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

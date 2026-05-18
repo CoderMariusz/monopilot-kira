@@ -1,0 +1,108 @@
+{
+  "title": "T-116 — OpenTelemetry baseline package + Next.js instrumentation.ts + worker init (P0 observability)",
+  "prompt": "# T-116 — OpenTelemetry baseline\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5 Cross-cutting infra (\"Observability: Sentry + Datadog / OpenTelemetry — MES-TRENDS-2026 §9\"), §13 Niefunkcjonalne (uptime, page-load P95)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `packages/observability` (`@monopilot/observability`) exporting a configured OpenTelemetry **tracer + meter** backed by `@opentelemetry/sdk-node` for `apps/worker` and `@opentelemetry/sdk-trace-web` + Next.js `instrumentation.ts` for `apps/web`. Today every module assumes a logger/tracer exists; auditor B Top-10 Gap #3 (\"No production observability scaffolding — zero foundation tasks mention OpenTelemetry\") confirms there is nothing wired.\n\nThis task delivers the OTel **infrastructure**. Structured logger (pino) is T-117. Sentry is T-118. The three together form the observability triple.\n\n## Implementation contract\n1. Create `packages/observability/` workspace package. Deps: `@opentelemetry/api`, `@opentelemetry/sdk-node`, `@opentelemetry/sdk-trace-base`, `@opentelemetry/sdk-trace-node`, `@opentelemetry/exporter-trace-otlp-http`, `@opentelemetry/resources`, `@opentelemetry/semantic-conventions`, `@opentelemetry/instrumentation-pg`, `@opentelemetry/instrumentation-http`. Dev: vitest.\n2. `packages/observability/src/tracer.ts` exports `getTracer(name: string, version?: string)` returning `Tracer` from `@opentelemetry/api`. Default tracer name `@monopilot/${pkg}`.\n3. `packages/observability/src/meter.ts` exports `getMeter(name: string, version?: string)` returning `Meter` from `@opentelemetry/api`.\n4. `packages/observability/src/sdk-node.ts` exports `startNodeSdk(opts?: { serviceName?: string; otlpEndpoint?: string; resourceAttributes?: Record<string,string> }): NodeSDK` which constructs the NodeSDK with OTLP HTTP exporter (`OTEL_EXPORTER_OTLP_ENDPOINT` env default), pg + http instrumentations, and `Resource` carrying `service.name`, `service.version`, `deployment.environment`. Honour `OTEL_SDK_DISABLED=true` (no-op return).\n5. `packages/observability/src/in-memory.ts` exports `createInMemoryExporter()` returning an `InMemorySpanExporter` for test assertions (per `@opentelemetry/sdk-trace-base`).\n6. `apps/web/instrumentation.ts` (Next.js convention) — created or extended: `export async function register() { if (process.env.NEXT_RUNTIME==='nodejs') { const { startNodeSdk } = await import('@monopilot/observability/sdk-node'); startNodeSdk({ serviceName: 'monopilot-web' }); } }`.\n7. `apps/worker/src/index.ts` modify: invoke `startNodeSdk({ serviceName: 'monopilot-worker' })` before JobRegistry construction.\n8. `packages/observability/src/__tests__/otel-smoke.test.ts`: configure NodeSDK with `InMemorySpanExporter`; create a tracer; emit a span (`tracer.startActiveSpan('test.smoke', span => { span.setAttribute('foo','bar'); span.end(); })`); flush; assert the exporter received exactly one span with name `test.smoke` and attribute `foo=bar`.\n\n## Files in scope\n- packages/observability/package.json [create]\n- packages/observability/tsconfig.json [create]\n- packages/observability/eslint.config.mjs [create]\n- packages/observability/src/index.ts [create]\n- packages/observability/src/tracer.ts [create]\n- packages/observability/src/meter.ts [create]\n- packages/observability/src/sdk-node.ts [create]\n- packages/observability/src/in-memory.ts [create]\n- packages/observability/src/__tests__/otel-smoke.test.ts [create]\n- apps/web/instrumentation.ts [create]\n- apps/web/next.config.mjs [modify if instrumentation flag needed]\n- apps/worker/src/index.ts [modify — call startNodeSdk]\n- apps/worker/package.json [modify — add @monopilot/observability dep]\n\n## Acceptance criteria\n1. Given otel-smoke.test.ts runs with InMemorySpanExporter wired, when tracer.startActiveSpan('test.smoke', span => {...}) invoked and flushed, then exporter received exactly one span with name 'test.smoke' and attribute foo='bar'.\n2. Given apps/web/instrumentation.ts present, when Next.js boots in NEXT_RUNTIME=nodejs, then register() calls startNodeSdk({serviceName:'monopilot-web'}) (verified by vitest mock); AND Given apps/worker boots, when process starts, then startNodeSdk({serviceName:'monopilot-worker'}) called before JobRegistry construction (verified via integration test using in-memory exporter).\n3. Given OTEL_SDK_DISABLED=true, when startNodeSdk() invoked, then returns no-op object and registers no instrumentation.\n4. Given @monopilot/observability imported, when getTracer('@monopilot/server') called, then returns Tracer whose startActiveSpan is callable.\n## Test strategy\n- RED: write `otel-smoke.test.ts` + a vitest mock for the `apps/web/instrumentation.ts` register() function before implementation. RED command: `pnpm --filter @monopilot/observability test && pnpm --filter @monopilot/web vitest run __tests__/instrumentation.test.ts`.\n- GREEN: implement package, exporters, sdk wiring, Next.js instrumentation, worker init.\n- Run: above + `pnpm --filter @monopilot/observability typecheck`.\n\n## Risk red lines\n- Do not call `startNodeSdk()` more than once per process — wrap in idempotent guard.\n- Do not set `OTEL_EXPORTER_OTLP_ENDPOINT` to a hard-coded URL — env-gated; production endpoint set by deploy.\n- Do not import `@opentelemetry/sdk-node` from `apps/web`'s client bundle — `instrumentation.ts` runs only in Node runtime, gate with `process.env.NEXT_RUNTIME==='nodejs'`.\n- Do not include Sentry here — Sentry lands in T-118.\n- Do not include pino here — pino lands in T-117.\n- Do not log secrets via span attributes — span-attribute redaction is required (start with allowlist).\n- Do not block startup if OTLP collector is unreachable — use BatchSpanProcessor with timeout, log warning, continue.",
+  "labels": [
+    "prd",
+    "observability",
+    "otel",
+    "T2-api",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-116",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§13"
+    ],
+    "category": "observability",
+    "subcategory": "otel-baseline",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-observability",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Create @monopilot/observability package exporting OTel tracer + meter + startNodeSdk(); wire instrumentation.ts in apps/web; init in apps/worker; smoke test with InMemorySpanExporter asserts span export.",
+    "details": "NodeSDK with OTLP HTTP exporter + pg + http auto-instrumentations + Resource(service.name, version, env). Idempotent startup guard. OTEL_SDK_DISABLED=true short-circuits to no-op. Next.js instrumentation.ts gates on NEXT_RUNTIME=nodejs. InMemorySpanExporter exposed for test usage. Smoke test asserts span name + attribute round-trip.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/observability/package.json [create]",
+      "packages/observability/tsconfig.json [create]",
+      "packages/observability/eslint.config.mjs [create]",
+      "packages/observability/src/index.ts [create]",
+      "packages/observability/src/tracer.ts [create]",
+      "packages/observability/src/meter.ts [create]",
+      "packages/observability/src/sdk-node.ts [create]",
+      "packages/observability/src/in-memory.ts [create]",
+      "packages/observability/src/__tests__/otel-smoke.test.ts [create]",
+      "apps/web/instrumentation.ts [create]",
+      "apps/web/next.config.mjs [modify if needed]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Pino logger + redaction (T-117)",
+      "Sentry error reporting (T-118)",
+      "Custom dashboards (downstream observability tasks)",
+      "Datadog vendor adapter"
+    ],
+    "dependencies": [
+      "T-111"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-117",
+      "T-118",
+      "T-121",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given otel-smoke.test.ts runs with InMemorySpanExporter wired, when tracer.startActiveSpan('test.smoke', span => {...}) invoked and flushed, then exporter received exactly one span with name 'test.smoke' and attribute foo='bar'.",
+      "Given apps/web/instrumentation.ts present, when Next.js boots in NEXT_RUNTIME=nodejs, then register() calls startNodeSdk({serviceName:'monopilot-web'}) (verified by vitest mock); AND Given apps/worker boots, when process starts, then startNodeSdk({serviceName:'monopilot-worker'}) called before JobRegistry construction (verified via integration test using in-memory exporter).",
+      "Given OTEL_SDK_DISABLED=true, when startNodeSdk() invoked, then returns no-op object and registers no instrumentation.",
+      "Given @monopilot/observability imported, when getTracer('@monopilot/server') called, then returns Tracer whose startActiveSpan is callable."
+    ],
+    "test_strategy": [
+      "RED: write otel-smoke.test.ts + vitest mock for apps/web/instrumentation.ts register() before implementation; RED command: pnpm --filter @monopilot/observability test && pnpm --filter @monopilot/web vitest run __tests__/instrumentation.test.ts.",
+      "GREEN: implement package + exporters + sdk wiring + Next.js instrumentation + worker init.",
+      "Run: above + pnpm --filter @monopilot/observability typecheck."
+    ],
+    "risk_red_lines": [
+      "Do not call startNodeSdk() more than once per process — idempotent guard.",
+      "Do not hard-code OTEL_EXPORTER_OTLP_ENDPOINT — env-gated.",
+      "Do not import @opentelemetry/sdk-node from apps/web client bundle — gate with process.env.NEXT_RUNTIME==='nodejs'.",
+      "Do not include Sentry here — T-118 owns it.",
+      "Do not include pino here — T-117 owns it.",
+      "Do not log secrets via span attributes — allowlist-based redaction.",
+      "Do not block startup if OTLP collector unreachable — BatchSpanProcessor + warn + continue."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "title": "T-008 — maintenance_kpis MV + pg_cron daily refresh (MNT §9.16)",
+  "prompt": "# T-008 — maintenance_kpis materialized view\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.16, §10.1 (MNT-006 Manager overview), §3.3 (KPIs)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `maintenance_kpis` materialized view aggregating monthly per-equipment counters (preventive_count, reactive_count, pm_on_time_count, auto_downtime_count, avg_mttr_min, total_cost). Add daily pg_cron refresh job at 02:30 UTC.\n\n## Pre-flight\nVerify `maintenance_work_orders` (T-004) exists. Verify `pg_cron` extension enabled by Foundation/operations migrations — if absent, fall back to manual REFRESH command + a comment that 14-multi-site/operations will enable pg_cron.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_maintenance_kpis_mv.sql` with:\n   - CREATE MATERIALIZED VIEW `maintenance_kpis` per PRD §9.16 (corrected pm_on_time logic — the PRD has a placeholder `<scheduled_date>`; replace with `(SELECT next_due_date FROM maintenance_schedules WHERE id = mwo.schedule_id)` joined subquery).\n   - CREATE UNIQUE INDEX on (org_id, site_id, equipment_id, month) so REFRESH CONCURRENTLY works.\n   - SECURITY INVOKER (or SECURITY DEFINER with explicit `app.current_org_id()` check guard — pick INVOKER so RLS is enforced for downstream consumers).\n2. pg_cron schedule: `SELECT cron.schedule('refresh_maintenance_kpis','30 2 * * *', $$REFRESH MATERIALIZED VIEW CONCURRENTLY maintenance_kpis$$);`. Wrap in `IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')` so migration is portable.\n3. Vitest: insert ~10 MWOs across two orgs/months; manually REFRESH; assert per-month per-org rows match expected counts; assert UNIQUE index supports CONCURRENTLY refresh; assert cron job entry present when pg_cron extension is loaded.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_kpis_mv.sql [create]\n- packages/db/__tests__/maintenance-kpis-mv.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `maintenance_kpis` is queried, then it returns rows grouped by org_id+site_id+equipment_id+month with correct counters per §9.16.\n2. Given 6 MWOs in orgA (3 preventive completed, 2 reactive completed, 1 cancelled), when MV is refreshed and queried, then preventive_count=3, reactive_count=2, cancelled-state included per §9.16 WHERE clause.\n3. Given the unique index on (org_id, site_id, equipment_id, month), when REFRESH MATERIALIZED VIEW CONCURRENTLY runs, then it succeeds.\n4. Given pg_cron extension is present, when migration runs, then `cron.job` table contains `refresh_maintenance_kpis` at `30 2 * * *`; when absent, migration logs a NOTICE and proceeds.\n\n## Test strategy\n- RED: maintenance-kpis-mv.test.ts asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-kpis-mv`.\n\n## Risk red lines\n- Do not paste the §9.16 SQL with the literal `<scheduled_date>` placeholder — resolve to the join expression.\n- Do not use SECURITY DEFINER without explicit org_id guard.\n- Do not refresh non-CONCURRENTLY in cron (would lock readers).\n- Do not omit the UNIQUE index — CONCURRENTLY requires it.\n- Do not couple to Reporting MV refresh worker — this is a maintenance-owned cron job.",
+  "labels": [
+    "prd",
+    "data",
+    "mv",
+    "cron",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.16",
+      "§10.1",
+      "§3.3"
+    ],
+    "category": "data",
+    "subcategory": "mv-refresh-cron",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Create maintenance_kpis MV with corrected pm_on_time logic + UNIQUE index for CONCURRENTLY + pg_cron daily 02:30 refresh.",
+    "details": "MV aggregates monthly per-equipment counters. PRD §9.16 has a `<scheduled_date>` placeholder — resolve to subquery against maintenance_schedules. SECURITY INVOKER preserves RLS for downstream MNT-006/MNT-031 dashboards. Downtime events feeding OEE MTBF/MTTR are published via foundation T-112 outbox dispatcher — this MV is a downstream consumer of those events.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_kpis_mv.sql [create]",
+      "packages/db/__tests__/maintenance-kpis-mv.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Cross-module MV feeding 12-reporting (12-reporting task)",
+      "OEE consumer (15-OEE owns oee_shift_metrics)",
+      "Analytics UI (T-026)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006",
+      "T-007"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when maintenance_kpis is queried, then it returns rows grouped by org_id+site_id+equipment_id+month with correct counters per §9.16",
+      "Given 6 MWOs in orgA, when MV refreshed, then counters match expected (preventive=3, reactive=2)",
+      "Given the UNIQUE index, when REFRESH MV CONCURRENTLY runs, then it succeeds",
+      "Given pg_cron extension is present, when migration runs, then cron.job has refresh_maintenance_kpis at 30 2 * * *; when absent, migration logs NOTICE and proceeds"
+    ],
+    "test_strategy": [
+      "RED: maintenance-kpis-mv.test.ts asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-kpis-mv`"
+    ],
+    "risk_red_lines": [
+      "Do not leave `<scheduled_date>` placeholder in SQL — resolve to join",
+      "Do not SECURITY DEFINER without org_id guard",
+      "Do not REFRESH without CONCURRENTLY in cron",
+      "Do not omit UNIQUE index"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

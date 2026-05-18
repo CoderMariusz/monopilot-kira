@@ -1,0 +1,110 @@
+{
+  "title": "T-011 — inventory_allocations + pick_overrides schema + FEFO candidate query (11-shipping-c)",
+  "prompt": "# T-011 — Allocation schema + FEFO candidate query + pick_overrides\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (inventory_allocations), §9.2 (pick_overrides), §6 D-SHP-1 LP-Based Allocation (ADR-001), §6 D-SHP-2 FEFO/FIFO Picking (ADR-005), §6 D-SHP-13 Quality Hold Soft Gate, §8.2 Flow Allocation, §11 V-SHIP-ALLOC-01..05\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `inventory_allocations` + `pick_overrides` tables, write the canonical FEFO candidate query view + Postgres function consuming 05-WAREHOUSE `license_plates` table (LP availability + quality_holds + FEFO sort).\n\n## Implementation contract\n1. Migration creates:\n   - `inventory_allocations` (org_id, sales_order_line_id FK CASCADE, license_plate_id FK references license_plates (05-WH T-002), quantity_allocated numeric(14,3) CHECK > 0, allocated_at timestamptz NOT NULL DEFAULT now(), allocated_by uuid NOT NULL, released_at timestamptz, release_reason text, R13)\n   - `pick_overrides` (org_id, user_id, pick_list_line_id FK, license_plate_id FK, override_type text CHECK ('fefo_deviation','quality_hold','expired_lp'), hold_id uuid nullable references quality_holds (09-QA), reason_code text, notes text, overridden_at timestamptz NOT NULL DEFAULT now(), audit_hash text NOT NULL — SHA-256 over override row; 7y retention BRCGS)\n2. RLS + FORCE RLS via `app.current_org_id()` (T-125). UNIQUE(license_plate_id, sales_order_line_id) on inventory_allocations to prevent double-alloc.\n3. View `v_fefo_lp_candidates` for a given product_id + qty + org_id: SELECT license_plates LEFT JOIN v_active_holds (09-QUALITY T-010) WHERE status='available' AND product_id=? AND org_id=app.current_org_id() ORDER BY expiry_date ASC NULLS LAST, qty_remaining DESC; returns rank, expiry_date, qty_remaining, location_id, hold_severity (NULL if no hold).\n4. Postgres function `allocate_fefo(p_so_line_id uuid, p_qty numeric)` returns void; uses SELECT ... FOR UPDATE on candidate LPs to prevent race; INSERTs inventory_allocations rows; UPDATEs license_plates.status='reserved' and qty_remaining; honors V-SHIP-ALLOC-01 (sum <= qty_ordered - qty_picked), V-SHIP-ALLOC-04 (expired hard-block unless caller has override flag), V-SHIP-ALLOC-05 (FEFO sort).\n5. The Postgres function operates under whatever org_id the calling session is set to via `app.set_org_context` (T-125) — never reads GUCs directly.\n6. Drizzle schema in `packages/db/src/schema/shipping/allocations.ts`.\n\n## Files\n- packages/db/migrations/00XX_shipping_allocations.sql [create]\n- packages/db/src/schema/shipping/allocations.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/shipping-allocations-fefo.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB and a SO line with quantity_ordered=100, and 3 LPs with expiry_date 2026-06-01/2026-05-15/2026-07-01 each qty=40, when allocate_fefo(so_line_id, 100) is called, then 2 inventory_allocations rows are created with LP rank order (2026-05-15 first, 2026-06-01 second), summing to 80 (LP fully consumed) + 1 partial of 20 from the third LP — FEFO sort respected (V-SHIP-ALLOC-05).\n2. Given an LP with active critical quality_hold, when allocate_fefo runs and the LP is the FEFO winner, then it is skipped per D-SHP-13 hard gate (severity='critical') and the next LP is used. If only critical-hold LPs are available, function raises `shipping.fefo.qa_critical_hold_blocked`.\n3. Given two concurrent allocate_fefo calls competing for the same LP, when run, then SELECT FOR UPDATE serializes them and only one allocation row is created (no over-allocation).\n4. Given pg_policies inspected for inventory_allocations + pick_overrides, when listed, then qual/withcheck reference app.current_org_id() with no GUC reads.\n5. Given INSERT into pick_overrides with audit_hash NULL, when constraint runs, then NOT NULL violation occurs.\n\n## Test strategy\n- RED: testcontainers Postgres 16 concurrency test (two parallel tx) asserting AC 1-5; seeds license_plates fixtures.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-allocations-fefo`.\n\n## Risk red lines\n- Do not skip SELECT FOR UPDATE — race condition would cause double-alloc (V-SHIP-ALLOC-02).\n- Do not name business-scope column tenant_id.\n- Do not read current_setting('app.tenant_id'|'app.current_org_id') in functions/views — use app.current_org_id().\n- Do not bypass quality_hold gate (D-SHP-13) — query v_active_holds always.\n- Do not omit FORCE RLS.\n- Do not introduce ON DELETE CASCADE from license_plates to inventory_allocations — LP deletion must fail if allocations exist.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§9.2",
+      "§6 D-SHP-1",
+      "§6 D-SHP-2",
+      "§6 D-SHP-13",
+      "§8.2",
+      "§11 V-SHIP-ALLOC-01",
+      "§11 V-SHIP-ALLOC-02",
+      "§11 V-SHIP-ALLOC-04",
+      "§11 V-SHIP-ALLOC-05"
+    ],
+    "category": "data",
+    "subcategory": "schema-allocation",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-c",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "inventory_allocations + pick_overrides schema + v_fefo_lp_candidates view + allocate_fefo() FOR UPDATE Postgres function honoring V-SHIP-ALLOC-* + D-SHP-13 hard gate.",
+    "details": "Cross-module reads license_plates (05-WH T-002) + v_active_holds (09-QA T-010). FEFO sort by expiry_date ASC NULLS LAST. SELECT FOR UPDATE prevents race. Critical-hold LPs skipped automatically per D-SHP-13.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_allocations.sql [create]",
+      "packages/db/src/schema/shipping/allocations.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-allocations-fefo.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-012).",
+      "Do not build allocation UI here (T-014).",
+      "Do not consume in confirmSO logic (T-007)."
+    ],
+    "dependencies": [
+      "T-006",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-007",
+      "T-015"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse/T-002 (license_plates)",
+      "09-quality/T-010 (v_active_holds)",
+      "00-foundation/T-125 (app.current_org_id())",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "09-quality/T-064 (consume gate — allocate_fefo must call holdsGuard before reserving LP; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given a SO line with qty_ordered=100 and 3 LPs with expiry 2026-06-01/2026-05-15/2026-07-01 each qty_on_hand=50, when allocate_fefo runs, then LP expiring 2026-05-15 is allocated first (FEFO) and v_active_holds gate (09-quality T-064) is checked before reservation.",
+      "Given an LP has active critical quality_hold, when allocate_fefo runs and that LP is the FEFO winner, then it is skipped and blocker_code='qa.critical_hold' returned (D-SHP-13).",
+      "Given two concurrent allocate_fefo calls competing for same LP, when run, then SELECT FOR UPDATE serializes them and no double-allocation occurs.",
+      "Given pg_policies inspected for inventory_allocations + pick_overrides, when listed, then qual/withcheck reference app.current_org_id() with no GUC reads; AND INSERT into pick_overrides with audit_hash NULL raises NOT NULL violation."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres concurrency test (two parallel tx) asserting AC 1-5; license_plates fixtures.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-allocations-fefo`."
+    ],
+    "risk_red_lines": [
+      "Do not skip SELECT FOR UPDATE.",
+      "Do not name business-scope column tenant_id.",
+      "Do not read current_setting GUCs in functions/views.",
+      "Do not bypass quality_hold gate (D-SHP-13).",
+      "Do not omit FORCE RLS.",
+      "Do not allow ON DELETE CASCADE from license_plates to inventory_allocations.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — allocate_fefo must call holdsGuard(lpId, lotId) before reserving any LP."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

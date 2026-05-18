@@ -1,0 +1,83 @@
+{
+  "title": "T-077 — refactor grantRole from BYPASSRLS owner pool to getAppConnection + set_org_context (FT-017)",
+  "prompt": "# T-077 — refactor grantRole from BYPASSRLS owner pool to getAppConnection + set_org_context (FT-017)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5, §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-017** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\ngrantRole runs under the app-role + set_org_context — owner-pool removed.\n\n## Implementation contract\n1. Replace `getOwnerPool()` with `getAppConnection(orgId)` from packages/db.\n2. First statement in transaction: `SELECT set_org_context($1)`.\n3. Remove all BYPASSRLS escalations.\n4. Integration test asserts a same-org grant succeeds and a forged cross-org attempt is rejected by RLS (SQLSTATE 42501).\n\n## Files (scope)\n- packages/rbac/src/grant.ts [modify]\n- packages/rbac/src/__tests__/grant-rls.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given grantRole is called for a same-org grant, when it runs, then the connection is on the app-role and the grant succeeds.\n2. Given a forged cross-org grant attempt (bypassing the FT-016 assertion in a test harness), when it runs, then RLS denies it with SQLSTATE 42501.\n3. Given the audit_events row for the successful grant, when inspected, then org_id matches the target org.\n\n## Test strategy\n- RED: write grant-rls.integration.test.ts asserting RLS denial before refactor.\n- Pin SQLSTATE 42501.\n- Run `pnpm --filter @monopilot/rbac test grant-rls`.\n\n## Risk red lines\n- Do not retain any owner-pool escape hatch in grantRole.\n- Do not skip set_org_context.\n- Do not use raw new pg.Pool.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "rbac",
+    "rls",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-077",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-017",
+    "category": "auth",
+    "subcategory": "rbac",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Refactor grantRole to use getAppConnection() + set_org_context() instead of the BYPASSRLS owner pool, removing the silent-cross-org-leak risk surface.",
+    "details": "grantRole currently opens an owner-pool connection that bypasses RLS. Move to the app-role connection with `select set_org_context($1)` so cross-org writes are denied by RLS as well as by the FT-016 assertion.",
+    "scope_files": [
+      "packages/rbac/src/grant.ts [modify]",
+      "packages/rbac/src/__tests__/grant-rls.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor other rbac functions in this task (separate FTs)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given grantRole is called for a same-org grant, when it runs, then the connection is on the app-role and the grant succeeds.",
+      "Given a forged cross-org grant attempt (bypassing the FT-016 assertion in a test harness), when it runs, then RLS denies it with SQLSTATE 42501.",
+      "Given the audit_events row for the successful grant, when inspected, then org_id matches the target org."
+    ],
+    "test_strategy": [
+      "RED: write grant-rls.integration.test.ts asserting RLS denial before refactor.",
+      "Pin SQLSTATE 42501.",
+      "Run `pnpm --filter @monopilot/rbac test grant-rls`."
+    ],
+    "risk_red_lines": [
+      "Do not retain any owner-pool escape hatch in grantRole.",
+      "Do not skip set_org_context.",
+      "Do not use raw new pg.Pool."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

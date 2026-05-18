@@ -1,0 +1,104 @@
+{
+  "title": "T-124 — packages/e-sign — CFR 21 Part 11 dual-sign + server-verified PIN primitive (used by quality/production)",
+  "prompt": "# T-124 — packages/e-sign — CFR 21 Part 11 e-sign primitive\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §11 Audit log (FDA 21 CFR Part 11 — \"electronic records — when a US tenant requires it, retention_class='security' extends to 10 years\"); 09-QUALITY-PRD.md §5 Compliance + translation-notes-quality.md (\"Build a single shared <ESignBlock> server component\")\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide `packages/e-sign` (`@monopilot/e-sign`) — a small package implementing the dual-sign + server-verified PIN contract used by 09-Quality (haccp/ccp/incident/complaint sign-offs), 08-Production (WO release, dual-sign destructive actions), 03-Technical (FA release approval), and 10-Finance (cost approval ≥20%). Translation-notes-quality.md flags this as the canonical CFR 21 Part 11 primitive but no atomic task owns it (auditor B §3 Top-5 translation-rules gap).\n\nThis task delivers:\n- A typed `signEvent({ subject, signerUserId, pin, intent, reason }) → ESignReceipt`,\n- A dual-sign helper `dualSign({ subject, primarySignerUserId, primaryPin, secondarySignerUserId, secondaryPin, intent, reason })` that enforces SoD (the two signers MUST be different users),\n- PIN verification calls existing `verifyPin` from `packages/auth` (T-016) — never plaintext, argon2id-hashed, server-only.\n- Audit-event write per signature with `retention_class='security'` (10 years for US tenants per F-U5 / PRD §11).\n- A replay-attack guard: each signature carries a server-generated nonce + `subject_hash` (sha256 of canonical-stringified subject) — re-submitting the same `{nonce, subject_hash}` is rejected with `EReplayError`.\n\n## Implementation contract\n1. Create `packages/e-sign/` workspace package. Deps: `@monopilot/auth` (workspace, for verifyPin), `@monopilot/db` (workspace), `argon2`, `zod`. Dev: vitest.\n2. `packages/e-sign/src/types.ts` exports:\n   - `ESignIntent = 'qa.hold.release' | 'qa.ncr.close' | 'qa.haccp.ccp.deviation' | 'prod.wo.release' | 'prod.consumption.override' | 'tech.fa.release' | 'fin.cost.approve'` (extensible string-union).\n   - `ESignReceipt = { signatureId: string; signerUserId: string; intent: ESignIntent; subjectHash: string; signedAt: string; auditEventId: number; nonce: string }`.\n   - `EReplayError`, `ESignSoDError`, `EPinFailedError`.\n3. `packages/e-sign/src/sign.ts` — `signEvent(input): Promise<ESignReceipt>`:\n   a. Validate input via Zod.\n   b. Verify PIN via `verifyPin(pool, signerUserId, pin)` from `@monopilot/auth` — throws `EPinFailedError` on miss.\n   c. Compute `subjectHash = sha256(canonical-json(input.subject))`.\n   d. Check `e_sign_log` for existing row with same `(signer_user_id, subject_hash, intent, nonce)` — if present, throw `EReplayError`.\n   e. INSERT row into `e_sign_log` (new table — see migration step) with `actor_user_id=signerUserId`, `intent`, `subject_hash`, `nonce`, `reason`, `created_at`.\n   f. Write paired `audit_events` row with `action='e_sign.recorded'`, `retention_class='security'`, `before_state=null`, `after_state={intent, subjectHash, nonce}` — via existing audit API.\n   g. Return `ESignReceipt`.\n4. `packages/e-sign/src/dual.ts` — `dualSign(input): Promise<{ primary: ESignReceipt; secondary: ESignReceipt }>`:\n   a. Reject if `primarySignerUserId === secondarySignerUserId` (`ESignSoDError`).\n   b. Run `signEvent` for primary, then for secondary, both in a single tx; if secondary fails, ROLLBACK + rethrow.\n5. New Drizzle migration `packages/db/migrations/0NNN-e-sign-log.sql`:\n   ```\n   CREATE TABLE e_sign_log (\n     signature_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n     org_id         UUID NOT NULL,\n     signer_user_id UUID NOT NULL,\n     intent         TEXT NOT NULL,\n     subject_hash   TEXT NOT NULL,\n     nonce          TEXT NOT NULL,\n     reason         TEXT,\n     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),\n     UNIQUE (signer_user_id, subject_hash, intent, nonce)\n   );\n   ALTER TABLE e_sign_log ENABLE ROW LEVEL SECURITY;\n   ALTER TABLE e_sign_log FORCE ROW LEVEL SECURITY;\n   CREATE POLICY e_sign_log_org_context ON e_sign_log\n     USING (org_id = app.current_org_id())\n     WITH CHECK (org_id = app.current_org_id());\n   ```\n6. `packages/e-sign/src/__tests__/sign.test.ts` (testcontainers Postgres):\n   - Happy path: seed a user with a known PIN, call `signEvent`, assert receipt + e_sign_log row + audit_events row.\n   - Replay: call `signEvent` twice with identical `{nonce, subject_hash}` — second throws `EReplayError`.\n   - Wrong PIN: `signEvent` with bad PIN → throws `EPinFailedError`, no e_sign_log row written.\n   - DualSign SoD: same-user primary + secondary → throws `ESignSoDError`, no rows written.\n   - DualSign happy: two distinct users, both PINs correct → returns two receipts, two e_sign_log rows, two audit rows.\n\n## Files in scope\n- packages/e-sign/package.json [create]\n- packages/e-sign/tsconfig.json [create]\n- packages/e-sign/eslint.config.mjs [create]\n- packages/e-sign/src/index.ts [create]\n- packages/e-sign/src/types.ts [create]\n- packages/e-sign/src/sign.ts [create]\n- packages/e-sign/src/dual.ts [create]\n- packages/e-sign/src/__tests__/sign.test.ts [create]\n- packages/db/migrations/0NNN-e-sign-log.sql [create — verify NNN]\n- packages/db/src/schema/e-sign.ts [create]\n- packages/db/src/schema/index.ts [modify — export e-sign]\n\n## Acceptance criteria\n1. Given a seeded user with known PIN, when signEvent({signerUserId, pin, intent:'qa.hold.release', subject:{holdId:'h-1'}, nonce:'n-1', reason:'ok'}) called, then receipt returned, one e_sign_log row with subject_hash = sha256(canonical-json({holdId:'h-1'})), one audit_events row action='e_sign.recorded' retention_class='security'.\n2. Given previous successful signEvent, when SAME {signerUserId, intent, subject, nonce} replayed, then signEvent throws EReplayError and no new rows written.\n3. Given wrong PIN, when signEvent called, then throws EPinFailedError, no e_sign_log row, no audit_events row.\n4. Given dualSign called with primarySignerUserId === secondarySignerUserId, then throws ESignSoDError before any DB write; AND Given dualSign called with two distinct users and correct PINs, then returns two receipts; if secondary fails, ROLLBACK removes primary's row (verified by injecting faulty PIN on secondary).\n## Test strategy\n- RED: write `sign.test.ts` with the 5 ACs before implementation, using testcontainers Postgres + migration applied + a seeded test user (via `@monopilot/auth.setPin`). RED: `pnpm --filter @monopilot/e-sign test`.\n- GREEN: implement migration + sign.ts + dual.ts + types.\n- Run: `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/e-sign test`.\n\n## Risk red lines\n- Do not store the PIN in plaintext anywhere — verification goes through `verifyPin` (argon2id).\n- Do not skip the replay nonce — required for CFR 21 Part 11 non-repudiation.\n- Do not write an `e_sign_log` row without a paired `audit_events` row in the same tx — atomicity is required.\n- Do not allow the same user to be both signers in dualSign — SoD is the entire point.\n- Do not return raw PIN or hashed PIN in any response field.\n- Do not weaken `retention_class` from `security` — Part 11 §11.10(e) requires the full retention period.\n- Do not expose this primitive from a public route handler without the rate-limit (T-121) wrapper — pin-verify preset applies.",
+  "labels": [
+    "prd",
+    "compliance",
+    "e-sign",
+    "cfr-21-part-11",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-124",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§11"
+    ],
+    "category": "compliance",
+    "subcategory": "e-sign",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-e-sign",
+    "context_budget": "40k",
+    "estimated_effort": "3-5h",
+    "description": "Foundation CFR 21 Part 11 e-sign primitive — signEvent + dualSign (SoD enforced) + server-verified PIN via @monopilot/auth + replay-nonce guard + e_sign_log RLS-isolated table + paired audit_events writes (retention_class='security'). Used by 09-Quality, 08-Production, 03-Technical, 10-Finance.",
+    "details": "Zod-validated input. PIN check via existing verifyPin (argon2id, packages/auth T-016). subject_hash = sha256(canonical-json(subject)). UNIQUE(signer_user_id, subject_hash, intent, nonce) prevents replay. dualSign refuses same-user primary+secondary (ESignSoDError). All writes in single tx; rollback on any failure. Audit row retention_class=security (PRD §11 — 10y US tenants). Tests via testcontainers Postgres + seeded user with known PIN.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/e-sign/package.json [create]",
+      "packages/e-sign/tsconfig.json [create]",
+      "packages/e-sign/eslint.config.mjs [create]",
+      "packages/e-sign/src/index.ts [create]",
+      "packages/e-sign/src/types.ts [create]",
+      "packages/e-sign/src/sign.ts [create]",
+      "packages/e-sign/src/dual.ts [create]",
+      "packages/e-sign/src/__tests__/sign.test.ts [create]",
+      "packages/db/migrations/0NNN-e-sign-log.sql [create]",
+      "packages/db/src/schema/e-sign.ts [create]",
+      "packages/db/src/schema/index.ts [modify]"
+    ],
+    "out_of_scope": [
+      "<ESignBlock> React component (09-Quality + 08-Production consumers — separate UI tasks)",
+      "Virtual PIN keypad component (BL-QA-06 — Quality UI task)",
+      "Immutability-after-signing read-only enforcement (per-screen module tasks)",
+      "WebAuthn-based e-sign (Phase 3 per PRD §5.x D7)"
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      "00-foundation/T-016"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-116",
+      "T-117",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given a seeded user with known PIN, when signEvent({signerUserId, pin, intent:'qa.hold.release', subject:{holdId:'h-1'}, nonce:'n-1', reason:'ok'}) called, then receipt returned, one e_sign_log row with subject_hash = sha256(canonical-json({holdId:'h-1'})), one audit_events row action='e_sign.recorded' retention_class='security'.",
+      "Given previous successful signEvent, when SAME {signerUserId, intent, subject, nonce} replayed, then signEvent throws EReplayError and no new rows written.",
+      "Given wrong PIN, when signEvent called, then throws EPinFailedError, no e_sign_log row, no audit_events row.",
+      "Given dualSign called with primarySignerUserId === secondarySignerUserId, then throws ESignSoDError before any DB write; AND Given dualSign called with two distinct users and correct PINs, then returns two receipts; if secondary fails, ROLLBACK removes primary's row (verified by injecting faulty PIN on secondary)."
+    ],
+    "test_strategy": [
+      "RED: write sign.test.ts with 5 ACs before implementation using testcontainers Postgres + migration + seeded user via setPin; RED: pnpm --filter @monopilot/e-sign test.",
+      "GREEN: implement migration + sign.ts + dual.ts + types.",
+      "Run: pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/e-sign test."
+    ],
+    "risk_red_lines": [
+      "Do not store PIN in plaintext — verifyPin via argon2id only.",
+      "Do not skip replay nonce — Part 11 non-repudiation requirement.",
+      "Do not write e_sign_log row without paired audit_events row in same tx.",
+      "Do not allow same user as both signers in dualSign — SoD enforcement.",
+      "Do not return raw or hashed PIN in any response field.",
+      "Do not weaken retention_class from security — Part 11 §11.10(e).",
+      "Do not expose this primitive from public route handler without rate-limit (T-121) wrapper — pin-verify preset."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

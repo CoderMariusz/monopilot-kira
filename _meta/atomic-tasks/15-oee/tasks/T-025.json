@@ -1,0 +1,99 @@
+{
+  "title": "T-025 — Playwright E2E + seed fixtures: OEE-001/002/003 happy path with role gates (15-OEE-f)",
+  "prompt": "# T-025 — Playwright E2E + seed fixtures\n\nPRD: docs/prd/15-OEE-PRD.md §10.1/10.2/10.3 (3 P1 dashboards), §11 V-OEE-ACCESS, §15.1; Wave1 T-123 Playwright primitive\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWave1 T-123 Playwright primitive consumer: end-to-end browser test covering the OEE-001/002/003 happy path with three role personas (oee_viewer, oee_supervisor, oee_admin) + seed fixtures for a single tenant with 3 lines × 7 days × 3 shifts of seeded oee_snapshots + downtime_events + changeover_events. Captures screenshot artifacts per page per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Pre-flight\nAll P1 UI tasks (T-014..T-022) and API tasks (T-011..T-013) must be merged. Verify Wave1 T-123 Playwright base config + auth fixture.\n\n## Implementation contract\n1. `apps/web/e2e/oee/_fixtures/seed-oee.ts`: idempotent seeder writing 1 tenant + 3 lines + shift_configs (AM/PM/Night) + 7 days × 3 shifts × 480 oee_snapshots/shift + 50 downtime_events + 10 changeover_events + oee_alert_thresholds tenant default. Run before each spec.\n2. `apps/web/e2e/oee/oee-001-line-trend.spec.ts`: navigate to /oee/line/LINE-01 as oee_viewer; assert 4 ArcGauges + Trend chart visible; switch window 1h/6h/24h; capture screenshot.\n3. `apps/web/e2e/oee/oee-002-heatmap.spec.ts`: navigate to /oee/heatmap as oee_viewer; assert 3×7=21 cells visible for 3 lines; click cell → cell_drill_modal opens; capture screenshot.\n4. `apps/web/e2e/oee/oee-003-summary.spec.ts`: navigate to /oee/summary as oee_supervisor; assert 5 KPI cards + 3 tabs; switch to Six Big Losses tab and verify Pareto chart visible; capture screenshot.\n5. `apps/web/e2e/oee/oee-admin-rbac.spec.ts`: as oee_viewer, navigate to /oee/settings → expect redirect to /oee; as oee_admin, navigate → expect page renders; assert middleware role gate.\n6. CI integration via Wave1 T-122 primitive (playwright job wired into pnpm e2e:ci) — no new CI infra here.\n\n## Files\n- apps/web/e2e/oee/_fixtures/seed-oee.ts [create]\n- apps/web/e2e/oee/oee-001-line-trend.spec.ts [create]\n- apps/web/e2e/oee/oee-002-heatmap.spec.ts [create]\n- apps/web/e2e/oee/oee-003-summary.spec.ts [create]\n- apps/web/e2e/oee/oee-admin-rbac.spec.ts [create]\n\n## Acceptance criteria\n1. Given the seeder runs against a fresh DB, when oee_snapshots is queried, then exactly 1 tenant × 3 lines × 7 days × 3 shifts × 480 = 30,240 snapshot rows are present and the seeder is idempotent.\n2. Given an oee_viewer session, when /oee/line/LINE-01 is opened with window=24h, then 4 ArcGauges (A/P/Q/OEE) are visible, the Trend chart renders, and a screenshot artifact is captured.\n3. Given an oee_viewer session navigates to /oee/settings, when Playwright follows redirects, then the final URL is /oee (V-OEE-ACCESS-2 middleware gate); given oee_admin session, the URL stays /oee/settings.\n4. Given the task is closed out, when reviewers inspect evidence, then all four spec files produce screenshot + Playwright trace artifacts attached per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright primitive is unavailable, the task documents the blocker and falls back to RTL parity smoke tests.\n\n## Test strategy\n- RED: write all 4 spec files + seeder asserting four ACs.\n- Run `pnpm --filter @monopilot/web e2e:ci -- oee`.\n\n## Risk red lines\n- Do not skip seed idempotency — repeated CI runs must not duplicate rows.\n- Do not paste prototype JSX-aware selectors — use accessible labels / role queries (Playwright getByRole/getByText).\n- Do not bypass Wave1 T-123 Playwright config / T-122 CI primitive — reuse existing harness.\n- Do not gate the E2E on backend services not implemented in 15-OEE (mock 12-REPORTING export if needed).\n- Do not include flaky time-of-day assertions — use fake-time helpers if needed.",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-025",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§10.2",
+      "§10.3",
+      "§11",
+      "§15.1"
+    ],
+    "category": "test",
+    "subcategory": "e2e-playwright",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "15-OEE-f",
+    "context_budget": "45k",
+    "estimated_effort": "3-5h",
+    "description": "Playwright E2E across OEE-001/002/003 + admin RBAC gate + 30k-row seed fixture; uses Wave1 T-123 primitive; captures parity screenshots.",
+    "details": "Closes Auditor A's missing E2E coverage for 15-OEE. Seeder idempotent (re-run safe in CI). Three role personas reuse Wave1 auth fixture. Wave1 T-122 CI primitive runs the e2e:ci job; this task does not add CI infrastructure.\n\nAdditional acceptance detail: all 4 spec files produce screenshot + Playwright trace artifacts per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "apps/web/e2e/oee/_fixtures/seed-oee.ts [create]",
+      "apps/web/e2e/oee/oee-001-line-trend.spec.ts [create]",
+      "apps/web/e2e/oee/oee-002-heatmap.spec.ts [create]",
+      "apps/web/e2e/oee/oee-003-summary.spec.ts [create]",
+      "apps/web/e2e/oee/oee-admin-rbac.spec.ts [create]"
+    ],
+    "out_of_scope": [
+      "P2 page E2E (anomalies, equipment-health, TV)",
+      "Compare Weeks E2E (P1.5)",
+      "Multi-tenant E2E (single tenant fixture in P1)"
+    ],
+    "dependencies": [
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-020"
+    ],
+    "parallel_safe_with": [
+      "T-024"
+    ],
+    "acceptance_criteria": [
+      "Given the seeder runs against a fresh DB, when oee_snapshots is queried, then exactly 1 tenant × 3 lines × 7 days × 3 shifts × 480 = 30,240 snapshot rows are present; re-running the seeder leaves the row count unchanged (idempotent)",
+      "Given an oee_viewer session, when /oee/line/LINE-01 is opened with window=24h, then 4 ArcGauges (A/P/Q/OEE) are visible, the Trend chart renders, and a screenshot artifact is captured",
+      "Given an oee_viewer session navigates to /oee/settings, when Playwright follows redirects, then the final URL is /oee (V-OEE-ACCESS-2 middleware gate); given oee_admin session, the URL stays /oee/settings",
+      "Given the task is closed out, when reviewers inspect evidence, then all four spec files produce screenshot + Playwright trace artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright primitive is unavailable, the task documents the blocker and falls back to RTL parity smoke tests"
+    ],
+    "test_strategy": [
+      "RED: write 4 spec files + seeder asserting four ACs",
+      "Run `pnpm --filter @monopilot/web e2e:ci -- oee`",
+      "Capture screenshots and Playwright trace per spec; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not skip seed idempotency",
+      "Do not paste prototype JSX-aware selectors — use getByRole/getByText",
+      "Do not bypass Wave1 T-123 / T-122 primitives",
+      "Do not gate E2E on un-implemented backend (mock 12-REPORTING export)",
+      "Do not include flaky time-of-day assertions"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

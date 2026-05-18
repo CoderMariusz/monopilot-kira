@@ -1,13 +1,13 @@
 {
-  "title": "T-022 — GRN from TO Server Action (transit→destination)",
-  "prompt": "# T-022 — GRN from TO Server Action\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §7.2, §7.5.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nServer Action `receiveTransferOrder(toId, lpReceipts[])` moving transit LPs to destination location and updating to_lines.received_qty.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/grn-from-to.ts`. Per receipt entry: locate LP at TRN-IN-{warehouse_code}, update LP.location_id and LP.warehouse_id to destination, insert stock_moves (move_type='receipt'). Update to_lines.received_qty. Trigger TO status transition per 04§7.4 (handled cross-module). Edge case: bulk-qty-no-LP transit creates new LP at receipt via T-016.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/grn-from-to.ts [create]\n- apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts [create]\n\n## Acceptance criteria\n1. Given a transit LP with location_id=transit-in and shipped TO line, when service runs, then LP.location_id moves to destination location and warehouse_id updates.\n2. Given a bulk-qty-no-LP TO, when service runs with operator-entered batch+qty, then a new LP is created at the destination location.\n3. Given service completes, when to_lines is queried, then received_qty increments by the receipt quantity.\n\n## Test strategy\n- RED: grn-from-to.test.ts covers transit-LP receipt, bulk-no-LP creation, to_lines aggregation.\n- Run `pnpm --filter web test grn-from-to`.\n\n## Risk red lines\n- Do not create duplicate LPs for the same transit shipment.\n- Do not skip the receipt stock_move.\n- Do not transition TO status here — emit handoff signal for 04-PLANNING.",
+  "title": "T-022 — GRN from TO Server Action (transit → destination) (WH §7.2, §7.5)",
+  "prompt": "# T-022 — GRN from TO Server Action (transit → destination) (WH §7.2, §7.5)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §7.2, §7.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `completeGrnFromTo` Server Action: receives shipped LPs at destination warehouse — transit LPs keep their `id` but `location_id` + `warehouse_id` change; if TO shipped bulk-no-LP, create LPs at receive.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/grn-from-to.ts`: function `completeGrnFromTo({grn_id, to_id, lp_assignments: [{transit_lp_id, destination_location_id}]})`.\n2. For each transit LP: validate status='in_transit' (or equivalent), update LP.warehouse_id + location_id, INSERT stock_moves(move_type='transfer', from=transit_loc, to=destination).\n3. If TO line shipped bulk-no-LP (per settings flag), invoke `createLicensePlate` for the receiving qty at destination.\n4. Update to_lines.received_qty; emit `grn.completed` event with `to_id` populated.\n\n## Files\n- apps/web/lib/services/warehouse/grn-from-to.ts [create]\n- apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts [create]\n\n## Acceptance criteria\n1. Given a transit LP at TRN-IN-WHB, when received to bin B3, then LP.warehouse_id=WHB, LP.location_id=B3, and a stock_move row exists with from=TRN-IN-WHB to=B3.\n2. Given a bulk-no-LP TO line, when received, then a NEW LP is created at destination with the source TO's batch/expiry inherited.\n3. Given to_lines.received_qty aggregation, when complete, then it increases by the GRN sum and TO status transitions per 04§7.4.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts` asserting transit-LP location update + bulk-no-LP creation path + TO aggregation.\n- Run `pnpm --filter web test grn-from-to`.\n\n## Risk red lines\n- Do not create new LPs when transit LPs exist (id continuity).\n- Do not skip stock_move row.\n- Do not skip outbox.\n\n## Dependencies\n- T-005\n- T-016\n- T-025",
   "labels": [
     "prd",
-    "api",
+    "service",
     "grn",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +21,11 @@
     "category": "api",
     "subcategory": "grn",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-grn",
+    "parent_feature": "05-warehouse-b",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "GRN-from-TO Server Action moving transit LPs to destination and updating to_lines aggregation.",
-    "details": "Existing LP path moves location/warehouse_id; bulk-no-LP path creates new LP at destination. Receipt stock_moves per LP. TO status transition delegated.",
+    "description": "Implement `completeGrnFromTo` Server Action: receives shipped LPs at destination warehouse — transit LPs keep their `id` but `location_id` + `warehouse_id` change; if TO shipped bulk-no-LP, create LPs at receive.",
+    "details": "Implement `completeGrnFromTo` Server Action: receives shipped LPs at destination warehouse — transit LPs keep their `id` but `location_id` + `warehouse_id` change; if TO shipped bulk-no-LP, create LPs at receive. `apps/web/lib/services/warehouse/grn-from-to.ts`: function `completeGrnFromTo({grn_id, to_id, lp_assignments: [{transit_lp_id, destination_location_id}]})`. For each transit LP: validate status='in_transit' (or equivalent), update LP.warehouse_id + location_id, INSERT stock_moves(move_type='transfer', from=transit_loc, to=destination).",
     "scope_files": [
       "apps/web/lib/services/warehouse/grn-from-to.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts [create]"
@@ -46,18 +46,18 @@
       "T-024"
     ],
     "acceptance_criteria": [
-      "Given a transit LP with location=transit-in and shipped TO line, when service runs, then LP.location_id moves to destination and warehouse_id updates",
-      "Given a bulk-qty-no-LP TO, when service runs with operator entries, then a new LP is created at destination",
-      "Given service completes, when to_lines is queried, then received_qty increments by the receipt quantity"
+      "Given a transit LP at TRN-IN-WHB, when received to bin B3, then LP.warehouse_id=WHB, LP.location_id=B3, and a stock_move row exists with from=TRN-IN-WHB to=B3.",
+      "Given a bulk-no-LP TO line, when received, then a NEW LP is created at destination with the source TO's batch/expiry inherited.",
+      "Given to_lines.received_qty aggregation, when complete, then it increases by the GRN sum and TO status transitions per 04§7.4."
     ],
     "test_strategy": [
-      "RED: grn-from-to.test.ts covers transit-LP receipt, bulk-no-LP creation, to_lines aggregation",
-      "Run 'pnpm --filter web test grn-from-to'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/grn-from-to.test.ts` asserting transit-LP location update + bulk-no-LP creation path + TO aggregation.",
+      "Run `pnpm --filter web test grn-from-to`."
     ],
     "risk_red_lines": [
-      "Do not duplicate LPs",
-      "Do not skip receipt stock_move",
-      "Do not transition TO status inside this service"
+      "Do not create new LPs when transit LPs exist (id continuity).",
+      "Do not skip stock_move row.",
+      "Do not skip outbox."
     ],
     "skills": [
       "test-driven-development",
@@ -87,7 +87,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -113,7 +113,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

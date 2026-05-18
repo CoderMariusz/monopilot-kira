@@ -50,10 +50,12 @@
     ],
     "test_strategy": [
       "RED: 4 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/api/scim/scim.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not store SCIM tokens plaintext."
+      "Do not store SCIM tokens plaintext.",
+      "Do not relax CSRF protection or cookie SameSite/Secure attributes on auth-adjacent surfaces."
     ],
     "skills": [
       "test-driven-development"

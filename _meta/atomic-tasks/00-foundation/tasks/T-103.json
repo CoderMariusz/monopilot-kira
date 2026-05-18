@@ -1,0 +1,77 @@
+{
+  "title": "T-103 — wire @monopilot/ops TS path alias in apps/web/tsconfig.json (FT-043)",
+  "prompt": "# T-103 — wire @monopilot/ops TS path alias in apps/web/tsconfig.json (FT-043)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-043** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (XS effort)\n\n## Goal\napps/web/tsconfig.json includes @monopilot/ops path alias; cron route imports via the alias.\n\n## Implementation contract\n1. tsconfig.json compilerOptions.paths: `'@monopilot/ops': ['../../packages/ops/src']`.\n2. cron route: `import {...} from '@monopilot/ops'`.\n3. Run `pnpm --filter @monopilot/web typecheck`.\n\n## Files (scope)\n- apps/web/tsconfig.json [modify]\n- apps/web/app/api/cron/[name]/route.ts [modify]\n\n## Acceptance criteria\n1. Given the change, when `pnpm typecheck` runs in apps/web, then no path-resolution errors.\n2. Given the cron route, when scanned, then it imports from `@monopilot/ops` (no relative path).\n\n## Test strategy\n- RED: not applicable (config + import change).\n- Run `pnpm --filter @monopilot/web typecheck`.\n\n## Risk red lines\n- Do not break other path aliases.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ops",
+    "wave-d-carry-forward",
+    "tsconfig",
+    "T4-wiring-test"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-103",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-043",
+    "category": "ops",
+    "subcategory": "tsconfig",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "Add @monopilot/ops TS path alias to apps/web tsconfig and replace the relative cron import.",
+    "details": "T-034 currently imports the ops package via a brittle relative path. Add the alias mapping and update the import.",
+    "scope_files": [
+      "apps/web/tsconfig.json [modify]",
+      "apps/web/app/api/cron/[name]/route.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not refactor ops package internals."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the change, when `pnpm typecheck` runs in apps/web, then no path-resolution errors.",
+      "Given the cron route, when scanned, then it imports from `@monopilot/ops` (no relative path)."
+    ],
+    "test_strategy": [
+      "RED: not applicable (config + import change).",
+      "Run `pnpm --filter @monopilot/web typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not break other path aliases.",
+      "Do not silently break IDE path resolution — verify `pnpm -w tsc --noEmit` passes after the alias change"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

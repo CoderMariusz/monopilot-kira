@@ -1,0 +1,108 @@
+{
+  "title": "T-012 \u2014 UI: FIN-002 Standard Costs List + MODAL-01/02/03/11 (fin_standard_costs_list + 4 modals)",
+  "prompt": "# T-012 \u2014 FIN-002 Standard Costs List + MODAL-01/02/03/11 UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.1 FIN-002; \u00a78.5 MODAL-01/02/03/11 contracts; \u00a75.3 21 CFR Part 11 e-signature; \u00a711.2 V-FIN-STD-*.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- `prototypes/design/Monopilot Design System/finance/standard-screens.jsx:1-208` (`fin_standard_costs_list`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:21-101` (`std_cost_create_modal`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:103-175` (`approve_std_cost_modal`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:177-245` (`cost_history_modal`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:586-613` (`supersede_std_cost_modal`)\n\n## Goal\nServer Component page `/finance/standard-costs` with shadcn DataTable (TanStack), status tabs with counts, bulk-action bar, expandable rows (approval evidence), coverage Alert, and four embedded modals (Create/Approve/History/Supersede) \u2014 wiring to T-011 Server Actions.\n\n## Prototype parity\nReferences pinned above. shadcn primitives required (per index):\n- List page: Table, TableHeader, TableRow, TableCell, TableBody, Tabs, TabsList, TabsTrigger, Input, Select, Button, Badge, Alert, Checkbox.\n- MODAL-01: Dialog, DialogContent, DialogFooter, Form, FormField, Input, Select, Textarea, Button, Alert.\n- MODAL-02: Dialog, Form, Input (PIN), Checkbox, Button, Badge, Separator + PinInput (react-input-otp).\n- MODAL-03: Dialog (wide), Table, Select, Badge, Button + Recharts LineChart (TrendChart wrapper).\n- MODAL-11: Dialog, Alert, Button, Badge, Calendar, Popover.\n\nParity checklist:\n1. Status tabs (All / Active / Pending / Draft / Superseded) bound to URL `?status=` via nuqs; counts via single GROUP BY query.\n2. Filter bar: search Input, item-type Select, date-range DatePicker, cost-basis Select.\n3. Bulk action bar (visible when \u22651 row selected): 'Bulk Approve' opens MODAL-02 in bulk mode.\n4. DataTable columns: Code, Item Name, Item Type, Status badge (StdStatusBadge: active\u2192green, pending\u2192amber, draft\u2192outline, superseded\u2192secondary), Total Cost (mono GBP), Effective From, Effective To, Actions kebab.\n5. Expandable row: shows approval record (avatar + sha256 hash truncated + timestamp) and notes; data from `getStandardCostAudit(id)` from T-011.\n6. Coverage Alert (amber) when count of FG items WITHOUT active standard_cost > 0.\n7. MODAL-01 (Create/Edit): live cost breakdown stack-bar (Progress) computed via useWatch on material/labor/overhead; >20% change Alert warn (server-fetched prior approved cost passed as prop); Cancel / Save Draft / Save & Submit footer; calls `createStandardCostDraft` / `submitForApproval`.\n8. MODAL-02 (Approve): 2-phase render (form \u2192 success); PinInput (6 digits); old-vs-new cost diff cards; reason Textarea min 10; bulk path summary; success screen shows real SHA-256 hash returned from server.\n9. MODAL-03 (History): version history Table with active row blue border; version-compare two Selects + diff; TrendChart of total_cost over time; 'Create New Version' button \u2192 closes & opens MODAL-01 prefilled.\n10. MODAL-11 (Supersede): info Alert; DatePicker (min=effective_from of current); destructive-style 'Supersede' button calls `supersedeStandardCost`.\n\n## Implementation contract\n1. `app/finance/standard-costs/page.tsx` \u2014 RSC fetches first page + tab counts + coverage gap count in parallel.\n2. `app/finance/standard-costs/_components/std-costs-table.tsx` \u2014 TanStack DataTable client.\n3. `app/finance/standard-costs/_components/std-cost-create-modal.tsx` \u2014 MODAL-01.\n4. `app/finance/standard-costs/_components/approve-std-cost-modal.tsx` \u2014 MODAL-02.\n5. `app/finance/standard-costs/_components/cost-history-modal.tsx` \u2014 MODAL-03.\n6. `app/finance/standard-costs/_components/supersede-std-cost-modal.tsx` \u2014 MODAL-11.\n7. Shared `components/finance/_shared/std-status-badge.tsx`, `pin-input.tsx`, `summary-list.tsx`.\n\n## Files\n- apps/web/app/finance/standard-costs/page.tsx [create]\n- apps/web/app/finance/standard-costs/_components/std-costs-table.tsx [create]\n- apps/web/app/finance/standard-costs/_components/std-cost-create-modal.tsx [create]\n- apps/web/app/finance/standard-costs/_components/approve-std-cost-modal.tsx [create]\n- apps/web/app/finance/standard-costs/_components/cost-history-modal.tsx [create]\n- apps/web/app/finance/standard-costs/_components/supersede-std-cost-modal.tsx [create]\n- apps/web/app/finance/_components/std-status-badge.tsx [create]\n- apps/web/app/finance/_components/pin-input.tsx [create]\n- apps/web/app/finance/_components/summary-list.tsx [create]\n- apps/web/app/finance/standard-costs/_components/__tests__/*.test.tsx [create] (one per component)\n\n## Acceptance criteria (Given-When-Then)\n- Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/standard-screens.jsx:1-208, then 5 status tabs + 4 filter controls + 8 columns + expandable rows + coverage Alert match \u2014 verified by RTL snapshot + parity checklist. AND given MODAL-01 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:21-101, then live cost components + approval signature hash display correctly.\n- Given MODAL-02, when PIN entered and Submit clicked, then approveStandardCost called with pin_proof, server returns audit hash, success screen displays it. AND given MODAL-02 bulk mode, when Submit succeeds, then result summary shows 'X of Y approved; Z failed'.\n- Given MODAL-03, when 'Create New Version' clicked, then MODAL-03 closes and MODAL-01 opens prefilled. AND given MODAL-11, when supersede_date set before effective_from, then DatePicker rejects and Save disabled.\n- Given user without fin.standard_cost.approve, when row Actions opened, then 'Approve' is hidden. AND given coverage Alert rendered, when clicked, then routes to filtered FG list missing std costs.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: write one test per modal + one for list page asserting parity + bulk action visibility + RBAC gating + flow handoffs (history \u2192 create prefilled, etc).\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/standard-costs`.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim \u2014 translate per shadcn primitives.\n- Do not compute SHA-256 client-side (PIN goes to server as plain string; server computes hash).\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not skip BL-FIN-07 placeholder for >20% dual sign-off (P1 = warn-only Alert; P2 = enforce second approver).\n- Do not regress accessibility (axe).\n- Do not show raw signature_hash strings without truncation in the UI (visual hygiene).\n",
+  "labels": [
+    "prd",
+    "ui",
+    "fin-002",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a78.1",
+      "\u00a78.5",
+      "\u00a75.3",
+      "\u00a711.2"
+    ],
+    "category": "ui",
+    "subcategory": "fin-002-standard-costs",
+    "task_type": "T3-ui",
+    "parent_feature": "10-FINANCE-b",
+    "context_budget": "70k",
+    "estimated_effort": "5-6h",
+    "description": "FIN-002 Standard Costs List page + MODAL-01 create + MODAL-02 approve + MODAL-03 history + MODAL-11 supersede with bulk-action bar and coverage Alert.",
+    "details": "Five UI surfaces wired to T-011 Server Actions. PinInput shared with future MODAL-12 period_lock. StdStatusBadge / SummaryList / WoCostStatusBadge / VarBadge shared primitives extracted under app/finance/_components for reuse across the module. BL-FIN-07 (dual sign-off P2) deferred \u2014 render warn Alert only. [AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/standard-costs/page.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/std-costs-table.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/std-cost-create-modal.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/approve-std-cost-modal.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/cost-history-modal.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/supersede-std-cost-modal.tsx [create]",
+      "apps/web/app/finance/_components/std-status-badge.tsx [create]",
+      "apps/web/app/finance/_components/pin-input.tsx [create]",
+      "apps/web/app/finance/_components/summary-list.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/__tests__/std-costs-table.test.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/__tests__/std-cost-create-modal.test.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/__tests__/approve-std-cost-modal.test.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/__tests__/cost-history-modal.test.tsx [create]",
+      "apps/web/app/finance/standard-costs/_components/__tests__/supersede-std-cost-modal.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Bulk import (T-013)",
+      "Dashboard widgets that consume std cost data (T-031)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-009",
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/standard-screens.jsx:1-208, then 5 status tabs + 4 filter controls + 8 columns + expandable rows + coverage Alert match \u2014 verified by RTL snapshot + parity checklist. AND given MODAL-01 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:21-101, then live cost components + approval signature hash display correctly.",
+      "Given MODAL-02, when PIN entered and Submit clicked, then approveStandardCost called with pin_proof, server returns audit hash, success screen displays it. AND given MODAL-02 bulk mode, when Submit succeeds, then result summary shows 'X of Y approved; Z failed'.",
+      "Given MODAL-03, when 'Create New Version' clicked, then MODAL-03 closes and MODAL-01 opens prefilled. AND given MODAL-11, when supersede_date set before effective_from, then DatePicker rejects and Save disabled.",
+      "Given user without fin.standard_cost.approve, when row Actions opened, then 'Approve' is hidden. AND given coverage Alert rendered, when clicked, then routes to filtered FG list missing std costs."
+    ],
+    "test_strategy": [
+      "RED: one test per modal + list page asserting parity + bulk + RBAC + flow handoffs.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/standard-costs.",
+      "Closeout-evidence check (hoisted from former AC): UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (referenced by ui_evidence_policy + checkpoint_policy.closeout_requires)."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim.",
+      "Do not compute SHA-256 client-side.",
+      "Do not use HTML <select>.",
+      "Do not skip BL-FIN-07 placeholder (warn-only in P1).",
+      "Do not regress accessibility.",
+      "Do not show raw signature_hash without truncation."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fin_standard_costs_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

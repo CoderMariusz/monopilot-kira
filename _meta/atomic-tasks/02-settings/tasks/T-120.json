@@ -46,7 +46,8 @@
       "GREEN: build page wired to roles query/actions.",
       "Run page test, typecheck, lint.",
       "Add RTL tests for workflow permission grouping, no 4-level matrix labels, read-only role assignment, and org-policy summary display.",
-      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/roles/page.test.tsx`."
     ],
     "risk_red_lines": [
       "Do not replace flat permission model with rejected 4-level matrix UI.",

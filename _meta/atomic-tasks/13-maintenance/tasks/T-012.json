@@ -1,0 +1,103 @@
+{
+  "title": "T-012 — Maintenance outbox publisher (8 events) + Zod payload contracts (MNT §12.3, D-MNT-12)",
+  "prompt": "# T-012 — Maintenance outbox publisher\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §12.3 (8 events), D-MNT-12, D-MNT-14 (sanitation allergen cross-module event)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nDefine the Zod payload contract for the 8 maintenance outbox events, expose them via `packages/events/src/maintenance.ts`, and wire the apps/worker outbox dispatcher (Wave1 T-111) to route them to the correct module consumers per §12.3.\n\n## Pre-flight\nVerify Wave1 T-111 outbox table+worker primitive (`outbox_events` or per-module `maintenance_outbox_events`). Verify `packages/events/src/` pattern from prior modules (read Foundation T-003 events package shape).\n\n## Implementation contract\n1. `packages/events/src/maintenance.ts` exports Zod schemas + TS types for these 8 events (D-MNT-12 + D-MNT-14):\n   - `mwo.requested`, `mwo.approved`, `mwo.in_progress`, `mwo.completed`, `mwo.cancelled` — payload {org_id, site_id, mwo_id, mwo_number, equipment_id, source, type, priority, occurred_at, actor_user_id, ...state-specific cols}\n   - `spare_parts.consumed` — {org_id, site_id, mwo_id, part_id, qty, performed_by, occurred_at}\n   - `calibration.recorded` — {org_id, site_id, instrument_id, mwo_id?, result, next_due_date, calibrated_by, occurred_at}\n   - `sanitation.completed` — {org_id, site_id, mwo_id, line_id, allergen_change_flag, atp_test_result_rlu, first_signed_by, second_signed_by, occurred_at}\n   - Additional outbox events: `calibration.failed` (V-MNT-10 → 09-quality), `sanitation.allergen_change.completed` (D-MNT-14 → 08-production allergen_changeover_gate_v1).\n2. Each event has `event_version: 'v1'` and `idempotency_key` (UUID v7) per Foundation R14.\n3. Routing table in `apps/worker/src/maintenance/outbox-dispatcher.ts`:\n   - `mwo.*` → 12-reporting (cache invalidate) + 15-OEE (MTBF/MTTR recalc) + 09-quality (read consumer)\n   - `calibration.failed` → 09-quality (lab_results hold candidate)\n   - `sanitation.allergen_change.completed` → 08-production allergen_changeover_gate_v1\n   - `spare_parts.consumed` → 10-finance cost accumulation (deferred 10-finance consumer)\n4. Dispatcher polls outbox table; for each unpublished row, validates payload against Zod schema; marks row published_at on success; records DLQ row on validation failure (no infinite retry).\n5. Vitest: Zod schema parses sample payloads; dispatcher routes mwo.completed to 3 consumer queues; invalid payload → DLQ row; idempotent dispatch (re-running on published row is a no-op).\n\n## Files\n- packages/events/src/maintenance.ts [create]\n- packages/events/src/index.ts [modify]\n- apps/worker/src/maintenance/outbox-dispatcher.ts [create]\n- apps/worker/src/maintenance/__tests__/outbox-dispatcher.test.ts [create]\n- packages/events/__tests__/maintenance.test.ts [create]\n\n## Acceptance criteria\n1. Given `mwoCompletedSchema.parse(payload)` with a valid object, when called, then it returns the typed payload; given a payload missing `mwo_id`, then it throws ZodError with path `mwo_id`.\n2. Given an outbox row event_type='mwo.completed', when dispatcher runs, then 3 consumer queue messages are written (12-reporting, 15-OEE, 09-quality), and outbox row.published_at is set.\n3. Given an outbox row with invalid payload, when dispatcher runs, then a DLQ row is created and the original row is marked `failed_at`, not retried infinitely.\n4. Given dispatcher runs twice on the same outbox row, when checked, then second run is a no-op (row already published_at NOT NULL).\n5. Given `sanitation.allergen_change.completed` event, when dispatcher runs, then the routing rule maps it to 08-production allergen_changeover_gate_v1 consumer queue.\n\n## Test strategy\n- RED: vitest asserting all five ACs.\n- Run `pnpm --filter @monopilot/events vitest run` and `pnpm --filter @monopilot/worker vitest run maintenance/outbox`.\n\n## Risk red lines\n- Do not silently drop invalid payloads — DLQ row required.\n- Do not retry indefinitely on validation failure — fail fast to DLQ.\n- Do not deviate from Zod schema versioning (`event_version: 'v1'`) — schema evolution policy.\n- Do not couple dispatcher to specific consumer modules' implementations — only route to consumer queues by event_type.\n- Do not omit cross-module events `calibration.failed` and `sanitation.allergen_change.completed` — they are CIG (cross-module integration gap) closers per Auditor A.",
+  "labels": [
+    "prd",
+    "events",
+    "worker",
+    "outbox",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§12.3",
+      "§7.2 D-MNT-12",
+      "§7.2 D-MNT-14"
+    ],
+    "category": "events",
+    "subcategory": "outbox-publisher",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Zod payload contracts for 8 maintenance outbox events + dispatcher routing to cross-module consumers + DLQ on validation failure.",
+    "details": "Closes Auditor A cross-cutting gap: no maintenance outbox tasks existed. Cross-module routing: mwo.* → 12-reporting + 15-OEE + 09-quality; calibration.failed → 09-quality; sanitation.allergen_change.completed → 08-production. Calibration and LOTO sign-off payloads include e-sign attestation fields — produced via @monopilot/e-sign foundation primitive (T-124) — signEvent/dualSign with replay nonce + paired audit (retention='security').",
+    "scope_files": [
+      "packages/events/src/maintenance.ts [create]",
+      "packages/events/src/index.ts [modify]",
+      "apps/worker/src/maintenance/outbox-dispatcher.ts [create]",
+      "apps/worker/src/maintenance/__tests__/outbox-dispatcher.test.ts [create]",
+      "packages/events/__tests__/maintenance.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Consumer-side implementations in 08/09/12/15 (their tasks)",
+      "Server Action writers (T-010, T-011, T-015, T-016)",
+      "Cron schedulers (T-009)",
+      "DLQ inspection UI (MNT-033 P2)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-004",
+      "T-005",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-013"
+    ],
+    "acceptance_criteria": [
+      "Given mwoCompletedSchema.parse(payload) with valid object, when called, then returns typed payload; missing mwo_id throws ZodError",
+      "Given outbox row event_type='mwo.completed', when dispatcher runs, then 3 consumer queue messages written (12-reporting, 15-OEE, 09-quality) and row.published_at set (foundation T-112 dispatch pattern)",
+      "Given outbox row with invalid payload, when dispatcher runs, then DLQ row created and row.failed_at set (no infinite retry); given dispatcher runs twice on same row, then second run is no-op",
+      "Given sanitation.allergen_change.completed event, when dispatcher runs, then routing maps to 08-production allergen_changeover_gate_v1 queue"
+    ],
+    "test_strategy": [
+      "RED: vitest asserting all five ACs",
+      "Run `pnpm --filter @monopilot/events vitest run` and `pnpm --filter @monopilot/worker vitest run maintenance/outbox`"
+    ],
+    "risk_red_lines": [
+      "Do not silently drop invalid payloads — DLQ row required",
+      "Do not retry indefinitely on validation failure",
+      "Do not deviate from event_version='v1' schema evolution policy",
+      "Do not couple dispatcher to consumer module implementations",
+      "Do not omit calibration.failed and sanitation.allergen_change.completed cross-module events"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

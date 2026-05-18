@@ -1,6 +1,6 @@
 {
   "title": "T-002 — Drizzle schema: purchase_orders + po_lines",
-  "prompt": "Add Drizzle pgTable definitions for `purchase_orders` and `po_lines` per PRD §5.4. Columns include id, tenant_id, site_id, po_number, supplier_id FK, currency, tax_code_id, expected_delivery_date, warehouse_id FK, status (string), payment_terms, shipping_method, notes, internal_notes, approval_required, approved_at/by, subtotal/tax_amount/discount_total/total decimals, source_type enum ('manual'|'bulk'|'forecast'|'d365_mrp'), source_reference, ext_jsonb, schema_version, audit. po_lines: id, po_id FK, line_number, product_id FK, quantity, uom, unit_price, discount_percent, discount_amount, line_total computed, expected_delivery_date, confirmed_delivery_date, received_qty, eudr_reference, notes. Include indexes (tenant_id, status, expected_delivery_date), (supplier_id), (po_id, line_number).\n\nGenerate migration `0002_planning_purchase_orders.sql`. RED test asserting both tables export expected columns + indexes are present in generated SQL.",
+  "prompt": "Add Drizzle pgTable definitions for `purchase_orders` and `po_lines` per PRD §5.4. Columns include id, org_id, site_id, po_number, supplier_id FK, currency, tax_code_id, expected_delivery_date, warehouse_id FK, status (string), payment_terms, shipping_method, notes, internal_notes, approval_required, approved_at/by, subtotal/tax_amount/discount_total/total decimals, source_type enum ('manual'|'bulk'|'forecast'|'d365_mrp'), source_reference, ext_jsonb, schema_version, audit. po_lines: id, po_id FK, line_number, product_id FK, quantity, uom, unit_price, discount_percent, discount_amount, line_total computed, expected_delivery_date, confirmed_delivery_date, received_qty, eudr_reference, notes. Include indexes (org_id, status, expected_delivery_date), (supplier_id), (po_id, line_number).\n\nGenerate migration `0002_planning_purchase_orders.sql`. RED test asserting both tables export expected columns + indexes are present in generated SQL.",
   "labels": [
     "prd",
     "data",
@@ -25,7 +25,7 @@
     "context_budget": "30k",
     "estimated_effort": "1-2h",
     "description": "Drizzle pgTable definitions for purchase_orders + po_lines.",
-    "details": "Status as VARCHAR(30) (workflow rules live in registry per §16.1, not enum-locked at DB level beyond display config). source_type as pgEnum. Foreign keys for supplier_id reference suppliers (T-001 must be merged first). line_total stored as DECIMAL(15,2) computed by service layer (not GENERATED). Add CHECK constraint quantity > 0 (V-PLAN-PO-004). Include all indexes named in PRD §5.4. Generate migration via drizzle-kit.",
+    "details": "Status as VARCHAR(30) (workflow rules live in registry per §16.1, not enum-locked at DB level beyond display config). source_type as pgEnum. Foreign keys for supplier_id reference suppliers (T-001 must be merged first). line_total stored as DECIMAL(15,2) computed by service layer (not GENERATED). Add CHECK constraint quantity > 0 (V-PLAN-PO-004). Include all indexes named in PRD §5.4. Generate migration via drizzle-kit. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`).",
     "scope_files": [
       "src/db/schema/planning/purchase_orders.ts [create]",
       "src/db/schema/planning/__tests__/purchase_orders.test.ts [create]",
@@ -50,6 +50,8 @@
       "Run `pnpm drizzle-kit generate` and `pnpm tsc --noEmit`."
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
       "Do not encode workflow transitions at DB level — they live in rule registry §16.1.",
       "Do not skip indexes — performance-critical for dashboard P95 < 500ms (§13.4).",
       "Do not couple to D365-specific source_type values at this layer."

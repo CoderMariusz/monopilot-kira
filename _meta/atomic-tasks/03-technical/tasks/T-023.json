@@ -1,6 +1,6 @@
 {
   "title": "T-023 — API: Routing cost preview (GET /api/technical/items/:code/routings/:v/cost-preview)",
-  "prompt": "Implement GET endpoint computing routing cost preview per §12.4 TEC-062. Inputs: routing version, expected volume (query param). Output: per-op cost = setup_time_min/60 * cost_per_hour + (run_time_per_unit_sec * volume / 3600) * cost_per_hour, plus total. Currency from organizations.currency. Org-scoped. RED tests/api/routing-cost-preview.test.ts. Run: `pnpm vitest run tests/api/routing-cost-preview.test.ts`.",
+  "prompt": "# T-023 — API: Routing cost preview (GET /api/technical/items/:code/routings/:v/cost-preview)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §12.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRouting cost preview endpoint summing setup + run × volume × cost_per_hour.\n\nSingle SQL query with arithmetic, returns array of operations + total. No write side effects.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/routings/[version]/cost-preview/route.ts [create]\n- tests/api/routing-cost-preview.test.ts [create]\n\n## Out of scope\n- BOM cost roll-up (10-FINANCE)\n\n## Acceptance criteria\n1. Given routing with one op (setup=30 min, run=10 sec, cost=60/h) and volume=100, when GET, then op_cost = 30 + 16.67 ≈ 46.67 (within 0.01).\n2. Given missing volume param, when GET, then 422.\n3. Given cross-org request, when GET, then 404 (RLS).\n\n## Test strategy\n- RED tests for arithmetic precision + RLS.\n- Run: pnpm vitest run tests/api/routing-cost-preview.test.ts\n\n## Risk red lines\n- Do not write to any table — read-only.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -49,7 +49,11 @@
       "Run: pnpm vitest run tests/api/routing-cost-preview.test.ts"
     ],
     "risk_red_lines": [
-      "Do not write to any table — read-only."
+      "Do not write to any table — read-only.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

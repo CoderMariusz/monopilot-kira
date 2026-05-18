@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
     "prd_refs": [
       "§10",
-      "§4.3-AMENDMENT",
+      "§4.3",
       "§W0-v4.3"
     ],
     "category": "infra",
@@ -26,7 +26,7 @@
     "context_budget": "50k",
     "estimated_effort": "1-3h",
     "description": "Lock outbox event type strings in one TypeScript source of truth, with `fg.*` canonical for finished-good lifecycle and `fa.*` kept only as explicitly named legacy aliases.",
-    "details": "Create `packages/outbox/src/events.enum.ts` exporting `EventType` with canonical foundation entries: `org.created`, `user.invited`, `role.assigned`, `audit.recorded`, `brief.created`, `fg.created`, `fg.allergens_changed`, `fg.intermediate_code_changed`, `lp.received`, `wo.ready`, `quality.recorded`, `shipment.created`. Export `LegacyEventAlias` mapping `fa.created -> fg.created`, `fa.allergens_changed -> fg.allergens_changed`, and `fa.intermediate_code_changed -> fg.intermediate_code_changed` for migration compatibility only. Export `ALL_EVENTS` containing canonical values only and `ALL_EVENT_ALIASES` for alias translation. Add a helper `normalizeEventType(input)` that returns the canonical value for both canonical and alias strings and rejects unknown strings. Add a CODEOWNERS lock for this enum. Tests must prove `fa.*` is not emitted by new code paths and only normalizes to `fg.*`.",
+    "details": "PRD anchor corrected from §4.3-AMENDMENT to §4.3 by Fixer F12 2026-05-14 (anchor sweep). Create `packages/outbox/src/events.enum.ts` exporting `EventType` with canonical foundation entries: `org.created`, `user.invited`, `role.assigned`, `audit.recorded`, `brief.created`, `fg.created`, `fg.allergens_changed`, `fg.intermediate_code_changed`, `lp.received`, `wo.ready`, `quality.recorded`, `shipment.created`. Export `LegacyEventAlias` mapping `fa.created -> fg.created`, `fa.allergens_changed -> fg.allergens_changed`, and `fa.intermediate_code_changed -> fg.intermediate_code_changed` for migration compatibility only. Export `ALL_EVENTS` containing canonical values only and `ALL_EVENT_ALIASES` for alias translation. Add a helper `normalizeEventType(input)` that returns the canonical value for both canonical and alias strings and rejects unknown strings. Add a CODEOWNERS lock for this enum. Tests must prove `fa.*` is not emitted by new code paths and only normalizes to `fg.*`.",
     "scope_files": [
       "packages/outbox/src/events.enum.ts [create]",
       "packages/outbox/src/__tests__/events.test.ts [create]",

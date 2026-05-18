@@ -1,0 +1,112 @@
+{
+  "title": "T-007 — SO Server Actions: create_draft_so, insert_so_line, confirm_so, cancel_so, place_hold, release_hold, allergen_override (11-shipping-b)",
+  "prompt": "# T-007 — Sales Order Server Actions + status machine guards\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-8 SO Status Machine + Guards, §8.1 SO Lifecycle, §10 Quality Hold Integration, §11 V-SHIP-SO-01..08, §3 Personas\nPrototype refs: prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271 (so_create_wizard_modal), :273-290 (so_line_add_modal), :342-378 (hold_place_modal), :380-410 (hold_release_modal), :504-536 (so_cancel_modal), :837-871 (allergen_override_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWrite Next.js Server Actions covering SO lifecycle (draft→confirmed→…→cancelled) wrapped in `withOrgContext` (T-125), with status-machine guards per D-SHP-8, RBAC via T-031 permissions, transactional Drizzle + outbox + audit + rate-limit + PII redact.\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/sales-orders.ts` exports:\n   - `createDraftSO(input)` — INSERT sales_orders + sales_order_lines in tx; allergen_validated=false; status='draft'; outbox `shipping.so.created`. Permission `ship.so.create`.\n   - `insertSOLine(soId, input)` — guard `status='draft'`; INSERT line; recompute total_amount_gbp. Permission `ship.so.create`.\n   - `confirmSO(soId, input)` — guards (D-SHP-8): status='draft', ≥1 line (V-SHIP-SO-05), shipping_address_id NOT NULL (V-SHIP-SO-02), allergen_validated=true OR allergen_override exists (V-SHIP-SO-03), promised_ship_date>=order_date (V-SHIP-SO-04); UPDATE status='confirmed', confirmed_at, confirmed_by; outbox `shipping.so.confirmed`. Permission `ship.so.confirm`.\n   - `cancelSO(soId, reason)` — guard status NOT IN ('shipped','delivered') (V-SHIP-SO-07); UPDATE status='cancelled'; releases any allocations (calls T-012 releaseAllocation); outbox `shipping.so.cancelled`. Permission `ship.so.cancel`.\n   - `placeHold(soId, holdType, reason)` — soft hold record; emits `shipping.hold.placed`. Permission `ship.hold.place`.\n   - `releaseHold(holdId, reason)` — emits `shipping.hold.released`. Permission `ship.hold.release`.\n   - `overrideAllergenConflict(soId, conflicts, reason)` — INSERT allergen_overrides (audit_hash SHA-256, approver_pin_hash via @monopilot/e-sign T-124 dual-sign optional Phase 1); sets sales_orders.allergen_validated=true; outbox `shipping.allergen.overridden`. Permission `ship.allergen.override` (shipping_qa).\n2. Status machine guards centralized in `apps/web/lib/server-actions/shipping/_so-status-machine.ts` returning `{ ok: true } | { ok: false, blocker_code: string, detail: string }` for testability.\n3. Server-side allergen cascade check uses `check_allergen_conflicts(so_id)` function (Postgres) consuming `customer_allergen_restrictions` + product.allergens (NPD shared BOM SSOT) — per D-SHP-15 + V-SHIP-LBL-01. If conflicts → block confirm unless `allergen_overrides` exists.\n4. Quality hold pre-flight: `confirmSO` queries `v_active_holds` (09-quality) for any LP referenced by reservations (T-011) and if any hold.severity='critical' → block with `blocker_code='qa.critical_hold'`.\n5. All mutations wrapped in `withOrgContext` (T-125). Outbox via @monopilot/outbox (T-112). Rate-limit (T-121). Pino redact (T-117). No GUC reads.\n\n## Files\n- apps/web/lib/server-actions/shipping/sales-orders.ts [create]\n- apps/web/lib/server-actions/shipping/_so-status-machine.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/sales-orders.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingSOCreated, ShippingSOConfirmed, ShippingSOCancelled, ShippingHoldPlaced/Released, ShippingAllergenOverridden Zod schemas]\n\n## Acceptance criteria\n1. Given a draft SO with no shipping_address_id, when confirmSO is called, then it returns blocker_code='ship.so.address_missing' (V-SHIP-SO-02) and no status change occurs.\n2. Given a draft SO with allergen conflicts and no override, when confirmSO is called, then it returns blocker_code='ship.so.allergen_conflict' (V-SHIP-SO-03) and no status change.\n3. Given a draft SO whose allocated LP has an active critical quality_hold, when confirmSO is called, then it returns blocker_code='qa.critical_hold' (D-SHP-13 hard gate); no status change.\n4. Given a confirmed SO, when cancelSO is called and any allocations exist, then the allocations are released atomically (calls T-012 releaseAllocation in same tx) and status='cancelled'; outbox event shipping.so.cancelled emitted.\n5. Given grep `current_setting\\('app\\.(tenant_id|current_org_id)'\\)` is run on sales-orders.ts and _so-status-machine.ts, when results inspected, then zero matches (org context via withOrgContext only).\n6. Given the status machine module is imported in tests, when transitions are exercised (draft→confirmed, draft→cancelled, confirmed→cancelled, shipped→cancelled blocked), then guards return the correct ok/blocker_code per D-SHP-8.\n\n## Test strategy\n- RED: vitest in `__tests__/sales-orders.test.ts` with testcontainers Postgres asserting AC 1-6, plus state-machine unit tests for all 12 status transitions.\n- Run `pnpm --filter @monopilot/web vitest run sales-orders.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not call any mutation outside `withOrgContext` (T-125).\n- Do not bypass status-machine guards (every mutation routes through _so-status-machine.ts).\n- Do not query quality_holds directly — consume `v_active_holds` view (09-quality T-010).\n- Do not write PII to logs (T-117 redact).\n- Do not enqueue outbox events outside the same DB transaction as the state change (R14).\n- Do not approve allergen override without `ship.allergen.override` permission + e-sign hook.",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-007",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-8",
+      "§8.1",
+      "§10",
+      "§11 V-SHIP-SO-01",
+      "§11 V-SHIP-SO-02",
+      "§11 V-SHIP-SO-03",
+      "§11 V-SHIP-SO-04",
+      "§11 V-SHIP-SO-05",
+      "§11 V-SHIP-SO-07"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-so",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-b",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "SO Server Actions covering full status machine (create/insertLine/confirm/cancel/hold/release/allergen-override) with QA gate + V-SHIP-SO-* guards.",
+    "details": "Status machine module is the single source of guard truth. Quality hold pre-flight via v_active_holds (D-SHP-13 hard gate for critical, soft warn otherwise). check_allergen_conflicts(so_id) Postgres function consumes customer_allergen_restrictions + product.allergens (NPD shared BOM SSOT). All mutations under withOrgContext, with outbox + audit + rate-limit + PII redact.",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/sales-orders.ts [create]",
+      "apps/web/lib/server-actions/shipping/_so-status-machine.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/sales-orders.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement allocation logic (T-012).",
+      "Do not build SO UI (T-008/T-009/T-010).",
+      "Do not implement D365 dispatcher (T-029)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-031",
+      "00-foundation/T-125",
+      "00-foundation/T-112",
+      "00-foundation/T-117",
+      "00-foundation/T-121"
+    ],
+    "parallel_safe_with": [
+      "T-012",
+      "T-016"
+    ],
+    "cross_module_dependencies": [
+      "09-quality/T-010 (v_active_holds — quality hold gate)",
+      "01-npd/T-001 (product table — allergen cascade)",
+      "00-foundation/T-124 (@monopilot/e-sign for allergen-override approver_pin)",
+      "09-quality/T-064 (consume gate — holdsGuard must be called before any LP mutation; shipping hold consumers per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given a draft SO with no shipping_address_id, when confirmSO is called, then it returns blocker_code='ship.so.address_missing' (V-SHIP-SO-02); AND given allergen conflicts with no override, then blocker_code='ship.so.allergen_conflict' (V-SHIP-SO-03); AND given an allocated LP has an active critical quality_hold (v_active_holds via 09-quality T-064), then blocker_code='qa.critical_hold' (D-SHP-13 hard gate) — holdsGuard called before any LP mutation.",
+      "Given a confirmed SO, when cancelSO is called with allocations, then allocations are released atomically and status='cancelled'; outbox shipping.so.cancelled emitted.",
+      "Given grep on sales-orders.ts + _so-status-machine.ts for current_setting('app.tenant_id'|'app.current_org_id'), when run, then zero matches.",
+      "Given state-machine unit tests, when exercised, then all 12 D-SHP-8 transitions return correct ok/blocker_code; AND releaseHold + placeHold emit correct outbox events with permission gates enforced."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres asserting AC 1-6; state-machine unit tests.",
+      "Run `pnpm --filter @monopilot/web vitest run sales-orders.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not call mutations outside withOrgContext.",
+      "Do not bypass status-machine guards.",
+      "Do not query quality_holds directly — consume v_active_holds (09-quality T-010).",
+      "Do not log PII (T-117 redact).",
+      "Do not enqueue outbox outside the DB transaction.",
+      "Do not approve allergen override without ship.allergen.override + e-sign hook.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — every consume path must call holdsGuard(lpId, lotId) before mutating consumption tables."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

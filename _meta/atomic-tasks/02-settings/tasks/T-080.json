@@ -50,10 +50,13 @@
     ],
     "test_strategy": [
       "RED: write the suite first (skipped tests).",
-      "GREEN: ensure UI/middleware satisfy all assertions."
+      "GREEN: ensure UI/middleware satisfy all assertions.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/onboarding-wizard.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/onboarding-wizard.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not hard-code timing thresholds in production code."
+      "Do not hard-code timing thresholds in production code.",
+      "Do not mark E2E green without recording trace artifacts (Playwright trace.zip per failing path)."
     ],
     "skills": [
       "test-driven-development",

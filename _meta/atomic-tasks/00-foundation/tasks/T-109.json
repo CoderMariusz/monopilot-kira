@@ -1,0 +1,81 @@
+{
+  "title": "T-109 — totp.ts masterKey fail-closed env-var guard (mirror T-014 HMAC pattern) (FT-049)",
+  "prompt": "# T-109 — totp.ts masterKey fail-closed env-var guard (mirror T-014 HMAC pattern) (FT-049)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-049** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (S effort)\n\n## Goal\ntotp.ts throws at module-load time if TOTP_MASTER_KEY missing or weak; tests assert behavior.\n\n## Implementation contract\n1. At module top: assertTotpMasterKey() reads env, throws 'TOTP_MASTER_KEY_MISSING' or 'TOTP_MASTER_KEY_WEAK' as needed.\n2. Test: vi.stubEnv('TOTP_MASTER_KEY','') → import should throw.\n3. Test: vi.stubEnv('TOTP_MASTER_KEY','short') → import should throw.\n4. Test: vi.stubEnv('TOTP_MASTER_KEY','...32+ chars') → import succeeds.\n\n## Files (scope)\n- packages/auth/src/totp.ts [modify]\n- packages/auth/src/__tests__/totp-master-key-guard.test.ts [create]\n\n## Acceptance criteria\n1. Given TOTP_MASTER_KEY is unset, when totp.ts is imported, then it throws 'TOTP_MASTER_KEY_MISSING'.\n2. Given TOTP_MASTER_KEY is shorter than 32 bytes, when imported, then it throws 'TOTP_MASTER_KEY_WEAK'.\n3. Given TOTP_MASTER_KEY is set to a 32+ byte hex value, when imported, then no error.\n\n## Test strategy\n- RED: write totp-master-key-guard.test.ts asserting all three ACs before guard exists.\n- Run `pnpm --filter @monopilot/auth test totp-master-key-guard`.\n\n## Risk red lines\n- Do not use a dev fallback key in non-test environments.\n- Do not log the master key.\n- Do not weaken the 32-byte minimum.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "totp",
+    "security",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-109",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-049",
+    "category": "auth",
+    "subcategory": "totp",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Add fail-closed env-var guard for TOTP_MASTER_KEY in packages/auth/src/totp.ts (mirror T-014 HMAC pattern).",
+    "details": "totp.ts currently reads `process.env.TOTP_MASTER_KEY` and silently uses a dev fallback when missing. Mirror T-014's HMAC pattern: throw on startup if TOTP_MASTER_KEY is missing or < 32 bytes.",
+    "scope_files": [
+      "packages/auth/src/totp.ts [modify]",
+      "packages/auth/src/__tests__/totp-master-key-guard.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change TOTP algorithm."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given TOTP_MASTER_KEY is unset, when totp.ts is imported, then it throws 'TOTP_MASTER_KEY_MISSING'.",
+      "Given TOTP_MASTER_KEY is shorter than 32 bytes, when imported, then it throws 'TOTP_MASTER_KEY_WEAK'.",
+      "Given TOTP_MASTER_KEY is set to a 32+ byte hex value, when imported, then no error."
+    ],
+    "test_strategy": [
+      "RED: write totp-master-key-guard.test.ts asserting all three ACs before guard exists.",
+      "Run `pnpm --filter @monopilot/auth test totp-master-key-guard`."
+    ],
+    "risk_red_lines": [
+      "Do not use a dev fallback key in non-test environments.",
+      "Do not log the master key.",
+      "Do not weaken the 32-byte minimum."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

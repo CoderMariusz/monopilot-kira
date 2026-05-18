@@ -37,7 +37,9 @@
     "out_of_scope": [
       "Do not implement admin reset here (desktop 02-SETTINGS owns that)",
       "Do not build the SCN-011b/c UI here (T-019, T-020)",
-      "Do not enforce forced rotation cron here"
+      "Do not enforce forced rotation cron here",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-001",
@@ -58,7 +60,9 @@
     "risk_red_lines": [
       "Do not allow setup if scanner_pin_hash already set",
       "Do not log raw PIN values",
-      "Do not weaken bcrypt rounds below 10"
+      "Do not weaken bcrypt rounds below 10",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
     "skills": [
       "test-driven-development",
@@ -85,6 +89,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "00-foundation: scanner routing/session/RLS baseline",
       "02-settings: PIN policy, locale, scanner device defaults"

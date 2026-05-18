@@ -52,10 +52,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/reference/crud.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not skip version check."
+      "Do not skip version check.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

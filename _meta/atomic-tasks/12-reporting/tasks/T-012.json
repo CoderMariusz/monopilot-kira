@@ -1,0 +1,99 @@
+{
+  "title": "T-012 — Quality Hold consumer service helper for RPT-004 QC Holds Dashboard (12-REPORTING §10.1)",
+  "prompt": "# T-012 — Quality Hold consumer service helper\n\nPRD: docs/prd/12-REPORTING-PRD.md §10.1 (QC Holds Dashboard P1), §4.1 #4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nProvide a thin consumer wrapper over the 09-QUALITY-owned `quality_holds` + `hold_items` tables (and the `mv_qc_holds_summary` MV from T-006) so the QC Holds dashboard reads via the consumer pattern (cross-module navigation only, no transactional writes to 09-QA). Cross-module link 'View in QA' resolves to `/quality/holds/<holdId>` route owned by 09-QUALITY.\n\n## Implementation contract\n1. Service helper `packages/reporting/src/queries/quality-holds.ts`:\n   - `getQcHoldsSummary({orgId, siteId, shift?, line?, dateRange})` reads `mv_qc_holds_summary` (from T-006).\n   - `getQcHoldDetail(holdId)` reads `quality_holds` row via 09-QUALITY's read-only contract; returns null if not found; never INSERT/UPDATE.\n   - All reads append `WHERE org_id = app.current_org_id() AND (site_id = $current OR site_id IS NULL)`.\n   - Cross-module link builder `buildQualityHoldUrl(holdId)` returns `/quality/holds/{holdId}` (validated UUID format).\n2. Type definitions `QcHoldSummary`, `QcHoldDetail` derived from PRD §10.1 display column list.\n3. Vitest contract test: (a) cross-org leak test on summary path, (b) link builder rejects non-UUID holdId, (c) read-only enforcement — attempting to call any setter on 09-QA tables via this service is a type error, (d) MV-missing path returns empty array + degraded flag (consistent with T-011 pattern).\n\n## Files\n- packages/reporting/src/queries/quality-holds.ts [create]\n- packages/reporting/src/types/quality-holds.ts [create]\n- packages/reporting/__tests__/quality-holds-consumer.test.ts [create]\n\n## Acceptance criteria\n1. Given two orgs have seeded quality_holds + hold_items rows, when getQcHoldsSummary is called under each org session, then cross-org leak test passes (zero leaks).\n2. Given buildQualityHoldUrl is called with a non-UUID string, when invoked, then it throws InvalidHoldIdError; with a valid UUID, then it returns `/quality/holds/<uuid>`.\n3. Given the TypeScript service surface is inspected, when only `get*` exports are listed (no setters), then any attempt to add an INSERT / UPDATE / DELETE method fails project ESLint rule (consumer-pattern guard).\n4. Given mv_qc_holds_summary is absent (e.g., not yet refreshed), when getQcHoldsSummary is called, then it returns `{available: false, data: [], reason: 'mv_not_refreshed'}` — graceful degradation consistent with T-011 pattern.\n5. Given a filter on shift=AM is passed, when query runs, then the WHERE clause includes `am_pm = 'AM'` exactly and rows are scoped accordingly.\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/quality-holds-consumer.test.ts` covers 5 ACs with testcontainers Postgres + seeded 09-QA rows.\n- Run `pnpm --filter @monopilot/reporting test quality-holds-consumer`.\n- GREEN: write service helper + types.\n\n## Risk red lines\n- Do not duplicate quality_holds workflow logic — consumer pattern only (read-only).\n- Do not INSERT/UPDATE on 09-QA tables from reporting service surface; ESLint rule blocks setters.\n- Do not bypass app.current_org_id() — RLS-via-service.\n- Do not let cross-module link builder accept raw strings — UUID validation only.\n- Do not couple to 09-QA internal column names beyond the published consumer contract (see 09-QUALITY coverage.md or PRD §6.1 if coverage absent).\n- Do not make this helper a write side; Production WO hold gate (CIG-3 in Auditor A audit) is 08-PROD/09-QA's job, not reporting.",
+  "labels": [
+    "prd",
+    "consumer",
+    "quality",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-012",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§4.1 #4"
+    ],
+    "category": "consumer",
+    "subcategory": "cross-module-read-model",
+    "task_type": "T2-api",
+    "parent_feature": "12-REPORTING-b",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Quality Hold consumer service helper reading mv_qc_holds_summary + quality_holds detail; read-only enforced via ESLint guard + types.",
+    "details": "Read-only consumer over 09-QA tables. Cross-module link builder for /quality/holds/<uuid>. Graceful degradation when MV absent (consistent with T-011 OEE pattern).",
+    "scope_files": [
+      "packages/reporting/src/queries/quality-holds.ts [create]",
+      "packages/reporting/src/types/quality-holds.ts [create]",
+      "packages/reporting/__tests__/quality-holds-consumer.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement RPT-004 UI here (T-018)",
+      "Do not implement Production WO consumption hold gate (08-PROD owns; CIG-3 in audit)",
+      "Do not implement NCR Trend (P2)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-013",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "09-QUALITY quality_holds + hold_items tables (read-only consumer)",
+      "09-QUALITY /quality/holds/<uuid> route (cross-module link target)",
+      "00-FOUNDATION T-125 app.current_org_id()"
+    ],
+    "acceptance_criteria": [
+      "Given a filter on shift=AM is passed, when query runs, then WHERE clause includes am_pm='AM' exactly and rows scoped accordingly",
+      "Given two orgs have seeded quality_holds + hold_items rows, when getQcHoldsSummary is called under each org session, then cross-org leak test passes",
+      "Given two orgs have seeded quality_holds + hold_items rows, when getQcHoldsSummary is called under each org session, then cross-org leak test passes",
+      "Given validation and error conditions are triggered, when invoked, then throws InvalidHoldIdError; with valid UUID, returns /quality/holds/<uuid> and any attempt to add INSERT/UPDATE/DELETE method fails ESLint consumer-pattern guard."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/quality-holds-consumer.test.ts covers 5 ACs with testcontainers Postgres + seeded 09-QA rows",
+      "Run `pnpm --filter @monopilot/reporting test quality-holds-consumer`",
+      "GREEN: write service helper + types"
+    ],
+    "risk_red_lines": [
+      "Do not duplicate quality_holds workflow logic — read-only consumer",
+      "Do not INSERT/UPDATE on 09-QA tables from reporting; ESLint rule blocks setters",
+      "Do not bypass app.current_org_id() — RLS-via-service",
+      "Do not let cross-module link builder accept raw strings — UUID validation only",
+      "Do not couple to 09-QA internal column names beyond the published consumer contract",
+      "Do not make this helper a write side; Production WO hold gate (CIG-3) is 08-PROD/09-QA's job"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

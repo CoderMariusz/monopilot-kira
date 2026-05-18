@@ -1,0 +1,81 @@
+{
+  "title": "T-066 — setPin/verifyPin caller-contract JSDoc + pool.end() lifecycle fix (FT-006)",
+  "prompt": "# T-066 — setPin/verifyPin caller-contract JSDoc + pool.end() lifecycle fix (FT-006)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-006** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (S effort)\n\n## Goal\nRefactor verify-pin to use a shared pool with closeAuthPool lifecycle and add caller-contract JSDoc to setPin/verifyPin.\n\n## Implementation contract\n1. Module-level `let pool: Pool | null = null` + lazy initialiser `getAuthPool()`.\n2. Export `closeAuthPool(): Promise<void>` for graceful shutdown.\n3. Remove all `pool.end()` calls from setPin/verifyPin bodies.\n4. JSDoc above each export: argument expectations, return shape, error contract, thread-safety statement.\n5. Test asserts pool is reused across two consecutive verifyPin calls (same client reference).\n\n## Files (scope)\n- packages/auth/src/verify-pin.ts [modify]\n- packages/auth/src/__tests__/verify-pin-lifecycle.test.ts [create]\n\n## Acceptance criteria\n1. Given a verifyPin call followed by another verifyPin call, when both run, then they share the same underlying Pool instance (pool === pool, verified by exposed test hook).\n2. Given `closeAuthPool()` is called, when a subsequent verifyPin runs, then a fresh pool is created.\n3. Given setPin/verifyPin in TypeScript, when hovered in an IDE, then JSDoc describes argon2id expectation + thread-safety + error codes.\n\n## Test strategy\n- RED: write verify-pin-lifecycle.test.ts asserting pool reuse + closeAuthPool re-init before refactor.\n- Run `pnpm --filter @monopilot/auth test verify-pin-lifecycle`.\n\n## Risk red lines\n- Do not store the plaintext PIN anywhere (still argon2id).\n- Do not leak the pool on test teardown — closeAuthPool must run in vitest afterAll.\n- Do not use raw new pg.Pool — use the app-role helper from T-058.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "lifecycle",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-066",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-006",
+    "category": "auth",
+    "subcategory": "verify-pin",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Add caller-contract JSDoc to setPin/verifyPin and replace per-call pool.end() with shared lifecycle (closeAuthPool helper).",
+    "details": "T-016 currently calls `pool.end()` after every setPin/verifyPin invocation — kills connection reuse and ruins p95. Replace with module-level pool + exported `closeAuthPool()` for graceful shutdown. Add JSDoc spelling out: caller must pass argon2id-hashed PIN (never plaintext), pool ownership semantics, and concurrent-safe guarantees.",
+    "scope_files": [
+      "packages/auth/src/verify-pin.ts [modify]",
+      "packages/auth/src/__tests__/verify-pin-lifecycle.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not touch RLS on user_pins (FT-002).",
+      "Do not change argon2id parameters."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a verifyPin call followed by another verifyPin call, when both run, then they share the same underlying Pool instance (pool === pool, verified by exposed test hook).",
+      "Given `closeAuthPool()` is called, when a subsequent verifyPin runs, then a fresh pool is created.",
+      "Given setPin/verifyPin in TypeScript, when hovered in an IDE, then JSDoc describes argon2id expectation + thread-safety + error codes."
+    ],
+    "test_strategy": [
+      "RED: write verify-pin-lifecycle.test.ts asserting pool reuse + closeAuthPool re-init before refactor.",
+      "Run `pnpm --filter @monopilot/auth test verify-pin-lifecycle`."
+    ],
+    "risk_red_lines": [
+      "Do not store the plaintext PIN anywhere (still argon2id).",
+      "Do not leak the pool on test teardown — closeAuthPool must run in vitest afterAll.",
+      "Do not use raw new pg.Pool — use the app-role helper from T-058."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

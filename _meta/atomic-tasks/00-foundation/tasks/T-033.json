@@ -50,7 +50,8 @@
       "Run 'pnpm --filter web test'"
     ],
     "risk_red_lines": [
-      "Do not expose internal flag keys to non-admin clients — that leaks the roadmap"
+      "Do not expose internal flag keys to non-admin clients — that leaks the roadmap",
+      "Do not amend or remove existing feature-flag DB rows in carry-forward migrations — additive only"
     ],
     "skills": [
       "test-driven-development",

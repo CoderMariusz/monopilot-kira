@@ -1,6 +1,6 @@
 {
   "title": "T-048 — UI: TEC-042 Manufacturing Operation Allergen Additions config + TEC-043 Contamination Risk Matrix",
-  "prompt": "Build admin page combining TEC-042 manufacturing-op allergen additions config and TEC-043 contamination risk matrix per §10.7. Match `allergen_matrix_screen` prototypes/design/Monopilot Design System/technical/other-screens.jsx:111-159. Tabs: Manufacturing Op Additions | Contamination Risk Matrix. Uses T-018 + T-019 endpoints. RED tests/ui/tec-042-043-allergens-config.test.tsx. Run: `pnpm vitest run tests/ui/tec-042-043-allergens-config.test.tsx`. Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+  "prompt": "# T-048 — UI: TEC-042 Manufacturing Operation Allergen Additions config + TEC-043 Contamination Risk Matrix\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §10.4, §10.5, §10.7 TEC-042, §10.7 TEC-043\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/technical/other-screens.jsx:111-159` (allergen_matrix_screen)\n\n## Goal\nAdmin allergens config combining mfg-op additions + line/machine × allergen contamination grid.\n\nGrid is a sticky-header table; cells render risk_level badge. Inline edit via popover. Coverage gap row from T-019 highlights missing combinations (V-TEC-43).\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/(app)/technical/allergens-config/page.tsx [create]\n- tests/ui/tec-042-043-allergens-config.test.tsx [create]\n\n## Out of scope\n- Allergen profile editor (T-047)\n\n## Acceptance criteria\n1. Given the page renders, when compared to prototypes/design/Monopilot Design System/technical/other-screens.jsx:111-159, then tab layout + grid headers + risk-level color tokens match — structural + visual + interaction parity verified by RTL.\n2. Given coverage gaps exist, when rendered, then a banner shows count and 'View gaps' link.\n3. Given user without technical.allergens.edit, when on page, then inline edit is read-only.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- RED tests for parity + gap surfacing.\n- Run: pnpm vitest run tests/ui/tec-042-043-allergens-config.test.tsx\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not silently drop coverage gaps.\n- Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Canonical anchor: `prototypes/design/Monopilot Design System/technical/other-screens.jsx:111-159` (allergen_matrix_screen) — see `_meta/prototype-labels/prototype-index-technical.json` entry and `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
   "labels": [
     "prd",
     "ui",
@@ -56,7 +56,15 @@
     ],
     "risk_red_lines": [
       "Do not silently drop coverage gaps.",
-      "Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas."
+      "Prototype naming red-line: translate any legacy prototype/domain labels `fa`/`FA5100`/Factory Article to canonical `fg`/FG, any `PR-code` wording to WIP/intermediate, and any `process_stage`/`process_code` to `manufacturing_operation_name`; do not introduce legacy field names in final code, labels, tests or schemas.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +91,8 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_match": true,
+    "prototype_index_entry": "allergen_matrix_screen"
   }
 }

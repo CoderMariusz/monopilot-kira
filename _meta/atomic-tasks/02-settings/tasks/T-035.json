@@ -51,10 +51,12 @@
     ],
     "test_strategy": [
       "RED: 4 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/middleware.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not log full request headers (cookies/bearer)."
+      "Do not log full request headers (cookies/bearer).",
+      "Do not allow middleware to fail open — deny by default when allowlist evaluation fails."
     ],
     "skills": [
       "test-driven-development"

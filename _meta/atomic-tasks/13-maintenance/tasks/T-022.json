@@ -1,0 +1,114 @@
+{
+  "title": "T-022 — UI: MWO Detail page (7-tab + state stepper) + Task Checkoff + Complete Signoff + Downtime Linkage (MNT-021, MNT-M-04/M-12/M-13)",
+  "prompt": "# T-022 — MWO Detail technician workspace\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-021, §10.4 MNT-M-04/M-12/M-13, §11 V-MNT guards\nUX: prototypes/design/13-MAINTENANCE-UX.md:437-503\nPrototypes: work-orders.jsx:261-564 (mwo_detail_page); modals.jsx:236-355 (task_checkoff_modal, mwo_complete_signoff_modal); modals.jsx:846-879 (downtime_linkage_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/mwos/[id]` with state-machine stepper header + 7 tabs (Overview/Tasks/Parts/Labor/Downtime/Sign-off/History). Tab content state-gated. Modals for step check-off (measure/photo/signoff variants), complete sign-off with pre-condition gates, and downtime event linkage.\n\n## Implementation contract\n1. `apps/web/app/maintenance/mwos/[id]/page.tsx` — RSC parallel queries for MWO + checklists + parts + labor + downtime link + signoffs + history; pre-condition `allOk` computed server-side.\n2. State stepper: shadcn Steps (shared T-019/T-020) reading current state from MWO row; state-transition primary button driven by mwo_state_machine_v1 allowed_to (uses T-010 Server Actions).\n3. Conditional banners: LOTO required (amber, V-MNT-07 gate), Allergen sanitation (red, V-MNT-15..17), Calibration FAIL (red, V-MNT-10) — links to relevant tabs/modals.\n4. Tasks tab: list of mwo_checklists; \"Complete\" opens task_checkoff_modal — step.type variants (check, measure with unit Select + pass/fail auto, photo with capture=environment S3 upload, signoff with PIN re-verify via Wave1 T-124 e-sign).\n5. Parts tab: planned (mwo_spare_parts) + unplanned add via spare picker; Consume row action calls `consumeSparePart` Server Action (T-011) with row lock.\n6. Labor tab: labor entries time + computed cost (manager-only hourly_rate column server-side).\n7. Downtime tab: read-only join from 08-production downtime_events; \"Link\" button opens downtime_linkage_modal (calls T-017 linkMwoToDowntimeEvent).\n8. Sign-off tab: multi-role rows (technician auto-applied, supervisor, safety officer) — each Sign button calls request_signoff Server Action.\n9. Complete signoff modal: 3-button footer (Cancel/Save-draft/Confirm) — pre-condition checks block Confirm until allOk=true (server-side prop); calls completeMwo (T-010) emitting mwo.completed.\n10. RBAC: technician scope hides manager-only labor cost column; only assigned technician can mark checklist steps done.\n11. Empty/loading/error/permission states.\n\n## Prototype parity\n- 7-tab layout + state stepper — RTL snapshot of work-orders.jsx:261-564.\n- Conditional banners (LOTO/Allergen/Cal FAIL) — interaction test.\n- Task checkoff variants check/measure/photo/signoff — snapshot of modals.jsx:236-294.\n- Complete signoff allOk gate + multi-role strip — snapshot of modals.jsx:296-355.\n- Downtime linkage radio-select table — snapshot of modals.jsx:846-879.\n\n## Files\n- apps/web/app/maintenance/mwos/[id]/page.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/mwo-detail-client.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/task-checkoff-modal.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/mwo-complete-modal.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/downtime-linkage-modal.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/__tests__/mwo-detail.test.tsx [create]\n- apps/web/app/maintenance/mwos/[id]/_components/__tests__/modals.test.tsx [create]\n\n## Acceptance criteria\n1. Given /maintenance/mwos/[id] renders for state='in_progress', when compared to work-orders.jsx:261-564, then state stepper + 7 tabs (state-driven editable) + conditional banners match by RTL parity checklist.\n2. Given equipment.requires_loto=true and loto.verified_at IS NULL, when MWO Detail renders, then LOTO required banner is shown and the \"Start work\" primary button is disabled with tooltip referencing V-MNT-07.\n3. Given task_checkoff with step.type='photo' submitted, when settled, then S3 upload via presigned URL Server Action succeeds and URL persisted to mwo_task_photos.\n4. Given mwo_complete_modal opened with checklist incomplete, when allOk computed server-side, then Confirm button is disabled and the pre-condition card lists the failing items.\n5. Given consume Parts action triggers SPARE_INSUFFICIENT_STOCK (T-011 V-MNT-19), when settled, then row shows inline error chip and no stock decrement occurs.\n6. Given downtime_linkage submitted, when settled, then mwo.downtime_event_id is set and outbox mwo.downtime_linked emitted (T-017).\n7. Given closeout, when reviewers inspect, then Playwright trace + screenshots for the 7 tabs + 3 modals attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity tests + Playwright e2e for state transitions + modal flows.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/mwos/[id]`.\n\n## Risk red lines\n- Do not derive allOk client-side from stale state — server-side prop only.\n- Do not allow checklist completion outside state='in_progress'.\n- Do not bypass RBAC server-side (technician can only complete assigned MWO; manager hourly_rate column server-filtered).\n- Do not import @radix-ui/* outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "mwo",
+    "T3-ui"
+  ],
+  "priority": 105,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-021",
+      "§10.4 MNT-M-04",
+      "§10.4 MNT-M-12",
+      "§10.4 MNT-M-13",
+      "§11"
+    ],
+    "category": "ui",
+    "subcategory": "mwo-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "65k",
+    "estimated_effort": "6-7h",
+    "description": "MWO Detail with 7 tabs + state stepper + conditional banners + 3 modals (task_checkoff, complete_signoff, downtime_linkage); largest MWO surface.",
+    "details": "PRD anchor corrected from §11.1-11.4 to §11 by Fixer F12 2026-05-14 (anchor sweep; §11.1-11.4 is a range notation — using §11 parent Validation Rules section which covers V-MNT-01..24). Pre-condition allOk computed server-side. Wave1 T-124 e-sign for signoff variants. Largest UI task — keep scope tight.\n\nLine range corrected from 261-584 (file has 564 lines).",
+    "scope_files": [
+      "apps/web/app/maintenance/mwos/[id]/page.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/mwo-detail-client.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/task-checkoff-modal.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/mwo-complete-modal.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/downtime-linkage-modal.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/__tests__/mwo-detail.test.tsx [create]",
+      "apps/web/app/maintenance/mwos/[id]/_components/__tests__/modals.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "LOTO apply/clear modals (T-025)",
+      "Calibration record modal (T-024)",
+      "Sanitation completion modal (T-022 references but full UI deferred to MWO context)",
+      "P2 21 CFR signer immutability UI"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-010",
+      "T-011",
+      "T-013",
+      "T-017"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given /maintenance/mwos/[id] renders for state='in_progress', when compared to prototypes/design/Monopilot Design System/maintenance/work-orders.jsx:261-564, then state stepper + 7 tabs (state-driven editable) + conditional banners (LOTO/Allergen/Cal FAIL) match by RTL parity checklist",
+      "Given equipment.requires_loto=true and loto.verified_at IS NULL, when MWO Detail renders, then LOTO banner shown and Start work button disabled (V-MNT-07); given task_checkoff step.type='photo' submitted, then S3 upload via presigned URL succeeds and URL persisted to mwo_task_photos",
+      "Given mwo_complete_modal opened with checklist incomplete (allOk=false server-side), then Confirm disabled and pre-condition card lists failing items; given Consume Parts triggers SPARE_INSUFFICIENT_STOCK, then inline error chip and no stock decrement (V-MNT-19)",
+      "Given downtime_linkage submitted, when settled, then mwo.downtime_event_id set and outbox mwo.downtime_linked emitted (T-112); given closeout, then Playwright trace + screenshots for 7 tabs + 3 modals attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity tests + Playwright e2e for state transitions + modal flows",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/mwos/[id]`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not derive allOk client-side — server-side prop only",
+      "Do not allow checklist completion outside state='in_progress'",
+      "Do not bypass RBAC server-side",
+      "Do not import @radix-ui/* outside packages/ui",
+      "Do not paste prototype JSX verbatim",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "mwo_detail_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

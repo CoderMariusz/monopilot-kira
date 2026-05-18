@@ -15,7 +15,7 @@
     "prd_task_id": "T-045",
     "source_prd": "docs/prd/04-PLANNING-BASIC-PRD.md",
     "prd_refs": [
-      "§MRP-gap",
+      "§4 (was §MRP-gap)",
       "PLN-014"
     ],
     "category": "ui",
@@ -25,7 +25,7 @@
     "context_budget": "60k",
     "estimated_effort": "5-6h",
     "description": "Read-only Material Demand dashboard with netting + reorder thresholds + Create PO quick action.",
-    "details": "Schema for reorder_thresholds, aggregator action joining stock/po/wo, Server Component page, Create PO opens existing PO wizard prefilled, threshold dialog upserts. No MRP pegging beyond simple sum.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given the user submits Set Threshold for an existing product, when committed, then reorder_thresholds upserts (UNIQUE(tenant,product) holds).\n- Given the user lacks planning.thresholds.write, when on the page, then Set threshold buttons are disabled with tooltips.\n- Given `pnpm vitest run` for the new tests, then 0 failures.\n\nPrototype hardening: cite `plan_dashboard` via `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261` for parity or composed dashboard parity where material demand is exposed as a dashboard/quick-action surface.",
+    "details": "Schema for reorder_thresholds, aggregator action joining stock/po/wo, Server Component page, Create PO opens existing PO wizard prefilled, threshold dialog upserts. No MRP pegging beyond simple sum.\n\nAdditional acceptance detail preserved during validation hardening:\n- Given the user submits Set Threshold for an existing product, when committed, then reorder_thresholds upserts (UNIQUE(tenant,product) holds).\n- Given the user lacks planning.thresholds.write, when on the page, then Set threshold buttons are disabled with tooltips.\n- Given `pnpm vitest run` for the new tests, then 0 failures.\n\nPrototype hardening: cite `plan_dashboard` via `prototypes/design/Monopilot Design System/planning/dashboard.jsx:3-261` for parity or composed dashboard parity where material demand is exposed as a dashboard/quick-action surface. PRD-anchor remediation: corrected §MRP-gap to nearest real heading (04-PLANNING-BASIC-PRD has §3 (Personas & RBAC) parent — sub-numbered §3.2/§3.3 exist as ### subsections but are referenced via §3 anchor + inline marker per gold standard).",
     "scope_files": [
       "src/db/schema/planning/reorder-thresholds.ts [create]",
       "src/db/migrations/0045_planning_reorder_thresholds.sql [create via drizzle-kit]",

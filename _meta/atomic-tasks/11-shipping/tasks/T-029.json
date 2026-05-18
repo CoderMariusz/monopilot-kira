@@ -1,0 +1,123 @@
+{
+  "title": "T-029 — shipping_outbox_events + shipping_push_dlq schema + D365 SalesOrder confirm push dispatcher (apps/worker) (11-shipping-i)",
+  "prompt": "# T-029 — shipping_outbox_events + dispatcher + DLQ\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-14 INTEGRATIONS Stage 3 D365 SalesOrder Confirm Push, §9.3 (shipping_outbox_events + shipping_push_dlq), §12 INTEGRATIONS Stage 3, §12.1 Event contract shipment.confirmed, §12.2 Dispatcher workflow, §12.3 R14 idempotency, §12.4 R15 anti-corruption adapter, §12.5 Failure policy (5m/30m/2h/12h/24h cadence), §12.6 DLQ ops, §12.8 D365_Constants consumer\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `shipping_outbox_events` + `shipping_push_dlq` tables; @monopilot/worker (T-111) JobRegistry consumer that dispatches `shipment.confirmed` events to D365 OData endpoint with R14 idempotency + R15 anti-corruption adapter + retry cadence; DLQ replay Server Action with `ship.dlq.replay` permission.\n\n## Implementation contract\n1. Migration creates the two tables EXACTLY per §9.3 SQL (event_id UUID v7. Use canonical `org_id` per Wave0 lock; do not introduce `tenant_id` aliasing. The PRD wrote `tenant_id UUID` but per `_meta/audits/2026-05-14-tenant-context-remediation.md` this MUST be `org_id` (document the deviation in the task closeout)), target_system text, status outbox_status_enum (shared with 08-PROD §9.10 — reuse, do not redeclare).\n2. RLS + FORCE RLS via app.current_org_id() on both tables.\n3. `apps/worker/src/jobs/shipping-d365-dispatcher.ts` — registers a 30s interval job via @monopilot/worker JobRegistry (T-111):\n   - Dequeue: `SELECT FROM shipping_outbox_events WHERE status='pending' AND (next_retry_at IS NULL OR next_retry_at <= now()) AND target_system='D365' ORDER BY enqueued_at FOR UPDATE SKIP LOCKED LIMIT 50`.\n   - For each: invoke `adapt_to_d365_sales_order_v1(payload)` (R15 anti-corruption adapter — pure function in `packages/integrations-d365/src/shipping-adapter.ts`); call D365 OData POST endpoint (URL from 02-SETTINGS §11 D365_Constants); response handling.\n   - On success: UPDATE status='delivered', delivered_at; emit otel span (T-116).\n   - On failure: increment attempt_count; compute next_retry_at per cadence (5m/30m/2h/12h/24h); UPDATE status='failed' once cadence exhausted → INSERT shipping_push_dlq row.\n4. `replayDlq(dlqId)` Server Action — re-enqueues into shipping_outbox_events; clears dlq.resolved_at if successful. Permission `ship.dlq.replay`.\n5. Idempotency: `idempotency_key='ship::<shipment_id>::v<version>'` (R14) — duplicate enqueue from T-020 confirmShipment must be a no-op (UPSERT on event_id).\n6. Anti-corruption R15: adapter maps internal `shipment.confirmed` payload → D365 SalesOrderV2 entity per §12.4; never exports `factory_release_state` or any FG state field — STRICT.\n7. OTel instrumentation (T-116): every dispatch attempt spans `shipping.d365.dispatch` with attrs (event_id, shipment_id, attempt_count, status_code).\n\n## Files\n- packages/db/migrations/00XX_shipping_outbox.sql [create]\n- packages/db/src/schema/shipping/outbox.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/shipping-outbox-schema.test.ts [create]\n- apps/worker/src/jobs/shipping-d365-dispatcher.ts [create]\n- apps/worker/src/jobs/__tests__/shipping-d365-dispatcher.test.ts [create]\n- packages/integrations-d365/src/shipping-adapter.ts [create]\n- packages/integrations-d365/__tests__/shipping-adapter.test.ts [create]\n- apps/web/lib/server-actions/shipping/dlq.ts [create — replayDlq]\n- apps/web/lib/server-actions/shipping/__tests__/dlq.test.ts [create]\n- packages/events/src/shipping.ts [modify — D365PushAttempted, D365PushFailed, D365PushSucceeded]\n\n## Acceptance criteria\n1. Given migration runs, when DB inspected, then shipping_outbox_events + shipping_push_dlq exist with org_id NOT NULL + RLS + FORCE RLS via app.current_org_id(), indexes per §9.3.\n2. Given an event is enqueued via T-020 confirmShipment with idempotency_key='ship::<id>::v1', when a duplicate enqueue is attempted, then UPSERT on event_id is a no-op (R14 idempotency).\n3. Given the dispatcher dequeues a pending event, when D365 OData responds 200, then the row UPDATEs status='delivered' and an otel span 'shipping.d365.dispatch' is emitted with status_code=200.\n4. Given D365 OData responds 500 on the 5th attempt, when retry cadence is exhausted, then the event is moved to shipping_push_dlq with status='failed' and otel span records status_code=500.\n5. Given replayDlq is called by a ship.dlq.replay holder for a DLQ row, when it runs, then the event is re-enqueued in shipping_outbox_events (status='pending') and shipping_push_dlq.resolved_at is set.\n6. Given the R15 adapter is called with a payload containing factory_release_state, when adapt_to_d365_sales_order_v1 runs, then it never emits this field — verified by test asserting that no `factory_release_state` key appears in adapter output (D365 export-only contract).\n7. Given grep current_setting('app.tenant_id'|'app.current_org_id') on shipping-d365-dispatcher.ts and shipping-adapter.ts, when run, then zero matches.\n\n## Test strategy\n- RED: testcontainers Postgres + mock D365 OData server + fake timers asserting AC 1-7 + cadence + DLQ + R15 adapter.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-outbox-schema && pnpm --filter @monopilot/worker vitest run shipping-d365-dispatcher.test.ts && pnpm --filter @monopilot/integrations-d365 vitest run shipping-adapter.test.ts && pnpm --filter @monopilot/web vitest run dlq.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not allow the R15 adapter to emit factory_release_state or any FG state field (D365 export-only contract).\n- Do not skip idempotency_key (R14) — duplicate enqueues from T-020 must no-op.\n- Do not call D365 OData synchronously from confirmShipment — must happen via apps/worker dispatcher.\n- Do not skip OTel spans on dispatch attempts (T-116 consumer).\n- Do not use Postgres native nextval() — UUID v7 for event_id.\n- Do not name business-scope column tenant_id (Wave0 v4.3 lock).\n- Do not allow replayDlq without ship.dlq.replay permission.",
+  "labels": [
+    "prd",
+    "backend",
+    "worker",
+    "integration",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-14",
+      "§9.3",
+      "§12",
+      "§12.1",
+      "§12.2",
+      "§12.3",
+      "§12.4",
+      "§12.5",
+      "§12.6",
+      "§12.8"
+    ],
+    "category": "backend",
+    "subcategory": "d365-dispatcher",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-i",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "shipping_outbox_events + shipping_push_dlq schema + apps/worker D365 dispatcher with R14 idempotency + R15 anti-corruption adapter + retry cadence + DLQ replay.",
+    "details": "Schema clones 08-PROD §9.10-9.11 exactly. Dispatcher uses @monopilot/worker JobRegistry (T-111) with 30s interval and SKIP LOCKED. R15 adapter strictly excludes FG state fields (Foundation D365 posture). OTel via T-116.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_outbox.sql [create]",
+      "packages/db/src/schema/shipping/outbox.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-outbox-schema.test.ts [create]",
+      "apps/worker/src/jobs/shipping-d365-dispatcher.ts [create]",
+      "apps/worker/src/jobs/__tests__/shipping-d365-dispatcher.test.ts [create]",
+      "packages/integrations-d365/src/shipping-adapter.ts [create]",
+      "packages/integrations-d365/__tests__/shipping-adapter.test.ts [create]",
+      "apps/web/lib/server-actions/shipping/dlq.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/dlq.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement EPCIS 2.0 push (Phase 2 per §14.6).",
+      "Do not implement DLQ ops UI (covered in T-024 docs hub chip + T-030 dashboard)."
+    ],
+    "dependencies": [
+      "T-018",
+      "T-020",
+      "T-031",
+      "00-foundation/T-111",
+      "00-foundation/T-112",
+      "00-foundation/T-116",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-027",
+      "T-028",
+      "T-030"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-051 (D365 export-only posture)",
+      "00-foundation/T-111 (apps/worker JobRegistry)",
+      "00-foundation/T-116 (OTel)",
+      "02-settings (D365_Constants from §11)",
+      "08-production (outbox_status_enum shared ENUM)"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when DB inspected, then shipping_outbox_events + shipping_push_dlq exist with org_id NOT NULL + RLS + FORCE RLS; AND given event enqueued with idempotency_key='ship::<id>::v1', when duplicate enqueue attempted, then UPSERT on event_type+idempotency_key prevents duplicate row.",
+      "Given dispatcher dequeues pending event and D365 OData responds 200, when complete, then status='delivered' and OTel span shipped.dispatched emitted; AND given D365 responds 500 on 5th attempt, when cadence exhausted, then event moved to shipping_push_dlq with status='dlq' + dlq_reason set.",
+      "Given replayDlq called by ship.dlq.replay holder, when it runs, then event re-enqueued (status='pending') and shipping_push_dlq row marked replayed; AND given R15 adapter called with payload containing factory_release_state, when run, then no factory_release_state key in output (export-only anti-corruption, must not mutate canonical Monopilot state).",
+      "Given grep current_setting('app.tenant_id'|'app.current_org_id') on dispatcher.ts and adapter.ts, when run, then zero matches."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres + mock D365 OData server + fake timers asserting AC 1-7 + cadence + DLQ + R15 adapter.",
+      "Run all per-package vitest commands listed in prompt."
+    ],
+    "risk_red_lines": [
+      "Do not allow R15 adapter to emit factory_release_state or any FG state field.",
+      "Do not skip idempotency_key (R14).",
+      "Do not call D365 OData synchronously from confirmShipment.",
+      "Do not skip OTel spans.",
+      "Do not use Postgres nextval() — UUID v7.",
+      "Do not name business-scope column tenant_id.",
+      "Do not allow replayDlq without ship.dlq.replay permission."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

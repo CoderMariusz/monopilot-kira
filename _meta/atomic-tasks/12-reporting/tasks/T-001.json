@@ -1,0 +1,95 @@
+{
+  "title": "T-001 — Lock reporting permission enum (rpt.* baseline) (12-REPORTING §3, §11)",
+  "prompt": "# T-001 — Lock reporting permission enum (rpt.* baseline)\n\nPRD: docs/prd/12-REPORTING-PRD.md §3 (Personas & Roles + RBAC mapping), §11 V-RPT-ACCESS-*, §15 (Screens)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAppend a delimited REPORTING_CORE permission group to `packages/rbac/src/permissions.enum.ts` covering dashboard view, export (csv/pdf), preset save/share, schedule create (P2), settings admin, force-refresh, and integration-health admin. Permission enum is the single source of truth — Foundation T-046 ESLint enum-lock guard will block downstream module compile if these strings are missing. Per PRD §3 RBAC mapping the four reporting roles (viewer / operator / manager / admin) map to subsets of these strings.\n\n## Implementation contract\n1. Modify `packages/rbac/src/permissions.enum.ts` — append `REPORTING_CORE_PERMISSIONS` constant block with JSDoc citing PRD §3 lines.\n2. Export `ALL_REPORTING_CORE_PERMISSIONS` as a typed `Permission[]` so vitest can iterate.\n3. Extend regex group to allow `rpt.<resource>.<verb>` flat-namespace (matches existing settings.* / npd.* pattern).\n4. Modify `packages/rbac/src/__tests__/permissions.test.ts` — add RED test asserting presence of all rpt.* strings + regex + uniqueness.\n5. Do NOT introduce per-resource matrix; flat dot-namespaced strings only (per Foundation [D2]).\n\n## Files\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/rbac/src/__tests__/permissions.test.ts [modify]\n- CODEOWNERS [verify entry — no edit unless missing]\n\n## Acceptance criteria\n1. Given the enum file is imported, when read, then exactly these strings exist: `rpt.dashboard.view`, `rpt.export.csv`, `rpt.export.pdf`, `rpt.preset.save`, `rpt.preset.share`, `rpt.preset.delete`, `rpt.schedule.create`, `rpt.schedule.run_now`, `rpt.schedule.delete`, `rpt.settings.read`, `rpt.settings.edit`, `rpt.mv.refresh`, `rpt.integration.read`, `rpt.rules_usage.read`.\n2. Given a permission key matches regex `^rpt\\.[a-z_]+\\.[a-z_]+$`, when the enum is parsed, then no duplicates exist (vitest assertion).\n3. Given `ALL_REPORTING_CORE_PERMISSIONS` is exported, when its length is checked, then it equals exactly the count of new strings (14).\n4. Given `CODEOWNERS` is read, when checked, then `packages/rbac/src/permissions.enum.ts` remains under @architects ownership.\n\n## Test strategy (RED first)\n- RED: extend `packages/rbac/src/__tests__/permissions.test.ts` with the four ACs above. Run `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts` and confirm RED fails.\n- GREEN: append the 14 strings + the typed array.\n- Re-run vitest, run `pnpm typecheck` and `pnpm lint` in the rbac package.\n\n## Risk red lines\n- Do not introduce a parallel 4-level matrix model (rejected per Foundation [D2]).\n- Do not couple enum strings to specific UI components or routes.\n- Do not remove or rename existing permission strings.\n- Do not gate `rpt.export.xlsx` here — XLSX is P2 (PRD §4.2 #18); reserve namespace but do not add until P2 task.\n- Do not include scheduled-delivery / external-bi flag-gated permissions in this baseline beyond schedule.create/run_now (P2 stubs, behind `reporting.scheduled_delivery` flag at the rule layer not the enum layer).",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-001",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§11"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Append rpt.* permission group (14 strings) to packages/rbac/src/permissions.enum.ts so downstream reporting tasks can guard pages/actions without violating the ESLint enum-lock contract.",
+    "details": "PRD §3 lists 4 reporting roles. Each maps to a subset of the 14 strings. Maintain dot-namespaced flat model. JSDoc each group with PRD §3 line refs. Reserve `rpt.export.xlsx` and `rpt.bi_embed.read` for P2; do not introduce them in this task. ALL_REPORTING_CORE_PERMISSIONS exported typed array. Permission enum is the SSOT — never accept Reference.RolePermissions table writes as substitute (Foundation T-046 enum-lock guard will fail compile).",
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]",
+      "CODEOWNERS [verify]"
+    ],
+    "out_of_scope": [
+      "Do not seed Reference.RolePermissions in this task",
+      "Do not implement report_access_gate_v1 rule here (T-009)",
+      "Do not add P2 export.xlsx / bi_embed.* strings",
+      "Do not edit any UI files"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-002",
+      "T-003"
+    ],
+    "cross_module_dependencies": [
+      "Foundation T-046 (ESLint enum-lock guard)"
+    ],
+    "acceptance_criteria": [
+      "Given the enum file is imported, when read, then exactly these 14 strings exist: rpt.dashboard.view, rpt.export.csv, rpt.export.pdf, rpt.preset.save, rpt.preset.share, rpt.preset.delete, rpt.schedule.create, rpt.schedule.run_now, rpt.schedule.delete, rpt.settings.read, rpt.settings.edit, rpt.mv.refresh, rpt.integration.read, rpt.rules_usage.read",
+      "Given a permission key matches regex ^rpt\\.[a-z_]+\\.[a-z_]+$, when the enum is parsed, then zero duplicates exist (vitest assertion)",
+      "Given ALL_REPORTING_CORE_PERMISSIONS is exported, when its length is checked, then it equals exactly 14 and is typed Permission[]",
+      "Given CODEOWNERS is read, when checked, then packages/rbac/src/permissions.enum.ts remains architect-owned"
+    ],
+    "test_strategy": [
+      "RED: extend packages/rbac/src/__tests__/permissions.test.ts with presence + regex + uniqueness + array-length assertions; run vitest, expect failure",
+      "GREEN: append strings; run `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`",
+      "Run `pnpm typecheck` and `pnpm lint` in packages/rbac"
+    ],
+    "risk_red_lines": [
+      "Do not introduce a parallel 4-level matrix model (rejected per Foundation [D2])",
+      "Do not remove or rename existing permission strings",
+      "Do not add P2 strings (rpt.export.xlsx, rpt.bi_embed.read) — reserved namespace only",
+      "Do not couple enum strings to specific UI components or routes",
+      "Do not weaken Foundation T-046 ESLint enum-lock guard",
+      "No raw PII in reports/exports — PII columns (email, phone, address, surname, dob, national_id) must be redacted, hashed, or omitted at the read-model boundary. Consult Foundation T-117 pino redact allowlist for the canonical PII column set."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "title": "T-102 — promote public.fg fixture to real migration when 01-NPD module ships (FT-042)",
+  "prompt": "# T-102 — promote public.fg fixture to real migration when 01-NPD module ships (FT-042)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §10, §4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-042** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nMigration 035 creates the canonical `fa` view (security_invoker=true) over `product` and drops the test-only fixture.\n\n## Implementation contract\n1. Migration 035 CREATE VIEW fa AS SELECT * FROM product WITH (security_invoker=true).\n2. Drop the test-only fixture from setup.ts.\n3. Test asserts the view exists with the correct option.\n\n## Files (scope)\n- packages/db/migrations/035-public-fg-fixture-to-migration.sql [create]\n- packages/db/__tests__/public-fg-migration.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 035 applied, when pg_views is queried for `fa`, then it returns one row.\n2. Given the view, when INSERT INTO fa runs, then it fails 'cannot insert into view'.\n3. Given the previous test fixture, when scanned, then it is removed.\n\n## Test strategy\n- RED: write public-fg-migration.test.ts asserting view + read-only before migration.\n- Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test public-fg-migration`.\n\n## Risk red lines\n- Do not run this migration before the 01-NPD `product` table exists.\n- Do not omit security_invoker.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "01-npd-dep",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-102",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§10",
+      "§4.3"
+    ],
+    "original_carry_forward_id": "FT-042",
+    "category": "data",
+    "subcategory": "migrations",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Promote the public.fg fixture (currently created at test runtime by T-021) to a real Drizzle migration once 01-NPD module ships its `product` table.",
+    "details": "T-021 stubbed `public.fg` as a test fixture. PRD §4.3 (ADR-034) calls for a read-only `fa` view over `product`. This task formalises the view in migration 035 once the upstream 01-NPD `product` table exists.",
+    "scope_files": [
+      "packages/db/migrations/035-public-fg-fixture-to-migration.sql [create]",
+      "packages/db/__tests__/public-fg-migration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not extend the view with computed columns."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 035 applied, when pg_views is queried for `fa`, then it returns one row.",
+      "Given the view, when INSERT INTO fa runs, then it fails 'cannot insert into view'.",
+      "Given the previous test fixture, when scanned, then it is removed."
+    ],
+    "test_strategy": [
+      "RED: write public-fg-migration.test.ts asserting view + read-only before migration.",
+      "Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test public-fg-migration`."
+    ],
+    "risk_red_lines": [
+      "Do not run this migration before the 01-NPD `product` table exists.",
+      "Do not omit security_invoker."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

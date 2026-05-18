@@ -1,0 +1,108 @@
+{
+  "title": "T-005 — MV refresh worker job (pg_cron + Edge Function fallback) + mv_refresh_log writer (12-REPORTING §9.4, §6 D-RPT-6, §11 V-RPT-REFRESH-*)",
+  "prompt": "# T-005 — MV refresh worker job\n\nPRD: docs/prd/12-REPORTING-PRD.md §9.4 (cron jobs), §6 D-RPT-6 (refresh strategy + outbox-driven enhancement), §11 V-RPT-REFRESH-1..4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the materialized-view refresh worker as a `apps/worker` job under the JobRegistry from Foundation T-111. Two cadences: 2-min prod (yield + factory KPI + downtime + WO status + integration health) and 5-min QC/inventory/shipment/rules. Each refresh writes a `mv_refresh_log` row with status + rows_affected + duration_ms. Refresh > 30s emits warning; 3 consecutive failures emits critical alert + auto-disable subscriber (V-RPT-REFRESH-2). pg_cron primary path (Supabase Pro); Edge Function fallback for free tier per §9.4.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0082_reporting_refresh_cron.sql` registers two pg_cron schedules per §9.4 (verbatim except `tenant_id` → `org_id` where applicable in helper functions).\n2. Worker job `apps/worker/src/jobs/reporting-mv-refresh.ts` registered in JobRegistry (Foundation T-111) as the fallback path. Job:\n   - Acquires advisory lock per view name to prevent concurrent refresh.\n   - Executes `REFRESH MATERIALIZED VIEW CONCURRENTLY <view>`.\n   - On enter: INSERT mv_refresh_log row status='started'.\n   - On success: UPDATE same row status='completed', rows_affected, completed_at=now().\n   - On failure: UPDATE status='failed', error_message; increment consecutive-failures counter; if >=3, emit alert via observability T-116 + outbox event `reporting.mv_refresh.disabled` (auto-disable).\n   - View name is bound to an enum (`type ReportingMaterializedView = 'mv_yield_by_line_week' | 'mv_yield_by_sku_week' | ...`); never string-interpolated.\n3. SECURITY DEFINER helper function `app.refresh_reporting_mv(view_name TEXT)` so cron and worker share the same code path; revoke PUBLIC; grant only to `app_cron_role`.\n4. Observability: emit OTel span `reporting.mv_refresh` with attrs view_name + duration_ms + status, leveraging Foundation T-116 tracer.\n5. Vitest contract test asserts: (a) Job class exists and registers with JobRegistry, (b) advisory lock acquired during refresh, (c) mv_refresh_log row inserted and updated per status transition, (d) 3 consecutive failures triggers disable + outbox emit, (e) view name enum-bound (string interpolation attempt fails type-check / runtime).\n\n## Files\n- packages/db/migrations/0082_reporting_refresh_cron.sql [create]\n- apps/worker/src/jobs/reporting-mv-refresh.ts [create]\n- apps/worker/src/jobs/__tests__/reporting-mv-refresh.test.ts [create]\n- packages/reporting/src/mv-registry.ts [create] — enum of view names\n- supabase/functions/reporting-mv-refresh/index.ts [create] — Edge Function fallback wrapper\n\n## Acceptance criteria\n1. Given migration 0082 runs, when pg_cron tables are inspected, then exactly 2 jobs are scheduled (`mv-refresh-prod-2min`, `mv-refresh-qc-5min`).\n2. Given the worker job is invoked for view `mv_yield_by_line_week`, when it runs to completion, then mv_refresh_log row transitions started → completed with rows_affected and duration_ms populated.\n3. Given the worker fails 3 consecutive times for the same view, when the fourth attempt is gated, then it is skipped + an outbox event `reporting.mv_refresh.disabled` is emitted + an OTel error span recorded (V-RPT-REFRESH-2).\n4. Given two concurrent invocations for the same view, when both attempt to refresh, then only one acquires the advisory lock and the other returns immediately without writing a duplicate started row.\n5. Given an attempt to pass an arbitrary string as view_name, when type-checked, then it fails compile (ReportingMaterializedView enum) and at runtime the helper function rejects unknown names with explicit error (defense in depth).\n6. Given the Edge Function endpoint is hit (fallback path), when invoked, then it calls the same `app.refresh_reporting_mv` helper and writes the same mv_refresh_log row format as the worker path.\n\n## Test strategy (RED first)\n- RED: `apps/worker/src/jobs/__tests__/reporting-mv-refresh.test.ts` mounts testcontainers Postgres, runs migration 0082, executes the job, asserts 6 ACs incl. concurrency advisory lock + 3-consecutive-failure auto-disable + outbox emit.\n- Run `pnpm --filter @monopilot/worker test reporting-mv-refresh`.\n- GREEN: write migration + worker job + Edge Function + mv-registry enum.\n\n## Risk red lines\n- Do not interpolate view names into raw SQL — bind to enum, never accept user input even from settings UI.\n- Do not run REFRESH MATERIALIZED VIEW (non-concurrent) — must be CONCURRENTLY (zero downtime, requires unique index from T-003/T-006/T-007/T-008/T-011/T-014).\n- Do not let refresh failures silently degrade — V-RPT-REFRESH-2 requires alert + auto-disable on 3 consecutive failures.\n- Do not skip the advisory lock — concurrent refresh causes lock waits and bloats mv_refresh_log.\n- Do not put long-running refresh in a Server Action or in-request path — worker only (per architecture: long-running queries belong on apps/worker; UI uses prepared cached views).\n- Do not let pg_cron and worker race; cron is primary in prod, worker is fallback — gate worker behind a feature flag if pg_cron is present.",
+  "labels": [
+    "prd",
+    "worker",
+    "cron",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-005",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§9.4",
+      "§6 D-RPT-6",
+      "§11 V-RPT-REFRESH-1",
+      "§11 V-RPT-REFRESH-2",
+      "§11 V-RPT-REFRESH-3",
+      "§11 V-RPT-REFRESH-4"
+    ],
+    "category": "worker",
+    "subcategory": "mv-refresh-cron",
+    "task_type": "T2-api",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "45k",
+    "estimated_effort": "3-5h",
+    "description": "MV refresh worker job + pg_cron primary path + Edge Function fallback. Writes mv_refresh_log per refresh; 3-consecutive-failure auto-disable; advisory lock for concurrency.",
+    "details": "Worker registered under Foundation T-111 JobRegistry. View name enum-bound (never interpolated). Two cadences per §9.4 (2-min prod, 5-min QC/inventory/shipment). REFRESH MATERIALIZED VIEW CONCURRENTLY only (requires unique index from T-003 etc.). OTel span emitted via Foundation T-116. Outbox event on auto-disable via Foundation T-112 outbox consumer.",
+    "scope_files": [
+      "packages/db/migrations/0082_reporting_refresh_cron.sql [create]",
+      "apps/worker/src/jobs/reporting-mv-refresh.ts [create]",
+      "apps/worker/src/jobs/__tests__/reporting-mv-refresh.test.ts [create]",
+      "packages/reporting/src/mv-registry.ts [create]",
+      "supabase/functions/reporting-mv-refresh/index.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement freshness UI strip here (T-016 Factory Overview UI)",
+      "Do not implement V-RPT-REFRESH-4 stale indicator in UI (T-016)",
+      "Do not implement archive cron for report_exports here (separate task — defer to P2)"
+    ],
+    "dependencies": [
+      "T-003",
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-007",
+      "T-008",
+      "T-011",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "00-FOUNDATION T-111 apps/worker scaffold + JobRegistry",
+      "00-FOUNDATION T-112 outbox worker consumer",
+      "00-FOUNDATION T-116 OpenTelemetry tracer (span emission)",
+      "00-FOUNDATION T-117 pino logger (refresh error logs)"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0082 runs, when pg_cron tables are inspected, then exactly 2 jobs are scheduled (mv-refresh-prod-2min, mv-refresh-qc-5min)",
+      "Given the worker job is invoked for view mv_yield_by_line_week, when it runs to completion, then mv_refresh_log row transitions started → completed with rows_affected and duration_ms populated",
+      "Given the worker fails 3 consecutive times for the same view, when the 4th attempt is gated, then it is skipped + outbox event reporting.mv_refresh.disabled is emitted + an OTel error span recorded (V-RPT-REFRESH-2)",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then it fails compile and only one acquires the advisory lock and the other returns immediately without writing a duplicate started row."
+    ],
+    "test_strategy": [
+      "RED: apps/worker/src/jobs/__tests__/reporting-mv-refresh.test.ts mounts testcontainers Postgres, runs migration 0082, executes job, asserts 6 ACs incl. concurrency lock + auto-disable + outbox emit",
+      "Run `pnpm --filter @monopilot/worker test reporting-mv-refresh`",
+      "GREEN: write migration + worker job + Edge Function + mv-registry enum"
+    ],
+    "risk_red_lines": [
+      "Do not interpolate view names into raw SQL — bind to enum, defense in depth at type + runtime",
+      "Do not run non-concurrent REFRESH MATERIALIZED VIEW — must be CONCURRENTLY (D-RPT-1 zero downtime)",
+      "Do not let refresh failures degrade silently — V-RPT-REFRESH-2 requires alert + auto-disable on 3 consecutive failures",
+      "Do not skip the advisory lock — concurrent refresh bloats log + causes lock waits",
+      "Do not put refresh in Server Action or in-request path — worker only (long-running queries belong on apps/worker per architecture)",
+      "Do not let pg_cron and worker race in prod — cron primary, worker fallback (feature-flag gated)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

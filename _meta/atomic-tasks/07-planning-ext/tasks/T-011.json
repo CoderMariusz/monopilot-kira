@@ -53,7 +53,8 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -75,6 +76,14 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-008",
+      "T-010"
+    ]
   }
 }

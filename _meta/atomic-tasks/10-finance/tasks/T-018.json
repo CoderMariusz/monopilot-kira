@@ -1,0 +1,100 @@
+{
+  "title": "T-018 \u2014 Wiring: wo.completed worker consumer \u2192 cascade + allocate + close + emit finance.wo_cost.closed (\u00a79.4, \u00a713.1)",
+  "prompt": "# T-018 \u2014 wo.completed worker handler\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a79.4 triggers (trg_wo_cost_finalize); \u00a713.1 event subscriptions row `wo.completed`; \u00a712.2 event taxonomy `finance.wo_cost.closed`; \u00a711.3 V-FIN-WO-05 close gate + V-FIN-WO-08 24h SLA warn.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nApps/worker handler that subscribes to `production.wo.completed` event from 08-PROD. On consume:\n1. Calls `app.recalculate_wo_cost(wo_id)` (T-016 SECURITY DEFINER fn) under finance_worker role.\n2. Calls `app.allocate_coproducts(wo_id)` (T-017).\n3. Validates V-FIN-WO-05 (all outputs registered) \u2014 if fail, retry with backoff up to 24h then move to DLQ.\n4. UPDATE work_order_costs SET status='closed', costing_date=now() WHERE wo_id=$1 AND status='open'.\n5. Emit finance_outbox_events row event_type='finance.wo_cost.closed' with full breakdown payload (T-027 schema).\n6. Emit observability metric `wo_cost_finalize_duration_seconds` (Prometheus per \u00a715.5).\n\n## Implementation contract\n1. `apps/worker/src/finance/wo-completed-handler.ts`:\n   - Consumer signature `handleWoCompleted(event)`.\n   - Idempotency: check processed_events; no-op if already done.\n   - withOrgContext(event.org_id) + set `app.current_role='finance_worker'`.\n   - Run cascade + allocate + status update in single transaction.\n   - On V-FIN-WO-05 failure (outputs missing), do NOT close \u2014 schedule retry via next_retry_at exponential backoff (1m, 5m, 15m, 1h, 4h, 12h, 24h \u2192 DLQ).\n   - On success, append finance_outbox_events with idempotency_key=uuidv7(), payload={wo_id, total_cost_actual, total_cost_standard, total_variance, cost_center_id, currency_id, costing_date}.\n   - V-FIN-WO-08 info: if `wo_executions.completed_at < now() - 24h` and work_order_costs.status='open' on entry, write structured info-level log + audit row `wo_cost_finalize_sla_breach`.\n2. Worker registration `apps/worker/src/registry.ts`: subscribe to `production.wo.completed` with at-least-once delivery.\n\n## Files\n- apps/worker/src/finance/wo-completed-handler.ts [create]\n- apps/worker/src/registry.ts [modify]\n- apps/worker/src/finance/__tests__/wo-completed-handler.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given production.wo.completed event for WO X with all outputs registered, when worker runs, then cascade recomputed + co-products allocated + status='closed' + costing_date populated + finance.wo_cost.closed outbox row exists.\n- Given same event consumed twice, when second invocation runs, then no UPDATE (idempotent).\n- Given V-FIN-WO-05 fails (outputs missing), when run, then status stays 'open', no outbox, retry scheduled per exponential backoff; after 24h moves to DLQ with reason 'V-FIN-WO-05 unmet'. AND given cascade transaction fails, when handler errors, then status remains 'open', no outbox, DLQ entry category='schema'.\n- Given wo_executions.completed_at > 24h before run, when handler runs, then wo_cost_finalize_sla_breach audit row written (V-FIN-WO-08 info). AND given successful close, when Prometheus scraped, then wo_cost_finalize_duration_seconds has a sample.\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: wo-completed-handler.test.ts seeds WO + outputs + waste rows; exercises happy path, idempotency, V-FIN-WO-05 retry, V-FIN-WO-08 SLA breach, observability metric emission.\n- Run `pnpm --filter @monopilot/worker vitest run finance/wo-completed-handler`.\n\n## Risk red lines\n- Do not close the WO costs before V-FIN-WO-05 passes (block).\n- Do not emit the outbox event before the status UPDATE commits (atomic outbox).\n- Do not skip the finance_worker role binding \u2014 T-010 trigger will reject any cost_per_kg writes if reached.\n- Do not retry indefinitely \u2014 24h hard limit then DLQ per \u00a712.5 retry schedule analog.\n- Do not bypass the idempotency check.\n- Do not call the cascade fn synchronously from a user-facing Server Action here; this worker is the sole entry path post-completion.\n",
+  "labels": [
+    "prd",
+    "wiring",
+    "worker",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a79.4",
+      "\u00a711.3",
+      "\u00a712.2",
+      "\u00a713.1",
+      "\u00a715.5"
+    ],
+    "category": "wiring",
+    "subcategory": "wo-completed-worker",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "10-FINANCE-c",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Worker subscriber for production.wo.completed \u2192 cascade recompute + co-product allocation + close + emit finance.wo_cost.closed outbox. V-FIN-WO-05 retry + V-FIN-WO-08 SLA warn + Prometheus metric.",
+    "details": "Single coordinator between T-016 cascade + T-017 allocation + finance_outbox_events emission. Exponential-backoff retry on V-FIN-WO-05 failure up to 24h then DLQ. Idempotent via processed_events tracking (foundation T-111). [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/worker/src/finance/wo-completed-handler.ts [create]",
+      "apps/worker/src/registry.ts [modify]",
+      "apps/worker/src/finance/__tests__/wo-completed-handler.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Inventory valuation (T-021/T-023)",
+      "Daily D365 consolidator (T-028)"
+    ],
+    "dependencies": [
+      "T-015",
+      "T-016",
+      "T-017"
+    ],
+    "cross_module_dependencies": [
+      "08-production:wo_executions.status=COMPLETED event",
+      "00-foundation:T-111/T-112 worker registry"
+    ],
+    "parallel_safe_with": [
+      "T-019",
+      "T-020"
+    ],
+    "acceptance_criteria": [
+      "Given production.wo.completed event for WO X with all outputs registered, when worker runs, then cascade recomputed + co-products allocated + status='closed' + costing_date populated + finance.wo_cost.closed outbox row exists.",
+      "Given same event consumed twice, when second invocation runs, then no UPDATE (idempotent).",
+      "Given V-FIN-WO-05 fails (outputs missing), when run, then status stays 'open', no outbox, retry scheduled per exponential backoff; after 24h moves to DLQ with reason 'V-FIN-WO-05 unmet'. AND given cascade transaction fails, when handler errors, then status remains 'open', no outbox, DLQ entry category='schema'.",
+      "Given wo_executions.completed_at > 24h before run, when handler runs, then wo_cost_finalize_sla_breach audit row written (V-FIN-WO-08 info). AND given successful close, when Prometheus scraped, then wo_cost_finalize_duration_seconds has a sample."
+    ],
+    "test_strategy": [
+      "RED: wo-completed-handler.test.ts seeds fixtures; exercises happy + idempotent + retry + SLA + metric + cascade-failure.",
+      "Run pnpm --filter @monopilot/worker vitest run finance/wo-completed-handler."
+    ],
+    "risk_red_lines": [
+      "Do not close WO costs before V-FIN-WO-05 passes.",
+      "Do not emit outbox before status UPDATE commits.",
+      "Do not skip finance_worker role binding.",
+      "Do not retry indefinitely (24h hard limit then DLQ).",
+      "Do not bypass idempotency check.",
+      "Do not call cascade fn synchronously from user-facing Server Action."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

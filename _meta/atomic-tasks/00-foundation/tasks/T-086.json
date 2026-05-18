@@ -1,0 +1,83 @@
+{
+  "title": "T-086 — replace SAML Issuer regex with xmldom + namespace-aware XPath (FT-026)",
+  "prompt": "# T-086 — replace SAML Issuer regex with xmldom + namespace-aware XPath (FT-026)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-026** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nSwitch SAML Issuer parsing to xmldom + xpath with explicit namespace map.\n\n## Implementation contract\n1. Add `@xmldom/xmldom` and `xpath` to packages/auth/package.json.\n2. issuer-parser.ts uses DOMParser + xpath.select with `{ saml: 'urn:oasis:names:tc:SAML:2.0:assertion' }`.\n3. Returns trim-normalized Issuer string or throws 'issuer_missing'.\n4. Tests include namespace-prefix variations and CDATA injection attempts.\n\n## Files (scope)\n- packages/auth/src/saml/issuer-parser.ts [modify]\n- packages/auth/src/saml/__tests__/issuer-parser.test.ts [modify]\n- packages/auth/package.json [modify]\n\n## Acceptance criteria\n1. Given a SAML assertion with <saml2:Issuer> using a different namespace prefix, when parsed, then the Issuer string is extracted correctly.\n2. Given a SAML assertion with embedded CDATA in Issuer, when parsed, then the inner text is extracted without CDATA markers.\n3. Given a malformed XML, when parsed, then 'issuer_missing' is thrown (not a regex partial match).\n4. Given assertions seen during T-012 happy-path, when parsed via the new code, then the Issuer string matches the legacy regex output for non-edge-case inputs.\n\n## Test strategy\n- RED: extend issuer-parser.test.ts with namespace-prefix and CDATA-injection vectors before swap.\n- Run `pnpm --filter @monopilot/auth test issuer-parser`.\n\n## Risk red lines\n- Do not retain the regex as a fallback (defeats the fix).\n- Do not parse the assertion before signature verification.\n- Do not enable DOCTYPE in xmldom (XXE).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "saml",
+    "security",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-086",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-026",
+    "category": "auth",
+    "subcategory": "saml",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Replace the regex-based SAML Issuer extractor with xmldom + namespace-aware XPath to eliminate regex-bypass attacks.",
+    "details": "T-012 used a regex to extract <saml:Issuer> from SAML assertions. Regex-based XML parsing is widely known to be unsafe against namespace tricks and CDATA. Replace with @xmldom/xmldom + xpath with explicit namespace bindings.",
+    "scope_files": [
+      "packages/auth/src/saml/issuer-parser.ts [modify]",
+      "packages/auth/src/saml/__tests__/issuer-parser.test.ts [modify]",
+      "packages/auth/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change SAML signature verification."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a SAML assertion with <saml2:Issuer> using a different namespace prefix, when parsed, then the Issuer string is extracted correctly.",
+      "Given a SAML assertion with embedded CDATA in Issuer, when parsed, then the inner text is extracted without CDATA markers.",
+      "Given a malformed XML, when parsed, then 'issuer_missing' is thrown (not a regex partial match).",
+      "Given assertions seen during T-012 happy-path, when parsed via the new code, then the Issuer string matches the legacy regex output for non-edge-case inputs."
+    ],
+    "test_strategy": [
+      "RED: extend issuer-parser.test.ts with namespace-prefix and CDATA-injection vectors before swap.",
+      "Run `pnpm --filter @monopilot/auth test issuer-parser`."
+    ],
+    "risk_red_lines": [
+      "Do not retain the regex as a fallback (defeats the fix).",
+      "Do not parse the assertion before signature verification.",
+      "Do not enable DOCTYPE in xmldom (XXE)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

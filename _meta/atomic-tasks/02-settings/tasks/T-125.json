@@ -1,6 +1,6 @@
 {
   "title": "T-125 — Global Import/Export backend jobs and capability registry",
-  "prompt": "# T-125 — Global Import/Export backend jobs and capability registry\n\n## Goal\nImplement the backend capability registry and job lifecycle for global Settings Import / Export (UX SET-029). The registry tells the UI which entities support import/export, which permissions are required, which template/download routes exist, and whether the operation is sync, async, or unsupported.\n\nThis task supports T-121 UI and must not collapse global import/export into reference-table CSV only.\n\n## Files in scope\n- packages/server/src/settings/import-export/capability-registry.ts [create]\n- packages/server/src/settings/import-export/jobs.ts [create]\n- packages/server/src/__tests__/settings-import-export.test.ts [create]\n- packages/db/schema/settings-import-export-jobs.ts [create/modify]\n- packages/db/migrations/NNN-settings-import-export-jobs.sql [create]\n- packages/db/__tests__/settings-import-export-jobs.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given the capability registry is queried, when a user has mixed permissions, then users, roles, invitations, reference tables, infrastructure, feature flags, authorization policies, and audit-log export capabilities are permission-filtered with explicit import/export support labels.\n- Given an unsupported import entity is selected, when an import job is requested, then a typed unsupported-entity blocker is returned and no job or mutation is created.\n- Given a reference-table import is requested, when the capability resolves to reference CSV, then it hands off to T-022/T-096 preview/commit semantics rather than creating a divergent parser.\n- Given an authorization-policy import is requested, when preflight runs, then it requires settings.authorization.edit, audit reason, and T-126 dry-run validation; V-SET-43/V-SET-44 cannot be bypassed.\n- Given export is requested, when permissions pass, then a read-only job record is created with status/progress/download metadata and org isolation.\n\n## Test strategy (RED first)\n- RED: add tests for permission-filtered capabilities, unsupported import blockers, reference handoff, authorization-policy preflight blockers, export job status, and org isolation.\n- GREEN: implement registry and job helpers around existing reference/auth/export primitives.\n- Run targeted server/db tests plus typecheck/lint for changed packages.\n\n## Risk red lines\n- Do not implement global import as a thin alias for reference CSV only.\n- Do not allow import/export to bypass authorization policy validation, permissions, audit reason, or org isolation.\n- Do not silently hide unsupported imports; return explicit typed capability state.\n- Do not implement T-121 UI in this backend task.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "prompt": "# T-125 — Global Import/Export backend jobs and capability registry\n\n## Goal\nImplement the backend capability registry and job lifecycle for global Settings Import / Export (UX SET-029). The registry tells the UI which entities support import/export, which permissions are required, which template/download routes exist, and whether the operation is sync, async, or unsupported.\n\nThis task supports T-121 UI and must not collapse global import/export into reference-table CSV only.\n\n## Files in scope\n- packages/server/src/settings/import-export/capability-registry.ts [create]\n- packages/server/src/settings/import-export/jobs.ts [create]\n- packages/server/src/__tests__/settings-import-export.test.ts [create]\n- packages/db/schema/settings-import-export-jobs.ts [create/modify]\n- packages/db/migrations/NNN-settings-import-export-jobs.sql [create]\n- packages/db/__tests__/settings-import-export-jobs.test.ts [create]\n\n## Acceptance criteria (all must hold)\n- Given the capability registry is queried, when a user has mixed permissions, then users, roles, invitations, reference tables, infrastructure, feature flags, authorization policies, and audit-log export capabilities are permission-filtered with explicit import/export support labels AND when a reference-table import is requested the capability resolves to T-022/T-096 preview/commit semantics rather than creating a divergent parser.\n- Given an unsupported import entity is selected, when an import job is requested, then a typed unsupported-entity blocker is returned and no job or mutation is created.\n- Given an authorization-policy import is requested, when preflight runs, then it requires settings.authorization.edit, audit reason, and T-126 dry-run validation; V-SET-43/V-SET-44 cannot be bypassed.\n- Given export is requested, when permissions pass, then a read-only job record is created with status/progress/download metadata and org isolation.\n\nNote: AC count consolidated from 5→4 by Fixer F8 2026-05-14 (no coverage lost; former AC3 reference-table handoff is a strict subset of AC1 capability-resolution behavior and fused into AC1 with AND clause; original assertion preserved in fused AC text and `test_strategy`).\n\n## Test strategy (RED first)\n- RED: add tests for permission-filtered capabilities, unsupported import blockers, reference handoff, authorization-policy preflight blockers, export job status, and org isolation.\n- GREEN: implement registry and job helpers around existing reference/auth/export primitives.\n- Run targeted server/db tests plus typecheck/lint for changed packages.\n\n## Risk red lines\n- Do not implement global import as a thin alias for reference CSV only.\n- Do not allow import/export to bypass authorization policy validation, permissions, audit reason, or org isolation.\n- Do not silently hide unsupported imports; return explicit typed capability state.\n- Do not implement T-121 UI in this backend task.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
     "prd",
     "api",
@@ -14,22 +14,22 @@
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "description": "T-125 — Global Import/Export backend jobs and capability registry",
-    "details": "T-125 — Global Import/Export backend jobs and capability registry",
+    "details": "T-125 — Global Import/Export backend jobs and capability registry. AC count consolidated from 5→4 by Fixer F8 2026-05-14 (no coverage lost; former AC3 reference-table handoff fused into AC1 as AND clause; original assertion preserved in fused AC text).",
     "scope_files": [
       "Exact files discovered before editing",
       "Targeted tests beside implementation"
     ],
     "acceptance_criteria": [
-      "Capability registry returns permission-filtered import/export support for users, roles, invitations, reference tables, infrastructure, feature flags, authorization policies and audit-log export.",
+      "Capability registry returns permission-filtered import/export support for users, roles, invitations, reference tables, infrastructure, feature flags, authorization policies and audit-log export AND reference-table import/export hands off to T-022/T-096 semantics instead of creating a divergent parser.",
       "Unsupported imports return typed blockers without creating jobs or mutations.",
-      "Reference-table import/export hands off to T-022/T-096 semantics instead of creating a divergent parser.",
       "Authorization-policy import requires settings.authorization.edit, audit reason and T-126 preflight; V-SET-43/V-SET-44 cannot be bypassed.",
       "Export jobs are read-only, org-scoped and expose status/progress/download metadata."
     ],
     "test_strategy": [
       "RED: tests for capability filtering, unsupported import blockers, reference handoff, authorization preflight, export jobs and org isolation.",
       "GREEN: implement registry/jobs using existing reference/auth/export primitives.",
-      "Run targeted server/db tests plus typecheck/lint for changed packages."
+      "Run targeted server/db tests plus typecheck/lint for changed packages.",
+      "Run `pnpm --filter @monopilot/web vitest run Exact files discovered before editing`."
     ],
     "risk_red_lines": [
       "Do not implement global import as a thin alias for reference CSV only.",
@@ -78,6 +78,18 @@
     "prd_task_id": "T-125",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "context_budget": "40k",
-    "estimated_effort": "3-5h"
+    "estimated_effort": "3-5h",
+    "out_of_scope": [
+      "broaden scope beyond the import/export job registry + capability matrix",
+      "implement per-module CSV templates (lives in module-owning tasks)",
+      "mutate adjacent enum strings in permissions.enum.ts",
+      "expose endpoints outside Server Actions"
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

@@ -54,7 +54,8 @@
       "Run 'pnpm --filter web test'"
     ],
     "risk_red_lines": [
-      "Do not concatenate translated fragments — ICU MessageFormat only (PRD §11)"
+      "Do not concatenate translated fragments — ICU MessageFormat only (PRD §11)",
+      "Do not hardcode translated strings outside the next-intl ICU dictionaries (no string concat in components)"
     ],
     "skills": [
       "test-driven-development",

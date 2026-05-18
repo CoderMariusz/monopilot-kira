@@ -1,0 +1,102 @@
+{
+  "title": "T-055 — Allergen gate second-sign Server Action (V-QA-ALLERGEN-001/002)",
+  "prompt": "# T-055 — Allergen gate second-sign Server Action\n\nPRD: §11.6 V-QA-ALLERGEN-001/002, §10.3 consumer allergen_changeover_gate_v1 (08-PROD owner), §16.3 09-QA writes signed_by\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action signSecondAllergenGate to perform the 09-QA second sign on an 08-PROD-owned allergen_changeover_validations row, enforcing dual-sign SoD (V-QA-ALLERGEN-001) + ATP threshold gate (V-QA-ALLERGEN-002) + override audit, reusing T-039 ESignBlock + dualSign primitive.\n\n## Implementation contract\n1. apps/web/src/server/quality/allergenGates/signActions.ts — signSecondAllergenGate, rejectAllergenGate, overrideAllergenGateBlock.\n2. signSecondAllergenGate: enforce V-QA-ALLERGEN-001 (second signer userId != first signer; second signer role in {quality_lead, shift_lead, hygiene_lead}); enforce V-QA-ALLERGEN-002 (server-fetched lab_results.pass_flag for ATP swab must be true if risk_level >= medium — read directly from lab_results, do NOT recompute on client); update allergen_changeover_validations setting second_signed_by + second_signature_hash + validation_result='approved' (08-PROD column owner; 09-QA writes per §16.3); emit quality.allergen_gate.approved.\n3. rejectAllergenGate: set validation_result='rejected' + reject_reason; emit quality.allergen_gate.rejected.\n4. overrideAllergenGateBlock: when V-QA-ALLERGEN-002 ATP fail blocks approve, allow override only if risk_level='low' (from 08-PROD risk rule); requires justification min 10 chars + e-sign; emit quality.allergen_gate.override_approved with override audit row in allergen_gate_overrides table (separate audit log per translation-notes-quality §M-11).\n5. Permissions reserved: quality.allergen_gate.sign_second, quality.allergen_gate.reject, quality.allergen_gate.override.\n\n## Files\n- apps/web/src/server/quality/allergenGates/signActions.ts [create]\n- apps/web/src/server/quality/allergenGates/__tests__/signActions.test.ts [create]\n- packages/db/migrations/0145_allergen_gate_overrides_audit.sql [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n\n## Acceptance criteria\n1. Given signSecondAllergenGate where secondSignerUserId === first_signed_by, when called, then 409 error.code='V-QA-ALLERGEN-001' and the row is unchanged\n2. Given risk_level='medium' AND the corresponding ATP lab_results.pass_flag=false, when signSecondAllergenGate is called without override, then 422 error.code='V-QA-ALLERGEN-002' and validation_result stays unchanged\n3. Given overrideAllergenGateBlock with risk_level='low' AND justification.length=15 AND valid e-sign, when called, then validation_result='approved', an allergen_gate_overrides row is inserted with the justification, and quality.allergen_gate.override_approved is emitted; for risk_level='high', the override action returns 403 error.code='OVERRIDE_NOT_PERMITTED'\n4. Given rejectAllergenGate with reject_reason='cleaning incomplete', when called, then validation_result='rejected' + reject_reason persisted and quality.allergen_gate.rejected emits with the reject_reason\n\n## Test strategy (RED first)\n- RED: signActions.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter db migrate && pnpm --filter web test allergenGates/signActions'\n\n## Risk red lines\n- Do not bypass T-039 ESignBlock + dualSign primitive (audit B §3 red-line: single sign surface)\n- Do not recompute ATP pass on client — read lab_results.pass_flag server-side (translation-notes §M-11)\n- Do not allow override on risk_level='medium' or higher (only 'low' allows override per Q6 / 08-PROD risk rule)\n- 09-QA writes ONLY to second_signed_by / second_signature_hash / validation_result / reject_reason — never touch first_signed_by (08-PROD owner) or other columns (§16.3)",
+  "labels": [
+    "prd",
+    "api",
+    "allergen-gate",
+    "T2-api"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-055",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§11.6",
+      "§10.3",
+      "§16.3",
+      "§5.3"
+    ],
+    "category": "api",
+    "subcategory": "allergen-gate-sign",
+    "task_type": "T2-api",
+    "parent_feature": "09-QUALITY-e Allergen Gates",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "09-QA second-sign + reject + override Server Actions on 08-PROD-owned allergen_changeover_validations, enforcing V-QA-ALLERGEN-001/002 + reuse of T-039 dual-sign primitive + override audit table.",
+    "details": "signSecondAllergenGate enforces SoD (V-QA-ALLERGEN-001) and ATP gate (V-QA-ALLERGEN-002 reads lab_results.pass_flag from T-050). overrideAllergenGateBlock allows approve when ATP fails only if risk_level='low' (08-PROD rule) AND justification.length>=10 AND e-sign; logs to allergen_gate_overrides table (migration 0145). rejectAllergenGate sets validation_result='rejected' + reject_reason. All 3 emit quality.allergen_gate.* outbox events. Permissions: quality.allergen_gate.sign_second, reject, override. 09-QA writes ONLY to second_signed_by/second_signature_hash/validation_result/reject_reason per §16.3.",
+    "scope_files": [
+      "apps/web/src/server/quality/allergenGates/signActions.ts [create]",
+      "apps/web/src/server/quality/allergenGates/__tests__/signActions.test.ts [create]",
+      "packages/db/migrations/0145_allergen_gate_overrides_audit.sql [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement allergen_changeover_validations table (08-PROD owner)",
+      "Do not implement first-sign flow (08-PROD owner)",
+      "Do not implement allergen_gates UI (T-061)"
+    ],
+    "dependencies": [
+      "T-050",
+      "T-039",
+      "T-040"
+    ],
+    "parallel_safe_with": [
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-054"
+    ],
+    "acceptance_criteria": [
+      "Given signSecondAllergenGate where secondSignerUserId === first_signed_by, when called, then 409 error.code='V-QA-ALLERGEN-001' and the row is unchanged",
+      "Given risk_level='medium' AND the ATP lab_results.pass_flag=false, when signSecondAllergenGate runs without override, then 422 error.code='V-QA-ALLERGEN-002' and validation_result stays unchanged",
+      "Given overrideAllergenGateBlock with risk_level='low' + justification.length=15 + valid e-sign, when called, then validation_result='approved', an allergen_gate_overrides row exists with the justification, and quality.allergen_gate.override_approved emits; for risk_level='high', override returns 403 error.code='OVERRIDE_NOT_PERMITTED'",
+      "Given rejectAllergenGate with reject_reason set, when called, then validation_result='rejected' + reject_reason persisted and quality.allergen_gate.rejected emits with reject_reason"
+    ],
+    "test_strategy": [
+      "RED: signActions.test.ts asserting all 4 ACs before code",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test allergenGates/signActions'"
+    ],
+    "risk_red_lines": [
+      "Do not bypass T-039 ESignBlock + dualSign (audit B §3 red-line: single sign surface)",
+      "Do not recompute ATP pass on client — read lab_results.pass_flag server-side",
+      "Override allowed ONLY for risk_level='low' (08-PROD rule, Q6)",
+      "09-QA writes ONLY to second_signed_by/second_signature_hash/validation_result/reject_reason per §16.3"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-124",
+      "00-foundation:T-125",
+      "08-production:T-003",
+      "08-production:T-014",
+      "09-quality:T-039"
+    ]
+  }
+}

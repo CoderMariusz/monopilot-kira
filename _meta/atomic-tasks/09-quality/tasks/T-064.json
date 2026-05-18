@@ -1,0 +1,95 @@
+{
+  "title": "T-064 — Cross-module contract pin: 08-PROD/05-WH WO consume gate on v_active_holds (quality_holds consumer)",
+  "prompt": "# T-064 — WO consume gate on v_active_holds (cross-module contract)\n\nPRD: §9.2 views (v_active_holds), §12.1 outbound consumers (05-WH/08-PROD as consumers), audit A §1 cross-module contract pin\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPin the read-model contract that lets 08-PROD's WO consume Server Action and 05-WH's LP consume Server Action atomically block consumption when an active hold covers the WO or the LP's parent batch. Owner of the consumer side is 08-PROD/05-WH; this task only declares the canonical SQL view v_active_holds + a thin TypeScript guard helper in packages/server that those modules import. Out-of-scope: 08-PROD/05-WH implementation.\n\n## Implementation contract\n1. packages/db/migrations/0134_v_active_holds_view.sql — CREATE OR REPLACE VIEW v_active_holds AS SELECT id AS hold_id, hold_number, org_id, reference_type, reference_id, priority, hold_status, created_at, estimated_release_at, default_hold_duration_days FROM quality_holds WHERE hold_status IN ('open','investigating','escalated','quarantined') AND released_at IS NULL.\n2. Indexed underlying base table partial index (already from T-004 idx_holds_active).\n3. RLS inheritance: SECURITY INVOKER view so RLS on quality_holds flows to consumers.\n4. packages/server/src/quality/holdsGuard.ts — async guard helper `assertNoActiveHoldForWo(woId, orgId)` and `assertNoActiveHoldForLp(lpId, orgId)` that throw QaHoldActiveError(409) if v_active_holds contains a row for the reference_id, citing hold_number + priority + reason.\n5. Contract test in apps/web/__tests__/contracts/holds-guard-contract.test.ts asserts that consumers MUST import from packages/server/src/quality/holdsGuard (single source of truth), the helper is RLS-safe (returns 0 rows for other tenants), and the error envelope shape is stable.\n\n## Files\n- packages/db/migrations/0134_v_active_holds_view.sql [create]\n- packages/server/src/quality/holdsGuard.ts [create]\n- packages/server/src/quality/__tests__/holdsGuard.test.ts [create]\n- apps/web/__tests__/contracts/holds-guard-contract.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0134 applied, when SELECT * FROM v_active_holds WHERE org_id=app.current_org_id() runs with 2 holds (1 open, 1 released), then exactly 1 row is returned (the released hold is excluded)\n2. Given assertNoActiveHoldForWo(wo_id=W1, orgId), when no active hold exists for W1, then the helper returns void; when an active hold reference_type='wo' reference_id=W1 exists, then it throws QaHoldActiveError(409) with body {code:'QA_HOLD_ACTIVE', hold_number, priority, reason_code}\n3. Given tenant A and tenant B with active holds on the same reference_id, when assertNoActiveHoldForWo runs under tenant A's app.current_org_id(), then only tenant A's active holds are evaluated (RLS via SECURITY INVOKER)\n4. Given the contract is the single source of truth, when grep over apps/* + packages/* for direct quality_holds reads in consume paths runs, then only packages/server/src/quality/holdsGuard.ts and 09-QA-internal files are matched (no duplicate guard logic in 05-WH or 08-PROD modules)\n\n## Test strategy (RED first)\n- RED: holdsGuard.test.ts + holds-guard-contract.test.ts asserting all 4 ACs before code\n- Run 'pnpm --filter db migrate && pnpm --filter server test holdsGuard && pnpm --filter web test contracts/holds-guard-contract'\n\n## Risk red lines\n- 08-PROD/05-WH implementation is OUT-OF-SCOPE — this task only ships the view + guard helper\n- View must be SECURITY INVOKER so RLS on quality_holds flows naturally (do NOT use SECURITY DEFINER which would bypass RLS)\n- Error envelope shape is the cross-module contract — do not change without coordinated revision in 05-WH/08-PROD\n- The view query must use the partial index idx_holds_active (from T-004) — assert via EXPLAIN that the partial index is used",
+  "labels": [
+    "prd",
+    "integration",
+    "cross-module",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-064",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§9.2",
+      "§12.1",
+      "§9.1"
+    ],
+    "category": "integration",
+    "subcategory": "cross-module-holds-guard",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-cross WO/LP consume guard",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Pin v_active_holds SQL view + holdsGuard packages/server helper as the canonical consume-gate contract for 05-WH LP consume + 08-PROD WO consume. 05-WH/08-PROD implementation is out-of-scope.",
+    "details": "Migration 0134 creates the v_active_holds view (open/investigating/escalated/quarantined; released_at IS NULL) with SECURITY INVOKER so RLS on quality_holds flows. packages/server/src/quality/holdsGuard.ts provides assertNoActiveHoldForWo + assertNoActiveHoldForLp throwing QaHoldActiveError(409) with {code, hold_number, priority, reason_code} envelope. Contract test enforces single-source-of-truth (no duplicate read of quality_holds for consume gating in 05-WH/08-PROD modules) + RLS-isolation + EXPLAIN partial-index usage. Audit A §1 cross-module event/data contract pin is satisfied. PRD anchors verified: §9.2 views section is the canonical home for v_active_holds (referenced by T-010); §12.1 outbound consumers (05-WH/08-PROD as quality_holds consumers); §9.1 RLS pattern flows via SECURITY INVOKER view.",
+    "scope_files": [
+      "packages/db/migrations/0134_v_active_holds_view.sql [create]",
+      "packages/server/src/quality/holdsGuard.ts [create]",
+      "packages/server/src/quality/__tests__/holdsGuard.test.ts [create]",
+      "apps/web/__tests__/contracts/holds-guard-contract.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement 08-PROD WO consume Server Action (out-of-scope; 08-PROD owner)",
+      "Do not implement 05-WH LP consume Server Action (out-of-scope; 05-WH owner)",
+      "Do not modify quality_holds schema (T-004 owner)"
+    ],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-063"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0134 applied, when SELECT * FROM v_active_holds WHERE org_id=app.current_org_id() runs with 2 quality_holds rows (one open + one released), then exactly 1 row is returned (released excluded)",
+      "Given assertNoActiveHoldForWo(W1, orgId), when no active hold exists for W1, then it returns void; when an active hold reference_type='wo' reference_id=W1 exists, then it throws QaHoldActiveError(409) with body {code:'QA_HOLD_ACTIVE', hold_number, priority, reason_code}",
+      "Given tenants A and B each with active holds on the same reference_id, when the helper runs under tenant A's app.current_org_id(), then only tenant A's active holds are evaluated (RLS via SECURITY INVOKER)",
+      "Given the contract is single source of truth, when grep over apps/* + packages/* for direct quality_holds reads in consume paths runs, then only packages/server/src/quality/holdsGuard.ts and 09-QA-internal files are matched"
+    ],
+    "test_strategy": [
+      "RED: holdsGuard.test.ts + holds-guard-contract.test.ts asserting all 4 ACs + EXPLAIN partial-index assertion before code",
+      "Run 'pnpm --filter db migrate && pnpm --filter server test holdsGuard && pnpm --filter web test contracts/holds-guard-contract'"
+    ],
+    "risk_red_lines": [
+      "08-PROD/05-WH implementation is OUT-OF-SCOPE — this task only ships the view + guard helper",
+      "View MUST be SECURITY INVOKER so RLS flows from quality_holds (NEVER use SECURITY DEFINER which bypasses RLS)",
+      "Error envelope shape is the cross-module contract — do not change without coordinated revision",
+      "View query MUST use partial idx_holds_active from T-004 (assert via EXPLAIN)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "05-warehouse:T-005",
+      "05-warehouse:T-016",
+      "08-production:T-003"
+    ]
+  }
+}

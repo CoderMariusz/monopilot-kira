@@ -1,0 +1,83 @@
+{
+  "title": "T-084 — narrow tenant_idp_config grants (column-level or service-role-only) (FT-024)",
+  "prompt": "# T-084 — narrow tenant_idp_config grants (column-level or service-role-only) (FT-024)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §8.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-024** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (S effort)\n\n## Goal\nColumn-level GRANT (or table split) restricting app-role from reading tenant_idp_config secret columns.\n\n## Implementation contract\n1. Migration 032: REVOKE SELECT ON tenant_idp_config FROM app_user; GRANT SELECT (org_id, provider_type, metadata_url, entity_id, jit_provisioning, enforce_for_non_admins, idle_timeout_min, session_max_h, password_complexity, password_expiry_days, org_default_role, enabled) ON tenant_idp_config TO app_user.\n2. Service-role retains full SELECT.\n3. Integration test: app-role SELECT * raises SQLSTATE 42501; service-role SELECT * succeeds.\n\n## Files (scope)\n- packages/db/migrations/032-tenant-idp-config-narrow-grants.sql [create]\n- packages/db/__tests__/tenant-idp-config-grants.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 032 applied, when an app-role SELECT reads scim_token_hash, then SQLSTATE 42501 is raised.\n2. Given an app-role SELECT reads provider_type, then it succeeds.\n3. Given a service-role SELECT reads scim_token_hash, then it succeeds.\n\n## Test strategy\n- RED: write tenant-idp-config-grants.integration.test.ts asserting all three ACs before migration.\n- Pin SQLSTATE 42501.\n- Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test tenant-idp-config-grants`.\n\n## Risk red lines\n- Do not expose secret columns to app-role via a view (negates the protection).\n- Do not break existing service-role consumers.\n- Do not use raw new pg.Pool.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "rls-grants",
+    "security",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-084",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§8.x"
+    ],
+    "original_carry_forward_id": "FT-024",
+    "category": "auth",
+    "subcategory": "rls-grants",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Narrow tenant_idp_config grants so app-role cannot read sensitive secret columns; only service-role may read scim_token_hash + x509_cert.",
+    "details": "tenant_idp_config holds scim_token_hash and x509_cert which must not be readable by app-role connections. Convert to column-level GRANT or move to a separate `tenant_idp_secrets` table service-role-only.",
+    "scope_files": [
+      "packages/db/migrations/032-tenant-idp-config-narrow-grants.sql [create]",
+      "packages/db/__tests__/tenant-idp-config-grants.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not move the secrets to a vault in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 032 applied, when an app-role SELECT reads scim_token_hash, then SQLSTATE 42501 is raised.",
+      "Given an app-role SELECT reads provider_type, then it succeeds.",
+      "Given a service-role SELECT reads scim_token_hash, then it succeeds."
+    ],
+    "test_strategy": [
+      "RED: write tenant-idp-config-grants.integration.test.ts asserting all three ACs before migration.",
+      "Pin SQLSTATE 42501.",
+      "Run `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/db test tenant-idp-config-grants`."
+    ],
+    "risk_red_lines": [
+      "Do not expose secret columns to app-role via a view (negates the protection).",
+      "Do not break existing service-role consumers.",
+      "Do not use raw new pg.Pool."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

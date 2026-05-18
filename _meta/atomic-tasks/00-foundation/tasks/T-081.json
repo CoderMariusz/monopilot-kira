@@ -1,0 +1,85 @@
+{
+  "title": "T-081 — fix migrate.ts 017-rbac.sql checksum mismatch; replay 023+024 cleanly (FT-021)",
+  "prompt": "# T-081 — fix migrate.ts 017-rbac.sql checksum mismatch; replay 023+024 cleanly (FT-021)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §4.2, §5\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-021** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P0** (S effort)\n\n## Goal\nRebase 017-rbac.sql canonical checksum, add --reconcile-checksums recovery flag, replay 023/024 via the runner.\n\n## Implementation contract\n1. Re-derive the canonical SHA-256 of the current 017-rbac.sql content and update schema_migrations.\n2. Add `--reconcile-checksums` flag that, for a list of named migrations, updates the stored checksum to match disk after a human review.\n3. Replay 023 and 024 via the runner; assert success.\n4. Runbook documents when/how to use the flag and the safety guardrails (must run with explicit --confirm and an audit log entry).\n\n## Files (scope)\n- scripts/migrate.ts [modify]\n- scripts/__tests__/migrate-checksum.test.ts [create]\n- docs/runbooks/migrate-checksum-recovery.md [create]\n\n## Acceptance criteria\n1. Given the repo state, when `pnpm tsx scripts/migrate.ts --reconcile-checksums 017-rbac.sql --confirm` is run, then schema_migrations.checksum for 017-rbac.sql matches the SHA-256 of the on-disk file.\n2. Given checksums are reconciled, when `pnpm tsx scripts/migrate.ts` is re-run, then it applies 023, 024 (and any subsequent) cleanly without manual psql.\n3. Given the unit-test pack, when run, then the runner aborts when checksum drift is detected without --reconcile-checksums + --confirm.\n\n## Test strategy\n- RED: write scripts/__tests__/migrate-checksum.test.ts asserting both the drift-abort and reconcile-flag paths before implementation.\n- Run `pnpm test migrate-checksum`.\n\n## Risk red lines\n- P0 deploy blocker — do not merge without GREEN evidence on staging\n- Do not auto-reconcile without explicit --confirm.\n- Do not silently mutate migration file contents.\n- Do not skip the audit-log entry on reconcile.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ops",
+    "wave-d-carry-forward",
+    "p0-blocker",
+    "wave-d-followup",
+    "migrations",
+    "T1-schema"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-081",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§4.2",
+      "§5"
+    ],
+    "original_carry_forward_id": "FT-021",
+    "category": "ops",
+    "subcategory": "migrations",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Fix the 017-rbac.sql checksum mismatch in migrate.ts so every future migration applies without manual psql workaround; replay 023 and 024 cleanly.",
+    "details": "Both T-013 and T-039 had to bypass `pnpm tsx scripts/migrate.ts` and apply migrations via direct psql + manual schema_migrations insert because the runner aborts on 017-rbac.sql checksum mismatch. Rebase the canonical checksum, add a `--reconcile-checksums` flag for one-time recovery, and document the procedure.",
+    "scope_files": [
+      "scripts/migrate.ts [modify]",
+      "scripts/__tests__/migrate-checksum.test.ts [create]",
+      "docs/runbooks/migrate-checksum-recovery.md [create]"
+    ],
+    "out_of_scope": [
+      "Do not change the migration runner's transaction-boundary semantics."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the repo state, when `pnpm tsx scripts/migrate.ts --reconcile-checksums 017-rbac.sql --confirm` is run, then schema_migrations.checksum for 017-rbac.sql matches the SHA-256 of the on-disk file.",
+      "Given checksums are reconciled, when `pnpm tsx scripts/migrate.ts` is re-run, then it applies 023, 024 (and any subsequent) cleanly without manual psql.",
+      "Given the unit-test pack, when run, then the runner aborts when checksum drift is detected without --reconcile-checksums + --confirm."
+    ],
+    "test_strategy": [
+      "RED: write scripts/__tests__/migrate-checksum.test.ts asserting both the drift-abort and reconcile-flag paths before implementation.",
+      "Run `pnpm test migrate-checksum`."
+    ],
+    "risk_red_lines": [
+      "P0 deploy blocker — do not merge without GREEN evidence on staging",
+      "Do not auto-reconcile without explicit --confirm.",
+      "Do not silently mutate migration file contents.",
+      "Do not skip the audit-log entry on reconcile."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

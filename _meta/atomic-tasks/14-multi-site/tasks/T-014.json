@@ -1,0 +1,103 @@
+{
+  "title": "T-014 \u2014 Lane suggestion API + IST freight-cost auto-suggest (\u00a710A.3.1, \u00a710A.3.3, V-MS-26)",
+  "prompt": "# T-014 \u2014 Lane suggestion API + IST freight-cost auto-suggest\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710A.3.1 (lane CRUD auto-suggest), \u00a710A.3.3 (rate card approval gate), \u00a711.6 V-MS-26\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Action / route handler that the IST create form (`ms_ist_create`) calls when both from_site and to_site are populated. Returns the best active lane + most recent active rate card for cost suggestion.\n\n## Implementation contract\n1. Server Action `suggestLane({orgId, fromSiteId, toSiteId})` in `apps/web/app/api/lanes/suggest/route.ts`:\n   - Query `SELECT * FROM transport_lanes WHERE org_id=$1 AND from_site_id=$2 AND to_site_id=$3 AND active=true ORDER BY (most-recent-success-rate via JOIN to transfer_orders count) LIMIT 1`. Success-rate sort done client-side over a heuristic if MV unavailable; if no lane, return null.\n   - If lane found, query `SELECT * FROM transport_lane_rate_cards WHERE lane_id=$1 AND approval_status='active' AND (effective_to IS NULL OR effective_to >= CURRENT_DATE) ORDER BY uploaded_at DESC LIMIT 1` \u2014 V-MS-26 enforced via partial index from T-013.\n   - Return `{ lane: LaneRow | null, rate_card: RateCardRow | null }`.\n2. Helper `packages/domain/src/transport-lanes/cost-estimator.ts` exports `estimateFreightCost(lane, rateCard, shipmentDetails)` computing per_km \u00d7 distance / per_shipment / per_kg \u00d7 weight per rate_type \u2014 used by IST create form to display suggested transfer_cost.\n3. Tests: happy path returns lane+rate, no-lane path returns nulls, pending-rate exclusion (rate exists with status='pending' \u2192 suggestion returns rate_card=null), inactive-lane exclusion, multi-rate prefers most-recent uploaded_at.\n\n## Files\n- apps/web/app/api/lanes/suggest/route.ts [create]\n- packages/domain/src/transport-lanes/cost-estimator.ts [create]\n- apps/web/app/api/lanes/suggest/__tests__/route.test.ts [create]\n- packages/domain/__tests__/transport-lanes/cost-estimator.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given a lane exists active=true from_site=X to_site=Y with one active rate_card, when suggestLane(X, Y) is called, then response is {lane: {...}, rate_card: {...}} (200).\n2. Given no lane exists for (X, Y), when suggestLane(X, Y) is called, then response is {lane: null, rate_card: null} (200; the caller gracefully handles).\n3. Given a lane exists but only rate_cards with approval_status='pending', when suggestLane runs, then rate_card is null (V-MS-26 \u2014 pending rates excluded).\n4. Given two rate_cards both active for the same lane, when suggestLane runs, then the one with the most recent uploaded_at wins.\n5. Given estimateFreightCost(lane{distance_km:100}, rateCard{rate_type:'per_km', rate_value:2.5}), when called, then returns 250.\n6. Given route handler runs without x-site-id header in a multi-site user context, then 400 SITE_CONTEXT_REQUIRED is returned (V-MS-15 enforced via with-site-context-route).\n\n## Test strategy\n- RED: integration test all 6 ACs before route exists.\n- Run 'pnpm --filter @monopilot/web vitest run apps/web/app/api/lanes/suggest/__tests__/route.test.ts' + 'pnpm --filter @monopilot/domain test transport-lanes/cost-estimator'.\n\n## Risk red lines\n- Do not bypass V-MS-26 \u2014 must filter out approval_status='pending' rate cards (rely on partial index from T-013 + explicit WHERE clause).\n- Do not call this route without withSiteContext wrapping \u2014 RLS isolation must hold; the route relies on app.current_site_id() from the active session to enforce site-scoped RLS downstream.\n- Do not return a lane with active=false \u2014 UX would offer a decommissioned route.\n- Do not couple cost estimator to a specific currency \u2014 assume rate_card.currency; conversion happens in 10-FIN (P2).\n- Do not log full rate-card payload at info level \u2014 has commercially sensitive carrier pricing; redact via T-117 allowlist.",
+  "labels": [
+    "prd",
+    "api",
+    "lane-suggestion",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710A.3.1",
+      "\u00a710A.3.3",
+      "\u00a711.6 V-MS-26"
+    ],
+    "category": "api",
+    "subcategory": "lane-suggestion",
+    "task_type": "T2-api",
+    "parent_feature": "14-MULTI-SITE-c transport lanes",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "GET /api/lanes/suggest?from=X&to=Y returns the most-recently-successful active lane + active rate card for IST create-form auto-suggest (UX:516). V-MS-26 ensures only approval_status='active' rates participate.",
+    "details": "GET /api/lanes/suggest?from=X&to=Y returns the most-recently-successful active lane + active rate card for IST create-form auto-suggest (UX:516). V-MS-26 ensures only approval_status='active' rates participate. Scope: Server Action / route handler that the IST create form (`ms_ist_create`) calls when both from_site and to_site are populated. Touches: apps/web/app/api/lanes/suggest/route.ts, packages/domain/src/transport-lanes/cost-estimator.ts, apps/web/app/api/lanes/suggest/__tests__/route.test.ts, packages/domain/__tests__/transport-lanes/cost-estimator.test.ts. Constraints: 1. Server Action `suggestLane({orgId, fromSiteId, toSiteId})` in `apps/web/app/api/lanes/suggest/route.ts`: - Query `SELECT * FROM transport_lanes WHERE org_id=$1 AND from_site_id=$2 AND to_site_id=$3 AND active=true ORDER BY (most-recent-success-rate via JOIN to transfer_orders count) LIMIT 1`. Success-rate sort done client-side over a heuristic i. Distinguished from sibling 14-multi-site tasks by its narrow lane-suggestion focus against PRD \u00a710A.3.1, \u00a710A.3.3, \u00a711.6 V-MS-26. AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/api/lanes/suggest/route.ts [create]",
+      "packages/domain/src/transport-lanes/cost-estimator.ts [create]",
+      "apps/web/app/api/lanes/suggest/__tests__/route.test.ts [create]",
+      "packages/domain/__tests__/transport-lanes/cost-estimator.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement IST UI integration (covered by 05-WH ist_create or T-015 if scoped).",
+      "Do not implement P2 lane-success-rate MV (heuristic only here).",
+      "Do not implement multi-currency conversion."
+    ],
+    "dependencies": [
+      "T-007",
+      "T-012",
+      "T-013"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-117",
+        "reason": "Observability redact allowlist for rate-card pricing data."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "Cross-mod dep to 00-foundation T-125 declared (withOrgContext + app.current_org_id() per F11 rule). withSiteContext composes on top of T-125; route requires withSiteContext wrapping per risk red-line."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a lane exists active=true from_site=X to_site=Y with one active rate_card, when suggestLane(X,Y) called, then response {lane:{...}, rate_card:{...}} (200); AND given no lane exists for (X,Y) when suggestLane called then {lane:null, rate_card:null} (200).",
+      "Given a lane exists but only rate_cards with approval_status='pending', when suggestLane runs, then rate_card=null (V-MS-26); AND given two rate_cards both active for same lane when suggestLane runs then the one with most recent uploaded_at returned.",
+      "Given estimateFreightCost(lane{distance_km:100}, rateCard{rate_type:'per_km',rate_value:2.5}), when called, then returns 250.",
+      "Given route handler runs without x-site-id header in multi-site user context, then 400 SITE_CONTEXT_REQUIRED returned (V-MS-15)."
+    ],
+    "test_strategy": [
+      "RED: integration tests all 6 ACs before route exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run apps/web/app/api/lanes/suggest/__tests__/route.test.ts' + 'pnpm --filter @monopilot/domain test transport-lanes/cost-estimator'."
+    ],
+    "risk_red_lines": [
+      "Do not bypass V-MS-26 \u2014 filter approval_status='pending' (partial index + explicit WHERE).",
+      "Do not call route without withSiteContext.",
+      "Do not return active=false lane.",
+      "Do not couple to a specific currency.",
+      "Do not log full rate-card payload (commercially sensitive \u2014 T-117 redact)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

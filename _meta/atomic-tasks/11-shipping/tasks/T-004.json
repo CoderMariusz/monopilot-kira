@@ -1,0 +1,106 @@
+{
+  "title": "T-004 — UI: customer_detail_page (SHIP-002) with contacts/addresses/allergens tabs (11-shipping-a)",
+  "prompt": "# T-004 — Customer Detail page UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-003 Shipping Addresses, §15.4 SHIP-004 Allergen Restrictions, §3 Personas, §11 V-SHIP-SO-02\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-002 — Customer Detail\nPrototype: prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:132-363 (customer_detail_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/customers/[id]` with 4-tab layout (Overview / Addresses / Allergens / Pricing[P2 scaffolded]) matching prototype 1:1 with shadcn primitives.\n\n## Implementation contract\n1. `apps/web/app/(shipping)/customers/[id]/page.tsx` (RSC) fetches customer + contacts + addresses + allergen restrictions in parallel under `withOrgContext`.\n2. Tab routing via `?tab=overview|addresses|allergens|pricing` URL param (preserves on refresh).\n3. Addresses tab: list shipping/billing addresses + \"Add Address\" button → `address_modal` (Dialog from `packages/ui` translated from `modals.jsx:69-94`).\n4. Allergens tab: chips list of `customer_allergen_restrictions` + \"Add Restriction\" → `allergen_restriction_modal` (Dialog from `modals.jsx:96-113`); QA role only for write.\n5. Pricing tab: render `Pricing tab on Customer Detail is ScaffoldedScreen` (BL-SHIP-09 P2) — Phase badge + placeholder Card.\n6. V-SHIP-SO-02 inline-warn banner if no shipping address exists (advisory; server-side guard runs at SO confirm).\n7. Four states (empty/loading/error/permission) per tab.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:132-363` (customer_detail_page). Verify:\n- Top breadcrumb + customer header (name, code, badge)\n- 4-tab nav (Overview / Addresses / Allergens / Pricing[P2])\n- Overview tab: contact card + summary card (total orders, last order, credit_limit P2 badge)\n- Addresses tab: list + Add button + V-SHIP-SO-02 banner if empty shipping\n- Allergens tab: chip list + Add button (gated by ship.allergen.override)\n- Pricing tab: ScaffoldedScreen with P2 badge\n\nDo not paste prototype JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/customers/[id]/page.tsx [create]\n- apps/web/app/(shipping)/customers/[id]/_components/customer-detail-tabs.tsx [create]\n- apps/web/app/(shipping)/customers/[id]/_components/address-list.tsx [create]\n- apps/web/app/(shipping)/customers/[id]/_components/allergen-restrictions-list.tsx [create]\n- apps/web/app/(shipping)/customers/[id]/_components/__tests__/customer-detail-tabs.test.tsx [create]\n- prototypes/design/Monopilot Design System/shipping/customer-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders for an existing customer, when compared to prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:132-363, then it has the same 4-tab layout + Address modal trigger + Allergen Restriction modal trigger + Pricing tab P2 scaffold — verified by RTL snapshot + parity checklist + Playwright trace.\n2. Given URL ?tab=allergens, when page renders, then Allergens tab is active and renders chip list with QA-only Add button (gated by ship.allergen.override).\n3. Given the customer has no shipping address, when Addresses tab renders, then a V-SHIP-SO-02 advisory banner appears (\"At least one shipping address is required before SO confirmation\") with no client-side block.\n4. Given session lacks ship.allergen.override, when Allergens tab renders, then Add Restriction button is hidden.\n5. UI closeout includes Playwright trace + screenshot evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright unavailable, blocker documented and RTL fallback attached.\n\n## Test strategy\n- RED: RTL asserting tab routing + modal triggers + V-SHIP-SO-02 banner + permission gate + four states.\n- Run `pnpm --filter @monopilot/web vitest run customer-detail-tabs.test.tsx`.\n- Playwright `apps/web/e2e/shipping-customer-detail.spec.ts` captures multi-tab evidence.\n\n## Risk red lines\n- Do not import `@radix-ui/react-dialog` outside `packages/ui`.\n- Do not paste prototype JSX verbatim.\n- Do not enforce V-SHIP-SO-02 client-side as a block (server-side at SO confirm only).\n- Do not implement Pricing tab features (Phase 2 per BL-SHIP-09).\n- Do not regress accessibility.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-002",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-003",
+      "§15.4 SHIP-004",
+      "§3",
+      "§11 V-SHIP-SO-02"
+    ],
+    "category": "ui",
+    "subcategory": "customer-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-a",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "SHIP-002 Customer Detail page with 4 tabs (Overview/Addresses/Allergens/Pricing[P2]) matching customer_detail_page prototype.",
+    "details": "Tab routing via ?tab URL param. Address modal + allergen restriction modal accessible from Addresses + Allergens tabs respectively. V-SHIP-SO-02 advisory banner only (no client-side block). Pricing tab is P2 ScaffoldedScreen. Permission gates: ship.allergen.override for Allergens write.",
+    "scope_files": [
+      "apps/web/app/(shipping)/customers/[id]/page.tsx [create]",
+      "apps/web/app/(shipping)/customers/[id]/_components/customer-detail-tabs.tsx [create]",
+      "apps/web/app/(shipping)/customers/[id]/_components/address-list.tsx [create]",
+      "apps/web/app/(shipping)/customers/[id]/_components/allergen-restrictions-list.tsx [create]",
+      "apps/web/app/(shipping)/customers/[id]/_components/__tests__/customer-detail-tabs.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/shipping/customer-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-002).",
+      "Do not implement Pricing tab features (Phase 2)."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-005",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-003"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (withOrgContext)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:132-363, then it has the same 4-tab layout + Address modal trigger + Allergen Restriction modal trigger + Pricing tab P2 scaffold — verified by RTL snapshot + parity checklist + Playwright trace.",
+      "Given URL ?tab=allergens, when page renders, then Allergens tab is active with QA-gated Add button (ship.allergen.override required); AND given session lacks ship.allergen.override, then Add Restriction button is hidden.",
+      "Given customer has no shipping address, when Addresses tab renders, then V-SHIP-SO-02 advisory banner appears (server-side enforcement only).",
+      "UI closeout includes Playwright trace + screenshot evidence per UI-PROTOTYPE-PARITY-POLICY.md; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL tests for tab routing + modal triggers + banner + permission gate + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run customer-detail-tabs.test.tsx`.",
+      "Playwright spec apps/web/e2e/shipping-customer-detail.spec.ts captures multi-tab evidence."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not enforce V-SHIP-SO-02 client-side as a block (advisory only).",
+      "Do not implement Pricing tab features.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "customer_detail_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

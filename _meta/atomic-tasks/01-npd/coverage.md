@@ -106,3 +106,15 @@ PRD: `docs/prd/01-NPD-PRD.md` (v3.3 + N-* gap-backlog amendments 2026-04-30)
 - Release status/read model separates `pending_npd_release`, `pending_technical_approval`, `approved_for_factory`, `released_to_factory`, and `blocked`; `Built` is not canonical release state.
 
 - Wave0 readiness patch: added T-099/T-100 and hardened Brief→Project, G3 FG, BOM SSOT, sensory N/A, final gate matrix and real Technical approval requirements.
+## Permission-enum addition 2026-05-14
+
+| PRD/review ref | Task file | Sub-module | Type | Status | Notes |
+|---|---|---|---|---|---|
+| §2.2, §17.9, §18, §19 (RBAC enum delta — closes _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md coverage delta) | tasks/T-101.json | 01-NPD RBAC enum addition | T1-schema | added | 17 `npd.* / brief.create` strings appended to packages/rbac/src/permissions.enum.ts + ALL_<MODULE>_PERMISSIONS export |
+
+## STUB rebuilds 2026-05-14
+
+| PRD ref | Task file | Sub-module | Type | Status | Notes |
+|---|---|---|---|---|---|
+| §8.5, §8.2, §8.7 (allergens cascade rebuild on bulk reference-table change — closes _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md row 'Allergens cascade rebuild on bulk import') | tasks/T-099.json | NPD-c Allergens cascade | T4-wiring-test | rebuilt | Background worker via 00-FOUND T-111/T-112 + T-121 rate-limit; coalesced bulk_rebuild_completed event; preserves fa_allergen_overrides per §8.6/§8.10 |
+| §17.11.6, §17.6, §17.12 (G4→Launched legacy Trial/Pilot/Handoff/Packaging successor-anchor closeout — closes coverage.md note 'LEGACY notes is not deprecated; must be represented in Stage-Gate flow coverage') | tasks/T-100.json | NPD-f Stage-Gate Pipeline | T4-wiring-test | rebuilt | Schema+Server Action+UI pill writing npd_legacy_closeout row inside G4 advance tx; e-sign + Pilot WO + BOM SSOT + packaging JSONB snapshot anchors |

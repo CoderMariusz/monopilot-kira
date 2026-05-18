@@ -12,13 +12,59 @@
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
     "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
+    "prd_refs": [
+      "§8.5 FR-SC-FE-050",
+      "§8.5 FR-SC-FE-051"
+    ],
     "category": "ui",
+    "subcategory": "scn-082-output",
+    "task_type": "T3-ui",
+    "parent_feature": "06-e Production Output and QA",
     "context_budget": "25k",
     "estimated_effort": "2-4h",
+    "description": "Build OutputScreen and first-class output_done_screen for finished goods LP registration.",
+    "details": "Implement scanner output route with 4-step qty, batch, expiry, and location wizard, partial-consume warning gate, yield indicator, and success card using label output_screen plus output_done_screen.",
+    "scope_files": [
+      "apps/scanner/src/app/scanner/output/[woCode]/page.tsx [create]",
+      "apps/scanner/src/app/scanner/output/[woCode]/done/page.tsx [create]",
+      "apps/scanner/src/components/output-form.tsx [create]",
+      "apps/scanner/e2e/output.spec.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement unrelated scanner flows in this task",
+      "Do not change PRD decisions or prototype source during implementation",
+      "Do not bypass module contract validation",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
+    ],
+    "dependencies": [
+      "T-041",
+      "T-042"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the scanner UI is implemented, when compared with `prototypes/design/Monopilot Design System/scanner/flow-register.jsx:6-150` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX",
+      "Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern",
+      "Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered",
+      "Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+    ],
+    "test_strategy": [
+      "RED: write Playwright or component tests against the 390x844 route before implementation",
+      "Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile"
+    ],
+    "risk_red_lines": [
+      "Do not implement server contracts in this UI task",
+      "Do not skip mobile screenshot or Playwright trace closeout",
+      "Do not silently diverge from the referenced prototype label",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -44,6 +90,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "output_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_evidence_required": {
       "viewport": "390x844",
       "artifacts": [
@@ -56,47 +105,6 @@
         "interaction"
       ]
     },
-    "prd_task_id": "T-044",
-    "prd_refs": [
-      "§8.5 FR-SC-FE-050",
-      "§8.5 FR-SC-FE-051"
-    ],
-    "subcategory": "scn-082-output",
-    "task_type": "T3-ui",
-    "parent_feature": "06-e Production Output and QA",
-    "description": "Build OutputScreen and first-class output_done_screen for finished goods LP registration.",
-    "details": "Implement scanner output route with 4-step qty, batch, expiry, and location wizard, partial-consume warning gate, yield indicator, and success card using label output_screen plus output_done_screen.",
-    "scope_files": [
-      "apps/scanner/src/app/scanner/output/[woCode]/page.tsx [create]",
-      "apps/scanner/src/app/scanner/output/[woCode]/done/page.tsx [create]",
-      "apps/scanner/src/components/output-form.tsx [create]",
-      "apps/scanner/e2e/output.spec.ts [create]"
-    ],
-    "out_of_scope": [
-      "Do not implement unrelated scanner flows in this task",
-      "Do not change PRD decisions or prototype source during implementation",
-      "Do not bypass module contract validation"
-    ],
-    "dependencies": [
-      "T-041",
-      "T-042"
-    ],
-    "parallel_safe_with": [],
-    "acceptance_criteria": [
-      "Given the scanner UI is implemented, when compared with `prototypes/design/Monopilot Design System/scanner/flow-register.jsx:6-150` at mobile viewport 390x844, then it preserves structural, visual, and interaction parity, captures screenshot and Playwright trace artifacts, and documents intentional divergence from PRD/UX",
-      "Given the route is loaded at 390x844, when the primary happy path is completed, then the first-class done screen label is reachable and uses the shared scanner SuccessScreen pattern",
-      "Given API validation returns block or warn severity, when the screen receives it, then the correct full-screen block or amber reason-code pattern is rendered",
-      "Given closeout runs, when artifacts are reviewed, then screenshot filenames include the canonical prototype label and task id. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
-    ],
-    "test_strategy": [
-      "RED: write Playwright or component tests against the 390x844 route before implementation",
-      "Run pnpm --filter scanner test and pnpm --filter scanner e2e --project=scanner-mobile"
-    ],
-    "risk_red_lines": [
-      "Do not implement server contracts in this UI task",
-      "Do not skip mobile screenshot or Playwright trace closeout",
-      "Do not silently diverge from the referenced prototype label"
-    ],
     "cross_module_dependencies": [
       "08-production: output contract",
       "05-warehouse: LP creation",

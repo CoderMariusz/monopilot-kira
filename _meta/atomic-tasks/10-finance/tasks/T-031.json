@@ -1,0 +1,112 @@
+{
+  "title": "T-031 \u2014 UI: FIN-001 Finance Dashboard (fin_dashboard, \u00a78.1, \u00a78.3)",
+  "prompt": "# T-031 \u2014 FIN-001 Finance Dashboard UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.1 FIN-001; \u00a78.3 dashboard widgets (8 widgets P1); \u00a713.3 yield loss monthly query; \u00a74.2 KPIs business; \u00a74.1 dashboard load <2s P95.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/dashboard.jsx:1-215` (`fin_dashboard`)\n\n## Goal\nServer Component dashboard page `/finance` with 8 widgets per \u00a78.3: KPI 6-card row (Total cost / Variance / Inventory value / WO pending close / DLQ open / Yield loss), Variance Alerts panel (top 10), Cost Breakdown bars, Waterfall MTD std vs actual, Trend chart 6 months, Top Variance Contributors table, Monthly Yield Loss table, Onboarding checklist (dismissable).\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/dashboard.jsx:1-215`.\nshadcn primitives: Card, CardHeader, CardContent, Table, TableRow, TableCell, Badge, Button, Alert, Separator, Checkbox.\nReused components: KpiCard, CostBreakdownBars (T-020), WaterfallChart (T-020), TrendChart, RankBar (T-026), VarBadge (T-019), WoCostStatusBadge.\nParity checklist:\n1. KPI 6-card row: Total Production Cost MTD (GBP), Variance MTD (GBP, signed), Inventory Value (GBP, method per finance_settings), WO Cost Pending Close (count), D365 DLQ Open (count, variant='destructive' when >0, click \u2192 /finance/d365?tab=dlq), Yield Loss Monthly (GBP from v_yield_loss_monthly T-024). Each card uses `<FinKpiCard>` with label/value/sub/accent/href.\n2. Inline dismissable alerts (FIN_INLINE_ALERTS): persisted via Server Action dismissAlert(userId, alertCode) + user_preferences table.\n3. Variance Alerts panel: top 10 by severity DESC + ABS(variance_pct) DESC; each row \u2192 Link to /finance/wos/[woId]/cost.\n4. Cost Breakdown bars + Waterfall chart for MTD standard vs actual: reuses components from T-020.\n5. Trend chart 6 months (3 series: material/labor/overhead) via Recharts LineChart.\n6. Top Variance Contributors Table with RankBar (% of total).\n7. Monthly Yield Loss Table: JOIN ncr_reports + v_yield_loss_monthly; EUR\u2192GBP via exchange_rates per incident date.\n8. Onboarding checklist (FIN_ONBOARD, dismissable): finance_onboarding_steps table per user; hidden when all complete.\n9. Six independent data fetches via Promise.all in Server Component (KPIs, alerts, trend, contributors, breakdown, yield_loss).\n10. RBAC: visible to `fin.wo_cost.view`; plant_director sees aggregate; prod_manager sees own line via RLS.\n\n## Implementation contract\n1. `app/finance/page.tsx` \u2014 RSC with Promise.all for 6 data sources; each Drizzle call wrapped in React.cache().\n2. `app/finance/_components/fin-kpi-card.tsx` shared.\n3. `app/finance/_components/dashboard-client.tsx` \u2014 client component for dismissable alerts + onboarding interactivity.\n4. `app/finance/_components/trend-chart.tsx` shared (Recharts LineChart wrapper).\n5. `app/finance/_actions/dashboard.ts` \u2014 Server Action `dismissAlert(alertCode)`.\n6. `app/finance/_components/finance-onboarding-checklist.tsx`.\n\n## Files\n- apps/web/app/finance/page.tsx [create]\n- apps/web/app/finance/_components/fin-kpi-card.tsx [create]\n- apps/web/app/finance/_components/dashboard-client.tsx [create]\n- apps/web/app/finance/_components/trend-chart.tsx [create]\n- apps/web/app/finance/_components/finance-onboarding-checklist.tsx [create]\n- apps/web/app/finance/_actions/dashboard.ts [create]\n- apps/web/app/finance/_components/__tests__/dashboard-client.test.tsx [create]\n- apps/web/app/finance/_components/__tests__/fin-kpi-card.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given dashboard renders, when compared to prototypes/design/Monopilot Design System/finance/dashboard.jsx:1-215, then 8 widgets match \u2014 RTL snapshot + parity checklist. AND given Trend chart loads, when SVG scraped, then 3 series (material/labor/overhead) with 6 monthly points.\n- Given DLQ Open count > 0, when KPI card renders, then variant='destructive' and click routes to /finance/d365?tab=dlq. AND given user clicks 'Dismiss' on an inline alert, when Server Action commits, then user_preferences.dismissed_alerts contains the alert_id.\n- Given onboarding 5 steps complete, when page renders, then checklist Card not present. AND given Variance Alerts row clicked, when nav finishes, then URL=/finance/wos/[woId]/cost.\n- Given dashboard load measured (Lighthouse/Web Vitals), then <2s P95 under typical Apex load. AND given user lacks fin.wo_cost.view, when page renders, then forbidden page returned.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: dashboard-client.test.tsx asserts parity + dismiss flow + Trend chart series count + onboarding hidden when all complete + Variance Alerts row click. fin-kpi-card.test.tsx asserts variant mapping + href routing.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/_components`.\n- Lighthouse audit captured in closeout (target <2s P95).\n\n## Risk red lines\n- Do not block the page load on the slowest data source \u2014 use streaming RSC (Suspense boundaries per widget).\n- Do not paste prototype JSX verbatim.\n- Do not skip the 5min / 15min cache hints per widget (per \u00a78.3).\n- Do not use HTML `<table>` directly (use shadcn Table for accessibility).\n- Do not hardcode currency='GBP' \u2014 read from finance_settings.\n- Do not skip the destructive variant on DLQ KPI when > 0 \u2014 operator must see it.\n- Do not regress accessibility (axe).\n",
+  "labels": [
+    "prd",
+    "ui",
+    "fin-001",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a74.1",
+      "\u00a74.2",
+      "\u00a78.1",
+      "\u00a78.3",
+      "\u00a713.3"
+    ],
+    "category": "ui",
+    "subcategory": "fin-001-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "10-FINANCE-cross",
+    "context_budget": "65k",
+    "estimated_effort": "5-6h",
+    "description": "FIN-001 Finance Dashboard with 8 widgets per \u00a78.3, dismissable alerts persisted in user_preferences, 6 parallel data fetches, reused KpiCard + Trend + Waterfall + RankBar primitives.",
+    "details": "Cross-module dashboard consuming standard_costs (T-009), work_order_costs (T-015), inventory_cost_layers (T-021), v_yield_loss_monthly (T-024), finance_outbox_events DLQ count (T-027). Suspense boundaries enable streaming RSC. Lighthouse target <2s P95 (NFR \u00a74.1). [AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/page.tsx [create]",
+      "apps/web/app/finance/_components/fin-kpi-card.tsx [create]",
+      "apps/web/app/finance/_components/dashboard-client.tsx [create]",
+      "apps/web/app/finance/_components/trend-chart.tsx [create]",
+      "apps/web/app/finance/_components/finance-onboarding-checklist.tsx [create]",
+      "apps/web/app/finance/_actions/dashboard.ts [create]",
+      "apps/web/app/finance/_components/__tests__/dashboard-client.test.tsx [create]",
+      "apps/web/app/finance/_components/__tests__/fin-kpi-card.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Real-time variance dashboard FIN-009 (P2)",
+      "Margin analysis dashboard FIN-013 (P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-009",
+      "T-015",
+      "T-021",
+      "T-024",
+      "T-027"
+    ],
+    "cross_module_dependencies": [
+      "09-quality:ncr_reports (read via v_yield_loss_monthly)"
+    ],
+    "parallel_safe_with": [
+      "T-030",
+      "T-032"
+    ],
+    "acceptance_criteria": [
+      "Given dashboard renders, when compared to prototypes/design/Monopilot Design System/finance/dashboard.jsx:1-215, then 8 widgets match \u2014 RTL snapshot + parity checklist. AND given Trend chart loads, when SVG scraped, then 3 series (material/labor/overhead) with 6 monthly points.",
+      "Given DLQ Open count > 0, when KPI card renders, then variant='destructive' and click routes to /finance/d365?tab=dlq. AND given user clicks 'Dismiss' on an inline alert, when Server Action commits, then user_preferences.dismissed_alerts contains the alert_id.",
+      "Given onboarding 5 steps complete, when page renders, then checklist Card not present. AND given Variance Alerts row clicked, when nav finishes, then URL=/finance/wos/[woId]/cost.",
+      "Given dashboard load measured (Lighthouse/Web Vitals), then <2s P95 under typical Apex load. AND given user lacks fin.wo_cost.view, when page renders, then forbidden page returned."
+    ],
+    "test_strategy": [
+      "RED: dashboard-client.test.tsx asserts parity + dismiss + Trend series count + onboarding hidden + Variance Alerts row click. fin-kpi-card.test.tsx asserts variant + href.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/_components.",
+      "Lighthouse audit captured in closeout.",
+      "Closeout-evidence check (hoisted from former AC): UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (referenced by ui_evidence_policy + checkpoint_policy.closeout_requires)."
+    ],
+    "risk_red_lines": [
+      "Do not block page on slowest data source.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not skip widget cache hints.",
+      "Do not use HTML <table>.",
+      "Do not hardcode currency='GBP'.",
+      "Do not skip destructive variant on DLQ KPI.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "fin_dashboard",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

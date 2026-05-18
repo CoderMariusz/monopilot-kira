@@ -15,7 +15,7 @@
     "prd_task_id": "T-024",
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
-      "§5.1.2 R14",
+      "§5.1 R14 (was §5.1.2)",
       "§8.2"
     ],
     "category": "infra",
@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-2h",
     "description": "UUID v7 validation + 1h param-hash idempotency cache; conflict on param drift at same run_id.",
-    "details": "Helper validates v7, hashes input params, compares against stored input_snapshot. Cache hit returns stored run; conflict returns marker for caller to surface 409. Hard 1h window per PRD R14.",
+    "details": "Helper validates v7, hashes input params, compares against stored input_snapshot. Cache hit returns stored run; conflict returns marker for caller to surface 409. Hard 1h window per PRD R14. PRD-anchor remediation: corrected §5.1.2 to nearest real heading (07-PLANNING-EXT-PRD has only §5.1 (Architecture), §5.4 (Performance), §4.1 (Phase 1 MVP) headings — no sub-numbered sub-headings exist).",
     "scope_files": [
       "apps/web/src/lib/scheduler/idempotency.ts [create]",
       "apps/web/src/lib/scheduler/uuid-v7.ts [create]",

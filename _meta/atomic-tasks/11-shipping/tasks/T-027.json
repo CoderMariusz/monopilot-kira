@@ -1,0 +1,108 @@
+{
+  "title": "T-027 — carriers schema + Server Actions + carriers_list_page (SHIP-014b) (11-shipping-h)",
+  "prompt": "# T-027 — Carriers CRUD + UI list\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-014b Carriers List & CRUD, §6 D-SHP-19 Manual Dispatch P1 + Carrier API P2 (export-only), §9 (carrier as plain text P1)\nPrototype: prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:424-466 (carriers_list_page) + modals.jsx:792-807 (carrier_create_edit_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `carriers` ref table + Server Actions for CRUD + carriers_list_page. P1 dispatch is manual; carrier_configs API integration is P2 (BL-SHIP-05 P2 carrier rate quote stays out of scope).\n\n## Implementation contract\n1. Migration creates `carriers` (org_id, code text UNIQUE per org, name text, scac_code char(4) — Standard Carrier Alpha Code, contact_email, contact_phone, tracking_url_template text, service_levels text[], is_active boolean DEFAULT true, R13). RLS + FORCE RLS via app.current_org_id().\n2. shipments.carrier text column receives a soft FK to carriers.code (P1 — no hard FK constraint; P2 widens to FK).\n3. Server Actions `apps/web/lib/server-actions/shipping/carriers.ts`:\n   - `createCarrier(input)` / `updateCarrier(id, patch)` / `deactivateCarrier(id)` — all gated by `ship.so.create` (carrier admin shorthand) and audit-logged.\n4. `/(shipping)/settings/carriers/page.tsx` renders carriers_list_page (doc-screens.jsx:424-466): table + Create/Edit modal (modals.jsx:792-807).\n5. **Carrier integration is export-only (D-SHP-19)**: carriers are configured for outbound shipment tracking_url generation; never accept inbound writes to canonical shipping state (canonical state mutations happen only via Server Actions T-007/T-020/T-025).\n6. Four states + i18n `shipping.carriers.*`.\n\n## Files\n- packages/db/migrations/00XX_shipping_carriers.sql [create]\n- packages/db/src/schema/shipping/carriers.ts [create]\n- apps/web/lib/server-actions/shipping/carriers.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/carriers.test.ts [create]\n- apps/web/app/(shipping)/settings/carriers/page.tsx [create]\n- apps/web/app/(shipping)/settings/carriers/_components/carriers-list.tsx [create]\n- apps/web/app/(shipping)/settings/carriers/__tests__/carriers-list.test.tsx [create]\n- packages/events/src/shipping.ts [modify — ShippingCarrierCreated/Updated/Deactivated]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given migration runs, when DB inspected, then carriers exists with org_id NOT NULL + R13 + RLS + FORCE RLS via app.current_org_id() + UNIQUE(org_id, code).\n2. Given createCarrier succeeds, when DB inspected, then row exists; outbox shipping.carrier.created emitted.\n3. Given carriers_list_page renders, when compared to doc-screens.jsx:424-466, then header + filters + 6-col table + Create/Edit modal trigger match — RTL + Playwright screenshot.\n4. Given a carrier API attempts to call any shipping mutation directly (simulated test), when policy evaluates, then the call is rejected per D-SHP-19 export-only contract.\n5. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: testcontainers Postgres for schema + vitest for Server Actions + RTL for UI list asserting AC 1-5.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-carriers-schema && pnpm --filter @monopilot/web vitest run shipping/carriers`.\n- Playwright `apps/web/e2e/shipping-carriers.spec.ts`.\n\n## Risk red lines\n- Do not introduce hard FK from shipments.carrier in P1 (text column only).\n- Do not implement carrier_configs API integration (P2 per D-SHP-19).\n- Do not accept inbound carrier API writes to canonical state.\n- Do not name business-scope column tenant_id.\n- Do not implement BL-SHIP-05 carrier rate quote modal (P2).\n- Do not regress accessibility.",
+  "labels": [
+    "prd",
+    "data",
+    "ui",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-014b",
+      "§6 D-SHP-19",
+      "§9"
+    ],
+    "category": "backend",
+    "subcategory": "carriers",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-h",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Carriers ref table + CRUD Server Actions + carriers_list_page UI; export-only carrier contract per D-SHP-19.",
+    "details": "P1 manual dispatch — carriers are config-only. P2 widens to carrier API integration with rate quotes (BL-SHIP-05). Inbound carrier API writes never mutate canonical shipping state.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_carriers.sql [create]",
+      "packages/db/src/schema/shipping/carriers.ts [create]",
+      "apps/web/lib/server-actions/shipping/carriers.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/carriers.test.ts [create]",
+      "apps/web/app/(shipping)/settings/carriers/page.tsx [create]",
+      "apps/web/app/(shipping)/settings/carriers/_components/carriers-list.tsx [create]",
+      "apps/web/app/(shipping)/settings/carriers/__tests__/carriers-list.test.tsx [create]",
+      "packages/events/src/shipping.ts [modify]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement BL-SHIP-05 carrier rate quote modal (P2).",
+      "Do not implement carrier API integration (P2)."
+    ],
+    "dependencies": [
+      "T-031",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-026",
+      "T-028"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (app.current_org_id())"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when DB inspected, then carriers exists with org_id NOT NULL + R13 + RLS + FORCE RLS + UNIQUE(org_id, carrier_code).",
+      "Given createCarrier succeeds, when DB inspected, then row exists and outbox shipping.carrier.created emitted.",
+      "Given carriers_list_page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:424-466, then header + filters + 6-col table + Create button match prototype (parity checklist); AND given a carrier API inbound mutation, when policy evaluates, then call is rejected per D-SHP-19 export-only contract (R15 anti-corruption).",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres + vitest + RTL asserting AC 1-5.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-carriers-schema && pnpm --filter @monopilot/web vitest run shipping/carriers`.",
+      "Playwright apps/web/e2e/shipping-carriers.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not introduce hard FK from shipments.carrier in P1.",
+      "Do not implement carrier_configs API integration.",
+      "Do not accept inbound carrier API writes.",
+      "Do not name business-scope column tenant_id.",
+      "Do not implement BL-SHIP-05 modal.",
+      "Do not regress accessibility."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "carriers_list_page,carrier_create_edit_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

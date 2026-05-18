@@ -47,10 +47,13 @@
       "Secret rotation safe."
     ],
     "test_strategy": [
-      "RED: write spec. GREEN: implement gating."
+      "RED: write spec. GREEN: implement gating.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/e2e/d365-toggle.spec.ts`.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/d365-toggle.spec.ts`."
     ],
     "risk_red_lines": [
-      "Do not weaken gating in test by env override."
+      "Do not weaken gating in test by env override.",
+      "Do not mark E2E green without recording trace artifacts (Playwright trace.zip per failing path)."
     ],
     "skills": [
       "test-driven-development"

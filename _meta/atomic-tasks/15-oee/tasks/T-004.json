@@ -1,0 +1,95 @@
+{
+  "title": "T-004 — shift_patterns + org_non_production_days DDL + RLS (OEE-ADM-003 backing tables)",
+  "prompt": "# T-004 — shift_patterns + org_non_production_days backing tables\n\nPRD: docs/prd/15-OEE-PRD.md §15.3 OEE-ADM-003 (Shift Patterns + Non-Production Calendar), §9.4 shift_configs companion, amendment OEE-PRD-AMEND-01\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the OEE-owned operational tables backing OEE-ADM-003 (amendment OEE-PRD-AMEND-01 default: 15-OEE owns writes; 02-SETTINGS exposes read-only viewer): `shift_patterns` (per-line override of `shift_configs` for operational rota) and `org_non_production_days` (factory-wide closures consumed by shift_aggregator_v1).\n\n## Pre-flight schema check\nRead `packages/db/migrations/` for: latest migration number; presence of `app.current_org_id()`; existing `shift_configs` (T-003 must land first or be in same wave). Read PRD §15.3 OEE-ADM-003 layout (left pane shift patterns table; right pane non-production calendar).\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_a_shift_patterns_non_production_days.sql`:\n   - `shift_patterns(id UUID PK, org_id NOT NULL, site_id UUID NULL, line_id TEXT NULL, shift_id TEXT NOT NULL REFERENCES shift_configs(shift_id) via composite (org_id, shift_id), start_time TIME, end_time TIME, days_active TEXT[], is_active BOOL, R13 audit, UNIQUE(org_id, line_id, shift_id))`. NULL line_id means org-wide pattern.\n   - `org_non_production_days(id UUID PK, org_id NOT NULL, site_id UUID NULL, date DATE NOT NULL, reason TEXT CHECK (reason IN ('holiday','maintenance','plant_closure','custom')), notes TEXT, R13 audit, UNIQUE(org_id, site_id, date))`.\n2. ENABLE+FORCE RLS; policies via `app.current_org_id()` + `site_user_access` exactly like T-003.\n3. Index `idx_org_npd_date ON org_non_production_days(org_id, date)`; index `idx_shift_patterns_org_line ON shift_patterns(org_id, line_id, is_active)`.\n4. Drizzle schemas in `packages/db/src/schema/oee/shift-patterns.ts` and `packages/db/src/schema/oee/non-production-days.ts`.\n5. Vitest: (a) RLS isolation across two orgs, (b) reason CHECK enforced, (c) FK to shift_configs via composite key, (d) policy text references `app.current_org_id()`.\n\n## Files\n- packages/db/migrations/NNNN_oee_a_shift_patterns_non_production_days.sql [create]\n- packages/db/src/schema/oee/shift-patterns.ts [create]\n- packages/db/src/schema/oee/non-production-days.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-a-shift-patterns-npd.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d shift_patterns` and `\\d org_non_production_days` are read, then PRD §15.3-derived columns + R13 audit + RLS+FORCE RLS + listed indexes exist.\n2. Given two orgs and `app.set_org_context`, when SELECT runs in each session, then RLS isolation holds and policy text references `app.current_org_id()` with no `current_setting()` reads.\n3. Given an `org_non_production_days` row with reason='invalid_value', when inserted, then the CHECK constraint rejects it.\n4. Given a `shift_patterns` row referencing a non-existent shift_id for the org, when inserted, then it fails with FK violation.\n\n## Test strategy\n- RED: vitest oee-a-shift-patterns-npd asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-a-shift-patterns-npd`.\n\n## Risk red lines\n- Do not name business column tenant_id; use org_id.\n- Do not read current_setting() GUC; use app.current_org_id().\n- Do not skip composite FK (org_id, shift_id) on shift_patterns — single-column shift_id is not unique across orgs.\n- Do not implement 24h-coverage / overlap validators here — those are Server Action invariants (T-022).\n- Do not couple to UI (T-022).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.3 OEE-ADM-003",
+      "§9.4"
+    ],
+    "category": "data",
+    "subcategory": "schema-shift-patterns",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-a",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Backing tables for OEE-ADM-003 (shift_patterns + org_non_production_days) per amendment OEE-PRD-AMEND-01 default (15-OEE owns writes). RLS via app.current_org_id().",
+    "details": "amendment OEE-PRD-AMEND-01 default decision: 15-OEE OEE-ADM-003 is the canonical write-owner of org_non_production_days; 02-SETTINGS §8.1 viewer is read-only. shift_patterns extends shift_configs with per-line operational rotation. Both tables feed shift_aggregator_v1 (T-008) and are consumed by OEE-ADM-003 UI (T-022). Reason taxonomy from PRD §15.3 layout (Holiday/Maintenance/Plant Closure/Custom).",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_a_shift_patterns_non_production_days.sql [create]",
+      "packages/db/src/schema/oee/shift-patterns.ts [create]",
+      "packages/db/src/schema/oee/non-production-days.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-a-shift-patterns-npd.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "24h coverage + overlap validation (Server Action T-022)",
+      "Holiday seed packs (industry-config; later)",
+      "UI (T-022)",
+      "shift_aggregator_v1 rule (T-008)"
+    ],
+    "dependencies": [
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-005",
+      "T-006"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d shift_patterns and \\d org_non_production_days are read, then PRD §15.3-derived columns + R13 audit + RLS+FORCE RLS + listed indexes are present",
+      "Given app.set_org_context for two orgs, when SELECT runs as app_user, then RLS isolation holds and policy text references app.current_org_id()",
+      "Given an org_non_production_days row with reason='invalid_value', when inserted, then the CHECK constraint rejects it",
+      "Given a shift_patterns row referencing a non-existent shift_id for the org, when inserted, then it fails with FK violation"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-a-shift-patterns-npd asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-a-shift-patterns-npd`"
+    ],
+    "risk_red_lines": [
+      "Do not name business column tenant_id; use org_id",
+      "Do not read current_setting() GUC; use app.current_org_id()",
+      "Do not skip composite FK (org_id, shift_id)",
+      "Do not implement 24h-coverage / overlap validators here",
+      "Do not couple to UI"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

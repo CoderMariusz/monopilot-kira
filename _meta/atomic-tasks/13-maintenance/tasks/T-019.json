@@ -1,0 +1,109 @@
+{
+  "title": "T-019 — UI: Asset Registry List + Detail (MNT-015, MNT-016, asset_edit_modal MNT-M-01)",
+  "prompt": "# T-019 — Asset Registry pages\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-015, MNT-016\nUX: prototypes/design/13-MAINTENANCE-UX.md:209-300\nPrototypes: prototypes/design/Monopilot Design System/maintenance/assets.jsx:1-518 (asset_list_page L1-183, asset_detail_page L185-518); modals.jsx:29-79 (asset_edit_modal MNT-M-01); modals.jsx:824-844 (criticality_override_modal MNT-M-14)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component routes `/maintenance/assets` (list with hierarchy sidebar + filter bar + bulk export) and `/maintenance/assets/[id]` (8-tab detail). Includes asset_edit_modal (create/edit) and criticality_override_modal. The equipment hierarchy follows the canonical 5-level chain: site → area → line → machine → component — all five levels must be navigable in the sidebar tree and filterable via the filter bar per PRD §9.3.\n\n## Implementation contract\n1. `apps/web/app/maintenance/assets/page.tsx` — RSC reads `equipment` + (placeholder) asset hierarchy via Drizzle; passes to client filter component using nuqs URL params. Hierarchy sidebar 280px column per UX:209-262.\n2. `apps/web/app/maintenance/assets/[id]/page.tsx` — 8-tab detail (Overview, Service History, PM Schedule, Calibration, Spares BOM, Documents, Downtime Events, Sensors placeholder) per UX:265-300.\n3. Modals: `asset_edit_modal.tsx` and `criticality_override_modal.tsx` as Server Action-bound forms with shadcn Dialog primitives; RBAC `mnt.asset.edit` server-side.\n4. Empty/loading/error/permission states for list (no assets), detail (asset not found / 404), modals (form errors).\n5. i18n `maintenance.assets.list.*`, `maintenance.assets.detail.*`, `maintenance.asset.form.*`, `maintenance.asset.criticalityOverride.*` keys from T-013.\n\n## Prototype parity\n- List: hierarchy sidebar + filter bar (type/criticality/status/loto/cal toggles) + table with bulk checkbox + Export CSV streaming + RBAC-gated \"Add Asset\" button — verify by RTL snapshot of assets.jsx:1-183.\n- Detail: 8-tab nav + nameplate card + MTBF/MTTR gauges (read from 15-OEE) + LOTO/calibration banners + Spares BOM with stock-low row styling + Sensors P2 placeholder with disabled overlay (BL-MAINT-01) — verify by snapshot of assets.jsx:185-518.\n\n## Files\n- apps/web/app/maintenance/assets/page.tsx [create]\n- apps/web/app/maintenance/assets/[id]/page.tsx [create]\n- apps/web/app/maintenance/assets/_components/asset-list-client.tsx [create]\n- apps/web/app/maintenance/assets/_components/asset-edit-modal.tsx [create]\n- apps/web/app/maintenance/assets/_components/criticality-override-modal.tsx [create]\n- apps/web/app/maintenance/assets/_components/__tests__/asset-list.test.tsx [create]\n- apps/web/app/maintenance/assets/_components/__tests__/asset-detail.test.tsx [create]\n\n## Acceptance criteria\n1. Given list page renders, when compared to prototypes assets.jsx:1-183, then hierarchy sidebar + 6-filter bar + bulk-checkbox table + Export CSV + RBAC-gated Add Asset match — verified by RTL parity checklist.\n2. Given detail page renders, when compared to assets.jsx:185-518, then 8-tab nav + nameplate + LOTO/calibration banners + Spares BOM stock-low styling + Sensors placeholder match.\n3. Given a manager session, when Add Asset button is clicked, then asset_edit_modal opens; on submit Server Action upserts equipment and emits outbox asset.created/asset.updated.\n4. Given operator session (no mnt.asset.edit), when page renders, then Add Asset button is hidden server-side.\n5. Given criticality_override modal submitted, when settled, then maintenance_history audit row appended + asset.criticality_changed outbox event emitted with old/new values.\n6. Given task closeout, when reviewers inspect evidence, then Playwright trace + screenshots of list and detail attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL tests for parity + RBAC + modals; Playwright e2e for tab nav + modal flows.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/assets`.\n\n## Risk red lines\n- Do not introduce a separate `assets` table — equipment IS the asset table (D-MNT-3 / §9.3).\n- Do not paste prototype JSX verbatim — translate per translation notes.\n- Do not bypass RBAC server-side.\n- Do not emit outbox `asset.created` for read-only operations.\n- Do not omit empty/loading/error states (UI parity policy mandates all four).",
+  "labels": [
+    "prd",
+    "ui",
+    "asset",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-019",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-015",
+      "§10.3 MNT-016",
+      "§10.4 MNT-M-01",
+      "§10.4 MNT-M-14"
+    ],
+    "category": "ui",
+    "subcategory": "asset-registry",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-a",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "Asset list + 8-tab detail + asset_edit_modal + criticality_override_modal; prototype parity per UX:209-300 and assets.jsx.",
+    "details": "Equipment IS asset table per §9.3. Sensors tab is P2 placeholder (BL-MAINT-01). MTBF/MTTR gauges read 15-OEE cross-module. UI closeout includes Playwright artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/maintenance/assets/page.tsx [create]",
+      "apps/web/app/maintenance/assets/[id]/page.tsx [create]",
+      "apps/web/app/maintenance/assets/_components/asset-list-client.tsx [create]",
+      "apps/web/app/maintenance/assets/_components/asset-edit-modal.tsx [create]",
+      "apps/web/app/maintenance/assets/_components/criticality-override-modal.tsx [create]",
+      "apps/web/app/maintenance/assets/_components/__tests__/asset-list.test.tsx [create]",
+      "apps/web/app/maintenance/assets/_components/__tests__/asset-detail.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Asset hierarchy ltree (14-multi-site)",
+      "IoT sensors live data (P2)",
+      "MWO list/detail (T-021, T-022)",
+      "PM schedule UI (T-020)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-012",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-020",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given list page renders, when compared to prototypes/design/Monopilot Design System/maintenance/assets.jsx:1-183, then hierarchy sidebar (site→area→line→machine→component tree) + 6-filter bar + bulk-checkbox table + Export CSV + RBAC-gated Add Asset match by RTL parity checklist",
+      "Given detail page renders, when compared to prototypes/design/Monopilot Design System/maintenance/assets.jsx:185-518, then 8-tab nav + nameplate + LOTO/calibration banners + Spares BOM stock-low styling + Sensors P2 placeholder match",
+      "Given manager session, when Add Asset clicked, then asset_edit_modal opens and Server Action upserts equipment + emits outbox asset.created/updated (T-112); given criticality_override submitted, then maintenance_history audit row + asset.criticality_changed outbox event emitted",
+      "Given closeout, when reviewers inspect evidence, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL tests for parity + RBAC + modals; Playwright e2e for tab nav + modal flows",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/assets`",
+      "Capture Playwright trace/video/screenshots; attach paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not introduce separate assets table (equipment IS asset)",
+      "Do not paste prototype JSX verbatim",
+      "Do not bypass RBAC server-side",
+      "Do not emit outbox for read operations",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "asset_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

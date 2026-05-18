@@ -1,10 +1,12 @@
 {
-  "title": "T-046 — UI parity: dashboard, WO list/detail and Start WO release blockers",
-  "prompt": "# T-046 — UI parity: dashboard, WO list/detail and Start WO release blockers\n\nPRD/UX refs: SCR-08-01, SCR-08-02, MODAL-08-02, prototype labels production_dashboard,line_card,wo_list,wo_detail,start_wo_modal\n\nGoal: Build Production dashboard, line cards, WO list/detail shell, and Start WO modal with canonical release-readiness blocker UI.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Dashboard/list/detail must match prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229 and wo-detail.jsx:3-87 plus modals.jsx:48-67. Start modal shows release_status, active_bom_header_id, active_factory_spec_id and blockers from T-001/T-016; disabled blocked rows deep-link to Planning. Remove any visible Production Release WO action.\n\nScope files:\n- apps/web/app/production/page.tsx [create]\n- apps/web/app/production/wos/page.tsx [create]\n- apps/web/app/production/wos/[id]/page.tsx [create]\n- apps/web/components/production/start-wo-modal.tsx [create]\n- prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229\n- prototypes/design/Monopilot Design System/production/wo-detail.jsx:3-87\n- prototypes/design/Monopilot Design System/production/modals.jsx:48-67\n\nAcceptance criteria:\n1. Dashboard/list/detail render with data-prototype-label markers and match prototype layout\n2. Blocked release rows disable Start and show typed blockers plus Planning deep-link\n3. Closeout includes screenshots for dashboard, WO detail, and blocked Start modal plus Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-046 — UI: production dashboard + WO list/detail + Start WO modal w/ release blockers (SCR-08-01/02, MODAL-08-02)",
+  "prompt": "# T-046 — Production dashboard + WO list/detail + Start WO modal UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-01, SCR-08-02, MODAL-08-02, §1.1A (release blocker contract)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/dashboard.jsx:3-146 (production_dashboard), :149-229 (line_card); production/wo-list.jsx:3-104 (wo_list); production/wo-detail.jsx:3-87 (wo_detail); production/modals.jsx:10-29 (start_wo_modal)\n\n## Goal\nBuild the Server Component pages for SCR-08-01 dashboard, the WO list (SCR-08-02 entry), the WO detail header/tab shell, and the MODAL-08-02 Start WO Dialog rendering canonical release blockers from T-001. Every visible Production Release WO action is removed; blocked WOs are shown read-only with a Planning deep-link.\n\n## Implementation contract\n1. apps/web/app/production/page.tsx (RSC) — production_dashboard parity: KPI row (6 Suspense tiles), attention ribbon, LineCard grid, recent events feed, quick-actions panel; SWR refresh 30s.\n2. apps/web/app/production/wos/page.tsx (RSC) — wo_list parity: status tabs with counts (GROUP BY status), search + line + period filter via URL params, shadcn Table with progress bar per row, allergen-gate badge, blocked-row Start disabled + Planning deep-link.\n3. apps/web/app/production/wos/[id]/page.tsx (RSC) — wo_detail header (status badge, dual progress bars), over-consumption alert banner, tab shell stub for consumption/output/waste/genealogy/history (tabs filled by T-047), action button group (Pause/Waste/Catch-weight/Complete) gated by status.\n4. apps/web/components/production/start-wo-modal.tsx ('use client') — shadcn Dialog rendering `release_status`, `active_bom_header_id`, `active_factory_spec_id`, and typed `release_blockers` from `assertFactoryReleaseRuntimeAdmitted` (T-001); disabled when blocked with `[Open in Planning]` deep-link; PIN sign-off only enabled when admitted.\n5. Literal `data-prototype-label` markers attached: `production_dashboard`, `line_card`, `wo_list`, `wo_detail`, `start_wo_modal`. All copy via next-intl keys.\n\n## Acceptance criteria\n1. Given the production pages render, when compared to prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229, wo-list.jsx:3-104, wo-detail.jsx:3-87, modals.jsx:10-29, then 6 KPI tiles + LineCard grid + WO list status tabs + WO detail header + Start WO Dialog match the prototype layout 1:1 — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given a WO whose canonical release status returns `release_blockers`, when the WO list row and Start WO modal are rendered, then Start is disabled, blockers list shows typed reasons, and a `[Open in Planning]` deep-link to the Planning release queue is present.\n3. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker with RTL/snapshot fallback) and confirms no Production Release WO control is visible anywhere.\n\n## Test strategy\n- RED: apps/web/app/production/__tests__/dashboard-and-wo-list.test.tsx + apps/web/components/production/__tests__/start-wo-modal.test.tsx asserting parity (3 surfaces + dialog), data-prototype-label presence, blocked-row Start disabled, Planning deep-link, no Release WO control.\n- Run `pnpm vitest run apps/web/app/production/__tests__/dashboard-and-wo-list.test.tsx apps/web/components/production/__tests__/start-wo-modal.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths in closeout.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not render a `Release WO` action anywhere in Production (modal is deprecated per prototype-index entry `release_wo_modal`).\n- Do not infer admission from D365 sync/Built/export or local bom_released flags — read only from T-001's admit result.\n- Do not paste prototype JSX verbatim — translate to shadcn primitives + next-intl keys.\n- Do not use HTML <select> for filters; use shadcn Select.\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "dashboard",
+    "wo",
+    "T3-ui"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,27 +16,36 @@
     "prd_task_id": "T-046",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-01",
-      "SCR-08-02",
+      "§8.1 SCR-08-01",
+      "§8.1 SCR-08-02",
       "MODAL-08-02",
-      "prototype labels production_dashboard,line_card,wo_list,wo_detail,start_wo_modal"
+      "§1.1A"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: dashboard, WO list/detail and Start W",
+    "category": "ui",
+    "subcategory": "dashboard-wo-list-detail-start-modal",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Build Production dashboard, line cards, WO list/detail shell, and Start WO modal with canonical release-readiness blocker UI.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Dashboard/list/detail must match prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229 and prototypes/design/Monopilot Design System/production/wo-detail.jsx:3-87 plus prototypes/design/Monopilot Design System/production/modals.jsx:48-67. Start modal shows release_status, active_bom_header_id, active_factory_spec_id and blockers from T-001/T-016; disabled blocked rows deep-link to Planning. Remove any visible Production Release WO action.",
+    "parent_feature": "08-PROD E6 Dashboard+OEE",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "RSC dashboard + WO list/detail shell + Start WO Dialog with canonical release blockers; no Release WO action.",
+    "details": "Parity checklist per surface: (a) production_dashboard at prototypes/design/Monopilot Design System/production/dashboard.jsx:3-146 — 6 KPI Suspense tiles + attention ribbon + LineCard grid + recent events feed + quick-actions panel + shift targets; (b) line_card at dashboard.jsx:149-229 with status-conditional sections + operator avatar + Next WO chip + allergen change warning; (c) wo_list at wo-list.jsx:3-104 with status tabs + line/period filters via URL params + Progress bar + allergen-gate badge; (d) wo_detail at wo-detail.jsx:3-87 with dual progress bars + over-consumption banner + tab stub; (e) start_wo_modal at modals.jsx:10-29 wired to T-001 admit/blockers. SWR refreshInterval=30000ms per §7.6 FR-08-E6-005. Status badges via shadcn Badge variants. All copy via next-intl. Literal data-prototype-label markers for QA. UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
       "apps/web/app/production/page.tsx [create]",
       "apps/web/app/production/wos/page.tsx [create]",
       "apps/web/app/production/wos/[id]/page.tsx [create]",
       "apps/web/components/production/start-wo-modal.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229",
-      "prototypes/design/Monopilot Design System/production/wo-detail.jsx:3-87",
-      "prototypes/design/Monopilot Design System/production/modals.jsx:48-67"
+      "apps/web/app/production/__tests__/dashboard-and-wo-list.test.tsx [create]",
+      "apps/web/components/production/__tests__/start-wo-modal.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/dashboard.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/wo-list.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/wo-detail.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement consumption/output/waste/genealogy/history tabs (T-047)",
+      "Do not implement the allergen changeover screen/modal (T-048)",
+      "Do not implement analytics screens (T-049, T-050)",
+      "Do not implement DLQ admin UI (T-051)"
     ],
     "dependencies": [
       "T-001",
@@ -42,22 +53,34 @@
       "T-021",
       "T-044"
     ],
+    "parallel_safe_with": [
+      "T-047",
+      "T-048",
+      "T-049",
+      "T-050",
+      "T-051"
+    ],
     "acceptance_criteria": [
-      "Dashboard/list/detail render with data-prototype-label markers and match prototype layout",
-      "Blocked release rows disable Start and show typed blockers plus Planning deep-link",
-      "Closeout includes screenshots for dashboard, WO detail, and blocked Start modal plus Playwright trace"
+      "Given the production pages render, when compared to prototypes/design/Monopilot Design System/production/dashboard.jsx:3-229, wo-list.jsx:3-104, wo-detail.jsx:3-87 and modals.jsx:10-29, then 6 KPI tiles + LineCard grid + WO list status tabs + WO detail header + Start WO Dialog match the prototype layout 1:1 — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given a WO whose canonical release status returns release_blockers, when the WO list row and Start WO modal render, then Start is disabled, blockers list shows typed reasons, and a [Open in Planning] deep-link is present.",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker with RTL/snapshot fallback) and confirms no Production Release WO control is visible anywhere."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/production/__tests__/dashboard-and-wo-list.test.tsx + apps/web/components/production/__tests__/start-wo-modal.test.tsx asserting parity (3 surfaces + dialog), data-prototype-label presence, blocked-row Start disabled, Planning deep-link and no Release WO control before code exists.",
+      "Run 'pnpm vitest run apps/web/app/production/__tests__/dashboard-and-wo-list.test.tsx apps/web/components/production/__tests__/start-wo-modal.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach artifact paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not render a Release WO action anywhere in Production (deprecated label release_wo_modal).",
+      "Do not infer admission from D365 sync/Built/export or local bom_released flags.",
+      "Do not paste prototype JSX verbatim — translate to shadcn primitives + next-intl.",
+      "Do not use HTML <select> for filters; use shadcn Select."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -82,6 +105,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": true,
+    "prototype_index_entry": "production_dashboard,line_card,wo_list,wo_detail,start_wo_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       {
         "module": "01-npd",
@@ -96,9 +122,8 @@
       {
         "module": "04-planning-basic",
         "task_id": "T-001",
-        "reason": "Planning snapshots active_bom_header_id and active_factory_spec_id onto WOs."
+        "reason": "Planning owns the Release queue deep-link target."
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

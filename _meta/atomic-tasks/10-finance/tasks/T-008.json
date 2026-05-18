@@ -1,0 +1,97 @@
+{
+  "title": "T-008 \u2014 Seed finance setup baseline (GBP base + Apex FNOR cost centers + GL mappings, \u00a714.1 + \u00a712.8)",
+  "prompt": "# T-008 \u2014 Finance setup seed data (GBP / Apex FNOR / GL mappings baseline)\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a714.1 L2 per-tenant config; \u00a712.8 Apex D365 constants (dataAreaId=FNOR, warehouse=ApexDG, finished_goods_account=FinGoods); \u00a75.5 GBP base; \u00a711.1 V-FIN-SETUP-02 \u22651 base currency.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIdempotent seed migration creating `currencies` (GBP base, EUR, USD non-base), `cost_centers` (top-level Production / Packaging / Quality / Warehouse for Apex), `gl_account_mappings` (5 cost categories \u2192 Apex chart of accounts codes), and a default `finance_settings` row per org (default_valuation_method='fifo', d365_integration_enabled=false). Triggers on every org provisioning event (via outbox subscriber).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0052_finance_setup_seed.sql` containing INSERT \u2026 ON CONFLICT DO NOTHING for system-default rows where org_id is provided per-org.\n2. Server-side helper `packages/db/src/seeds/finance.ts` exporting `seedFinanceForOrg(orgId)`:\n   - Insert `currencies` rows: GBP (is_base=true, decimal_places=2), EUR (is_base=false), USD (is_base=false). Idempotent via ON CONFLICT(org_id, code).\n   - Insert default `finance_settings` row: default_valuation_method='fifo', default_currency_id=<GBP id>, variance_calculation_enabled=true, critical_approval_pin_required=true, d365_integration_enabled=false, d365_consolidation_cutoff_time='23:00:00'. Idempotent via UNIQUE(org_id).\n   - Insert 4 `cost_centers` (code='PROD', 'PKG', 'QA', 'WH', allocation_basis='labor_hours', is_active=true). Idempotent via UNIQUE(org_id, code).\n   - Insert 5 `gl_account_mappings`: cost_category in (material, labor, overhead, waste, freight) mapping to Apex codes (e.g. '5000-ApexDG-MAT', '5100-ApexDG-LAB', etc per \u00a712.4 example payload). Mark is_active=true. Idempotent via partial unique index.\n3. Subscribe seed helper to `org.created` outbox event (via `packages/outbox` consumer pattern from foundation T-111) so seed runs on every new org provisioning.\n4. Optional dev fixture: `packages/db/src/seeds/dev-apex.ts` invokes seedFinanceForOrg for a known dev org_id (only in NODE_ENV='development').\n\n## Files\n- packages/db/migrations/0052_finance_setup_seed.sql [create]\n- packages/db/src/seeds/finance.ts [create]\n- packages/db/src/seeds/dev-apex.ts [create]\n- packages/db/__tests__/seed-finance.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given a fresh org_id and seedFinanceForOrg(orgId) ran once, when run again, then no duplicate row exists (idempotent). AND given base currency seed exists, when seed runs again, then no duplicate base currency row is created (idempotent on is_base=true partial unique constraint).\n- Given seed completed, when SELECT * FROM currencies WHERE org_id=? AND is_base=true, then exactly one row exists (code='GBP'). AND given seed completed, when SELECT * FROM finance_settings WHERE org_id=?, then exactly one row exists with default_valuation_method and default_currency_id populated.\n- Given seed completed, when SELECT cost_category FROM gl_account_mappings WHERE org_id=? AND is_active=true, then 5 rows exist covering material/labor/overhead/waste/freight.\n- Given org.created outbox event consumed, when worker runs, then seedFinanceForOrg invoked for the new org_id and the event marked delivered.\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: seed-finance.test.ts seeds two orgs via the helper, runs it twice each, asserts row counts + RLS isolation + outbox-driven invocation (mock consumer).\n- Run `pnpm --filter db migrate && pnpm --filter db test seed-finance`.\n\n## Risk red lines\n- Do not seed currencies/gl_mappings/cost_centers without `org_id` \u2014 they must be org-scoped (no system-level rows).\n- Do not hardcode org_id in the SQL migration (per-org seeding is via the helper invoked from outbox handler).\n- Do not skip ON CONFLICT clauses \u2014 re-running migrations must be safe.\n- Do not seed when the org already has any of these tables non-empty (consider seed already applied; skip silently).\n- Do not enable d365_integration_enabled by default \u2014 per \u00a712.8 it must default OFF.\n",
+  "labels": [
+    "prd",
+    "data",
+    "seed",
+    "T5-seed"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-008",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a75.5",
+      "\u00a711.1",
+      "\u00a712.4",
+      "\u00a712.8",
+      "\u00a714.1"
+    ],
+    "category": "seed",
+    "subcategory": "finance-baseline",
+    "task_type": "T5-seed",
+    "parent_feature": "10-FINANCE-a",
+    "context_budget": "40k",
+    "estimated_effort": "2h",
+    "description": "Idempotent finance setup seed (GBP base + Apex cost centers + 5 GL mappings + default finance_settings) wired to org.created outbox event.",
+    "details": "Seed runs per-org via outbox consumer subscribing to org.created (foundation T-111 worker pattern). Idempotent via ON CONFLICT + partial unique indexes. GL mapping codes follow Apex chart of accounts regex from T-003 schema CHECK. d365_integration_enabled defaults false per \u00a712.8. [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "packages/db/migrations/0052_finance_setup_seed.sql [create]",
+      "packages/db/src/seeds/finance.ts [create]",
+      "packages/db/src/seeds/dev-apex.ts [create]",
+      "packages/db/__tests__/seed-finance.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Standard cost seeds (handled per-product post-T-009)",
+      "FX rate seeds (P2 OQ-FIN-03 API sync)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation:T-111 (outbox worker)",
+      "00-foundation:T-112 (worker registry)"
+    ],
+    "parallel_safe_with": [
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh org_id and seedFinanceForOrg(orgId) ran once, when run again, then no duplicate row exists (idempotent). AND given base currency seed exists, when seed runs again, then no duplicate base currency row is created (idempotent on is_base=true partial unique constraint).",
+      "Given seed completed, when SELECT * FROM currencies WHERE org_id=? AND is_base=true, then exactly one row exists (code='GBP'). AND given seed completed, when SELECT * FROM finance_settings WHERE org_id=?, then exactly one row exists with default_valuation_method and default_currency_id populated.",
+      "Given seed completed, when SELECT cost_category FROM gl_account_mappings WHERE org_id=? AND is_active=true, then 5 rows exist covering material/labor/overhead/waste/freight.",
+      "Given org.created outbox event consumed, when worker runs, then seedFinanceForOrg invoked for the new org_id and the event marked delivered."
+    ],
+    "test_strategy": [
+      "RED: seed-finance.test.ts seeds two orgs, runs helper twice each, asserts counts + RLS isolation + outbox-driven invocation.",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test seed-finance'."
+    ],
+    "risk_red_lines": [
+      "Do not seed without org_id (no system-level rows).",
+      "Do not hardcode org_id in migration SQL.",
+      "Do not skip ON CONFLICT clauses.",
+      "Do not seed when tables already populated for the org.",
+      "Do not default d365_integration_enabled to true."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

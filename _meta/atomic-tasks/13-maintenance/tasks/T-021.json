@@ -1,0 +1,112 @@
+{
+  "title": "T-021 — UI: Work Request + MWO List + Create/Triage modals (MNT-017..020, MNT-M-03)",
+  "prompt": "# T-021 — WR/MWO list pages + create/triage modals\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-017..020, §10.4 MNT-M-03\nUX: prototypes/design/13-MAINTENANCE-UX.md:302-434\nPrototypes: work-orders.jsx:1-259 (wr_list_page, mwo_list_page); modals.jsx:81-234 (wr_create_modal, wr_triage_modal, mwo_create_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoutes `/maintenance/wr` (table/kanban toggle, requested-state MWOs) and `/maintenance/mwos` (tabs My/Open/InProgress/Overdue/Completed). WR Create modal (shop-floor optimized, optional auto-fill from downtime), WR Triage modal (approve/reject/duplicate paths), MWO Create modal (manager).\n\n## Implementation contract\n1. `apps/web/app/maintenance/wr/page.tsx` — RSC; URL `?view=table|kanban`; tab counts via parallel COUNT queries.\n2. `apps/web/app/maintenance/mwos/page.tsx` — RSC; tab badges via parallel queries; filters via nuqs URL params for type/priority/technician/source.\n3. WR Create modal: 3-field shop-floor form + photo upload (max 5×10MB) + auto-fill via `?downtimeEventId` param. Calls `requestMwo` Server Action (T-010) writing state='requested', source='manual_request' or 'auto_downtime'.\n4. WR Triage modal: 3-path RadioGroup (approve/reject/duplicate); approve subform (priority+type+technician+startDate); reject reason ≥10 chars; duplicate Command search. Calls `approveMwo`/`rejectMwo`/`markMwoDuplicate` Server Actions. V-MNT-02 client-side advisory (server enforces).\n5. MWO Create modal: full 5-type RadioGroup + priority RadioGroup + asset Select + sanitation allergen Checkbox conditional. Manager RBAC. Calls assignMwo Server Action.\n6. RBAC: WR submit (all auth roles), Triage button (manager only), MWO create button (manager only) — server-side.\n7. Empty/loading/error/permission states + i18n keys per T-013.\n\n## Prototype parity\n- WR list table+kanban toggle — RTL snapshot work-orders.jsx:1-132.\n- MWO list 6 tabs + filter bar + DT impact column + inline actions — snapshot work-orders.jsx:134-259.\n- WR create modal severity ToggleGroup + photo upload + QR scan button P2 stub — snapshot modals.jsx:81-121.\n- WR triage 3-path RadioGroup — snapshot modals.jsx:123-183.\n- MWO create RadioGroup grids — snapshot modals.jsx:185-234.\n\n## Files\n- apps/web/app/maintenance/wr/page.tsx [create]\n- apps/web/app/maintenance/mwos/page.tsx [create]\n- apps/web/app/maintenance/_components/wr-create-modal.tsx [create]\n- apps/web/app/maintenance/_components/wr-triage-modal.tsx [create]\n- apps/web/app/maintenance/_components/mwo-create-modal.tsx [create]\n- apps/web/app/maintenance/wr/__tests__/wr-list.test.tsx [create]\n- apps/web/app/maintenance/mwos/__tests__/mwo-list.test.tsx [create]\n- apps/web/app/maintenance/_components/__tests__/modals.test.tsx [create]\n\n## Acceptance criteria\n1. Given /maintenance/wr renders, when compared to work-orders.jsx:1-132, then table+kanban toggle + filter bar + Triage RBAC-gated match.\n2. Given /maintenance/mwos renders, when compared to work-orders.jsx:134-259, then 6 tabs + filter bar + DT impact column + inline state-driven actions match.\n3. Given WR create submitted with allergen flag=true, when settled, then requestMwo is called and outbox mwo.requested row written.\n4. Given WR triage submitted as approve with approver===requester, when client form mounts the advisory alert appears AND on server submit fails MWO_APPROVER_SAME_AS_REQUESTER (T-010 V-MNT-02).\n5. Given operator session, when /maintenance/mwos renders, then \"New MWO\" + \"Triage\" buttons hidden server-side.\n6. Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity tests for list pages + 3 modals. Playwright e2e for WR create + triage flow.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/{wr,mwos,_components}`.\n\n## Risk red lines\n- Do not introduce a separate `work_requests` table — WR is MWO in state='requested' per D-MNT-9.\n- Do not implement DnD kanban — prototype is click-to-triage P1 (D-MNT-9 + BL-MAINT-DnD).\n- Do not bypass RBAC server-side.\n- Do not paste prototype JSX verbatim.\n- Do not skip outbox emission — downstream dashboards depend on mwo.* events.",
+  "labels": [
+    "prd",
+    "ui",
+    "mwo",
+    "work-request",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-021",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-017",
+      "§10.3 MNT-018",
+      "§10.3 MNT-019",
+      "§10.3 MNT-020",
+      "§10.4 MNT-M-03"
+    ],
+    "category": "ui",
+    "subcategory": "wr-mwo-list",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "60k",
+    "estimated_effort": "5-6h",
+    "description": "WR/MWO list pages + WR Create + WR Triage + MWO Create modals; prototype parity per work-orders.jsx:1-259 + modals.jsx:81-234.",
+    "details": "WR = MWO in state='requested' (unified D-MNT-9). DnD kanban deferred (BL-MAINT-DnD). UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/wr/page.tsx [create]",
+      "apps/web/app/maintenance/mwos/page.tsx [create]",
+      "apps/web/app/maintenance/_components/wr-create-modal.tsx [create]",
+      "apps/web/app/maintenance/_components/wr-triage-modal.tsx [create]",
+      "apps/web/app/maintenance/_components/mwo-create-modal.tsx [create]",
+      "apps/web/app/maintenance/wr/__tests__/wr-list.test.tsx [create]",
+      "apps/web/app/maintenance/mwos/__tests__/mwo-list.test.tsx [create]",
+      "apps/web/app/maintenance/_components/__tests__/modals.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "MWO detail (T-022)",
+      "DnD kanban (P2 BL-MAINT-DnD)",
+      "Scanner deep-link tablet variant (06-scanner SCN-090 P2)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-010",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-022"
+    ],
+    "acceptance_criteria": [
+      "Given /maintenance/wr renders, when compared to prototypes/design/Monopilot Design System/maintenance/work-orders.jsx:1-132, then table+kanban toggle + filter bar + Triage RBAC-gated match by RTL parity checklist; given /maintenance/mwos, then matches work-orders.jsx:134-259 (6 tabs + DT impact column + inline actions)",
+      "Given WR create submitted with allergen flag=true, when settled, then requestMwo called and outbox mwo.requested row written (T-112 dispatch)",
+      "Given WR triage approve with approver===requester, when client mounts then advisory alert appears AND server submit fails MWO_APPROVER_SAME_AS_REQUESTER (V-MNT-02); given operator session, then New MWO and Triage buttons hidden server-side",
+      "Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity tests for list pages + 3 modals; Playwright e2e for WR create + triage",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/{wr,mwos,_components}`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not introduce separate work_requests table (D-MNT-9 unified)",
+      "Do not implement DnD kanban (BL-MAINT-DnD P2)",
+      "Do not bypass RBAC server-side",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip outbox emission"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "mwo_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

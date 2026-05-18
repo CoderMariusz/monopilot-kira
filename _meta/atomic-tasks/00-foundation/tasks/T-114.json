@@ -1,0 +1,99 @@
+{
+  "title": "T-114 — GDPR erasure cron job in apps/worker + gdpr_erasure_requests migration",
+  "prompt": "# T-114 — GDPR erasure cron job in apps/worker\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §13 Compliance (\"GDPR right-to-erasure function działa\"), §11 Audit log (retention_class=security, 7y), §10 (R13)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd a scheduled job to the `apps/worker` JobRegistry (T-111) that picks pending rows from a new `gdpr_erasure_requests` table and invokes `runErasure()` from `@monopilot/gdpr` (T-113). This closes the §13 success criterion at the **runtime** layer (T-113 owned the framework; this task owns the caller).\n\n## Implementation contract\n1. Create Drizzle migration `packages/db/migrations/0NNN-gdpr-erasure-requests.sql` (verify next NNN by `/bin/ls packages/db/migrations/`) defining:\n   ```\n   CREATE TABLE gdpr_erasure_requests (\n     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n     org_id       UUID NOT NULL,\n     subject_id   UUID NOT NULL,\n     requested_by UUID NOT NULL,\n     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n     status       TEXT NOT NULL DEFAULT 'pending'\n                  CHECK (status IN ('pending','running','completed','failed','cancelled')),\n     started_at   TIMESTAMPTZ,\n     completed_at TIMESTAMPTZ,\n     domains_run  TEXT[] NOT NULL DEFAULT '{}',\n     last_error   TEXT,\n     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),\n     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()\n   );\n   ALTER TABLE gdpr_erasure_requests ENABLE ROW LEVEL SECURITY;\n   ALTER TABLE gdpr_erasure_requests FORCE ROW LEVEL SECURITY;\n   CREATE POLICY gdpr_erasure_requests_org_context ON gdpr_erasure_requests\n     USING (org_id = app.current_org_id())\n     WITH CHECK (org_id = app.current_org_id());\n   ```\n   Plus Drizzle schema entry `packages/db/src/schema/gdpr.ts`.\n2. Create `apps/worker/src/jobs/gdpr-erasure-cron.ts` exporting `registerGdprErasureCron(registry, opts)`. Default schedule: every 60s interval. Handler logic:\n   - `SELECT FOR UPDATE SKIP LOCKED` one row WHERE status='pending' LIMIT 1, set status='running' + started_at=now().\n   - Call `runErasure(pool, row.org_id, row.subject_id, { dryRun: false })`.\n   - On success: UPDATE status='completed', completed_at=now(), domains_run=report.results.map(r=>r.domain).\n   - On failure: UPDATE status='failed', last_error=err.message.\n   - Repeat until no pending rows OR maxPerTick reached (default 5).\n3. Register the job in `apps/worker/src/index.ts` after the outbox consumer.\n4. Add `apps/worker/src/jobs/__tests__/gdpr-erasure-cron.test.ts` (testcontainers Postgres):\n   - Apply audit migration + this task's migration.\n   - Register a fake erasure handler in @monopilot/gdpr that touches a test table.\n   - INSERT one pending erasure_requests row.\n   - Invoke the job via `registry.runOnceForTest`.\n   - Assert the row transitions to status='completed' with non-empty `domains_run` and `completed_at IS NOT NULL`.\n   - INSERT a second request where handler throws; assert status='failed' + last_error populated.\n\n## Files in scope\n- packages/db/migrations/0NNN-gdpr-erasure-requests.sql [create]\n- packages/db/src/schema/gdpr.ts [create]\n- packages/db/src/schema/index.ts [modify — export gdpr schema]\n- apps/worker/src/jobs/gdpr-erasure-cron.ts [create]\n- apps/worker/src/jobs/__tests__/gdpr-erasure-cron.test.ts [create]\n- apps/worker/src/index.ts [modify — register cron]\n\n## Acceptance criteria\n1. Given the migration runs, when \\d gdpr_erasure_requests is inspected, then all listed columns + RLS+FORCE ROW LEVEL SECURITY enabled + policy uses app.current_org_id() function.\n2. Given a pending row exists, when cron tick runs, then status transitions pending→running→completed in one tick and domains_run contains every registered domain name.\n3. Given a registered erasure handler throws, when cron processes the row, then status pending→running→failed and last_error is non-null text.\n4. Given two pending rows, when one tick runs with maxPerTick=5, then both rows end with status='completed'; AND Given a row with status='running' from a prior crashed tick, when cron runs, then SELECT FOR UPDATE SKIP LOCKED does not re-process it.\n## Test strategy\n- RED: write `gdpr-erasure-cron.test.ts` with the 5 scenarios; testcontainers Postgres applies migrations. RED command: `pnpm --filter @monopilot/worker test`.\n- GREEN: implement migration + Drizzle schema + cron job + registration.\n- Run: `pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/worker test`.\n\n## Risk red lines\n- Do not call `runErasure` from a Server Action — the request-path caller is forbidden; cron only.\n- Do not bypass `SELECT FOR UPDATE SKIP LOCKED` — multiple worker replicas must not collide on the same pending row.\n- Do not skip the `app.set_org_context` call inside the dispatcher — RLS isolation per row is mandatory.\n- Do not mark a row 'completed' if the handler partial-failed — failed-and-rolled-back means status='failed', not 'completed'.\n- Do not delete completed rows — retain for audit; cleanup is governed by retention policy.\n- Do not log the subject_id in stdout — PII; redaction lands via T-117 logger.",
+  "labels": [
+    "prd",
+    "compliance",
+    "gdpr",
+    "worker",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-114",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§11",
+      "§13"
+    ],
+    "category": "compliance",
+    "subcategory": "gdpr-cron",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-gdpr",
+    "context_budget": "40k",
+    "estimated_effort": "2-4h",
+    "description": "Drizzle migration for gdpr_erasure_requests (with RLS) + apps/worker cron job that picks pending rows via SELECT FOR UPDATE SKIP LOCKED and invokes @monopilot/gdpr runErasure. Closes §13 success criterion runtime layer.",
+    "details": "Migration creates gdpr_erasure_requests with status state machine (pending→running→completed|failed|cancelled), domains_run TEXT[], last_error TEXT, RLS via app.current_org_id() function (non-spoofable foundation contract). Cron handler picks one pending row, transitions to running, calls runErasure, transitions to completed (success) or failed (handler threw). maxPerTick default 5. testcontainers Postgres covers state-transition assertions.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "packages/db/migrations/0NNN-gdpr-erasure-requests.sql [create]",
+      "packages/db/src/schema/gdpr.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "apps/worker/src/jobs/gdpr-erasure-cron.ts [create]",
+      "apps/worker/src/jobs/__tests__/gdpr-erasure-cron.test.ts [create]",
+      "apps/worker/src/index.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Erasure request intake UI in 02-Settings (P3)",
+      "Operator-reset for stuck 'running' rows",
+      "Cron expression scheduling (interval-only here)",
+      "Per-domain handler implementations beyond what T-113 already accepts"
+    ],
+    "dependencies": [
+      "T-111",
+      "T-113"
+    ],
+    "parallel_safe_with": [
+      "T-115",
+      "T-117",
+      "T-121"
+    ],
+    "acceptance_criteria": [
+      "Given the migration runs, when \\d gdpr_erasure_requests is inspected, then all listed columns + RLS+FORCE ROW LEVEL SECURITY enabled + policy uses app.current_org_id() function.",
+      "Given a pending row exists, when cron tick runs, then status transitions pending→running→completed in one tick and domains_run contains every registered domain name.",
+      "Given a registered erasure handler throws, when cron processes the row, then status pending→running→failed and last_error is non-null text.",
+      "Given two pending rows, when one tick runs with maxPerTick=5, then both rows end with status='completed'; AND Given a row with status='running' from a prior crashed tick, when cron runs, then SELECT FOR UPDATE SKIP LOCKED does not re-process it."
+    ],
+    "test_strategy": [
+      "RED: write gdpr-erasure-cron.test.ts with 5 scenarios using testcontainers Postgres + applied migrations; RED command: pnpm --filter @monopilot/worker test.",
+      "GREEN: implement migration + Drizzle schema + cron job + registration.",
+      "Run: pnpm --filter @monopilot/db migrate && pnpm --filter @monopilot/worker test."
+    ],
+    "risk_red_lines": [
+      "Do not call runErasure from a Server Action — cron only.",
+      "Do not bypass SELECT FOR UPDATE SKIP LOCKED — multi-replica safety.",
+      "Do not skip app.set_org_context inside dispatcher — RLS isolation per row mandatory.",
+      "Do not mark a row 'completed' if handler partial-failed — failed=failed.",
+      "Do not delete completed rows — retain for audit.",
+      "Do not log subject_id in stdout — PII redaction lands in T-117."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

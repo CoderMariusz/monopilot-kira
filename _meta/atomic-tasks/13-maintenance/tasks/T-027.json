@@ -1,0 +1,110 @@
+{
+  "title": "T-027 — UI: Analytics Hub + Settings page (MNT-031, MNT-032)",
+  "prompt": "# T-027 — Maintenance Analytics + Settings\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-031, MNT-032, §9.16 maintenance_kpis, §13.2 L2 config\nUX: prototypes/design/13-MAINTENANCE-UX.md:832-922\nPrototypes: other-screens.jsx:601-803 (maintenance_analytics_page); other-screens.jsx:805-964 (maintenance_settings_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/analytics` (6-tab analytics hub consuming maintenance_kpis MV + 15-OEE oee_shift_metrics cross-module) and `/maintenance/settings` (module-level config persisted to maintenance_settings + reference tables).\n\n## Implementation contract\n1. `apps/web/app/maintenance/analytics/page.tsx` — RSC; 6 tabs (Overview/MTBF-MTTR/PM Compliance/Availability/Cost/Pareto) — each is Suspense boundary with its own Drizzle query. Recharts (`packages/ui` Chart wrapper) for line/bar/Pareto. Data-source banner on MTBF/MTTR tab: \"Sourced from 15-OEE. Maintenance does not compute independently\" per D-MNT-3.\n2. `apps/web/app/maintenance/settings/page.tsx` — RSC; left-nav sections General/Criticality/Auto-WR/Sanitation-Cal/LOTO/OEE Trigger (disabled with P2 Alert)/Skill Catalog/Notifications.\n3. Settings persisted to `maintenance_settings` + `criticality_taxonomy` rows + notification_preferences. OEE Trigger toggle is read-only with P2 Alert per BL-MAINT-06 (D-MNT-11 feature flag).\n4. RBAC: Settings is manager+admin only (`mnt.mwo.assign` tier + Foundation `settings.org.update`); Reset to Defaults is admin only.\n5. CSV export from Analytics streams via Server Action.\n6. Empty/loading/error/permission states + i18n (`maintenance.analytics.*`, `maintenance.settings.*`).\n\n## Prototype parity\n- Analytics 6-tab + date-range selector + filter bar + Recharts charts + Top 5 Problem Assets + Pareto — RTL snapshot other-screens.jsx:601-803.\n- Settings 8-section left-nav + General Defaults form + Criticality drag-to-reorder + LOTO policy Select + OEE Trigger P2 alert + Notifications useFieldArray — snapshot other-screens.jsx:805-964.\n\n## Files\n- apps/web/app/maintenance/analytics/page.tsx [create]\n- apps/web/app/maintenance/analytics/_components/analytics-tabs.tsx [create]\n- apps/web/app/maintenance/analytics/_components/pareto-chart.tsx [create]\n- apps/web/app/maintenance/settings/page.tsx [create]\n- apps/web/app/maintenance/settings/_components/settings-form.tsx [create]\n- apps/web/app/maintenance/analytics/_components/__tests__/analytics.test.tsx [create]\n- apps/web/app/maintenance/settings/_components/__tests__/settings.test.tsx [create]\n\n## Acceptance criteria\n1. Given analytics renders, when compared to other-screens.jsx:601-803, then 6 tabs + date-range selector + filter bar + Top 5 Problem Assets + Pareto chart match by RTL parity checklist.\n2. Given MTBF/MTTR tab renders, when inspected, then data-source banner \"Sourced from 15-OEE\" is present per D-MNT-3 (no maintenance-side MTBF computation).\n3. Given settings renders, when compared to other-screens.jsx:805-964, then 8 left-nav sections + General Defaults + Criticality drag-to-reorder + LOTO policy + OEE Trigger P2 alert + Notifications match.\n4. Given Reset to Defaults called by admin, when settled, then maintenance_settings rows reseeded to defaults via T-013 seed.\n5. Given Reset to Defaults called by manager (not admin), when settled, then 403 PERMISSION_DENIED.\n6. Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity + Playwright e2e for analytics tab nav + settings form save.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/{analytics,settings}`.\n\n## Risk red lines\n- Do not compute MTBF/MTTR independently — read from 15-OEE per D-MNT-3.\n- Do not enable OEE Trigger toggle (BL-MAINT-06 + D-MNT-11 feature flag).\n- Do not allow non-admin Reset to Defaults.\n- Do not paste prototype JSX verbatim.\n- Do not bypass RBAC server-side.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "analytics",
+    "settings",
+    "T3-ui"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-027",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-031",
+      "§10.3 MNT-032",
+      "§9.16",
+      "§13.2"
+    ],
+    "category": "ui",
+    "subcategory": "analytics-settings",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Analytics hub (6 tabs from maintenance_kpis MV + 15-OEE consumer) + Settings page (8 sections, L2 config).",
+    "details": "MTBF/MTTR sourced from 15-OEE per D-MNT-3 (no independent computation). OEE Trigger toggle disabled (BL-MAINT-06 P2). UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/analytics/page.tsx [create]",
+      "apps/web/app/maintenance/analytics/_components/analytics-tabs.tsx [create]",
+      "apps/web/app/maintenance/analytics/_components/pareto-chart.tsx [create]",
+      "apps/web/app/maintenance/settings/page.tsx [create]",
+      "apps/web/app/maintenance/settings/_components/settings-form.tsx [create]",
+      "apps/web/app/maintenance/analytics/_components/__tests__/analytics.test.tsx [create]",
+      "apps/web/app/maintenance/settings/_components/__tests__/settings.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Predictive ML insights (P2 MNT-007)",
+      "IoT sensor health dashboard (P2 MNT-008)",
+      "Sanitation Allergen Audit drilldown (MNT-034 P2)",
+      "PM Skip Audit page (MNT-035 P2)",
+      "Outbox/DLQ UI (MNT-033 P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-008",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-022",
+      "T-024",
+      "T-026"
+    ],
+    "acceptance_criteria": [
+      "Given analytics renders, when compared to prototypes/design/Monopilot Design System/maintenance/other-screens.jsx:601-803, then 6 tabs + date-range selector + filter bar + Top 5 Problem Assets + Pareto chart match by RTL parity checklist; given MTBF/MTTR tab, then data-source banner Sourced from 15-OEE is present (D-MNT-3)",
+      "Given settings renders, when compared to prototypes/design/Monopilot Design System/maintenance/other-screens.jsx:805-964, then 8 left-nav sections + General Defaults + Criticality drag-to-reorder + LOTO policy + OEE Trigger P2 alert + Notifications match",
+      "Given Reset to Defaults called by admin, when settled, then maintenance_settings rows reseeded via T-013 seed; given manager (non-admin), then 403 PERMISSION_DENIED",
+      "Given closeout, when reviewers inspect, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity + Playwright e2e for analytics tabs + settings form save",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/{analytics,settings}`",
+      "Capture Playwright trace/video/screenshots in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not compute MTBF/MTTR independently (read from 15-OEE per D-MNT-3)",
+      "Do not enable OEE Trigger toggle (BL-MAINT-06 + D-MNT-11)",
+      "Do not allow non-admin Reset to Defaults",
+      "Do not paste prototype JSX verbatim",
+      "Do not bypass RBAC server-side",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "maintenance_analytics_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

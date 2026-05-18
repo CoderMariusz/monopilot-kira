@@ -1,13 +1,14 @@
 {
-  "title": "T-040 — Barcode lookup endpoints (LP / location / validate)",
-  "prompt": "# T-040 — Barcode lookup endpoints\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §13.2 (FR-WH-026).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nThree route handlers used by Scanner: lookup LP by barcode, lookup location by barcode, validate any barcode (returns type + decoded). SLO <200ms P95.\n\n## Implementation contract\nFiles:\n- `apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts`\n- `apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts`\n- `apps/web/app/api/warehouse/scanner/validate-barcode/route.ts`\nAuto-detect prefix LP, GS1-128 (use T-023 parser to extract embedded SSCC/LP), or location code. Validate-barcode returns {type: 'lp'|'location'|'gs1', decoded}. Tenant RLS applies. Reject unknown barcodes with 404 + structured reason.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/validate-barcode/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/__tests__/lookup.test.ts [create]\n\n## Acceptance criteria\n1. Given GET /lookup/lp/LP00000123, when LP exists, then 200 with LP info; when missing, 404 with reason 'lp_not_found'.\n2. Given GET /lookup/location/A.B3, when location exists, then 200 with ltree path; when not, 404 with reason 'location_not_found'.\n3. Given POST /validate-barcode with body '(01)05012345678900', when called, then response.type='gs1' and decoded.gtin='05012345678900'.\n\n## Test strategy\n- RED: lookup.test.ts covers three endpoints with hit/miss scenarios.\n- Run `pnpm --filter web test scanner-lookup`.\n\n## Risk red lines\n- Do not allow cross-tenant lookups.\n- Do not throw on parse errors — return 404 with reason.\n- Do not exceed 200ms P95 — log if slower.",
+  "title": "T-040 — Barcode lookup endpoints (LP / location / validate) (WH §13.2)",
+  "prompt": "# T-040 — Barcode lookup endpoints (LP / location / validate) (WH §13.2)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §13.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement 3 scanner endpoints: lookup LP by barcode, lookup location by barcode, validate-any-barcode. Auto-detects LP_number vs GS1-128 vs SSCC. <200 ms P95.\n\n## Implementation contract\n1. `apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts` — accepts plain LP number OR GS1-128 (uses T-023 parser to extract AI(01)/(10)/(21) and resolve LP).\n2. `apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts` — accepts QR or Code128 location codes.\n3. `apps/web/app/api/warehouse/scanner/validate-barcode/route.ts` (POST) — returns `{type: 'lp'|'location'|'gs1-128'|'sscc'|'unknown', decoded: {...}}`.\n4. All three behind scanner session auth.\n\n## Files\n- apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts [create]\n- apps/web/app/api/warehouse/scanner/validate-barcode/route.ts [create]\n- apps/web/app/api/warehouse/scanner/lookup/__tests__/lookup.test.ts [create]\n\n## Acceptance criteria\n1. Given LP number 'LP00000001', when GET /lookup/lp/LP00000001, then the LP record returned.\n2. Given a GS1-128 barcode encoding GTIN+lot, when sent to /lookup/lp, then it parses via T-023 and resolves LP via batch+gtin or returns 404 with parsed ais.\n3. Given a malformed barcode, when POST /validate-barcode, then `type='unknown'` with `errors[]`.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/scanner-lookup.test.ts` asserting LP/loc/validate paths + GS1 parse integration.\n- Run `pnpm --filter web test scanner-lookup`.\n\n## Risk red lines\n- Do not skip session auth on any of the 3 endpoints.\n- Do not return 500 on parse error — return structured `type:'unknown'`.\n\n## Dependencies\n- T-023\n- T-002\n- T-012",
   "labels": [
     "prd",
-    "api",
+    "service",
     "scanner",
-    "T2-api"
+    "barcode",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "scanner",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-scanner",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "25k",
     "estimated_effort": "1-2h",
-    "description": "LP / location / validate barcode lookups for Scanner; uses T-023 parser.",
-    "details": "Three route handlers; structured 404 reasons; SLO <200ms P95.",
+    "description": "Implement 3 scanner endpoints: lookup LP by barcode, lookup location by barcode, validate-any-barcode. Auto-detects LP_number vs GS1-128 vs SSCC. <200 ms P95.",
+    "details": "Implement 3 scanner endpoints: lookup LP by barcode, lookup location by barcode, validate-any-barcode. Auto-detects LP_number vs GS1-128 vs SSCC. <200 ms P95. `apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts` — accepts plain LP number OR GS1-128 (uses T-023 parser to extract AI(01)/(10)/(21) and resolve LP). `apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts` — accepts QR or Code128 location codes.",
     "scope_files": [
       "apps/web/app/api/warehouse/scanner/lookup/lp/[barcode]/route.ts [create]",
       "apps/web/app/api/warehouse/scanner/lookup/location/[barcode]/route.ts [create]",
@@ -47,18 +48,17 @@
       "T-042"
     ],
     "acceptance_criteria": [
-      "Given GET /lookup/lp/LP00000123, when LP exists, then 200 with info; when missing, 404 with reason 'lp_not_found'",
-      "Given GET /lookup/location/A.B3, when location exists, then 200 with ltree path; missing returns 404 'location_not_found'",
-      "Given POST /validate-barcode with '(01)05012345678900', when called, then type='gs1' and decoded.gtin='05012345678900'"
+      "Given LP number 'LP00000001', when GET /lookup/lp/LP00000001, then the LP record returned.",
+      "Given a GS1-128 barcode encoding GTIN+lot, when sent to /lookup/lp, then it parses via T-023 and resolves LP via batch+gtin or returns 404 with parsed ais.",
+      "Given a malformed barcode, when POST /validate-barcode, then `type='unknown'` with `errors[]`."
     ],
     "test_strategy": [
-      "RED: lookup.test.ts covers hit/miss for three endpoints",
-      "Run 'pnpm --filter web test scanner-lookup'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/scanner-lookup.test.ts` asserting LP/loc/validate paths + GS1 parse integration.",
+      "Run `pnpm --filter web test scanner-lookup`."
     ],
     "risk_red_lines": [
-      "Do not allow cross-tenant lookups",
-      "Do not throw on parse errors",
-      "Do not exceed 200ms silently"
+      "Do not skip session auth on any of the 3 endpoints.",
+      "Do not return 500 on parse error — return structured `type:'unknown'`."
     ],
     "skills": [
       "test-driven-development",
@@ -88,7 +88,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

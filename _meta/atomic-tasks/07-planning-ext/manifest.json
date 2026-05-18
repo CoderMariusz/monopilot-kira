@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T17:23:00Z",
   "generator": "wave-next-07-readiness-hardening",
   "readiness_target": ">=95% docs/meta/prototype/task readiness",
-  "task_count": 57,
+  "task_count": 58,
   "acf_task_shape": "TaskCreate top-level title/prompt/labels/priority/max_attempts/pipeline_name/pipeline_inputs; no ACP-owned fields",
   "dependency_policy": "pipeline_inputs.dependencies contains only local T-XXX task IDs; cross-module blockers live in pipeline_inputs.cross_module_dependencies.",
   "prototype_index": "_meta/prototype-labels/prototype-index-planning-ext.json",
@@ -13,344 +13,350 @@
     {
       "id": "T-001",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-001.json",
-      "title": "T-001 — scheduler_runs table + RLS + indexes",
+      "title": "T-001 \u2014 scheduler_runs table + RLS + indexes",
       "priority": 50
     },
     {
       "id": "T-002",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-002.json",
-      "title": "T-002 — scheduler_assignments table + RLS + indexes",
+      "title": "T-002 \u2014 scheduler_assignments table + RLS + indexes",
       "priority": 50
     },
     {
       "id": "T-003",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-003.json",
-      "title": "T-003 — changeover_matrix + changeover_matrix_versions tables",
+      "title": "T-003 \u2014 changeover_matrix + changeover_matrix_versions tables",
       "priority": 50
     },
     {
       "id": "T-004",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-004.json",
-      "title": "T-004 — demand_forecasts table + RLS + supersession index",
+      "title": "T-004 \u2014 demand_forecasts table + RLS + supersession index",
       "priority": 80
     },
     {
       "id": "T-005",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-005.json",
-      "title": "T-005 — forecast_actuals table + RLS",
+      "title": "T-005 \u2014 forecast_actuals table + RLS",
       "priority": 80
     },
     {
       "id": "T-006",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-006.json",
-      "title": "T-006 — scheduler_scenarios table (P2 what-if)",
+      "title": "T-006 \u2014 scheduler_scenarios table (P2 what-if)",
       "priority": 100
     },
     {
       "id": "T-007",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-007.json",
-      "title": "T-007 — matrix_review_request table (PLE-010)",
+      "title": "T-007 \u2014 matrix_review_request table (PLE-010)",
       "priority": 80
     },
     {
       "id": "T-008",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-008.json",
-      "title": "T-008 — scheduler_config table (PLE-005)",
+      "title": "T-008 \u2014 scheduler_config table (PLE-005)",
       "priority": 80
     },
     {
       "id": "T-009",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-009.json",
-      "title": "T-009 — changeover_matrix_drafts staging table (PLE-012)",
+      "title": "T-009 \u2014 changeover_matrix_drafts staging table (PLE-012)",
       "priority": 100
     },
     {
       "id": "T-010",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-010.json",
-      "title": "T-010 — seed default changeover_matrix (14 EU + Mustard + NONE)",
+      "title": "T-010 \u2014 seed default changeover_matrix (14 EU + Mustard + NONE)",
       "priority": 80
     },
     {
       "id": "T-011",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-011.json",
-      "title": "T-011 — seed override_reason_codes reference table",
+      "title": "T-011 \u2014 seed override_reason_codes reference table",
       "priority": 100
     },
     {
       "id": "T-012",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-012.json",
-      "title": "T-012 — POST /api/scheduler/run endpoint + queue dispatch",
+      "title": "T-012 \u2014 POST /api/scheduler/run endpoint + queue dispatch",
       "priority": 80
     },
     {
       "id": "T-013",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-013.json",
-      "title": "T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints",
+      "title": "T-013 \u2014 GET /api/scheduler/runs/:id and /:id/status endpoints",
       "priority": 80
     },
     {
       "id": "T-014",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-014.json",
-      "title": "T-014 — POST /api/scheduler/assignments/:id/approve",
+      "title": "T-014 \u2014 POST /api/scheduler/assignments/:id/approve",
       "priority": 80
     },
     {
       "id": "T-015",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-015.json",
-      "title": "T-015 — POST /api/scheduler/assignments/:id/override",
+      "title": "T-015 \u2014 POST /api/scheduler/assignments/:id/override",
       "priority": 80
     },
     {
       "id": "T-016",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-016.json",
-      "title": "T-016 — POST /api/scheduler/assignments/:id/reject",
+      "title": "T-016 \u2014 POST /api/scheduler/assignments/:id/reject",
       "priority": 100
     },
     {
       "id": "T-017",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-017.json",
-      "title": "T-017 — POST /api/scheduler/assignments/bulk_approve",
+      "title": "T-017 \u2014 POST /api/scheduler/assignments/bulk_approve",
       "priority": 100
     },
     {
       "id": "T-018",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-018.json",
-      "title": "T-018 — GET/POST /api/scheduler/changeover-matrix endpoints",
+      "title": "T-018 \u2014 GET/POST /api/scheduler/changeover-matrix endpoints",
       "priority": 80
     },
     {
       "id": "T-019",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-019.json",
-      "title": "T-019 — POST /api/scheduler/forecasts/upload (manual CSV)",
+      "title": "T-019 \u2014 POST /api/scheduler/forecasts/upload (manual CSV)",
       "priority": 80
     },
     {
       "id": "T-020",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-020.json",
-      "title": "T-020 — GET /api/scheduler/forecasts (filter + pagination)",
+      "title": "T-020 \u2014 GET /api/scheduler/forecasts (filter + pagination)",
       "priority": 100
     },
     {
       "id": "T-021",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-021.json",
-      "title": "T-021 — Python solver microservice scaffold (FastAPI)",
+      "title": "T-021 \u2014 Python solver microservice scaffold (FastAPI)",
       "priority": 50
     },
     {
       "id": "T-022",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-022.json",
-      "title": "T-022 — Greedy assignment algorithm in solver service",
+      "title": "T-022 \u2014 Greedy assignment algorithm in solver service",
       "priority": 80
     },
     {
       "id": "T-023",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-023.json",
-      "title": "T-023 — Local search refinement (swap pairs, move between lines)",
+      "title": "T-023 \u2014 Local search refinement (swap pairs, move between lines)",
       "priority": 80
     },
     {
       "id": "T-024",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-024.json",
-      "title": "T-024 — Idempotency: UUID v7 + 1h cache for scheduler_runs",
+      "title": "T-024 \u2014 Idempotency: UUID v7 + 1h cache for scheduler_runs",
       "priority": 50
     },
     {
       "id": "T-025",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-025.json",
-      "title": "T-025 — DSL rule finite_capacity_solver_v1 registered in 02-SETTINGS",
+      "title": "T-025 \u2014 DSL rule finite_capacity_solver_v1 registered in 02-SETTINGS",
       "priority": 50
     },
     {
       "id": "T-026",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-026.json",
-      "title": "T-026 — DSL rule allergen_sequencing_optimizer_v2 registered in 02-SETTINGS",
+      "title": "T-026 \u2014 DSL rule allergen_sequencing_optimizer_v2 registered in 02-SETTINGS",
       "priority": 80
     },
     {
       "id": "T-027",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-027.json",
-      "title": "T-027 — DSL rule disposition_bridge_v1 registered (P2 standby)",
+      "title": "T-027 \u2014 DSL rule disposition_bridge_v1 registered (P2 standby)",
       "priority": 100
     },
     {
       "id": "T-028",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-028.json",
-      "title": "T-028 — Outbox emitters: scheduler.run.completed + assignment.approved",
+      "title": "T-028 \u2014 Outbox emitters: scheduler.run.completed + assignment.approved",
       "priority": 80
     },
     {
       "id": "T-029",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-029.json",
-      "title": "T-029 — Outbox emitters: matrix.version.published + assignment.overridden + bulk_approved",
+      "title": "T-029 \u2014 Outbox emitters: matrix.version.published + assignment.overridden + bulk_approved",
       "priority": 100
     },
     {
       "id": "T-030",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-030.json",
-      "title": "T-030 — SCR-07-01 Scheduler Dashboard Gantt (read-only)",
+      "title": "T-030 \u2014 SCR-07-01 Scheduler Dashboard Gantt (read-only)",
       "priority": 100
     },
     {
       "id": "T-031",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-031.json",
-      "title": "T-031 — Assignment Side Panel (open on Gantt block click)",
+      "title": "T-031 \u2014 Assignment Side Panel (open on Gantt block click)",
       "priority": 100
     },
     {
       "id": "T-032",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-032.json",
-      "title": "T-032 — MODAL-07-01 Run Scheduler modal (run_scheduler_modal)",
+      "title": "T-032 \u2014 MODAL-07-01 Run Scheduler modal (run_scheduler_modal)",
       "priority": 80
     },
     {
       "id": "T-033",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-033.json",
-      "title": "T-033 — Override Assignment Modal (override_assignment_modal)",
+      "title": "T-033 \u2014 Override Assignment Modal (override_assignment_modal)",
       "priority": 80
     },
     {
       "id": "T-034",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-034.json",
-      "title": "T-034 — Reschedule WO Modal (reschedule_wo_modal)",
+      "title": "T-034 \u2014 Reschedule WO Modal (reschedule_wo_modal)",
       "priority": 100
     },
     {
       "id": "T-035",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-035.json",
-      "title": "T-035 — Approve All modal (approve_all_modal)",
+      "title": "T-035 \u2014 Approve All modal (approve_all_modal)",
       "priority": 100
     },
     {
       "id": "T-036",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-036.json",
-      "title": "T-036 — SCR-07-02 Changeover Matrix Editor (heatmap + tabs)",
+      "title": "T-036 \u2014 SCR-07-02 Changeover Matrix Editor (heatmap + tabs)",
       "priority": 100
     },
     {
       "id": "T-037",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-037.json",
-      "title": "T-037 — Matrix Cell Edit Modal (matrix_cell_edit_modal)",
+      "title": "T-037 \u2014 Matrix Cell Edit Modal (matrix_cell_edit_modal)",
       "priority": 100
     },
     {
       "id": "T-038",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-038.json",
-      "title": "T-038 — Matrix Publish Modal (matrix_publish_modal)",
+      "title": "T-038 \u2014 Matrix Publish Modal (matrix_publish_modal)",
       "priority": 100
     },
     {
       "id": "T-039",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-039.json",
-      "title": "T-039 — Matrix CSV Import Modal (matrix_import_modal) — 3-stage state machine",
+      "title": "T-039 \u2014 Matrix CSV Import Modal (matrix_import_modal) \u2014 3-stage state machine",
       "priority": 100
     },
     {
       "id": "T-040",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-040.json",
-      "title": "T-040 — Matrix Diff Modal (matrix_diff_modal) — cross-version compare",
+      "title": "T-040 \u2014 Matrix Diff Modal (matrix_diff_modal) \u2014 cross-version compare",
       "priority": 120
     },
     {
       "id": "T-041",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-041.json",
-      "title": "T-041 — Request Review Modal (request_review_modal) — PLE-010",
+      "title": "T-041 \u2014 Request Review Modal (request_review_modal) \u2014 PLE-010",
       "priority": 100
     },
     {
       "id": "T-042",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-042.json",
-      "title": "T-042 — Forecast Upload screen and manual forecast management UI",
+      "title": "T-042 \u2014 Forecast Upload screen and manual forecast management UI",
       "priority": 100
     },
     {
       "id": "T-043",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-043.json",
-      "title": "T-043 — Scheduler Run History index UI",
+      "title": "T-043 \u2014 Scheduler Run History index UI",
       "priority": 100
     },
     {
       "id": "T-044",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-044.json",
-      "title": "T-044 — Scheduler Run Detail page",
+      "title": "T-044 \u2014 Scheduler Run Detail page",
       "priority": 100
     },
     {
       "id": "T-045",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-045.json",
-      "title": "T-045 — Re-run Confirmation Modal",
+      "title": "T-045 \u2014 Re-run Confirmation Modal",
       "priority": 100
     },
     {
       "id": "T-046",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-046.json",
-      "title": "T-046 — Capacity Projection screen",
+      "title": "T-046 \u2014 Capacity Projection screen",
       "priority": 100
     },
     {
       "id": "T-047",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-047.json",
-      "title": "T-047 — Pending Assignment Queue full page",
+      "title": "T-047 \u2014 Pending Assignment Queue full page",
       "priority": 100
     },
     {
       "id": "T-048",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-048.json",
-      "title": "T-048 — Scheduler Settings screen",
+      "title": "T-048 \u2014 Scheduler Settings screen",
       "priority": 100
     },
     {
       "id": "T-049",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-049.json",
-      "title": "T-049 — Scheduler Rule Registry viewer",
+      "title": "T-049 \u2014 Scheduler Rule Registry viewer",
       "priority": 105
     },
     {
       "id": "T-050",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-050.json",
-      "title": "T-050 — Sequencing v2 preview and commit overlay",
+      "title": "T-050 \u2014 Sequencing v2 preview and commit overlay",
       "priority": 105
     },
     {
       "id": "T-051",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-051.json",
-      "title": "T-051 — Disable Optimizer v2 Modal",
+      "title": "T-051 \u2014 Disable Optimizer v2 Modal",
       "priority": 105
     },
     {
       "id": "T-052",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-052.json",
-      "title": "T-052 — What-If Simulation screen (P2 gated)",
+      "title": "T-052 \u2014 What-If Simulation screen (P2 gated)",
       "priority": 115
     },
     {
       "id": "T-053",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-053.json",
-      "title": "T-053 — Disposition Bridge P2 backend and decision modal",
+      "title": "T-053 \u2014 Disposition Bridge P2 backend and decision modal",
       "priority": 115
     },
     {
       "id": "T-054",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-054.json",
-      "title": "T-054 — Prophet forecaster microservice and forecast actuals jobs (P2)",
+      "title": "T-054 \u2014 Prophet forecaster microservice and forecast actuals jobs (P2)",
       "priority": 120
     },
     {
       "id": "T-055",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-055.json",
-      "title": "T-055 — Factory release and D365 posture guard for scheduler inputs",
+      "title": "T-055 \u2014 Factory release and D365 posture guard for scheduler inputs",
       "priority": 55
     },
     {
       "id": "T-056",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-056.json",
-      "title": "T-056 — Scheduler end-to-end flow and prototype label marker tests",
+      "title": "T-056 \u2014 Scheduler end-to-end flow and prototype label marker tests",
       "priority": 130
     },
     {
       "id": "T-057",
       "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-057.json",
-      "title": "T-057 — 07-EXT ACP/readiness closeout report task",
+      "title": "T-057 \u2014 07-EXT ACP/readiness closeout report task",
       "priority": 140
+    },
+    {
+      "id": "T-058",
+      "file": "_meta/atomic-tasks/07-planning-ext/tasks/T-058.json",
+      "title": "T-058 \u2014 Add planning-ext permission strings to enum (\u00a73.1, \u00a73.2)",
+      "priority": 90
     }
   ]
 }

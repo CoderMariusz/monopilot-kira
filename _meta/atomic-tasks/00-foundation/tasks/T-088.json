@@ -1,0 +1,84 @@
+{
+  "title": "T-088 — invoke enforceSamlPolicy from password/magic sign-in routes with real user_roles JOIN (FT-028)",
+  "prompt": "# T-088 — invoke enforceSamlPolicy from password/magic sign-in routes with real user_roles JOIN (FT-028)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §8.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-028** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nCall enforceSamlPolicy on password and magic-link sign-in with user_roles join; non-admin denied when enforce_for_non_admins=true.\n\n## Implementation contract\n1. sign-in.ts: after resolving target user + org, call enforceSamlPolicy({orgId, userId}).\n2. enforceSamlPolicy joins user_roles to detect org.access.admin; admins bypass.\n3. Reject path returns 403 with 'sso_enforced'.\n4. Tests cover: (a) enforce=false → password allowed for everyone; (b) enforce=true + non-admin → 403; (c) enforce=true + org.access.admin → allowed.\n\n## Files (scope)\n- packages/auth/src/sign-in.ts [modify]\n- packages/auth/src/enforce-saml-policy.ts [modify]\n- packages/auth/src/__tests__/sso-enforcement.test.ts [create]\n\n## Acceptance criteria\n1. Given enforce_for_non_admins=true and a non-admin password sign-in, when called, then 403 'sso_enforced' returned.\n2. Given enforce_for_non_admins=true and an org.access.admin password sign-in, when called, then sign-in proceeds.\n3. Given enforce_for_non_admins=false, when any user sign-in is attempted, then password/magic flow proceeds.\n\n## Test strategy\n- RED: write sso-enforcement.test.ts asserting all three ACs before wiring.\n- Mock Supabase admin via vi.fn().\n- Run `pnpm --filter @monopilot/auth test sso-enforcement`.\n\n## Risk red lines\n- Do not bypass enforceSamlPolicy by trusting client-side org claim.\n- Do not skip the user_roles JOIN (string-typing the role is forbidden).\n- Do not log the rejected user's plaintext credential.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "saml",
+    "sso-enforcement",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-088",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§8.x"
+    ],
+    "original_carry_forward_id": "FT-028",
+    "category": "auth",
+    "subcategory": "saml",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Wire enforceSamlPolicy into password and magic-link sign-in routes; when tenant_idp_config.enforce_for_non_admins=true, only org.access.admin can use password/magic sign-in.",
+    "details": "enforceSamlPolicy exists in the codebase but isn't invoked on the password/magic-link paths, so the 'enforce SSO' switch in tenant_idp_config has no effect there. Call the policy with a real user_roles JOIN to recognise break-glass org.access.admin accounts.",
+    "scope_files": [
+      "packages/auth/src/sign-in.ts [modify]",
+      "packages/auth/src/enforce-saml-policy.ts [modify]",
+      "packages/auth/src/__tests__/sso-enforcement.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change the SAML callback handler in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given enforce_for_non_admins=true and a non-admin password sign-in, when called, then 403 'sso_enforced' returned.",
+      "Given enforce_for_non_admins=true and an org.access.admin password sign-in, when called, then sign-in proceeds.",
+      "Given enforce_for_non_admins=false, when any user sign-in is attempted, then password/magic flow proceeds."
+    ],
+    "test_strategy": [
+      "RED: write sso-enforcement.test.ts asserting all three ACs before wiring.",
+      "Mock Supabase admin via vi.fn().",
+      "Run `pnpm --filter @monopilot/auth test sso-enforcement`."
+    ],
+    "risk_red_lines": [
+      "Do not bypass enforceSamlPolicy by trusting client-side org claim.",
+      "Do not skip the user_roles JOIN (string-typing the role is forbidden).",
+      "Do not log the rejected user's plaintext credential."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

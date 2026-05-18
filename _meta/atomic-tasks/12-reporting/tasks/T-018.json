@@ -1,0 +1,109 @@
+{
+  "title": "T-018 — UI: RPT-004 QC Holds Dashboard (/reporting/qc-holds) — shift/line filter + AM/PM split + critical alert (12-REPORTING §15.1 RPT-004, §10.1)",
+  "prompt": "# T-018 — RPT-004 QC Holds Dashboard\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1 RPT-004, §10.1 (QC Holds dashboard display spec), §4.1 #4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:5-166 (`rpt_qc_holds`)\nUX: prototypes/design/12-REPORTING-UX.md:343-386\n\n## Goal\nServer Component page `/reporting/qc-holds` showing: holds table (Line / Product / Reason / Boxes Held / Boxes Rejected / Staff / Labour Hours / AM-PM); summary card (total boxes held, total labour, critical count); AM/PM shift summary cards with horizontal bar charts; critical-holds alert banner when count > 0; cross-module 'View in QA' drill-link (T-012 buildQualityHoldUrl). Empty state success message when no holds.\n\n## Prototype parity\n- Source: `kpi-screens.jsx:5-166` (`rpt_qc_holds`)\n- Translation: RPT_QC_HOLDS mock → T-012 quality-holds consumer service helper; ChartBarH (AM/PM split) → Recharts BarChart horizontal layout; FreshnessStrip cadence='5 min' (mv_qc_holds_summary refresh cron per T-005); FilterChips + onSavePreset → opens save_preset_modal (T-026).\n\n## Implementation contract\n1. `apps/web/app/(reporting)/qc-holds/page.tsx` (RSC) — reads via T-012 getQcHoldsSummary; passes data to client.\n2. Client component: filters (shift / line) via nuqs URL state; renders table + summary + AM/PM cards + critical alert.\n3. Empty state: 'No QC holds today' success message with green checkmark per §10.1.\n4. Critical holds alert banner: shown when critical.length > 0; data is server-computed via T-012 (`severity='critical'` rows) — never client-filtered.\n5. Cross-module 'View in QA' link → buildQualityHoldUrl(holdId) per T-012.\n6. Empty / loading / error / permission states; RTL + Playwright parity.\n7. All labels via next-intl `reporting.qc_holds.*`.\n\n## Files\n- apps/web/app/(reporting)/qc-holds/page.tsx [create]\n- apps/web/app/(reporting)/qc-holds/_components/qc-holds-client.tsx [create]\n- apps/web/app/(reporting)/qc-holds/_components/am-pm-shift-cards.tsx [create]\n- apps/web/app/(reporting)/qc-holds/__tests__/qc-holds.test.tsx [create]\n- apps/web/messages/{en,pl}/reporting-qc-holds.json [create]\n\n## Acceptance criteria\n1. Given mv_qc_holds_summary seeded with 5 holds (1 critical) for org_A, when /reporting/qc-holds renders, then table shows 5 rows, summary card shows critical=1, critical-alert banner renders.\n2. Given URL ?shift=AM, when page renders, then table filters to AM-only rows and AM card highlighted; URL state survives reload.\n3. Given critical.length=0, when page renders, then alert banner is absent (no DOM node) — not just hidden.\n4. Given user clicks 'View in QA' on a hold row, when navigation occurs, then router.push('/quality/holds/<uuid>') per T-012 buildQualityHoldUrl.\n5. Given no holds for the day (empty MV result), when page renders, then 'No QC holds today' success message with green checkmark per §10.1.\n6. Given T-012 reports `available: false` (MV not yet refreshed), when page renders, then 'Data refreshing' loading state shown (graceful degradation).\n7. Given user without rpt.dashboard.view, when accessing /reporting/qc-holds, then middleware T-009 403s + audits.\n8. UI parity + 4 states + next-intl wrapping.\n\n## Test strategy (RED first)\n- RED: RTL asserts parity + filter behaviour + critical-alert conditional rendering + empty-state success message + degradation path + cross-module link.\n- Playwright parity per prototype.\n- Run `pnpm --filter @monopilot/web test qc-holds && pnpm --filter @monopilot/web playwright test reporting-qc-holds`.\n- GREEN: build page + client + AM/PM cards.\n\n## Risk red lines\n- Do not filter critical holds client-side — server-side via T-012 (translation-notes red line).\n- Do not let 'View in QA' link accept raw holdId — UUID validation via buildQualityHoldUrl.\n- Do not skip success empty-state per §10.1.\n- Do not paste prototype JSX verbatim.\n- Do not skip next-intl wrapping.\n- Do not skip 4 states.\n- Do not write to 09-QA tables from this page — consumer pattern only.",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1 RPT-004",
+      "§10.1",
+      "§4.1 #4"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-b",
+    "context_budget": "50k",
+    "estimated_effort": "3-5h",
+    "description": "RPT-004 QC Holds: holds table + shift filter + AM/PM split bar charts + critical alert + cross-module 'View in QA' link.",
+    "details": "Consumer of T-012 quality-holds helper. Critical alert filter is server-side. Empty state success message per §10.1. Graceful degradation when MV not refreshed.",
+    "scope_files": [
+      "apps/web/app/(reporting)/qc-holds/page.tsx [create]",
+      "apps/web/app/(reporting)/qc-holds/_components/qc-holds-client.tsx [create]",
+      "apps/web/app/(reporting)/qc-holds/_components/am-pm-shift-cards.tsx [create]",
+      "apps/web/app/(reporting)/qc-holds/__tests__/qc-holds.test.tsx [create]",
+      "apps/web/messages/en/reporting-qc-holds.json [create]",
+      "apps/web/messages/pl/reporting-qc-holds.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement NCR Trend (P2)",
+      "Do not implement Regulatory Export Package (P2)",
+      "Do not implement save_preset_modal here (T-026)"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-009",
+      "T-012",
+      "T-016"
+    ],
+    "parallel_safe_with": [
+      "T-017",
+      "T-019",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      "09-QUALITY /quality/holds/<uuid> route",
+      "02-SETTINGS i18n next-intl"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/kpi-screens.jsx:5-166, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (rpt_qc_holds).",
+      "Given mv_qc_holds_summary seeded with 5 holds (1 critical) for org_A, when /reporting/qc-holds renders, then table shows 5 rows, summary card shows critical=1, critical-alert banner renders",
+      "Given URL ?shift=AM, when page renders, then table filters to AM-only rows and AM card highlighted; URL state survives reload",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL asserts parity + filter behaviour + critical-alert conditional rendering + empty-state success message + degradation path + cross-module link",
+      "Playwright parity per prototype",
+      "Run `pnpm --filter @monopilot/web test qc-holds && pnpm --filter @monopilot/web playwright test reporting-qc-holds`",
+      "For UI parity capture screenshots/artifacts and Playwright trace; attach in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not filter critical holds client-side — server-side via T-012",
+      "Do not let 'View in QA' accept raw holdId — UUID validation via buildQualityHoldUrl",
+      "Do not skip success empty-state per §10.1",
+      "Do not paste prototype JSX verbatim",
+      "Do not skip next-intl wrapping",
+      "Do not skip 4 states",
+      "Do not write to 09-QA tables — consumer pattern only"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_qc_holds",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

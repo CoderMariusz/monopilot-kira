@@ -1,0 +1,103 @@
+{
+  "title": "T-003 — Yield + Factory KPI materialized views DDL (mv_yield_by_line_week, mv_yield_by_sku_week, mv_factory_kpi_week) (12-REPORTING §9.1)",
+  "prompt": "# T-003 — Yield + Factory KPI MV base schema\n\nPRD: docs/prd/12-REPORTING-PRD.md §9.1, §5 Techniczne (RLS na MV constraint), §6 D-RPT-1 (MV vs real-time), §6 D-RPT-3 (weighted avg by kg_usage)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 materialized views supporting Factory Overview, Yield by Line, Yield by SKU dashboards. RLS-via-service-layer pattern (Postgres MVs cannot enforce RLS natively; enforced through `app.current_org_id()` filtering at the data-access layer + REC-L1 `site_id` filtering). Use weighted average (kg_usage) per D-RPT-3.\n\n## Implementation contract\n1. Create migration `packages/db/migrations/0080_reporting_mv_yield.sql`:\n   - `mv_yield_by_line_week (org_id, site_id, line_id, week_ending, kg_output, kg_usage, yield_pct, target_yield_pct, variance_pct, variance_gbp)` — selects from 08-PROD `wo_outputs` + `wo_consumptions` aggregated per line per ISO-Saturday week.\n   - `mv_yield_by_sku_week (org_id, site_id, line_id, product_id, fg_code, week_ending, kg_output, yield_pct, target_yield_pct, variance_gbp)`.\n   - `mv_factory_kpi_week (org_id, site_id, week_ending, weighted_yield_pct, weighted_ga_pct, avg_efficiency_pct, total_cases, total_variance_gbp)` — aggregates from mv_yield_by_line_week.\n   - Unique indexes on (org_id, site_id, line_id, week_ending) etc. so `REFRESH MATERIALIZED VIEW CONCURRENTLY` works.\n   - REVOKE ALL on each MV from PUBLIC and `app_user`; GRANT SELECT to `app_reporting_role` only.\n2. Drizzle schema entries in `packages/db/src/schema/reporting-views.ts` declaring read-only `pgMaterializedView` definitions for type-safety in queries.\n3. Service-layer query helper `packages/reporting/src/queries/yield.ts` that always appends `WHERE org_id = app.current_org_id() AND (site_id = $current_site OR site_id IS NULL)` — RLS-via-service per §5 + REC-L1.\n4. Vitest contract test asserts: (a) MV exists, (b) unique-index exists (refresh-concurrently prerequisite), (c) service helper always emits org_id+site_id filter (snapshot SQL string), (d) yield_pct math is kg_output / kg_usage (not unweighted) when seeded with synthetic 08-PROD rows, (e) cross-org leak test — query under org_A session never returns org_B rows.\n\n## Files\n- packages/db/migrations/0080_reporting_mv_yield.sql [create]\n- packages/db/src/schema/reporting-views.ts [create]\n- packages/reporting/src/queries/yield.ts [create]\n- packages/reporting/__tests__/mv-yield.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0080 runs against fresh DB seeded with 08-PROD wo_outputs/wo_consumptions, when `\\d mv_yield_by_line_week` is inspected, then all declared columns + unique index `idx_mv_yield_line_week_pk` are present.\n2. Given two orgs have seeded WO output rows, when `select * from mv_yield_by_line_week` runs via the service helper under org_A `app.set_org_context(...)` session, then only org_A rows return; cross_tenant_leak_test passes.\n3. Given a line had kg_output=950 and kg_usage=1000, when mv_yield_by_line_week is refreshed, then yield_pct=95.0 (kg_output/kg_usage*100) — verified via vitest.\n4. Given mv_factory_kpi_week.weighted_yield_pct is checked, when computed across two lines (line A kg_usage=1000 yield=95%, line B kg_usage=500 yield=80%), then result is (1000*95 + 500*80) / 1500 = 90.0 — weighted by kg_usage per D-RPT-3.\n5. Given the service helper is called without an active org context, when invoked, then it throws `MissingOrgContextError` BEFORE issuing SQL (RLS-via-service guardrail).\n6. Given the migration is inspected, when checked, then REFRESH MATERIALIZED VIEW CONCURRENTLY succeeds (unique index exists on each MV).\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/mv-yield.test.ts` mounts testcontainers Postgres, seeds 08-PROD producers, sets org context per session, asserts 6 ACs (incl. cross-org leak test + weighted-avg math + service helper guardrail).\n- Run `pnpm --filter @monopilot/reporting test mv-yield`.\n- GREEN: write migration + Drizzle entries + service helper.\n\n## Risk red lines\n- Do not attempt RLS policies on materialized views — Postgres does not support; enforce via service-layer `where org_id = app.current_org_id()` instead (§5 Techniczne).\n- Do not skip the unique index on each MV — required by `REFRESH MATERIALIZED VIEW CONCURRENTLY` (T-005 cron).\n- Do not use simple `AVG(yield_pct)` for factory KPI — must be weighted by kg_usage per D-RPT-3.\n- Do not let MVs reference raw transactional joins inside an interactive request path; only the refresh cron touches them. Read-models only.\n- Do not GRANT SELECT to PUBLIC; only `app_reporting_role` per security model.\n- Do not embed real-time queries against `wo_outputs` in the dashboard service path; MV refresh handles cadence (D-RPT-1).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§5 Techniczne",
+      "§6 D-RPT-1",
+      "§6 D-RPT-3"
+    ],
+    "category": "data",
+    "subcategory": "materialized-view",
+    "task_type": "T1-schema",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "45k",
+    "estimated_effort": "2-4h",
+    "description": "Yield by line + Yield by SKU + Factory KPI materialized views with unique indexes (REFRESH CONCURRENTLY prerequisite) and service-layer RLS enforcement.",
+    "details": "Three MVs aggregate 08-PROD wo_outputs + wo_consumptions per ISO Saturday week. RLS-via-service-layer because Postgres MVs cannot host policies. Weighted-by-kg_usage average per D-RPT-3. Unique index per MV so REFRESH CONCURRENTLY works. REVOKE PUBLIC + GRANT only to app_reporting_role. REC-L1 site_id NULLable + filter `WHERE site_id = :current OR site_id IS NULL`.",
+    "scope_files": [
+      "packages/db/migrations/0080_reporting_mv_yield.sql [create]",
+      "packages/db/src/schema/reporting-views.ts [create]",
+      "packages/reporting/src/queries/yield.ts [create]",
+      "packages/reporting/__tests__/mv-yield.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement cron refresh here (T-005)",
+      "Do not implement export here (T-013)",
+      "Do not implement UI here (T-016+)",
+      "Do not implement OEE consumer here (T-011)",
+      "Do not implement integration_health MV here (T-014)"
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-004",
+      "T-006",
+      "T-011"
+    ],
+    "cross_module_dependencies": [
+      "08-PRODUCTION wo_outputs + wo_consumptions (source tables, must exist)",
+      "00-FOUNDATION T-125 app.current_org_id() + withOrgContext (RLS-via-service)",
+      "00-FOUNDATION T-040 R13 audit cols (audit log compatibility)"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0080 runs against fresh DB seeded with 08-PROD wo_outputs/wo_consumptions, when `\\d mv_yield_by_line_week` is inspected, then all declared columns + unique index idx_mv_yield_line_week_pk are present",
+      "Given a line had kg_output=950 and kg_usage=1000, when mv_yield_by_line_week is refreshed, then yield_pct=95.0 (kg_output/kg_usage*100)",
+      "Given two orgs have seeded WO output rows, when select runs via the service helper under org_A app.set_org_context session, then only org_A rows return; cross_tenant_leak_test passes",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then it throws MissingOrgContextError before any SQL and result is 90.0 weighted by kg_usage per D-RPT-3."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/mv-yield.test.ts mounts testcontainers Postgres, seeds 08-PROD producers, sets org context per session, asserts 6 ACs",
+      "Run `pnpm --filter @monopilot/reporting test mv-yield`",
+      "GREEN: write migration + Drizzle entries + service helper"
+    ],
+    "risk_red_lines": [
+      "Do not attempt RLS policies on materialized views — Postgres does not support; enforce service-layer where org_id = app.current_org_id() (§5 Techniczne)",
+      "Do not skip unique index on each MV — required by REFRESH MATERIALIZED VIEW CONCURRENTLY",
+      "Do not use simple AVG(yield_pct) for factory KPI — must be weighted by kg_usage (D-RPT-3)",
+      "Do not query raw transactional joins on the dashboard hot path (D-RPT-1) — read-model views only",
+      "Do not GRANT SELECT to PUBLIC; only app_reporting_role",
+      "Do not bypass app.current_org_id() with current_setting GUC reads"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

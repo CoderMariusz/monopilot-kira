@@ -29,7 +29,8 @@
     "test_strategy": [
       "RED: helper/action tests for V-SET-43/V-SET-44 blockers, permission-denied, audit reason, versioning and org isolation.",
       "GREEN: implement typed helpers/actions consumable by T-020, T-125 and T-127.",
-      "Run targeted auth/server tests plus typecheck/lint for changed packages."
+      "Run targeted auth/server tests plus typecheck/lint for changed packages.",
+      "Run `pnpm --filter @monopilot/web vitest run Exact files discovered before editing`."
     ],
     "risk_red_lines": [
       "Do not implement NPD or Technical application workflows.",
@@ -74,6 +75,17 @@
     "prd_task_id": "T-126",
     "source_prd": "docs/prd/02-SETTINGS-PRD.md",
     "context_budget": "40k",
-    "estimated_effort": "3-5h"
+    "estimated_effort": "3-5h",
+    "out_of_scope": [
+      "broaden scope beyond authorization-policy helpers + V-SET-43/44 blockers",
+      "modify Permission enum strings (owned by T-001/T-002)",
+      "implement future-phase ABAC attribute-based rules"
+    ],
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

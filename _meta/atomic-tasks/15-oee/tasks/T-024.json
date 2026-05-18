@@ -1,0 +1,93 @@
+{
+  "title": "T-024 — Integration test: shift_aggregator → MV → outbox → 12-REPORTING/13-MAINTENANCE wiring (15-OEE-f)",
+  "prompt": "# T-024 — Cross-module integration test\n\nPRD: docs/prd/15-OEE-PRD.md §8.4 (shift aggregation flow), §12.1 (consumer relationships), §12.2 (outbox), D-OEE-2; cross-module 12-REPORTING + 13-MAINTENANCE (D-MNT-3)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nEnd-to-end vitest exercising the full P1 OEE compute + integration chain: seed oee_snapshots → trigger shift_aggregator_v1 (T-008) → oee_shift_metrics MV populated → outbox row written (T-010 schema) → dispatcher routes to 12-REPORTING cache-invalidate queue + 13-MAINTENANCE MTBF/MTTR feed (D-MNT-3) → both consumer mocks observe the event with correct payload. Closes Auditor A's cross-module wiring gap.\n\n## Pre-flight\nAll T-006/T-007/T-008/T-010 must be merged. Verify worker test harness from Wave1 T-111/T-112.\n\n## Implementation contract\n1. `apps/web/__tests__/integration/oee-shift-to-consumers.test.ts` runs an in-process scenario:\n   - Seed two orgs each with 480 oee_snapshots (8h AM shift, per-minute) for line 'LINE-01'.\n   - Advance fake-time past shift_end_time + 5 min.\n   - Tick the worker registry (T-111) — shift_aggregator_v1 fires for both orgs.\n   - Assert oee_shift_metrics has exactly one row per (org, line, shift_date, shift_id); idempotent re-run keeps row count=2.\n   - Assert oee_outbox_events has exactly one row per org with event_type='oee.shift.aggregated' and payload matches Zod schema (T-010).\n   - Tick the outbox dispatcher (T-010) — both consumer mocks (12-REPORTING cache-bust + 13-MAINTENANCE MTBF/MTTR) receive the event with correct payload exactly once.\n   - Assert event_id is unique and idempotent — second dispatcher tick is a no-op (status='delivered').\n   - Assert RLS isolation: orgA's outbox row is invisible from orgB session.\n2. The test uses real DB (via existing integration test harness) and real worker tick loop, not in-memory fakes for the SQL paths.\n\n## Files\n- apps/web/__tests__/integration/oee-shift-to-consumers.test.ts [create]\n- apps/web/__tests__/integration/_helpers/oee-fixtures.ts [create]\n\n## Acceptance criteria\n1. Given two orgs each seeded with 480 oee_snapshots and fake-time advanced past shift_end_time + 5 min, when the worker registry ticks shift_aggregator_v1, then oee_shift_metrics has exactly one row per (org, line, shift_date, shift_id) — total 2 rows.\n2. Given the aggregator completes, when oee_outbox_events is read, then each org has exactly one row with event_type='oee.shift.aggregated' and payload validates against the Zod schema from packages/events/src/oee.ts.\n3. Given the outbox dispatcher ticks, when consumer mocks (12-REPORTING + 13-MAINTENANCE) are inspected, then each org's event is delivered to both consumers exactly once with correct payload, and the outbox row status='delivered' (idempotent second tick is a no-op).\n4. Given RLS is enforced, when orgB's session attempts to read orgA's outbox row, then 0 rows are returned (V-OEE-ACCESS-3 via app.current_org_id()).\n\n## Test strategy\n- RED: vitest integration test asserting all four ACs.\n- Run `pnpm --filter @monopilot/web vitest run __tests__/integration/oee-shift-to-consumers`.\n\n## Risk red lines\n- Do not stub the SQL paths — use real DB integration harness so MV CONCURRENTLY refresh is exercised.\n- Do not skip RLS isolation assertion — it is the cross-cutting invariant.\n- Do not assume consumer module implementations exist — use mocks for 12-REPORTING + 13-MAINTENANCE that record received events (consumer modules implement their side in their respective tasks).\n- Do not couple the test to specific outbox dispatcher internals — observe behaviour via outbox table state + consumer mock event log.\n- Do not skip idempotency assertion — V-OEE-AGG-2 + dispatcher idempotency are both invariants.",
+  "labels": [
+    "prd",
+    "test",
+    "integration",
+    "T4-wiring-test"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-024",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§8.4",
+      "§12.1",
+      "§12.2",
+      "D-OEE-2"
+    ],
+    "category": "test",
+    "subcategory": "cross-module-integration",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "15-OEE-f",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "End-to-end integration test: shift_aggregator → oee_shift_metrics → outbox → 12-REPORTING + 13-MAINTENANCE consumers; closes Auditor A cross-module wiring gap.",
+    "details": "Real DB harness + real worker tick loop + consumer mocks. Asserts MV write, outbox emission, dispatcher routing to 2 consumers, idempotency, RLS isolation. Cross-module: 13-MAINTENANCE D-MNT-3 MTBF/MTTR feed verified via mock consumer.",
+    "scope_files": [
+      "apps/web/__tests__/integration/oee-shift-to-consumers.test.ts [create]",
+      "apps/web/__tests__/integration/_helpers/oee-fixtures.ts [create]"
+    ],
+    "out_of_scope": [
+      "Consumer module implementations in 12-REPORTING / 13-MAINTENANCE",
+      "Anomaly + maintenance trigger flows (P2)",
+      "Playwright E2E (T-025)"
+    ],
+    "dependencies": [
+      "T-006",
+      "T-008",
+      "T-010"
+    ],
+    "parallel_safe_with": [
+      "T-025"
+    ],
+    "acceptance_criteria": [
+      "Given two orgs each seeded with 480 oee_snapshots and fake-time past shift_end + 5 min, when worker registry ticks shift_aggregator_v1, then oee_shift_metrics has exactly one row per (org, line, shift_date, shift_id) — total 2 rows",
+      "Given the aggregator completes, when oee_outbox_events is read, then each org has exactly one row with event_type='oee.shift.aggregated' and payload validates against packages/events/src/oee.ts Zod schema",
+      "Given the outbox dispatcher ticks, when 12-REPORTING + 13-MAINTENANCE consumer mocks are inspected, then each org's event is delivered to both consumers exactly once with correct payload, and outbox status='delivered' (idempotent re-tick no-op)",
+      "Given RLS is enforced, when orgB's session attempts to read orgA's outbox row, then 0 rows are returned (V-OEE-ACCESS-3 via app.current_org_id())"
+    ],
+    "test_strategy": [
+      "RED: vitest integration test asserting all four ACs",
+      "Run `pnpm --filter @monopilot/web vitest run __tests__/integration/oee-shift-to-consumers`"
+    ],
+    "risk_red_lines": [
+      "Do not stub SQL paths — real DB integration harness",
+      "Do not skip RLS isolation assertion",
+      "Do not assume consumer module impl exists — use mocks",
+      "Do not couple to dispatcher internals — observe outbox state + consumer log",
+      "Do not skip idempotency assertion"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

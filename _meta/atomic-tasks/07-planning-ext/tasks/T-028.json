@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§9.8",
-      "§5.1.3"
+      "§5.1 (was §5.1.3)"
     ],
     "category": "integration",
     "subcategory": "outbox-emitter",
@@ -25,7 +25,7 @@
     "context_budget": "30k",
     "estimated_effort": "1-2h",
     "description": "Outbox emitters for scheduler.run.completed + scheduler.assignment.approved with Zod payloads + transactional guard.",
-    "details": "Two pure functions invoked within callers' transactions. Zod-validated payloads. Test verifies atomic insertion and rejection if called outside a tx.",
+    "details": "Two pure functions invoked within callers' transactions. Zod-validated payloads. Test verifies atomic insertion and rejection if called outside a tx. Foundation citation: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. — see `00-foundation/tasks/T-112.json`. PRD-anchor remediation: corrected §5.1.3 to nearest real heading (07-PLANNING-EXT-PRD has only §5.1 (Architecture), §5.4 (Performance), §4.1 (Phase 1 MVP) headings — no sub-numbered sub-headings exist).",
     "scope_files": [
       "apps/web/src/lib/outbox/emitters/scheduler.ts [create]",
       "apps/web/src/lib/outbox/emitters/__tests__/scheduler.test.ts [create]"
@@ -51,7 +51,8 @@
     "risk_red_lines": [
       "Do not insert outbox row outside producing transaction",
       "Do not skip Zod validation",
-      "Do not couple emitters to specific consumers"
+      "Do not couple emitters to specific consumers",
+      "Foundation contract: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. (cite 00-foundation/T-112)."
     ],
     "skills": [
       "test-driven-development",
@@ -87,7 +88,15 @@
       {
         "module": "15-oee",
         "contract": "Planned capacity KPI consumer."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "contract": "Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape."
       }
+    ],
+    "parallel_safe_with": [
+      "T-029"
     ]
   }
 }

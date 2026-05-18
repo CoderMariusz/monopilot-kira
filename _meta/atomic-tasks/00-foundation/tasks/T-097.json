@@ -1,0 +1,78 @@
+{
+  "title": "T-097 — remove test-setup.ui.ts userEvent monkey-patch once user-event v15 ships (FT-037)",
+  "prompt": "# T-097 — remove test-setup.ui.ts userEvent monkey-patch once user-event v15 ships (FT-037)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-037** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P3** (XS effort)\n\n## Goal\nRemove the userEvent monkey-patch once user-event v15 is on npm.\n\n## Implementation contract\n1. Bump @testing-library/user-event to ^15 in apps/web devDependencies.\n2. Delete the monkey-patch block from test-setup.ui.ts.\n3. Run UI tests; assert pass.\n\n## Files (scope)\n- apps/web/test-setup.ui.ts [modify]\n- apps/web/package.json [modify]\n\n## Acceptance criteria\n1. Given user-event v15 is on npm, when bumped in apps/web, then test-setup.ui.ts contains no monkey-patch.\n2. Given the UI test suite, when run, then all tests pass with the new version.\n\n## Test strategy\n- RED: not applicable (upstream-blocked); regression test = existing suite.\n- Run `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`.\n\n## Risk red lines\n- Do not bump if upstream has not released v15.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "debt",
+    "tooling",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-097",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y"
+    ],
+    "original_carry_forward_id": "FT-037",
+    "category": "ui",
+    "subcategory": "tooling",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "≤1h",
+    "description": "When @testing-library/user-event v15 ships with React 19 support, remove the monkey-patch in test-setup.ui.ts.",
+    "details": "T-037 shipped a small userEvent monkey-patch waiting on the official v15 release. Track upstream and remove the patch when v15 lands.",
+    "scope_files": [
+      "apps/web/test-setup.ui.ts [modify]",
+      "apps/web/package.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not refactor other test helpers."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given user-event v15 is on npm, when bumped in apps/web, then test-setup.ui.ts contains no monkey-patch.",
+      "Given the UI test suite, when run, then all tests pass with the new version."
+    ],
+    "test_strategy": [
+      "RED: not applicable (upstream-blocked); regression test = existing suite.",
+      "Run `pnpm --filter @monopilot/web vitest run --config vitest.ui.config.ts`."
+    ],
+    "risk_red_lines": [
+      "Do not bump if upstream has not released v15.",
+      "Do not bypass the env-var gates for the upstream version — release upgrade must follow the workspace bootstrap order"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

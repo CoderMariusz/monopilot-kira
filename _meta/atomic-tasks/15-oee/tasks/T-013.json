@@ -1,0 +1,94 @@
+{
+  "title": "T-013 — /api/oee/summary + export Server endpoints (OEE §10.3, §15.4 OEE-M-002)",
+  "prompt": "# T-013 — Daily summary + export API endpoints\n\nPRD: docs/prd/15-OEE-PRD.md §10.3 (Per-day OEE Summary), §15.4 OEE-M-002 (Export OEE Snapshot), §11 V-OEE-ACCESS\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nTwo Server endpoints powering OEE-003: (a) daily summary loader reading oee_daily_summary MV + per-line 7-day sparkline data, (b) export Server Action queuing a background CSV/PDF export job (reuses 12-REPORTING export engine per OEE-M-002 translation note) — writes `report_exports` audit row + returns jobId.\n\n## Pre-flight\nRead: oee_daily_summary MV (T-007); existing 12-REPORTING export engine entrypoint (queue API + report_exports table); Wave1 T-117 tracer; Wave1 T-121 rate-limit.\n\n## Implementation contract\n1. Server loader `apps/web/app/(oee)/summary/loader.ts`: accepts `date: ISO date`, `lineFilter?: string`, `sort?: column+dir`; reads oee_daily_summary WHERE date=:date AND org_id=app.current_org_id() with optional line filter; returns shape `{ rows: SummaryRow[], factoryAvg: { oee, a, p, q, totalOutput, totalDowntime }, sparklines: Record<line_id, number[]>, lastRefreshedAt: Date, isStale: boolean (lastRefreshedAt > 20 min ago) }`. Sparklines pull 7-day rolling per-line oee_pct from oee_daily_summary.\n2. Export Server Action `apps/web/app/(oee)/summary/actions/export.ts`: accepts `{ date, format: 'csv'|'pdf', sections: { kpis, table, sparklines } }`; validates Zod payload; checks permission `oee.export.csv` or `oee.export.pdf` via role_permissions; calls 12-REPORTING `enqueueExportJob` (existing engine) with payload — writes `report_exports` audit row tagged source='15-oee' BEFORE return; returns `{ jobId, filenamePreview }`.\n3. Optional Route Handler `apps/web/app/api/oee/summary/route.ts` for JSON refresh.\n4. Auth: withOrgContext (Wave1 T-125), report_access_gate_v1 (V-OEE-ACCESS-2), Wave1 T-121 rate-limit (60 req/min for summary; 6 exports/min/user).\n5. Observability: T-117 trace span on every call; T-118 counter `oee_export_jobs_enqueued`.\n6. Vitest: (a) 401/403 access gates, (b) RLS isolation across orgs, (c) `isStale=true` when oee_daily_summary.last_refreshed_at > 20 min, (d) export action enqueues job + writes report_exports row + returns jobId, (e) permission check rejects user without oee.export.csv for csv requests, (f) export rate-limit 6/min/user.\n\n## Files\n- apps/web/app/(oee)/summary/loader.ts [create]\n- apps/web/app/(oee)/summary/actions/export.ts [create]\n- apps/web/app/api/oee/summary/route.ts [create]\n- apps/web/app/(oee)/summary/__tests__/loader.test.ts [create]\n- apps/web/app/(oee)/summary/actions/__tests__/export.test.ts [create]\n\n## Acceptance criteria\n1. Given no session, when GET /api/oee/summary?date=2026-04-20 runs, then response is 401 (V-OEE-ACCESS-1).\n2. Given valid session and oee_daily_summary with last_refreshed_at 25 min ago, when loader runs, then `isStale=true` in the returned payload.\n3. Given a user with oee.export.csv permission, when export action runs with format='csv', then it calls 12-REPORTING enqueueExportJob exactly once, writes a `report_exports` row tagged source='15-oee', and returns `{ jobId, filenamePreview }`.\n4. Given a user WITHOUT oee.export.pdf permission, when export action runs with format='pdf', then it throws a permission error and does NOT enqueue.\n\n## Test strategy\n- RED: vitest oee/summary-loader + export-action asserting four ACs.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary`.\n\n## Risk red lines\n- Do not implement an OEE-specific export engine — reuse 12-REPORTING enqueueExportJob (OEE-M-002 translation note).\n- Do not skip `report_exports` audit row write — translation note + §14.4 GDPR audit traceability.\n- Do not run the export synchronously — always enqueue background job (Wave1 T-111 worker consumes).\n- Do not bypass Wave1 T-121 rate-limits (separate buckets for summary load vs export enqueue).\n- Do not skip permission split between csv/pdf — T-001 enum locks both strings.",
+  "labels": [
+    "prd",
+    "api",
+    "export",
+    "T2-api"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.3",
+      "§15.4 OEE-M-002",
+      "§11"
+    ],
+    "category": "api",
+    "subcategory": "summary-and-export",
+    "task_type": "T2-api",
+    "parent_feature": "15-OEE-c",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Daily summary Server loader + export Server Action (reuses 12-REPORTING engine) with permission split csv/pdf + audit row + stale-after-20-min flag + rate-limit.",
+    "details": "Drives OEE-003 (T-016) + OEE-M-002 modal. Export delegates to 12-REPORTING engine per OEE-M-002 translation note; background job consumed by Wave1 T-111 worker. Stale flag at 20 min reflects oee_daily_summary 15-min refresh + 5-min grace.",
+    "scope_files": [
+      "apps/web/app/(oee)/summary/loader.ts [create]",
+      "apps/web/app/(oee)/summary/actions/export.ts [create]",
+      "apps/web/app/api/oee/summary/route.ts [create]",
+      "apps/web/app/(oee)/summary/__tests__/loader.test.ts [create]",
+      "apps/web/app/(oee)/summary/actions/__tests__/export.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Page UI (T-016)",
+      "Export-XLSX (P2 per OEE-M-002 translation note)",
+      "Anomaly endpoints (P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-007"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given no session, when GET /api/oee/summary?date=2026-04-20 runs, then response is 401 (V-OEE-ACCESS-1)",
+      "Given valid session and oee_daily_summary.last_refreshed_at 25 min ago, when loader runs, then isStale=true",
+      "Given a user with oee.export.csv permission, when export action runs with format='csv', then 12-REPORTING enqueueExportJob is called once, report_exports row tagged source='15-oee' is written, and { jobId, filenamePreview } is returned",
+      "Given a user WITHOUT oee.export.pdf permission, when export action runs with format='pdf', then it throws a permission error and does NOT enqueue"
+    ],
+    "test_strategy": [
+      "RED: vitest oee/summary-loader + export-action asserting four ACs",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary`"
+    ],
+    "risk_red_lines": [
+      "Do not implement OEE-specific export engine — reuse 12-REPORTING",
+      "Do not skip report_exports audit row write",
+      "Do not run export synchronously",
+      "Do not bypass Wave1 T-121 rate-limits (split summary vs export buckets)",
+      "Do not skip permission split between csv/pdf"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

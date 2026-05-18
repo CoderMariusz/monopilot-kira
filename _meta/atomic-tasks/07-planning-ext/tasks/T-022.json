@@ -26,7 +26,7 @@
     "context_budget": "60k",
     "estimated_effort": "3-4h",
     "description": "Greedy assignment algorithm: weighted-priority sort + earliest-feasible-slot loop respecting cascade DAG, capacity, allergen.",
-    "details": "Pure function operating on already-loaded inputs. Sort by weighted priority score with params from §10.1. Earliest-feasible search per WO honors capacity, shifts, dependencies, allergen compat. No DB writes in this module (caller writes assignments).",
+    "details": "Pure function operating on already-loaded inputs. Sort by weighted priority score with params from §10.1. Earliest-feasible search per WO honors capacity, shifts, dependencies, allergen compat. No DB writes in this module (caller writes assignments). Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`.",
     "scope_files": [
       "services/planner-solver/app/algorithms/greedy.py [create]",
       "services/planner-solver/app/algorithms/__init__.py [create]",
@@ -52,7 +52,8 @@
     "risk_red_lines": [
       "Do not violate cascade DAG",
       "Do not exceed capacity_kg_per_hour per shift",
-      "Do not place WO on incompatible-allergen line"
+      "Do not place WO on incompatible-allergen line",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111)."
     ],
     "skills": [
       "test-driven-development",
@@ -78,6 +79,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
+      }
+    ]
   }
 }

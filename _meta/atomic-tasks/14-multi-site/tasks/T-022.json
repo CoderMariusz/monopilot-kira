@@ -1,0 +1,111 @@
+{
+  "title": "T-022 \u2014 Site detail 8-tab page (ms_site_detail) \u2014 MS-115",
+  "prompt": "# T-022 \u2014 Site detail 8-tab page\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710C MS-115\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:102-410 (ms_site_detail)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_site_detail (BL-MS-04 mobile accordion)\n\n## Goal\nServer Component page /(multi-site)/sites/[siteId] with 8 tabs (Overview, Config, Inventory Snapshot, Production Snapshot, Users, Transfers, Calendar, Docs) URL-driven via ?tab=. Mobile accordion at <768px (BL-MS-04 fix).\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/[siteId]/page.tsx (RSC) \u2014 server-fetches site row + aggregate counts for KPI cards.\n2. apps/web/app/(multi-site)/sites/[siteId]/_components/site-detail-tabs.tsx \u2014 shadcn Tabs (URL ?tab=), accordion at <768px via responsive shadcn pattern.\n3. Per-tab Server Components: overview/config-tab (links to T-026 override modal)/inventory-snapshot/production-snapshot/users-tab/transfers-tab/calendar-tab/docs-tab.\n4. RTL parity test + Playwright trace asserting 8 tabs render + mobile accordion swap + Edit/Clear actions Admin/Site-Manager gated.\n\n## Files\n- apps/web/app/(multi-site)/sites/[siteId]/page.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/site-detail-tabs.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/overview-tab.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/config-tab.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/users-tab.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/transfers-tab.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-detail-tabs.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to sites-screens.jsx:102-410 (ms_site_detail), then 8 tabs and per-tab content layout match (Identity card, Status card, Config table, Inventory KPI cards, recent WOs, perm_matrix users, ISTs split inbound/outbound, calendar grid, docs list) \u2014 RTL parity + Playwright trace.\n2. Given URL ?tab=users, when page renders, then Users tab is active and the URL is preserved across navigation.\n3. Given viewport width < 768px, when page renders, then Tabs switch to shadcn Accordion (BL-MS-04 fix); each previously-tab section renders as accordion item.\n4. Given Config tab loads, when Edit Override button is clicked, then T-026 site_config_override_modal opens with pre-filled L1 base value.\n5. Given user role=warehouse_operator (no admin/site_manager), when page renders, then Edit/Clear/Decommission buttons are NOT rendered (Server Component gate).\n6. Given the page is in withSiteContext(siteId=Y) but URL targets siteId=X, when page resolves, then 403 SITE_ACCESS_DENIED (V-MS-16) is returned (route middleware T-007 catches before page renders).\n\n## Test strategy\n- RED: RTL parity + URL ?tab= + mobile accordion + Edit Override flow + permission gate + V-MS-16 before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-detail-tabs' + Playwright site-detail.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:102-410 (ms_site_detail).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not ignore BL-MS-04 \u2014 mobile accordion required.\n- Do not let users access /sites/[siteId] for a site not in their site_user_access \u2014 V-MS-16 enforced by middleware.\n- Do not client-side hide Edit/Clear \u2014 Server Component gate.\n- Do not load all tab content upfront \u2014 lazy-load via Server Component splits.",
+  "labels": [
+    "prd",
+    "ui",
+    "site-detail",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710C MS-115"
+    ],
+    "category": "ui",
+    "subcategory": "site-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-e site mgmt UI",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Server Component 8-tab page (Overview/Config/Inventory/Production/Users/Transfers/Calendar/Docs) matching ms_site_detail prototype + URL-driven tab state + BL-MS-04 mobile accordion fallback.",
+    "details": "Server Component 8-tab page (Overview/Config/Inventory/Production/Users/Transfers/Calendar/Docs) matching ms_site_detail prototype + URL-driven tab state + BL-MS-04 mobile accordion fallback. Scope: Server Component page /(multi-site)/sites/[siteId] with 8 tabs (Overview, Config, Inventory Snapshot, Production Snapshot, Users, Transfers, Calendar, Docs) URL-driven via ?tab=. Touches: apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/. Constraints: 1. apps/web/app/(multi-site)/sites/[siteId]/page.tsx (RSC) \u2014 server-fetches site row + aggregate counts for KPI cards. 2. apps/web/app/(multi-site)/sites/[siteId]/_components/site-detail-tabs.tsx \u2014 shadcn Tabs (URL ?tab=), accordion at <768px via responsive shadcn pattern. 3. Per-tab Server Components: overview/config-tab (links to T-026 override m. Distinguished from sibling 14-multi-site tasks by its narrow site-detail focus against PRD \u00a710C MS-115. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/sites/[siteId]/page.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/site-detail-tabs.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/overview-tab.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/config-tab.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/users-tab.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/tabs/transfers-tab.tsx [create]",
+      "apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-detail-tabs.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement site config override modal (T-026).",
+      "Do not implement site decommission modal (T-024).",
+      "Do not implement permission matrix UI (T-025)."
+    ],
+    "dependencies": [
+      "T-002",
+      "T-007"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "05-warehouse",
+        "task_id": "inventory view",
+        "reason": "Inventory Snapshot tab consumes 05-WH inventory view filtered by site_id."
+      },
+      {
+        "module": "08-production",
+        "task_id": "work_orders",
+        "reason": "Production Snapshot tab reads recent work_orders filtered by site_id."
+      }
+    ],
+    "parallel_safe_with": [
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/sites-screens.jsx:102-410, then 8 tabs and per-tab content match \u2014 RTL parity + Playwright trace; AND given URL ?tab=users when page renders then Users tab active and URL preserved.",
+      "Given viewport < 768px, when page renders, then Tabs switch to Accordion (BL-MS-04 fix); AND given Config tab loads when Edit Override clicked then T-026 modal opens with pre-filled L1 base value.",
+      "Given user role=warehouse_operator, when page renders, then Edit/Clear/Decommission NOT rendered (Server Component gate).",
+      "Given withSiteContext(siteId=Y) but URL targets siteId=X, when page resolves, then 403 SITE_ACCESS_DENIED (V-MS-16) via middleware T-007."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + ?tab= + accordion + Edit Override + permission + V-MS-16 before page exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run site-detail-tabs' + Playwright site-detail.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX wholesale.",
+      "Do not ignore BL-MS-04 \u2014 mobile accordion required.",
+      "Do not allow access to sites outside site_user_access \u2014 V-MS-16 middleware.",
+      "Do not client-side hide Edit/Clear \u2014 Server Component gate.",
+      "Do not load all tab content upfront \u2014 lazy-load."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "ms_site_detail",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

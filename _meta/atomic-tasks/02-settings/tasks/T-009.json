@@ -53,10 +53,12 @@
     ],
     "test_strategy": [
       "RED: assert shape + seed presence.",
-      "GREEN: emit migration + seed."
+      "GREEN: emit migration + seed.",
+      "Run `pnpm --filter @monopilot/db test:integration -- infra-master.test`."
     ],
     "risk_red_lines": [
-      "Do not hard-fail if ltree extension unavailable — provide fallback."
+      "Do not hard-fail if ltree extension unavailable — provide fallback.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

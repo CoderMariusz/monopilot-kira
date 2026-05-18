@@ -1,0 +1,98 @@
+{
+  "title": "T-004 \u2014 Finance setup Server Actions (settings/currencies/exchange_rates/cost_centers/gl_mappings, \u00a78.2 Setup)",
+  "prompt": "# T-004 \u2014 Finance setup Server Actions\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.2 Setup endpoints; \u00a711.1 validations V-FIN-SETUP-01..05; \u00a714.1 L2; \u00a713 RBAC matrix.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement Server Actions covering the 10 setup endpoints listed in PRD \u00a78.2 (finance_settings GET/PUT, cost-centers CRUD + tree, currencies CRUD, exchange-rates GET/POST, gl-mappings CRUD). All actions: Zod-validate input, perform RBAC check via `fin.settings.write` / `fin.currency.admin` / `fin.cost_center.admin` permissions (T-001), wrap in DB transaction, write audit_event row per Foundation R13 pattern.\n\n## Implementation contract\n1. `apps/web/app/finance/settings/_actions.ts`:\n   - `updateFinanceSettings(input)` \u2014 upserts `finance_settings` row for current org; requires `fin.settings.write`; validates default_currency_id exists in currencies table.\n   - `getFinanceSettings()` \u2014 server-side fetch via Drizzle.\n2. `apps/web/app/finance/cost-centers/_actions.ts`:\n   - `createCostCenter(input)`, `updateCostCenter(id,input)`, `deleteCostCenter(id)` \u2014 requires `fin.cost_center.admin`.\n   - `getCostCenterTree()` \u2014 recursive CTE returns hierarchy as JSON tree.\n3. `apps/web/app/finance/currencies/_actions.ts`:\n   - `createCurrency`, `updateCurrency`, `deleteCurrency`, `setBaseCurrency(id)` \u2014 requires `fin.currency.admin`. Setting new base must unset previous (single transaction).\n4. `apps/web/app/finance/exchange-rates/_actions.ts`:\n   - `createExchangeRate(input)` \u2014 requires `fin.currency.admin`. Source 'manual' requires `reason \u2265 20 chars` (Zod superRefine). Source 'api' allowed without reason.\n   - `getExchangeRateHistory(currencyId, range)` \u2014 returns ordered series.\n5. `apps/web/app/finance/gl-mappings/_actions.ts`:\n   - `upsertGlMapping(input)` \u2014 requires `fin.cost_center.admin`. Validates d365_account_code matches regex from T-003 schema CHECK. Setting new active row deactivates prior (same org_id+cost_category) inside transaction.\n6. All actions: use `withOrgContext` HOF from foundation T-125 to bind `app.set_org_context` before queries.\n7. All actions emit audit_events row (action_type, table_name, row_id, before, after, actor_id) on each mutation.\n\n## Files\n- apps/web/app/finance/settings/_actions.ts [create]\n- apps/web/app/finance/cost-centers/_actions.ts [create]\n- apps/web/app/finance/currencies/_actions.ts [create]\n- apps/web/app/finance/exchange-rates/_actions.ts [create]\n- apps/web/app/finance/gl-mappings/_actions.ts [create]\n- apps/web/app/finance/_lib/schemas.ts [create] (shared Zod schemas)\n- apps/web/app/finance/_lib/__tests__/setup-actions.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given a user without fin.settings.write, when updateFinanceSettings is called, then it throws ForbiddenError and no DB write occurs.\n- Given org A's user passes a currency_id belonging to org B, when the action runs, then it fails (RLS not visible) with NotFound.\n- Given setBaseCurrency(newId) is called when org has an existing base, when action commits, then exactly one row has is_base=true (old unset + new set, single transaction).\n- Given createExchangeRate({source:'manual', reason:'short'}), when action runs, then Zod rejects (reason min-length). AND given upsertGlMapping called twice for same (org_id, cost_category), when both commit, then only the latest row is is_active=true and the prior row is_active=false.\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: setup-actions.test.ts uses pglite or testcontainers Postgres; seeds org A and org B; runs each scenario above; asserts RBAC denial, RLS isolation, single-base invariant, validation errors, audit emission.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/setup-actions.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not use REST endpoints \u2014 Server Actions per stack contract.\n- Do not skip the RBAC check (use `hasPermission(session, Permission.FIN_X)` utility from packages/rbac).\n- Do not bypass `withOrgContext` \u2014 direct queries leak across orgs.\n- Do not handle base-currency switch outside a transaction (race risk).\n- Do not write audit rows synchronously inside the policy-protected query \u2014 append to `audit_events` via the standard helper that bypasses RLS for the audit table only.\n- Do not log raw PINs or credentials.\n",
+  "labels": [
+    "prd",
+    "api",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-004",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a78.2",
+      "\u00a711.1",
+      "\u00a713",
+      "\u00a714.1"
+    ],
+    "category": "api",
+    "subcategory": "setup-server-actions",
+    "task_type": "T2-api",
+    "parent_feature": "10-FINANCE-a",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "10 Server Actions covering finance setup CRUD (settings, cost-centers, currencies, exchange-rates, gl-mappings) with RBAC + RLS + audit + transactional base-currency switching.",
+    "details": "Each module-feature has its own _actions.ts file co-located with the route under /finance. Shared Zod schemas in _lib/schemas.ts. Reuse withOrgContext HOF from foundation T-125. Reuse hasPermission utility from packages/rbac. Setting new base currency unsets prior in same transaction. Manual FX rate entries require reason \u226520 chars (Zod superRefine). GL mapping upsert deactivates prior active row for same cost_category in same transaction. [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/settings/_actions.ts [create]",
+      "apps/web/app/finance/cost-centers/_actions.ts [create]",
+      "apps/web/app/finance/currencies/_actions.ts [create]",
+      "apps/web/app/finance/exchange-rates/_actions.ts [create]",
+      "apps/web/app/finance/gl-mappings/_actions.ts [create]",
+      "apps/web/app/finance/_lib/schemas.ts [create]",
+      "apps/web/app/finance/_lib/__tests__/setup-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI screens (T-005, T-006, T-007)",
+      "Seed data (T-008)",
+      "Standard cost actions (T-011)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-003"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given a user without fin.settings.write, when updateFinanceSettings is called, then it throws ForbiddenError and no DB write occurs.",
+      "Given org A's user passes a currency_id belonging to org B, when the action runs, then it fails (RLS not visible) with NotFound.",
+      "Given setBaseCurrency(newId) is called when org has an existing base, when action commits, then exactly one row has is_base=true (old unset + new set, single transaction).",
+      "Given createExchangeRate({source:'manual', reason:'short'}), when action runs, then Zod rejects (reason min-length). AND given upsertGlMapping called twice for same (org_id, cost_category), when both commit, then only the latest row is is_active=true and the prior row is_active=false."
+    ],
+    "test_strategy": [
+      "RED: setup-actions.test.ts seeds two orgs in pglite/testcontainers; exercises each AC.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/setup-actions.test.ts && pnpm typecheck."
+    ],
+    "risk_red_lines": [
+      "Do not use REST endpoints \u2014 Server Actions only.",
+      "Do not skip RBAC check via hasPermission.",
+      "Do not bypass withOrgContext.",
+      "Do not handle base-currency switch outside a transaction.",
+      "Do not log raw PINs/credentials."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

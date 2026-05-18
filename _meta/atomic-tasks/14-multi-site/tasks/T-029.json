@@ -1,0 +1,96 @@
+{
+  "title": "T-029 \u2014 MS-002 Inter-site TO Tracker dashboard (ms_ist_list) \u00a710.1 MS-002",
+  "prompt": "# T-029 \u2014 MS-002 Inter-site TO Tracker dashboard\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710.1 MS-002, \u00a710C MS-002\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:6-120 (ms_ist_list)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_ist_list\n\n## Goal\nServer Component IST tracker page filtered to non-terminal states + route filter (super_admin/multi-site) + ETA coloring (red overdue, amber borderline) + state-gated row actions (view/amend/cancel) + role-gated Freight column.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/transfers/page.tsx (RSC) \u2014 queries transfer_orders WHERE state NOT IN ('closed','cancelled'), joined to sites for from/to display.\n2. Route filter (super_admin/multi-site only): derives from session site context \u2014 single-site users don't see filter.\n3. ETA coloring via cn() utility \u2014 never inline style.\n4. Linked TO/WO references render as <Link href=\"/planning/transfer-orders/[id]\" /> or /planning/work-orders/[id].\n5. Row actions gated by IST state (Server Component passes permissible actions per row).\n6. Freight column hidden for warehouse_operator role (Server Component omits column).\n7. Tests: RTL parity + state-gated actions + role-gated columns + ETA coloring matrix + route filter visibility.\n\n## Files\n- apps/web/app/(multi-site)/transfers/page.tsx [create]\n- apps/web/app/(multi-site)/transfers/_components/ist-tracker-table.tsx [create]\n- apps/web/app/(multi-site)/transfers/_components/__tests__/ist-tracker-table.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given page renders, when compared to ist-screens.jsx:6-120 (ms_ist_list), then filter bar + table columns + state-machine progress badges + linked TO/WO + row actions match \u2014 RTL parity + Playwright trace.\n2. Given an IST eta is past (overdue), when row renders, then the ETA cell has class 'text-red-600 font-bold' via cn() (no inline style).\n3. Given user role=warehouse_operator, when page renders, then Freight column is absent (Server Component omits column).\n4. Given IST state='draft', when row renders, then 'Amend' row action is shown; given state='closed' row would not be in this list (filtered out at SQL level).\n5. Given super_admin user with ALL-sites context, when page renders, then route filter (from_site, to_site) is visible; single-site user does not see route filter.\n6. Given page is in withSiteContext(siteId=X), when query runs, then only ISTs where from_site_id=X OR to_site_id=X are returned (RLS site-scoped).\n\n## Test strategy\n- RED: RTL parity + ETA coloring matrix + role-gated columns + state-gated actions + route filter visibility + RLS site-scoped before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run ist-tracker-table' + Playwright ist-tracker.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:6-120 (ms_ist_list).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not use inline styles for ETA coloring \u2014 cn() utility required.\n- Do not hide Freight column via CSS \u2014 Server Component omits column data.\n- Do not include closed/cancelled ISTs \u2014 SQL-level filter.\n- Do not allow row actions inconsistent with state-machine \u2014 Server Component computes per row.",
+  "labels": [
+    "prd",
+    "ui",
+    "ist-tracker",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-029",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710.1 MS-002",
+      "\u00a710C MS-002"
+    ],
+    "category": "ui",
+    "subcategory": "ist-tracker-dashboard",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-f cross-site dashboards",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "Active IST tracker (state NOT IN closed/cancelled) with route filter (super_admin only) + ETA coloring + state-gated row actions + isOperator column hiding.",
+    "details": "Active IST tracker (state NOT IN closed/cancelled) with route filter (super_admin only) + ETA coloring + state-gated row actions + isOperator column hiding. Scope: Server Component IST tracker page filtered to non-terminal states + route filter (super_admin/multi-site) + ETA coloring (red overdue, amber borderline) + state-gated row actions (view/amend/cancel) + role-gated Freight column. Touches: apps/web/app/(multi-site)/transfers/page.tsx, apps/web/app/(multi-site)/transfers/_components/ist-tracker-table.tsx, apps/web/app/(multi-site)/transfers/_components/__tests__/ist-tracker-table.test.tsx, prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx. Constraints: 1. apps/web/app/(multi-site)/transfers/page.tsx (RSC) \u2014 queries transfer_orders WHERE state NOT IN ('closed','cancelled'), joined to sites for from/to display. 2. Route filter (super_admin/multi-site only): derives from session site context \u2014 single-site users don't see filter. 3. ETA coloring via cn() utility \u2014 never inline style. 4. Linked TO/WO . Distinguished from sibling 14-multi-site tasks by its narrow ist-tracker-dashboard focus against PRD \u00a710.1 MS-002, \u00a710C MS-002. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/transfers/page.tsx [create]",
+      "apps/web/app/(multi-site)/transfers/_components/ist-tracker-table.tsx [create]",
+      "apps/web/app/(multi-site)/transfers/_components/__tests__/ist-tracker-table.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement IST detail (covered by 05-WH ist_detail).",
+      "Do not implement IST create (covered by 05-WH ist_create)."
+    ],
+    "dependencies": [
+      "T-008",
+      "T-020"
+    ],
+    "cross_module_dependencies": [],
+    "parallel_safe_with": [
+      "T-028"
+    ],
+    "acceptance_criteria": [
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:6-120, then filter bar + columns + progress badges + linked TO/WO + row actions match \u2014 RTL parity + Playwright trace.",
+      "Given IST eta past, when row renders, then ETA cell has class 'text-red-600 font-bold' via cn() (no inline style); AND given user role=warehouse_operator when page renders then Freight column absent (Server Component omits).",
+      "Given IST state='draft', when row renders, then 'Amend' row action shown; AND given super_admin with ALL-sites context when page renders then route filter (from_site, to_site) visible; site-scoped user sees only their site's ISTs.",
+      "Given withSiteContext(siteId=X), when query runs, then only ISTs where from_site_id=X OR to_site_id=X returned (RLS site-scoped)."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + ETA matrix + role-gated columns + state-gated actions + route filter visibility + RLS site-scoped before page exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run ist-tracker-table' + Playwright ist-tracker.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX wholesale.",
+      "Do not use inline styles for ETA \u2014 cn() utility.",
+      "Do not hide Freight via CSS \u2014 Server Component omits data.",
+      "Do not include closed/cancelled \u2014 SQL-level filter.",
+      "Do not allow row actions inconsistent with state-machine."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "ms_ist_list",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

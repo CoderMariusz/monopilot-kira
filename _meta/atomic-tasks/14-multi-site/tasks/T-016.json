@@ -1,0 +1,105 @@
+{
+  "title": "T-016 \u2014 Rate card upload 4-step wizard modal (MODAL-RATE-CARD-UPLOAD) \u00a710A.3.2",
+  "prompt": "# T-016 \u2014 Rate card upload 4-step wizard modal\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710A.3.2 (upload pipeline), \u00a710A.3.4 (supersede)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:390-470 (rate_card_upload_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7M-07\n\n## Goal\n4-step wizard wrapped in shadcn Dialog: (1) Upload (react-dropzone, \u22645MB CSV/XLSX), (2) Column-mapping (CSV header \u2192 canonical field, presets persisted per carrier), (3) Preview (first 5 parsed rows with per-cell validation including V-MS-25 effective_to >= effective_from + V-MS-27 ISO 4217 currency), (4) Confirm (summary; if `site_settings['lane_rate_approval_required']==true` rates inserted with approval_status='pending').\n\n## Implementation contract\n1. apps/web/app/(multi-site)/lanes/[laneId]/_components/rate-card-upload-modal.tsx \u2014 shadcn Dialog + 4-step Stepper.\n2. Server Action parseRateCardFile(file, mapping) returns first 5 rows + per-cell validation report.\n3. Server Action importRateCard(laneId, file, mapping) inserts all rows in single tx; partial failures roll back whole batch per \u00a710A.3.2 step 4. Supersede warning per \u00a710A.3.4 surfaced at preview step (overlapping (lane_id, carrier, rate_type, currency) effective window).\n4. Template download endpoint /api/lanes/rate-card-template.csv (public static).\n5. RTL test + Playwright parity test asserting 4 steps + V-MS-25/V-MS-27 cell-level validation + supersede warning surfaces.\n\n## Files\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/rate-card-upload-modal.tsx [create]\n- apps/web/app/(multi-site)/lanes/_actions/parse-rate-card-file.ts [create]\n- apps/web/app/(multi-site)/lanes/_actions/import-rate-card.ts [create]\n- apps/web/app/api/lanes/rate-card-template.csv/route.ts [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/__tests__/rate-card-upload-modal.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:390-470 (rate_card_upload_modal), then 4 step indicators + dropzone + mapping table + preview table + confirm summary all match prototype layout (RTL parity snapshot + Playwright trace).\n2. Given user uploads a file > 5MB, when validated client-side, then upload is blocked with error 'File must be \u2264 5MB'; server-side parseRateCardFile re-validates and rejects (defense-in-depth).\n3. Given a CSV row has effective_to='2026-04-01' and effective_from='2026-05-01', when preview renders, then that cell shows red validation error 'V-MS-25 effective_to must be >= effective_from' and the row is excluded from import.\n4. Given a CSV row has currency='usd', when preview renders, then that cell shows red validation error 'V-MS-27 currency must be ISO 4217 uppercase 3-letter'.\n5. Given the upload contains rates overlapping an existing active rate's (lane_id, carrier, rate_type, currency) effective window, when preview renders, then a warn-level 'Will supersede N existing rate(s)' banner appears (per \u00a710A.3.4).\n6. Given site_settings['lane_rate_approval_required']=true, when Confirm fires, then inserted rows have approval_status='pending'; given the setting is false (or missing), rows have approval_status='active'.\n7. Given a transactional importRateCard runs and the 7th row out of 10 fails post-insert (e.g. unique violation), when the action settles, then all 10 inserts are rolled back (none persisted) per \u00a710A.3.2.\n8. Given GET /api/lanes/rate-card-template.csv is invoked, when the response settles, then it is a CSV file with header row [Carrier, Rate Type, Rate Value, Currency, Effective From, Effective To] and content-type 'text/csv'.\n\n## Test strategy\n- RED: RTL test for 4-step wizard + V-MS-25/V-MS-27 cell validation + supersede warning + transactional rollback + template download before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run rate-card-upload-modal' + Playwright rate-card-upload.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:390-470 (rate_card_upload_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not let client-side validation be the only gate \u2014 Server Action re-validates V-MS-25/V-MS-27.\n- Do not commit partial batch on failure \u2014 must be single tx per \u00a710A.3.2.\n- Do not display raw rate values from rejected rows in error logs \u2014 redact via T-117.\n- Do not allow approval bypass when site_settings['lane_rate_approval_required']=true.\n- Do not skip the supersede prompt \u2014 operators must consciously accept supersede effect.",
+  "labels": [
+    "prd",
+    "ui",
+    "rate-card",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
+    "prd_refs": [
+      "\u00a710A.3.2",
+      "\u00a710A.3.4",
+      "\u00a711.6 V-MS-25",
+      "\u00a711.6 V-MS-27"
+    ],
+    "category": "ui",
+    "subcategory": "rate-card-upload",
+    "task_type": "T3-ui",
+    "parent_feature": "14-MULTI-SITE-c transport lanes",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "4-step wizard (Upload\u2192Map\u2192Preview\u2192Confirm) for CSV/XLSX rate card import \u2014 react-dropzone + Server Action parseRateCardFile + transactional importRateCard + supersede warning step + template download.",
+    "details": "4-step wizard (Upload\u2192Map\u2192Preview\u2192Confirm) for CSV/XLSX rate card import \u2014 react-dropzone + Server Action parseRateCardFile + transactional importRateCard + supersede warning step + template download. Scope: 4-step wizard wrapped in shadcn Dialog: (1) Upload (react-dropzone, \u22645MB CSV/XLSX), (2) Column-mapping (CSV header \u2192 canonical field, presets persisted per carrier), (3) Preview (first 5 parsed rows with per-cell validation including V-MS-25 effective_to >= effective_from + V-MS-27 ISO 4217 currency. Touches: apps/web/app/(multi-site)/lanes/, apps/web/app/(multi-site)/lanes/_actions/parse-rate-card-file.ts, apps/web/app/(multi-site)/lanes/_actions/import-rate-card.ts, apps/web/app/api/lanes/rate-card-template.csv/route.ts. Constraints: 1. apps/web/app/(multi-site)/lanes/[laneId]/_components/rate-card-upload-modal.tsx \u2014 shadcn Dialog + 4-step Stepper. 2. Server Action parseRateCardFile(file, mapping) returns first 5 rows + per-cell validation report. 3. Server Action importRateCard(laneId, file, mapping) inserts all rows in single tx; partial failures roll back whole batch per \u00a710. Distinguished from sibling 14-multi-site tasks by its narrow rate-card-upload focus against PRD \u00a710A.3.2, \u00a710A.3.4, \u00a711.6 V-MS-25, \u00a711.6 V-MS-27. AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "scope_files": [
+      "apps/web/app/(multi-site)/lanes/[laneId]/_components/rate-card-upload-modal.tsx [create]",
+      "apps/web/app/(multi-site)/lanes/_actions/parse-rate-card-file.ts [create]",
+      "apps/web/app/(multi-site)/lanes/_actions/import-rate-card.ts [create]",
+      "apps/web/app/api/lanes/rate-card-template.csv/route.ts [create]",
+      "apps/web/app/(multi-site)/lanes/[laneId]/_components/__tests__/rate-card-upload-modal.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/multi-site/modals.jsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement approval/reject UI here (separate row action in T-015 Rates tab).",
+      "Do not implement background-job mode for large files (P2)."
+    ],
+    "dependencies": [
+      "T-013",
+      "T-015"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-117",
+        "reason": "Observability redact for rate values in error paths."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:390-470 (rate_card_upload_modal), then 4 step indicators + dropzone + mapping + preview + confirm match \u2014 RTL parity + Playwright trace.",
+      "Given user uploads file > 5MB, when validated, then blocked client + server (defense-in-depth); AND given CSV row effective_to before effective_from when preview renders then red validation; AND given currency='usd' when preview renders then red validation 'V-MS-27 ISO 4217 uppercase'.",
+      "Given upload contains rates overlapping existing active (lane_id, carrier, rate_type, currency) window, when preview renders, then warn-level 'Will supersede N rate(s)' banner (\u00a710A.3.4); AND given site_settings['lane_rate_approval_required']=true when Confirm fires then inserted rows have approval_status='pending'.",
+      "Given importRateCard runs and row 7/10 fails, when action settles, then all 10 inserts rolled back (\u00a710A.3.2 single tx); AND given GET /api/lanes/rate-card-template.csv when response settles then CSV with header row [Carrier, LaneCode, ...] returned."
+    ],
+    "test_strategy": [
+      "RED: RTL 4-step wizard + V-MS-25/27 cell validation + supersede warning + tx rollback + template before component exists.",
+      "Run 'pnpm --filter @monopilot/web vitest run rate-card-upload-modal' + Playwright rate-card-upload.spec.ts.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX wholesale.",
+      "Do not let client-side be only validation gate \u2014 Server Action re-validates.",
+      "Do not commit partial batch \u2014 single tx (\u00a710A.3.2).",
+      "Do not log raw rejected rate values \u2014 T-117 redact.",
+      "Do not allow approval bypass when approval_required=true.",
+      "Do not skip supersede prompt."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "frontend-design"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "screenshot_and_playwright_trace_evidence"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rate_card_upload_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

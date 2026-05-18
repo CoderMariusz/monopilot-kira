@@ -1,0 +1,117 @@
+{
+  "title": "T-032 — E2E Playwright: SO → Alloc → Pick → Pack → Ship-confirm → D365 dispatch happy path (11-shipping-j)",
+  "prompt": "# T-032 — E2E shipping spine\n\nPRD: docs/prd/11-SHIPPING-PRD.md §8 Core Flows (SO → Alloc → Pick → Pack → Ship → RMA), §2 Metryki sukcesu (OTD %), §6 D-SHP-14\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPlaywright spec covering the end-to-end shipping spine across multiple modules with seeded test data: create customer → create SO → confirm SO → allocate (FEFO) → release wave → pick (scanner simulated) → pack box → confirm shipment → verify D365 outbox enqueue → mock D365 OData success → verify status='delivered' via POD upload.\n\n## Implementation contract\n1. `apps/web/e2e/shipping-spine.spec.ts` uses T-123 Playwright harness + fixtures.\n2. Seed: org A; customer C-001 with shipping address + allergen restriction; product P-001 (FG SSOT, NPD); 3 LPs in 05-WH with expiry dates ASC.\n3. Test steps (sequential):\n   - Login as shipping_manager.\n   - Open `/(shipping)/customers` → seed already exists; verify customer row.\n   - Open SO wizard, fill 4 steps, submit; verify SO created and status='draft'.\n   - Open SO detail, click Confirm; verify status='confirmed' + outbox shipping.so.confirmed enqueued.\n   - Open `/(shipping)/allocations`, run allocateSO; verify status='allocated' + FEFO sort.\n   - Open `/(shipping)/picks/waves/build` → build wave → release wave; verify pick_lists created.\n   - Switch to scanner-style mock session; call executePick API for each pick_list_line with scan_event_id; verify pick_list_lines.status='picked'.\n   - Open `/(shipping)/pack/<station>` → close box (with valid weight) → confirm shipment; verify shipments.status='shipped' + sscc + bol generated + shipping_outbox_events row with event_type='shipment.confirmed' and idempotency_key='ship::<id>::v1'.\n   - Run apps/worker dispatcher (T-029) against mock D365 OData; verify event status='delivered' and OTel span recorded.\n   - Open `/(shipping)/shipments/<id>` → upload POD → verify status='delivered' + pod_hash present.\n4. Each step captures Playwright trace + screenshot.\n5. The test asserts cross-module invariants:\n   - SSCC passes mod-10 (V-SHIP-LBL-03).\n   - No `factory_release_state` field appears in D365 adapter output (export-only contract).\n   - 05-WH license_plates.status transitioned: available → reserved → shipped (via 05-WH transition_lp DSL).\n   - 09-QA: any active hold blocks confirmShipment (run a HOLD scenario in a sub-test).\n   - audit_events row written for each major mutation (R13).\n\n## Files\n- apps/web/e2e/shipping-spine.spec.ts [create]\n- apps/web/e2e/fixtures/shipping-seed.ts [create]\n- apps/web/e2e/mocks/d365-odata-mock.ts [create]\n- apps/web/e2e/__tests__/shipping-spine.smoke.test.ts [create — smoke runner]\n\n## Acceptance criteria\n1. Given the test is run via `pnpm --filter @monopilot/web playwright test apps/web/e2e/shipping-spine.spec.ts`, when the spine completes, then all 10 steps pass with no flakes (3-run streak) and Playwright trace is captured for each step.\n2. Given a sub-test introduces a critical quality_hold on the allocated LP before confirmShipment, when the action is invoked, then it returns blocker_code='qa.critical_hold' and the test asserts shipments.status remains 'packed'.\n3. Given the D365 adapter output is captured at dispatch, when the JSON is grep-asserted for `factory_release_state`, then zero occurrences (export-only contract).\n4. Given license_plates rows are inspected post-shipment, when state is checked, then status transitions are: available → reserved (at allocate) → shipped (at confirmShipment) — all atomic.\n5. Given audit_events is queried post-test, when rows are counted, then at least one R13-tagged row exists per mutation step.\n6. CLOSEOUT evidence includes Playwright trace + per-step screenshots + DB state snapshot + adapter output assertion.\n\n## Test strategy\n- RED: write the spec asserting the 6 ACs; spec must fail until all upstream tasks (T-001..T-031) are green.\n- Use Playwright tracing and screenshots per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n- Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/shipping-spine.spec.ts` 3 times in a row.\n\n## Risk red lines\n- Do not implement Server Actions in this task — consumer of T-007/T-012/T-016/T-020/T-023/T-025/T-029.\n- Do not bypass T-013 quality-hold gate in any test branch.\n- Do not skip the export-only adapter assertion.\n- Do not let the test leak data across runs (use isolated org per run + cleanup hook).\n- Do not allow flakes >0.1% — fix root cause if any step is unstable.\n- Do not rely on real D365 endpoint — only mock OData server (apps/web/e2e/mocks/d365-odata-mock.ts).\n\nNote: SSCC generation in the spine test must read organizations.gs1_company_prefix from 02-settings (never hardcoded).\n",
+  "labels": [
+    "prd",
+    "test",
+    "e2e",
+    "T4-wiring-test"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-032",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§8",
+      "§2",
+      "§6 D-SHP-14"
+    ],
+    "category": "test",
+    "subcategory": "e2e-spine",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "11-shipping-j",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "E2E Playwright spec across 11-SHIPPING + cross-module (05-WH, 09-QA, NPD, 02-SETTINGS) covering SO → Alloc → Pick → Pack → Ship → D365 → POD happy path + QA-hold blocker branch + export-only adapter assertion.",
+    "details": "Uses T-123 harness + mock D365 OData. Asserts cross-module invariants (LP state machine, audit_events R13, FG SSOT, export-only contract).",
+    "scope_files": [
+      "apps/web/e2e/shipping-spine.spec.ts [create]",
+      "apps/web/e2e/fixtures/shipping-seed.ts [create]",
+      "apps/web/e2e/mocks/d365-odata-mock.ts [create]",
+      "apps/web/e2e/__tests__/shipping-spine.smoke.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (consumers only).",
+      "Do not test RMA flow (separate spec).",
+      "Do not test real D365 endpoint."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-007",
+      "T-011",
+      "T-012",
+      "T-013",
+      "T-015",
+      "T-016",
+      "T-018",
+      "T-019",
+      "T-020",
+      "T-023",
+      "T-025",
+      "T-029",
+      "T-031",
+      "00-foundation/T-123"
+    ],
+    "parallel_safe_with": [],
+    "cross_module_dependencies": [
+      "01-npd/T-001 (product table)",
+      "05-warehouse/T-002 (license_plates + transition_lp)",
+      "09-quality/T-010 (v_active_holds)",
+      "00-foundation/T-123 (Playwright harness)",
+      "00-foundation/T-116 (OTel)",
+      "09-quality/T-064 (consume gate — spine test asserts holdsGuard is called for each LP mutation step; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given the test runs via pnpm --filter @monopilot/web playwright test apps/web/e2e/shipping-spine.spec.ts, when the spine completes, then all steps pass: createDraftSO → allocateSO → releaseWave → executePick → closeBox → confirmShipment; SSCC reads organizations.gs1_company_prefix from 02-settings; AND given a critical quality_hold is introduced on the allocated LP before confirmShipment, then blocker_code='qa.critical_hold' returned (09-quality T-064 holdsGuard).",
+      "Given D365 adapter output captured at dispatch, when grep-asserted for factory_release_state, then zero occurrences (export-only R15 anti-corruption, must not mutate canonical Monopilot state).",
+      "Given license_plates inspected post-shipment, when state checked, then transitions: available → reserved → shipped, all captured in audit_events (R13-tagged row per mutation step).",
+      "CLOSEOUT evidence includes Playwright trace + per-step screenshots + DB state snapshot + adapter output assertion."
+    ],
+    "test_strategy": [
+      "RED: write the spec asserting the 6 ACs.",
+      "Run `pnpm --filter @monopilot/web playwright test apps/web/e2e/shipping-spine.spec.ts` 3 times.",
+      "Capture Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY."
+    ],
+    "risk_red_lines": [
+      "Do not implement Server Actions in this task.",
+      "Do not bypass T-013 quality-hold gate.",
+      "Do not skip export-only adapter assertion.",
+      "Do not leak data across runs.",
+      "Do not allow flakes >0.1%.",
+      "Do not rely on real D365 endpoint.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — spine integration test must assert holdsGuard is called at each LP mutation step."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

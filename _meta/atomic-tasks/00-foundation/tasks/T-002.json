@@ -15,8 +15,7 @@
     "prd_task_id": "T-002",
     "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
     "prd_refs": [
-      "§5",
-      "§5.Backend"
+      "§5"
     ],
     "category": "data",
     "subcategory": "scaffold",
@@ -25,7 +24,7 @@
     "context_budget": "35k",
     "estimated_effort": "1-2h",
     "description": "Create packages/db workspace with Drizzle ORM, drizzle-kit migration runner, and Postgres 16 connection helpers. No business tables yet — only the migration toolchain.",
-    "details": "Create packages/db/package.json with drizzle-orm and drizzle-kit. Add packages/db/drizzle.config.ts pointing to packages/db/migrations and packages/db/schema. Add lib/db/client.ts exporting a typed Drizzle client constructed from process.env.DATABASE_URL. Add packages/db/scripts/migrate.ts running drizzle-kit push. Add a vitest integration test that connects to a Postgres docker container, runs zero migrations, and asserts SELECT 1 returns 1.",
+    "details": "PRD anchor corrected: §5.Backend removed (Backend is an unnumbered subsection under §5, not a distinct anchor) by Fixer F12 2026-05-14 (anchor sweep). Create packages/db/package.json with drizzle-orm and drizzle-kit. Add packages/db/drizzle.config.ts pointing to packages/db/migrations and packages/db/schema. Add lib/db/client.ts exporting a typed Drizzle client constructed from process.env.DATABASE_URL. Add packages/db/scripts/migrate.ts running drizzle-kit push. Add a vitest integration test that connects to a Postgres docker container, runs zero migrations, and asserts SELECT 1 returns 1.",
     "scope_files": [
       "packages/db/package.json [create]",
       "packages/db/drizzle.config.ts [create]",

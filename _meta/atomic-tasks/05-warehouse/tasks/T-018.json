@@ -1,13 +1,13 @@
 {
-  "title": "T-018 — LP merge service",
-  "prompt": "# T-018 — LP merge service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §6.5 (FR-WH-003), V-WH-LP-004/005.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `mergeLps(primaryLpId, secondaryLpIds[])` Server Action accumulating qty into primary and marking secondaries 'merged'.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/lp-merge.ts`. Validation: same product_id/uom/warehouse_id/(location_id unless merge_cross_location), batch_number (or both NULL), expiry within merge_expiry_tolerance_days, qa_status, status='available'. Algorithm per §6.5: primary.qty += sum(secondary.qty); primary.catch_weight_kg = sum of all (per baseline D14); secondary.status='merged'; insert lp_genealogy rows. Single transaction.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/lp-merge.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts [create]\n\n## Acceptance criteria\n1. Given primary qty=50 plus two secondaries qty=30 + 20, when service runs, then primary.qty=100 and both secondaries become status='merged'.\n2. Given a secondary has status='reserved', when service runs, then it returns a validation error per V-WH-LP-005.\n3. Given service completes, when lp_genealogy is queried, then two rows link each secondary as parent of primary with operation_type='merge'.\n\n## Test strategy\n- RED: lp-merge.test.ts covers happy/invalid/genealogy paths.\n- Run `pnpm --filter web test lp-merge`.\n\n## Risk red lines\n- Do not allow reserved LPs to merge.\n- Do not mix products / batches.\n- Do not skip catch_weight summation.",
+  "title": "T-018 — LP merge service + catch-weight sum (WH §6.5)",
+  "prompt": "# T-018 — LP merge service + catch-weight sum (WH §6.5)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `mergeLicensePlates` service: primary + secondaries → primary.quantity += Σsec.qty, primary.catch_weight_kg = Σall cw (baseline D14), secondaries.status='merged', lp_genealogy operation='merge'. Strict validation: same product/uom/batch/expiry±tolerance/qa_status; secondaries must be `available` (never `reserved`).\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/lp-merge.ts`: function `mergeLicensePlates({primary_lp_id, secondary_lp_ids[]})`.\n2. Validation: each secondary matches primary on product_id, uom, warehouse_id, batch_number (or both NULL), expiry_date within `merge_expiry_tolerance_days` (default 1), qa_status; secondary.status='available'; if `merge_cross_location=false`, all share location_id.\n3. Atomic transaction: primary.quantity += Σ, primary.catch_weight_kg += Σ, secondaries.status='merged', INSERT lp_genealogy (each secondary→primary, operation='merge'), single outbox event lp.merged (caller emits).\n\n## Files\n- apps/web/lib/services/warehouse/lp-merge.ts [create]\n- apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts [create]\n\n## Acceptance criteria\n1. Given primary 50 BOX (cw=75kg) + 2 secondaries (30 BOX 45kg, 20 BOX 30kg) all matching, when merged, then primary.quantity=100, primary.catch_weight_kg=150, both secondaries.status='merged', and 2 lp_genealogy rows exist (V-WH-LP-004).\n2. Given any secondary differs in batch_number, when merge is attempted, then it rejects with V-WH-LP-004.\n3. Given any secondary is `reserved`, when merge is attempted, then it rejects with V-WH-LP-005.\n4. Given expiry differs by 2 days and tolerance=1, when merge is attempted, then it rejects.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts` asserting catch-weight sum, validation failures, atomicity.\n- Run `pnpm --filter web test lp-merge`.\n\n## Risk red lines\n- Do not allow merging reserved LPs (V-WH-LP-005).\n- Do not lose catch weight — sum is mandatory baseline D14.\n- Do not skip lp_genealogy rows.\n\n## Dependencies\n- T-016\n- T-003",
   "labels": [
     "prd",
-    "api",
+    "service",
     "lp-core",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "lp-core",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-lp-core",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "LP merge service accumulating qty into primary, marking secondaries 'merged', writing genealogy.",
-    "details": "Validation per V-WH-LP-004/005. Catch-weight sum (baseline D14). Single transaction.",
+    "description": "Implement `mergeLicensePlates` service: primary + secondaries → primary.quantity += Σsec.qty, primary.catch_weight_kg = Σall cw (baseline D14), secondaries.status='merged', lp_genealogy operation='merge'. Strict validation: same product/uom/batch/expiry±tolerance/qa_status; secondaries must be `available` (never `reserved`).",
+    "details": "Implement `mergeLicensePlates` service: primary + secondaries → primary.quantity += Σsec.qty, primary.catch_weight_kg = Σall cw (baseline D14), secondaries.status='merged', lp_genealogy operation='merge'. Strict validation: same product/uom/batch/expiry±tolerance/qa_status; secondaries must be `available` (never `reserved`). `apps/web/lib/services/warehouse/lp-merge.ts`: function `mergeLicensePlates({primary_lp_id, secondary_lp_ids[]})`. Validation: each secondary matches primary on product_id, uom, warehouse_id, batch_number (or both NULL), expiry_date within `merge_expiry_tolerance_days` (default 1), qa_status; secondary.status='available'; if `merge_cross_location=false`, all share location_id.",
     "scope_files": [
       "apps/web/lib/services/warehouse/lp-merge.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts [create]"
@@ -42,18 +42,19 @@
       "T-017"
     ],
     "acceptance_criteria": [
-      "Given primary qty=50, secondaries qty=30+20, when service runs, then primary.qty=100 and secondaries become 'merged'",
-      "Given a secondary status='reserved', when service runs, then it returns V-WH-LP-005 validation error",
-      "Given service completes, when lp_genealogy is queried, then two rows link secondaries→primary with operation_type='merge'"
+      "Given primary 50 BOX (cw=75kg) + 2 secondaries (30 BOX 45kg, 20 BOX 30kg) all matching, when merged, then primary.quantity=100, primary.catch_weight_kg=150, both secondaries.status='merged', and 2 lp_genealogy rows exist (V-WH-LP-004).",
+      "Given any secondary differs in batch_number, when merge is attempted, then it rejects with V-WH-LP-004.",
+      "Given any secondary is `reserved`, when merge is attempted, then it rejects with V-WH-LP-005.",
+      "Given expiry differs by 2 days and tolerance=1, when merge is attempted, then it rejects."
     ],
     "test_strategy": [
-      "RED: lp-merge.test.ts covers happy + reserved-blocked + genealogy paths",
-      "Run 'pnpm --filter web test lp-merge'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/lp-merge.test.ts` asserting catch-weight sum, validation failures, atomicity.",
+      "Run `pnpm --filter web test lp-merge`."
     ],
     "risk_red_lines": [
-      "Do not merge reserved LPs",
-      "Do not merge mismatched product/batch/expiry",
-      "Do not skip catch-weight sum"
+      "Do not allow merging reserved LPs (V-WH-LP-005).",
+      "Do not lose catch weight — sum is mandatory baseline D14.",
+      "Do not skip lp_genealogy rows."
     ],
     "skills": [
       "test-driven-development",
@@ -83,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -109,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

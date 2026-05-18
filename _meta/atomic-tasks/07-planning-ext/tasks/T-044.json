@@ -16,7 +16,8 @@
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -30,7 +31,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -63,7 +67,8 @@
     "acceptance_criteria": [
       "Given a completed run, then metadata/output summary/assignments/override log render with pext_run_detail prototype parity.",
       "Given input_snapshot link is opened, then JSON is shown in a collapsible or modal without exposing another tenant.",
-      "Given a fallback/partial run, then warning badges and error/partial messaging are visible."
+      "Given a fallback/partial run, then warning badges and error/partial messaging are visible.",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED loader tests for tenant scoping and joined data; RTL parity snapshot.",
@@ -74,6 +79,18 @@
       "Do not compute utilization client-side from incomplete data.",
       "Do not omit override reason audit rows."
     ],
-    "prd_task_id": "T-044"
+    "prd_task_id": "T-044",
+    "parallel_safe_with": [
+      "T-043"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/runhistory-screens.jsx:119-260` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
+    ]
   }
 }

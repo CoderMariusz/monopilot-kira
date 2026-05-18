@@ -1,0 +1,103 @@
+{
+  "title": "T-011 \u2014 Standard cost Server Actions (CRUD + approve + supersede + e-signature SHA-256, \u00a78.2, \u00a75.3)",
+  "prompt": "# T-011 \u2014 Standard cost Server Actions\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.2 Standard Costs endpoints; \u00a75.3 21 CFR Part 11 e-signature SHA-256(approver_id || record_id || timestamp || PIN_proof); \u00a711.2 V-FIN-STD-01..08; \u00a713.1 standard_cost.approved event hook; \u00a713.2 cost_per_kg dual ownership.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for standard cost lifecycle: createDraft, submitForApproval, approve (with PIN re-verification + SHA-256 signature), supersede (effective_to + status='superseded' + create replacement draft), getByItem (current active), getAuditTrail. All actions: Zod validate, RBAC check (`fin.standard_cost.create/approve/supersede`), transactional, audit_events + cost_approval_audit rows on every transition, emit `standard_cost.approved` outbox event on approve.\n\n## Implementation contract\n1. `apps/web/app/finance/standard-costs/_actions.ts`:\n   - `createStandardCostDraft(input)` \u2014 requires `fin.standard_cost.create`. Sets status='draft'.\n   - `submitForApproval(id)` \u2014 transitions draft \u2192 pending. Notifies finance managers via notification outbox.\n   - `approveStandardCost(id, {pin_proof, reason})` \u2014 requires `fin.standard_cost.approve`. Server computes SHA-256(approver_id || id || now() || PIN_proof) \u2014 never logs raw PIN. Validates PIN against user's bcrypt-stored PIN hash. Transitions pending \u2192 approved. Sets approved_by, approved_at, approval_signature_hash, approval_reason. Emits `finance_outbox_events` row with event_type='finance.standard_cost.approved' (T-027 schema). Updates items.cost_per_kg via the finance-permitted UPDATE (T-010 policy). Writes cost_approval_audit row.\n   - `bulkApproveStandardCosts(ids, {pin_proof, reason})` \u2014 same logic inside a transaction; partial-failure result.\n   - `supersedeStandardCost(id, {supersede_date, new_draft_attrs})` \u2014 sets effective_to=supersede_date + status='superseded' on current approved, creates new draft row (returns new_draft_id). Atomic.\n   - `getActiveStandardCostByItem(itemId)` \u2014 Drizzle SELECT WHERE status='approved' AND now() BETWEEN effective_from AND COALESCE(effective_to, 'infinity').\n   - `getStandardCostAudit(id)` \u2014 read from cost_approval_audit.\n2. Zod schemas in `_lib/schemas.ts`:\n   - `standardCostCreateSchema` with V-FIN-STD-01 refine (effective_to > effective_from or NULL), V-FIN-STD-05 total > 0 if submitting for approval.\n   - V-FIN-STD-06 warn flag (cost change >20% vs prior approved) \u2014 non-blocking in P1 per PRD warning severity.\n   - V-FIN-STD-03/04 server-side: approve requires PIN + recompute hash.\n3. Use `withOrgContext` HOF (foundation T-125) + sets `app.permissions` GUC (T-010 contract).\n\n## Files\n- apps/web/app/finance/standard-costs/_actions.ts [create]\n- apps/web/app/finance/_lib/standard-cost-schemas.ts [create]\n- apps/web/app/finance/_lib/signature.ts [create] (SHA-256 helper, Node crypto)\n- apps/web/app/finance/_lib/__tests__/standard-cost-actions.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given a user without fin.standard_cost.approve, when approveStandardCost called, then ForbiddenError and no DB write.\n- Given approveStandardCost commits, when row is read, then approval_signature_hash equals server-side sha256(approver_id || id || approved_at || pin_proof); raw PIN never logged. AND given PIN bcrypt mismatch, when approve invoked, then {ok:false, error:'PIN_MISMATCH'} and no state transition.\n- Given approval succeeds, when finance_outbox_events row read, then event_type='finance.standard_cost.approved', payload includes required keys, idempotency_key is UUID v7. AND given approval succeeds, when items.cost_per_kg queried, then it equals approved total_cost / uom_kg_factor (D-FIN-9).\n- Given supersede commits, when transaction inspected, then approved row's effective_to=date + status='superseded' AND a new draft row with effective_from=date exists. AND given any successful transition, when cost_approval_audit queried, then a row exists with transition + actor_id. AND given bulkApprove with 50 ids where 2 fail PIN, when result returned, then {approved: 48, failed: [{id, error:'PIN_MISMATCH'}]}.\n_(AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: standard-cost-actions.test.ts seeds users with PIN bcrypt hashes; runs each scenario (approve happy path, PIN mismatch, RBAC denial, overlap-on-approve, supersede transactionality, bulk partial fail, outbox emission, cost_per_kg write via T-010 policy).\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/standard-cost-actions.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not log raw PIN values (PII + security).\n- Do not compute SHA-256 client-side \u2014 server-only, Node crypto.\n- Do not skip PIN re-verification when `finance_settings.critical_approval_pin_required=true`.\n- Do not bypass the GIST exclusion check on approve \u2014 surface the constraint error to user (V-FIN-STD-02).\n- Do not write items.cost_per_kg without the finance permissions GUC set (T-010 trigger will reject \u2014 design-for-failure here is intentional).\n- Do not use REST \u2014 Server Actions only.\n- Do not emit outbox event BEFORE the DB transaction commits (atomic outbox pattern).\n",
+  "labels": [
+    "prd",
+    "api",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-011",
+    "source_prd": "docs/prd/10-FINANCE-PRD.md",
+    "prd_refs": [
+      "\u00a75.3",
+      "\u00a78.2",
+      "\u00a711.2",
+      "\u00a713.1",
+      "\u00a713.2"
+    ],
+    "category": "api",
+    "subcategory": "standard-cost-actions",
+    "task_type": "T2-api",
+    "parent_feature": "10-FINANCE-b",
+    "context_budget": "60k",
+    "estimated_effort": "4-5h",
+    "description": "Server Actions for standard cost lifecycle: create/submit/approve/supersede/bulk-approve with PIN+SHA-256 e-signature + outbox emission + cost_per_kg dual-ownership write.",
+    "details": "Implements \u00a78.2 endpoint contracts as Server Actions; \u00a75.3 e-signature SHA-256 server-side using Node crypto; \u00a713.1 outbox emission of finance.standard_cost.approved (consumed by Reporting MV refresh + 12-REPORTING dashboards); \u00a713.2 cost_per_kg lifecycle write under T-010 trigger gate (requires app.permissions GUC). All transitions write cost_approval_audit. Bulk approve is transactional. [AC count consolidated from 9\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "scope_files": [
+      "apps/web/app/finance/standard-costs/_actions.ts [create]",
+      "apps/web/app/finance/_lib/standard-cost-schemas.ts [create]",
+      "apps/web/app/finance/_lib/signature.ts [create]",
+      "apps/web/app/finance/_lib/__tests__/standard-cost-actions.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "UI screens (T-012, T-013)",
+      "WO actual cost computation (T-015+)",
+      "Outbox events table schema (T-027 owns)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-009",
+      "T-010"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation:T-111 (outbox)",
+      "00-foundation:T-125 (withOrgContext + permissions GUC)",
+      "12-reporting (consumer of finance.standard_cost.approved)"
+    ],
+    "parallel_safe_with": [
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given a user without fin.standard_cost.approve, when approveStandardCost called, then ForbiddenError and no DB write.",
+      "Given approveStandardCost commits, when row is read, then approval_signature_hash equals server-side sha256(approver_id || id || approved_at || pin_proof); raw PIN never logged. AND given PIN bcrypt mismatch, when approve invoked, then {ok:false, error:'PIN_MISMATCH'} and no state transition.",
+      "Given approval succeeds, when finance_outbox_events row read, then event_type='finance.standard_cost.approved', payload includes required keys, idempotency_key is UUID v7. AND given approval succeeds, when items.cost_per_kg queried, then it equals approved total_cost / uom_kg_factor (D-FIN-9).",
+      "Given supersede commits, when transaction inspected, then approved row's effective_to=date + status='superseded' AND a new draft row with effective_from=date exists. AND given any successful transition, when cost_approval_audit queried, then a row exists with transition + actor_id. AND given bulkApprove with 50 ids where 2 fail PIN, when result returned, then {approved: 48, failed: [{id, error:'PIN_MISMATCH'}]}."
+    ],
+    "test_strategy": [
+      "RED: standard-cost-actions.test.ts seeds users + PINs + standard cost rows; exercises each AC.",
+      "Run pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/__tests__/standard-cost-actions.test.ts && pnpm typecheck."
+    ],
+    "risk_red_lines": [
+      "Do not log raw PIN values.",
+      "Do not compute SHA-256 client-side.",
+      "Do not skip PIN re-verification when critical_approval_pin_required=true.",
+      "Do not bypass GIST exclusion on approve.",
+      "Do not write items.cost_per_kg without permissions GUC.",
+      "Do not use REST endpoints.",
+      "Do not emit outbox before DB commit (atomic outbox pattern)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

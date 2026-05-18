@@ -1,0 +1,82 @@
+{
+  "title": "T-076 — cross-org grant rejection (assertActorBelongsToOrg) + integration test (FT-016)",
+  "prompt": "# T-076 — cross-org grant rejection (assertActorBelongsToOrg) + integration test (FT-016)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-016** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (S effort)\n\n## Goal\nAdd an explicit cross-org guard to grantRole and prove rejection with an integration test.\n\n## Implementation contract\n1. New helper `assertActorBelongsToOrg(actorUserId, orgId)` queries user_org_memberships and throws if no row.\n2. grantRole calls the assertion before issuing any GRANT.\n3. Integration test seeds two orgs, one actor in org A, attempts grant in org B; asserts rejection.\n\n## Files (scope)\n- packages/rbac/src/assert-actor-belongs-to-org.ts [create]\n- packages/rbac/src/grant.ts [modify]\n- packages/rbac/src/__tests__/cross-org-grant.integration.test.ts [create]\n\n## Acceptance criteria\n1. Given actor in org A and target user in org B, when grantRole(actor, target, role, orgB) runs, then it throws 'cross_org_grant_denied' and no audit_events row is created.\n2. Given actor in org A and target user in org A, when grantRole runs, then the role is granted and an audit_events row is created.\n3. Given the actor user does not exist, when grantRole runs, then it throws with 'actor_unknown'.\n\n## Test strategy\n- RED: write cross-org-grant.integration.test.ts seeding two orgs + actor and asserting rejection before implementation.\n- Run `pnpm --filter @monopilot/rbac test cross-org-grant`.\n\n## Risk red lines\n- Do not log the actor's full email in the rejection error (PII).\n- Do not skip the actor-unknown branch.\n- Do not use raw new pg.Pool.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "rbac",
+    "cross-org",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-076",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-016",
+    "category": "auth",
+    "subcategory": "rbac",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Add assertActorBelongsToOrg(actorUserId, orgId) guard to grantRole and prove with an integration test that cross-org grants are rejected.",
+    "details": "grantRole currently trusts the caller-provided orgId. An actor in org A could theoretically grant a role in org B if the caller chain bypasses RLS. Add an explicit assertion that the actor belongs to the target org.",
+    "scope_files": [
+      "packages/rbac/src/assert-actor-belongs-to-org.ts [create]",
+      "packages/rbac/src/grant.ts [modify]",
+      "packages/rbac/src/__tests__/cross-org-grant.integration.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor grantRole to use the app-pool here (FT-017)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given actor in org A and target user in org B, when grantRole(actor, target, role, orgB) runs, then it throws 'cross_org_grant_denied' and no audit_events row is created.",
+      "Given actor in org A and target user in org A, when grantRole runs, then the role is granted and an audit_events row is created.",
+      "Given the actor user does not exist, when grantRole runs, then it throws with 'actor_unknown'."
+    ],
+    "test_strategy": [
+      "RED: write cross-org-grant.integration.test.ts seeding two orgs + actor and asserting rejection before implementation.",
+      "Run `pnpm --filter @monopilot/rbac test cross-org-grant`."
+    ],
+    "risk_red_lines": [
+      "Do not log the actor's full email in the rejection error (PII).",
+      "Do not skip the actor-unknown branch.",
+      "Do not use raw new pg.Pool."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

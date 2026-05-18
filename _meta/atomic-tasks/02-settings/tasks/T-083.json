@@ -42,10 +42,12 @@
       "Onboarding bypass works."
     ],
     "test_strategy": [
-      "RED: write tests. GREEN: implement."
+      "RED: write tests. GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/api/scim/scim-integration.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not log bearer tokens."
+      "Do not log bearer tokens.",
+      "Do not relax CSRF protection or cookie SameSite/Secure attributes on auth-adjacent surfaces."
     ],
     "skills": [
       "test-driven-development"

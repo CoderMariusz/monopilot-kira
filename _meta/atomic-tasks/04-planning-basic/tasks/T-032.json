@@ -29,7 +29,7 @@
     "context_budget": "20k",
     "estimated_effort": "1-2h",
     "description": "Common outbox emit helper that all planning state changes use; transactional integrity is the contract.",
-    "details": "outbox_events table assumed to exist in 00-FOUNDATION (cross-module). Helper signature: `emitOutboxEvent({ tenant_id, event, payload, tx, correlation_id? }): Promise<{ id }>`. correlation_id auto-generated via crypto.randomUUID() if not provided. Each row carries status='pending' initially; consumer marks 'delivered' downstream.",
+    "details": "outbox_events table assumed to exist in 00-FOUNDATION (cross-module). Helper signature: `emitOutboxEvent({ tenant_id, event, payload, tx, correlation_id? }): Promise<{ id }>`. correlation_id auto-generated via crypto.randomUUID() if not provided. Each row carries status='pending' initially; consumer marks 'delivered' downstream. Foundation citation: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. — see `00-foundation/tasks/T-112.json`.",
     "scope_files": [
       "src/server/lib/outbox.ts [create]",
       "src/server/lib/__tests__/outbox.test.ts [create]"
@@ -51,7 +51,8 @@
     ],
     "risk_red_lines": [
       "Do not open a separate connection for outbox writes — must use caller tx.",
-      "Do not silently drop events — failure must propagate to caller."
+      "Do not silently drop events — failure must propagate to caller.",
+      "Foundation contract: Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape. (cite 00-foundation/T-112)."
     ],
     "skills": [
       "test-driven-development",
@@ -83,6 +84,11 @@
         "module": "06-scanner-p1",
         "task_id": "CONTRACT",
         "reason": "Scanner consumes released WO/material reservation contracts and produces execution events."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "contract": "Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape."
       }
     ]
   }

@@ -1,75 +1,20 @@
 {
-  "title": "T-055 — Warehouse end-to-end flow tests",
-  "prompt": "# T-055 — Warehouse end-to-end flow tests\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nAdd end-to-end tests covering Warehouse P1 critical paths across schema, services, UI, outbox, and prototype parity markers.\n\n## Implementation contract\nCover receive PO→LPs→putaway/move/split→reserve/release→FEFO deviation→consume contract stub→expiry cron/override→genealogy→label print. Include data-prototype-label selector checks for all first-class labels in prototype-index-warehouse.json.\n\n## Files (scope)\n- apps/web/e2e/warehouse/** [create]\n- packages/db/test/warehouse/** [create]\n- _meta/prototype-labels/prototype-index-warehouse.json\n\n## Acceptance criteria\n1. Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits the PO line.\n2. Given WH-008 split flow runs, then every output row requires destination and genealogy is asserted.\n3. Given labels from prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.\n4. Given all P1 flows complete, then audit/outbox events are asserted for GRN, split/merge, reservation, override, expiry, and label print.\n\n## Test strategy\n- RED: write failing Playwright flows with seeded warehouse fixtures.\n- GREEN: add DB assertions for LP state, reservations, genealogy, outbox, and audit tables.\n- Run pnpm playwright test --grep @warehouse-e2e and pnpm test -- --runInBand warehouse.\n\n## Risk red lines\n- Do not skip audit/outbox assertions.\n- Do not use mocked authorization for RBAC-sensitive checks.\n- Do not treat planned P2 prototype labels as P1 blockers.",
+  "title": "T-055 — E2E: Warehouse P1 critical paths (GRN→putaway→split→reserve→FEFO→consume→expiry→genealogy→label) (WH §6-§15, §16.6)",
+  "prompt": "# T-055 — E2E: Warehouse P1 critical paths (GRN→putaway→split→reserve→FEFO→consume→expiry→genealogy→label) (WH §6-§15, §16.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §6-§15, §16.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd Playwright + DB-assertion E2E suite covering every Warehouse P1 critical path with outbox/audit assertions and data-prototype-label coverage for every first-class label in prototype-index-warehouse.json.\n\n## Implementation contract\n1. Playwright suite `apps/web/e2e/warehouse/` with seeded fixtures + tagged `@warehouse-e2e`.\n2. Flow A: GRN from PO multi-LP-per-line → assert N LPs created with correct batch/expiry/location, no auto-split.\n3. Flow B: LP split with destination required → assert child LPs at correct destinations + genealogy rows.\n4. Flow C: Reservation (RM root) → consume → release → assert FEFO override audit row on deviation.\n5. Flow D: Expiry cron → use_by hard-block + best_before warn + manager override path.\n6. Flow E: Genealogy trace forward+backward depth 5 → FSMA 204 export.\n7. Flow F: Label print → printer-online success + offline-queue path.\n8. Parity sweep: iterate every prototype-index-warehouse.json label and assert `data-prototype-label` selector exists where implemented (or planned-marker exception documented).\n9. DB assertions on every flow: license_plates, lp_genealogy, stock_moves, lp_reservations, pick_overrides, outbox_events, audit logs.\n\n## Files\n- apps/web/e2e/warehouse/** [create]\n- packages/db/test/warehouse/** [create]\n- _meta/prototype-labels/prototype-index-warehouse.json\n\n## Prototype parity\n- Evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Acceptance criteria\n1. Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits.\n2. Given the WH-008 split flow runs, then every output row requires destination and lp_genealogy rows are written.\n3. Given the labels in prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.\n4. Given all P1 flows complete, then audit/outbox events are asserted for GRN, split/merge, reservation, override, expiry, and label print.\n\nNote: UI closeout must include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a 5th AC, hoisted to process layer by Fixer F6 2026-05-14).\n\n## Test strategy\n- RED: write the failing Playwright flows with seeded warehouse fixtures.\n- GREEN: add DB assertions for LP state, reservations, genealogy, outbox, audit tables.\n- Run `pnpm playwright test --grep @warehouse-e2e && pnpm test --runInBand warehouse`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not skip audit/outbox assertions.\n- Do not use mocked authorization for RBAC-sensitive checks.\n- Do not treat planned P2 prototype labels as P1 blockers.\n- Do not flake tests on cron timing — use clock injection.\n\n## Dependencies\n- T-001\n- T-002\n- T-003\n- T-004\n- T-005\n- T-006\n- T-007\n- T-008\n- T-009\n- T-010\n- T-011\n- T-012\n- T-013\n- T-014\n- T-015\n- T-016\n- T-017\n- T-018\n- T-019\n- T-020\n- T-021\n- T-022\n- T-023\n- T-024\n- T-025\n- T-026\n- T-027\n- T-028\n- T-029\n- T-030\n- T-031\n- T-032\n- T-033\n- T-034\n- T-035\n- T-036\n- T-037\n- T-038\n- T-039\n- T-040\n- T-041\n- T-042\n- T-043\n- T-044\n- T-045\n- T-046\n- T-047\n- T-048\n- T-049\n- T-050\n- T-051\n- T-052\n- T-053\n- T-054",
   "labels": [
     "prd",
     "test",
     "e2e",
-    "T4-wiring-test"
+    "warehouse",
+    "t4-wiring-test"
   ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
-    "context_budget": "35k",
-    "skills": [
-      "test-driven-development",
-      "requesting-code-review"
-    ],
-    "checkpoint_policy": {
-      "required_checkpoints": [
-        "RED",
-        "GREEN",
-        "REVIEW",
-        "CLOSEOUT"
-      ],
-      "closeout_requires": [
-        "changed_files",
-        "test_commands_and_results",
-        "acceptance_criteria_status",
-        "deviations_from_prd",
-        "git_status"
-      ]
-    },
-    "cross_module_dependencies": [
-      {
-        "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
-      },
-      {
-        "module": "03-technical",
-        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
-      },
-      {
-        "module": "04-planning-basic",
-        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
-      },
-      {
-        "module": "06-scanner-p1",
-        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
-      },
-      {
-        "module": "08-production",
-        "contract": "WO material consumption and output LP creation events"
-      },
-      {
-        "module": "09-quality",
-        "contract": "LP qa_status ownership and quality_status_history"
-      },
-      {
-        "module": "11-shipping",
-        "contract": "downstream shelf_life_rules enforcement in Phase 2"
-      }
-    ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
     "prd_task_id": "T-055",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
     "prd_refs": [
       "§6-§15",
       "§16.6"
@@ -77,10 +22,11 @@
     "category": "test",
     "subcategory": "warehouse-e2e",
     "task_type": "T4-wiring-test",
-    "parent_feature": "warehouse-wave0-closeout",
+    "parent_feature": "05-warehouse-wave0-closeout",
+    "context_budget": "35k",
     "estimated_effort": "2d",
-    "description": "Add end-to-end tests covering Warehouse P1 critical paths across schema, services, UI, outbox, and prototype parity markers.",
-    "details": "Cover receive PO→LPs→putaway/move/split→reserve/release→FEFO deviation→consume contract stub→expiry cron/override→genealogy→label print. Include data-prototype-label selector checks for all first-class labels in prototype-index-warehouse.json.\n\nDependency hardening: dependencies are expanded to concrete local task IDs T-001..T-054 because ACP/local validators must not receive range strings like T-001..T-054.",
+    "description": "Add Playwright + DB-assertion E2E suite covering every Warehouse P1 critical path with outbox/audit assertions and data-prototype-label coverage for every first-class label in prototype-index-warehouse.json.",
+    "details": "Add Playwright + DB-assertion E2E suite covering every Warehouse P1 critical path with outbox/audit assertions and data-prototype-label coverage for every first-class label in prototype-index-warehouse.json. Playwright suite `apps/web/e2e/warehouse/` with seeded fixtures + tagged `@warehouse-e2e`. Flow A: GRN from PO multi-LP-per-line → assert N LPs created with correct batch/expiry/location, no auto-split. AC count consolidated from 5→4 by Fixer F6 2026-05-14 (no coverage lost; the procedural closeout-evidence AC was relocated to test_strategy + UI-PROTOTYPE-PARITY-POLICY.md compliance via `ui_evidence_policy` and the checkpoint_policy.closeout_requires fields — closeout must still attach screenshot/Playwright trace artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).",
     "scope_files": [
       "apps/web/e2e/warehouse/** [create]",
       "packages/db/test/warehouse/** [create]",
@@ -148,21 +94,81 @@
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits the PO line.",
-      "Given WH-008 split flow runs, then every output row requires destination and genealogy is asserted.",
-      "Given labels from prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.",
+      "Given the Warehouse E2E suite runs, then GRN from PO creates one LP per operator-entered row and never auto-splits.",
+      "Given the WH-008 split flow runs, then every output row requires destination and lp_genealogy rows are written.",
+      "Given the labels in prototype-index-warehouse.json are enumerated, then implemented surfaces expose matching data-prototype-label markers or an explicit planned-marker exception for Phase 2 entries.",
       "Given all P1 flows complete, then audit/outbox events are asserted for GRN, split/merge, reservation, override, expiry, and label print."
     ],
     "test_strategy": [
-      "RED: write failing Playwright flows with seeded warehouse fixtures.",
-      "GREEN: add DB assertions for LP state, reservations, genealogy, outbox, and audit tables.",
-      "Run pnpm playwright test --grep @warehouse-e2e and pnpm test -- --runInBand warehouse."
+      "RED: write the failing Playwright flows with seeded warehouse fixtures.",
+      "GREEN: add DB assertions for LP state, reservations, genealogy, outbox, audit tables.",
+      "Run `pnpm playwright test --grep @warehouse-e2e && pnpm test --runInBand warehouse`.",
+      "Closeout-evidence check (hoisted from former AC5): UI closeout MUST include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence. Verified by reviewer checklist + checkpoint_policy.closeout_requires."
     ],
     "risk_red_lines": [
       "Do not skip audit/outbox assertions.",
       "Do not use mocked authorization for RBAC-sensitive checks.",
-      "Do not treat planned P2 prototype labels as P1 blockers."
+      "Do not treat planned P2 prototype labels as P1 blockers.",
+      "Do not flake tests on cron timing — use clock injection."
     ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
+      },
+      {
+        "module": "03-technical",
+        "contract": "items/products, shelf_life_mode/date_code_format, catch-weight, allergen snapshots"
+      },
+      {
+        "module": "04-planning-basic",
+        "contract": "PO/TO/WO read models, RM root reservations, WO release/cancel hooks"
+      },
+      {
+        "module": "06-scanner-p1",
+        "contract": "LP lookup, barcode validation, lock protocol, FEFO suggestion, consume-to-WO"
+      },
+      {
+        "module": "08-production",
+        "contract": "WO material consumption and output LP creation events"
+      },
+      {
+        "module": "09-quality",
+        "contract": "LP qa_status ownership and quality_status_history"
+      },
+      {
+        "module": "11-shipping",
+        "contract": "downstream shelf_life_rules enforcement in Phase 2"
+      }
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "(all warehouse labels)",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

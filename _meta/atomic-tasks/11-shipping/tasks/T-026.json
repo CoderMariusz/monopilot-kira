@@ -1,0 +1,118 @@
+{
+  "title": "T-026 — RMA schema + Server Actions + rma_list_page (SHIP-026) (11-shipping-g)",
+  "prompt": "# T-026 — RMA Phase 1 (schema + Server Actions + UI list)\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (rma_requests, rma_lines), §8.5 Flow RMA Phase 1, §11 V-SHIP-RMA-01..03\nPrototype: prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:468-534 (rma_list_page)\nUX: prototypes/design/11-SHIPPING-UX.md §3 (RMA flow)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `rma_requests` + `rma_lines` schema; Server Actions for create/approve/receive/disposition; rma_list_page UI. RMA Detail (SHIP-027) is BL-SHIP-04 P2 — only stub link in this task.\n\n## Implementation contract\n1. Migration creates:\n   - ENUM `rma_status_enum` ('pending','approved','receiving','received','processed','closed').\n   - ENUM `rma_disposition_enum` ('restock','scrap','quality_hold').\n   - `rma_requests` (org_id, rma_number text UNIQUE per org `RMA-YYYY-NNNNN`, customer_id FK, sales_order_id FK nullable, reason_code text references reason_codes WHERE context='rma', status rma_status_enum NOT NULL DEFAULT 'pending', total_value_gbp numeric(14,2), disposition rma_disposition_enum nullable, approved_at, approved_by, R13).\n   - `rma_lines` (org_id, rma_request_id FK CASCADE, product_id, quantity_expected, quantity_received numeric(14,3) DEFAULT 0, lot_number, reason_notes, disposition rma_disposition_enum nullable, R13).\n2. RLS + FORCE RLS via app.current_org_id().\n3. Server Actions in `apps/web/lib/server-actions/shipping/rma.ts`:\n   - `createRMA({ customerId, soId, lines, reason_code })` — INSERT rma_requests + lines; outbox `shipping.rma.created`. Permission `ship.so.create`.\n   - `approveRMA(rmaId)` — UPDATE status='approved', approved_at, approved_by; outbox `shipping.rma.approved`. Permission `ship.so.confirm`.\n   - `receiveRMA(rmaId, linesReceived)` — UPDATE quantity_received per line + status='received'; outbox `shipping.rma.received`.\n   - `processRMA(rmaId, disposition)` — V-SHIP-RMA-02 (restock → create new LP in 05-WH with qa_status='pending' — call 05-WH create_lp Server Action; outbox `lp.created`); V-SHIP-RMA-03 (quality_hold → call 09-QA create_hold action; outbox `quality.hold.created`); permission `ship.rma.disposition`.\n4. `/(shipping)/rma/page.tsx` renders rma_list_page (doc-screens.jsx:468-534): table cols (rma_number, customer, sales_order, status, total_value, disposition, created_at) + filter + Create RMA button.\n5. BL-SHIP-04 (RMA Detail SHIP-027 4-tab screen not built) — link from list rows to /(shipping)/rma/[id] with a P2 ScaffoldedScreen + phase badge for now.\n6. Four states + i18n `shipping.rma.*`.\n\n## Files\n- packages/db/migrations/00XX_shipping_rma.sql [create]\n- packages/db/src/schema/shipping/rma.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- apps/web/lib/server-actions/shipping/rma.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/rma.test.ts [create]\n- apps/web/app/(shipping)/rma/page.tsx [create]\n- apps/web/app/(shipping)/rma/_components/rma-list.tsx [create]\n- apps/web/app/(shipping)/rma/[id]/page.tsx [create — P2 ScaffoldedScreen placeholder]\n- apps/web/app/(shipping)/rma/__tests__/rma-list.test.tsx [create]\n- packages/events/src/shipping.ts [modify — ShippingRMACreated/Approved/Received/Processed]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given migration runs, when DB inspected, then rma_requests + rma_lines exist with org_id NOT NULL + R13 + RLS + FORCE RLS via app.current_org_id().\n2. Given createRMA succeeds, when DB inspected, then rma_requests + rma_lines rows exist in same tx; outbox shipping.rma.created emitted.\n3. Given processRMA with disposition='restock', when it runs, then a new LP is created in 05-WH (via the 05-WH create_lp Server Action) with qa_status='pending'; outbox lp.created emitted (cross-module).\n4. Given processRMA with disposition='quality_hold', when it runs, then a quality_holds row is created in 09-QA (via 09-QA create_hold action); outbox quality.hold.created emitted.\n5. Given rma_list_page renders, when compared to doc-screens.jsx:468-534, then header + filters + 7-col table + Create button match — RTL + Playwright screenshot.\n6. Given /(shipping)/rma/[id]/page.tsx renders, when reviewer inspects, then a P2 ScaffoldedScreen with phase badge appears (BL-SHIP-04 documented as P2 placeholder).\n\n## Test strategy\n- RED: testcontainers Postgres for schema; vitest for Server Actions; RTL for UI list; asserts AC 1-6.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-rma-schema && pnpm --filter @monopilot/web vitest run shipping/rma`.\n- Playwright `apps/web/e2e/shipping-rma.spec.ts`.\n\n## Risk red lines\n- Do not create LP rows directly — call 05-WH create_lp Server Action.\n- Do not create quality_holds rows directly — call 09-QA create_hold action.\n- Do not name business-scope column tenant_id.\n- Do not read current_setting GUCs.\n- Do not implement RMA Detail 4-tab screen in P1 (BL-SHIP-04 = P2 scaffold).\n- Do not call mutations outside withOrgContext.",
+  "labels": [
+    "prd",
+    "data",
+    "ui",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-026",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§8.5",
+      "§11 V-SHIP-RMA-01",
+      "§11 V-SHIP-RMA-02",
+      "§11 V-SHIP-RMA-03"
+    ],
+    "category": "backend",
+    "subcategory": "rma",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-g",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "RMA schema + Server Actions (create/approve/receive/process) + rma_list_page UI + BL-SHIP-04 P2 ScaffoldedScreen placeholder for SHIP-027.",
+    "details": "RMA cross-writes: restock → 05-WH create_lp; quality_hold → 09-QA create_hold. Reason codes from reason_codes ref table filtered by context='rma'.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_rma.sql [create]",
+      "packages/db/src/schema/shipping/rma.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "apps/web/lib/server-actions/shipping/rma.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/rma.test.ts [create]",
+      "apps/web/app/(shipping)/rma/page.tsx [create]",
+      "apps/web/app/(shipping)/rma/_components/rma-list.tsx [create]",
+      "apps/web/app/(shipping)/rma/[id]/page.tsx [create]",
+      "apps/web/app/(shipping)/rma/__tests__/rma-list.test.tsx [create]",
+      "packages/events/src/shipping.ts [modify]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement RMA Detail 4-tab screen (BL-SHIP-04 P2).",
+      "Do not implement RMA-to-credit-note flow (Phase 2).",
+      "Do not implement carrier return pickup (Phase 2)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-031",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-027",
+      "T-028"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse (create_lp Server Action)",
+      "09-quality (create_hold action)",
+      "02-settings (reason_codes ref table)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "09-quality/T-064 (consume gate — processRMA disposition='quality_hold' consumes holdsGuard; per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when DB inspected, then rma_requests + rma_lines exist with org_id NOT NULL + R13 + RLS + FORCE RLS; AND given createRMA succeeds, then rma_requests + rma_lines rows exist and outbox shipping.rma.created emitted.",
+      "Given processRMA disposition='restock', when it runs, then new LP created in 05-WH via create_lp Server Action with qa_status='available'; AND given disposition='quality_hold', when it runs, then quality_holds row created in 09-QA via create_hold (holdsGuard per T-064) and outbox shipping.rma.quality_hold_created emitted.",
+      "Given rma_list_page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:468-534, then header + filters + 7-col table + Create button match prototype (parity checklist).",
+      "Given /(shipping)/rma/[id]/page.tsx renders, when reviewer inspects, then P2 ScaffoldedScreen with phase badge appears (BL-SHIP-15); UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres for schema + vitest for Server Actions + RTL for UI list asserting AC 1-6.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-rma-schema && pnpm --filter @monopilot/web vitest run shipping/rma`.",
+      "Playwright apps/web/e2e/shipping-rma.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not create LP rows directly — call 05-WH create_lp.",
+      "Do not create quality_holds directly — call 09-QA create_hold.",
+      "Do not name business-scope column tenant_id.",
+      "Do not read current_setting GUCs.",
+      "Do not implement RMA Detail 4-tab screen in P1.",
+      "Do not call mutations outside withOrgContext.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — processRMA disposition='quality_hold' must route through holdsGuard before creating a hold."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rma_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

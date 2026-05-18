@@ -51,7 +51,7 @@
     "parent_feature": "07-EXT-c forecast bridge P2",
     "estimated_effort": "4-5h",
     "description": "Implement P2 internal Prophet FastAPI service, daily retrain, inference, SMAPE actuals job and health endpoint.",
-    "details": "Internal-only service; no external managed ML APIs. Historical inputs can be internal wo_outputs or optional D365 sales history pull via integrations, but D365 remains optional and not P1 source of truth.",
+    "details": "Internal-only service; no external managed ML APIs. Historical inputs can be internal wo_outputs or optional D365 sales history pull via integrations, but D365 remains optional and not P1 source of truth. Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`.",
     "scope_files": [
       "services/forecaster/** [create]",
       "packages/db/migrations/*forecast_model_metrics*.sql [create]",
@@ -75,6 +75,11 @@
       {
         "module": "13-integrations",
         "contract": "Optional P2 D365 sales history pull; not required for P1."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
       }
     ],
     "acceptance_criteria": [
@@ -89,7 +94,8 @@
     "risk_red_lines": [
       "Do not call external ML APIs.",
       "Do not block scheduler when forecaster is unhealthy.",
-      "Do not make D365 a hard dependency."
+      "Do not make D365 a hard dependency.",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111)."
     ],
     "prd_task_id": "T-054"
   }

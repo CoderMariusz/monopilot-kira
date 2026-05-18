@@ -1,0 +1,95 @@
+{
+  "title": "T-003 — shift_configs + oee_alert_thresholds reference tables DDL + RLS (OEE §9.4, 02-SET §8.1)",
+  "prompt": "# T-003 — shift_configs + oee_alert_thresholds reference tables\n\nPRD: docs/prd/15-OEE-PRD.md §9.4, §11 V-OEE-SHIFT-1..4 (24h coverage, no overlap, valid IANA tz)\nCross-PRD: docs/prd/02-SETTINGS-PRD.md §8.1 (reference tables registry)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate two reference tables consumed by the OEE shift aggregator and thresholding: `shift_configs` (per-tenant shift definitions) and `oee_alert_thresholds` (per-line + per-tenant default targets). Both follow the 02-SETTINGS §8.1 reference-tables pattern (RLS, R13 audit, org_id NOT NULL, optional site_id REC-L1).\n\n## Pre-flight schema check\nRead `packages/db/migrations/` for: (a) latest migration number, (b) presence of `app.current_org_id()` (Wave1 T-125), (c) presence of `site_user_access` (14-multi-site). Read `docs/prd/02-SETTINGS-PRD.md §8.1` to align with reference-table pattern (registry row, viewer screen integration).\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_a_shift_configs_thresholds.sql` creating:\n   - `shift_configs` per PRD §9.4 DDL with `org_id UUID NOT NULL`, `site_id UUID NULL` REC-L1, `shift_id TEXT`, `shift_label TEXT`, `start_time TIME NOT NULL`, `end_time TIME NOT NULL`, `timezone TEXT NOT NULL DEFAULT 'UTC'` (IANA validated by Zod at write time per V-OEE-SHIFT-4), `active_days TEXT[] DEFAULT ARRAY['mon','tue','wed','thu','fri','sat','sun']`, `sort_order INT NOT NULL`, `is_active BOOLEAN DEFAULT TRUE`, R13 audit cols, `UNIQUE(org_id, shift_id)`.\n   - `oee_alert_thresholds` per PRD §9.4: `org_id UUID NOT NULL`, `site_id UUID NULL`, `line_id TEXT NULL` (NULL=tenant default), `oee_target_pct NUMERIC(5,2) DEFAULT 70.00`, `availability_min_pct DEFAULT 70.00`, `performance_min_pct DEFAULT 80.00`, `quality_min_pct DEFAULT 95.00`, `anomaly_alpha NUMERIC(3,2) DEFAULT 0.30`, `anomaly_sigma_threshold NUMERIC(3,1) DEFAULT 2.0`, `maintenance_trigger_threshold_pct DEFAULT 70.00`, `maintenance_trigger_consecutive_days INT DEFAULT 3`, R13 audit cols, `UNIQUE(org_id, line_id)`.\n2. ENABLE+FORCE RLS; policy `<table>_org_site` USING (`org_id = app.current_org_id() AND (site_id IS NULL OR site_id IN (SELECT site_id FROM site_user_access WHERE user_id = auth.uid()))`) WITH CHECK same.\n3. Insert `shift_configs` + `oee_alert_thresholds` rows into 02-SETTINGS `reference_tables_registry` (or equivalent metadata table) so 02-SETTINGS §8.1 viewer can list them (read-only from 02-SET; writes via OEE-ADM-002/003 — T-021/T-022).\n4. Drizzle schemas `packages/db/src/schema/oee/shift-configs.ts` and `packages/db/src/schema/oee/alert-thresholds.ts` with typed Insert/Select.\n5. Vitest covering: (a) RLS isolation across two orgs, (b) UNIQUE constraints, (c) policy text references `app.current_org_id()` not GUC, (d) defaults applied when omitted.\n\n## Files\n- packages/db/migrations/NNNN_oee_a_shift_configs_thresholds.sql [create]\n- packages/db/src/schema/oee/shift-configs.ts [create]\n- packages/db/src/schema/oee/alert-thresholds.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-a-shift-configs-thresholds.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when `\\d shift_configs` and `\\d oee_alert_thresholds` are read, then columns match PRD §9.4 with org_id NOT NULL, site_id UUID NULL, R13 audit cols, UNIQUE(org_id, shift_id) and UNIQUE(org_id, line_id), and RLS+FORCE RLS enabled on both.\n2. Given two orgs and `app.set_org_context`, when SELECT runs in each session, then RLS isolation holds and policy text references `app.current_org_id()` (no `current_setting()` GUC reads).\n3. Given an `oee_alert_thresholds` row inserted with only `(org_id, line_id)`, when fetched, then defaults `70.00/70.00/80.00/95.00/0.30/2.0/70.00/3` are applied.\n4. Given the 02-SETTINGS reference_tables_registry is queried, when filtered for OEE namespace, then both new tables are listed.\n\n## Test strategy\n- RED: vitest oee-a-shift-configs-thresholds asserting all four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-a-shift-configs-thresholds`.\n\n## Risk red lines\n- Do not name business column tenant_id; use org_id.\n- Do not read current_setting() GUC; use app.current_org_id().\n- Do not enforce IANA timezone via CHECK constraint — V-OEE-SHIFT-4 validates server-side via Zod (Postgres has no built-in IANA list).\n- Do not couple this task to UI (T-020/T-021/T-022).\n- Do not skip the 02-SETTINGS registry insert — OEE-ADM-002 viewer depends on it.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§9.4",
+      "§11",
+      "02-SET §8.1"
+    ],
+    "category": "data",
+    "subcategory": "schema-reference-tables",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-a",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Create shift_configs + oee_alert_thresholds reference tables with RLS via app.current_org_id() + site_user_access, R13 audit, Drizzle schemas, vitest. Register in 02-SETTINGS §8.1 reference_tables_registry.",
+    "details": "Both tables are 02-SETTINGS reference-table pattern but lifecycle-owned by 15-OEE writers (T-021/T-022). 02-SETTINGS exposes read-only viewer rows. shift_configs feeds shift_aggregator_v1 (T-008); oee_alert_thresholds feeds dashboards (T-014..T-019) and anomaly/maintenance triggers (T-023 stubs). Defaults reflect PRD §9.4 verbatim. V-OEE-SHIFT validators 1-4 are implemented in the writer Server Actions (T-021/T-022), not as DB CHECK constraints (24h coverage + overlap detection are multi-row invariants).",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_a_shift_configs_thresholds.sql [create]",
+      "packages/db/src/schema/oee/shift-configs.ts [create]",
+      "packages/db/src/schema/oee/alert-thresholds.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-a-shift-configs-thresholds.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create MV tables here (T-006, T-007)",
+      "Do not implement shift_aggregator_v1 (T-008)",
+      "Do not write Server Actions for OEE-ADM-001/002/003 (T-021/T-022)",
+      "Do not enforce IANA tz via CHECK constraint"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-002",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d shift_configs and \\d oee_alert_thresholds are read, then columns match PRD §9.4 with org_id NOT NULL, site_id NULL, R13 audit cols, UNIQUE(org_id, shift_id) and UNIQUE(org_id, line_id), RLS+FORCE RLS enabled",
+      "Given app.set_org_context for two orgs, when SELECT runs as app_user, then RLS isolation holds and policy text references app.current_org_id()",
+      "Given an oee_alert_thresholds row inserted with only (org_id, line_id), when fetched, then PRD §9.4 defaults are applied (70/70/80/95/0.30/2.0/70/3)",
+      "Given the 02-SETTINGS reference_tables_registry is queried, when filtered for OEE namespace, then both new tables are listed"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-a-shift-configs-thresholds asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-a-shift-configs-thresholds`"
+    ],
+    "risk_red_lines": [
+      "Do not name business column tenant_id; use org_id",
+      "Do not read current_setting() GUC; use app.current_org_id()",
+      "Do not enforce IANA tz via CHECK; validate via Zod in Server Action",
+      "Do not couple to UI (T-020/T-021/T-022)",
+      "Do not skip 02-SETTINGS registry insert"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

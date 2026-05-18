@@ -16,7 +16,8 @@
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -30,7 +31,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -74,7 +78,8 @@
     "acceptance_criteria": [
       "Given /scheduler/capacity renders, then grid, utilization bars, alerts and export controls match pext_capacity_projection parity.",
       "Given utilization >100% for a line/day, then V-SCHED-04 alert lists the offending WOs.",
-      "Given user changes horizon/line filters, then URL state updates and loader recomputes server-side."
+      "Given user changes horizon/line filters, then URL state updates and loader recomputes server-side.",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED tests for util calculation thresholds and RTL prototype parity.",
@@ -85,6 +90,20 @@
       "Do not hide >100% violations.",
       "Do not duplicate OEE ownership; this is planning projection only."
     ],
-    "prd_task_id": "T-046"
+    "prd_task_id": "T-046",
+    "parallel_safe_with": [
+      "T-047",
+      "T-048",
+      "T-049"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/optimizer-screens.jsx:113-206` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
+    ]
   }
 }

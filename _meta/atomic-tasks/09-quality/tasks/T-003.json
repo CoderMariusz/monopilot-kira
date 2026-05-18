@@ -9,7 +9,7 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-003",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§16.3"],
+    "prd_refs": ["§16.3", "§6.3", "§14.1"],
     "category": "data",
     "subcategory": "reference-tables",
     "task_type": "T1-schema",
@@ -17,7 +17,7 @@
     "context_budget": "20k",
     "estimated_effort": "0.5h",
     "description": "Register waste_categories reference table + seed 6 baseline rows + server helper for 10-FINANCE rollup consumer.",
-    "details": "Migration 0092 inserts registry row with schema_json {code,label,fa_account_hint,is_recoverable,category,i18n}. Seeds 6 rows. Helper getWasteCategories under tenant RLS. Tests cover counts, fields, validator rejection.",
+    "details": "Migration 0092 inserts registry row with schema_json {code,label,fa_account_hint,is_recoverable,category,i18n}. Seeds 6 rows. Helper getWasteCategories under tenant RLS. Tests cover counts, fields, validator rejection. PRD anchor verification (gold-standard pass 2026-05-14): §16.3 (line 1824) explicitly lists `waste_categories` as the third reference table migrated from hardcoded as part of the 02-SETTINGS v3.0 §8 additions; §6.3 `ncr_reports.ncr_type='yield_issue'` (with target_yield_pct/actual_yield_pct/claim_pct/claim_value_eur columns) is the consumer that rolls up via waste_categories to 10-FINANCE; §14.1 locale coverage applies to the i18n column.",
     "scope_files": [
       "packages/db/migrations/0092_waste_categories_reftable.sql [create]",
       "apps/web/src/server/quality/wasteCategories.ts [create]",

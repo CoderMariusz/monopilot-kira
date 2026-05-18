@@ -54,10 +54,12 @@
     ],
     "test_strategy": [
       "RED: shape + default + CHECK reject test.",
-      "GREEN: emit migration."
+      "GREEN: emit migration.",
+      "Run `pnpm --filter @monopilot/db test:integration -- security-tables.test`."
     ],
     "risk_red_lines": [
-      "Do not store plaintext passwords anywhere."
+      "Do not store plaintext passwords anywhere.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

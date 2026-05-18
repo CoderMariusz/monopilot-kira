@@ -1,6 +1,6 @@
 {
   "title": "T-064 — Docs: TEC-014 Bulk Import CSV prototype gap brief",
-  "prompt": "Write a UX-engineering brief for the missing TEC-014 'Bulk Import CSV' prototype (per §6.5 [SPEC-DRIVEN UI] + former audit blocker row 4). Output: design/specs/TEC-014-bulk-import-csv.md describing the proposed 3-step wizard (upload → validate → diff preview → confirm), required field mappings (item_code, name, type, uom_base, weight_mode, allergens), and acceptance gates consumed by T-085 spec-driven T3-ui task. Cross-link to 02-SETTINGS Reference CRUD import patterns for consistency. Implementation is now in scope via T-085 as a spec-driven UI task; this brief remains supporting documentation.",
+  "prompt": "# T-064 — Docs: TEC-014 Bulk Import CSV prototype gap brief\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §6.5 TEC-014, §4A TEC-014\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nEngineering brief unblocking TEC-014 prototype creation.\n\nDocument the wizard steps, validation rules per row (V-TEC-01..04), CSV column contract, error reporting format. The brief sets the parity contract that a future prototype + T3-ui must meet.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-014-bulk-import-csv.md [create]\n\n## Out of scope\n- Prototype JSX creation\n- API endpoint\n\n## Acceptance criteria\n1. Given the brief is written, when reviewed, then it lists CSV column contract, 3 wizard steps, and per-step validation rules covering V-TEC-01..04.\n2. Given the brief, when an engineer reads it, then they have a clear list of acceptance gates that must be met before a T3-ui task can be drafted.\n\n## Test strategy\n- Manual review by Quality Lead + UX team.\n- No automated tests for docs.\n\n## Risk red lines\n- Do not implement UI or API in this task.\n- Do not block other Phase 1 work on this brief.\n- Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -51,7 +51,11 @@
     "risk_red_lines": [
       "Do not implement UI or API in this task.",
       "Do not block other Phase 1 work on this brief.",
-      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task."
+      "Do not claim the screen is blocked by missing prototype; implementation is covered by the paired spec-driven UI task.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

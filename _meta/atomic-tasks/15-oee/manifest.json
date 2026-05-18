@@ -1,0 +1,121 @@
+{
+  "source_prd": "docs/prd/15-OEE-PRD.md",
+  "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "generator": "prd-decompose-15-oee-bootstrap",
+  "pipeline_name": "kira_dev",
+  "module": "15-oee",
+  "prd_version": "v3.2.1",
+  "audit_input": "_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md",
+  "task_count": 25,
+  "sub_modules": {
+    "15-OEE-a": "Permissions enum + read-only consumer surface + reference tables (shift_configs, oee_alert_thresholds, shift_patterns, org_non_production_days) + Nakajima Big Loss taxonomy + role-permission seed",
+    "15-OEE-b": "Materialized views (oee_shift_metrics, oee_daily_summary) + shift_aggregator_v1 DSL rule + apps/worker 15-min refresh job",
+    "15-OEE-c": "API/Server endpoints (line trend, heatmap, summary, export) + oee_outbox_events table + 5-event publisher dispatcher",
+    "15-OEE-d": "P1 UI dashboards: OEE-001 line trend, OEE-002 heatmap, OEE-003 summary + 3 tabs + A/P/Q drilldowns + P1 modal suite",
+    "15-OEE-e": "Admin UIs: OEE-ADM-001 settings + OEE-ADM-002 shift-configs viewer + OEE-ADM-003 shift patterns + non-production calendar",
+    "15-OEE-f": "P2 stubs scaffold (tables + rules active=FALSE + placeholders) + cross-module integration test + Playwright E2E"
+  },
+  "cross_module_dependencies": {
+    "00-foundation": [
+      "app.current_org_id() (Wave1 T-125)",
+      "outbox+worker primitive (Wave1 T-111/T-112)",
+      "GDPR erase orchestrator (Wave1 T-113/T-114) — operator attribution scope only",
+      "observability primitives (Wave1 T-116..T-118)",
+      "rate-limit primitive (Wave1 T-121)",
+      "CI/CD primitive (Wave1 T-122)",
+      "Playwright primitive (Wave1 T-123)",
+      "e-sign primitive (Wave1 T-124) — not used by P1 OEE; reserved for P2 anomaly ack workflows"
+    ],
+    "02-settings": [
+      "rule_definitions registry (02-Settings §7.8) — shift_aggregator_v1 + P2 anomaly + maintenance trigger rules",
+      "reference_tables_registry — shift_configs, oee_alert_thresholds, big_loss_categories surfaced as read-only viewer rows",
+      "feature_flags — oee.anomaly_detection_enabled, oee.equipment_health_enabled, oee.tv_dashboard_enabled, oee.compare_weeks_diff_enabled, oee.export.xlsx_enabled, quality.module_enabled",
+      "role→permission mapping table — seeded for oee_viewer/oee_supervisor/oee_admin (T-005)"
+    ],
+    "03-technical": [
+      "(P2) products/items reference data for per-product OEE drill-down — out of P1 scope"
+    ],
+    "08-production": [
+      "oee_snapshots — PRIMARY producer (D-OEE-1); 15-OEE is read-only consumer (T-002 adds site_id col)",
+      "downtime_events — read-only consumer for Top Downtime Causes (OEE-001), Six Big Losses tab (OEE-003.T2), Pareto drilldown (P2)",
+      "changeover_events — read-only consumer for OEE-001 markers + OEE-003.T3 Changeover Analysis tab",
+      "production_lines, work_orders.active_wo_id — read-only references"
+    ],
+    "09-quality": [
+      "(P1 cross-link only) /quality/holds Alert from OEE-001c Quality drilldown, gated by quality.module_enabled feature flag",
+      "(P2) reject_kg / reject_units reads from production_output_events for Quality factor"
+    ],
+    "12-reporting": [
+      "report_access_gate_v1 — reused for V-OEE-ACCESS-2 (V-OEE has no parallel access logic)",
+      "report_exports — 15-OEE export action writes audit rows (source='15-oee')",
+      "enqueueExportJob — 12-REPORTING export engine reused by OEE-M-002 (T-013)",
+      "outbox consumer for cache-invalidate of OEE-dependent dashboards (T-010 dispatches oee.shift.aggregated + oee.daily.refreshed + oee.shift_pattern.changed)"
+    ],
+    "13-maintenance": [
+      "MTBF/MTTR feed: 13-MAINTENANCE consumes oee.shift.aggregated outbox event for D-MNT-3 MTBF/MTTR producer; oee_shift_metrics exposes mttr_min/mtbf_min stub columns",
+      "Equipment Health page (OEE-P2-B) reads 13-MAINTENANCE equipment_health table when oee.equipment_health_enabled=true",
+      "(P2) oee_maintenance_trigger_v1 rule fires on consecutive-day low-availability → emits oee.maintenance.triggered → 13-MAINTENANCE auto-MWO creator"
+    ],
+    "14-multi-site": [
+      "sites + site_user_access — REC-L1 site_id column on oee_snapshots (T-002) + reference tables (T-003/T-004) + RLS site filter via user_sites (V-OEE-ACCESS-4)"
+    ]
+  },
+  "reverse_dependencies": {
+    "12-reporting": [
+      "Reporting dashboards consume oee_shift_metrics + oee_daily_summary MVs as data source for OEE-derived KPI tiles; cache invalidation driven by 15-OEE outbox events"
+    ]
+  },
+  "wave1_foundation_primitives_used": [
+    "T-111 outbox+worker",
+    "T-112 worker per-tenant loop",
+    "T-116 logger",
+    "T-117 tracer",
+    "T-118 metrics",
+    "T-121 rate-limit",
+    "T-122 CI/CD",
+    "T-123 Playwright",
+    "T-125 app.current_org_id()"
+  ],
+  "auditor_a_slices_addressed": {
+    "OEE-001": "T-002 (oee_snapshots site_id extension + read-only consumer indexes)",
+    "OEE-002": "T-006 (oee_shift_metrics MV) + T-007 (oee_daily_summary MV)",
+    "OEE-003": "T-008 (shift_aggregator_v1 registry+handler) + T-023 (P2 anomaly + maintenance trigger stubs registered active=FALSE)",
+    "OEE-004": "T-014 (OEE-001) + T-015 (OEE-002) + T-016 (OEE-003)",
+    "OEE-005": "T-018 (Six Big Losses tab — P1 interim Pareto home per §15.5)",
+    "OEE-006": "T-017 (shared <OeeFactorDrillPage> + 3 RSC pages)",
+    "OEE-007": "T-020 (OEE-ADM-001) + T-021 (OEE-ADM-002) + T-022 (OEE-ADM-003)",
+    "OEE-008": "T-001 (oee.*.* permission enum, p0-blocker priority 90)"
+  },
+  "p0_blockers": [
+    "T-001 (oee.*.* permission enum delta) — labels include p0-blocker, priority 90; gates Server Action RBAC strings across T-011..T-022"
+  ],
+  "tasks": [
+    "tasks/T-001.json",
+    "tasks/T-002.json",
+    "tasks/T-003.json",
+    "tasks/T-004.json",
+    "tasks/T-005.json",
+    "tasks/T-006.json",
+    "tasks/T-007.json",
+    "tasks/T-008.json",
+    "tasks/T-009.json",
+    "tasks/T-010.json",
+    "tasks/T-011.json",
+    "tasks/T-012.json",
+    "tasks/T-013.json",
+    "tasks/T-014.json",
+    "tasks/T-015.json",
+    "tasks/T-016.json",
+    "tasks/T-017.json",
+    "tasks/T-018.json",
+    "tasks/T-019.json",
+    "tasks/T-020.json",
+    "tasks/T-021.json",
+    "tasks/T-022.json",
+    "tasks/T-023.json",
+    "tasks/T-024.json",
+    "tasks/T-025.json"
+  ],
+  "coverage_file": "coverage.md"
+}

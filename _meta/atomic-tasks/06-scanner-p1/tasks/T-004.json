@@ -36,7 +36,9 @@
     "out_of_scope": [
       "Do not implement the camera scanner component here (T-014)",
       "Do not implement feedback audio/haptic here (T-005)",
-      "Do not write the scanner layout here (T-012)"
+      "Do not write the scanner layout here (T-012)",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [],
     "parallel_safe_with": [
@@ -44,23 +46,27 @@
       "T-005"
     ],
     "acceptance_criteria": [
-      "Given the scanner UI is implemented, when compared with `prototypes/design/Monopilot Design System/scanner/login.jsx:1-220`, then it preserves mobile structural parity, visual parity, and interaction parity for the screen/flow at viewport 390x844, captures screenshot and Playwright trace artifacts, and documents any intentional divergence from PRD/UX. Follow parity evidence requirements in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+      "Given the production scanner UI/wiring renders, when compared to `prototypes/design/Monopilot Design System/scanner/flow-receive.jsx:94-239` at mobile viewport 390x844, then structural, visual, and interaction parity is preserved (touch targets >=48dp, scanner dark tokens, badge+PIN auth, scanner.* permissions enforced).",
       "Given navigator.userAgent matches /Zebra/, when detectScannerCapabilities runs, then deviceType='zebra' and preferredMode='hardware'",
       "Given navigator.mediaDevices.getUserMedia is undefined, when detectScannerCapabilities runs, then camera=false and preferredMode is never 'camera'",
-      "Given a 6-char keystroke burst all <50ms apart ending in Enter, when classifyKeystrokeBurst runs, then it returns 'wedge'"
+      "Given a 6-char keystroke burst all <50ms apart ending in Enter, when classifyKeystrokeBurst runs, then it returns 'wedge' UI closeout includes 390x844 screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
     ],
     "test_strategy": [
       "RED: write detect.test.ts covering all 7 §11.1 device buckets + camera-absent + wedge burst classifier before implementation",
-      "Run 'pnpm --filter scanner test detect'"
+      "Run 'pnpm --filter scanner test detect'",
+      "For UI parity, capture 390x844 screenshots and Playwright trace/video artifacts; attach artifact paths in closeout per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "risk_red_lines": [
       "Do not call getUserMedia at import time",
       "Do not crash on SSR (no navigator)",
-      "Do not depend on @zxing in this module"
+      "Do not depend on @zxing in this module",
+      "Do not bypass scanner.* permission namespace when wiring server actions",
+      "Do not regress operator-friendly touch targets (>=48dp) or mobile viewport 390x844 evidence"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -86,18 +92,9 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_evidence_required": {
-      "viewport": "390x844",
-      "artifacts": [
-        "screenshot",
-        "Playwright trace"
-      ],
-      "parity_dimensions": [
-        "structure",
-        "visual",
-        "interaction"
-      ]
-    },
+    "prototype_match": true,
+    "prototype_index_entry": "po_item_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "cross_module_dependencies": [
       "00-foundation: scanner routing/session/RLS baseline",
       "02-settings: PIN policy, locale, scanner device defaults"

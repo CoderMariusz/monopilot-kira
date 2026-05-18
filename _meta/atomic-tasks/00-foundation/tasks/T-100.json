@@ -1,0 +1,80 @@
+{
+  "title": "T-100 — wire executor cascading branch → dispatch runCascade for manufacturing_operation_to_intermediate_code_cascade (FT-040)",
+  "prompt": "# T-100 — wire executor cascading branch → dispatch runCascade for manufacturing_operation_to_intermediate_code_cascade (FT-040)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §7, §9.1\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-040** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nexecutor dispatches cascading rules through runCascade; Chain 2 covered by a unit test.\n\n## Implementation contract\n1. dispatch.ts switch case 'cascading' calls runCascade(rule).\n2. Test feeds the manufacturing_operation_to_intermediate_code_cascade rule and asserts the expected output product code.\n3. Add a [follow-up: FT-046] inline marker for async-result surfacing.\n\n## Files (scope)\n- packages/executor/src/dispatch.ts [modify]\n- packages/executor/src/__tests__/cascade-dispatch.test.ts [create]\n\n## Acceptance criteria\n1. Given a cascading rule of type manufacturing_operation_to_intermediate_code_cascade, when dispatched, then runCascade is invoked and returns the expected intermediate code.\n2. Given a non-cascading rule, when dispatched, then runCascade is NOT invoked.\n\n## Test strategy\n- RED: write cascade-dispatch.test.ts asserting dispatch + non-dispatch branches before implementation.\n- Run `pnpm --filter @monopilot/executor test cascade-dispatch`.\n\n## Risk red lines\n- Do not change the rule schema.\n- Do not surface async errors yet (FT-046 scope).\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "executor",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-100",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§7",
+      "§9.1"
+    ],
+    "original_carry_forward_id": "FT-040",
+    "category": "data",
+    "subcategory": "executor",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Implement the executor's cascading-rule branch by dispatching runCascade for the manufacturing_operation_to_intermediate_code_cascade rule.",
+    "details": "T-021 added the cascading rule type but left the executor branch unimplemented. Wire dispatch to runCascade and write a unit test that exercises Chain 2 (per PRD §9.1).",
+    "scope_files": [
+      "packages/executor/src/dispatch.ts [modify]",
+      "packages/executor/src/__tests__/cascade-dispatch.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not refactor rule registry."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a cascading rule of type manufacturing_operation_to_intermediate_code_cascade, when dispatched, then runCascade is invoked and returns the expected intermediate code.",
+      "Given a non-cascading rule, when dispatched, then runCascade is NOT invoked."
+    ],
+    "test_strategy": [
+      "RED: write cascade-dispatch.test.ts asserting dispatch + non-dispatch branches before implementation.",
+      "Run `pnpm --filter @monopilot/executor test cascade-dispatch`."
+    ],
+    "risk_red_lines": [
+      "Do not change the rule schema.",
+      "Do not surface async errors yet (FT-046 scope)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

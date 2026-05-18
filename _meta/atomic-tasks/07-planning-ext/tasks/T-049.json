@@ -16,7 +16,8 @@
     "context_budget": "40k",
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -30,7 +31,10 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "screenshots_or_artifacts",
+        "playwright_trace_artifacts",
+        "prototype_parity_notes"
       ]
     },
     "routing_hints": {
@@ -69,11 +73,13 @@
     "acceptance_criteria": [
       "Given /scheduler/rules renders, then active/standby/disabled cards and flags table match pext_rules_screen parity.",
       "Given Planner role views page, then rule source is read-only and publish controls are hidden/disabled.",
-      "Given invocations_7d is shown, then it is computed from scheduler/rule invocation data server-side."
+      "Given invocations_7d is shown, then it is computed from scheduler/rule invocation data server-side.",
+      "Given the UI task is closed, when CLOSEOUT is recorded, then it includes Playwright trace artifacts plus screenshots/artifacts for prototype parity and error/empty/blocked states per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
     ],
     "test_strategy": [
       "RED RTL role tests and loader aggregation tests.",
-      "Run pnpm --filter web test scheduler/SchedulerRulesScreen."
+      "Run pnpm --filter web test scheduler/SchedulerRulesScreen.",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
       "Do not create a second rule editor outside 02-SETTINGS.",
@@ -81,6 +87,20 @@
       "Do not expose admin publish to Planner."
     ],
     "prd_task_id": "T-049",
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution.",
+    "parallel_safe_with": [
+      "T-046",
+      "T-047",
+      "T-048"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "ui_closeout_evidence": [
+      "Desktop screenshot/artifact of the implemented surface compared 1:1 to prototype `prototypes/design/Monopilot Design System/planning-ext/other-screens.jsx:4-76` (structural, visual, and interaction parity).",
+      "Playwright trace artifact for the primary happy path and at least one error/blocked/permission-denied path.",
+      "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
+      "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
+      "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
+    ]
   }
 }

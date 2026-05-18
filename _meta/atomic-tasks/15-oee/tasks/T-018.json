@@ -1,0 +1,102 @@
+{
+  "title": "T-018 — UI: Six Big Losses tab + Changeover Analysis tab inside OEE-003 (15-OEE-d, OEE-005 slice)",
+  "prompt": "# T-018 — Six Big Losses + Changeover tabs\n\nPRD: docs/prd/15-OEE-PRD.md §15.5 OEE-003.T2/T3, §13.3 (downtime category colors), §15.4 OEE-M-005 (mapping), Auditor A OEE-005 slice (Pareto interim home)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes: prototypes/design/Monopilot Design System/oee/dashboard.jsx:200-306 (six_big_losses_tab), :308-390 (changeover_tab)\n\n## Goal\nTwo composite components consumed by T-016 OEE-003 page: (1) `<SixBigLossesTab>` rendering Pareto bar chart from big_loss_categories + per-impact A/P/Q totals + downtime_events table with [Add note] (OEE-M-001 trigger); (2) `<ChangeoverTab>` rendering 4 KPI mini-cards + changeover_events table with allergen-risk Badge + variance Badge + [View] trigger (OEE-M-006). Both tabs match prototype 1:1. Per §15.5: T2 is the P1 interim home for Pareto loss view while OEE-P2-C `/oee/pareto` remains placeholder.\n\n## Implementation contract\n1. `apps/web/app/(oee)/summary/_components/six-big-losses-tab.tsx`: Server Component (RSC) reads SQL aggregation grouped by big_loss_category + impact_dimension from downtime_events; renders Pareto BarChart (recharts) + A/P/Q totals + downtime_events table with [Add note] / [Edit] buttons triggering OEE-M-001 (covered by T-020 modal suite — this task wires trigger only).\n2. `apps/web/app/(oee)/summary/_components/changeover-tab.tsx`: RSC reads changeover_events aggregation for the date + per-line; 4 KPI mini-cards (total, avg, high-allergen count, longest); table with allergen_risk Badge (cva variant) + variance Badge + [View] trigger.\n3. `<VarianceBadge>` shared primitive: sign-aware color (positive=red, negative=green for downtime context); placed in `apps/web/app/(oee)/_components/variance-badge.tsx`.\n4. Allergen risk Badge cva variant: High=red, Medium=amber, Low=green per §13.3.\n5. Hardcoded labels via next-intl `t('oee.losses.*')`, `t('oee.changeover.*')`, `t('oee.bigLoss.<code>')` (i18n keys created here; English defaults).\n6. RTL test snapshot + parity checklist per tab against prototype line ranges.\n\n## Files\n- apps/web/app/(oee)/summary/_components/six-big-losses-tab.tsx [create]\n- apps/web/app/(oee)/summary/_components/changeover-tab.tsx [create]\n- apps/web/app/(oee)/_components/variance-badge.tsx [create]\n- apps/web/app/(oee)/summary/_components/__tests__/six-big-losses-tab.test.tsx [create]\n- apps/web/app/(oee)/summary/_components/__tests__/changeover-tab.test.tsx [create]\n- prototypes/design/Monopilot Design System/oee/dashboard.jsx [ref]\n\n## Acceptance criteria\n1. Given the production `<SixBigLossesTab>` renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:200-306 (six_big_losses_tab), then it has the Pareto BarChart + A/P/Q totals + downtime_events table with [Add note]/[Edit] columns — verified by RTL snapshot + parity checklist.\n2. Given the production `<ChangeoverTab>` renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:308-390 (changeover_tab), then it has 4 KPI mini-cards + table with allergen_risk Badge (High=red/Medium=amber/Low=green per §13.3) + variance Badge + [View] button — verified by RTL parity checklist.\n3. Given a downtime_events row exists with category='BREAKDOWN', when SixBigLossesTab is queried, then the Pareto bar for BREAKDOWN aggregates server-side via SQL GROUP BY (not client reduce — translation note).\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for both tabs per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; <VarianceBadge> primitive is reused (not inline conditional logic per tab).\n\n## Test strategy\n- RED: RTL test per tab asserting parity + server-side aggregation contract + Badge color mapping.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary/_components`.\n\n## Risk red lines\n- Do not use client-side Array.reduce for A/P/Q totals — server SQL aggregation per translation note.\n- Do not paste prototype JSX verbatim.\n- Do not hardcode allergen_risk colors inline — use shared cva variant map; same for VarianceBadge.\n- Do not skip OEE-M-005 (Big Loss Mapping) trigger button on SixBigLossesTab — wires to T-021 OEE-ADM-001 modal.\n- Do not duplicate Pareto rendering — out-of-scope OEE-P2-C reuses this component (per §15.5 P1 interim home).",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-005",
+    "T3-ui"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-018",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.5",
+      "§13.3",
+      "§15.4 OEE-M-005"
+    ],
+    "category": "ui",
+    "subcategory": "tabs-losses-changeover",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "Six Big Losses + Changeover Analysis tab components consumed by T-016 OEE-003 page; matches dashboard.jsx prototypes 1:1.",
+    "details": "Closes Auditor A OEE-005 slice + part of OEE-004. <VarianceBadge> primitive shared across modules. Server SQL aggregation (no client reduce) per translation note. T2 is P1 interim home for Pareto per §15.5 (OEE-P2-C `/oee/pareto` is placeholder).\n\nAdditional acceptance detail: <VarianceBadge> primitive is reused; UI closeout includes screenshot/artifact + Playwright trace for both tabs per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "apps/web/app/(oee)/summary/_components/six-big-losses-tab.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/changeover-tab.tsx [create]",
+      "apps/web/app/(oee)/_components/variance-badge.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/__tests__/six-big-losses-tab.test.tsx [create]",
+      "apps/web/app/(oee)/summary/_components/__tests__/changeover-tab.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/dashboard.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "OEE-M-001 Annotate Downtime modal (T-020)",
+      "OEE-M-005 Big Loss Mapping editor (T-021)",
+      "OEE-M-006 Changeover Detail modal (T-020)",
+      "OEE-P2-C /oee/pareto P2 placeholder (T-023)"
+    ],
+    "dependencies": [
+      "T-005",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-014",
+      "T-015",
+      "T-016",
+      "T-017"
+    ],
+    "acceptance_criteria": [
+      "Given the production <SixBigLossesTab> renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:200-306 (six_big_losses_tab), then it has the Pareto BarChart + A/P/Q totals + downtime_events table with [Add note]/[Edit] columns — verified by RTL parity checklist",
+      "Given the production <ChangeoverTab> renders, when compared to prototypes/design/Monopilot Design System/oee/dashboard.jsx:308-390 (changeover_tab), then it has 4 KPI mini-cards + table with allergen_risk Badge (High=red/Medium=amber/Low=green per §13.3) + variance Badge + [View] button — verified by RTL parity checklist",
+      "Given a downtime_events row exists with category='BREAKDOWN', when SixBigLossesTab is queried, then the Pareto bar for BREAKDOWN aggregates server-side via SQL GROUP BY",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace for both tabs per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and <VarianceBadge> primitive is reused"
+    ],
+    "test_strategy": [
+      "RED: RTL test per tab asserting parity + server-side aggregation contract + Badge color mapping",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/summary/_components`",
+      "Capture screenshots and Playwright trace for UI parity; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not use client-side Array.reduce — server SQL aggregation",
+      "Do not paste prototype JSX verbatim",
+      "Do not hardcode allergen_risk or variance colors inline — shared cva variants",
+      "Do not skip OEE-M-005 trigger on SixBigLossesTab",
+      "Do not duplicate Pareto rendering for OEE-P2-C"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "six_big_losses_tab",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

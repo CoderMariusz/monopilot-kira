@@ -1,6 +1,6 @@
 {
   "title": "T-017 — API: Allergen profile CRUD (POST/DELETE /api/technical/items/:code/allergens)",
-  "prompt": "Implement allergen profile endpoints per §10.1 + V-TEC-40..42. POST /api/technical/items/[item_code]/allergens body: { allergen_code, source, intensity?, confidence?, manual_override_reason? }. PUT updates an existing entry. DELETE removes (admin/quality_lead only). Validate: V-TEC-40 allergen_code exists in reference_tables.allergens_reference; V-TEC-42 manual_override requires non-empty reason. Audit log every mutation. RED tests/api/allergen-profile.test.ts. Run: `pnpm vitest run tests/api/allergen-profile.test.ts`.",
+  "prompt": "# T-017 — API: Allergen profile CRUD (POST/DELETE /api/technical/items/:code/allergens)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §10.1, §10.3, §10.8\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAllergen profile create/update/delete endpoints with override reason validation.\n\nPUT path identifies row by composite (org_id,item_id,allergen_code). source='manual_override' forces reason field. Permission technical.allergens.edit. Action labels: allergen.create / allergen.update / allergen.override / allergen.delete in audit_log.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/allergens/route.ts [create]\n- app/api/technical/items/[item_code]/allergens/[allergen_code]/route.ts [create]\n- lib/technical/allergens/service.ts [create]\n- tests/api/allergen-profile.test.ts [create]\n\n## Out of scope\n- Cascade rule deploy (T-024)\n- UI\n\n## Acceptance criteria\n1. Given POST with allergen_code not in reference_tables, when validated, then 422 V-TEC-40.\n2. Given POST source='manual_override' without reason, when validated, then 422 V-TEC-42.\n3. Given DELETE manual_override row, when audit queried, then action='allergen.delete' row exists with old payload.\n4. Given user without technical.allergens.edit, when POST runs, then 403.\n\n## Test strategy\n- RED tests for V-TEC-40, V-TEC-42, audit emit, RBAC.\n- Run: pnpm vitest run tests/api/allergen-profile.test.ts\n\n## Risk red lines\n- Do not silently overwrite manual_override rows (preserved by cascade rule).\n- Do not bypass audit_log.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -57,7 +57,11 @@
     ],
     "risk_red_lines": [
       "Do not silently overwrite manual_override rows (preserved by cascade rule).",
-      "Do not bypass audit_log."
+      "Do not bypass audit_log.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

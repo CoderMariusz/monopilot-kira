@@ -52,10 +52,12 @@
     ],
     "test_strategy": [
       "RED: insert/update/delete and assert audit_log rows.",
-      "GREEN: implement trigger."
+      "GREEN: implement trigger.",
+      "Run `pnpm --filter @monopilot/db test:integration -- audit-trigger.test`."
     ],
     "risk_red_lines": [
-      "Do not log sensitive secret columns (oidc_client_secret_vault_key etc.) verbatim."
+      "Do not log sensitive secret columns (oidc_client_secret_vault_key etc.) verbatim.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

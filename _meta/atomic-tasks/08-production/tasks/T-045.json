@@ -1,8 +1,10 @@
 {
-  "title": "T-045 — Production settings, OEE target and taxonomy server actions",
-  "prompt": "# T-045 — Production settings, OEE target and taxonomy server actions\n\nPRD/UX refs: SCR-08-10, MODAL-08-15, UX PROD-011\n\nGoal: Implement settings forms backing production settings, OEE target effective-date windows, downtime/waste taxonomies and D365 push toggles.\n\nImplementation details:\nCreate server actions and zod schemas for consumption tolerance, yield thresholds, catch-weight settings, downtime/waste taxonomy maintenance, OEE targets with non-overlapping effective windows, and D365 push toggles. Use 02-SETTINGS registry/flags for global integration settings where required; Production settings can read but must not own D365 connection secrets.\n\nScope files:\n- packages/api-services/production/settings.ts [create]\n- apps/web/app/production/settings/actions.ts [create]\n- packages/db/schema/production-settings.ts [modify]\n\nAcceptance criteria:\n1. OEE target saves reject overlapping effective windows\n2. Downtime/waste taxonomies can be listed and modified with audit events\n3. D365 push toggles are read/written only through approved Settings flag path\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-045 — Production settings, OEE target windows + taxonomy Server Actions (08-PROD-f, SCR-08-10 / MODAL-08-15)",
+  "prompt": "# T-045 — Production settings, OEE target windows + taxonomy Server Actions\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-10, MODAL-08-15, §6 D5/D6/D7, §5.2 (business constraints)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the Server Actions backing SCR-08-10 Production Settings + MODAL-08-15 OEE Target Edit: consumption tolerance, yield gate threshold, catch-weight tolerance, FEFO deviation policy, waste alert threshold, OEE aggregation interval, OEE target effective-date windows (resolving BL-PROD-04), and D365 push toggle proxy (read-through to 02-SETTINGS §11). Downtime/waste taxonomies are deep-linked into 02-SETTINGS admin; no taxonomy mutation lives in this task.\n\n## Implementation contract\n1. `packages/api-services/production/settings.ts` — zod schemas + actions: `updateProductionSettings`, `upsertOeeTarget`, `getProductionSettings`, `getOeeTargets`.\n2. OEE target windows: `prod_oee_targets (effective_date, line_id, target_a, target_p, target_q, changed_by, change_reason)`; `upsertOeeTarget` rejects overlapping or backdated windows (`effective_date >= tomorrow`); on save, the prior window for the same line is closed.\n3. `apps/web/app/production/settings/actions.ts` thin Server Action wrapper enforcing Prod Manager role (V-PROD-OEE-001 / V-PROD-SETTINGS-001) from 02-SETTINGS §14 and writing `audit_log` (actor, key, old/new value, timestamp).\n4. D365 push toggles (`integration.d365.push.enabled`, `dry_run`, `batch_size`) are read/written only through the 02-SETTINGS §11 settings adapter; Production never owns D365 secrets.\n5. `packages/db/schema/production-settings.ts` — extend with `prod_oee_targets` table (V-PROD-OEE windowing) and `prod_settings_line_overrides` for ATP RLU threshold per-line.\n\n## Files\n- packages/api-services/production/settings.ts [create]\n- apps/web/app/production/settings/actions.ts [create]\n- packages/db/schema/production-settings.ts [modify]\n- packages/db/migrations/NNNN_prod_oee_targets.sql [create]\n- packages/api-services/production/__tests__/settings.test.ts [create]\n\n## Acceptance criteria\n1. Given an existing OEE target window for LINE-01 with `effective_date='2026-06-01'`, when `upsertOeeTarget` is called with another window `effective_date='2026-06-05'` for LINE-01, then the existing window is closed (`closed_at='2026-06-04'`) and the new one is inserted; calling again with the same dates is a no-op.\n2. Given `upsertOeeTarget` is called with `effective_date < tomorrow`, when the action runs, then it returns 422 `cannot_backdate_target` and inserts nothing.\n3. Given `updateProductionSettings` is invoked by a non-Plant-Manager user, when the action runs, then it returns 403 `forbidden` and writes no `audit_log` rows.\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/settings.test.ts asserting overlapping window rejection, backdate rejection, RBAC guard and audit_log emission before code exists.\n- Run `pnpm vitest run packages/api-services/production/__tests__/settings.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not let Production own D365 secrets — flag toggles proxy 02-SETTINGS §11.\n- Do not allow backdated OEE target windows (BL-PROD-04 resolution).\n- Do not skip Prod Manager RBAC guard (V-PROD-OEE-001).\n- Do not mutate downtime_categories / waste_categories from this task (02-SETTINGS §8 owns the taxonomy).\n",
   "labels": [
     "prd",
+    "api",
+    "settings",
     "T2-api"
   ],
   "priority": 100,
@@ -13,22 +15,33 @@
     "prd_task_id": "T-045",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-10",
+      "§8.1 SCR-08-10",
       "MODAL-08-15",
-      "UX PROD-011"
+      "§6 D5",
+      "§6 D6",
+      "§6 D7",
+      "§5.2"
     ],
-    "category": "production-readiness",
-    "subcategory": "Production settings, OEE target and taxonomy ser",
+    "category": "api",
+    "subcategory": "production-settings-and-oee-targets",
     "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Implement settings forms backing production settings, OEE target effective-date windows, downtime/waste taxonomies and D365 push toggles.",
-    "details": "Create server actions and zod schemas for consumption tolerance, yield thresholds, catch-weight settings, downtime/waste taxonomy maintenance, OEE targets with non-overlapping effective windows, and D365 push toggles. Use 02-SETTINGS registry/flags for global integration settings where required; Production settings can read but must not own D365 connection secrets.",
+    "parent_feature": "08-PROD E6 Dashboard+OEE",
+    "context_budget": "32k",
+    "estimated_effort": "2-3h",
+    "description": "Server Actions backing SCR-08-10 Production Settings + MODAL-08-15 OEE Target Edit; effective-date windowing for OEE targets and Prod Manager RBAC guard.",
+    "details": "Single settings service exposes typed Server Actions. prod_oee_targets table introduces effective-date windowing (BL-PROD-04 fix). OEE target inserts reject overlapping or backdated windows (server-side enforced). D365 push toggles proxy 02-SETTINGS §11; secrets stay there. Downtime/waste taxonomy mutation lives in 02-SETTINGS §8; Production settings UI only deep-links and displays seed values. All saves audit-logged with actor/old/new/timestamp.",
     "scope_files": [
       "packages/api-services/production/settings.ts [create]",
       "apps/web/app/production/settings/actions.ts [create]",
-      "packages/db/schema/production-settings.ts [modify]"
+      "packages/db/schema/production-settings.ts [modify]",
+      "packages/db/migrations/NNNN_prod_oee_targets.sql [create]",
+      "packages/api-services/production/__tests__/settings.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the Settings UI (T-050)",
+      "Do not own D365 secrets (02-SETTINGS §11)",
+      "Do not mutate downtime_categories / waste_categories (02-SETTINGS §8 admin)",
+      "Do not implement OEE target preview / preview math (UI only)"
     ],
     "dependencies": [
       "T-012",
@@ -36,18 +49,27 @@
       "T-014",
       "T-035"
     ],
+    "parallel_safe_with": [
+      "T-041",
+      "T-042",
+      "T-043",
+      "T-044"
+    ],
     "acceptance_criteria": [
-      "OEE target saves reject overlapping effective windows",
-      "Downtime/waste taxonomies can be listed and modified with audit events",
-      "D365 push toggles are read/written only through approved Settings flag path"
+      "Given an existing OEE target window for LINE-01 effective 2026-06-01, when upsertOeeTarget is called with effective 2026-06-05 for LINE-01, then the existing window is closed (closed_at=2026-06-04) and the new one is inserted; calling again with the same dates is a no-op.",
+      "Given upsertOeeTarget is called with effective_date < tomorrow, when action runs, then it returns 422 cannot_backdate_target and inserts nothing.",
+      "Given updateProductionSettings is invoked by a non-Plant-Manager user, when action runs, then it returns 403 forbidden and writes no audit_log rows."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: __tests__/settings.test.ts asserting overlapping window rejection, backdate rejection, RBAC guard and audit_log emission before code exists.",
+      "Run 'pnpm vitest run packages/api-services/production/__tests__/settings.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not let Production own D365 secrets.",
+      "Do not allow backdated OEE target windows.",
+      "Do not skip Prod Manager RBAC guard.",
+      "Do not mutate downtime_categories/waste_categories from this task."
     ],
     "skills": [
       "test-driven-development",
@@ -64,8 +86,6 @@
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
-        "screenshots_or_artifacts",
-        "playwright_traces_or_artifacts",
         "deviations_from_prd",
         "git_status"
       ]
@@ -80,7 +100,12 @@
       {
         "module": "02-settings",
         "task_id": "T-122",
-        "reason": "Settings schema/seed contract for flags/rule registry."
+        "reason": "Settings schema/seed contract for rule registry + flags."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-127",
+        "reason": "D365 connection config + integration secrets owner."
       }
     ]
   }

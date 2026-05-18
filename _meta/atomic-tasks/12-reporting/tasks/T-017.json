@@ -1,0 +1,113 @@
+{
+  "title": "T-017 — UI: RPT-002 Yield by Line + RPT-003 Yield by SKU pages (drill-down) (12-REPORTING §15.1 RPT-002/RPT-003)",
+  "prompt": "# T-017 — Yield by Line + Yield by SKU pages\n\nPRD: docs/prd/12-REPORTING-PRD.md §15.1 RPT-002 + RPT-003, §4.1 #2 + #3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:402-492 (`rpt_yield_by_line`)\n- prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:496-617 (`rpt_yield_by_sku`)\nUX: prototypes/design/12-REPORTING-UX.md:264-305 (RPT-002), :306-342 (RPT-003)\n\n## Goal\nTwo Server Component pages: `/reporting/yield-by-line` (per-line table w/ W/W change + sparkline + factory avg footer) and `/reporting/yield-by-sku` (per-SKU drill-down with expandable 13-week trend chart). Both consume mv_yield_by_line_week / mv_yield_by_sku_week (T-003); reuse cell components from T-016 (yield-cell, spark-line, grade-badge, variance-badge).\n\n## Prototype parity\n- RPT-002 source: `catalog-screens.jsx:402-492`; factoryAvg row pinned via TanStack Table row pinning or conditional className; Spark sparkline in last cell memoised.\n- RPT-003 source: `catalog-screens.jsx:496-617`; expandable row lazy-loads 13-week trend via Server Action `getSkuTrend(skuCode, weekEnding)`; ChartLine → Recharts LineChart.\n- All labels via next-intl `reporting.yield.*` keys.\n\n## Implementation contract\n1. `apps/web/app/(reporting)/yield-by-line/page.tsx` + client component reading mv_yield_by_line_week service helper; TanStack Table with sortable columns + factory avg pinned row.\n2. `apps/web/app/(reporting)/yield-by-sku/page.tsx` + client component reading mv_yield_by_sku_week; expandable row triggers Server Action for 13-week trend data.\n3. Server Action `getSkuTrend(skuCode, weekEnding)` validates skuCode format server-side (alphanumeric + dash only, no injection) before constructing trend query.\n4. Cross-module link 'View all runs in Production' → router.push('/production/work-orders?product=' + encodeURIComponent(code)).\n5. Drill from RPT-002 row → RPT-003 with ?line= param.\n6. Empty / loading / error / permission states; RTL + Playwright parity for both pages.\n\n## Files\n- apps/web/app/(reporting)/yield-by-line/page.tsx [create]\n- apps/web/app/(reporting)/yield-by-line/_components/yield-by-line-client.tsx [create]\n- apps/web/app/(reporting)/yield-by-line/__tests__/yield-by-line.test.tsx [create]\n- apps/web/app/(reporting)/yield-by-sku/page.tsx [create]\n- apps/web/app/(reporting)/yield-by-sku/_components/yield-by-sku-client.tsx [create]\n- apps/web/app/(reporting)/yield-by-sku/_components/sku-trend-chart.tsx [create]\n- apps/web/app/(reporting)/yield-by-sku/__tests__/yield-by-sku.test.tsx [create]\n- packages/reporting/src/actions/get-sku-trend.ts [create]\n- apps/web/messages/{en,pl}/reporting-yield.json [create]\n\n## Acceptance criteria\n1. Given mv_yield_by_line_week seeded with 6 lines for org_A, when /reporting/yield-by-line renders under org_A session, then table shows 6 rows + a factory-avg footer row pinned at bottom with bordered styling matching prototype line 462-475.\n2. Given user clicks a line row, when navigation occurs, then router.push to /reporting/yield-by-sku?line=<line_id> and the SKU page filters accordingly.\n3. Given an SKU row is expanded, when the expansion fires, then getSkuTrend Server Action is called (verified via network log) and returns 13-week data; ChartLine renders.\n4. Given getSkuTrend is called with skuCode='<script>', when validated, then it rejects with InvalidSkuCodeError before any SQL is issued.\n5. Given user without rpt.dashboard.view, when accessing either page, then middleware (T-009) 403s + audits.\n6. Given UI parity policy, when closeout is reviewed, then Playwright trace + screenshot for BOTH pages attached; empty / loading / error / permission states tested.\n7. All labels routed through next-intl `reporting.yield.*`.\n\n## Test strategy (RED first)\n- RED: RTL for both pages asserting parity + factory-avg pinning + drill navigation + lazy trend load + skuCode injection guard; Playwright parity per prototype.\n- Run `pnpm --filter @monopilot/web test yield-by-line yield-by-sku && pnpm --filter @monopilot/web playwright test reporting-yield`.\n- GREEN: build pages + Server Action + chart.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim.\n- Do not let skuCode reach SQL unvalidated.\n- Do not load 13-week trend eagerly for all SKUs — lazy on expand.\n- Do not skip @media print CSS on charts.\n- Do not skip next-intl wrapping.\n- Do not skip empty/loading/error/permission states (UI parity policy).\n- Do not bypass T-003 service helper (org+site filter).",
+  "labels": [
+    "prd",
+    "ui",
+    "dashboard",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-017",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§15.1 RPT-002",
+      "§15.1 RPT-003",
+      "§4.1 #2",
+      "§4.1 #3"
+    ],
+    "category": "ui",
+    "subcategory": "dashboard-page",
+    "task_type": "T3-ui",
+    "parent_feature": "12-REPORTING-a",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "Two pages: Yield by Line + Yield by SKU. Drill-down navigation, factory-avg pinned row, expandable 13-week trend chart (lazy-loaded via Server Action).",
+    "details": "Consume mv_yield_by_line_week / mv_yield_by_sku_week. Reuse T-016 cell components. SkuCode injection guard server-side. Cross-module link to /production/work-orders.",
+    "scope_files": [
+      "apps/web/app/(reporting)/yield-by-line/page.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-line/_components/yield-by-line-client.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-line/__tests__/yield-by-line.test.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-sku/page.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-sku/_components/yield-by-sku-client.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-sku/_components/sku-trend-chart.tsx [create]",
+      "apps/web/app/(reporting)/yield-by-sku/__tests__/yield-by-sku.test.tsx [create]",
+      "packages/reporting/src/actions/get-sku-trend.ts [create]",
+      "apps/web/messages/en/reporting-yield.json [create]",
+      "apps/web/messages/pl/reporting-yield.json [create]",
+      "prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Factory Overview here (T-016)",
+      "Do not implement export modal here (T-026)"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-003",
+      "T-009",
+      "T-016"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      "08-PRODUCTION /production/work-orders route (cross-module link)",
+      "02-SETTINGS i18n next-intl"
+    ],
+    "acceptance_criteria": [
+      "Given the production implementation is reviewed for parity, when compared to prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:402-492; prototypes/design/Monopilot Design System/reporting/catalog-screens.jsx:496-617, then visual structure, shadcn primitives, interaction states, and Tailwind tokens match; Playwright trace + screenshot artifacts attached per _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md (rpt_yield_by_line + rpt_yield_by_sku).",
+      "Given mv_yield_by_line_week seeded with 6 lines for org_A, when /reporting/yield-by-line renders under org_A session, then table shows 6 rows + a factory-avg footer row pinned at bottom with bordered styling matching prototype line 462-475",
+      "Given user clicks a line row, when navigation occurs, then router.push to /reporting/yield-by-sku?line=<line_id> and SKU page filters accordingly",
+      "Given the page/modal is exercised end-to-end, when closeout criteria are verified, then access-control middleware T-009 gates unauthenticated/unauthorized requests with 403 + audit row; empty/loading/error/permission states are rendered per UI parity policy with Playwright trace + screenshot artifacts attached; all visible strings route through next-intl keys (no hardcoded labels)."
+    ],
+    "test_strategy": [
+      "RED: RTL for both pages asserting parity + factory-avg pinning + drill navigation + lazy trend load + skuCode injection guard",
+      "Playwright parity per prototype",
+      "Run `pnpm --filter @monopilot/web test yield-by-line yield-by-sku && pnpm --filter @monopilot/web playwright test reporting-yield`",
+      "For UI parity, capture screenshots/artifacts and Playwright trace; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not paste prototype JSX verbatim",
+      "Do not let skuCode reach SQL unvalidated",
+      "Do not load 13-week trend eagerly — lazy on expand",
+      "Do not skip @media print CSS on charts",
+      "Do not skip next-intl wrapping",
+      "Do not skip empty/loading/error/permission states",
+      "Do not bypass T-003 service helper org+site filter"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "rpt_yield_by_line + rpt_yield_by_sku",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

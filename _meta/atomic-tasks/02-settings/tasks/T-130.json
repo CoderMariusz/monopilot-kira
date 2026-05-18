@@ -1,35 +1,149 @@
 {
-  "title": "T-130 — ROOT: RBAC core backend + wiring (02-settings-a) [T0-root]",
-  "prompt": "# T-130 — [GROUP] root descriptor for 02-settings-a\n\nThis is a T0-root non-executable descriptor. Do not implement. The ACP pipeline skips this task at execution time; its only role is navigation context for agents.\n\n## Group\nRBAC core backend + wiring\n\n## Description\nRBAC core backend slice: org context, users, roles, permissions, sessions, auth wiring and E2E.\n\n## Child tasks (13)\n- T-001\n- T-002\n- T-004\n- T-010\n- T-014\n- T-015\n- T-016\n- T-017\n- T-018\n- T-081\n- T-088\n- T-089\n- T-091\n\n## Execution order\nDefault to the numerical order shown above; specific dependencies are encoded on each child task. Wiring/test tasks (T4) within this group should run after their parent T1/T2/T3 dependencies complete.\n\n## Completion signal\nThis root is complete when all child tasks listed above have status=done.\n",
+  "title": "T-130 — ESLint enum-lock guard for permissions.enum.ts (RBAC governance)",
+  "prompt": "# T-130 — ESLint enum-lock guard for `packages/rbac/src/permissions.enum.ts`\n\n## Goal\nMaterialize the **ESLint enum-lock guard** that every per-module permission-enum task across the monorepo (01-npd T-101, 03-technical T-091, 04-planning-basic T-066, 05-warehouse T-058, 06-scanner-p1 T-049, 07-planning-ext T-058, 08-production T-056, 09-quality T-065, 14-multi-site T-031) currently cites as \"02-settings T-046\". T-046 is in fact `SET-006 Onboarding Completion`; the enum-lock guard does NOT exist yet. This task creates it.\n\nThe guard is a custom ESLint rule `no-direct-permissions-enum-edit` (delivered via the in-repo `tooling/eslint-rules/` workspace) that fails the lint job whenever `packages/rbac/src/permissions.enum.ts` is modified in a way that bypasses the canonical per-module workflow:\n- Add-only edits must come through a PR labelled `permissions-enum-update` AND a corresponding `ALL_<MODULE>_PERMISSIONS` typed export.\n- Renames, deletions, or weakening of the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` always fail (no escape hatch).\n- The architect-only CODEOWNERS lock on the file (per T-001) remains the human gate; this rule is the **mechanised** gate that prevents merge-by-accident outside the approved label.\n\nPer PRD `docs/prd/02-SETTINGS-PRD.md` §3 [D2] — \"Permission model\" / `permissions.enum.ts` is the single source-of-truth, flat dot-namespaced. The audit `_meta/audits/2026-05-14-permission-enum-addition.md` (RBAC permission-enum batch) declared this guard as a precondition; this task closes that gap.\n\n## Files in scope\n- `tooling/eslint-rules/package.json` [create — name `@monopilot/eslint-rules`, private, workspace package]\n- `tooling/eslint-rules/src/no-direct-permissions-enum-edit.ts` [create — ESLint rule implementation]\n- `tooling/eslint-rules/src/index.ts` [create — re-exports + plugin manifest]\n- `tooling/eslint-rules/src/__tests__/no-direct-permissions-enum-edit.test.ts` [create — `RuleTester` (eslint) suite]\n- `tooling/eslint-rules/tsconfig.json` [create]\n- `packages/rbac/.eslintrc.cjs` [create or modify — register the plugin and enable the rule as `error`]\n- `apps/web/.eslintrc.cjs` [modify — add `@monopilot/eslint-rules/no-direct-permissions-enum-edit` to the root config so `apps/web` import paths still trigger]\n- `pnpm-workspace.yaml` [modify — add `tooling/eslint-rules` to the workspaces list if not already covered by a wildcard]\n- `.github/workflows/ci.yml` [modify — ensure `pnpm --filter @monopilot/eslint-rules test` runs in the lint job (or piggy-backs on the root `pnpm test` matrix)]\n\n## Implementation contract\n1. **Rule semantics** — `no-direct-permissions-enum-edit` runs on every file lint pass. It does NOT do anything when the file under lint is anything other than `packages/rbac/src/permissions.enum.ts`. When it IS that file:\n   - Scan all top-level statements. If any export adds a string literal value whose dotted form fails the canonical regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, report `permissions-enum-regex-violation` with the offending value.\n   - Detect rename/delete by comparing against a checked-in baseline at `tooling/eslint-rules/baselines/permissions.snapshot.json` — entries that disappear OR change their literal string fail with `permissions-enum-illegal-removal`.\n   - If an `ALL_<MODULE>_PERMISSIONS` export is added, require: (a) it is a `readonly Permission[]` typed array literal, and (b) every element is also present in the parent `Permission` const. Failures report `permissions-enum-orphan-array`.\n   - The PR-label gate is **CI-side**, NOT inside the rule (we can't read GitHub labels from ESLint). Instead the rule is `severity: error` always; the CI job under `.github/workflows/ci.yml` is the gate that decides whether to short-circuit by reading the `permissions-enum-update` label. Document this clearly in the rule docstring.\n2. **Plugin packaging** — `tooling/eslint-rules` exports `module.exports = { rules: { 'no-direct-permissions-enum-edit': ruleImpl } }`. Add `\"@monopilot/eslint-rules\": \"workspace:*\"` to `packages/rbac/package.json` devDependencies.\n3. **Baseline snapshot** — On first run (or via `pnpm --filter @monopilot/eslint-rules snapshot` script), regenerate `permissions.snapshot.json` from the current `permissions.enum.ts`. Snapshot is checked in; updates must accompany approved enum-update PRs.\n4. **Tests** — `RuleTester` from `eslint`. Cases:\n   - VALID: a snapshotted file unchanged.\n   - VALID: a snapshotted file with an appended `npd.gate.approve` (matches regex AND present in `Permission`) AND a matching `ALL_NPD_PERMISSIONS` array.\n   - INVALID: snapshot has `npd.gate.approve`, file removes it → `permissions-enum-illegal-removal`.\n   - INVALID: file adds `npd.gate` (2 segments) → `permissions-enum-regex-violation`.\n   - INVALID: file adds `npd.gate.approve` but no entry exists in `Permission` const → `permissions-enum-orphan-array` (when consumed via the `ALL_<MODULE>_PERMISSIONS` array literal).\n   - VALID: any OTHER file (e.g. `packages/rbac/src/role-mappings.ts`) → rule no-ops.\n\n## Acceptance criteria (Given-When-Then)\n<!-- F15-consolidation 2026-05-14: 7 ACs fused to 4 via strict-subset fusion (F6/F8 patterns). AC5+AC1→AC1, AC2+AC3→AC2, AC4→AC3, AC7+AC6→AC4. All assertions remain testable. -->\n- AC1 — Given the rule is loaded against any file other than `packages/rbac/src/permissions.enum.ts`, when lint runs, then the rule no-ops with zero reports; AND given `permissions.enum.ts` is unmodified and matches the checked-in snapshot, then `pnpm --filter @monopilot/rbac lint` also reports zero violations.\n- AC2 — Given a developer renames or deletes an existing key in `permissions.enum.ts` without updating the snapshot, when lint runs, then the rule emits `permissions-enum-illegal-removal` with severity `error` and exits non-zero; AND given a developer appends a string that fails the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` (e.g. two-segment `npd.new_capability`), then the rule emits `permissions-enum-regex-violation` with severity `error`.\n- AC3 — Given a developer adds a string to `ALL_<MODULE>_PERMISSIONS` but does NOT add it to the parent `Permission` const, when lint runs, then the rule emits `permissions-enum-orphan-array` with severity `error`.\n- AC4 — Given `pnpm --filter @monopilot/eslint-rules vitest run` executes, then all `RuleTester` cases listed in `Implementation contract` §4 pass; AND given the PR carries the `permissions-enum-update` label AND the snapshot is regenerated via `pnpm --filter @monopilot/eslint-rules snapshot`, when CI re-runs, then both rule and CI gate accept the change.\n\n## Test strategy (RED-first, runnable commands)\n1. RED: write `tooling/eslint-rules/src/__tests__/no-direct-permissions-enum-edit.test.ts` covering all AC cases via ESLint's `RuleTester` + parallel vitest harness. Run:\n   `pnpm --filter @monopilot/eslint-rules vitest run`\n   — expect failure.\n2. GREEN: implement the rule, plugin manifest, baseline snapshot, and registration in `packages/rbac/.eslintrc.cjs`. Re-run the same command — expect pass.\n3. Run `pnpm --filter @monopilot/rbac lint` against an unmodified `permissions.enum.ts` — expect zero violations (AC1).\n4. Run the integration assertion: temporarily delete one entry from `permissions.enum.ts`, re-run `pnpm --filter @monopilot/rbac lint`, observe the `permissions-enum-illegal-removal` error, then revert.\n5. Run `pnpm typecheck` for `@monopilot/eslint-rules` and `@monopilot/rbac` packages.\n\n## Risk red lines\n- Do not weaken the canonical regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` — it must remain the literal source of truth in the rule body.\n- Do not allow the rule to silently no-op on `permissions.enum.ts` due to a missing snapshot file; if the snapshot is missing, FAIL with a clear actionable message (`run: pnpm --filter @monopilot/eslint-rules snapshot`).\n- Do not add a CLI escape hatch (`// eslint-disable-next-line`) that disables this rule — the rule MUST be marked `meta.docs.recommended: true` and the package README must instruct reviewers to reject PRs that include the disable comment for this rule.\n- Do not depend on GitHub API calls or labels at lint time — label enforcement is a CI-job concern.\n- Do not introduce a parallel permission registry file (no `packages/rbac/src/*PermissionEnum.ts`); the enum file remains the single source of truth.\n- Do not commit a generated snapshot that omits any existing keys — snapshot updates must be additive and reviewer-verified.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, vitest pass, `pnpm --filter @monopilot/rbac lint`)\n- acceptance_criteria_status (one row per AC1..AC7)\n- deviations_from_prd (or \"none\")\n- git_status\n- One end-to-end demo showing AC2 by intentionally renaming an entry and observing CI fail (gif or terminal capture stored under `_meta/handoffs/T-130-closeout/`).\n\nStack: TS + ESLint (>=9 flat-config compatible) + vitest + pnpm workspaces. Plugin built as a workspace package alongside `packages/rbac`.\n",
   "labels": [
-    "settings",
-    "T0-root",
-    "02-settings-a"
+    "prd",
+    "auth",
+    "permissions",
+    "T2-api",
+    "governance",
+    "p0-blocker"
   ],
-  "priority": 0,
+  "priority": 90,
+  "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-130",
-    "source_prd": "docs/prd/02-Settings-PRD.md",
-    "task_type": "T0-root",
-    "parent_feature": "02-settings-a",
-    "description": "RBAC core backend slice: org context, users, roles, permissions, sessions, auth wiring and E2E.",
-    "child_tasks": [
-      "T-001",
-      "T-002",
-      "T-004",
-      "T-010",
-      "T-014",
-      "T-015",
-      "T-016",
-      "T-017",
-      "T-018",
-      "T-081",
-      "T-088",
-      "T-089",
-      "T-091"
+    "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+    "prd_refs": [
+      "§3 [D2] Permission model"
     ],
-    "executable": false
+    "category": "auth",
+    "subcategory": "permissions-enum-lock",
+    "task_type": "T2-api",
+    "parent_feature": "02-settings-rbac-governance",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Create the ESLint enum-lock guard rule `no-direct-permissions-enum-edit` (in new `tooling/eslint-rules/` workspace) + baseline snapshot + register in packages/rbac/.eslintrc.cjs. Closes the missing precondition cited by every per-module permission-enum task across 8 modules + 14-multi-site T-031 (previously mis-anchored to 02-settings T-046, which is actually SET-006 Onboarding Completion).",
+    "details": "Materializes the ESLint enum-lock guard the audit `_meta/audits/2026-05-14-permission-enum-addition.md` and `_meta/audits/2026-05-14-review-R2-settings-finance-multisite.md` §3.1 declared missing. Rule lives at `tooling/eslint-rules/src/no-direct-permissions-enum-edit.ts`, runs on every lint pass, no-ops for any file other than `packages/rbac/src/permissions.enum.ts`. It enforces: regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` on additions; rename/delete detection against `tooling/eslint-rules/baselines/permissions.snapshot.json`; ALL_<MODULE>_PERMISSIONS typed-array consistency with parent `Permission` const. PR-label gating is delegated to CI (.github/workflows/ci.yml) — the rule itself is severity:error always. Companion `snapshot` script regenerates the baseline; snapshot updates accompany approved enum-update PRs. RuleTester suite covers all 6 invariant cases. Wires `@monopilot/eslint-rules` as a workspace package consumed by `packages/rbac/.eslintrc.cjs`. Foundation: this is the canonical mechanised gate that all 9 perm-enum tasks (01-npd T-101, 03-technical T-091, 04-planning-basic T-066, 05-warehouse T-058, 06-scanner-p1 T-049, 07-planning-ext T-058, 08-production T-056, 09-quality T-065 and 14-multi-site T-031) declare via cross_module_dependencies.",
+    "scope_files": [
+      "tooling/eslint-rules/package.json [create]",
+      "tooling/eslint-rules/src/no-direct-permissions-enum-edit.ts [create]",
+      "tooling/eslint-rules/src/index.ts [create]",
+      "tooling/eslint-rules/src/__tests__/no-direct-permissions-enum-edit.test.ts [create]",
+      "tooling/eslint-rules/baselines/permissions.snapshot.json [create]",
+      "tooling/eslint-rules/tsconfig.json [create]",
+      "packages/rbac/.eslintrc.cjs [create or modify]",
+      "packages/rbac/package.json [modify — add workspace devDep]",
+      "apps/web/.eslintrc.cjs [modify]",
+      "pnpm-workspace.yaml [modify]",
+      ".github/workflows/ci.yml [modify]"
+    ],
+    "out_of_scope": [
+      "Do not modify any existing permission string in packages/rbac/src/permissions.enum.ts (governance task, not content task).",
+      "Do not add a new permission namespace here — that is owned by the per-module perm-enum tasks (01-npd T-101 et al.).",
+      "Do not implement a runtime permission check helper (already owned by @monopilot/rbac core).",
+      "Do not introduce a 4-level matrix permission model (rejected per PRD §3 [D2]).",
+      "Do not extend the rule to cover unrelated files (single-purpose: permissions.enum.ts only)."
+    ],
+    "dependencies": [
+      "T-001"
+    ],
+    "parallel_safe_with": [],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-101",
+        "reason": "Consumes the guard via ALL_NPD_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "03-technical",
+        "task_id": "T-091",
+        "reason": "Consumes the guard via ALL_TECHNICAL_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "04-planning-basic",
+        "task_id": "T-066",
+        "reason": "Consumes the guard via ALL_PLANNING_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "05-warehouse",
+        "task_id": "T-058",
+        "reason": "Consumes the guard via ALL_WAREHOUSE_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "06-scanner-p1",
+        "task_id": "T-049",
+        "reason": "Consumes the guard via ALL_SCANNER_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "07-planning-ext",
+        "task_id": "T-058",
+        "reason": "Consumes the guard via ALL_SCHEDULER_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "08-production",
+        "task_id": "T-056",
+        "reason": "Consumes the guard via ALL_PRODUCTION_PERMISSIONS typed export validation."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "T-065",
+        "reason": "Consumes the guard via ALL_QUALITY_PERMISSIONS typed export validation. (Originally mis-anchored to T-037 by Pt4 audit — T-037 is the ncr_reports schema task. F10 reconciliation 2026-05-14 created the correct perm-enum task at T-065.)"
+      },
+      {
+        "module": "14-multi-site",
+        "task_id": "T-031",
+        "reason": "Consumes the guard via ALL_MULTI_SITE_PERMISSIONS typed export validation."
+      }
+    ],
+    "acceptance_criteria": [
+      "Given the rule is loaded against any non-target file it no-ops with zero reports AND given permissions.enum.ts is unmodified + matches snapshot then `pnpm --filter @monopilot/rbac lint` reports zero violations.",
+      "Given a rename/delete of an existing key without snapshot update lint emits `permissions-enum-illegal-removal` (severity error, exits non-zero) AND given a 2-segment addition failing `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` lint emits `permissions-enum-regex-violation` (severity error).",
+      "Given an entry added to ALL_<MODULE>_PERMISSIONS but absent from the parent `Permission` const, when lint runs, then the rule emits `permissions-enum-orphan-array` with severity error.",
+      "Given `pnpm --filter @monopilot/eslint-rules vitest run` all RuleTester cases pass AND given the PR has the `permissions-enum-update` label + snapshot regenerated via the snapshot script CI accepts the change."
+    ],
+    "test_strategy": [
+      "RED: write tooling/eslint-rules/src/__tests__/no-direct-permissions-enum-edit.test.ts covering all AC invariant cases (no-op on non-target, clean-pass on unmodified, illegal-removal, regex-violation, orphan-array, snapshot-update approval) via ESLint RuleTester. Run `pnpm --filter @monopilot/eslint-rules vitest run`; expect failure.",
+      "GREEN: implement the rule, baseline snapshot, plugin manifest, and registration in packages/rbac/.eslintrc.cjs. Re-run `pnpm --filter @monopilot/eslint-rules vitest run`; expect pass. Vitest pass satisfies AC4 (RuleTester cases).",
+      "Integration: run `pnpm --filter @monopilot/rbac lint` against an unmodified `permissions.enum.ts` — expect zero violations (AC1).",
+      "Run `pnpm typecheck` and `pnpm lint` across the two packages; both must pass."
+    ],
+    "risk_red_lines": [
+      "Do not weaken the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` in the rule body — it is the canonical SoT.",
+      "Do not allow the rule to silently no-op when the snapshot file is missing — must FAIL with an actionable error message instructing the reviewer to run the `snapshot` script.",
+      "Do not depend on GitHub API at lint time — PR-label enforcement is delegated to the CI job.",
+      "Do not introduce a parallel permission-registry file or a `// eslint-disable-next-line` escape hatch for this rule.",
+      "Do not commit a snapshot that omits existing keys — snapshot updates must be additive and reviewer-approved."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "vitest_run_output",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
   }
 }

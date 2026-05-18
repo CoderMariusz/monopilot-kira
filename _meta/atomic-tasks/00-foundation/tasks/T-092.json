@@ -1,0 +1,89 @@
+{
+  "title": "T-092 — HMAC-bound RelayState (org_id + nonce + exp) for SAML replay defence (FT-032)",
+  "prompt": "# T-092 — HMAC-bound RelayState (org_id + nonce + exp) for SAML replay defence (FT-032)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-032** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P0** (M effort)\n\n## Goal\nReplace opaque RelayState with HMAC-signed (org_id|nonce|exp) payload; reject mismatched binding on callback.\n\n## Implementation contract\n1. Helper `signRelayState({orgId, nonce, expSec})` returns base64url(HMAC-SHA256(payload)).payload base64 form.\n2. Helper `verifyRelayState(rs, expectedOrgId)`: HMAC-verifies, decodes payload, asserts exp not expired AND orgId matches.\n3. SAML login route signs RelayState with the originating org_id and a fresh nonce.\n4. SAML callback route verifies RelayState before processing the assertion; mismatch → 401 'relay_state_invalid'.\n5. Tests cover: happy path, expired exp, forged HMAC, swapped orgId.\n\n## Files (scope)\n- packages/auth/src/saml/relay-state.ts [create]\n- packages/auth/src/saml/__tests__/relay-state.test.ts [create]\n- apps/web/app/api/auth/saml/login/route.ts [modify]\n- apps/web/app/api/auth/saml/callback/route.ts [modify]\n\n## Acceptance criteria\n1. Given a fresh login RelayState, when callback runs within 60s with the same org_id, then verifyRelayState returns ok.\n2. Given an expired RelayState (exp+1s), when callback runs, then 401 'relay_state_expired'.\n3. Given a RelayState with tampered HMAC, when callback runs, then 401 'relay_state_invalid'.\n4. Given a RelayState bound to org A used on a callback claiming org B, when verified, then 401 'relay_state_org_mismatch'.\n\n## Test strategy\n- RED: write relay-state.test.ts asserting all four ACs before implementation.\n- Use constant-time compare via timingSafeEqual; assert via test.\n- Run `pnpm --filter @monopilot/auth test relay-state`.\n\n## Risk red lines\n- P0 deploy blocker — do not merge without GREEN evidence on staging\n- Do not skip exp validation.\n- Do not use non-constant-time string compare for HMAC.\n- Do not log the HMAC secret.\n- Do not extend exp beyond 5 minutes.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "p0-blocker",
+    "wave-d-followup",
+    "saml",
+    "security",
+    "T2-api"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-092",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x"
+    ],
+    "original_carry_forward_id": "FT-032",
+    "category": "auth",
+    "subcategory": "saml",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Bind SAML RelayState with HMAC(org_id + nonce + exp) to defend against replay and cross-tenant binding even if Issuer-host check is bypassed.",
+    "details": "Current SAML flow uses an opaque RelayState that is not bound to the originating org. An attacker who captures a successful assertion can replay it to a different tenant by swapping RelayState. Encode org_id + nonce + exp(60s) in RelayState and HMAC-sign with a server-side secret.",
+    "scope_files": [
+      "packages/auth/src/saml/relay-state.ts [create]",
+      "packages/auth/src/saml/__tests__/relay-state.test.ts [create]",
+      "apps/web/app/api/auth/saml/login/route.ts [modify]",
+      "apps/web/app/api/auth/saml/callback/route.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change Jackson connection config (FT-030)."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given a fresh login RelayState, when callback runs within 60s with the same org_id, then verifyRelayState returns ok.",
+      "Given an expired RelayState (exp+1s), when callback runs, then 401 'relay_state_expired'.",
+      "Given a RelayState with tampered HMAC, when callback runs, then 401 'relay_state_invalid'.",
+      "Given a RelayState bound to org A used on a callback claiming org B, when verified, then 401 'relay_state_org_mismatch'."
+    ],
+    "test_strategy": [
+      "RED: write relay-state.test.ts asserting all four ACs before implementation.",
+      "Use constant-time compare via timingSafeEqual; assert via test.",
+      "Run `pnpm --filter @monopilot/auth test relay-state`."
+    ],
+    "risk_red_lines": [
+      "P0 deploy blocker — do not merge without GREEN evidence on staging",
+      "Do not skip exp validation.",
+      "Do not use non-constant-time string compare for HMAC.",
+      "Do not log the HMAC secret.",
+      "Do not extend exp beyond 5 minutes."
+    ],
+    "skills": [
+      "test-driven-development",
+      "verification-before-completion",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

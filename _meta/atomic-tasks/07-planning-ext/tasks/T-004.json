@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
     "prd_refs": [
       "§9.5",
-      "§4.1.4",
+      "§4.1",
       "§4.2"
     ],
     "category": "data",
@@ -26,7 +26,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-2h",
     "description": "Create demand_forecasts table with confidence interval columns, source enum, supersession partial index, RLS.",
-    "details": "Migration 0073 emits CREATE TYPE forecast_source + CREATE TABLE demand_forecasts per §9.5 DDL. Partial index supports the supersession-aware current-forecast read path. Drizzle schema mirrors columns with NUMERIC(12,2) and NUMERIC(3,2) precisions. RED test verifies enum, partial index, RLS.",
+    "details": "PRD anchor corrected from §4.1.4 to §4.1 by Fixer F12 2026-05-14 (anchor sweep; §4.1 item 4 = Manual forecast entry, no deeper heading exists). Migration 0073 emits CREATE TYPE forecast_source + CREATE TABLE demand_forecasts per §9.5 DDL. Partial index supports the supersession-aware current-forecast read path. Drizzle schema mirrors columns with NUMERIC(12,2) and NUMERIC(3,2) precisions. RED test verifies enum, partial index, RLS. RLS policies must explicitly reference the foundation `app.current_org_id()` function (Wave0 v4.3 lock; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Do not use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads.",
     "scope_files": [
       "packages/db/migrations/0073_demand_forecasts.sql [create]",
       "packages/db/src/schema/demand_forecasts.ts [create]",
@@ -49,13 +49,15 @@
       "Run 'pnpm --filter db migrate && pnpm --filter db test demand-forecasts'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
       "Do not omit partial index on superseded_at IS NULL",
       "Do not skip RLS",
       "Do not enforce single-active forecast row via unique at DB layer"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -77,6 +79,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-005",
+      "T-008",
+      "T-011"
+    ]
   }
 }

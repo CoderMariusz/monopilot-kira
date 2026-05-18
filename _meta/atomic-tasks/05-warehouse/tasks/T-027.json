@@ -1,13 +1,13 @@
 {
-  "title": "T-027 — Manual put-away service (P1)",
-  "prompt": "# T-027 — Manual put-away service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §8.3 (FR-WH-012).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`putawayLp(lpId, targetLocationId)` Server Action recording move_type='putaway' from receiving zone to target storage location.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/putaway.ts`. Validate target location is descendant of LP.warehouse_id via ltree, target.active=true. Update LP.location_id; insert stock_moves(move_type='putaway'). P1 manual only — put-away rules deferred to P2.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/putaway.ts [create]\n- apps/web/lib/services/warehouse/__tests__/putaway.test.ts [create]\n\n## Acceptance criteria\n1. Given a freshly-received LP at receiving location, when putawayLp runs to a storage location, then LP.location_id updates and a stock_moves(move_type='putaway') row is added.\n2. Given target location is in a different warehouse, when putawayLp runs, then it returns a validation error.\n3. Given target.active=false, when putawayLp runs, then V-WH-MOV-003 error is returned.\n\n## Test strategy\n- RED: putaway.test.ts covers happy path, cross-warehouse error, inactive target.\n- Run `pnpm --filter web test putaway`.\n\n## Risk red lines\n- Do not introduce putaway rules (P2).\n- Do not allow cross-warehouse putaway.\n- Do not skip stock_moves insert.",
+  "title": "T-027 — Manual put-away service (P1) (WH §8.3)",
+  "prompt": "# T-027 — Manual put-away service (P1) (WH §8.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §8.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `manualPutaway`: post-GRN Operator workflow scan LP → suggest location (basic — default warehouse zone for product.category) → confirm to target location → stock_moves(move_type='putaway'). P1 manual only; put-away rules WH-E12 deferred to P2.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/manual-putaway.ts`: `suggestPutawayLocation({lp_id}): {suggested_location_id}` + `executePutaway({lp_id, target_location_id})`.\n2. Suggestion: lookup product.category → warehouse_zones config (or fallback to grn_items.location_id from receipt).\n3. Execute: writes stock_moves(move_type='putaway', from=receiving_zone, to=target), updates LP.location_id.\n\n## Files\n- apps/web/lib/services/warehouse/putaway.ts [create]\n- apps/web/lib/services/warehouse/__tests__/putaway.test.ts [create]\n\n## Acceptance criteria\n1. Given an LP at receiving zone, when `suggestPutawayLocation` is called, then it returns a non-null target location based on product category.\n2. Given `executePutaway` is called with target, when complete, then LP.location_id=target and a stock_moves row with move_type='putaway' exists.\n3. Given LP is not at receiving (already put away), when executePutaway called, then service rejects.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/manual-putaway.test.ts` asserting suggest + execute + already-putaway rejection.\n- Run `pnpm --filter web test manual-putaway`.\n\n## Risk red lines\n- Do not implement put-away rules engine here (P2 WH-E12).\n- Do not skip stock_moves emission.\n\n## Dependencies\n- T-025",
   "labels": [
     "prd",
-    "api",
+    "service",
     "putaway",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "putaway",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-stock-moves",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Manual put-away P1 — move LP to storage location and log putaway stock_move.",
-    "details": "Ltree descendant check; active check; single transaction. P2 putaway rules deferred.",
+    "description": "Implement `manualPutaway`: post-GRN Operator workflow scan LP → suggest location (basic — default warehouse zone for product.category) → confirm to target location → stock_moves(move_type='putaway'). P1 manual only; put-away rules WH-E12 deferred to P2.",
+    "details": "Implement `manualPutaway`: post-GRN Operator workflow scan LP → suggest location (basic — default warehouse zone for product.category) → confirm to target location → stock_moves(move_type='putaway'). P1 manual only; put-away rules WH-E12 deferred to P2. `apps/web/lib/services/warehouse/manual-putaway.ts`: `suggestPutawayLocation({lp_id}): {suggested_location_id}` + `executePutaway({lp_id, target_location_id})`. Suggestion: lookup product.category → warehouse_zones config (or fallback to grn_items.location_id from receipt).",
     "scope_files": [
       "apps/web/lib/services/warehouse/putaway.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/putaway.test.ts [create]"
@@ -42,18 +42,17 @@
       "T-028"
     ],
     "acceptance_criteria": [
-      "Given a freshly-received LP, when putawayLp runs to a storage location, then LP.location_id updates and a putaway stock_move is added",
-      "Given target in a different warehouse, when run, then a validation error returns",
-      "Given target.active=false, when run, then V-WH-MOV-003 error returns"
+      "Given an LP at receiving zone, when `suggestPutawayLocation` is called, then it returns a non-null target location based on product category.",
+      "Given `executePutaway` is called with target, when complete, then LP.location_id=target and a stock_moves row with move_type='putaway' exists.",
+      "Given LP is not at receiving (already put away), when executePutaway called, then service rejects."
     ],
     "test_strategy": [
-      "RED: putaway.test.ts covers happy / cross-warehouse / inactive scenarios",
-      "Run 'pnpm --filter web test putaway'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/manual-putaway.test.ts` asserting suggest + execute + already-putaway rejection.",
+      "Run `pnpm --filter web test manual-putaway`."
     ],
     "risk_red_lines": [
-      "Do not introduce putaway rules",
-      "Do not allow cross-warehouse putaway",
-      "Do not skip stock_moves insert"
+      "Do not implement put-away rules engine here (P2 WH-E12).",
+      "Do not skip stock_moves emission."
     ],
     "skills": [
       "test-driven-development",
@@ -83,7 +82,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",

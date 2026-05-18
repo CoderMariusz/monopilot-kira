@@ -1,0 +1,89 @@
+{
+  "title": "T-095 — SchemaColumnWizard step 2 → RHF + Zod resolver from @monopilot/ui (FT-035)",
+  "prompt": "# T-095 — SchemaColumnWizard step 2 → RHF + Zod resolver from @monopilot/ui (FT-035)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.y, §6\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-035** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (M effort)\n\n## Goal\nStep 2 uses @monopilot/ui primitives + RHF + Zod resolver — InlineStepper workaround removed.\n\n## Implementation contract\n1. Import Stepper, Field, Button from @monopilot/ui.\n2. useForm + zodResolver(schemaColumnSchema).\n3. Step transitions reset focus to first invalid field.\n4. Tests mirror existing happy-path + error-state + step-navigation expectations.\n\n## Files (scope)\n- apps/web/app/admin/schema/SchemaColumnWizard.tsx [modify]\n- apps/web/app/admin/schema/__tests__/SchemaColumnWizard.test.tsx [modify]\n\n## Acceptance criteria\n1. Given the SchemaColumnWizard step 2 renders, when compared to the prototype `prototypes/design/Monopilot Design System/settings/modals.jsx:261-360` (PromoteToL2Modal stepper+field wizard pattern), then literal prototype parity holds for layout, labels, step transitions, and focus order.\n2. Given an invalid field, when the user clicks Next, then RHF reports the error and focus moves to the first invalid field.\n3. Given a valid step 2 submission, when the user clicks Next, then the form state is persisted and step 3 renders.\n4. Given the existing axe-core run, when re-executed, then 0 new violations.\n\n## Test strategy\n- RED: extend SchemaColumnWizard.test.tsx with the RHF + parity ACs before refactor.\n- Run `pnpm --filter @monopilot/web vitest run SchemaColumnWizard`.\n\n## Risk red lines\n- Do not regress accessibility (axe violations = fail).\n- Do not paste prototype JSX wholesale.\n- Do not import @radix-ui/* outside packages/ui (§0 ESLint rule).\n- Do not retain InlineStepper after the refactor.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "ui",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "wizard",
+    "rhf",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-095",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.y",
+      "§6"
+    ],
+    "original_carry_forward_id": "FT-035",
+    "category": "ui",
+    "subcategory": "wizard",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-j",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Refactor SchemaColumnWizard step 2 to import @monopilot/ui Stepper and re-implement form with React Hook Form + Zod resolver (replacing the custom InlineStepper workaround).",
+    "details": "T-037 shipped an inline Stepper workaround because React 19 peerDeps weren't aligned (FT-033). Once FT-033 lands, refactor step 2 to consume @monopilot/ui/Stepper + Field, manage state with React Hook Form, and validate via the Zod resolver.\n\nAC[0] updated by Fixer F7 2026-05-14 to reference the correct prototype path with line-range; no coverage lost.",
+    "scope_files": [
+      "apps/web/app/admin/schema/SchemaColumnWizard.tsx [modify]",
+      "apps/web/app/admin/schema/__tests__/SchemaColumnWizard.test.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change schema validation logic.",
+      "Do not change step 1 or step 3."
+    ],
+    "dependencies": [
+      "T-093"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the SchemaColumnWizard step 2 renders, when compared to the prototype `prototypes/design/Monopilot Design System/settings/modals.jsx:261-360` (PromoteToL2Modal stepper+field wizard pattern), then literal prototype parity holds for layout, labels, step transitions, and focus order.",
+      "Given an invalid field, when the user clicks Next, then RHF reports the error and focus moves to the first invalid field.",
+      "Given a valid step 2 submission, when the user clicks Next, then the form state is persisted and step 3 renders.",
+      "Given the existing axe-core run, when re-executed, then 0 new violations."
+    ],
+    "test_strategy": [
+      "RED: extend SchemaColumnWizard.test.tsx with the RHF + parity ACs before refactor.",
+      "Run `pnpm --filter @monopilot/web vitest run SchemaColumnWizard`."
+    ],
+    "risk_red_lines": [
+      "Do not regress accessibility (axe violations = fail).",
+      "Do not paste prototype JSX wholesale.",
+      "Do not import @radix-ui/* outside packages/ui (§0 ESLint rule).",
+      "Do not retain InlineStepper after the refactor."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

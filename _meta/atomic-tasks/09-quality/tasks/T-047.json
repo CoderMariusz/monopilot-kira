@@ -1,0 +1,92 @@
+{
+  "title": "T-047 — HACCP schema (haccp_plans + haccp_ccps + haccp_monitoring_records) + RLS (09-e-01)",
+  "prompt": "# T-047 — HACCP schema + RLS\n\nPRD: §6.3 haccp_plans/haccp_ccps/haccp_monitoring_records DDL, §9.1 RLS, §11.5 V-QA-HACCP/V-QA-CCP\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 HACCP physical tables (plans + ccps + monitoring records) with within_limits GENERATED column, retention 5y, indexes, RLS (function-form), and Drizzle schemas. Foundation for the 09-e sub-module.\n\n## Implementation contract\n1. Migration 0140 emits haccp_plans (id, plan_code, product_family, product_id, version, status CHECK, effective_from, reviewed_at, approved_by, approved_at, UNIQUE(org_id, plan_code, version)).\n2. haccp_ccps (id, plan_id FK, ccp_code, step_name, hazard_type CHECK in {biological,chemical,physical,allergen}, critical_limit_min/max, unit, monitoring_frequency, monitoring_method, deviation_threshold_seconds, corrective_action_default, verification_method, record_method, active, sort_order, UNIQUE(org_id, plan_id, ccp_code)).\n3. haccp_monitoring_records (id, ccp_id FK, wo_id?, lp_id?, measured_value, measured_text, within_limits GENERATED ALWAYS AS (subselect against ccp limits per §6.3), recorded_by, recorded_at, recorded_via CHECK in {desktop,scanner,iot_sensor}, signature_hash, retention_until 5y GENERATED, deviation_id FK→haccp_deviations P2).\n4. Indexes: idx_haccp_mon_ccp(org_id, ccp_id, recorded_at DESC); idx_haccp_mon_violations(org_id, recorded_at DESC) WHERE within_limits=false.\n5. RLS: ENABLE RLS on all 3 tables; CREATE POLICY tenant_isolation USING (org_id = app.current_org_id()) WITH CHECK (org_id = app.current_org_id()) — function form per Wave0 v4.3.\n6. Drizzle schemas: packages/db/src/schema/haccpPlans.ts, haccpCcps.ts, haccpMonitoringRecords.ts; export from index.\n\n## Files\n- packages/db/migrations/0140_haccp_tables.sql [create]\n- packages/db/src/schema/haccpPlans.ts [create]\n- packages/db/src/schema/haccpCcps.ts [create]\n- packages/db/src/schema/haccpMonitoringRecords.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/haccp-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0140 applied, when \\d on all 3 tables runs, then all §6.3 columns exist (within_limits GENERATED ALWAYS AS via subselect on haccp_ccps; hazard_type CHECK 4 values; retention_until 5y GENERATED) and RLS is enabled on all 3 tables with function-form policy\n2. Given a haccp_ccp with critical_limit_min=4.0 critical_limit_max=10.0, when monitoring_records insert with measured_value=15.0 AND 3.0, then within_limits is false in both cases; with measured_value=7.0 then within_limits is true\n3. Given two tenants with app.current_org_id() each, when each inserts haccp_plans/ccps/monitoring rows and SELECTs, then each sees only its own rows (function-form RLS, not GUC)\n4. Given the partial index idx_haccp_mon_violations, when SELECT * FROM haccp_monitoring_records WHERE within_limits=false ORDER BY recorded_at DESC runs, then the EXPLAIN plan shows the partial index is used\n\n## Test strategy (RED first)\n- RED: packages/db/__tests__/haccp-schema.test.ts asserting all 4 ACs (column introspection, GENERATED within_limits compute, RLS function-form isolation, partial index usage) before migration\n- Run 'pnpm --filter db migrate && pnpm --filter db test haccp-schema'\n\n## Risk red lines\n- Do not use GUC reads — use app.current_org_id() function (Wave0 v4.3; audit B 4.2)\n- Do not deviate from §6.3 verbatim DDL (consumer T-051 depends on column names)\n- Do not skip the GENERATED within_limits subselect (server-side limit check must be DB-level not app-level)\n- Do not skip the partial idx_haccp_mon_violations index (audit / KPI queries depend on it)",
+  "labels": [
+    "prd",
+    "data",
+    "schema-haccp",
+    "T1-schema"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-047",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§6.3",
+      "§9.1",
+      "§11.5"
+    ],
+    "category": "data",
+    "subcategory": "schema-haccp",
+    "task_type": "T1-schema",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create haccp_plans + haccp_ccps + haccp_monitoring_records tables (within_limits GENERATED, 5y retention, partial index for violations, function-form RLS) with Drizzle schemas.",
+    "details": "Migration 0140 emits all 3 tables per §6.3 verbatim DDL including within_limits as GENERATED ALWAYS AS subselect on haccp_ccps (validates measured_value within [critical_limit_min, critical_limit_max]), retention_until 5y GENERATED, hazard_type CHECK in {biological,chemical,physical,allergen}, recorded_via CHECK in {desktop,scanner,iot_sensor}, deviation_threshold_seconds for ccp_deviation_escalation_v1 rule. Indexes: idx_haccp_mon_ccp(org_id, ccp_id, recorded_at DESC), idx_haccp_mon_violations partial WHERE within_limits=false. RLS function-form policy per Wave0 v4.3. Drizzle ORM schemas with Insert/Select types. PRD anchors verified: §6.3 source DDL; §9.1 RLS pattern (apply via app.current_org_id() function not GUC); §11.5 V-QA-HACCP/V-QA-CCP validations the schema enables.",
+    "scope_files": [
+      "packages/db/migrations/0140_haccp_tables.sql [create]",
+      "packages/db/src/schema/haccpPlans.ts [create]",
+      "packages/db/src/schema/haccpCcps.ts [create]",
+      "packages/db/src/schema/haccpMonitoringRecords.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/haccp-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement HACCP CRUD APIs (T-051)",
+      "Do not register DSL rule ccp_deviation_escalation_v1 (T-052)",
+      "Do not implement haccp_deviations P2 table (Epic 8I)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-037",
+      "T-048",
+      "T-049",
+      "T-050"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0140 applied, when \\d on all 3 tables runs, then all §6.3 columns exist (within_limits GENERATED; hazard_type CHECK 4 values; retention_until 5y GENERATED) and RLS is enabled with function-form policy on all 3",
+      "Given haccp_ccp with limits [4.0..10.0], when monitoring_records insert measured_value=15.0 and 3.0, then within_limits is false; insert 7.0, then within_limits is true",
+      "Given two tenants with app.current_org_id() each, when each inserts and SELECTs HACCP rows, then each sees only its own (function-form RLS isolation)",
+      "Given the partial idx_haccp_mon_violations index, when EXPLAIN ANALYZE the violations query runs, then the partial index is selected (assert via QUERY PLAN string match)"
+    ],
+    "test_strategy": [
+      "RED: packages/db/__tests__/haccp-schema.test.ts asserting all 4 ACs before migration",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test haccp-schema'"
+    ],
+    "risk_red_lines": [
+      "Do not use GUC reads — use app.current_org_id() function (Wave0 v4.3; audit B 4.2)",
+      "Do not deviate from §6.3 verbatim DDL",
+      "Do not skip the GENERATED within_limits subselect",
+      "Do not skip the partial idx_haccp_mon_violations (audit + KPI queries)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

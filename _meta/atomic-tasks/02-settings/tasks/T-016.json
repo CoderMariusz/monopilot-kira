@@ -54,7 +54,8 @@
       "GREEN: implement action."
     ],
     "risk_red_lines": [
-      "Do not commit role permissions outside the locked enum."
+      "Do not commit role permissions outside the locked enum.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

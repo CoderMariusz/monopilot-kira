@@ -1,0 +1,98 @@
+{
+  "title": "T-014 — UI: OEE-001 Per-line 24h Trend page (oee_line_trend_page prototype, 15-OEE-d)",
+  "prompt": "# T-014 — OEE-001 Per-line 24h Trend page UI\n\nPRD: docs/prd/15-OEE-PRD.md §10.1, §15.1, §15.7 (UI matrix) + UX prototypes/design/15-OEE-UX.md:254-393\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/oee/screens.jsx:3-209 (oee_line_trend_page)\n\n## Goal\nServer Component page `/oee/line/[id]` rendering 4 ArcGauge KPI cards (A/P/Q/OEE) + multi-line TrendChart (A blue, P green, Q amber, OEE black bold) with downtime bands + changeover markers + Top Downtime Causes pareto + 7-day spark + window/shift filters, matching prototype 1:1 with shadcn primitives.\n\n## Implementation contract\n1. `apps/web/app/(oee)/line/[id]/page.tsx` (RSC): calls T-011 loader with URL search params (?window=1h|6h|24h, ?shift=all|AM|PM|Night) and passes data to client component `LineTrendClient`.\n2. `LineTrendClient` ('use client'): renders ArcGauge quartet, recharts ComposedChart (with ReferenceArea = downtime, ReferenceLine = changeover), TopDowntimeCauses list, Spark 7-day, controls. SWR refreshInterval 60s per §10.1 (incremental fetch).\n3. URL search params drive state (line=… &window=24h &shift=all) per translation note (shareable deep links).\n4. Target dashed-red ReferenceLine from oee_alert_thresholds (per-line override or tenant default).\n5. Auto-refresh pause integration via OEE-M-012 modal (covered by separate modal task; this task wires the trigger button only).\n6. RTL test snapshot + parity checklist (4 ArcGauges + Trend chart + 7-day spark + Top Downtime + controls) verifying match against prototype line range.\n\n## Files\n- apps/web/app/(oee)/line/[id]/page.tsx [create]\n- apps/web/app/(oee)/line/[id]/_components/line-trend-client.tsx [create]\n- apps/web/app/(oee)/line/[id]/_components/__tests__/line-trend-client.test.tsx [create]\n- apps/web/app/(oee)/line/[id]/_components/arc-gauge.tsx [create]\n- prototypes/design/Monopilot Design System/oee/screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:3-209 (oee_line_trend_page), then it has the same 4 ArcGauge header row + Trend chart + Top Downtime Causes + 7-day Spark + window/shift controls — verified by RTL snapshot + parity checklist (structural + visual + interaction).\n2. Given URL ?window=6h, when page renders, then loader is called with window=6h and chart x-axis spans 6h (V-OEE-ACCESS-3 RLS still enforced).\n3. Given the SWR loop is mounted for 61 s, when network log is inspected, then a /api/oee/line/[id]/trend request fired at ~60 s per §10.1 polling contract.\n4. Given the task is closed out, when reviewers inspect the task evidence, then these additional requirements are proven together: dashed-red target line at oee_alert_thresholds.oee_target_pct (default 70% per §13.1); Top Downtime causes list shows max 3 entries; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- RED: RTL test asserting parity + window URL behaviour + 60s SWR + target line render.\n- GREEN: build RSC + client component + ArcGauge primitive.\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/line && pnpm typecheck`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not use HTML <select> instead of shadcn Select for filters.\n- Do not paste prototype JSX verbatim — translate per shadcn primitives + recharts ComposedChart (translation note BL-OEE-09 decision: prefer recharts).\n- Do not introduce client-side websocket dependency (P2).\n- Do not skip Top Downtime Causes list — required by §10.1 layout bullet.\n- Do not hardcode the 70% target — read from oee_alert_thresholds per line, fall back to tenant default.",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-001",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§10.1",
+      "§15.1",
+      "§15.7"
+    ],
+    "category": "ui",
+    "subcategory": "line-trend-page",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-d",
+    "context_budget": "60k",
+    "estimated_effort": "3-5h",
+    "description": "OEE-001 Per-line 24h Trend page (RSC + SWR client) with 4 ArcGauges + TrendChart + Top Downtime + Spark + controls matching oee_line_trend_page prototype.",
+    "details": "Parity checklist: (1) 4 ArcGauge header row (A/P/Q/OEE) with target from oee_alert_thresholds, (2) recharts ComposedChart with downtime ReferenceArea + changeover ReferenceLine, (3) Top Downtime Causes max 3 entries (8-PRODUCTION downtime_events aggregated), (4) 7-day Spark per line (recharts LineChart mini), (5) window 1h/6h/24h ToggleGroup, (6) shift Select filter, (7) export trigger (OEE-M-002 modal in T-020 task scope), (8) auto-refresh-pause trigger (OEE-M-012 modal). SWR refreshInterval=60000 ms per §10.1.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Target dashed-red ReferenceLine from oee_alert_thresholds.oee_target_pct (per-line override or tenant default 70% per §13.1 Apex baseline).\n- Top Downtime Causes list shows max 3 entries.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.",
+    "scope_files": [
+      "apps/web/app/(oee)/line/[id]/page.tsx [create]",
+      "apps/web/app/(oee)/line/[id]/_components/line-trend-client.tsx [create]",
+      "apps/web/app/(oee)/line/[id]/_components/__tests__/line-trend-client.test.tsx [create]",
+      "apps/web/app/(oee)/line/[id]/_components/arc-gauge.tsx [create]",
+      "prototypes/design/Monopilot Design System/oee/screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Server endpoint (T-011)",
+      "Export modal (T-020)",
+      "Cell-drill modal (T-015)",
+      "P2 anomaly history page (T-023)"
+    ],
+    "dependencies": [
+      "T-011"
+    ],
+    "parallel_safe_with": [
+      "T-015",
+      "T-016"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/oee/screens.jsx:3-209 (oee_line_trend_page), then it has the same 4 ArcGauge header row + Trend chart + Top Downtime + 7-day Spark + window/shift controls — verified by RTL snapshot + parity checklist",
+      "Given URL ?window=6h, when page renders, then loader is called with window=6h and chart x-axis spans 6h",
+      "Given the SWR loop is mounted for 61 s, when network log is inspected, then a /api/oee/line/[id]/trend request fired at ~60 s per §10.1 polling contract",
+      "Given the task is closed out, when reviewers inspect evidence, then dashed-red target line at oee_alert_thresholds.oee_target_pct (default 70% per §13.1) is rendered; Top Downtime list shows max 3 entries; UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`"
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + window URL behaviour + 60s SWR + target line render",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/line` and `pnpm typecheck`",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <select> instead of shadcn Select",
+      "Do not paste prototype JSX verbatim — translate per shadcn + recharts",
+      "Do not introduce client-side websocket dependency (P2)",
+      "Do not skip Top Downtime Causes list",
+      "Do not hardcode the 70% target — read from oee_alert_thresholds"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "oee_line_trend_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

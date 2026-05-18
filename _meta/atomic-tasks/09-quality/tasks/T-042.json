@@ -1,0 +1,87 @@
+{
+  "title": "T-042 — ncr_root_cause_categories reference table seed (ADR-034)",
+  "prompt": "# T-042 — ncr_root_cause_categories reference seed\n\nPRD: §16.3 ADR-034 tenant-configurable taxonomies, §8.3 QUA-105 rcCat usage, §11.4 V-QA-NCR-005\n\n## Goal\nRegister ncr_root_cause_categories reference table + seed 10 baseline rows + server helper getRootCauseCategories. Consumer: ncr_close_modal (T-046) rcCat select.\n\n## Implementation contract\nMigration 0133 + helper + tests. Seeds: human_error_training, procedure_inadequate, equipment_failure, raw_material_quality, environmental_temp_humidity, packaging_defect, allergen_cross_contact, microbiological_contamination, foreign_object_glass_metal_plastic, other.\n\n## Files\n- packages/db/migrations/0133_ncr_root_cause_categories_reftable.sql [create]\n- apps/web/src/server/quality/ncr/rootCauseCategories.ts [create]\n- apps/web/src/server/quality/ncr/__tests__/rootCauseCategories.test.ts [create]\n\n## Acceptance criteria\n1. 10 seed rows exist with pl+en i18n\n2. getRootCauseCategories returns 10 rows ordered stably\n3. Validator rejects bad parent_category\n\n## Test strategy (RED first)\n- RED: rootCauseCategories.test.ts before migration\n- Run 'pnpm --filter db migrate && pnpm --filter web test rootCauseCategories'\n\n## Risk red lines\n- No hardcode in modal\n- i18n column mandatory",
+  "labels": [
+    "prd",
+    "data",
+    "reference-seed",
+    "T5-seed"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-042",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§16.3",
+      "§8.3 QUA-105",
+      "§11.4"
+    ],
+    "category": "data",
+    "subcategory": "reference-seed",
+    "task_type": "T5-seed",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "20k",
+    "estimated_effort": "0.5-1h",
+    "description": "Register ncr_root_cause_categories reference table (tenant-configurable per ADR-034) and seed 10 baseline categories used by ncr_close_modal/QA-009a detail.",
+    "details": "Migration 0133 inserts reference_tables registry row code='ncr_root_cause_categories' with schema_json {code,label,parent_category,category,i18n jsonb}. Seeds 10 rows: human_error_training, procedure_inadequate, equipment_failure, raw_material_quality, environmental_temp_humidity, packaging_defect, allergen_cross_contact, microbiological_contamination, foreign_object_glass_metal_plastic, other. Server helper apps/web/src/server/quality/ncr/rootCauseCategories.ts. PRD anchors: §16.3 ADR-034 mention 'ncr_root_cause_categories is a tenant-configurable reference table' (QUA-105 paragraph line 1083); §8.3 QUA-105 lists rcCat select usage in ncr_close_modal; §11.4 V-QA-NCR-005 ties root_cause_category to closure.",
+    "scope_files": [
+      "packages/db/migrations/0133_ncr_root_cause_categories_reftable.sql [create]",
+      "apps/web/src/server/quality/ncr/rootCauseCategories.ts [create]",
+      "apps/web/src/server/quality/ncr/__tests__/rootCauseCategories.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement NCR close Server Action here (T-038)",
+      "Do not build ncr_close_modal UI here (T-046)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-037",
+      "T-038"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0133 applied, when SELECT FROM reference_tables_rows WHERE table_code='ncr_root_cause_categories' runs, then exactly 10 seed rows exist with i18n keys for pl and en",
+      "Given tenant context, when getRootCauseCategories(orgId) is called, then it returns 10 rows ordered stably by (category, label)",
+      "Given a row insert with parent_category not matching an existing row code or NULL, then the reference_tables JSON-schema validator rejects it (referential integrity within reference data)"
+    ],
+    "test_strategy": [
+      "RED: rootCauseCategories.test.ts asserting count + ordering + parent_category validation before migration",
+      "Run 'pnpm --filter db migrate && pnpm --filter web test rootCauseCategories'"
+    ],
+    "risk_red_lines": [
+      "Do not hardcode categories in ncr_close_modal (must remain reference-table per ADR-034)",
+      "Do not omit i18n column"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "02-settings:T-091"
+    ]
+  }
+}

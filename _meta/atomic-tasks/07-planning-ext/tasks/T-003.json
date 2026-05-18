@@ -25,7 +25,7 @@
     "context_budget": "40k",
     "estimated_effort": "1-2h",
     "description": "Create changeover_matrix + changeover_matrix_versions with RLS, per-line override support (D5), partial unique active version flag.",
-    "details": "Migration 0072 emits both tables per §9.4 DDL. line_id NULL = default tenant-wide; non-NULL = override. Partial unique on is_active=true ensures only one active version per tenant. Drizzle schema mirrors columns. RED test verifies override semantics and active-version uniqueness.",
+    "details": "Migration 0072 emits both tables per §9.4 DDL. line_id NULL = default tenant-wide; non-NULL = override. Partial unique on is_active=true ensures only one active version per tenant. Drizzle schema mirrors columns. RED test verifies override semantics and active-version uniqueness. RLS policies must explicitly reference the foundation `app.current_org_id()` function (Wave0 v4.3 lock; see `_meta/audits/2026-05-14-tenant-context-remediation.md`). Do not use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads.",
     "scope_files": [
       "packages/db/migrations/0072_changeover_matrix.sql [create]",
       "packages/db/src/schema/changeover_matrix.ts [create]",
@@ -48,13 +48,15 @@
       "Run 'pnpm --filter db migrate && pnpm --filter db test changeover-matrix'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
       "Do not skip the partial unique index on is_active=true",
       "Do not skip RLS policy",
       "Do not seed data in this migration"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -76,6 +78,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-001",
+      "T-004",
+      "T-005",
+      "T-008",
+      "T-011"
+    ]
   }
 }

@@ -1,6 +1,6 @@
 {
   "title": "T-015 — API: BOM version diff (GET .../boms/diff?from=&to=)",
-  "prompt": "Implement GET /api/technical/items/[item_code]/boms/diff?from=:vA&to=:vB returning structured JSON diff of header, lines (added / removed / changed by component_item_id), co_products. Per §7.5 TEC-023 contract. Each line entry shows old vs new quantity, scrap_pct, manufacturing_operation_name. RED tests/api/bom-diff.test.ts. Run: `pnpm vitest run tests/api/bom-diff.test.ts`.",
+  "prompt": "# T-015 — API: BOM version diff (GET .../boms/diff?from=&to=)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §7.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nEndpoint returning structured diff between two BOM versions.\n\nDiff keyed by component_item_id (lines) and co_product_item_id (co_products). Header diff lists yield_pct, status, effective_from changes. Numeric diffs return delta and percent change.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/api/technical/items/[item_code]/boms/diff/route.ts [create]\n- lib/technical/bom/diff.ts [create]\n- tests/api/bom-diff.test.ts [create]\n\n## Out of scope\n- Side-by-side renderer (UI)\n- Snapshot diff\n\n## Acceptance criteria\n1. Given v1 has 3 lines and v2 adds one and changes a quantity, when GET /diff?from=1&to=2, then response contains added=[], changed=[], removed=[] with one entry each in changed and added.\n2. Given v1=v2, when GET /diff, then all arrays empty.\n3. Given non-existent version pair, when GET /diff, then 404.\n\n## Test strategy\n- RED tests asserting shape of changed/added/removed arrays.\n- Run: pnpm vitest run tests/api/bom-diff.test.ts\n\n## Risk red lines\n- Do not include private_jsonb in diff.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -52,7 +52,11 @@
       "Run: pnpm vitest run tests/api/bom-diff.test.ts"
     ],
     "risk_red_lines": [
-      "Do not include private_jsonb in diff."
+      "Do not include private_jsonb in diff.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "test-driven-development",

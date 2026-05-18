@@ -1,0 +1,112 @@
+{
+  "title": "T-016 — Pick Server Actions: buildWave, releaseWave, assignPicker, executePick (scanner), resolveShortPick, reassignPicker (11-shipping-d)",
+  "prompt": "# T-016 — Pick/Wave Server Actions + scanner pick API\n\nPRD: docs/prd/11-SHIPPING-PRD.md §6 D-SHP-6 Scanner-First, §6 D-SHP-13 QA gate, §11 V-SHIP-PICK-01..05, §15.4 SHIP-013 Wave Picking Builder, §15.4 SHIP-014 Pick Desktop Supervisor, §15.4 SHIP-015 Pick Scanner, §15.4 SHIP-016 Short Pick Resolve\nPrototype refs: prototypes/design/Monopilot Design System/shipping/modals.jsx:455-502 (short_pick_resolve_modal), :538-562 (wave_release_modal), :564-575 (pick_reassign_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for wave/pick lifecycle. Includes scanner pick API hook (consumer of 06-SCANNER session model).\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/picks.ts` exports:\n   - `buildWave({soIds, planned_start})` — creates a `waves` row + assigns selected SOs (waves.status='unreleased'); permission `ship.so.create`.\n   - `releaseWave(waveId)` — generates pick_lists + pick_list_lines for each SO line, computing pick_sequence via route algorithm (zone→aisle→bin from 05-WH locations); status='released'; outbox `shipping.wave.released`. Permission `ship.so.confirm`.\n   - `assignPicker(pickListId, userId)` — UPDATE pick_lists.assigned_to + status='assigned'.\n   - `reassignPicker(pickListId, newUserId, reason)` — audit-logged.\n   - `executePick(pickListLineId, scannedLpId, qty)` — scanner endpoint: V-SHIP-PICK-01 (LP must be scanned, no manual entry — enforce server-side by requiring `scan_event_id` from 06-SCANNER session), V-SHIP-PICK-02 (soft quality_hold via T-013 service — require reason_code if severity major/medium/minor), V-SHIP-PICK-03 (hard reject if severity='critical'), V-SHIP-PICK-05 (if scannedLpId != suggested → audit pick_overrides). Permission `ship.pick.execute`. Outbox `shipping.pick.executed`.\n   - `resolveShortPick(pickListLineId, action)` — actions: ('backorder','partial','reallocate','cancel_line'); audit + outbox `shipping.pick.short_pick_resolved`.\n2. All actions under `withOrgContext` (T-125). Outbox via @monopilot/outbox (T-112).\n3. PIN re-verify (P2 hook): use @monopilot/e-sign (T-124) for `ship.alloc.override` calls during executePick override path (Phase 1 optional, Phase 2 mandatory).\n4. No GUC reads. PII redact (T-117).\n5. Rate-limit (T-121) executePick at 60 req/min/user (scanner burst tolerance).\n\n## Files\n- apps/web/lib/server-actions/shipping/picks.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/picks.test.ts [create]\n- packages/events/src/shipping.ts [modify — ShippingWaveReleased, ShippingPickExecuted, ShippingPickShortResolved, ShippingPickReassigned]\n\n## Acceptance criteria\n1. Given releaseWave is called for a wave with 3 SOs, when it runs, then pick_lists are created with pick_list_lines covering each so_line, pick_sequence computed by zone→aisle→bin route, status='released'; outbox shipping.wave.released emitted.\n2. Given executePick is called with scannedLpId on a critical-hold LP (T-013 returns ok=false), when it runs, then throws `QualityHoldCriticalError` and no DB update (V-SHIP-PICK-03).\n3. Given executePick is called with scannedLpId != suggested_lp_id and reason_code provided, when it runs, then pick_list_lines row is updated with picked_license_plate_id, and pick_overrides row is created (V-SHIP-PICK-05); outbox shipping.pick.executed emitted with override metadata.\n4. Given executePick called without scan_event_id (manual LP entry attempt), when validator runs, then throws `ManualLpEntryRejectedError` (V-SHIP-PICK-01).\n5. Given resolveShortPick with action='backorder', when it runs, then a backorder record is created (P1 stub — minimal record), pick_list_line.status='short', and outbox shipping.pick.short_pick_resolved emitted.\n6. Given grep `current_setting\\('app\\.(tenant_id|current_org_id)'\\)` on picks.ts, when run, then zero matches.\n\n## Test strategy\n- RED: vitest with testcontainers Postgres + mock scanner session asserting AC 1-6; permission gate.\n- Run `pnpm --filter @monopilot/web vitest run picks.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not allow executePick without scan_event_id (V-SHIP-PICK-01 server-side enforcement).\n- Do not bypass T-013 quality-hold gate.\n- Do not bypass pick_overrides audit when LP deviates from suggested.\n- Do not call mutations outside withOrgContext.\n- Do not log scanner operator PII plain (T-117 redact).\n- Do not enqueue outbox outside DB tx.",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-016",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§6 D-SHP-6",
+      "§6 D-SHP-13",
+      "§11 V-SHIP-PICK-01",
+      "§11 V-SHIP-PICK-02",
+      "§11 V-SHIP-PICK-03",
+      "§11 V-SHIP-PICK-04",
+      "§11 V-SHIP-PICK-05",
+      "§15.4 SHIP-013",
+      "§15.4 SHIP-014",
+      "§15.4 SHIP-015",
+      "§15.4 SHIP-016"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-pick",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-d",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Pick + wave Server Actions covering buildWave, releaseWave, assignPicker, executePick (scanner), resolveShortPick, reassignPicker with V-SHIP-PICK-* enforcement and D-SHP-13 gate.",
+    "details": "Scanner-first: executePick requires scan_event_id from 06-SCANNER session (V-SHIP-PICK-01). Quality hold gate via T-013 service. pick_overrides written on FEFO deviation. Route algorithm zone→aisle→bin uses 05-WH location ltree.",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/picks.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/picks.test.ts [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not build pick UI (T-017).",
+      "Do not implement pack/ship (T-020/T-021).",
+      "Do not implement Prophet-style optimization."
+    ],
+    "dependencies": [
+      "T-015",
+      "T-013",
+      "T-031",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
+    ],
+    "parallel_safe_with": [
+      "T-020"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse (locations ltree for route)",
+      "06-scanner-p1 (scan_event_id session contract)",
+      "09-quality/T-010 (v_active_holds via T-013)",
+      "00-foundation/T-124 (e-sign optional P1)",
+      "09-quality/T-064 (consume gate — executePick calls holdsGuard before LP pick; V-SHIP-PICK-03 hard block per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given releaseWave for a wave with 3 SOs, when it runs, then pick_lists + pick_list_lines are created with pick_sequence sorted by route; AND given executePick without scan_event_id, when validator runs, then throws ManualLpEntryRejectedError (V-SHIP-PICK-01).",
+      "Given executePick on a critical-hold LP (v_active_holds via 09-quality T-064), when it runs, then throws QualityHoldCriticalError (V-SHIP-PICK-03) and no DB update; AND given scannedLpId != suggested + reason_code, when it runs, then pick_overrides row inserted.",
+      "Given resolveShortPick action='backorder', when it runs, then backorder stub record created + status='short' + outbox shipping.pick.short_backorder emitted.",
+      "Given grep current_setting('app.tenant_id'|'app.current_org_id') on picks.ts, when run, then zero matches."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + mock scanner session asserting AC 1-6 + permission gate.",
+      "Run `pnpm --filter @monopilot/web vitest run picks.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not allow executePick without scan_event_id.",
+      "Do not bypass T-013 quality-hold gate.",
+      "Do not bypass pick_overrides audit on FEFO deviation.",
+      "Do not call mutations outside withOrgContext.",
+      "Do not log operator PII plain.",
+      "Do not enqueue outbox outside DB tx.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — executePick must call holdsGuard(lpId, lotId) before picking any LP."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

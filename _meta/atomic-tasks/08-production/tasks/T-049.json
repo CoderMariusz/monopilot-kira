@@ -1,10 +1,11 @@
 {
-  "title": "T-049 — UI parity: OEE, downtime and waste analytics screens",
-  "prompt": "# T-049 — UI parity: OEE, downtime and waste analytics screens\n\nPRD/UX refs: SCR-08-04, SCR-08-05, SCR-08-07, prototype labels waste_analytics_screen,downtime_screen,oee_screen,waste_modal,pause_line_modal,resume_line_modal\n\nGoal: Build analytics screens for waste, downtime and OEE with forms/modals matching prototypes.\n\nImplementation details:\nUse Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match new-screens.jsx:4-209, other-screens.jsx:4-212, modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.\n\nScope files:\n- apps/web/app/production/oee/page.tsx [create]\n- apps/web/app/production/downtime/page.tsx [create]\n- apps/web/app/production/waste/page.tsx [create]\n- apps/web/components/production/downtime-modals.tsx [create]\n- prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209\n- prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212\n\nAcceptance criteria:\n1. OEE/downtime/waste pages match prototype labels and support filters\n2. Pause/resume/log waste modals validate required taxonomy fields\n3. Closeout includes screenshots for all three screens and a Playwright trace\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-049 — UI: waste analytics + downtime + OEE foundation screens (SCR-08-04 / SCR-08-05 / SCR-08-07)",
+  "prompt": "# T-049 — Waste / Downtime / OEE foundation screens UI\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.1 SCR-08-04, SCR-08-05, SCR-08-07 (08-PROD foundation boundary), §6 D5/D6/D7\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209 (waste_analytics_screen); production/other-screens.jsx:4-121 (oee_screen), :124-212 (downtime_screen); production/modals.jsx:31-79 (pause_line_modal), :147-166 (waste_modal), :290-304 (resume_line_modal)\n\n## Goal\nBuild the three analytics surfaces (waste/downtime/OEE foundation) with prototype-parity charts (Recharts + accessible table fallbacks), URL-driven filters, and the three associated modals (pause line, resume line, log waste). OEE screen renders the 08-PROD foundation view only; advanced analytics remain owned by 15-OEE per §8.1 SCR-08-07 boundary.\n\n## Implementation contract\n1. apps/web/app/production/waste/page.tsx (RSC) — waste_analytics_screen parity: 4 KPI tiles (rolling-14d window query from `wo_waste_log`, resolving BL-PROD-02), Pareto BarChart (GROUP BY category), trend LineChart with target line from `prod_settings.waste_target_pct`, by-line table, paginated events list; filters `?cat=&line=&from=&to=` via URL params; Export CSV Server Action.\n2. apps/web/app/production/downtime/page.tsx (RSC) — downtime_screen parity: Pareto BarChart colored by 4P group (Plant/Process/People), distribution summary card with %, paginated events table with search + category filter via URL params, `Log downtime` opens pause_line_modal.\n3. apps/web/app/production/oee/page.tsx (RSC) — oee_screen parity (foundation only): 4 gauges (Plant/A/P/Q), by-line table, 7-day sparkline per line, performance/quality loss cards; period toggle Today/7d/30d via URL params; `Go to 15-OEE` cross-link in nav for advanced analytics.\n4. apps/web/components/production/downtime-modals.tsx ('use client') — pause_line_modal + resume_line_modal + waste_modal as shadcn Dialogs with zod-validated forms (4P category required for pause, ≥5 char reason, optional photo for waste); calls existing Server Actions from T-017/T-018/T-030.\n5. Literal `data-prototype-label` markers: `waste_analytics_screen`, `downtime_screen`, `oee_screen`, `pause_line_modal`, `resume_line_modal`, `waste_modal`.\n\n## Acceptance criteria\n1. Given the waste/downtime/OEE screens render with prototype-shaped data, when compared to prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209 and other-screens.jsx:4-212, then per-screen parity holds (KPI tiles + Pareto + trend + by-line + events list for waste; Pareto + distribution + events for downtime; 4 gauges + by-line + breakdown cards for OEE) — verified by RTL snapshot + parity checklist + visible `data-prototype-label` markers.\n2. Given the pause-line modal is opened, when the operator submits without picking a 4P category or with reason shorter than 5 chars, then zod rejects with localised error message and no server call is made.\n3. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for waste, downtime, OEE screens and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback) and confirms accessible chart fallback tables.\n\n## Test strategy\n- RED: apps/web/app/production/__tests__/analytics-screens.test.tsx + apps/web/components/production/__tests__/downtime-modals.test.tsx asserting per-screen parity, URL-driven filters, modal zod validation, rolling-14d query usage and `data-prototype-label` markers before code exists.\n- Run `pnpm vitest run apps/web/app/production/__tests__/analytics-screens.test.tsx apps/web/components/production/__tests__/downtime-modals.test.tsx`\n- For UI parity, capture screenshots + Playwright trace; attach paths.\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not hardcode rolling-14d window stats — must query `wo_waste_log` (resolves BL-PROD-02).\n- Do not render advanced OEE analytics (EWMA, six-big-losses) — those belong to 15-OEE.\n- Do not skip accessible chart fallback tables (axe/contrast).\n- Do not paste prototype JSX verbatim — translate to shadcn primitives + Recharts.\n",
   "labels": [
     "prd",
-    "T3-ui",
-    "ui"
+    "ui",
+    "analytics",
+    "T3-ui"
   ],
   "priority": 120,
   "max_attempts": 3,
@@ -14,26 +15,37 @@
     "prd_task_id": "T-049",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "SCR-08-04",
-      "SCR-08-05",
-      "SCR-08-07",
-      "prototype labels waste_analytics_screen,downtime_screen,oee_screen,waste_modal,pause_line_modal,resume_line_modal"
+      "§8.1 SCR-08-04",
+      "§8.1 SCR-08-05",
+      "§8.1 SCR-08-07",
+      "§6 D5",
+      "§6 D6",
+      "§6 D7"
     ],
-    "category": "production-readiness",
-    "subcategory": "UI parity: OEE, downtime and waste analytics scr",
+    "category": "ui",
+    "subcategory": "analytics-waste-downtime-oee",
     "task_type": "T3-ui",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Build analytics screens for waste, downtime and OEE with forms/modals matching prototypes.",
-    "details": "Use Next.js App Router Server Components by default, shadcn/ui components, next-intl keys, org-scoped data access, loading/empty/error states, and literal data-prototype-label markers matching _meta/prototype-labels/prototype-index-production.json. Closeout must include desktop screenshots and Playwright traces. Match prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209, prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212, prototypes/design/Monopilot Design System/production/modals.jsx:69-117,185-204,328-342. Data comes from T-036/T-037/T-044 and taxonomy T-035/T-045. Charts must have accessible table fallbacks and filter state in URL params.",
+    "parent_feature": "08-PROD E3/E4/E6 Waste + Downtime + OEE",
+    "context_budget": "55k",
+    "estimated_effort": "5-7h",
+    "description": "Waste analytics + downtime + OEE foundation surfaces with URL-driven filters, Recharts + a11y table fallbacks, and pause/resume/waste modals; OEE advanced analytics stays in 15-OEE.",
+    "details": "Parity against prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209 (waste_analytics_screen), other-screens.jsx:4-121 (oee_screen), :124-212 (downtime_screen), modals.jsx:31-79/147-166/290-304 (pause/waste/resume). Rolling-14d window query resolves BL-PROD-02. Pareto+trend charts use Recharts with accessible table fallback. URL-driven filters via `?cat=&line=&from=&to=&period=`. Advanced OEE analytics (EWMA / six-big-losses) explicitly out-of-scope per §8.1 SCR-08-07 boundary. UI closeout includes screenshots/artifacts and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/production/oee/page.tsx [create]",
-      "apps/web/app/production/downtime/page.tsx [create]",
       "apps/web/app/production/waste/page.tsx [create]",
+      "apps/web/app/production/downtime/page.tsx [create]",
+      "apps/web/app/production/oee/page.tsx [create]",
       "apps/web/components/production/downtime-modals.tsx [create]",
-      "prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209",
-      "prototypes/design/Monopilot Design System/production/other-screens.jsx:4-212"
+      "apps/web/app/production/__tests__/analytics-screens.test.tsx [create]",
+      "apps/web/components/production/__tests__/downtime-modals.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/production/new-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/other-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/production/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement 15-OEE advanced analytics (EWMA / six-big-losses)",
+      "Do not implement shift/line detail/analytics hub/settings (T-050)",
+      "Do not change wo_waste_log / downtime_events / oee_snapshots schema",
+      "Do not implement Puppeteer PDF export (BL-RPT-04)"
     ],
     "dependencies": [
       "T-036",
@@ -41,22 +53,34 @@
       "T-044",
       "T-045"
     ],
+    "parallel_safe_with": [
+      "T-046",
+      "T-047",
+      "T-048",
+      "T-050",
+      "T-051"
+    ],
     "acceptance_criteria": [
-      "OEE/downtime/waste pages match prototype labels and support filters",
-      "Pause/resume/log waste modals validate required taxonomy fields",
-      "Closeout includes screenshots for all three screens and a Playwright trace"
+      "Given the waste/downtime/OEE screens render with prototype-shaped data, when compared to prototypes/design/Monopilot Design System/production/new-screens.jsx:4-209 and other-screens.jsx:4-212, then per-screen parity holds (KPI+Pareto+trend+by-line+events for waste; Pareto+distribution+events for downtime; 4 gauges+by-line+breakdown for OEE) — verified by RTL snapshot + parity checklist and visible data-prototype-label markers.",
+      "Given the pause-line modal is opened, when operator submits without a 4P category or with reason <5 chars, then zod rejects with localised error and no server call is made.",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshots/artifacts for waste, downtime, OEE and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (or documented blocker + RTL/snapshot fallback) plus accessible chart fallback tables."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: apps/web/app/production/__tests__/analytics-screens.test.tsx + apps/web/components/production/__tests__/downtime-modals.test.tsx asserting per-screen parity, URL filters, modal zod validation, rolling-14d query usage and data-prototype-label markers before code exists.",
+      "Run 'pnpm vitest run apps/web/app/production/__tests__/analytics-screens.test.tsx apps/web/components/production/__tests__/downtime-modals.test.tsx'",
+      "For UI parity, capture screenshots and Playwright trace/video/artifacts; attach paths in closeout.",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not hardcode rolling-14d window stats (resolves BL-PROD-02).",
+      "Do not render advanced OEE analytics (15-OEE owns those).",
+      "Do not skip accessible chart fallback tables.",
+      "Do not paste prototype JSX verbatim."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -81,6 +105,8 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "prototype_match": true,
+    "prototype_index_entry": "waste_analytics_screen,downtime_screen,oee_screen,pause_line_modal,resume_line_modal,waste_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

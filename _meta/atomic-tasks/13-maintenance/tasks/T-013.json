@@ -1,0 +1,103 @@
+{
+  "title": "T-013 — Reference table seeds + GDPR erasure + i18n PL/EN keys (MNT §13.2, §14.4, §14.5)",
+  "prompt": "# T-013 — Reference tables + GDPR + i18n bootstrap\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §13.2 (maintenance_alert_thresholds, technician_skills), §14.4 (GDPR), §14.5 (i18n PL/EN)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nThree co-ordinated deliverables: (a) seed Settings reference tables `maintenance_alert_thresholds` + `technician_skills` per §13.2; (b) extend Foundation `app.gdpr_erase_user(user_id)` (Wave1 T-114) to pseudonymise `technician_profiles` PII per §14.4; (c) emit PL/EN i18n keys under `maintenance.*` namespace per §14.5 for all error codes from T-010/T-011/T-015/T-016 and screen titles in MNT-015..035.\n\n## Pre-flight\nVerify Wave1 T-113/T-114 GDPR primitive. Verify Foundation T-022 i18n / next-intl scaffold. Verify 02-Settings §8.1 reference tables registry pattern.\n\n## Implementation contract\n1. Seed migration `packages/db/migrations/NNNN_maintenance_settings_seed.sql`:\n   - INSERT into `reference_tables_registry` two entries: `maintenance_alert_thresholds`, `technician_skills` (per 02-Settings pattern).\n   - INSERT default values for Apex baseline: `maintenance_alert_thresholds (pm_interval_default_days=30, calibration_warning_days=30, calibration_urgent_days=7, availability_breach_threshold_pct=80.00, atp_rlu_threshold=30, mtbf_target_threshold_pct=NULL)`.\n   - INSERT 3 technician_skills rows: basic, advanced, specialist.\n2. Extend `apps/web/lib/gdpr/erase-user.ts` (Wave1 T-114) with a maintenance-specific function `eraseMaintenanceUser(userId)` that:\n   - Pseudonymises `technician_profiles`: certifications→NULL, hourly_rate→NULL, user_id→hash(user_id, salt) per §14.4 GDPR-vs-regulatory conflict resolution (prefer pseudonymise over delete to preserve 7y audit).\n   - Preserves `mwo.requester_user_id`/`mwo.approver_user_id`/`mwo.assigned_to_user_id` references but updates them to the hashed ID (so audit chain holds).\n   - Returns count of pseudonymised rows.\n   - Registers itself with Foundation GDPR orchestrator so `app.gdpr_erase_user()` picks it up.\n3. i18n: create `apps/web/messages/maintenance.pl.json` + `apps/web/messages/maintenance.en.json` with these namespaces (verify by importing in vitest):\n   - `maintenance.errors.MWO_INVALID_TRANSITION`, `…APPROVER_SAME_AS_REQUESTER`, `…LOTO_NOT_VERIFIED`, `…SANITATION_DUAL_SIGNOFF_REQUIRED`, `…SPARE_INSUFFICIENT_STOCK`, etc.\n   - `maintenance.assets.list.*`, `maintenance.mwo.detail.*`, `maintenance.pm.list.*`, `maintenance.calibration.list.*`, `maintenance.spares.list.*`, `maintenance.loto.list.*`, `maintenance.settings.*` (UI surfaces from MNT-015..035).\n4. Vitest: seed runs idempotently; gdpr fn pseudonymises technician_profiles correctly; PL/EN files parse + every error code from T-010/T-011 has a translation key in both files.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_settings_seed.sql [create]\n- apps/web/lib/gdpr/maintenance.ts [create]\n- apps/web/lib/gdpr/__tests__/maintenance.test.ts [create]\n- apps/web/messages/maintenance.pl.json [create]\n- apps/web/messages/maintenance.en.json [create]\n- apps/web/messages/__tests__/maintenance-i18n.test.ts [create]\n\n## Acceptance criteria\n1. Given seed migration runs, when SELECT FROM maintenance_alert_thresholds runs, then exactly one row with Apex baseline values is present per §13.2.\n2. Given seed re-runs, when checked, then no error (ON CONFLICT DO NOTHING) and no row duplication.\n3. Given a user_id with 2 technician_profiles rows, when eraseMaintenanceUser(user_id) runs, then certifications=NULL, hourly_rate=NULL, user_id=hash; mwo references to that user are also hashed; count returned matches rows touched.\n4. Given the i18n PL/EN files load, when imported in vitest, then every error code raised by T-010/T-011 Server Actions has a key in both `maintenance.pl.json` and `maintenance.en.json`.\n\n## Test strategy\n- RED: three vitest files asserting all four ACs.\n- Run `pnpm --filter db test maintenance-settings-seed && pnpm --filter @monopilot/web test gdpr/maintenance && pnpm --filter @monopilot/web test maintenance-i18n`.\n\n## Risk red lines\n- Do not DELETE technician_profiles rows — §14.4 mandates pseudonymise over delete to preserve regulatory 7y audit trail.\n- Do not skip GDPR registration with Foundation orchestrator — would break Foundation success criterion §13.\n- Do not omit error-code keys in i18n — translation gap is a release-blocker for UI.\n- Do not seed for tenants other than 'default' — that is a tenant-onboarding Settings task.",
+  "labels": [
+    "prd",
+    "data",
+    "gdpr",
+    "i18n",
+    "T5-seed"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§13.2",
+      "§14.4",
+      "§14.5"
+    ],
+    "category": "data",
+    "subcategory": "seed-gdpr-i18n",
+    "task_type": "T5-seed",
+    "parent_feature": "13-MAINTENANCE-a",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Seed maintenance_alert_thresholds + technician_skills + extend GDPR erase + emit PL/EN i18n keys for all error codes + screen titles.",
+    "details": "Closes Auditor A cross-cutting gaps: GDPR erasure (§13 Foundation success criterion) and i18n PL/EN (§14.5 BRCGS audit reqt). Pseudonymise per §14.4 (prefer over delete for 7y retention). LOTO and calibration sign-off error keys (LOTO_PIN_INVALID, CAL_CERT_IMMUTABLE etc.) in i18n files require @monopilot/e-sign foundation primitive (T-124) for PIN verification — signEvent/dualSign with replay nonce + paired audit (retention='security').",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_settings_seed.sql [create]",
+      "apps/web/lib/gdpr/maintenance.ts [create]",
+      "apps/web/lib/gdpr/__tests__/maintenance.test.ts [create]",
+      "apps/web/messages/maintenance.pl.json [create]",
+      "apps/web/messages/maintenance.en.json [create]",
+      "apps/web/messages/__tests__/maintenance-i18n.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "DE/FR/UK/RO i18n (Phase 2/3)",
+      "manufacturing_operations seed (02-Settings §8.9)",
+      "Tenant-specific overrides (per-tenant Settings task)",
+      "Per-screen UI components (T-014..T-027)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-006"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-012"
+    ],
+    "acceptance_criteria": [
+      "Given seed migration runs, when SELECT FROM maintenance_alert_thresholds runs, then exactly one row with Apex baseline values per §13.2",
+      "Given seed re-runs, when checked, then ON CONFLICT DO NOTHING and no duplication",
+      "Given user_id with 2 technician_profiles rows, when eraseMaintenanceUser(user_id) runs, then certifications=NULL, hourly_rate=NULL, user_id=hash; mwo references hashed; count returned matches",
+      "Given i18n PL/EN files load, when imported in vitest, then every error code from T-010/T-011 has a key in both files"
+    ],
+    "test_strategy": [
+      "RED: three vitest files asserting four ACs",
+      "Run `pnpm --filter db test maintenance-settings-seed && pnpm --filter @monopilot/web test gdpr/maintenance && pnpm --filter @monopilot/web test maintenance-i18n`"
+    ],
+    "risk_red_lines": [
+      "Do not DELETE technician_profiles — pseudonymise per §14.4",
+      "Do not skip GDPR registration with Foundation orchestrator",
+      "Do not omit error-code keys in i18n",
+      "Do not seed tenant-specific rows here"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

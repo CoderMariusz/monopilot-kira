@@ -1,6 +1,6 @@
 {
   "title": "T-073 — Shared BOM SSOT + released edit clone-on-write enforcement",
-  "prompt": "# T-073 — Shared BOM SSOT and released edit clone-on-write\n\nRefactor/extend BOM services so `bom_headers`, `bom_lines`, and `bom_co_products` are the single shared BOM SSOT consumed by NPD, Technical, Planning, Production, Warehouse and Finance. NPD Builder creates initial BOM versions in this same model with source metadata; no shadow BOM model is introduced. Enforce released edit rule: editing `active` or `approved` BOM creates next draft version and never mutates the released row. Approval requires Technical permission and a passing RM usability report. RED first: tests for clone-on-write, no duplicate BOM tables/models, and factory-use rejection until Technical approval.",
+  "prompt": "# T-073 — Shared BOM SSOT + released edit clone-on-write enforcement\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.1, §7.4, §7.6\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nShared BOM SSOT backend contract with released edit clone-on-write and Technical approval guards.\n\nUse existing BOM tables from T-002 if present; add source/review metadata through a safe migration only if missing. Approval flow is draft -> in_review -> approved -> active -> superseded. Production snapshots continue to use ADR-002 immutable snapshots. The service must expose typed decisions so UI can show exact blocking reason. This task is backend/API only. Use the shared release state contract from T-081 where available; otherwise implement a local adapter that can be replaced by T-081. BOM approval must be bundle-aware with factory_spec approval: callers must be able to request a combined FactorySpec+BOM release decision and receive atomic approve/reject semantics.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- db/migrations/0xxx_bom_ssot_metadata.sql [create]\n- apps/web/actions/technical/boms/*.ts [create]\n- apps/web/lib/technical/bom-service.ts [create]\n- tests/actions/technical/bom-ssot.test.ts [create]\n- tests/db/bom-ssot-metadata.test.ts [create]\n\n## Acceptance criteria\n1. Given NPD Builder creates an initial BOM, when it is saved, then it is stored in bom_headers/bom_lines with source npd_builder and status draft.\n2. Given an active BOM v4, when a user edits header or lines, then BOM v5 draft is created and v4 remains byte-for-byte unchanged.\n3. Given a BOM approval request with failing RM usability, then approval is rejected with the failing checks listed.\n4. Given repository search for new BOM tables, then no module-specific NPD/Production BOM table is added by this task.\n5. Given a FactorySpec+BOM bundle approval is requested, then BOM and factory_spec release decisions are evaluated together and partial release is rejected unless explicitly split by a Technical approver.\n6. Given shared release status model exists, then BOM status mapping uses it without inventing a conflicting enum.\n\n## Test strategy\n- RED tests for active BOM immutability and NPD initial draft path.\n- Run: pnpm vitest run tests/actions/technical/bom-ssot.test.ts tests/db/bom-ssot-metadata.test.ts\n\n## Risk red lines\n- Do not create a second BOM model.\n- Do not update active BOM rows in place.\n- Do not bypass ADR-002 snapshots.\n- Do not approve a BOM for factory use when the paired factory_spec is not approved_for_factory/released.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "api",
@@ -45,7 +45,7 @@
     "prd_task_id": "T-073",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.1",
       "§7.4",
       "§7.6"
@@ -77,7 +77,11 @@
       "Do not create a second BOM model.",
       "Do not update active BOM rows in place.",
       "Do not bypass ADR-002 snapshots.",
-      "Do not approve a BOM for factory use when the paired factory_spec is not approved_for_factory/released."
+      "Do not approve a BOM for factory use when the paired factory_spec is not approved_for_factory/released.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [
       "T-002",
@@ -87,6 +91,7 @@
     "parallel_safe_with": [
       "T-072"
     ],
-    "description": "Shared BOM SSOT backend contract with released edit clone-on-write and Technical approval guards."
+    "description": "Shared BOM SSOT backend contract with released edit clone-on-write and Technical approval guards.",
+    "out_of_scope": []
   }
 }

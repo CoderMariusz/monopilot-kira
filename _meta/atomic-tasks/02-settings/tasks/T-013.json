@@ -56,10 +56,12 @@
     ],
     "test_strategy": [
       "RED: shape + seed assertion.",
-      "GREEN: emit migration + seed."
+      "GREEN: emit migration + seed.",
+      "Run `pnpm --filter @monopilot/db test:integration -- flags-prefs.test`."
     ],
     "risk_red_lines": [
-      "Do not mirror PostHog non-core flags into the fallback table."
+      "Do not mirror PostHog non-core flags into the fallback table.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

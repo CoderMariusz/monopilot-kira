@@ -1,0 +1,109 @@
+{
+  "title": "T-020 — UI: PM Schedule List + Wizard + Calendar views (MNT-022, MNT-023, MNT-M-02)",
+  "prompt": "# T-020 — PM Schedule pages + calendar\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §10.3 MNT-022, MNT-023, §10.4 MNT-M-02, §11.7 V-MNT-23\nUX: prototypes/design/13-MAINTENANCE-UX.md:505-580\nPrototypes: pm-schedules.jsx:1-275 (pm_schedules_list_page, pm_month_calendar, pm_week_calendar); modals.jsx:357-498 (pm_schedule_edit_wizard, pm_occurrence_skip_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nRoute `/maintenance/pm` with three views (list/week/month) plus 4-step PM Schedule Edit Wizard modal + PM Skip modal. Schedules consumed by T-009 PM engine.\n\n## Implementation contract\n1. `apps/web/app/maintenance/pm/page.tsx` — RSC + URL param `?view=list|week|month`; renders one of three components.\n2. List view: shadcn Table; columns asset/type/interval/next_due/technician/status; row actions Edit/Skip/Deactivate; conditional row-overdue/row-due Tailwind styling via days-until computation.\n3. Week calendar: asset × day grid (date-fns helpers replacing prototype hand-rolled math); `?weekOffset` URL param.\n4. Month calendar: 7-col grid with eventsMap keyed yyyy-mm-dd; max 4 event chips + overflow; `?month=YYYY-MM` URL param.\n5. Wizard: shadcn Steps primitive (T-019 shared) — 4 steps (Asset & Type, Frequency, Assignment, Review with Next 12 occurrences computed server-side). Operation_context field per V-MNT-23 with cross-ref validation against 02-Settings manufacturing_operations.\n6. Skip modal: reason Select + notes Textarea (zod min 10) + optional Next-Due override; on submit appends skip audit row + emits outbox `pm_schedule.skip_threshold_exceeded` when count exceeds config.\n7. RBAC: manager-only for Edit/Skip/Deactivate/Add.\n8. Empty/loading/error/permission states.\n\n## Prototype parity\n- List + 3 views via URL param toggle — verify by RTL snapshot of pm-schedules.jsx:1-138.\n- Month calendar 4-chip per day + overflow — snapshot of L140-216.\n- Week calendar asset × day grid — snapshot of L218-275.\n- Wizard 4-step stepper — snapshot of modals.jsx:357-472.\n- Skip modal compliance metric warning Alert — snapshot of modals.jsx:474-498.\n\n## Files\n- apps/web/app/maintenance/pm/page.tsx [create]\n- apps/web/app/maintenance/pm/_components/pm-list.tsx [create]\n- apps/web/app/maintenance/pm/_components/pm-month-calendar.tsx [create]\n- apps/web/app/maintenance/pm/_components/pm-week-calendar.tsx [create]\n- apps/web/app/maintenance/pm/_components/pm-edit-wizard.tsx [create]\n- apps/web/app/maintenance/pm/_components/pm-skip-modal.tsx [create]\n- apps/web/app/maintenance/pm/_components/__tests__/pm-list.test.tsx [create]\n- apps/web/app/maintenance/pm/_components/__tests__/pm-wizard.test.tsx [create]\n\n## Acceptance criteria\n1. Given /maintenance/pm?view=list, when rendered, then it matches pm-schedules.jsx:1-138 (table + 6-KPI strip + filter bar).\n2. Given ?view=month, when rendered, then it matches pm-schedules.jsx:140-216 (7-col grid, 4-chip + overflow).\n3. Given wizard submitted with all 4 steps, when settled, then maintenance_schedules row created and outbox pm_schedule.created emitted; V-MNT-23 valid operation_context attached.\n4. Given pm-skip submitted with reason+notes, when settled, then pm_occurrence audit row + (if threshold exceeded) outbox pm_schedule.skip_threshold_exceeded emitted.\n5. Given operator session, when /maintenance/pm renders, then Edit/Skip/Deactivate/Add buttons are hidden server-side.\n6. Given closeout, when reviewers inspect evidence, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Test strategy\n- RED: RTL parity tests for 3 views + wizard + skip modal + RBAC. Playwright e2e for wizard flow.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/pm`.\n\n## Risk red lines\n- Do not hand-roll calendar math — use date-fns per translation notes.\n- Do not enable usage_hours/usage_cycles interval_basis from wizard for P1 (calendar_days only).\n- Do not bypass RBAC server-side.\n- Do not paste prototype JSX verbatim.\n- Do not omit empty/loading/error/permission states.",
+  "labels": [
+    "prd",
+    "ui",
+    "pm-schedule",
+    "T3-ui"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-020",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§10.3 MNT-022",
+      "§10.3 MNT-023",
+      "§10.4 MNT-M-02",
+      "§11.7"
+    ],
+    "category": "ui",
+    "subcategory": "pm-schedule",
+    "task_type": "T3-ui",
+    "parent_feature": "13-MAINTENANCE-b",
+    "context_budget": "55k",
+    "estimated_effort": "5-6h",
+    "description": "PM List + Week + Month calendar + 4-step Edit Wizard + Skip modal. Prototype parity with pm-schedules.jsx + modals.jsx wizard/skip.",
+    "details": "calendar_days only in P1 wizard; usage_hours/usage_cycles disabled with P2 note. Operation_context per V-MNT-23 validated against 02-Settings manufacturing_operations. UI closeout includes Playwright artifacts.",
+    "scope_files": [
+      "apps/web/app/maintenance/pm/page.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/pm-list.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/pm-month-calendar.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/pm-week-calendar.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/pm-edit-wizard.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/pm-skip-modal.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/__tests__/pm-list.test.tsx [create]",
+      "apps/web/app/maintenance/pm/_components/__tests__/pm-wizard.test.tsx [create]"
+    ],
+    "out_of_scope": [
+      "Usage-based intervals (P2)",
+      "MWO list/detail (T-021, T-022)",
+      "Cross-module operation_context full FK (02-Settings task)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-112"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003",
+      "T-007",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-018",
+      "T-019",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given /maintenance/pm?view=list, when rendered, then matches prototypes/design/Monopilot Design System/maintenance/pm-schedules.jsx:1-138 (table + KPI strip + filter bar) by RTL parity checklist; given ?view=month, then matches pm-schedules.jsx:140-216 (7-col grid, 4-chip overflow)",
+      "Given wizard submitted with all 4 steps, when settled, then maintenance_schedules row created and outbox pm_schedule.created emitted (T-112 dispatch); V-MNT-23 valid operation_context attached",
+      "Given pm-skip submitted, when settled, then pm_occurrence audit row + outbox pm_schedule.skip_threshold_exceeded (if threshold exceeded) emitted; given operator session, then Edit/Skip/Deactivate/Add hidden server-side",
+      "Given closeout, when reviewers inspect evidence, then Playwright trace + screenshots attached per UI-PROTOTYPE-PARITY-POLICY.md"
+    ],
+    "test_strategy": [
+      "RED: RTL parity tests for 3 views + wizard + skip + RBAC; Playwright e2e for wizard",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/pm`",
+      "Capture Playwright trace/video/screenshots; attach in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not hand-roll calendar math — date-fns",
+      "Do not enable usage_hours/cycles in P1 wizard",
+      "Do not bypass RBAC server-side",
+      "Do not paste prototype JSX verbatim",
+      "Do not omit empty/loading/error/permission states"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "playwright_artifacts"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "pm_schedules_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

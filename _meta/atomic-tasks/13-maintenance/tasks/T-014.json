@@ -1,0 +1,100 @@
+{
+  "title": "T-014 — LOTO apply/clear Server Actions + two-person e-sign (D-MNT-15, V-MNT-07..09, Wave1 T-124)",
+  "prompt": "# T-014 — LOTO apply/clear Server Actions with e-sign\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §7.2 D-MNT-15, §8.1 (loto_pre_execution_gate_v1), §11.2 (V-MNT-07..09), §9.7 (mwo_loto_checklists)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `applyLoto` and `clearLoto` Server Actions enforcing two-person verification (V-MNT-08/09) via Wave1 T-124 e-sign primitive. Apply records energy isolations + verifier; Clear requires distinct second-person e-sign + released_by.\n\n## Pre-flight\nVerify Wave1 T-124 e-sign primitive interface (`packages/auth/src/e-sign.ts` or similar). Verify T-004 (mwo_loto_checklists table), T-001 (mnt.loto.apply, mnt.loto.clear perms).\n\n## Implementation contract\n1. `apps/web/app/maintenance/_actions/loto.ts`:\n   - `applyLoto({mwoId, energySources[], tagsApplied[], verifierPin, verifierUserId})` — V-MNT-08 verifier role check (maintenance_technician OR maintenance_manager); calls e-sign primitive to verify PIN against verifierUserId; on success writes `mwo_loto_checklists` row with `zero_energy_verified_by=verifierUserId`, `verified_at=now()`, `energy_sources_isolated`, `tags_applied`; emits outbox `loto.applied` event.\n   - `clearLoto({mwoId, releaserPin, releaserUserId})` — V-MNT-09 `released_by != verified_by` (warn-level; advise but DO NOT hard-block per V-MNT-09 wording \"warn, best practice\" — but production critical-asset configuration may upgrade to block: read `maintenance_settings.loto_two_person_strict` toggle; if true → block, else → warn-only); validates releaser PIN; updates `released_at=now()`, `released_by=releaserUserId`; emits outbox `loto.cleared`.\n2. Both actions use `db.transaction()` with `SELECT … FOR UPDATE` on mwo_loto_checklists row.\n3. RBAC: applyLoto requires `mnt.loto.apply`; clearLoto requires `mnt.loto.clear`.\n4. Vitest with Testcontainers + mocked e-sign: V-MNT-08 verifier role enforced; PIN-fail rejects; second-person policy default warn / strict block; concurrent clear serialised.\n\n## Files\n- apps/web/app/maintenance/_actions/loto.ts [create]\n- apps/web/app/maintenance/_actions/loto.schema.ts [create]\n- apps/web/app/maintenance/_actions/__tests__/loto.test.ts [create]\n\n## Acceptance criteria\n1. Given applyLoto with verifierUserId whose role is NOT maintenance_technician AND NOT maintenance_manager, when called, then fails `LOTO_VERIFIER_ROLE_INVALID` (V-MNT-08).\n2. Given applyLoto with wrong verifierPin, when called, then fails `LOTO_PIN_INVALID` (e-sign verifier rejects).\n3. Given clearLoto with releaserUserId === zero_energy_verified_by AND `maintenance_settings.loto_two_person_strict=true`, when called, then fails `LOTO_TWO_PERSON_RULE` (V-MNT-09 strict).\n4. Given clearLoto with releaserUserId === zero_energy_verified_by AND strict=false (default), when called, then succeeds but returns `warnings: ['V-MNT-09: same-person clear advised against']` and emits outbox `loto.cleared` with `warnings` field.\n5. Given applyLoto succeeds, when outbox is queried, then row event_type='loto.applied' with payload {mwo_id, verifier_user_id, energy_sources_isolated, tags_applied, verified_at}.\n\n## Test strategy\n- RED: vitest asserting all five ACs with Testcontainers + mocked e-sign primitive.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/loto.test.ts`.\n\n## Risk red lines\n- Do not store raw PIN — e-sign primitive (Wave1 T-124) handles hashing.\n- Do not bypass V-MNT-08 verifier role check — safety-critical.\n- Do not silently accept same-person clear without warnings in non-strict mode.\n- Do not skip outbox emission — 12-reporting LOTO Compliance dashboard depends on `loto.*` events.\n- Do not enforce strict two-person without reading `maintenance_settings.loto_two_person_strict` toggle (config-driven per §13).",
+  "labels": [
+    "prd",
+    "api",
+    "server-action",
+    "safety",
+    "T2-api"
+  ],
+  "priority": 65,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§7.2 D-MNT-15",
+      "§8.1",
+      "§11.2",
+      "§9.7"
+    ],
+    "category": "api",
+    "subcategory": "loto-actions",
+    "task_type": "T2-api",
+    "parent_feature": "13-MAINTENANCE-c",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "applyLoto + clearLoto Server Actions with Wave1 T-124 e-sign two-person verification; V-MNT-07..09 enforcement.",
+    "details": "Safety-critical. Uses Wave1 T-124 e-sign primitive (mandatory per task brief). Two-person strict toggle config-driven.",
+    "scope_files": [
+      "apps/web/app/maintenance/_actions/loto.ts [create]",
+      "apps/web/app/maintenance/_actions/loto.schema.ts [create]",
+      "apps/web/app/maintenance/_actions/__tests__/loto.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "LOTO permit system (P2)",
+      "UI (T-025)",
+      "Photo evidence gate (BL-MAINT-02 P2)",
+      "Remote two-person flow (BL-MAINT-04 P2)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-004",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-010",
+      "T-011",
+      "T-012",
+      "T-015"
+    ],
+    "acceptance_criteria": [
+      "Given applyLoto with verifierUserId whose role is NOT maintenance_technician AND NOT maintenance_manager, when called, then fails LOTO_VERIFIER_ROLE_INVALID (V-MNT-08); given wrong verifierPin, then fails LOTO_PIN_INVALID via e-sign primitive T-124",
+      "Given clearLoto with same-person + strict=true, when called, then fails LOTO_TWO_PERSON_RULE (V-MNT-09 strict); given strict=false (default), then succeeds with warnings array and outbox loto.cleared row has warnings field",
+      "Given applyLoto succeeds, when outbox is queried, then loto.applied event payload contains {mwo_id, verifier_user_id, energy_sources_isolated, tags_applied, verified_at}",
+      "Given applyLoto runs in a DB transaction with SELECT FOR UPDATE on mwo_loto_checklists, when concurrent apply is attempted, then only one succeeds and verified_at is set exactly once"
+    ],
+    "test_strategy": [
+      "RED: vitest with Testcontainers + mocked e-sign asserting all five ACs",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/maintenance/_actions/__tests__/loto.test.ts`"
+    ],
+    "risk_red_lines": [
+      "Do not store raw PIN — use Wave1 T-124 e-sign primitive",
+      "Do not bypass V-MNT-08 verifier role check",
+      "Do not silently accept same-person clear without warnings",
+      "Do not skip outbox emission (12-reporting LOTO dashboard)",
+      "Do not hardcode strict two-person — config-driven via maintenance_settings.loto_two_person_strict"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

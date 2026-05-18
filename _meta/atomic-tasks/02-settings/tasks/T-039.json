@@ -50,10 +50,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: emit."
+      "GREEN: emit.",
+      "Run `pnpm --filter @monopilot/db test:integration -- manufacturing-ops.test`."
     ],
     "risk_red_lines": [
-      "Do not store seed under generic reference_tables."
+      "Do not store seed under generic reference_tables.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

@@ -49,10 +49,12 @@
     ],
     "test_strategy": [
       "RED: 3 cases.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/actions/tenant/upgrade.test.ts`."
     ],
     "risk_red_lines": [
-      "Do not allow rollback after 7d window without explicit support ticket flag."
+      "Do not allow rollback after 7d window without explicit support ticket flag.",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

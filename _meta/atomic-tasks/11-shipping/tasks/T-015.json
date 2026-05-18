@@ -1,0 +1,105 @@
+{
+  "title": "T-015 — pick_lists + pick_list_lines + waves schema (11-shipping-d)",
+  "prompt": "# T-015 — Pick + Wave schema\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (pick_lists, pick_list_lines), §6 D-SHP-6 Scanner-First UX, §6 D-SHP-2 FEFO, §11 V-SHIP-PICK-01..05\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `pick_lists`, `pick_list_lines`, and `waves` tables with RLS via `app.current_org_id()` + R13 audit + Drizzle schema. Add the pick_list_number sequence `PL-YYYY-NNNNN` (atomic, no gaps).\n\n## Implementation contract\n1. Migration creates:\n   - ENUM `pick_list_status_enum` ('pending','assigned','in_progress','completed','cancelled').\n   - ENUM `pick_type_enum` ('single_order','wave').\n   - `waves` (org_id, wave_number text UNIQUE per org with format `WV-YYYY-NNNNN`, status text CHECK ('unreleased','released','in_pick','completed'), planned_start timestamptz, released_at, completed_at, R13).\n   - `pick_lists` (org_id, pick_list_number text UNIQUE per org `PL-YYYY-NNNNN`, pick_type pick_type_enum, status pick_list_status_enum, priority int CHECK (1..5), assigned_to uuid, wave_id uuid nullable references waves, sales_order_id uuid nullable references sales_orders (for single_order), started_at, completed_at, org_site_id uuid, R13).\n   - `pick_list_lines` (org_id, pick_list_id FK CASCADE, sales_order_line_id FK references sales_order_lines, license_plate_id uuid (suggested), location_id uuid, product_id uuid, lot_number text, quantity_to_pick numeric(14,3), quantity_picked numeric(14,3) DEFAULT 0, pick_sequence int — route order zone→aisle→bin, status text CHECK ('pending','picked','short'), picked_license_plate_id uuid (actual; may differ if override), picked_at, picked_by, R13).\n2. RLS + FORCE RLS via app.current_org_id() on all 3 tables. Policies follow standard pattern.\n3. Pick list number sequence: `pick_list_number_seq_v1` Postgres sequence atomic per org (use CTE + UPDATE on a counters table to scope per org_id, V-SHIP-PICK semantics; clone from 08-PROD WO numbering pattern).\n4. RLS-aware policy on pick_lists: assigned scanner operator sees own + own team rows (consumer of 06-SCANNER T-003 role model). For shipping_manager / shipping_supervisor — full org scope.\n5. Drizzle schema in `packages/db/src/schema/shipping/picks.ts`.\n\n## Files\n- packages/db/migrations/00XX_shipping_picks.sql [create]\n- packages/db/src/schema/shipping/picks.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/shipping-picks-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration runs, then 3 tables + 2 ENUMs exist, with org_id NOT NULL + R13 + RLS + FORCE RLS.\n2. Given pg_policies inspected, when listed, then qual/withcheck reference app.current_org_id() with no GUC reads.\n3. Given concurrent INSERT into pick_lists from two sessions in the same org, when each fetches next pick_list_number, then sequence advances atomically with no duplicates.\n4. Given a scanner-operator session (no shipping_manager role) for org A, when SELECT FROM pick_lists runs, then only rows with assigned_to=current_user OR team membership match are visible (consumer of 06-SCANNER role model).\n5. Given INSERT into pick_lists with priority=6, when CHECK runs, then it fails.\n\n## Test strategy\n- RED: testcontainers Postgres concurrency test asserting AC 1-5.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-picks-schema`.\n\n## Risk red lines\n- Do not use Postgres native nextval() for pick_list_number — sequence must scope per org (V-SHIP-SO-01 style).\n- Do not name the business-scope column tenant_id.\n- Do not read current_setting GUCs in policies.\n- Do not omit FORCE RLS.\n- Do not cascade DELETE from sales_orders to pick_lists — orphan check via release flow.\n- Do not introduce a parallel pick_list_id sequence per pick_type (one global per org).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-015",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§6 D-SHP-6",
+      "§6 D-SHP-2",
+      "§11 V-SHIP-PICK-01",
+      "§11 V-SHIP-PICK-02",
+      "§11 V-SHIP-PICK-03",
+      "§11 V-SHIP-PICK-04",
+      "§11 V-SHIP-PICK-05"
+    ],
+    "category": "data",
+    "subcategory": "schema-pick",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-d",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "pick_lists + pick_list_lines + waves tables + RLS via app.current_org_id() + atomic per-org pick_list_number sequence.",
+    "details": "Per-org sequence via counters table + UPDATE (clone 08-PROD WO numbering). Scanner-operator visibility scoped via 06-SCANNER role model.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_picks.sql [create]",
+      "packages/db/src/schema/shipping/picks.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-picks-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-016).",
+      "Do not build UI (T-017)."
+    ],
+    "dependencies": [
+      "T-006",
+      "T-011",
+      "00-foundation/T-125"
+    ],
+    "parallel_safe_with": [
+      "T-018"
+    ],
+    "cross_module_dependencies": [
+      "05-warehouse/T-002 (license_plates)",
+      "06-scanner-p1 (operator role model)",
+      "00-foundation/T-125 (app.current_org_id())",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration runs, then 3 tables + 2 ENUMs exist with org_id NOT NULL + R13 + RLS + FORCE RLS.",
+      "Given pg_policies inspected, when listed, then qual/withcheck reference app.current_org_id() with no GUC reads.",
+      "Given concurrent INSERT into pick_lists from two sessions in same org, when each fetches next pick_list_number, then values increment with no duplicates (per-org sequence).",
+      "Given a scanner-operator session for org A, when SELECT FROM pick_lists runs, then only assigned_to=operator rows are returned (RLS isolation); AND given INSERT with priority=6, when CHECK runs, then it fails."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres concurrency test asserting AC 1-5.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-picks-schema`."
+    ],
+    "risk_red_lines": [
+      "Do not use Postgres native nextval() for pick_list_number — per-org sequence required.",
+      "Do not name business-scope column tenant_id.",
+      "Do not read current_setting GUCs.",
+      "Do not omit FORCE RLS.",
+      "Do not cascade DELETE from sales_orders.",
+      "Do not introduce parallel pick_list_id sequence per pick_type."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

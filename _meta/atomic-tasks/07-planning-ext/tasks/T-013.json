@@ -1,6 +1,6 @@
 {
   "title": "T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints",
-  "prompt": "# T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §8.2 GET /api/scheduler/runs/:run_id, §8.2 GET /:run_id/status, §8.3 SLO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement two GET endpoints: full detail (run + assignments + override log) <1s P95 and lightweight status poll <50ms P95.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/runs/[runId]/route.ts`: GET returns scheduler_run row + scheduler_assignments[] joined with override audit; uses single Drizzle query with leftJoin.\n2. Route `apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts`: GET returns {status, progress_pct, messages[]} only — no assignments hydration.\n3. RBAC: read for Planner Advanced + Scheduling Officer + Prod Manager; 403 otherwise.\n4. Tenant scoping: WHERE tenant_id = current_setting('app.tenant_id') (RLS enforces too).\n\n## Files\n- apps/web/src/app/api/scheduler/runs/[runId]/route.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts [create]\n- apps/web/src/lib/scheduler/queries.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a completed run, when GET /:id runs, then 200 returned with run row + assignments[] sorted by optimizer_rank ASC\n2. Given a queued run, when GET /:id/status runs, then 200 returned with {status:'queued', progress_pct:0} in <50ms (assert response time in test)\n3. Given a different tenant's run_id, when GET runs under another tenant, then 404 returned (RLS hides; do not leak existence)\n\n## Test strategy\n- RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts asserting 200 shape + status latency + 404 cross-tenant\n- Run 'pnpm --filter web test scheduler/runs/[runId]/route'\n\n## Risk red lines\n- Do not return 403 instead of 404 for cross-tenant access (information leak)\n- Do not hydrate assignments in status endpoint (perf SLO would break)\n- Do not skip RLS scoping",
+  "prompt": "# T-013 — GET /api/scheduler/runs/:id and /:id/status endpoints\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §8.2 GET /api/scheduler/runs/:run_id, §8.2 GET /:run_id/status, §8.3 SLO\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement two GET endpoints: full detail (run + assignments + override log) <1s P95 and lightweight status poll <50ms P95.\n\n## Implementation contract\n1. Route `apps/web/src/app/api/scheduler/runs/[runId]/route.ts`: GET returns scheduler_run row + scheduler_assignments[] joined with override audit; uses single Drizzle query with leftJoin.\n2. Route `apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts`: GET returns {status, progress_pct, messages[]} only — no assignments hydration.\n3. RBAC: read for Planner Advanced + Scheduling Officer + Prod Manager; 403 otherwise.\n4. Org scoping: wrap handler execution in `withOrgContext(sessionToken, orgId, fn)` (FT-001 HOF) which calls `SELECT app.set_org_context($1::uuid, $2::uuid)` inside a tx; Drizzle queries do not need an explicit `WHERE org_id = ...` because RLS enforces via `app.current_org_id()` from `packages/db/migrations/002-rls-baseline.sql`. Do NOT write `WHERE tenant_id = current_setting('app.tenant_id')` or any other GUC pattern.\n\n## Files\n- apps/web/src/app/api/scheduler/runs/[runId]/route.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts [create]\n- apps/web/src/lib/scheduler/queries.ts [create]\n- apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a completed run, when GET /:id runs, then 200 returned with run row + assignments[] sorted by optimizer_rank ASC\n2. Given a queued run, when GET /:id/status runs, then 200 returned with {status:'queued', progress_pct:0} in <50ms (assert response time in test)\n3. Given a different org's run_id, when GET runs under another org session (post `app.set_org_context(sessionToken_B, org_B)`), then 404 returned (RLS via `app.current_org_id()` hides; do not leak existence)\n4. Given route source is inspected, when grep'd, then it contains no `current_setting('app.tenant_id'|'app.current_org_id')` and no `SET LOCAL app.current_org_id` — only `withOrgContext()` / `app.set_org_context()`.\n\n## Test strategy\n- RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts asserting 200 shape + status latency + 404 cross-org (using two app.set_org_context sessions)\n- Run 'pnpm --filter web test scheduler/runs/[runId]/route'\n\n## Risk red lines\n- Do not read `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` directly — use the foundation `app.current_org_id()` function so the NULL-safe setter contract is preserved.\n- Do not return 403 instead of 404 for cross-org access (information leak)\n- Do not hydrate assignments in status endpoint (perf SLO would break)\n- Do not skip RLS scoping / withOrgContext() wrapping",
   "labels": [
     "prd",
     "api",
@@ -24,8 +24,8 @@
     "parent_feature": "07-EXT-a finite-capacity engine",
     "context_budget": "50k",
     "estimated_effort": "1-2h",
-    "description": "Implement GET /:id (full detail) and /:id/status (lightweight) endpoints respecting SLO + RLS + cross-tenant 404.",
-    "details": "Two routes share a query helper. Detail route does single leftJoin to fetch assignments + override audit; status route reads only the run row's status/progress_pct. Both enforce RBAC + RLS. Cross-tenant returns 404 not 403.",
+    "description": "Implement GET /:id (full detail) and /:id/status (lightweight) endpoints respecting SLO + foundation app.current_org_id() RLS via withOrgContext + cross-org 404.",
+    "details": "Two routes share a query helper. Detail route does single leftJoin to fetch assignments + override audit; status route reads only the run row's status/progress_pct. Both enforce RBAC + foundation `withOrgContext()` HOF wrapping (FT-001) so `app.set_org_context()` runs inside a tx and RLS via `app.current_org_id()` enforces. Cross-org returns 404 not 403. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §Tenant-context). Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`.",
     "scope_files": [
       "apps/web/src/app/api/scheduler/runs/[runId]/route.ts [create]",
       "apps/web/src/app/api/scheduler/runs/[runId]/status/route.ts [create]",
@@ -44,16 +44,19 @@
     "acceptance_criteria": [
       "Given a completed run, when GET /:id runs, then 200 returned with run row + assignments[] sorted by optimizer_rank ASC",
       "Given a queued run, when GET /:id/status runs, then 200 returned with {status:'queued', progress_pct:0} in <50ms",
-      "Given a different tenant's run_id, when GET runs under another tenant, then 404 returned (no leak)"
+      "Given a different org's run_id, when GET runs under another org session (withOrgContext for org_B), then 404 returned (RLS via app.current_org_id() hides)",
+      "Given route source is inspected, when grep'd, then it contains no current_setting('app.tenant_id'|'app.current_org_id') and no SET LOCAL app.current_org_id — only withOrgContext()/app.set_org_context()"
     ],
     "test_strategy": [
-      "RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts with vitest + perf assertion + cross-tenant 404",
+      "RED: write apps/web/src/app/api/scheduler/runs/[runId]/__tests__/route.test.ts with vitest + perf assertion + cross-org 404 (two app.set_org_context sessions)",
       "Run 'pnpm --filter web test scheduler/runs/[runId]/route'"
     ],
     "risk_red_lines": [
-      "Do not return 403 for cross-tenant",
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not return 403 for cross-org",
       "Do not hydrate assignments in status endpoint",
-      "Do not skip RLS scoping"
+      "Do not skip RLS scoping / withOrgContext wrapping",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111)."
     ],
     "skills": [
       "test-driven-development",
@@ -79,6 +82,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
+      }
+    ]
   }
 }

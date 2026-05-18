@@ -1,0 +1,94 @@
+{
+  "title": "T-002 — oee_snapshots site_id extension + read-only consumer indexes (OEE §9.1, REC-L1)",
+  "prompt": "# T-002 — oee_snapshots site_id extension\n\nPRD: docs/prd/15-OEE-PRD.md §9.1, §6 (REC-L1 site_id / D-OEE-1 consumer contract), §14.5 (data residency)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nApply the OEE-scoped extension to the `oee_snapshots` table owned by 08-PRODUCTION (PRD §9.1 verbatim): add nullable `site_id UUID` REC-L1 column + `idx_oee_site_line_time(site_id, line_id, snapshot_minute DESC)` index. Verify RLS reuses the foundation `app.current_org_id()` function. 15-OEE is a READ-ONLY consumer of this table — no INSERT/UPDATE/DELETE paths added here.\n\n## Pre-flight schema check\nBefore drafting, read `packages/db/migrations/` to verify: (a) latest migration number, (b) `oee_snapshots` already exists from 08-PRODUCTION §9.9 (skip table creation if so; this task is ALTER only), (c) `app.current_org_id()` function present (Wave1 T-125), (d) `sites` and `site_user_access` tables exist for FK (14-multi-site; if absent, `site_id` is plain UUID NULL with comment noting the constraint is added by 14-multi-site).\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_a_snapshots_site_id.sql` (NNNN = next free): `ALTER TABLE oee_snapshots ADD COLUMN IF NOT EXISTS site_id UUID;` and `CREATE INDEX IF NOT EXISTS idx_oee_site_line_time ON oee_snapshots(site_id, line_id, snapshot_minute DESC);`.\n2. If RLS policies on oee_snapshots are absent or reference `current_setting()`, this task adds/replaces them to reference `app.current_org_id()` and a site_id filter via `site_user_access`. If policies already correct, no-op (idempotent migration).\n3. Drizzle schema entry `packages/db/src/schema/oee/snapshots.ts` (read-only typed `oeeSnapshots` table mirroring 08-PRODUCTION definition + new site_id col). Export typed Select only (no Insert from 15-OEE).\n4. Vitest covering: (a) column exists post-migration, (b) RLS isolation across two orgs using `app.set_org_context`, (c) policy text references `app.current_org_id()` not `current_setting('app.tenant_id'|'app.current_org_id')`, (d) EXPLAIN of `SELECT ... WHERE site_id=? AND line_id=? ORDER BY snapshot_minute DESC LIMIT 60` uses `idx_oee_site_line_time`.\n\n## Files\n- packages/db/migrations/NNNN_oee_a_snapshots_site_id.sql [create]\n- packages/db/src/schema/oee/snapshots.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/oee-a-snapshots-site-id.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs on a DB where oee_snapshots exists, when `\\d oee_snapshots` is read, then site_id UUID NULL column and idx_oee_site_line_time index are present and RLS+FORCE RLS remain enabled.\n2. Given two orgs and `app.set_org_context(token, orgA)` / `(token, orgB)`, when `SELECT * FROM oee_snapshots` runs as `app_user` in each session, then each only sees its org's rows.\n3. Given `pg_policies` is inspected, when policies for oee_snapshots are listed, then USING/WITH CHECK reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.\n4. Given `EXPLAIN SELECT ... WHERE site_id=$1 AND line_id=$2 ORDER BY snapshot_minute DESC LIMIT 60`, when run, then the planner uses idx_oee_site_line_time.\n\n## Test strategy\n- RED: write `packages/db/__tests__/oee-a-snapshots-site-id.test.ts` asserting four ACs before migration exists.\n- Run `pnpm --filter db migrate && pnpm --filter db test oee-a-snapshots-site-id`.\n\n## Risk red lines\n- Do not write INSERT/UPDATE/DELETE paths against oee_snapshots from 15-OEE; the table is owned by 08-PRODUCTION (D-OEE-1).\n- Do not name the business-scope column tenant_id; Wave0 v4.3 lock is org_id.\n- Do not read `current_setting('app.tenant_id'|'app.current_org_id')` GUC; use foundation `app.current_org_id()`.\n- Do not skip ENABLE+FORCE RLS or omit policies.\n- Do not retrofit site_id later — it is REC-L1 day-1 per §6.3.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 55,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§6",
+      "§14.5"
+    ],
+    "category": "data",
+    "subcategory": "schema-snapshots-extension",
+    "task_type": "T1-schema",
+    "parent_feature": "15-OEE-a",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "ALTER oee_snapshots to add site_id REC-L1 column + idx_oee_site_line_time index; verify RLS uses app.current_org_id(); read-only Drizzle schema for 15-OEE consumer surface.",
+    "details": "PRD anchor corrected from §6.3 to §6 by Fixer F12 2026-05-14 (anchor sweep; §6.3 does not exist in 15-OEE — §6 Decisions D-OEE-1..7 covers the consumer contract including D-OEE-1 oee_snapshots ownership). Closes Auditor A OEE-001 prerequisite. 15-OEE consumes oee_snapshots written by 08-PRODUCTION per D-OEE-1; this task adds the OEE-scoped REC-L1 site_id day-1 and ensures the consumer query pattern (per-line 24h trend, per-shift heatmap) has the supporting composite index. Cross-module: 08-PRODUCTION owns the producer (`oee_snapshots` table created in its migration). If the table is not yet present in the migrations history, this task fails fast with a clear error pointing at the missing 08-PRODUCTION migration — it does NOT create the table.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_a_snapshots_site_id.sql [create]",
+      "packages/db/src/schema/oee/snapshots.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/oee-a-snapshots-site-id.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create oee_snapshots table (08-PRODUCTION owns)",
+      "Do not write producer/aggregator here (T-008)",
+      "Do not create MVs here (T-006, T-007)",
+      "Do not implement UI"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs on a DB where oee_snapshots exists, when \\d oee_snapshots is read, then site_id UUID NULL + idx_oee_site_line_time index are present and RLS+FORCE RLS remain enabled",
+      "Given app.set_org_context for two orgs in separate sessions, when SELECT runs as app_user, then each session only sees its own org rows",
+      "Given pg_policies is inspected, when policies are listed, then USING/WITH CHECK reference app.current_org_id() with no current_setting() GUC reads",
+      "Given EXPLAIN of the (site_id, line_id, snapshot_minute DESC) read query, when run, then idx_oee_site_line_time is used"
+    ],
+    "test_strategy": [
+      "RED: vitest oee-a-snapshots-site-id asserting four ACs before migration exists",
+      "Run `pnpm --filter db migrate && pnpm --filter db test oee-a-snapshots-site-id`"
+    ],
+    "risk_red_lines": [
+      "Do not write INSERT/UPDATE/DELETE paths from 15-OEE against oee_snapshots; 08-PRODUCTION owns producer (D-OEE-1)",
+      "Do not name business column tenant_id; Wave0 v4.3 lock is org_id",
+      "Do not read current_setting() GUC; use app.current_org_id()",
+      "Do not skip ENABLE+FORCE RLS or omit policies",
+      "Do not retrofit site_id later — REC-L1 day-1 per §6 (D-OEE-1 consumer contract)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

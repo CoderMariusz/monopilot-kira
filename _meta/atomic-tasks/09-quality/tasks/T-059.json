@@ -1,0 +1,104 @@
+{
+  "title": "T-059 — QA-051 ccp_monitoring page (timeline chart + filter list, parity)",
+  "prompt": "# T-059 — QA-051 ccp_monitoring page (parity)\n\nPRD: §8.5 traceability QA-051 ↔ UX QA-014 ↔ prototype `ccp_monitoring`; §11.5 V-QA-CCP-002; §7.1 09-e-06\nPrototype: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:109-226 (ccp_monitoring)\n\n## Goal\nServer-rendered CCP monitoring page with KPI strip + timeline chart (recharts) + filter list of monitoring records + ccp_reading_modal entry trigger. 1:1 parity vs prototype.\n\n## Implementation contract\n1. apps/web/src/app/quality/ccp/page.tsx (RSC) loads KPIs (activeCCPs, compliance %, deviations 24h) + filtered monitoring records via Drizzle JOIN haccp_monitoring_records JOIN haccp_ccps JOIN haccp_plans.\n2. URL searchParams: ?planId=, ?ccpId=, ?dateFrom=, ?dateTo= drive server WHERE clause.\n3. Timeline chart = recharts ScatterChart with dots colored by within_limits; ReferenceArea for critical limit band; chart CCP selector controls which CCP's readings render.\n4. Table list below chart shows recent records with hazard badge, value, within_limits indicator, recorded_by, recorded_at, signature_hash truncated.\n5. 'Add CCP reading' button opens ccp_reading_modal (Client Component) wrapping shadcn Dialog with monitorCcpTick Server Action (T-051).\n6. ccp_reading_modal: CCP grouped Select (optgroup by plan), value input with live within_limits preview (client preview; server authoritative), conditional ESignBlock for biological/allergen hazards (V-QA-CCP-005), Auto-NCR + Auto-Hold banner if !within_limits.\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:109-226` (ccp_monitoring).\nParity checklist:\n- KPI strip (activeCCPs/compliance/deviations 24h)\n- Timeline chart with critical-limit band + colored dots\n- Filter bar (plan/CCP/date range)\n- Table of recent records\n- Add CCP reading button → ccp_reading_modal\n- ccp_reading_modal: grouped CCP Select + value input + conditional ESignBlock + auto-NCR/hold notice\n\n## Files\n- apps/web/src/app/quality/ccp/page.tsx [create]\n- apps/web/src/components/quality/ccp/CcpKpiStrip.tsx [create]\n- apps/web/src/components/quality/ccp/CcpTimelineChart.tsx [create]\n- packages/ui/src/quality/CcpReadingModal.tsx [create]\n- apps/web/src/components/quality/ccp/__tests__/CcpMonitoring.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]\n\n## Acceptance criteria\n1. Compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:109-226 — parity on structure (KPI strip + timeline chart + filter bar + table + Add reading button), visuals (shadcn primitives + recharts ScatterChart + ReferenceArea), interaction (URL searchParams drive filters + chart CCP selector + ccp_reading_modal opens) — RTL + checklist\n2. Given ?planId + ?ccpId + ?dateFrom + ?dateTo, when page renders, then the timeline chart and table only show records matching those filters; compliance % is server-computed for today (?dateFrom defaulted to start-of-day if absent)\n3. Given hazard_type='biological' in ccp_reading_modal, when value entered, then the modal shows an ESignBlock and the Submit button is disabled until PIN verified server-side (per T-039); for hazard_type='physical' the ESignBlock is hidden\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: CcpMonitoring.test.tsx asserting parity + URL-driven filters + compliance server-compute + conditional ESignBlock by hazard_type before implementation\n- Run 'pnpm --filter web test CcpMonitoring'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- compliance % is server-computed only — never client (translation-notes §QA-014)\n- ESignBlock is required for biological/allergen — do not let hazard_type bypass (V-QA-CCP-005)\n- Do not let client-side recompute within_limits — DB GENERATED authoritative\n- Do not paste prototype JSX verbatim",
+  "labels": [
+    "prd",
+    "ui",
+    "haccp",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-059",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§11.5",
+      "§7.1"
+    ],
+    "category": "ui",
+    "subcategory": "qa-ccp-monitoring",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-e HACCP",
+    "context_budget": "60k",
+    "estimated_effort": "5h",
+    "description": "CCP monitoring page (RSC KPI strip + recharts timeline chart + filter list + ccp_reading_modal with conditional ESignBlock). 1:1 parity vs prototype.",
+    "details": "Server Component loads activeCCPs/compliance%/deviations24h KPI strip (aggregated query) + filtered monitoring records (JOIN haccp_monitoring_records + haccp_ccps + haccp_plans). URL searchParams: planId, ccpId, dateFrom, dateTo. recharts ScatterChart with ReferenceArea for critical limit band; dot color from within_limits. Table below chart shows records. Add CCP reading button opens ccp_reading_modal: grouped CCP Select (optgroup by plan), value input, live within_limits preview (client preview only; server authoritative on submit), conditional ESignBlock for biological/allergen, auto-NCR + auto-hold notice rendered when !within_limits per rule (T-052). Anchor: prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:109-226.",
+    "scope_files": [
+      "apps/web/src/app/quality/ccp/page.tsx [create]",
+      "apps/web/src/components/quality/ccp/CcpKpiStrip.tsx [create]",
+      "apps/web/src/components/quality/ccp/CcpTimelineChart.tsx [create]",
+      "packages/ui/src/quality/CcpReadingModal.tsx [create]",
+      "apps/web/src/components/quality/ccp/__tests__/CcpMonitoring.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/quality/haccp-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not build ccp_deviations page (T-060)",
+      "Do not implement haccp_deviations table workflows (P2 Epic 8I)",
+      "Do not modify CCP Server Actions (T-051) or the rule (T-052)"
+    ],
+    "dependencies": [
+      "T-047",
+      "T-051",
+      "T-052",
+      "T-039",
+      "T-057"
+    ],
+    "parallel_safe_with": [
+      "T-058",
+      "T-060",
+      "T-061"
+    ],
+    "acceptance_criteria": [
+      "Given the CCP monitoring page renders, when compared to prototypes/design/Monopilot Design System/quality/haccp-screens.jsx:109-226 (ccp_monitoring), then it matches on structural parity (KPI strip + timeline chart + filter bar + table + Add-reading button), visual parity (shadcn primitives + recharts ScatterChart/ReferenceArea), and interaction parity (URL searchParams drive filters + chart CCP selector + ccp_reading_modal opens via URL state) — RTL + parity checklist",
+      "Given ?planId + ?ccpId + ?dateFrom + ?dateTo, when page renders, then timeline + table show only matching records and compliance % is server-computed",
+      "Given hazard_type='biological' in ccp_reading_modal, when value entered, then ESignBlock is rendered and Submit is disabled until server PIN verify; for hazard_type='physical' ESignBlock is hidden",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: CcpMonitoring.test.tsx asserting parity + URL filters + compliance server-compute + hazard_type-conditional ESignBlock before implementation",
+      "Run 'pnpm --filter web test CcpMonitoring'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "compliance % server-computed only (translation-notes §QA-014)",
+      "ESignBlock mandatory for biological/allergen (V-QA-CCP-005)",
+      "within_limits is DB GENERATED authoritative — no client recompute",
+      "Do not paste prototype JSX verbatim"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-125",
+      "09-quality:T-051"
+    ]
+  }
+}

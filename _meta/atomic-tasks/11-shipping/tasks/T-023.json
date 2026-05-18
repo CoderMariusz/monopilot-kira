@@ -1,0 +1,108 @@
+{
+  "title": "T-023 — Packing slip + BOL generation Server Actions (PDF + SHA-256 hash + BRCGS 7y retention) (11-shipping-f)",
+  "prompt": "# T-023 — Packing slip + BOL Server Actions\n\nPRD: docs/prd/11-SHIPPING-PRD.md §13.3 Allergen labelling EU 1169/2011, §13.5 BOL PDF structure, §14.4 BRCGS Issue 10 7y BOL retention, §14.7 21 CFR Part 11 e-sig (P2), §11 V-SHIP-LBL-01, V-SHIP-LBL-04\nPrototype refs: prototypes/design/Monopilot Design System/shipping/modals.jsx:741-757 (packing_slip_regen_modal), :759-790 (bol_sign_upload_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Actions for generating packing slip PDF + BOL PDF + uploading signed BOL with SHA-256 hashing and BRCGS retention policy.\n\n## Implementation contract\n1. `apps/web/lib/server-actions/shipping/documents.ts` exports:\n   - `generatePackingSlip(shipmentId)` — server-rendered PDF (use @react-pdf/renderer or similar) per §13.5; consumer of product.allergens with EU 1169/2011 bold formatting (V-SHIP-LBL-01); uploads to Supabase Storage `shipping-docs/packing-slips/<org>/<shipmentId>.pdf` with `x-upsert: false`; UPDATE shipments.packing_slip_url; outbox `shipping.packing_slip.generated`. Permission `ship.pack.close`.\n   - `regeneratePackingSlip(shipmentId, reason)` — re-generates with version suffix; audit reason.\n   - `generateBOL(shipmentId)` — server-rendered PDF per §13.5; uploads to `shipping-docs/bols/<org>/<shipmentId>.pdf`; computes SHA-256 server-side (node:crypto); stores hash in `shipments.bol_pdf_hash` (new column to add via migration in this task) + `bol_pdf_url`. Permission `ship.pack.close`.\n   - `uploadSignedBOL(shipmentId, file)` — accept multipart PDF/JPG/PNG ≤10 MB; server SHA-256; upload to `shipping-docs/bols-signed/<org>/<shipmentId>.<ext>`; apply immutability policy via Supabase Storage tag `brcgs_retention=true`; INSERT/UPDATE shipments.bol_signed_pdf_url, signed_at, driver_name, signature_date, signed_hash; outbox `shipping.bol.signed`. Permission `ship.bol.sign`. P2 hook: e-sign PIN re-verify via @monopilot/e-sign (T-124) BEFORE upload permitted — P1 = optional.\n2. Migration `00XX_shipping_bol_columns.sql` — ADD COLUMN shipments.bol_pdf_hash text, signed_hash text, signed_at timestamptz, driver_name text, signature_date date.\n3. Storage retention: Supabase Storage RLS + lifecycle tag `brcgs_retention=true` enforces immutability — never DELETE BOL objects for 7 years (V-SHIP-LBL-04).\n4. All Server Actions under `withOrgContext`. Rate-limit 30/min/user.\n5. Allergen consumer: query product.allergens (NPD T-001 product table) for each line and bold per EU 1169/2011 in PDF.\n\n## Files\n- apps/web/lib/server-actions/shipping/documents.ts [create]\n- apps/web/lib/server-actions/shipping/__tests__/documents.test.ts [create]\n- apps/web/lib/pdf/packing-slip.tsx [create — @react-pdf/renderer template]\n- apps/web/lib/pdf/bol.tsx [create]\n- packages/db/migrations/00XX_shipping_bol_columns.sql [create]\n- packages/events/src/shipping.ts [modify — ShippingPackingSlipGenerated, ShippingBOLSigned]\n\n## Acceptance criteria\n1. Given generatePackingSlip for a shipment with allergenic product, when PDF is rendered, then each allergen appears in <strong> bold per EU 1169/2011 (V-SHIP-LBL-01) — verified by PDF text extraction.\n2. Given generateBOL succeeds, when shipments row is inspected, then bol_pdf_url + bol_pdf_hash (SHA-256) are set, and the stored object exists at the expected Supabase Storage path.\n3. Given uploadSignedBOL with a valid PDF, when action succeeds, then bol_signed_pdf_url, signed_hash, signed_at, driver_name, signature_date are persisted; storage object has tag `brcgs_retention=true`.\n4. Given an attempt to upload an oversized file (>10 MB), when validator runs, then throws `FileTooLargeError` and no storage object created.\n5. Given a DELETE is attempted against a stored BOL within 7 years, when Supabase Storage RLS evaluates, then it is blocked (V-SHIP-LBL-04 immutability).\n6. Given grep current_setting('app.tenant_id'|'app.current_org_id') on documents.ts, when run, then zero matches.\n\n## Test strategy\n- RED: vitest with testcontainers Postgres + mocked Supabase Storage client asserting AC 1-6.\n- Run `pnpm --filter @monopilot/web vitest run documents.test.ts && pnpm typecheck`.\n\n## Risk red lines\n- Do not skip SHA-256 hashing on either generateBOL or uploadSignedBOL (V-SHIP-LBL-04).\n- Do not allow DELETE of stored BOLs (BRCGS retention 7y).\n- Do not omit `x-upsert: false` on Storage uploads (immutability).\n- Do not implement multi-language packing slips in P1 (P2 per BL-SHIP-12).\n- Do not call mutations outside withOrgContext.\n- Do not log file contents — only metadata.\n- Do not skip allergen bold formatting in PDF (V-SHIP-LBL-01).",
+  "labels": [
+    "prd",
+    "backend",
+    "server-actions",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-023",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§13.3",
+      "§13.5",
+      "§14.4",
+      "§14.7",
+      "§11 V-SHIP-LBL-01",
+      "§11 V-SHIP-LBL-04"
+    ],
+    "category": "backend",
+    "subcategory": "server-actions-documents",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-f",
+    "context_budget": "55k",
+    "estimated_effort": "4-5h",
+    "description": "Packing slip + BOL PDF Server Actions + signed BOL upload with SHA-256 + BRCGS 7y immutability tag.",
+    "details": "PDF via @react-pdf/renderer. Allergen bold per EU 1169/2011. SHA-256 server-side (node:crypto). Supabase Storage with x-upsert:false + brcgs_retention=true tag.",
+    "scope_files": [
+      "apps/web/lib/server-actions/shipping/documents.ts [create]",
+      "apps/web/lib/server-actions/shipping/__tests__/documents.test.ts [create]",
+      "apps/web/lib/pdf/packing-slip.tsx [create]",
+      "apps/web/lib/pdf/bol.tsx [create]",
+      "packages/db/migrations/00XX_shipping_bol_columns.sql [create]",
+      "packages/events/src/shipping.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not build UI here (T-024).",
+      "Do not implement multi-language packing slips (P2 per BL-SHIP-12).",
+      "Do not implement HAZMAT/EUDR (Phase 2 per BL-SHIP-13)."
+    ],
+    "dependencies": [
+      "T-018",
+      "T-020",
+      "T-031",
+      "00-foundation/T-125",
+      "00-foundation/T-124"
+    ],
+    "parallel_safe_with": [
+      "T-022"
+    ],
+    "cross_module_dependencies": [
+      "01-npd/T-001 (product.allergens for EU 1169/2011)",
+      "02-settings (Supabase Storage bucket config)",
+      "00-foundation/T-124 (@monopilot/e-sign for P2 PIN)"
+    ],
+    "acceptance_criteria": [
+      "Given generatePackingSlip for allergenic shipment, when PDF rendered, then each allergen appears bold per EU 1169/2011 + packing slip rows match SO lines.",
+      "Given generateBOL succeeds, when shipments inspected, then bol_pdf_url + bol_pdf_hash (SHA-256) set + storage object exists; AND given uploadSignedBOL with valid PDF, then bol_signed_pdf_url, signed_hash (SHA-256), signed_at, driver_name, signature_method set; retention_until = signed_at + 7 years (BRCGS Issue 9 §3.5 / §14.4).",
+      "Given oversized file (>10 MB), when validator runs, then throws FileTooLargeError, no storage object; AND given DELETE attempt within 7y, when Storage RLS evaluates, then blocked (V-SHIP-LBL-04).",
+      "Given grep current_setting('app.tenant_id'|'app.current_org_id') on documents.ts, when run, then zero matches."
+    ],
+    "test_strategy": [
+      "RED: vitest with testcontainers Postgres + mocked Supabase Storage asserting AC 1-6.",
+      "Run `pnpm --filter @monopilot/web vitest run documents.test.ts && pnpm typecheck`."
+    ],
+    "risk_red_lines": [
+      "Do not skip SHA-256 hashing.",
+      "Do not allow DELETE of stored BOLs.",
+      "Do not omit x-upsert:false.",
+      "Do not implement multi-language P1.",
+      "Do not call mutations outside withOrgContext.",
+      "Do not log file contents.",
+      "Do not skip allergen bold formatting."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

@@ -26,7 +26,7 @@
     "context_budget": "60k",
     "estimated_effort": "2-3h",
     "description": "Multipart CSV upload endpoint with row-level validation, supersession semantics, partial-success response.",
-    "details": "Server-side stream parsing rejects oversize files (5MB / 10k rows). Per-row Zod validation. Supersession in transaction (UPDATE existing manual + INSERT new). Returns inserted_count + per-row errors. SLO: 1k rows < 3s P95.",
+    "details": "Server-side stream parsing rejects oversize files (5MB / 10k rows). Per-row Zod validation. Supersession in transaction (UPDATE existing manual + INSERT new). Returns inserted_count + per-row errors. SLO: 1k rows < 3s P95. Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`. Foundation citation: Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint. — see `00-foundation/tasks/T-121.json`.",
     "scope_files": [
       "apps/web/src/app/api/scheduler/forecasts/upload/route.ts [create]",
       "apps/web/src/lib/scheduler/forecast-csv-parser.ts [create]",
@@ -52,7 +52,9 @@
     "risk_red_lines": [
       "Do not skip 5MB/10k row size limits",
       "Do not DELETE the previous manual forecast (use supersession)",
-      "Do not bypass Planner role guard"
+      "Do not bypass Planner role guard",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111).",
+      "Foundation contract: Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint. (cite 00-foundation/T-121)."
     ],
     "skills": [
       "test-driven-development",
@@ -88,6 +90,16 @@
       {
         "module": "13-integrations",
         "contract": "Optional P2 sales-history pull only; D365 is not P1 source of truth."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-121",
+        "contract": "Expensive endpoint must apply foundation rate-limit primitive (T-121); 429-on-burst per PRD perf constraint."
       }
     ]
   }

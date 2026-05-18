@@ -1,0 +1,115 @@
+{
+  "title": "T-013 — Export engine (PDF Edge Function + CSV stream + report_exports writer) (12-REPORTING §8.4, §11 V-RPT-EXPORT-*)",
+  "prompt": "# T-013 — Export engine (PDF + CSV)\n\nPRD: docs/prd/12-REPORTING-PRD.md §8.4 (Export flow), §11 V-RPT-EXPORT-1..7, §14.1 (BRCGS 7-year retention)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the P1 export pipeline: Server Action `exportDashboard(dashboardId, filters, format)` → write report_exports row status='generating' → enqueue job to apps/worker (long-running) → worker generates PDF via Puppeteer edge function OR CSV via UTF-8 BOM stream → compute SHA-256 → upload to Vercel Blob → update report_exports row status='completed' + file_size_bytes + sha256_hash → return presigned URL with 60s expiry. Enforces all V-RPT-EXPORT-* validations.\n\n## Implementation contract\n1. Server Action `packages/reporting/src/actions/export-dashboard.ts`:\n   - Permission gate: `rpt.export.csv` or `rpt.export.pdf` (T-001).\n   - Zod schema validates dashboardId + filters + format (V-RPT-EXPORT-5: format ∈ {pdf, csv} P1; xlsx/json P2 returns 400 with `feature_disabled`).\n   - Row count pre-check: query corresponding MV with filters; if > 10k rows, P1 returns `{error: 'too_many_rows', suggestion: 'narrow_filters_or_chunk'}` (V-RPT-EXPORT-1).\n   - Duplicate detection: if same (user, dashboard, filters_hash) submitted within last 10s, return 429 (V-RPT-EXPORT-6).\n   - INSERT report_exports row status='generating', sha256_hash='pending', file_size_bytes=0.\n   - Enqueue worker job with export_id; return job_id to client for polling.\n2. Worker job `apps/worker/src/jobs/reporting-export.ts`:\n   - For format='pdf': call Supabase Edge Function `reporting-export-pdf` (Puppeteer, @media print stylesheet per BACKLOG BL-RPT-04); 30s timeout per V-RPT-EXPORT-7 → on timeout, UPDATE row status='failed', error_code='PDF_TIMEOUT'.\n   - For format='csv': stream rows from MV with UTF-8 BOM; chunk in memory; never load full result.\n   - On success: compute SHA-256 of payload, upload to Vercel Blob, UPDATE row status='completed' + file_size_bytes + sha256_hash.\n   - File size > 100MB → fail with error_code='FILE_TOO_LARGE' (V-RPT-EXPORT-4).\n3. Server Action `packages/reporting/src/actions/get-export-status.ts` polls report_exports for a given export_id; returns presigned URL when status='completed'.\n4. Edge Function `supabase/functions/reporting-export-pdf/index.ts` Puppeteer wrapper with @media print CSS injection.\n5. Vitest contract test: (a) row-count cap V-RPT-EXPORT-1, (b) dedup window V-RPT-EXPORT-6, (c) PDF timeout V-RPT-EXPORT-7 transitions row to failed + error_code, (d) sha256 NOT NULL after success V-RPT-EXPORT-2, (e) retention_until = now + 7y V-RPT-EXPORT-3 (already enforced by T-004 GENERATED column; re-verify here), (f) cross-org isolation — user A cannot fetch user B's export presigned URL.\n\n## Files\n- packages/reporting/src/actions/export-dashboard.ts [create]\n- packages/reporting/src/actions/get-export-status.ts [create]\n- apps/worker/src/jobs/reporting-export.ts [create]\n- supabase/functions/reporting-export-pdf/index.ts [create]\n- packages/reporting/__tests__/export-engine.test.ts [create]\n\n## Acceptance criteria\n1. Given a Server Action call with filters that match 12k rows, when exportDashboard runs, then returns `{error:'too_many_rows'}` and writes NO report_exports row (V-RPT-EXPORT-1).\n2. Given the same (user, dashboard, filters_hash) is submitted twice within 10s, when the 2nd call runs, then returns 429 with `Retry-After` header (V-RPT-EXPORT-6).\n3. Given PDF generation takes > 30s, when Edge Function timeouts, then report_exports row transitions to status='failed' + error_message contains 'PDF_TIMEOUT' (V-RPT-EXPORT-7) + suggests CSV alternative.\n4. Given CSV export completes with 5k rows and 2MB payload, when status is queried, then sha256_hash is the SHA-256 of the actual streamed payload (verified by re-hashing the downloaded file in test) — never null (V-RPT-EXPORT-2).\n5. Given an export row for user A exists, when user B calls get-export-status with that export_id, then returns 403 not the presigned URL (cross-org+cross-user isolation).\n6. Given export row exported_at='2026-05-14', when retention_until is read, then it equals 2033-05-14 (T-004's GENERATED column, V-RPT-EXPORT-3 re-verified at this layer).\n\n## Test strategy (RED first)\n- RED: `packages/reporting/__tests__/export-engine.test.ts` covers 6 ACs; mocks Edge Function with controllable delay for timeout case.\n- Run `pnpm --filter @monopilot/reporting test export-engine`.\n- GREEN: write Server Actions + worker job + Edge Function.\n\n## Risk red lines\n- Do not generate exports in a Server Action — Server Action enqueues only; worker generates (30s+ jobs forbidden in request path).\n- Do not skip sha256 — V-RPT-EXPORT-2 mandates NOT NULL; reject any write attempting `sha256_hash IS NULL` (DB constraint already enforces).\n- Do not allow xlsx/json formats in P1 — V-RPT-EXPORT-5 rejects until P2.\n- Do not store raw user input in export error_message — sanitise to enum codes (PDF_TIMEOUT, FILE_TOO_LARGE, ROW_LIMIT).\n- Do not return the presigned URL to a different user — strict (org_id, user_id) check in get-export-status.\n- Do not skip @media print CSS for Puppeteer; BACKLOG BL-RPT-04 must be resolved as part of this task (declared in PRD §15).\n- Do not allow file_size > 100MB (V-RPT-EXPORT-4).",
+  "labels": [
+    "prd",
+    "export",
+    "worker",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-013",
+    "source_prd": "docs/prd/12-REPORTING-PRD.md",
+    "prd_refs": [
+      "§8.4",
+      "§11 V-RPT-EXPORT-1",
+      "§11 V-RPT-EXPORT-2",
+      "§11 V-RPT-EXPORT-3",
+      "§11 V-RPT-EXPORT-4",
+      "§11 V-RPT-EXPORT-5",
+      "§11 V-RPT-EXPORT-6",
+      "§11 V-RPT-EXPORT-7",
+      "§14.1"
+    ],
+    "category": "worker",
+    "subcategory": "export-engine",
+    "task_type": "T2-api",
+    "parent_feature": "12-REPORTING-d",
+    "context_budget": "55k",
+    "estimated_effort": "4-6h",
+    "description": "P1 export engine: PDF (Puppeteer Edge Function) + CSV (UTF-8 BOM stream) + report_exports writer + SHA-256 + V-RPT-EXPORT-1..7 enforcement.",
+    "details": "Server Action enqueues, worker generates, Edge Function renders PDF. SHA-256 computed server-side. Row-count cap, dedup window, timeout fallback. xlsx/json deferred P2.",
+    "scope_files": [
+      "packages/reporting/src/actions/export-dashboard.ts [create]",
+      "packages/reporting/src/actions/get-export-status.ts [create]",
+      "apps/worker/src/jobs/reporting-export.ts [create]",
+      "supabase/functions/reporting-export-pdf/index.ts [create]",
+      "packages/reporting/__tests__/export-engine.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement xlsx / json formats (P2)",
+      "Do not implement scheduled email delivery (P2 T-024+)",
+      "Do not implement export_history UI here (T-016 sibling — RPT-EXPORTS)",
+      "Do not implement regulatory_signoff e-sig path (P2 RPT-012)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-005"
+    ],
+    "parallel_safe_with": [
+      "T-009",
+      "T-011",
+      "T-012",
+      "T-014"
+    ],
+    "cross_module_dependencies": [
+      "00-FOUNDATION T-111 apps/worker scaffold",
+      "00-FOUNDATION T-112 outbox worker consumer (export.completed event)",
+      "00-FOUNDATION T-121 rate-limit middleware (V-RPT-EXPORT-6 dedup)",
+      "Vercel Blob storage (file persistence)"
+    ],
+    "acceptance_criteria": [
+      "Given export row exported_at='2026-05-14', when retention_until is read, then it equals 2033-05-14 (T-004 GENERATED column re-verified)",
+      "Given the same (user, dashboard, filters_hash) is submitted twice within 10s, when the 2nd call runs, then returns 429 with Retry-After header (V-RPT-EXPORT-6)",
+      "Given a Server Action call with filters matching 12k rows, when exportDashboard runs, then returns {error:'too_many_rows'} and writes NO report_exports row (V-RPT-EXPORT-1)",
+      "Given edge and compliance cases are exercised, when each condition is triggered, then report_exports row transitions to status='failed' + error_message contains 'PDF_TIMEOUT' + suggests CSV alternative and sha256_hash equals SHA-256 of the actual streamed payload."
+    ],
+    "test_strategy": [
+      "RED: packages/reporting/__tests__/export-engine.test.ts covers 6 ACs; mocks Edge Function with controllable delay for timeout case",
+      "Run `pnpm --filter @monopilot/reporting test export-engine`",
+      "GREEN: write Server Actions + worker job + Edge Function"
+    ],
+    "risk_red_lines": [
+      "Do not generate exports in a Server Action — worker only (30s+ jobs forbidden in request path)",
+      "Do not skip SHA-256 — V-RPT-EXPORT-2 mandates NOT NULL",
+      "Do not allow xlsx/json in P1 — V-RPT-EXPORT-5",
+      "Do not store raw user input in error_message — sanitise to enum codes",
+      "Do not return presigned URL to a different user — strict (org, user) check",
+      "Do not skip @media print CSS for Puppeteer (BL-RPT-04)",
+      "Do not allow file_size > 100MB (V-RPT-EXPORT-4)",
+      "No raw PII in reports/exports — PII columns (email, phone, address, surname, dob, national_id) must be redacted, hashed, or omitted at the read-model boundary. Consult Foundation T-117 pino redact allowlist for the canonical PII column set."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

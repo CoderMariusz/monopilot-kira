@@ -1,0 +1,104 @@
+{
+  "title": "T-003 — UI: customer_list_page (SHIP-001) (11-shipping-a)",
+  "prompt": "# T-003 — Customer List page UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-001 (implied via §15.1 desktop screens listing customer list), §3 Personas (shipping_manager read-write, shipping_qa read-only), §11 V-SHIP-SO-01\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-001 — Customer List\nPrototype: prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:1-129 (customer_list_page)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/customers` rendering customer list with search/filter/sort + Create button + paginated table (server-rendered first page, SWR for refresh), matching prototype 1:1 with shadcn primitives.\n\n## Implementation contract\n1. `apps/web/app/(shipping)/customers/page.tsx` (RSC) calls `listCustomers({ search, category, active })` (Drizzle direct query under `withOrgContext`) returning paginated rows.\n2. `customer-list-client.tsx` ('use client') wraps SWR for refresh-on-mutation; renders shadcn `Table` with cols: customer_code, name, category, active_orders_count (subquery), last_order_date, is_active badge.\n3. Filter chips for category (retail/wholesale/distributor); search input debounced 300 ms; Create button opens `customer_create_modal` (shadcn Dialog from `packages/ui`).\n4. Empty / loading / error / permission states all rendered (per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).\n5. Permission gate: page hidden / 403 if session lacks `ship.so.create` OR `ship.dashboard.view` (read-only viewers get `ship.dashboard.view`).\n6. i18n via next-intl keys under `shipping.customers.*` (page title, table cols, filters, badge labels).\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:1-129` (customer_list_page). Required structural elements (verify all):\n- Page header with title + Create button (right-aligned)\n- Filter chip row (category, is_active, search input)\n- Table: customer_code | name | category | active_orders | last_order_date | badge\n- Pagination footer (page-N of N + Prev/Next)\n- Empty state: \"No customers yet\" + Create CTA\n- Loading state: skeleton rows (8 rows)\n- Error state: alert card with retry\n- Permission state: 403 card with link to permissions docs\n\nDo not paste prototype JSX wholesale — translate to shadcn + Drizzle.\n\n## Files\n- apps/web/app/(shipping)/customers/page.tsx [create]\n- apps/web/app/(shipping)/customers/_components/customer-list-client.tsx [create]\n- apps/web/app/(shipping)/customers/_components/__tests__/customer-list-client.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify — add shipping.customers.* keys]\n- apps/web/messages/pl/shipping.json [modify — add shipping.customers.* keys]\n- prototypes/design/Monopilot Design System/shipping/customer-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:1-129 (customer_list_page), then it has the same header + Create button + filter chip row + 6-col table + pagination footer — verified by RTL snapshot + parity checklist (structural + visual + interaction) and Playwright trace screenshot.\n2. Given URL `?search=acme&category=wholesale`, when page renders, then only wholesale customers matching 'acme' appear (server-rendered, no client-side filter).\n3. Given session has only `ship.dashboard.view` (no ship.so.create), when page renders, then Create button is hidden and the page renders read-only.\n4. Given the data layer returns empty, when page renders, then empty state card shows \"No customers yet\" + Create CTA (CTA hidden if no permission).\n5. Given Playwright trace is captured, when reviewed, then it shows all four states (empty/loading/error/permission) per UI-PROTOTYPE-PARITY-POLICY.\n6. UI closeout includes screenshot/artifact evidence and Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright unavailable, document blocker and provide RTL/snapshot fallback.\n\n## Test strategy\n- RED: RTL test asserting parity (header/filters/table/pagination/empty state/permission gate) + URL filter behavior + Playwright trace stub.\n- Run `pnpm --filter @monopilot/web vitest run customer-list-client.test.tsx`.\n- Playwright spec `apps/web/e2e/shipping-customers.spec.ts` (uses T-123 harness) captures four-state evidence.\n\n## Risk red lines\n- Do not use HTML `<select>` instead of shadcn `Select`.\n- Do not paste prototype JSX verbatim — translate to shadcn primitives only.\n- Do not import `@radix-ui/react-dialog` outside `packages/ui` (foundation §0 ESLint rule).\n- Do not hard-code customer category enum; consume from a typed const shared with T-001 Drizzle schema.\n- Do not regress accessibility (axe violations = fail).",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-001",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-003",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-001",
+      "§3",
+      "§11 V-SHIP-SO-01"
+    ],
+    "category": "ui",
+    "subcategory": "customer-list",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-a",
+    "context_budget": "50k",
+    "estimated_effort": "2-3h",
+    "description": "SHIP-001 Customer List page (RSC + SWR client) matching customer_list_page prototype, with 4-state coverage + i18n.",
+    "details": "Strict prototype parity to `customer-screens.jsx:1-129`. RSC data fetch via Drizzle under withOrgContext. Permission gate (ship.so.create for write, ship.dashboard.view for read). i18n keys shipping.customers.* PL/EN. UI evidence per UI-PROTOTYPE-PARITY-POLICY.",
+    "scope_files": [
+      "apps/web/app/(shipping)/customers/page.tsx [create]",
+      "apps/web/app/(shipping)/customers/_components/customer-list-client.tsx [create]",
+      "apps/web/app/(shipping)/customers/_components/__tests__/customer-list-client.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/customer-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions here (T-002).",
+      "Do not build customer detail page (T-004).",
+      "Do not implement allergen restrictions sub-modal here (T-005)."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-002",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-009"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-123 (Playwright harness)",
+      "00-foundation/T-125 (withOrgContext)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/customer-screens.jsx:1-129 (customer_list_page), then it has the same header + Create button + filter chip row + 6-col table + pagination footer — verified by RTL snapshot + parity checklist.",
+      "Given URL ?search=acme&category=wholesale AND session has only ship.dashboard.view (no ship.so.create), when page renders, then only matching customers appear (server-rendered) AND Create button is hidden and page is read-only.",
+      "Given empty data set, when page renders, then empty state shows 'No customers yet' + Create CTA (hidden when no permission).",
+      "Given the task is closed out, when reviewers inspect evidence, then Playwright trace shows all four states (empty/loading/error/permission) per UI-PROTOTYPE-PARITY-POLICY.md; if Playwright is unavailable, blocker is documented and RTL/snapshot fallback evidence is attached."
+    ],
+    "test_strategy": [
+      "RED: RTL test asserting parity + URL filters + permission gate + four-state rendering.",
+      "Run `pnpm --filter @monopilot/web vitest run customer-list-client.test.tsx`.",
+      "Playwright spec apps/web/e2e/shipping-customers.spec.ts captures four-state evidence."
+    ],
+    "risk_red_lines": [
+      "Do not use HTML <select> instead of shadcn Select.",
+      "Do not paste prototype JSX verbatim — translate per shadcn primitives.",
+      "Do not import @radix-ui/react-dialog outside packages/ui (foundation §0 ESLint rule).",
+      "Do not hard-code customer category enum; share with T-001 Drizzle schema.",
+      "Do not regress accessibility (axe violations = fail)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "customer_list_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

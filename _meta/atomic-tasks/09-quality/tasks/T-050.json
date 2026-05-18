@@ -1,0 +1,92 @@
+{
+  "title": "T-050 — allergen_changeover_validations FK + lab_results ATP extension (08-PROD consumer)",
+  "prompt": "# T-050 — allergen_changeover_validations consumer FK + lab_results ATP extension\n\nPRD: §6.3 lab_results ALTER (09-QA extension), §10.3 consumer of allergen_changeover_gate_v1 (08-PROD owner), §11.6 V-QA-ALLERGEN-001/002, §16.3 cross-PRD impact\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nLink 09-QA writes to allergen_changeover_validations.first_signed_by/second_signed_by (08-PROD owns table, 09-QA writes per §16.3) and apply the §6.3 lab_results ALTER to extend for ATP + allergen test_type pass_threshold.\n\n## Implementation contract\n1. Migration 0143 emits ALTER TABLE lab_results per §6.3 verbatim adding columns: inspection_id UUID REFERENCES quality_inspections(id), allergen_changeover_validation_id UUID REFERENCES allergen_changeover_validations(id), external_lims_id TEXT, threshold_min NUMERIC, threshold_max NUMERIC, pass_threshold NUMERIC, pass_flag BOOLEAN.\n2. Verify allergen_changeover_validations table exists (owned by 08-PROD); if 08-PROD migration is not yet applied, this task creates a stub FK guard (CHECK constraint deferred) and documents the dependency.\n3. 09-QA Server Action namespace apps/web/src/server/quality/allergenGates/signActions.ts owns first_signed_by + second_signed_by write paths (Server Actions implemented in T-055).\n4. Drizzle schema entries: packages/db/src/schema/labResults.ts updated; packages/db/src/schema/allergenChangeoverValidations.ts (read-only, 08-PROD owner).\n\n## Files\n- packages/db/migrations/0143_lab_results_atp_extension.sql [create]\n- packages/db/src/schema/labResults.ts [modify]\n- packages/db/src/schema/allergenChangeoverValidations.ts [create or modify if exists]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/lab-results-atp-extension.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0143 applied, when \\d lab_results runs, then the 7 new columns exist (inspection_id FK, allergen_changeover_validation_id FK, external_lims_id, threshold_min, threshold_max, pass_threshold, pass_flag)\n2. Given a lab_results row with test_type='atp_swab', pass_threshold=10, measured_value=7, when pass_flag computation/trigger runs, then pass_flag=true; with measured_value=12 pass_flag=false (server-side compute; trigger or app-layer per §6.3 hint)\n3. Given allergen_changeover_validations table not yet present (08-PROD pending), when migration 0143 runs, then it logs a deferred-FK note and stays applied with a NOTICE; if 08-PROD is applied, then the FK constraint is fully validated\n\n## Test strategy (RED first)\n- RED: lab-results-atp-extension.test.ts asserting column introspection + pass_flag compute + deferred-FK note before migration\n- Run 'pnpm --filter db migrate && pnpm --filter db test lab-results-atp-extension'\n\n## Risk red lines\n- 09-QA writes only to first_signed_by/second_signed_by per §16.3 (08-PROD owns the table; do not modify other columns)\n- Do not create allergen_changeover_validations table here (08-PROD owner) — schema entry is read-only\n- Do not skip pass_threshold/pass_flag columns (ATP changeover handoff requirement per §6.3)\n- Do not deviate from §6.3 ALTER column list verbatim",
+  "labels": [
+    "prd",
+    "data",
+    "cross-module",
+    "T1-schema"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-050",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§6.3",
+      "§10.3",
+      "§11.6",
+      "§16.3"
+    ],
+    "category": "data",
+    "subcategory": "cross-module-allergen-gate",
+    "task_type": "T1-schema",
+    "parent_feature": "09-QUALITY-e Allergen Gates (08-PROD consumer)",
+    "context_budget": "35k",
+    "estimated_effort": "1-2h",
+    "description": "Apply §6.3 lab_results ALTER for ATP/allergen extensions + read-only Drizzle schema for allergen_changeover_validations (08-PROD owner). 09-QA writes signed_by columns via T-055.",
+    "details": "Migration 0143 ALTER lab_results adding 7 columns verbatim per §6.3 (inspection_id, allergen_changeover_validation_id, external_lims_id, threshold_min, threshold_max, pass_threshold, pass_flag). pass_flag computation strategy: prefer DB trigger over CHECK to allow NULL when pass_threshold IS NULL; if measured_value <= pass_threshold (low-is-good for ATP RLU) then pass_flag=true. Read-only Drizzle schema entry for allergen_changeover_validations (08-PROD owner per §10.3 + §16.3); 09-QA writes only first_signed_by/second_signed_by/first_signature_hash/second_signature_hash columns via T-055 Server Actions. PRD anchors verified: §6.3 lab_results ALTER block (lines 506-516); §10.3 consumer of allergen_changeover_gate_v1; §11.6 V-QA-ALLERGEN-001/002; §16.3 cross-PRD impact (line 1835) names 09-QA writes to first_signed_by/second_signed_by.",
+    "scope_files": [
+      "packages/db/migrations/0143_lab_results_atp_extension.sql [create]",
+      "packages/db/src/schema/labResults.ts [modify]",
+      "packages/db/src/schema/allergenChangeoverValidations.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/lab-results-atp-extension.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create allergen_changeover_validations table (08-PROD owner)",
+      "Do not implement sign Server Actions here (T-055)",
+      "Do not implement ATP device integration (P2, §12.3)"
+    ],
+    "dependencies": [
+      "T-025"
+    ],
+    "parallel_safe_with": [
+      "T-047",
+      "T-048",
+      "T-049"
+    ],
+    "acceptance_criteria": [
+      "Given migration 0143 applied, when \\d lab_results runs, then the 7 new columns from §6.3 ALTER exist (inspection_id FK, allergen_changeover_validation_id FK, external_lims_id, threshold_min, threshold_max, pass_threshold, pass_flag)",
+      "Given a lab_results row with test_type='atp_swab' pass_threshold=10 measured_value=7, when the pass_flag computation/trigger runs, then pass_flag=true; with measured_value=12 then pass_flag=false",
+      "Given allergen_changeover_validations table not yet present (08-PROD migration deferred), when migration 0143 runs, then it logs a deferred-FK NOTICE and stays applied; if 08-PROD is present, the FK is fully validated"
+    ],
+    "test_strategy": [
+      "RED: lab-results-atp-extension.test.ts asserting column introspection + pass_flag compute + deferred-FK behavior before migration",
+      "Run 'pnpm --filter db migrate && pnpm --filter db test lab-results-atp-extension'"
+    ],
+    "risk_red_lines": [
+      "09-QA writes ONLY to first_signed_by/second_signed_by/*_signature_hash per §16.3 — do not modify other 08-PROD columns",
+      "Do not create allergen_changeover_validations table here (08-PROD owner)",
+      "Do not skip pass_threshold/pass_flag columns (ATP changeover handoff per §6.3)",
+      "Do not deviate from §6.3 ALTER column list verbatim"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

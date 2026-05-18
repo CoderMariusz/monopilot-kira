@@ -1,13 +1,14 @@
 {
-  "title": "T-039 — Scanner LP inventory query API",
-  "prompt": "# T-039 — Scanner LP inventory query API\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §13.1 (FR-WH-025).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`GET /api/warehouse/scanner/inventory` returning paginated LP inventory rows for the scanner with SLO <200ms P95.\n\n## Implementation contract\n`apps/web/app/api/warehouse/scanner/inventory/route.ts`. Query params per §13.1: warehouse_id (required), product_id, status (default 'available'), qa_status (CSV default 'PASSED,RELEASED'), location_id, offset, limit (default 50). Response includes lp_id, lp_number, product_code, product_name, quantity, uom, catch_weight_kg, location_path, expiry_date, qa_status, batch_number, reserved_for_wo_id. Use idx_lp_fefo composite when applicable.\n\n## Files (scope)\n- apps/web/app/api/warehouse/scanner/inventory/route.ts [create]\n- apps/web/app/api/warehouse/scanner/inventory/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a warehouse with 100 LPs and request ?warehouse_id=X, when endpoint is hit, then 50 rows are returned with `total=100, offset=0, limit=50`.\n2. Given qa_status=PASSED,RELEASED is the default, when an LP with HOLD is in the warehouse, then it is excluded from the response.\n3. Given a 10k-row seed, when measured, then P95 latency <200ms.\n\n## Test strategy\n- RED: inventory route.test.ts covers pagination, qa_status filter, latency.\n- Run `pnpm --filter web test scanner-inventory`.\n\n## Risk red lines\n- Do not return >limit rows.\n- Do not bypass tenant_id RLS.\n- Do not skip qa_status filter.",
+  "title": "T-039 — Scanner LP inventory query API (WH §13.1)",
+  "prompt": "# T-039 — Scanner LP inventory query API (WH §13.1)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §13.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `GET /api/warehouse/scanner/inventory` returning paginated LP list filtered by warehouse + optional product/status/qa_status/location with the §13.1 response shape. SLO <200 ms P95.\n\n## Implementation contract\n1. `apps/web/app/api/warehouse/scanner/inventory/route.ts` + service `apps/web/lib/services/warehouse/scanner-inventory.ts`.\n2. Query params: warehouse_id (required), product_id, status (default 'available'), qa_status (CSV, default 'PASSED,RELEASED'), location_id, offset, limit (default 50, max 200).\n3. Response per §13.1 example: items[] + total + offset + limit.\n4. RBAC: Scanner session-authenticated (T-041).\n5. Uses composite FEFO index from T-011.\n\n## Files\n- apps/web/app/api/warehouse/scanner/inventory/route.ts [create]\n- apps/web/app/api/warehouse/scanner/inventory/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given 100 LPs across 2 warehouses, when GET filters warehouse_id=X, then only warehouse X LPs returned, paginated.\n2. Given qa_status='PASSED' filter, when called, then only PASSED LPs are returned.\n3. Given the request lacks a valid session token, when called, then 401 returned.\n4. Given 100k LPs, when paginated, then P95 <200 ms.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/scanner-inventory.test.ts` asserting filter combinations, pagination, auth gate, perf smoke.\n- Run `pnpm --filter web test scanner-inventory`.\n\n## Risk red lines\n- Do not expose inventory_value here (RBAC-gated, T-045 handles).\n- Do not skip session token validation.\n- Do not allow limit > 200 (DoS risk).\n\n## Dependencies\n- T-002\n- T-011\n- T-012",
   "labels": [
     "prd",
-    "api",
+    "service",
     "scanner",
-    "T2-api"
+    "api",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "scanner",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-scanner",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "20k",
     "estimated_effort": "1h",
-    "description": "Paginated LP inventory query for scanner with default qa filter.",
-    "details": "Index-driven query; default qa filter PASSED,RELEASED; SLO <200ms P95.",
+    "description": "Implement `GET /api/warehouse/scanner/inventory` returning paginated LP list filtered by warehouse + optional product/status/qa_status/location with the §13.1 response shape. SLO <200 ms P95.",
+    "details": "Implement `GET /api/warehouse/scanner/inventory` returning paginated LP list filtered by warehouse + optional product/status/qa_status/location with the §13.1 response shape. SLO <200 ms P95. `apps/web/app/api/warehouse/scanner/inventory/route.ts` + service `apps/web/lib/services/warehouse/scanner-inventory.ts`. Query params: warehouse_id (required), product_id, status (default 'available'), qa_status (CSV, default 'PASSED,RELEASED'), location_id, offset, limit (default 50, max 200).",
     "scope_files": [
       "apps/web/app/api/warehouse/scanner/inventory/route.ts [create]",
       "apps/web/app/api/warehouse/scanner/inventory/__tests__/route.test.ts [create]"
@@ -45,18 +46,19 @@
       "T-042"
     ],
     "acceptance_criteria": [
-      "Given 100 LPs in a warehouse, when ?warehouse_id=X is requested, then 50 rows are returned with total=100",
-      "Given default qa_status filter, when an LP has HOLD, then it is excluded",
-      "Given a 10k-row seed, when measured, then P95 latency <200ms"
+      "Given 100 LPs across 2 warehouses, when GET filters warehouse_id=X, then only warehouse X LPs returned, paginated.",
+      "Given qa_status='PASSED' filter, when called, then only PASSED LPs are returned.",
+      "Given the request lacks a valid session token, when called, then 401 returned.",
+      "Given 100k LPs, when paginated, then P95 <200 ms."
     ],
     "test_strategy": [
-      "RED: scanner-inventory route.test.ts covers pagination, qa filter, latency",
-      "Run 'pnpm --filter web test scanner-inventory'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/scanner-inventory.test.ts` asserting filter combinations, pagination, auth gate, perf smoke.",
+      "Run `pnpm --filter web test scanner-inventory`."
     ],
     "risk_red_lines": [
-      "Do not return >limit rows",
-      "Do not bypass RLS",
-      "Do not skip qa filter"
+      "Do not expose inventory_value here (RBAC-gated, T-045 handles).",
+      "Do not skip session token validation.",
+      "Do not allow limit > 200 (DoS risk)."
     ],
     "skills": [
       "test-driven-development",
@@ -86,7 +88,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -112,7 +114,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

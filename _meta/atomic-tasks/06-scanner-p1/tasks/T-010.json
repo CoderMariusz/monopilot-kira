@@ -35,7 +35,9 @@
     "out_of_scope": [
       "Do not implement scanner-side cache here",
       "Do not implement audit ingestion endpoint here (T-011)",
-      "Do not couple this to warehouse-specific lock APIs (T-034)"
+      "Do not couple this to warehouse-specific lock APIs (T-034)",
+      "Do not implement P2 flows here: transfer-order (TO) creation, replenishment, cycle-count, inquiry full traceability — P1 stubs only",
+      "Do not implement offline queue write-path here (P2); P1 keeps offline-safe scan buffer + indicator only"
     ],
     "dependencies": [
       "T-003",
@@ -57,7 +59,9 @@
     "risk_red_lines": [
       "Do not return cross-org rows even on cache hit",
       "Do not loop multiple SQL roundtrips per lookup",
-      "Do not bypass gs1-parser for auto"
+      "Do not bypass gs1-parser for auto",
+      "Do not bypass scanner.* permission namespace on API entry",
+      "Do not accept barcodes whose GS1 company prefix is not configured in Settings (foundation contract)"
     ],
     "skills": [
       "test-driven-development",
@@ -84,6 +88,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
+    "prototype_match": false,
     "cross_module_dependencies": [
       "00-foundation: scanner routing/session/RLS baseline",
       "02-settings: PIN policy, locale, scanner device defaults"

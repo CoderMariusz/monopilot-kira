@@ -1,13 +1,13 @@
 {
-  "title": "T-032 — Reservation release service",
-  "prompt": "# T-032 — Reservation release service\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §9.4 (release triggers), V-WH-FEFO-006.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\n`releaseReservation(reservationId, releaseReason, reasonText?)` Server Action setting released_at, restoring LP.reserved_qty/status, with audit on admin_override.\n\n## Implementation contract\n`apps/web/lib/services/warehouse/reservation-release.ts`. release_reason ENUM ('consumed','cancelled','wo_cancelled','admin_override'). For 'admin_override' require RBAC Manager/Admin AND reason_text length ≥10 (V-WH-FEFO-006). Set released_at=NOW(), released_by=user. Update LP.reserved_qty -= reserved_qty; if all reservations released, LP.status reverts to 'available'. Insert audit row 'lp_reservation_released'.\n\n## Files (scope)\n- apps/web/lib/services/warehouse/reservation-release.ts [create]\n- apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts [create]\n\n## Acceptance criteria\n1. Given an active reservation, when releaseReservation runs with reason='consumed', then released_at is set and LP.reserved_qty decrements.\n2. Given reason='admin_override' by an Operator, when called, then RBAC error returns.\n3. Given reason='admin_override' by Manager without reason_text, when called, then V-WH-FEFO-006 error returns.\n4. Given the last active reservation released, when committed, then LP.status reverts from 'reserved' to 'available'.\n\n## Test strategy\n- RED: reservation-release.test.ts covers four scenarios.\n- Run `pnpm --filter web test reservation-release`.\n\n## Risk red lines\n- Do not delete reservation rows (audit-preserving).\n- Do not skip admin_override RBAC + reason_text gate.\n- Do not flip LP status while other active reservations remain.",
+  "title": "T-032 — Reservation release service (WH §9.4)",
+  "prompt": "# T-032 — Reservation release service (WH §9.4)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §9.4\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement `releaseReservation` covering 4 release_reason paths: consumed, cancelled, wo_cancelled, admin_override (mandatory reason + Manager+). Returns LP to `available` when reserved_qty drops to 0.\n\n## Implementation contract\n1. `apps/web/lib/services/warehouse/reservation-release.ts`: function `releaseReservation({reservation_id, release_reason, reason_text})`.\n2. UPDATE lp_reservations.released_at=NOW(), released_by, release_reason.\n3. Recompute LP.reserved_qty -= row.reserved_qty; if total reserved_qty=0 then LP.status='available' AND LP.reserved_for_wo_id=NULL.\n4. admin_override: RBAC Manager+ + reason_text mandatory ≥10 chars + audit row in high-visibility log.\n5. Emit outbox `lp.released`.\n\n## Files\n- apps/web/lib/services/warehouse/reservation-release.ts [create]\n- apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts [create]\n\n## Acceptance criteria\n1. Given a reservation released with reason='consumed', when complete, then row.released_at set, LP.reserved_qty decremented, status='available' if total=0.\n2. Given admin_override path, when called by an Operator, then RBAC rejects.\n3. Given admin_override with reason_text='', when called, then service rejects.\n4. Given partial reservation (2 rows on same LP, release 1), when called, then LP.status remains 'reserved'.\n\n## Test strategy\n- RED: `apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts` asserting 4 reason paths + RBAC + partial release.\n- Run `pnpm --filter web test reservation-release`.\n\n## Risk red lines\n- Do not allow admin_override without reason_text or Manager+ role.\n- Do not return LP to `available` while other reservations remain.\n- Do not skip outbox.\n\n## Dependencies\n- T-031",
   "labels": [
     "prd",
-    "api",
+    "service",
     "reservations",
-    "T2-api"
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +20,11 @@
     "category": "api",
     "subcategory": "reservations",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-fefo",
+    "parent_feature": "05-warehouse-c",
     "context_budget": "25k",
     "estimated_effort": "1-2h",
-    "description": "Reservation release with admin_override RBAC + reason_text gate; LP.status reverts when last reservation released.",
-    "details": "Audit log entry 'lp_reservation_released' mandatory. Single transaction.",
+    "description": "Implement `releaseReservation` covering 4 release_reason paths: consumed, cancelled, wo_cancelled, admin_override (mandatory reason + Manager+). Returns LP to `available` when reserved_qty drops to 0.",
+    "details": "Implement `releaseReservation` covering 4 release_reason paths: consumed, cancelled, wo_cancelled, admin_override (mandatory reason + Manager+). Returns LP to `available` when reserved_qty drops to 0. `apps/web/lib/services/warehouse/reservation-release.ts`: function `releaseReservation({reservation_id, release_reason, reason_text})`. UPDATE lp_reservations.released_at=NOW(), released_by, release_reason.",
     "scope_files": [
       "apps/web/lib/services/warehouse/reservation-release.ts [create]",
       "apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts [create]"
@@ -42,19 +42,19 @@
       "T-033"
     ],
     "acceptance_criteria": [
-      "Given an active reservation, when released with reason='consumed', then released_at is set and LP.reserved_qty decrements",
-      "Given admin_override by Operator, when called, then RBAC error returns",
-      "Given admin_override by Manager without reason_text (≥10 chars), when called, then V-WH-FEFO-006 error returns",
-      "Given the last active reservation released, when committed, then LP.status reverts to 'available'"
+      "Given a reservation released with reason='consumed', when complete, then row.released_at set, LP.reserved_qty decremented, status='available' if total=0.",
+      "Given admin_override path, when called by an Operator, then RBAC rejects.",
+      "Given admin_override with reason_text='', when called, then service rejects.",
+      "Given partial reservation (2 rows on same LP, release 1), when called, then LP.status remains 'reserved'."
     ],
     "test_strategy": [
-      "RED: reservation-release.test.ts covers four scenarios",
-      "Run 'pnpm --filter web test reservation-release'"
+      "RED: `apps/web/lib/services/warehouse/__tests__/reservation-release.test.ts` asserting 4 reason paths + RBAC + partial release.",
+      "Run `pnpm --filter web test reservation-release`."
     ],
     "risk_red_lines": [
-      "Do not delete reservation rows",
-      "Do not skip admin_override gate",
-      "Do not flip LP status prematurely"
+      "Do not allow admin_override without reason_text or Manager+ role.",
+      "Do not return LP to `available` while other reservations remain.",
+      "Do not skip outbox."
     ],
     "skills": [
       "test-driven-development",
@@ -84,7 +84,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -110,7 +110,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

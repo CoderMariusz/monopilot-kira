@@ -1,6 +1,6 @@
 {
   "title": "T-082 — NonConformance event contract for Technical PO/TO triggers",
-  "prompt": "# T-082 — NonConformance event contract for Technical PO/TO triggers\n\nDefine the shared event contract emitted by Technical when PO receipt actuals or TO transfer actuals need non-conformance handling. Event name: `non_conformance.requested` unless an existing platform convention is found and documented. Payload must include source_module, source_event_name, source_event_id, idempotency_key, org_id, item_id, lot_id when present, supplier_id when present, purchase_order_id/transfer_order_id when present, reason_codes, severity, observed_values, expected_values, detected_at, detected_by, and recommended_owner `technical|quality|warehouse|procurement`. Provide schema validation and outbox/idempotency tests. RED first: T-076/T-077 payloads validate against this contract and retries do not duplicate NCR requests.",
+  "prompt": "# T-082 — NonConformance event contract for Technical PO/TO triggers\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §9.4, §11.2\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nShared NCR request event schema used by Technical PO and TO actual variance triggers.\n\nThis task does not implement 09-QUALITY investigation workflow. It creates the contract, schema validator and Technical outbox helper so PO/TO triggers can request NCR consistently. If 09-QUALITY tables/events already exist, map to that canonical contract and document the mapping. PO and TO triggers remain Technical-side producers; Quality may be consumer/owner.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- apps/web/events/contracts/non-conformance-requested.ts [create]\n- apps/web/lib/technical/non-conformance-outbox.ts [create]\n- tests/events/non-conformance-requested.contract.test.ts [create]\n- tests/integration/technical/non-conformance-idempotency.test.ts [create]\n\n## Acceptance criteria\n1. Given T-076 emits PO price/spec/allergen variance, then payload validates with source_event_name=po.receipt_actual_recorded and reason_codes from the PO variance set.\n2. Given T-077 emits TO shelf-life/location/temperature variance, then payload validates with source_event_name=to.transfer_actual_recorded and reason_codes from the TO variance set.\n3. Given the same idempotency_key is emitted twice, then one outbox/NCR request exists and duplicate attempt returns existing reference.\n4. Given 09-QUALITY contract exists, then this task maps to it without creating a divergent Technical-only payload.\n5. Given D365 is disabled, then NCR request still emits from local PO/TO events without D365 identifiers.\n\n## Test strategy\n- RED contract tests with valid and invalid PO/TO payload fixtures.\n- RED idempotency test around outbox helper.\n- Run: pnpm vitest run tests/events/non-conformance-requested.contract.test.ts tests/integration/technical/non-conformance-idempotency.test.ts\n\n## Risk red lines\n- Do not implement Quality NCR workflow screens.\n- Do not mutate master data while emitting NCR requests.\n- Do not require D365 identifiers in the contract.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "integration",
@@ -42,7 +42,7 @@
     "prd_task_id": "T-082",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§9.4",
       "§11.2"
     ],
@@ -75,13 +75,18 @@
     "risk_red_lines": [
       "Do not implement Quality NCR workflow screens.",
       "Do not mutate master data while emitting NCR requests.",
-      "Do not require D365 identifiers in the contract."
+      "Do not require D365 identifiers in the contract.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "dependencies": [],
     "parallel_safe_with": [
       "T-080",
       "T-081",
       "T-083"
-    ]
+    ],
+    "out_of_scope": []
   }
 }

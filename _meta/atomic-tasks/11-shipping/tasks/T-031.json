@@ -1,0 +1,114 @@
+{
+  "title": "T-031 — Add ship.* permission strings to packages/rbac (11-shipping-k)",
+  "prompt": "# T-031 — Add ship.* permission strings to packages/rbac\n\nPRD: docs/prd/11-SHIPPING-PRD.md §3 Personas & Roles, §6 D-SHP-7 RLS Multi-tenant, §6 D-SHP-8 SO Status Machine + Guards, §10 Quality Hold Integration (D-SHP-13), §13.1 SSCC-18, §14.4 BRCGS BOL retention\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAppend the canonical `ship.*` permission group to `packages/rbac/src/permissions.enum.ts` so that every `<module>.<resource>.<verb>` capability declared by 11-SHIPPING is enum-locked before the rest of the module's Server Actions are written. ESLint enum-lock guard (02-settings T-046) blocks downstream usages otherwise.\n\n## Implementation contract\n1. Append the 14 ship.* permission strings (exact list below) to `packages/rbac/src/permissions.enum.ts` following the existing `SETTINGS_CORE_PERMISSIONS` const-object pattern with JSDoc citing `docs/prd/11-SHIPPING-PRD.md §3` line numbers.\n2. Export `ALL_SHIP_PERMISSIONS` as a typed `Permission[]` array literal so downstream Server Actions can iterate.\n3. Each string MUST match regex `^ship\\.[a-z_]+\\.[a-z_]+$` (3-segment dot-namespaced, lowercase + underscores only).\n4. CODEOWNERS must keep `packages/rbac/src/permissions.enum.ts` architect-locked.\n5. Do NOT remove or rename existing permission strings, do NOT introduce a parallel 4-segment matrix (rejected per 02-settings PRD §3 [D2]).\n\n## Permission strings (14)\n\n- `ship.so.create` — create draft SO (shipping_manager) — §3, V-SHIP-SO-01\n- `ship.so.confirm` — confirm SO (shipping_manager) — §3, §6 D-SHP-8, V-SHIP-SO-03\n- `ship.so.cancel` — cancel SO (shipping_manager) — V-SHIP-SO-07\n- `ship.hold.place` — place soft/credit/QA hold — §10.2, hold_place_modal\n- `ship.hold.release` — release hold — hold_release_modal\n- `ship.alloc.override` — override FEFO/expired/QA allocation w/ reason — §6 D-SHP-13 soft gate, V-SHIP-ALLOC-04, V-SHIP-ALLOC-05\n- `ship.allergen.override` — QA override of allergen cascade conflict — V-SHIP-SO-03, allergen_overrides table\n- `ship.pick.execute` — execute pick (scanner role) — §3, V-SHIP-PICK-01\n- `ship.pack.close` — close pack carton, finalize SSCC — §13.1, V-SHIP-PACK-02\n- `ship.ship.confirm` — confirm shipment (atomic outbox enqueue) — §6 D-SHP-14, V-SHIP-SHIP-01..04\n- `ship.bol.sign` — upload signed BOL (BRCGS 7y retention) — §14.4, V-SHIP-LBL-04\n- `ship.rma.disposition` — set RMA disposition (restock/scrap/quality_hold) — §8.5, V-SHIP-RMA-02..03\n- `ship.dashboard.view` — view shipping dashboard — §15.1 SHIP-022\n- `ship.dlq.replay` — replay shipping_push_dlq event (ops) — §12.6 DLQ ops screen\n\n## Files\n- packages/rbac/src/permissions.enum.ts [modify]\n- packages/rbac/src/__tests__/permissions.test.ts [modify]\n- CODEOWNERS [modify if missing]\n\n## Acceptance criteria\n1. Given the enum file is imported, when `ALL_SHIP_PERMISSIONS` is read, then it contains exactly the 14 strings listed above in declared order and no duplicates.\n2. Given each permission key is parsed, when regex `^ship\\.[a-z_]+\\.[a-z_]+$` is applied, then every key matches (vitest assertion).\n3. Given vitest runs `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`, when the suite executes, then it is green and asserts presence + regex + uniqueness + cross-module dedupe (no ship.* collides with foundation/settings/npd/wh/scanner/scheduler/production/quality strings).\n4. Given CODEOWNERS is read, when grep is run, then `packages/rbac/src/permissions.enum.ts` remains under `@architects`.\n\n## Test strategy (RED first)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with a `describe('ship.* permissions')` block asserting presence (14 strings), regex match, uniqueness, dedupe against existing `ALL_PERMISSIONS`.\n2. RED: `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts` — must fail.\n3. GREEN: append const SHIP_PERMISSIONS = {...} and ALL_SHIP_PERMISSIONS array to permissions.enum.ts.\n4. Re-run RED — must pass.\n5. `pnpm typecheck` and `pnpm lint` in @monopilot/rbac must pass.\n\n## Risk red lines\n- Do not introduce a 4-segment string (regex enforces 3 segments).\n- Do not rename existing strings or move `ship.*` to a different prefix.\n- Do not weaken or remove the existing CODEOWNERS architect lock on permissions.enum.ts.\n- Do not commit ship.dlq.replay under any namespace other than `ship` (D365 dispatcher is module-owned per §12.6).\n- Do not invent `ship.access` 2-segment role-shorthand (use 3-segment strings only).\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n\nNote: the `ship.pack.close` permission gates SSCC label generation which reads `organizations.gs1_company_prefix` from the organizations table (02-settings) — always read from organizations table (02-settings), never from env config.\n\nNote: `ship.bol.sign` and `ship.pod.upload` permissions gate BRCGS SHA-256 integrity hash operations on uploaded BOL/POD documents (7-year retention per BRCGS Issue 9 §3.5).\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-031",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§3",
+      "§6 D-SHP-7",
+      "§6 D-SHP-8",
+      "§10",
+      "§13.1",
+      "§14.4"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-k",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Append 14 ship.* permission strings to packages/rbac/src/permissions.enum.ts (RBAC foundation for §3 / §6 / §10 / §13.1 / §14.4).",
+    "details": "Use the same pattern as the existing SETTINGS_CORE_PERMISSIONS const-object: typed object with JSDoc citing PRD line numbers, then export ALL_SHIP_PERMISSIONS as a Permission[] literal. Strings must match `^ship\\.[a-z_]+\\.[a-z_]+$`. Cross-module dedupe must be asserted (no overlap with ALL_FOUNDATION_PERMISSIONS, ALL_SETTINGS_CORE_PERMISSIONS, ALL_NPD_PERMISSIONS, ALL_WAREHOUSE_PERMISSIONS, ALL_SCANNER_PERMISSIONS, ALL_SCHEDULER_PERMISSIONS, ALL_PRODUCTION_PERMISSIONS, ALL_QUALITY_PERMISSIONS).",
+    "permission_strings": [
+      "ship.so.create",
+      "ship.so.confirm",
+      "ship.so.cancel",
+      "ship.hold.place",
+      "ship.hold.release",
+      "ship.alloc.override",
+      "ship.allergen.override",
+      "ship.pick.execute",
+      "ship.pack.close",
+      "ship.ship.confirm",
+      "ship.bol.sign",
+      "ship.rma.disposition",
+      "ship.dashboard.view",
+      "ship.dlq.replay"
+    ],
+    "scope_files": [
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]",
+      "CODEOWNERS [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions or RBAC wrappers (downstream tasks)",
+      "Do not add ship.* permissions beyond the listed 14",
+      "Do not introduce a parallel 4-segment matrix"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "cross_module_dependencies": [
+      "02-settings/T-001 (settings.* enum baseline)",
+      "02-settings/T-046 (ESLint enum-lock guard)",
+      "09-quality/T-064 (consume gate — ship permissions include ship.hold.* which interface with quality hold gate per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given the enum file is imported, when ALL_SHIP_PERMISSIONS is read, then it contains exactly the 14 listed strings, in order, with no duplicates.",
+      "Given each permission key is parsed, when regex `^ship\\.[a-z_]+\\.[a-z_]+$` is applied, then every key matches.",
+      "Given vitest runs packages/rbac/src/__tests__/permissions.test.ts, when the suite executes, then presence + regex + uniqueness + cross-module dedupe all pass.",
+      "Given CODEOWNERS is read, when grep is run, then permissions.enum.ts remains under @architects."
+    ],
+    "test_strategy": [
+      "RED: extend permissions.test.ts with describe('ship.* permissions') asserting the 14 strings + regex + uniqueness + dedupe; run vitest, expect failure.",
+      "GREEN: append SHIP_PERMISSIONS const-object and ALL_SHIP_PERMISSIONS typed array; re-run vitest.",
+      "Run `pnpm --filter @monopilot/rbac typecheck` and `pnpm --filter @monopilot/rbac lint` after change."
+    ],
+    "risk_red_lines": [
+      "Do not introduce a 4-segment permission string.",
+      "Do not rename or remove existing permission strings.",
+      "Do not weaken the existing CODEOWNERS architect lock.",
+      "Do not invent 2-segment role-shorthand (use 3 segments only).",
+      "Do not commit ship.dlq.replay under any prefix other than ship.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — ship.hold.* permissions gate hold operations that interact with the quality hold system.",
+      "POD audit trail permissions (ship.bol.sign, ship.pod.upload) must be included in the enum — these gate BRCGS SHA-256 document hash operations."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

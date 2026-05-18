@@ -1,0 +1,160 @@
+{
+  "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+  "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "generator": "prd-decompose-hybrid (bootstrap 2026-05-14)",
+  "pipeline_name": "kira_dev",
+  "task_count": 32,
+  "tasks": [
+    "tasks/T-001.json",
+    "tasks/T-002.json",
+    "tasks/T-003.json",
+    "tasks/T-004.json",
+    "tasks/T-005.json",
+    "tasks/T-006.json",
+    "tasks/T-007.json",
+    "tasks/T-008.json",
+    "tasks/T-009.json",
+    "tasks/T-010.json",
+    "tasks/T-011.json",
+    "tasks/T-012.json",
+    "tasks/T-013.json",
+    "tasks/T-014.json",
+    "tasks/T-015.json",
+    "tasks/T-016.json",
+    "tasks/T-017.json",
+    "tasks/T-018.json",
+    "tasks/T-019.json",
+    "tasks/T-020.json",
+    "tasks/T-021.json",
+    "tasks/T-022.json",
+    "tasks/T-023.json",
+    "tasks/T-024.json",
+    "tasks/T-025.json",
+    "tasks/T-026.json",
+    "tasks/T-027.json",
+    "tasks/T-028.json",
+    "tasks/T-029.json",
+    "tasks/T-030.json",
+    "tasks/T-031.json",
+    "tasks/T-032.json"
+  ],
+  "submodules": {
+    "11-shipping-a": {
+      "name": "Customer domain (customers + contacts + addresses + allergen restrictions)",
+      "tasks": ["T-001", "T-002", "T-003", "T-004", "T-005"]
+    },
+    "11-shipping-b": {
+      "name": "Sales Orders (schema + status machine + wizard + list + detail)",
+      "tasks": ["T-006", "T-007", "T-008", "T-009", "T-010"]
+    },
+    "11-shipping-c": {
+      "name": "Allocation + Quality Hold gate (FEFO + D-SHP-13)",
+      "tasks": ["T-011", "T-012", "T-013", "T-014"]
+    },
+    "11-shipping-d": {
+      "name": "Pick + Wave (schema + APIs + UI)",
+      "tasks": ["T-015", "T-016", "T-017"]
+    },
+    "11-shipping-e": {
+      "name": "Pack + SSCC-18 + Ship confirm",
+      "tasks": ["T-018", "T-019", "T-020", "T-021", "T-022"]
+    },
+    "11-shipping-f": {
+      "name": "Documents (packing slip + BOL + POD) + BRCGS 7y retention",
+      "tasks": ["T-023", "T-024", "T-025"]
+    },
+    "11-shipping-g": {
+      "name": "RMA Phase 1",
+      "tasks": ["T-026"]
+    },
+    "11-shipping-h": {
+      "name": "Carriers + Shipping Settings",
+      "tasks": ["T-027", "T-028"]
+    },
+    "11-shipping-i": {
+      "name": "INTEGRATIONS Stage 3 D365 SalesOrder Confirm Push (outbox + DLQ + dispatcher)",
+      "tasks": ["T-029"]
+    },
+    "11-shipping-j": {
+      "name": "Dashboard + cross-cutting + E2E spine",
+      "tasks": ["T-030", "T-032"]
+    },
+    "11-shipping-k": {
+      "name": "Permissions enum delta (p0-blocker)",
+      "tasks": ["T-031"]
+    }
+  },
+  "p0_blockers": [
+    "T-031"
+  ],
+  "cross_module_dependencies": {
+    "00-foundation": [
+      "T-040 (audit_events R13)",
+      "T-051 (D365 export-only posture)",
+      "T-111 (apps/worker JobRegistry)",
+      "T-112 (@monopilot/outbox)",
+      "T-113 (@monopilot/gdpr registry)",
+      "T-116 (OpenTelemetry)",
+      "T-117 (pino redact)",
+      "T-121 (@monopilot/rate-limit)",
+      "T-123 (Playwright harness)",
+      "T-124 (@monopilot/e-sign)",
+      "T-125 (withOrgContext + app.current_org_id())"
+    ],
+    "01-npd": [
+      "T-001 (product FG SSOT — sales_order_lines.product_id, allergen cascade, variance_tolerance_pct)"
+    ],
+    "02-settings": [
+      "allergen_families ref table",
+      "reason_codes ref table (context='fefo_deviation','rma','manual')",
+      "organizations.gs1_company_prefix",
+      "printers + packing_stations",
+      "tenant L2 config infra (shipping_config UPSERT)",
+      "D365_Constants from §11"
+    ],
+    "05-warehouse": [
+      "T-002 (license_plates)",
+      "T-013 (transition_lp DSL — reserved→shipped)",
+      "create_lp Server Action (RMA restock cross-write)"
+    ],
+    "06-scanner-p1": [
+      "operator role model (pick_lists.assigned_to visibility)",
+      "scan_event_id session contract (V-SHIP-PICK-01)",
+      "SHIP-015 Pick Scanner + SHIP-018 Pack Scanner owned by scanner module"
+    ],
+    "08-production": [
+      "outbox_status_enum (shared ENUM with shipping_outbox_events)"
+    ],
+    "09-quality": [
+      "T-010 (v_active_holds — quality hold gate)",
+      "T-011 (consumer of shipping.quality_hold.overridden)",
+      "create_hold action (RMA quality_hold cross-write)"
+    ],
+    "10-finance": [
+      "future: SO line totals consumed by 10-finance invoicing (Phase 2)"
+    ]
+  },
+  "wave_order": [
+    {
+      "wave": 1,
+      "title": "Permissions + schema foundations",
+      "tasks": ["T-031", "T-001", "T-006", "T-011", "T-015", "T-018", "T-026 (schema portion)"]
+    },
+    {
+      "wave": 2,
+      "title": "Server Actions backend (depends on wave 1 schema)",
+      "tasks": ["T-002", "T-007", "T-012", "T-013", "T-016", "T-019", "T-020", "T-023", "T-025 (server action)", "T-026 (server actions)", "T-027", "T-029"]
+    },
+    {
+      "wave": 3,
+      "title": "UI (depends on wave 2 Server Actions)",
+      "tasks": ["T-003", "T-004", "T-005", "T-008", "T-009", "T-010", "T-014", "T-017", "T-021", "T-022", "T-024", "T-025 (UI)", "T-026 (UI)", "T-028", "T-030"]
+    },
+    {
+      "wave": 4,
+      "title": "E2E spine",
+      "tasks": ["T-032"]
+    }
+  ]
+}

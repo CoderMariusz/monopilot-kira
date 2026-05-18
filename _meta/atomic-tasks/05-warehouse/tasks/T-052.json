@@ -1,22 +1,76 @@
 {
-  "title": "T-052 — Warehouse expiry and shelf-life rules UI surfaces",
-  "prompt": "# T-052 — Warehouse expiry and shelf-life rules UI surfaces\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement expiry dashboard, canonical use_by override modal, and Phase 1 Shelf Life Rules CRUD UI.\n\n## Implementation contract\nWH-109 Shelf Life Rules CRUD is Phase 1. Build Admin/Manager-only shelf_life_rules_admin_page and shelf_life_rule_edit_modal under Warehouse Settings. M-12 use_by_override_modal is canonical; do not reintroduce stale no-prototype wording.\n\n## Files (scope)\n- apps/web/app/(app)/warehouse/expiry/** [create]\n- apps/web/app/(app)/warehouse/settings/shelf-life-rules/** [create]\n- apps/web/components/warehouse/expiry/** [create]\n- prototypes/design/Monopilot Design System/warehouse/other-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Acceptance criteria\n1. Given expiry_management_page renders, when compared to prototypes/design/Monopilot Design System/warehouse/other-screens.jsx, then expired/expiring tabs, use_by/best_before mode filters, cron status, and row actions match.\n2. Given use_by_override_modal opens for an expired use_by LP, then Manager/Admin role, acknowledgement, reason_code, and reason_text are mandatory before submit.\n3. Given shelf_life_rules_admin_page renders, then Admin/Manager can list/create/edit/disable customer+product min shelf life rules and unauthorized roles see a read-only permission state.\n4. Given components are inspected, then data-prototype-label markers exist for expiry_management_page, use_by_override_modal, shelf_life_rules_admin_page, and shelf_life_rule_edit_modal.\n\n## Test strategy\n- RED: Playwright tests for use_by override required fields and unauthorized role denial.\n- GREEN: component tests for shelf_life_rules CRUD validation: customer, product, min days, enforced flag, reason.\n- Run pnpm test and pnpm playwright test --grep @warehouse-expiry-ui.\n\n## Risk red lines\n- Do not mark WH-109 as P2 or no-prototype.\n- Do not let non-manager users override expired use_by blocks.\n- Do not enforce 11-SHIPPING min shelf life in Warehouse UI beyond documented contract cues.",
+  "title": "T-052 — UI: Expiry + shelf-life-rules surfaces — WH-019/WH-109/M-12 (WH §12.2, §12.5, §12.6)",
+  "prompt": "# T-052 — UI: Expiry + shelf-life-rules surfaces — WH-019/WH-109/M-12 (WH §12.2, §12.5, §12.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §12.2, §12.5, §12.6, §12.7, §16.6 WH-019/WH-109/M-12\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:363-480 (expiry_management_page)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:966-1007 (use_by_override_modal)\nPrototype: prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:484-631 (Shelf Life Rules sub-page WH-109) (shelf_life_rules_admin_page)\nPrototype: prototypes/design/Monopilot Design System/warehouse/modals.jsx:1010-1048 (analog M-13 pattern WH-109) (shelf_life_rule_edit_modal)\n\n## Goal\nImplement /(app)/warehouse/expiry dashboard + use_by override modal + WH-109 Shelf-Life-Rules admin page + edit modal with 1:1 prototype parity. WH-109 CRUD is Phase 1 (2026-05-03 decision).\n\n## Implementation contract\n1. RSC `apps/web/app/(app)/warehouse/expiry/page.tsx` with 2 tabs (Expired / Expiring Soon), cron header strip, alert summary, row actions context-driven by shelf_life_mode.\n2. UseByOverride modal: Manager-only path with reason_code + reason_text + ack checkbox (T-037 server action).\n3. RSC `/(app)/warehouse/settings/shelf-life-rules/page.tsx` + edit modal (Customer, Product, Min Shelf Life Days, Enforced switch, Reason, Notes).\n4. Duplicate active customer+product blocked server-side; surface inline error.\n5. All root elements expose `data-prototype-label`.\n\n## Files\n- apps/web/app/(app)/warehouse/expiry/** [create]\n- apps/web/app/(app)/warehouse/settings/shelf-life-rules/** [create]\n- apps/web/components/warehouse/expiry/** [create]\n- prototypes/design/Monopilot Design System/warehouse/other-screens.jsx\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx\n\n## Prototype parity\n- prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:363-480 (expiry_management_page)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:966-1007 (use_by_override_modal)\n- prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:484-631 (Shelf Life Rules sub-page WH-109) (shelf_life_rules_admin_page)\n- prototypes/design/Monopilot Design System/warehouse/modals.jsx:1010-1048 (analog M-13 pattern WH-109) (shelf_life_rule_edit_modal)\n- Evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md\n\n## Acceptance criteria\n1. Given /warehouse/expiry renders, when compared to prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:363-480 (expiry_management_page), then 2 tabs, cron header, action buttons (context-driven) match the prototype.\n2. Given an expired use_by LP, when Manager clicks Override, then UseByOverride modal opens and requires reason_code + reason_text + ack before submit (T-037).\n3. Given the Shelf-Life-Rules admin page renders, when an Admin/Manager opens it, then CRUD actions are enabled; when an Operator opens it, then access is denied (permission denied page).\n4. Given a duplicate active rule for the same (customer, product) is attempted, when submit clicked, then server-side returns conflict and UI surfaces inline error.\n\nNote: UI closeout must include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a 5th AC, hoisted to process layer by Fixer F6 2026-05-14).\n\n## Test strategy\n- RED: Playwright + RTL covering 4 labels, override flow, WH-109 CRUD + duplicate-block error, RBAC.\n- Run `pnpm --filter web test warehouse-expiry-ui && pnpm playwright test --project=chromium --grep @warehouse-expiry-ui`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not allow Operator role to CRUD shelf-life rules (Phase 1 Admin/Manager only).\n- Do not allow use_by override without ack + reason.\n- Do not skip duplicate-rule guard.\n\n## Dependencies\n- T-008\n- T-035\n- T-036\n- T-037",
   "labels": [
     "prd",
     "ui",
+    "expiry",
+    "shelf-life",
     "prototype-parity",
-    "T3-ui"
+    "t3-ui"
   ],
   "priority": 100,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-052",
     "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§12.2",
+      "§12.5",
+      "§12.6",
+      "§12.7",
+      "§16.6 WH-019/WH-109/M-12"
+    ],
+    "category": "ui",
+    "subcategory": "expiry-shelf-life-ui",
+    "task_type": "T3-ui",
+    "parent_feature": "05-warehouse-ui-d",
     "context_budget": "35k",
+    "estimated_effort": "2d",
+    "description": "Implement /(app)/warehouse/expiry dashboard + use_by override modal + WH-109 Shelf-Life-Rules admin page + edit modal with 1:1 prototype parity. WH-109 CRUD is Phase 1 (2026-05-03 decision).",
+    "details": "Implement /(app)/warehouse/expiry dashboard + use_by override modal + WH-109 Shelf-Life-Rules admin page + edit modal with 1:1 prototype parity. WH-109 CRUD is Phase 1 (2026-05-03 decision). RSC `apps/web/app/(app)/warehouse/expiry/page.tsx` with 2 tabs (Expired / Expiring Soon), cron header strip, alert summary, row actions context-driven by shelf_life_mode. UseByOverride modal: Manager-only path with reason_code + reason_text + ack checkbox (T-037 server action). AC count consolidated from 5→4 by Fixer F6 2026-05-14 (no coverage lost; the procedural closeout-evidence AC was relocated to test_strategy + UI-PROTOTYPE-PARITY-POLICY.md compliance via `ui_evidence_policy` and the checkpoint_policy.closeout_requires fields — closeout must still attach screenshot/Playwright trace artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).",
+    "scope_files": [
+      "apps/web/app/(app)/warehouse/expiry/** [create]",
+      "apps/web/app/(app)/warehouse/settings/shelf-life-rules/** [create]",
+      "apps/web/components/warehouse/expiry/** [create]",
+      "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
+      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
+    ],
+    "out_of_scope": [
+      "No 11-SHIPPING enforcement beyond contract display",
+      "No P2 expired LP monthly report"
+    ],
+    "dependencies": [
+      "T-008",
+      "T-035",
+      "T-036",
+      "T-037"
+    ],
+    "parallel_safe_with": [
+      "T-051"
+    ],
+    "acceptance_criteria": [
+      "Given /warehouse/expiry renders, when compared to prototypes/design/Monopilot Design System/warehouse/other-screens.jsx:363-480 (expiry_management_page), then 2 tabs, cron header, action buttons (context-driven) match the prototype.",
+      "Given an expired use_by LP, when Manager clicks Override, then UseByOverride modal opens and requires reason_code + reason_text + ack before submit (T-037).",
+      "Given the Shelf-Life-Rules admin page renders, when an Admin/Manager opens it, then CRUD actions are enabled; when an Operator opens it, then access is denied (permission denied page).",
+      "Given a duplicate active rule for the same (customer, product) is attempted, when submit clicked, then server-side returns conflict and UI surfaces inline error."
+    ],
+    "test_strategy": [
+      "RED: Playwright + RTL covering 4 labels, override flow, WH-109 CRUD + duplicate-block error, RBAC.",
+      "Run `pnpm --filter web test warehouse-expiry-ui && pnpm playwright test --project=chromium --grep @warehouse-expiry-ui`.",
+      "Closeout-evidence check (hoisted from former AC5): UI closeout MUST include screenshot/artifact evidence and Playwright trace/artifacts per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence. Verified by reviewer checklist + checkpoint_policy.closeout_requires."
+    ],
+    "risk_red_lines": [
+      "Do not allow Operator role to CRUD shelf-life rules (Phase 1 Admin/Manager only).",
+      "Do not allow use_by override without ack + reason.",
+      "Do not skip duplicate-rule guard."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "frontend-design"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -33,10 +87,16 @@
         "git_status"
       ]
     },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -63,63 +123,8 @@
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
     ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prd_task_id": "T-052",
-    "prd_refs": [
-      "§12.2",
-      "§12.5",
-      "§12.6",
-      "§12.7",
-      "§16.6 WH-019/WH-109/M-12"
-    ],
-    "category": "ui",
-    "subcategory": "expiry-shelf-life-ui",
-    "task_type": "T3-ui",
-    "parent_feature": "warehouse-expiry",
-    "estimated_effort": "2d",
-    "description": "Implement expiry dashboard, canonical use_by override modal, and Phase 1 Shelf Life Rules CRUD UI.",
-    "details": "WH-109 Shelf Life Rules CRUD is Phase 1. Build Admin/Manager-only shelf_life_rules_admin_page and shelf_life_rule_edit_modal under Warehouse Settings. M-12 use_by_override_modal is canonical; do not reintroduce stale no-prototype wording.",
-    "scope_files": [
-      "apps/web/app/(app)/warehouse/expiry/** [create]",
-      "apps/web/app/(app)/warehouse/settings/shelf-life-rules/** [create]",
-      "apps/web/components/warehouse/expiry/** [create]",
-      "prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
-      "prototypes/design/Monopilot Design System/warehouse/modals.jsx"
-    ],
-    "out_of_scope": [
-      "No 11-SHIPPING enforcement beyond contract display",
-      "No P2 expired LP monthly report"
-    ],
-    "dependencies": [
-      "T-008",
-      "T-035",
-      "T-036",
-      "T-037"
-    ],
-    "parallel_safe_with": [
-      "T-051"
-    ],
-    "acceptance_criteria": [
-      "Given expiry_management_page renders, when compared to prototypes/design/Monopilot Design System/warehouse/other-screens.jsx, then expired/expiring tabs, use_by/best_before mode filters, cron status, and row actions match.",
-      "Given use_by_override_modal opens for an expired use_by LP, then Manager/Admin role, acknowledgement, reason_code, and reason_text are mandatory before submit.",
-      "Given shelf_life_rules_admin_page renders, then Admin/Manager can list/create/edit/disable customer+product min shelf life rules and unauthorized roles see a read-only permission state.",
-      "Given components are inspected, then data-prototype-label markers exist for expiry_management_page, use_by_override_modal, shelf_life_rules_admin_page, and shelf_life_rule_edit_modal."
-    ],
-    "test_strategy": [
-      "RED: Playwright tests for use_by override required fields and unauthorized role denial.",
-      "GREEN: component tests for shelf_life_rules CRUD validation: customer, product, min days, enforced flag, reason.",
-      "Run pnpm test and pnpm playwright test --grep @warehouse-expiry-ui."
-    ],
-    "risk_red_lines": [
-      "Do not mark WH-109 as P2 or no-prototype.",
-      "Do not let non-manager users override expired use_by blocks.",
-      "Do not enforce 11-SHIPPING min shelf life in Warehouse UI beyond documented contract cues."
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "prototype_match": true,
+    "prototype_index_entry": "expiry_management_page",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
   }
 }

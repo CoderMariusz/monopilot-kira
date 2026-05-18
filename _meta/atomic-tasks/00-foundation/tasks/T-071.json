@@ -1,0 +1,87 @@
+{
+  "title": "T-071 — approval-token replay protection (jti + consumed_approval_tokens) (FT-011)",
+  "prompt": "# T-071 — approval-token replay protection (jti + consumed_approval_tokens) (FT-011)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §13\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-011** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nImplement jti replay protection for approval tokens with a consumed_approval_tokens table and a verify path that rejects replays.\n\n## Implementation contract\n1. Migration 029 creates `consumed_approval_tokens (jti uuid primary key, consumed_at timestamptz not null default now(), org_id uuid not null, actor_user_id uuid not null)` with RLS.\n2. signApprovalToken adds a `jti: randomUUID()` claim.\n3. verifyApprovalToken: in a transaction, INSERT into consumed_approval_tokens; on unique-violation (SQLSTATE 23505), reject with 'replay'.\n4. Tests: (a) first verify succeeds; (b) second verify of the same token rejects with 'replay'.\n\n## Files (scope)\n- packages/db/migrations/029-consumed-approval-tokens.sql [create]\n- packages/rbac/src/approval-token.ts [modify]\n- packages/rbac/src/__tests__/approval-token-replay.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 029 applied, when consumed_approval_tokens is inspected, then jti is the primary key and RLS is enabled.\n2. Given a freshly signed approval token, when verifyApprovalToken runs, then it succeeds and inserts a row into consumed_approval_tokens.\n3. Given the same token is verified again, when verifyApprovalToken runs, then it rejects with reason 'replay' and the original row is untouched.\n4. Given two parallel verifies of the same token, when both race, then exactly one succeeds and the other rejects with 'replay'.\n\n## Test strategy\n- RED: write approval-token-replay.test.ts asserting replay rejection and race-condition exclusivity before implementation.\n- Pin SQLSTATE 23505 for the unique-violation path.\n- Run `pnpm --filter @monopilot/rbac test approval-token-replay`.\n\n## Risk red lines\n- Do not skip the unique-constraint on jti.\n- Do not log the full jti claim in audit_events (use a salted hash).\n- Do not use bare rejects.toThrow().\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "rbac",
+    "replay-protection",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-071",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§13"
+    ],
+    "original_carry_forward_id": "FT-011",
+    "category": "auth",
+    "subcategory": "rbac",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Add `jti` to approval tokens and a `consumed_approval_tokens` table to block replay attacks on dual-control role grants.",
+    "details": "Approval tokens for dual-control role grants are currently HMAC-signed but lack a single-use jti claim. An attacker who captures one token can replay it. Add a random jti at signing and check/insert into consumed_approval_tokens on each verify; reject any re-use.",
+    "scope_files": [
+      "packages/db/migrations/029-consumed-approval-tokens.sql [create]",
+      "packages/rbac/src/approval-token.ts [modify]",
+      "packages/rbac/src/__tests__/approval-token-replay.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change the HMAC secret rotation policy.",
+      "Do not introduce new permission strings."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 029 applied, when consumed_approval_tokens is inspected, then jti is the primary key and RLS is enabled.",
+      "Given a freshly signed approval token, when verifyApprovalToken runs, then it succeeds and inserts a row into consumed_approval_tokens.",
+      "Given the same token is verified again, when verifyApprovalToken runs, then it rejects with reason 'replay' and the original row is untouched.",
+      "Given two parallel verifies of the same token, when both race, then exactly one succeeds and the other rejects with 'replay'."
+    ],
+    "test_strategy": [
+      "RED: write approval-token-replay.test.ts asserting replay rejection and race-condition exclusivity before implementation.",
+      "Pin SQLSTATE 23505 for the unique-violation path.",
+      "Run `pnpm --filter @monopilot/rbac test approval-token-replay`."
+    ],
+    "risk_red_lines": [
+      "Do not skip the unique-constraint on jti.",
+      "Do not log the full jti claim in audit_events (use a salted hash).",
+      "Do not use bare rejects.toThrow()."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

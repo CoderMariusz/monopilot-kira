@@ -48,10 +48,12 @@
       "v3.4 defaults applied."
     ],
     "test_strategy": [
-      "RED: write test. GREEN: emit seed."
+      "RED: write test. GREEN: emit seed.",
+      "Run `pnpm --filter @monopilot/db test:integration -- reference-schemas.test`."
     ],
     "risk_red_lines": [
-      "Do not seed org-scoped overrides."
+      "Do not seed org-scoped overrides.",
+      "Do not edit or rename prior migration files; append a new file. Existing acceptance criteria from earlier migrations must remain satisfied."
     ],
     "skills": [
       "test-driven-development"

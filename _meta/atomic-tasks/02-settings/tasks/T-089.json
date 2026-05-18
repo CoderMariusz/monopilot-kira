@@ -43,10 +43,12 @@
       "Cron job creates +3 months ahead."
     ],
     "test_strategy": [
-      "RED: write test. GREEN: ensure functions."
+      "RED: write test. GREEN: ensure functions.",
+      "Run `pnpm --filter @monopilot/db test:integration -- audit-partition-lifecycle.test`."
     ],
     "risk_red_lines": [
-      "Do not DROP partitions automatically."
+      "Do not DROP partitions automatically.",
+      "Do not write to audit_log outside the trigger framework; bypassing triggers breaks 7-year retention contract."
     ],
     "skills": [
       "test-driven-development"

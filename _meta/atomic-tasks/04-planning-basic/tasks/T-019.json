@@ -1,6 +1,6 @@
 {
   "title": "T-019 — API: cascade DAG generation rule (cascade_generation_v1)",
-  "prompt": "Implement intermediate cascade generation per PRD §8.4 as DSL rule `cascade_generation_v1` in 02-SETTINGS rule registry. Algorithm: starting from primary FG WO, traverse BOM children whose product type='intermediate', recursively create child WOs (status='DRAFT', source_of_demand='intermediate_cascade', source_reference=parent.wo_id). Insert wo_dependencies rows linking parent.wo_outputs to child.wo_materials with material_source='upstream_wo_output'. wo.numbering uses T-017 with specified suffix per product. Co-products + byproducts inserted into parent wo_outputs (FR-PLAN-021).\n\nIdempotent (V-PLAN-WO-006): if cascade already generated for source_reference, skip. Safety cap intermediate_cascade_max_depth from planning_settings (V-PLAN-SET-002). Cycle check before insert via DFS (T-020).\n\nRED test: 3-layer BOM yields 3 WOs + 2 dependency edges, re-run idempotent (no dupes), depth>cap returns 400.",
+  "prompt": "Implement intermediate cascade generation per PRD §8.4 as DSL rule `cascade_generation_v1` in 02-SETTINGS rule registry. Algorithm: starting from primary FG WO, traverse BOM children whose product type='intermediate', recursively create child WOs (status='DRAFT', source_of_demand='intermediate_cascade', source_reference=parent.wo_id). Insert wo_dependencies rows linking parent.schedule_outputs (planning projection; 04 T-005) to child.wo_materials with material_source='upstream_wo_output'. The canonical `wo_outputs` (08-production T-003) is materialized from schedule_outputs at WO start; cascade generation runs at planning time and never touches wo_outputs directly. wo.numbering uses T-017 with specified suffix per product. Co-products + byproducts inserted into parent `schedule_outputs` (planning projection; canonical `wo_outputs` owned by 08-production T-003, materialized at WO start per 2026-05-14 decision) (FR-PLAN-021).\n\nIdempotent (V-PLAN-WO-006): if cascade already generated for source_reference, skip. Safety cap intermediate_cascade_max_depth from planning_settings (V-PLAN-SET-002). Cycle check before insert via DFS (T-020).\n\nRED test: 3-layer BOM yields 3 WOs + 2 dependency edges, re-run idempotent (no dupes), depth>cap returns 400; co-products/byproducts land in schedule_outputs (not wo_outputs).",
   "labels": [
     "prd",
     "api",
@@ -26,7 +26,7 @@
     "context_budget": "60k",
     "estimated_effort": "5-6h",
     "description": "Multi-layer cascade WO generation with idempotency + depth cap + dependency edge insertion.",
-    "details": "Rule definition under `src/rules/planning/v1/cascade_generation_v1.json`. Engine evaluates at WO creation hook (T-018 emits trigger). Service implementation in `src/server/services/cascade-generator.ts` performs the DAG traversal in a DFS with visited-set to detect cycles; on cycle, throws CycleError with cycle path. Generates wo_outputs rows for co-products + byproducts (FR-PLAN-021) using bom_outputs.allocation_pct snapshot. Atomic: all child WOs created in a single transaction; if any fails, all rollback.",
+    "details": "Rule definition under `src/rules/planning/v1/cascade_generation_v1.json`. Engine evaluates at WO creation hook (T-018 emits trigger). Service implementation in `src/server/services/cascade-generator.ts` performs the DAG traversal in a DFS with visited-set to detect cycles; on cycle, throws CycleError with cycle path. Generates schedule_outputs rows for co-products + byproducts (FR-PLAN-021) using bom_outputs.allocation_pct snapshot — canonical wo_outputs is owned by 08-production T-003 and materialized on WO start. Atomic: all child WOs created in a single transaction; if any fails, all rollback.",
     "scope_files": [
       "src/rules/planning/v1/cascade_generation_v1.json [create]",
       "src/server/services/cascade-generator.ts [create]",
@@ -55,7 +55,8 @@
     "risk_red_lines": [
       "Do not allow cycles to be inserted — V-PLAN-WO-005 hard block; service must abort with CycleError before any insert.",
       "Do not mutate BOM during traversal — read-only.",
-      "Do not split cascade across multiple transactions — partial cascade is a data-integrity hazard."
+      "Do not split cascade across multiple transactions — partial cascade is a data-integrity hazard.",
+      "Do not write to canonical `wo_outputs` table (owned by 08-production T-003) — planning cascade writes only to `schedule_outputs`; production materializes on WO start (2026-05-14 decision)."
     ],
     "skills": [
       "test-driven-development",

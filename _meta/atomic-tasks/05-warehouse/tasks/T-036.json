@@ -1,13 +1,14 @@
 {
-  "title": "T-036 — Daily expiry cron job",
-  "prompt": "# T-036 — Daily expiry cron job\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §12.3 (FR-WH-022), V-WH-EXP-002/004.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nVercel Cron (or scheduler) runs daily at warehouse_settings.expiry_cron_schedule (default '0 2 * * *') auto-blocking expired use_by LPs and emitting alerts.\n\n## Implementation contract\nRoute handler `apps/web/app/api/cron/warehouse/expiry-check/route.ts`. Per LP where `expiry_date < CURRENT_DATE AND status IN ('available','reserved') AND qa_status NOT IN ('QUARANTINED','FAILED')`:\n- shelf_life_mode='use_by' → set status='blocked', insert lp_state_history, emit lp.expired (T-047 wiring).\n- shelf_life_mode='best_before' → keep status, dashboard alert flag.\nLog cron_jobs row {job_name, started_at, finished_at, lps_blocked, lps_warned}. Email manager via 02-SETTINGS EmailConfig.\n`vercel.json` adds the cron schedule.\n\n## Files (scope)\n- apps/web/app/api/cron/warehouse/expiry-check/route.ts [create]\n- vercel.json [modify]\n- apps/web/app/api/cron/warehouse/expiry-check/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given LPs with expiry < today and shelf_life_mode='use_by', when cron runs, then status='blocked' and lp_state_history records auto-block.\n2. Given LPs with shelf_life_mode='best_before' and expired, when cron runs, then status remains unchanged but a warning flag/log is captured.\n3. Given cron completes, when cron_jobs is queried, then a row exists with started_at/finished_at/lps_blocked/lps_warned counts.\n\n## Test strategy\n- RED: route.test.ts seeds two expired LPs, invokes the cron handler, asserts state and cron_jobs row.\n- Run `pnpm --filter web test expiry-check`.\n\n## Risk red lines\n- Do not auto-block best_before LPs.\n- Do not skip cron_jobs row (SLO alert depends on it).\n- Do not modify expiry_date (LP retention principle).",
+  "title": "T-036 — Daily expiry cron job (WH §12.3)",
+  "prompt": "# T-036 — Daily expiry cron job (WH §12.3)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §12.3\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the daily cron (default 02:00 UTC) that auto-blocks `use_by`-expired LPs, raises warning flag on `best_before`-expired, writes audit moves, emits `lp.expired`, and sends manager email.\n\n## Implementation contract\n1. `apps/web/lib/cron/expiry-cron.ts`: function `runExpiryCron()` registered with the cron runner using `settings.expiry_cron_schedule`.\n2. Query LPs with `expiry_date < CURRENT_DATE AND status IN ('available','reserved') AND qa_status NOT IN ('QUARANTINED','FAILED')`.\n3. Per LP: if shelf_life_mode_snapshot='use_by' → status='blocked' + lp_state_history row; if 'best_before' → no state change, warning flag set + dashboard alert.\n4. INSERT stock_moves(move_type='auto_block', reason_code='expired').\n5. Emit `lp.expired` outbox per LP.\n6. Email warehouse managers (via 02-SETTINGS §13 EmailConfig).\n\n## Files\n- apps/web/app/api/cron/warehouse/expiry-check/route.ts [create]\n- vercel.json [modify]\n- apps/web/app/api/cron/warehouse/expiry-check/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given 5 use_by LPs with expiry < today, when cron runs, then all 5 transition to blocked, 5 stock_moves audit rows exist, 5 outbox events emitted.\n2. Given a best_before LP with expiry < today, when cron runs, then status stays unchanged but a warning flag is recorded and email is sent.\n3. Given QUARANTINED LP, when cron runs, then it is skipped.\n4. Given the cron schedule is changed to '*/15 * * * *', when triggered manually, then it runs without error.\n\n## Test strategy\n- RED: `apps/web/lib/cron/__tests__/expiry-cron.test.ts` asserting use_by hard-block, best_before warn, audit, email.\n- Run `pnpm --filter web test expiry-cron`.\n\n## Risk red lines\n- Do not block best_before LPs automatically.\n- Do not skip audit move on each change.\n- Do not skip outbox.\n- Do not run on QUARANTINED/FAILED LPs.\n\n## Dependencies\n- T-019\n- T-002\n- T-009",
   "labels": [
     "prd",
-    "api",
+    "service",
     "expiry",
-    "T2-api"
+    "cron",
+    "t2-api"
   ],
-  "priority": 100,
+  "priority": 75,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -20,11 +21,11 @@
     "category": "api",
     "subcategory": "expiry",
     "task_type": "T2-api",
-    "parent_feature": "warehouse-expiry",
+    "parent_feature": "05-warehouse-d",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "Daily cron auto-blocking use_by-expired LPs and warning best_before; cron_jobs audit row.",
-    "details": "Vercel Cron schedule from warehouse_settings; email notification via 02-SETTINGS EmailConfig; never modify expiry_date.",
+    "description": "Implement the daily cron (default 02:00 UTC) that auto-blocks `use_by`-expired LPs, raises warning flag on `best_before`-expired, writes audit moves, emits `lp.expired`, and sends manager email.",
+    "details": "Implement the daily cron (default 02:00 UTC) that auto-blocks `use_by`-expired LPs, raises warning flag on `best_before`-expired, writes audit moves, emits `lp.expired`, and sends manager email. `apps/web/lib/cron/expiry-cron.ts`: function `runExpiryCron()` registered with the cron runner using `settings.expiry_cron_schedule`. Query LPs with `expiry_date < CURRENT_DATE AND status IN ('available','reserved') AND qa_status NOT IN ('QUARANTINED','FAILED')`.",
     "scope_files": [
       "apps/web/app/api/cron/warehouse/expiry-check/route.ts [create]",
       "vercel.json [modify]",
@@ -45,22 +46,25 @@
       "T-037"
     ],
     "acceptance_criteria": [
-      "Given expired use_by LPs, when cron runs, then status='blocked' and lp_state_history records auto-block",
-      "Given expired best_before LPs, when cron runs, then status remains unchanged and warning flag is captured",
-      "Given cron completes, when cron_jobs is queried, then row exists with started_at/finished_at/lps_blocked/lps_warned"
+      "Given 5 use_by LPs with expiry < today, when cron runs, then all 5 transition to blocked, 5 stock_moves audit rows exist, 5 outbox events emitted.",
+      "Given a best_before LP with expiry < today, when cron runs, then status stays unchanged but a warning flag is recorded and email is sent.",
+      "Given QUARANTINED LP, when cron runs, then it is skipped.",
+      "Given the cron schedule is changed to '*/15 * * * *', when triggered manually, then it runs without error."
     ],
     "test_strategy": [
-      "RED: route.test.ts seeds expired LPs and invokes the handler",
-      "Run 'pnpm --filter web test expiry-check'"
+      "RED: `apps/web/lib/cron/__tests__/expiry-cron.test.ts` asserting use_by hard-block, best_before warn, audit, email.",
+      "Run `pnpm --filter web test expiry-cron`."
     ],
     "risk_red_lines": [
-      "Do not auto-block best_before LPs",
-      "Do not skip cron_jobs row",
-      "Do not modify expiry_date"
+      "Do not block best_before LPs automatically.",
+      "Do not skip audit move on each change.",
+      "Do not skip outbox.",
+      "Do not run on QUARANTINED/FAILED LPs."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -86,7 +90,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -112,7 +116,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

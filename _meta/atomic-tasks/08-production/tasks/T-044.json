@@ -1,8 +1,11 @@
 {
-  "title": "T-044 — OEE snapshots, line event stream and aggregation service",
-  "prompt": "# T-044 — OEE snapshots, line event stream and aggregation service\n\nPRD/UX refs: §7 OEE, SCR-08-07, SCR-08-11, UX PROD-006/013\n\nGoal: Implement OEE aggregation read model and SSE line event stream consumed by dashboard and line detail.\n\nImplementation details:\nAggregate availability, performance and quality from downtime_events, wo_outputs, planned minutes and ideal cycle time into oee_snapshots. Provide GET endpoints for OEE dashboard filters and /api/lines/:id/events SSE for live production events. Cache line sparkline for 30 seconds and make aggregation idempotent per line+bucket.\n\nScope files:\n- packages/api-services/production/oee-aggregation.ts [create]\n- apps/web/app/api/production/oee/route.ts [create]\n- apps/web/app/api/production/lines/[id]/events/route.ts [create]\n\nAcceptance criteria:\n1. OEE aggregation creates one snapshot per line/time bucket and recalculates idempotently\n2. OEE API returns A/P/Q/composite values and breakdowns used by PROD-006\n3. Line SSE emits WO/downtime/output events and handles reconnect safely\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-044 — OEE per-minute aggregation job + line SSE event stream (08-PROD-f, §6 D7 / FR-08-E6-002)",
+  "prompt": "# T-044 — OEE per-minute aggregation job + line SSE event stream\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §6 D7, §7.6 FR-08-E6-001..005, §8.1 SCR-08-07, SCR-08-11\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the per-minute OEE aggregation job that writes `oee_snapshots` rows (T-008) with A/P/Q decomposition per (line_id, shift_id, minute_bucket), plus the GET endpoints powering the OEE foundation dashboard and a Server-Sent Events stream for SCR-08-11 Line Detail live events.\n\n## Implementation contract\n1. `packages/api-services/production/oee-aggregation.ts` exports `aggregateOeeMinuteBucket(lineId, minuteStart)` computing:\n   - Availability = (planned_min − downtime_min) / planned_min from `downtime_events`\n   - Performance = (output_qty × ideal_cycle_time) / run_time_min from `wo_outputs` + `lines.nominal_cycle_kg_h`\n   - Quality = good_qty / total_output_qty (good = output − rework − scrap) from `wo_outputs` + `wo_waste_log` qa-reject rows\n   - Composite = A × P × Q\n2. Idempotent upsert on `(line_id, shift_id, minute_bucket)` (V-PROD-10) — running the job twice for the same bucket produces the same row.\n3. `apps/web/app/api/internal/jobs/production/oee-aggregate/route.ts` Vercel cron runs every 60s covering the last full minute per line.\n4. `apps/web/app/api/production/oee/route.ts` — `GET ?line_id=&period=today|7d|30d` returns A/P/Q + composite + per-line breakdown for SCR-08-07; 30s cache header.\n5. `apps/web/app/api/lines/[id]/events/route.ts` — SSE endpoint emitting WO/downtime/output events for SCR-08-11; supports reconnect via `Last-Event-ID`.\n\n## Files\n- packages/api-services/production/oee-aggregation.ts [create]\n- apps/web/app/api/internal/jobs/production/oee-aggregate/route.ts [create]\n- apps/web/app/api/production/oee/route.ts [create]\n- apps/web/app/api/lines/[id]/events/route.ts [create]\n- packages/api-services/production/__tests__/oee-aggregation.test.ts [create]\n- apps/web/app/api/production/oee/__tests__/route.test.ts [create]\n\n## Acceptance criteria\n1. Given a line with 60 min planned, 5 min downtime, 1000 kg output and 50 kg quality waste, when `aggregateOeeMinuteBucket` is called for the minute and called again, then exactly one `oee_snapshots` row exists for `(line_id, shift_id, minute_bucket)` with A/P/Q matching the formulas in §6 D7 (idempotent upsert).\n2. Given pre-existing `oee_snapshots` rows for today, when `GET /api/production/oee?period=today` is called, then response has `availability`, `performance`, `quality`, `composite` and a per-line breakdown, with `Cache-Control: max-age=30`.\n3. Given a client connects to `/api/lines/[id]/events` and a `wo.started` event then a `downtime.started` event are emitted, then both arrive in order over SSE with monotonically increasing `id:` fields and the stream survives reconnection via `Last-Event-ID`.\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/oee-aggregation.test.ts + apps/web/app/api/production/oee/__tests__/route.test.ts asserting idempotent upsert, formula correctness, GET shape and SSE ordering before code exists.\n- Run `pnpm vitest run packages/api-services/production/__tests__/oee-aggregation.test.ts apps/web/app/api/production/oee/__tests__/route.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not violate V-PROD-10 uniqueness on `(line_id, shift_id, minute_bucket)`.\n- Do not stream PII over SSE (operator names are denormalized; never include `users.email` or `pin_hash`).\n- Do not return 15-OEE advanced analytics (EWMA, six-big-losses); those are owned by 15-OEE per §8.1 SCR-08-07 boundary clarification.\n- Do not block the cron tick if a single line aggregation errors — log and continue.\n",
   "labels": [
     "prd",
+    "api",
+    "oee",
+    "sse",
     "T2-api"
   ],
   "priority": 100,
@@ -13,23 +16,32 @@
     "prd_task_id": "T-044",
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
-      "§7 OEE",
-      "SCR-08-07",
-      "SCR-08-11",
-      "UX PROD-006/013"
+      "§6 D7",
+      "§7.6 FR-08-E6-001..005",
+      "§8.1 SCR-08-07",
+      "§8.1 SCR-08-11"
     ],
-    "category": "production-readiness",
-    "subcategory": "OEE snapshots, line event stream and aggregation",
+    "category": "api",
+    "subcategory": "oee-aggregation-and-sse",
     "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION full module readiness",
+    "parent_feature": "08-PROD E6 Dashboard+OEE",
     "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Implement OEE aggregation read model and SSE line event stream consumed by dashboard and line detail.",
-    "details": "Aggregate availability, performance and quality from downtime_events, wo_outputs, planned minutes and ideal cycle time into oee_snapshots. Provide GET endpoints for OEE dashboard filters and /api/lines/:id/events SSE for live production events. Cache line sparkline for 30 seconds and make aggregation idempotent per line+bucket.",
+    "estimated_effort": "3-4h",
+    "description": "Per-minute OEE aggregation job + GET endpoints + line SSE event stream; idempotent upsert on (line_id, shift_id, minute_bucket).",
+    "details": "Aggregation formulas per §6 D7. Cron tick reads last full minute and upserts; idempotent so reruns are safe (V-PROD-10). GET /api/production/oee returns A/P/Q + composite + breakdown for SCR-08-07 with 30s cache. SSE /api/lines/[id]/events emits WO + downtime + output events with monotonic ids and Last-Event-ID reconnect; never streams PII. Advanced analytics (EWMA, six-big-losses) explicitly out-of-scope and live in 15-OEE per §8.1 SCR-08-07 boundary clarification.",
     "scope_files": [
       "packages/api-services/production/oee-aggregation.ts [create]",
+      "apps/web/app/api/internal/jobs/production/oee-aggregate/route.ts [create]",
       "apps/web/app/api/production/oee/route.ts [create]",
-      "apps/web/app/api/production/lines/[id]/events/route.ts [create]"
+      "apps/web/app/api/lines/[id]/events/route.ts [create]",
+      "packages/api-services/production/__tests__/oee-aggregation.test.ts [create]",
+      "apps/web/app/api/production/oee/__tests__/route.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement OEE/Line UI parity (T-049, T-050)",
+      "Do not implement EWMA / six-big-losses (15-OEE module)",
+      "Do not change oee_snapshots schema (T-008)",
+      "Do not implement Redis streams (P2)"
     ],
     "dependencies": [
       "T-003",
@@ -38,18 +50,27 @@
       "T-008",
       "T-038"
     ],
+    "parallel_safe_with": [
+      "T-041",
+      "T-042",
+      "T-043",
+      "T-045"
+    ],
     "acceptance_criteria": [
-      "OEE aggregation creates one snapshot per line/time bucket and recalculates idempotently",
-      "OEE API returns A/P/Q/composite values and breakdowns used by PROD-006",
-      "Line SSE emits WO/downtime/output events and handles reconnect safely"
+      "Given a line with 60 min planned, 5 min downtime, 1000 kg output, 50 kg quality waste, when aggregateOeeMinuteBucket runs twice for the minute, then exactly one oee_snapshots row exists with A/P/Q matching §6 D7 formulas (idempotent upsert).",
+      "Given pre-existing oee_snapshots for today, when GET /api/production/oee?period=today is called, then response has availability/performance/quality/composite + per-line breakdown with Cache-Control: max-age=30.",
+      "Given an SSE client connects to /api/lines/[id]/events and wo.started then downtime.started are emitted, then both arrive in order with monotonic id: fields and the stream survives reconnect via Last-Event-ID."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: __tests__/oee-aggregation.test.ts + apps/web/app/api/production/oee/__tests__/route.test.ts asserting idempotent upsert, formula correctness, GET shape + cache header, SSE ordering and reconnect before code exists.",
+      "Run 'pnpm vitest run packages/api-services/production/__tests__/oee-aggregation.test.ts apps/web/app/api/production/oee/__tests__/route.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not violate V-PROD-10 uniqueness on (line_id, shift_id, minute_bucket).",
+      "Do not stream PII over SSE.",
+      "Do not return 15-OEE advanced analytics from this endpoint.",
+      "Do not block the cron tick if a single line aggregation errors."
     ],
     "skills": [
       "test-driven-development",
@@ -66,8 +87,6 @@
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
-        "screenshots_or_artifacts",
-        "playwright_traces_or_artifacts",
         "deviations_from_prd",
         "git_status"
       ]

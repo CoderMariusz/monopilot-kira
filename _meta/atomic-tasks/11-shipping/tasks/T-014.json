@@ -1,0 +1,110 @@
+{
+  "title": "T-014 — UI: allocation_global_page + allocation_override_modal (SHIP-008/SHIP-029) (11-shipping-c)",
+  "prompt": "# T-014 — Allocation Global page + Override modal UI\n\nPRD: docs/prd/11-SHIPPING-PRD.md §15.4 SHIP-029 Allocation Global View, §15.4 SHIP-008 Inventory Allocation View, §6 D-SHP-2 FEFO, §6 D-SHP-13 Soft Gate\nUX: prototypes/design/11-SHIPPING-UX.md §3 SHIP-008 — Inventory Allocation View\nPrototypes:\n- prototypes/design/Monopilot Design System/shipping/so-screens.jsx:370-519 (allocation_global_page)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:292-340 (allocation_override_modal)\n- prototypes/design/Monopilot Design System/shipping/modals.jsx:809-835 (release_allocation_modal)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nServer Component page `/(shipping)/allocations` showing global allocation status across all open SOs + the FEFO override modal.\n\n## Implementation contract\n1. `apps/web/app/(shipping)/allocations/page.tsx` (RSC) under `withOrgContext` queries SO lines + their allocations + FEFO candidates + active holds.\n2. Table cols: so_number, customer, product, qty_ordered, qty_allocated, status (AllocBar progress), fefo_rank suggested vs current, allergen_chips (from product), quality_hold severity (HoldChip).\n3. Filters: SO status, product, customer, has_conflict (boolean).\n4. Per-row \"Override\" button opens `allocation_override_modal` (modals.jsx:292-340) with FefoCompare component (suggested vs selected LP side-by-side, picks reason_code from `reason_codes` WHERE context='fefo_deviation').\n5. \"Release\" button opens `release_allocation_modal` (modals.jsx:809-835).\n6. Override modal calls `allocationOverride` (T-012); release modal calls `releaseAllocation` (T-012). Both refresh table via revalidatePath.\n7. Quality hold soft-gate (T-013): show HoldChip with severity color; major/medium → require reason; minor → operator confirm; critical → button disabled with tooltip 'qa.critical_hold'.\n8. Permission: `ship.alloc.override` for buttons; `ship.dashboard.view` for read.\n9. i18n `shipping.alloc.*`.\n\n## Prototype parity\n- so-screens.jsx:370-519 (allocation_global_page) — header + filters + 9-col table + per-row override/release buttons\n- modals.jsx:292-340 (allocation_override_modal) — FefoCompare two-card + reason dropdown + conditional ReasonInput for 'other'\n- modals.jsx:809-835 (release_allocation_modal) — confirmation prompt + reason input\n\nDo not paste prototype JSX wholesale.\n\n## Files\n- apps/web/app/(shipping)/allocations/page.tsx [create]\n- apps/web/app/(shipping)/allocations/_components/allocation-table.tsx [create]\n- apps/web/app/(shipping)/_modals/allocation-override-modal.tsx [create]\n- apps/web/app/(shipping)/_components/fefo-compare.tsx [create]\n- apps/web/app/(shipping)/allocations/__tests__/allocation-table.test.tsx [create]\n- apps/web/messages/en/shipping.json [modify]\n- apps/web/messages/pl/shipping.json [modify]\n- prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]\n- prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:370-519, then it has the same header + filter row + 9-col table + per-row Override/Release buttons — RTL snapshot + Playwright screenshot.\n2. Given an LP has critical quality_hold (T-013 returns ok=false), when Override button renders, then it is disabled with tooltip 'qa.critical_hold' (D-SHP-13 HARD BLOCK).\n3. Given Override modal is opened and reason is set to 'other', when ReasonInput textarea renders, then it is required (Zod validated) and submit disabled until min 10 chars.\n4. Given user clicks Override and submits with reason_code, when allocationOverride Server Action succeeds, then table refreshes via revalidatePath and the row's fefo_rank updates to the new LP.\n5. UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable.\n\n## Test strategy\n- RED: RTL asserting parity + critical-hold gate + 'other' ReasonInput + Server Action call + four states.\n- Run `pnpm --filter @monopilot/web vitest run allocation-table.test.tsx`.\n- Playwright `apps/web/e2e/shipping-allocation-global.spec.ts`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui.\n- Do not paste prototype JSX verbatim.\n- Do not bypass T-013 critical-hold gate (HARD BLOCK).\n- Do not regress accessibility.\n- Do not hard-code reason_codes — source from `reason_codes` ref table filtered by context.",
+  "labels": [
+    "prd",
+    "ui",
+    "ship-029",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-014",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§15.4 SHIP-029",
+      "§15.4 SHIP-008",
+      "§6 D-SHP-2",
+      "§6 D-SHP-13"
+    ],
+    "category": "ui",
+    "subcategory": "allocation-global",
+    "task_type": "T3-ui",
+    "parent_feature": "11-shipping-c",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "SHIP-029 Allocation Global page + allocation_override + release_allocation modals + FefoCompare component matching prototype.",
+    "details": "FefoCompare extracted as shared component for reuse in SO Detail allocations tab (T-010). Critical-hold gate via T-013 service. Reason codes from reason_codes ref table filtered by context.",
+    "scope_files": [
+      "apps/web/app/(shipping)/allocations/page.tsx [create]",
+      "apps/web/app/(shipping)/allocations/_components/allocation-table.tsx [create]",
+      "apps/web/app/(shipping)/_modals/allocation-override-modal.tsx [create]",
+      "apps/web/app/(shipping)/_components/fefo-compare.tsx [create]",
+      "apps/web/app/(shipping)/allocations/__tests__/allocation-table.test.tsx [create]",
+      "apps/web/messages/en/shipping.json [modify]",
+      "apps/web/messages/pl/shipping.json [modify]",
+      "prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]",
+      "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement Server Actions (T-012)",
+      "Do not implement quality hold gate service (T-013)"
+    ],
+    "dependencies": [
+      "T-012",
+      "T-013",
+      "T-031"
+    ],
+    "parallel_safe_with": [
+      "T-010"
+    ],
+    "cross_module_dependencies": [
+      "02-settings (reason_codes ref table)",
+      "00-foundation/T-123 (Playwright)",
+      "00-foundation/T-125 (withOrgContext)",
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "09-quality/T-064 (consume gate — critical hold disables Override button; allocation page consumes holdsGuard per 2026-05-14 audit)"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/shipping/so-screens.jsx:368-454 (allocation_global_page), then it has the same table layout + override modal trigger + LP status badges — verified by RTL snapshot + parity checklist.",
+      "Given an LP has critical quality_hold (09-quality T-064), when Override button renders, then it is disabled with tooltip; AND given Override modal opened with reason='other', when ReasonInput renders, then it is required (Zod error on empty).",
+      "Given user clicks Override and submits with reason_code, when allocationOverride succeeds, then table row updates to reflect new status.",
+      "UI closeout includes Playwright trace + screenshots per UI-PROTOTYPE-PARITY-POLICY; Playwright fallback documented if unavailable."
+    ],
+    "test_strategy": [
+      "RED: RTL parity + critical-hold gate + 'other' ReasonInput + Server Action invocation + four states.",
+      "Run `pnpm --filter @monopilot/web vitest run allocation-table.test.tsx`.",
+      "Playwright apps/web/e2e/shipping-allocation-global.spec.ts."
+    ],
+    "risk_red_lines": [
+      "Do not import @radix-ui/react-dialog outside packages/ui.",
+      "Do not paste prototype JSX verbatim.",
+      "Do not bypass T-013 critical-hold gate.",
+      "Do not regress accessibility.",
+      "Do not hard-code reason_codes.",
+      "Do not bypass the 09-quality consume gate (T-064 v_active_holds) — allocation override UI must call holdsGuard before submission; critical holds must never be silently bypassed."
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "allocation_global_page,allocation_override_modal,release_allocation_modal",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}

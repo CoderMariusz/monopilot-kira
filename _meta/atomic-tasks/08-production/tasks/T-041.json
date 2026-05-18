@@ -1,8 +1,11 @@
 {
-  "title": "T-041 — Production outbox dispatcher and D365 WO confirmation anti-corruption adapter",
-  "prompt": "# T-041 — Production outbox dispatcher and D365 WO confirmation anti-corruption adapter\n\nPRD/UX refs: §8.2.7, §11.7, UX PROD-012\n\nGoal: Implement async outbox dispatcher mapping completed WO events to D365 JournalLines without making D365 a release or completion source-of-truth.\n\nImplementation details:\nUse production_outbox_events from T-009 and d365_push_dlq from T-010. Create a mapper from canonical WO/output/consumption/waste rows into D365 JournalLines payload. Dispatcher respects integration.d365.push.enabled and dry_run settings, retries with exponential backoff, and moves exhausted failures to DLQ. D365 success/failure updates outbox delivery status only; it must never mutate factory release status, WO START eligibility, active_bom_header_id, or active_factory_spec_id.\n\nScope files:\n- packages/api-services/production/d365-outbox-dispatcher.ts [create]\n- packages/api-services/production/d365-journallines-adapter.ts [create]\n- apps/web/app/api/internal/jobs/production/d365-dispatch/route.ts [create]\n\nAcceptance criteria:\n1. Completed WO event maps to D365 JournalLines and marks outbox delivered on adapter success\n2. Adapter failure after max attempts creates d365_push_dlq with raw canonical and mapped payloads\n3. D365 delivery state never changes release_status or active BOM/spec fields\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-041 — D365 outbox dispatcher + JournalLines anti-corruption adapter (08-PROD-e, §8.2.7 / §12)",
+  "prompt": "# T-041 — D365 outbox dispatcher + JournalLines anti-corruption adapter\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.2.7, §6 D8, §7.5 (Epic E5 INTEGRATIONS stage 2), §5.1#7 (R1 event-first)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nImplement the async outbox dispatcher job that drains `production_outbox_events` (created in T-009), maps WO completion + output + waste rows into D365 JournalLines via a dedicated R15 anti-corruption adapter, marks events delivered on success, and moves exhausted failures into `d365_push_dlq` (T-010). D365 must never become the source-of-truth for factory release or WO state.\n\n## Implementation contract\n1. `packages/api-services/production/d365-journallines-adapter.ts` exports `mapWoConfirmationToJournalLines(canonical)` — pure mapper from internal model (GS1-first identifiers) to D365 LEGACY-D365 payload per §6 D8.\n2. `packages/api-services/production/d365-outbox-dispatcher.ts` reads pending events, applies the adapter, calls the D365 HTTP client, on success sets `status='delivered'`, on failure increments `attempt_count` and schedules next retry per §5.4 (5min/30min/2h/12h/24h); on 5 failures inserts a `d365_push_dlq` row with raw canonical payload + mapped payload + last error.\n3. `apps/web/app/api/internal/jobs/production/d365-dispatch/route.ts` Vercel cron entrypoint runs the dispatcher every 30s with batch_size from settings.\n4. Dispatcher respects `integration.d365.push.enabled` and `integration.d365.push.dry_run` flags read from 02-SETTINGS; dry_run logs but never calls the D365 API and never marks delivered.\n5. Delivery state mutations only touch outbox/DLQ rows; they must not write to `wo_executions`, `active_bom_header_id`, `active_factory_spec_id`, or any release row.\n\n## Files\n- packages/api-services/production/d365-outbox-dispatcher.ts [create]\n- packages/api-services/production/d365-journallines-adapter.ts [create]\n- apps/web/app/api/internal/jobs/production/d365-dispatch/route.ts [create]\n- packages/api-services/production/__tests__/d365-outbox-dispatcher.test.ts [create]\n- packages/api-services/production/__tests__/d365-journallines-adapter.test.ts [create]\n\n## Acceptance criteria\n1. Given a pending `production_outbox_events` row of type `wo.completed` plus its output/waste rows, when dispatcher runs and the D365 client returns 200, then outbox row `status='delivered'`, `delivered_at` is set, and a JournalLines payload matching §6 D8 shape was sent.\n2. Given the D365 client fails 5 times with retriable errors, when dispatcher runs the final attempt, then a `d365_push_dlq` row is created with raw canonical payload, mapped payload, last error, and the outbox row is marked `status='failed'`.\n3. Given dispatcher success or failure, when post-condition is inspected, then no `wo_executions`, factory release, `active_bom_header_id`, or `active_factory_spec_id` row was modified.\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/d365-outbox-dispatcher.test.ts + d365-journallines-adapter.test.ts asserting the three ACs and dry_run no-op before the dispatcher/adapter exist.\n- Run `pnpm vitest run packages/api-services/production/__tests__/d365-outbox-dispatcher.test.ts packages/api-services/production/__tests__/d365-journallines-adapter.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not let D365 push success/failure mutate canonical release status, WO START eligibility, `active_bom_header_id`, or `active_factory_spec_id`.\n- Do not bypass the outbox; mutations must enqueue not call D365 inline.\n- Do not store D365 credentials in this module — read via 02-SETTINGS §11 secrets adapter.\n- Do not delete DLQ rows on resolve (T-042 owns audit-preserving mark-resolved).\n",
   "labels": [
     "prd",
+    "api",
+    "integrations",
+    "d365",
     "T2-api"
   ],
   "priority": 100,
@@ -14,43 +17,63 @@
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "§8.2.7",
-      "§11.7",
-      "UX PROD-012"
+      "§6 D8",
+      "§7.5",
+      "§5.1#7",
+      "§5.4"
     ],
-    "category": "production-readiness",
-    "subcategory": "Production outbox dispatcher and D365 WO confirm",
+    "category": "api",
+    "subcategory": "d365-outbox-dispatcher",
     "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION full module readiness",
+    "parent_feature": "08-PROD E5 INTEGRATIONS stage 2",
     "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Implement async outbox dispatcher mapping completed WO events to D365 JournalLines without making D365 a release or completion source-of-truth.",
-    "details": "Use production_outbox_events from T-009 and d365_push_dlq from T-010. Create a mapper from canonical WO/output/consumption/waste rows into D365 JournalLines payload. Dispatcher respects integration.d365.push.enabled and dry_run settings, retries with exponential backoff, and moves exhausted failures to DLQ. D365 success/failure updates outbox delivery status only; it must never mutate factory release status, WO START eligibility, active_bom_header_id, or active_factory_spec_id.",
+    "estimated_effort": "3-4h",
+    "description": "Async outbox dispatcher draining production_outbox_events into D365 JournalLines via R15 anti-corruption adapter, with retry schedule and DLQ creation; D365 stays side-effect only.",
+    "details": "Dispatcher runs from Vercel cron (every 30s) with batch size from settings. Adapter is a pure function so it's covered by table-driven tests. Retry schedule per §5.4 (5/30min/2h/12h/24h). Dry_run logs but never calls the D365 API and never marks delivered. Credentials/feature-flags read via 02-SETTINGS §11. DLQ insertion is audit-preserving: keeps raw canonical, mapped payload, last_error, attempt_count; T-042 owns replay/resolve.",
     "scope_files": [
       "packages/api-services/production/d365-outbox-dispatcher.ts [create]",
       "packages/api-services/production/d365-journallines-adapter.ts [create]",
-      "apps/web/app/api/internal/jobs/production/d365-dispatch/route.ts [create]"
+      "apps/web/app/api/internal/jobs/production/d365-dispatch/route.ts [create]",
+      "packages/api-services/production/__tests__/d365-outbox-dispatcher.test.ts [create]",
+      "packages/api-services/production/__tests__/d365-journallines-adapter.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement DLQ list/replay/resolve API (T-042)",
+      "Do not implement DLQ admin UI (T-051)",
+      "Do not own D365 secrets (02-SETTINGS §11)",
+      "Do not emit outbox events from runtime endpoints in this task (handled in T-016..T-034)"
     ],
     "dependencies": [
       "T-009",
       "T-010",
       "T-019"
     ],
+    "parallel_safe_with": [
+      "T-042",
+      "T-043",
+      "T-044",
+      "T-045"
+    ],
     "acceptance_criteria": [
-      "Completed WO event maps to D365 JournalLines and marks outbox delivered on adapter success",
-      "Adapter failure after max attempts creates d365_push_dlq with raw canonical and mapped payloads",
-      "D365 delivery state never changes release_status or active BOM/spec fields"
+      "Given a pending production_outbox_events row of type wo.completed, when dispatcher runs and D365 returns 200, then outbox row status='delivered', delivered_at set, and JournalLines payload matches §6 D8 shape.",
+      "Given the D365 client fails 5 retriable times, when dispatcher runs the final attempt, then a d365_push_dlq row is created with raw canonical, mapped payload and last error, and outbox row status='failed'.",
+      "Given dispatcher success or failure, when post-condition is inspected, then no wo_executions/release/active_bom_header_id/active_factory_spec_id row was modified."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: write d365-outbox-dispatcher.test.ts + d365-journallines-adapter.test.ts asserting status matrix, retry schedule, DLQ creation, dry_run no-op and release-state non-mutation before code exists.",
+      "Run 'pnpm vitest run packages/api-services/production/__tests__/d365-outbox-dispatcher.test.ts packages/api-services/production/__tests__/d365-journallines-adapter.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not let D365 push success/failure mutate canonical release status, WO START eligibility, active_bom_header_id, or active_factory_spec_id.",
+      "Do not bypass the outbox (no synchronous inline D365 calls per §5.1#7).",
+      "Do not store D365 credentials in this module.",
+      "Do not delete DLQ rows on resolve."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -63,8 +86,6 @@
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
-        "screenshots_or_artifacts",
-        "playwright_traces_or_artifacts",
         "deviations_from_prd",
         "git_status"
       ]
@@ -79,7 +100,7 @@
       {
         "module": "02-settings",
         "task_id": "T-127",
-        "reason": "D365 integration settings/capability registry and feature flags."
+        "reason": "D365 connection config + push feature flags + dry_run toggle."
       }
     ]
   }

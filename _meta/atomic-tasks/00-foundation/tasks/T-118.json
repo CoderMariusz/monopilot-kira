@@ -1,0 +1,106 @@
+{
+  "title": "T-118 — Sentry error-reporting SDK wired into apps/web + apps/worker (env-gated DSN, release tagging)",
+  "prompt": "# T-118 — Sentry error-reporting SDK wired into apps/web + apps/worker\n\nPRD: docs/prd/00-FOUNDATION-PRD.md §5 Cross-cutting infra (\"Observability: Sentry + Datadog / OpenTelemetry\"), §13 Niefunkcjonalne (uptime ≥99.5%)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWire `@sentry/nextjs` into `apps/web` and `@sentry/node` into `apps/worker` so unhandled errors are captured with release tagging + environment + tracing correlation to OTel (T-116). Today no error-reporting SDK is wired; auditor B Top-10 Gap #3 confirms.\n\nThis task delivers the **third leg** of the observability triple (OTel = T-116, pino = T-117, Sentry = T-118). DSN is env-gated; if unset, the SDK is initialised in no-op mode (warning logged once via T-117 logger). Release tag is sourced from `VERCEL_GIT_COMMIT_SHA` or `GIT_SHA` (CI sets it).\n\n## Implementation contract\n1. Add deps: `apps/web/package.json` adds `@sentry/nextjs`; `apps/worker/package.json` adds `@sentry/node`. Pin same major version across both.\n2. `apps/web/sentry.client.config.ts`, `apps/web/sentry.server.config.ts`, `apps/web/sentry.edge.config.ts` (Next.js convention) — each calls `Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.SENTRY_ENV ?? process.env.NODE_ENV, release: process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_SHA, tracesSampleRate: 0.1, beforeSend: redactBeforeSend })`. If `SENTRY_DSN` is undefined, log a single warning via `createLogger({name:'sentry'})` and skip init.\n3. `redactBeforeSend` lives in a new `packages/observability/src/sentry.ts` and re-uses the redact allowlist from T-117 — strips `event.user`, `event.request.cookies`, `event.contexts.*.password`, etc.\n4. `apps/worker/src/sentry.ts` (new) calls `Sentry.init` (same shape, runtime=node) and is imported as the FIRST line of `apps/worker/src/index.ts` (before `startNodeSdk`, before JobRegistry). Wrap each registered handler in `Sentry.captureException` rethrow via the JobRegistry's existing error handler.\n5. Modify `next.config.mjs` to use `withSentryConfig({ silent: true, dryRun: !process.env.SENTRY_AUTH_TOKEN })` — never upload source maps in CI without `SENTRY_AUTH_TOKEN`.\n6. Add `apps/web/__tests__/sentry-redact.test.ts` and `apps/worker/src/__tests__/sentry-init.test.ts`:\n   - Mock `@sentry/node` and `@sentry/nextjs`'s `init` + `captureException`.\n   - For web: trigger an unhandled error in a fake route, assert Sentry SDK `captureException` is called with the redacted event (no `password` field in event extra).\n   - For worker: register a job that throws, run via `runOnceForTest`, assert `captureException` called.\n\n## Files in scope\n- apps/web/sentry.client.config.ts [create]\n- apps/web/sentry.server.config.ts [create]\n- apps/web/sentry.edge.config.ts [create]\n- apps/web/next.config.mjs [modify — withSentryConfig wrapper]\n- apps/web/package.json [modify — add @sentry/nextjs]\n- apps/web/__tests__/sentry-redact.test.ts [create]\n- apps/worker/src/sentry.ts [create]\n- apps/worker/src/index.ts [modify — import sentry first]\n- apps/worker/src/__tests__/sentry-init.test.ts [create]\n- apps/worker/package.json [modify — add @sentry/node]\n- packages/observability/src/sentry.ts [create — shared redactBeforeSend]\n- packages/observability/src/index.ts [modify — export redactBeforeSend]\n- .env.example [modify — add SENTRY_DSN, SENTRY_ENV, SENTRY_RELEASE, SENTRY_AUTH_TOKEN]\n\n## Acceptance criteria\n1. Given SENTRY_DSN set and unhandled error thrown in mocked Next.js Server Action, when test runs, then Sentry.captureException called exactly once and event object has NO password/token/cookie/authorization under any nested path.\n2. Given SENTRY_DSN unset, when apps/worker boots, then single warning logged via @monopilot/observability and no Sentry transport initialised.\n3. Given a job registered in worker throws, when runOnceForTest('failingJob') awaited, then Sentry.captureException called with error + job name in tags.\n4. Given SENTRY_RELEASE env set to a SHA, when Sentry inits, then SDK release option matches SHA exactly (verified via mock init args); AND Given next.config.mjs loaded, when build runs without SENTRY_AUTH_TOKEN, then source-map upload skipped (dryRun:true) — no network call attempted.\n## Test strategy\n- RED: write the two test files with mocked SDKs before implementation. RED commands: `pnpm --filter @monopilot/web vitest run __tests__/sentry-redact.test.ts && pnpm --filter @monopilot/worker test`.\n- GREEN: implement config files, redactBeforeSend, worker init, env.example update.\n- Run: above + `pnpm --filter @monopilot/web typecheck`.\n\n## Risk red lines\n- Do not hardcode the DSN — env-only.\n- Do not upload source maps in CI without `SENTRY_AUTH_TOKEN` — set `dryRun:!process.env.SENTRY_AUTH_TOKEN`.\n- Do not send PII to Sentry — `redactBeforeSend` shares the T-117 allowlist; deep-walk the event before sending.\n- Do not init Sentry twice in the same process — idempotent guard.\n- Do not import `@sentry/node` from the browser bundle — only `sentry.client.config.ts` uses the browser SDK; server/edge configs are runtime-scoped.\n- Do not block worker startup if Sentry transport fails to connect — `init` is non-blocking; queue retries.",
+  "labels": [
+    "prd",
+    "observability",
+    "sentry",
+    "T2-api"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-118",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5",
+      "§13"
+    ],
+    "category": "observability",
+    "subcategory": "sentry",
+    "task_type": "T2-api",
+    "parent_feature": "00-foundation-observability",
+    "context_budget": "30k",
+    "estimated_effort": "2-4h",
+    "description": "Wire @sentry/nextjs in apps/web (client + server + edge configs) and @sentry/node in apps/worker with env-gated DSN, release tagging, redactBeforeSend reusing T-117 allowlist, withSentryConfig wrapper. Tests assert capture + redact + release-tag round-trip.",
+    "details": "SDK initialised before JobRegistry in worker; first line of process. DSN env-gated; missing DSN logs single warning. Release tag from SENTRY_RELEASE || VERCEL_GIT_COMMIT_SHA || GIT_SHA. tracesSampleRate=0.1 default. redactBeforeSend strips PII / secrets via deep-walk. withSentryConfig dryRun=true unless SENTRY_AUTH_TOKEN set. Mocked tests assert capture is called with redacted event.\n\nAC count consolidated from 5→4 by Fixer F7 2026-05-14 (no coverage lost).",
+    "scope_files": [
+      "apps/web/sentry.client.config.ts [create]",
+      "apps/web/sentry.server.config.ts [create]",
+      "apps/web/sentry.edge.config.ts [create]",
+      "apps/web/next.config.mjs [modify]",
+      "apps/web/package.json [modify]",
+      "apps/web/__tests__/sentry-redact.test.ts [create]",
+      "apps/worker/src/sentry.ts [create]",
+      "apps/worker/src/index.ts [modify]",
+      "apps/worker/src/__tests__/sentry-init.test.ts [create]",
+      "apps/worker/package.json [modify]",
+      "packages/observability/src/sentry.ts [create]",
+      "packages/observability/src/index.ts [modify]",
+      ".env.example [modify]"
+    ],
+    "out_of_scope": [
+      "Custom Sentry dashboards / alerts",
+      "Datadog vendor adapter",
+      "Replay sessions (Sentry Session Replay)",
+      "Performance monitoring beyond tracesSampleRate=0.1"
+    ],
+    "dependencies": [
+      "T-111",
+      "T-117"
+    ],
+    "parallel_safe_with": [
+      "T-113",
+      "T-114",
+      "T-121",
+      "T-122"
+    ],
+    "acceptance_criteria": [
+      "Given SENTRY_DSN set and unhandled error thrown in mocked Next.js Server Action, when test runs, then Sentry.captureException called exactly once and event object has NO password/token/cookie/authorization under any nested path.",
+      "Given SENTRY_DSN unset, when apps/worker boots, then single warning logged via @monopilot/observability and no Sentry transport initialised.",
+      "Given a job registered in worker throws, when runOnceForTest('failingJob') awaited, then Sentry.captureException called with error + job name in tags.",
+      "Given SENTRY_RELEASE env set to a SHA, when Sentry inits, then SDK release option matches SHA exactly (verified via mock init args); AND Given next.config.mjs loaded, when build runs without SENTRY_AUTH_TOKEN, then source-map upload skipped (dryRun:true) — no network call attempted."
+    ],
+    "test_strategy": [
+      "RED: write sentry-redact.test.ts and sentry-init.test.ts with mocked SDKs before implementation; RED: pnpm --filter @monopilot/web vitest run __tests__/sentry-redact.test.ts && pnpm --filter @monopilot/worker test.",
+      "GREEN: implement config files + redactBeforeSend + worker init + env.example update.",
+      "Run: above + pnpm --filter @monopilot/web typecheck."
+    ],
+    "risk_red_lines": [
+      "Do not hardcode DSN — env-only.",
+      "Do not upload source maps without SENTRY_AUTH_TOKEN — dryRun:!SENTRY_AUTH_TOKEN.",
+      "Do not send PII to Sentry — redactBeforeSend deep-walk + T-117 allowlist.",
+      "Do not init Sentry twice — idempotent guard.",
+      "Do not import @sentry/node from browser bundle.",
+      "Do not block worker startup if Sentry transport fails."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

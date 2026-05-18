@@ -1,0 +1,104 @@
+{
+  "title": "T-006 — calibration_instruments + calibration_records + sanitation_checklists + maintenance_history DDL + RLS (13-e, MNT §9.12-9.15)",
+  "prompt": "# T-006 — Calibration + sanitation + history (7y retention)\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.12, §9.13, §9.14, §9.15, §5 (BRCGS+FSMA), §14.1 (7y retention)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 4 compliance-critical tables: `calibration_instruments`, `calibration_records`, `sanitation_checklists`, `maintenance_history`. All carry GENERATED `retention_until DATE STORED` columns enforcing 7y retention per BRCGS Issue 10 + FSMA 204 + §14.1.\n\n## Pre-flight\nVerify latest migration #; `equipment`/`mwo` (T-002/T-004) exist; `auth.users`/`app.current_org_id()` present; 09-quality `lab_results.equipment_id` FK target — D-MNT-10 documents it as forward-compat from 09-quality v3.1; this task only adds the comment, not the cross-module FK.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_maintenance_e_calibration_sanitation.sql` with 4 tables per PRD §9.12-9.15 verbatim DDL.\n2. `calibration_instruments.instrument_type CHECK IN ('scale','thermometer','ph_meter','other')`.\n3. `calibration_instruments.standard CHECK IN ('ISO_9001','NIST','internal','other')`.\n4. `calibration_records.result CHECK IN ('PASS','FAIL','OUT_OF_SPEC')`.\n5. `calibration_records.retention_until DATE GENERATED ALWAYS AS (next_due_date + INTERVAL '7 years') STORED`.\n6. `sanitation_checklists.retention_until DATE GENERATED ALWAYS AS ((completed_at::date + INTERVAL '7 years')) STORED`.\n7. `maintenance_history.retention_until DATE GENERATED ALWAYS AS ((event_date::date + INTERVAL '7 years')) STORED`.\n8. R13 audit cols + ENABLE+FORCE RLS via app.current_org_id() + site_user_access.\n9. Indexes: `idx_cal_instr_org_site`, `idx_cal_rec_instrument_date`, `idx_cal_rec_next_due`, `idx_hist_equipment_date`.\n10. Forward-compat SQL comment on `calibration_instruments`: `-- 09-QA v3.1 FK target: lab_results.equipment_id = calibration_instruments.id (D-MNT-10 documented, not enforced)`.\n11. Drizzle schema in `packages/db/src/schema/maintenance/calibration.ts` + `packages/db/src/schema/maintenance/sanitation.ts` + `packages/db/src/schema/maintenance/history.ts`.\n12. Vitest: GENERATED retention_until is non-NULL and equals input+7y; CHECK constraints enforced; RLS isolation; cannot UPDATE retention_until directly (it is GENERATED).\n\n## Files\n- packages/db/migrations/NNNN_maintenance_e_calibration_sanitation.sql [create]\n- packages/db/src/schema/maintenance/calibration.ts [create]\n- packages/db/src/schema/maintenance/sanitation.ts [create]\n- packages/db/src/schema/maintenance/history.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/maintenance-e-calibration-sanitation.test.ts [create]\n\n## Acceptance criteria\n1. Given migration runs, when the 4 tables are inspected, then CHECK constraints (instrument_type/standard/result), GENERATED retention_until, R13 audit cols, RLS+FORCE RLS are present.\n2. Given INSERT into calibration_records with next_due_date='2026-06-01', when retention_until is queried, then it equals '2033-06-01' (7y).\n3. Given UPDATE calibration_records SET retention_until=…, when executed, then it fails (column is GENERATED ALWAYS).\n4. Given two orgs via app.set_org_context, when SELECT runs in each session, then RLS isolation holds and policies reference `app.current_org_id()`.\n\n## Test strategy\n- RED: maintenance-e-calibration-sanitation.test.ts asserting four ACs.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-e-calibration-sanitation`.\n\n## Risk red lines\n- Do not store retention_until as plain DATE writable column — it MUST be GENERATED ALWAYS AS … STORED (BRCGS compliance audit).\n- Do not add a cross-module FK to 09-quality `lab_results` here — comment only (D-MNT-10 documents forward-compat).\n- Do not name business column tenant_id.\n- Do not read current_setting() GUC.\n- Do not skip ENABLE+FORCE RLS — these tables hold PII (technician signers).",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "compliance",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.12",
+      "§9.13",
+      "§9.14",
+      "§9.15",
+      "§5",
+      "§14.1"
+    ],
+    "category": "data",
+    "subcategory": "schema-calibration-sanitation",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-e",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create calibration_instruments + calibration_records + sanitation_checklists + maintenance_history with GENERATED retention_until (7y BRCGS), CHECKs, RLS.",
+    "details": "BRCGS Issue 10 + FSMA 204 require GENERATED retention. 09-quality FK target documented per D-MNT-10 forward-compat (comment only, no FK in this migration). Cross-module deps: 09-quality lab_results.equipment_id FK is added later by 09-quality T-NNN (out of scope here). Calibration certificate sign-off uses @monopilot/e-sign foundation primitive (T-124) — signEvent with replay nonce + paired audit (retention='security') per §14.3.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_e_calibration_sanitation.sql [create]",
+      "packages/db/src/schema/maintenance/calibration.ts [create]",
+      "packages/db/src/schema/maintenance/sanitation.ts [create]",
+      "packages/db/src/schema/maintenance/history.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/maintenance-e-calibration-sanitation.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Calibration cert SHA-256 e-sign (T-016 uses foundation T-124 e-sign primitive)",
+      "Outbox publisher for calibration.* events (T-012)",
+      "Cross-module FK to 09-quality lab_results (09-quality task)",
+      "Sanitation cron / allergen-aware enforcement (T-012 outbox + 08-production gate)"
+    ],
+    "cross_module_dependencies": [
+      "00-foundation/T-124"
+    ],
+    "dependencies": [
+      "T-002",
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-003",
+      "T-005"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when 4 tables are inspected, then CHECK (instrument_type/standard/result) + GENERATED retention_until + R13 + RLS+FORCE RLS are present",
+      "Given INSERT into calibration_records with next_due_date='2026-06-01', when retention_until is queried, then it equals '2033-06-01'",
+      "Given UPDATE retention_until, when executed, then it fails because column is GENERATED ALWAYS",
+      "Given two orgs via app.set_org_context, when SELECT runs in each session, then RLS isolation holds and policies reference app.current_org_id()"
+    ],
+    "test_strategy": [
+      "RED: maintenance-e-calibration-sanitation.test.ts asserting four ACs",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-e-calibration-sanitation`"
+    ],
+    "risk_red_lines": [
+      "Do not store retention_until as writable column — GENERATED ALWAYS AS STORED required (BRCGS)",
+      "Do not add cross-module FK to 09-quality lab_results — comment only (D-MNT-10)",
+      "Do not name business column tenant_id; do not read current_setting() GUC",
+      "Do not skip ENABLE+FORCE RLS — PII present"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

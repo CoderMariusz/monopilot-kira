@@ -1,6 +1,6 @@
 {
   "title": "T-008 — scheduler_config table (PLE-005)",
-  "prompt": "# T-008 — scheduler_config table (PLE-005)\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §17.1 PLE-005, §17.3 backlog item 1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_config` table holding per-tenant default run parameters and alert thresholds (PLE-005 Cards 1-2 persistence target).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0077_scheduler_config.sql`: CREATE TABLE scheduler_config per PLE-005 DDL stub (tenant_id PK, default_horizon_days, default_include_forecast, solver_timeout_seconds, alerts JSONB, updated_by, updated_at) + RLS.\n2. CHECK default_horizon_days IN (7, 14) and solver_timeout_seconds BETWEEN 10 AND 300.\n3. RLS policy on tenant_id.\n4. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0077_scheduler_config.sql [create]\n- packages/db/src/schema/scheduler_config.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-config.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS exist\n2. Given an INSERT with default_horizon_days=21, when executed, then it fails CHECK\n3. Given two tenants, when each SELECTs, then each only sees its own config row\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS + tenant_id PK\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-config'\n\n## Risk red lines\n- Do not skip CHECK constraints (UI relies on these for validation rendering)\n- Do not skip RLS\n- Do not forget to make tenant_id the PRIMARY KEY (one row per tenant)",
+  "prompt": "# T-008 — scheduler_config table (PLE-005)\n\nPRD: docs/prd/07-PLANNING-EXT-PRD.md §17.1 PLE-005, §17.3 backlog item 1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `scheduler_config` table holding per-org default run parameters and alert thresholds (PLE-005 Cards 1-2 persistence target).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0077_scheduler_config.sql`: CREATE TABLE scheduler_config per PLE-005 DDL stub (`org_id uuid PK`, default_horizon_days, default_include_forecast, solver_timeout_seconds, alerts JSONB, updated_by, updated_at) + ENABLE+FORCE ROW LEVEL SECURITY.\n2. CHECK default_horizon_days IN (7, 14) and solver_timeout_seconds BETWEEN 10 AND 300.\n3. Policy `scheduler_config_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`) — the foundation function from `packages/db/migrations/002-rls-baseline.sql`; never `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC.\n4. Drizzle schema entry.\n\n## Files\n- packages/db/migrations/0077_scheduler_config.sql [create]\n- packages/db/src/schema/scheduler_config.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/scheduler-config.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS+FORCE ROW LEVEL SECURITY + org_id PK exist\n2. Given an INSERT with default_horizon_days=21, when executed, then it fails CHECK\n3. Given two orgs and app.set_org_context called per org, when each SELECTs as app_user, then each only sees its own config row\n4. Given pg_policies is inspected, when the scheduler_config policy is listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC\n\n## Test strategy\n- RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS (via app.set_org_context as app_user) + org_id PK\n- Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-config'\n\n## Risk red lines\n- Do not read `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` directly — use the foundation `app.current_org_id()` function so the NULL-safe setter contract is preserved.\n- Do not use `tenant_id` as the business-scope column; per Wave0 v4.3 lock it is `org_id`.\n- Do not skip CHECK constraints (UI relies on these for validation rendering)\n- Do not skip RLS/FORCE ROW LEVEL SECURITY\n- Do not forget to make org_id the PRIMARY KEY (one row per org)",
   "labels": [
     "prd",
     "data",
@@ -24,8 +24,8 @@
     "parent_feature": "07-EXT scheduler settings",
     "context_budget": "40k",
     "estimated_effort": "0.5-1h",
-    "description": "Create scheduler_config table per PLE-005 with horizon and timeout CHECK constraints + RLS.",
-    "details": "Migration 0077 emits CREATE TABLE scheduler_config per PLE-005 DDL stub with CHECK constraints. tenant_id is PK (one row per tenant). RLS policy. Drizzle schema mirrors columns. RED test verifies CHECK rejection + RLS isolation.",
+    "description": "Create scheduler_config table per PLE-005 with horizon and timeout CHECK constraints + foundation-app.current_org_id() RLS.",
+    "details": "Migration 0077 emits CREATE TABLE scheduler_config per PLE-005 DDL stub with CHECK constraints. org_id is PK (one row per org). ENABLE+FORCE ROW LEVEL SECURITY with policy `scheduler_config_org_context` USING/WITH CHECK `org_id = app.current_org_id()`. Drizzle schema mirrors columns. RED test verifies CHECK rejection + RLS isolation via app_user + app.set_org_context. RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` §Tenant-context).",
     "scope_files": [
       "packages/db/migrations/0077_scheduler_config.sql [create]",
       "packages/db/src/schema/scheduler_config.ts [create]",
@@ -39,22 +39,26 @@
     ],
     "dependencies": [],
     "acceptance_criteria": [
-      "Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS + tenant_id PK exist",
+      "Given migration 0077 applied, when \\d scheduler_config runs, then all PLE-005 columns + horizon CHECK + timeout CHECK + RLS+FORCE ROW LEVEL SECURITY + org_id PK exist",
       "Given an INSERT with default_horizon_days=21, when executed, then CHECK rejects",
-      "Given two tenants, when each SELECTs under app.tenant_id, then each only sees its own row"
+      "Given two orgs, when each SELECTs as app_user post app.set_org_context(session_token, org_id), then each only sees its own row (RLS via app.current_org_id())",
+      "Given pg_policies is inspected, when the scheduler_config policy is listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC"
     ],
     "test_strategy": [
-      "RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS + tenant_id PK uniqueness",
+      "RED: write packages/db/__tests__/scheduler-config.test.ts asserting CHECK + RLS (via app.set_org_context as app_user) + org_id PK uniqueness",
       "Run 'pnpm --filter db migrate && pnpm --filter db test scheduler-config'"
     ],
     "risk_red_lines": [
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id.",
       "Do not skip CHECK constraints",
-      "Do not skip RLS",
-      "Do not omit tenant_id as PRIMARY KEY"
+      "Do not skip RLS/FORCE ROW LEVEL SECURITY",
+      "Do not omit org_id as PRIMARY KEY"
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -76,6 +80,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-005",
+      "T-011"
+    ]
   }
 }

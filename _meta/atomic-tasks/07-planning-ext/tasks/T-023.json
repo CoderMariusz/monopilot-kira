@@ -25,7 +25,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Local search refinement: random swap/move with threshold acceptance, deterministic with seed, hard-constraint preserving.",
-    "details": "Operates on greedy output; explores 200 random neighbors; accepts only ≥2% improvements. Re-validates V-SCHED hard constraints on every proposed move. Returns best-of-found.",
+    "details": "Operates on greedy output; explores 200 random neighbors; accepts only ≥2% improvements. Re-validates V-SCHED hard constraints on every proposed move. Returns best-of-found. Foundation citation: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. — see `00-foundation/tasks/T-111.json`.",
     "scope_files": [
       "services/planner-solver/app/algorithms/local_search.py [create]",
       "services/planner-solver/tests/test_local_search.py [create]"
@@ -50,7 +50,8 @@
     "risk_red_lines": [
       "Do not accept worsening swaps",
       "Do not violate V-SCHED-02/03/04 during proposed moves",
-      "Do not exceed iteration cap"
+      "Do not exceed iteration cap",
+      "Foundation contract: Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path. (cite 00-foundation/T-111)."
     ],
     "skills": [
       "test-driven-development",
@@ -76,6 +77,13 @@
       "implementation": "hermes_gpt55",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
-    }
+    },
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "contract": "Async/long-running work runs in `apps/worker` (foundation T-111); do not block the Server Action / API request path."
+      }
+    ]
   }
 }

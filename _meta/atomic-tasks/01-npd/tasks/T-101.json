@@ -1,69 +1,104 @@
 {
-  "title": "T-101 — UI: FA MRP tab (fa_mrp_tab) — schema-driven form with D365 status badges",
-  "prompt": "# T-101 — FA MRP tab UI (slice of T-025)\n\nPRD: docs/prd/01-NPD-PRD.md §5.8 + UX fa_mrp_tab\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:763-804 (fa_mrp_tab)\nParent root: T-025\n\n## Goal\nClient component for FA MRP dept rendering 12 material/packaging fields (Box, Top Label, Bottom Label, Web, MRP Box/Labels/Films/Sleeves/Cartons, Tara weight, Pallet stacking plan, Box dimensions) with D365 status badges (found/nocost/missing). Uses buildDeptZod('MRP') + updateFaCell per dirty field.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/npd/fa-screens.jsx:763-804`\n- `cell(val, status)` helper → extract `D365StatusInput` component (Input + Badge side-by-side)\n- Colors: found=#DCFCE7 (green), nocost=#FEF3C7 (amber), missing=#FEE2E2 (red); labels Found / No cost / Missing\n- V04 alert at top: 'Each material validated against D365 master data. Green=Found+costed · Amber=No cost · Red=Missing'\n- Refresh D365 cache button (Server Action refreshD365Cache)\n- 12 fields rendered in form-grid; Save MRP + Close MRP section buttons\n\n## Implementation contract\nNew `apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx` 'use client'. RHF + zodResolver(buildDeptZod('MRP')). Each material field uses D365StatusInput (Input + Badge), status derived from `d365_import_cache` join (passed in via props from server component). Save calls `updateFaCell` per dirty field; Close MRP triggers deptClose modal via URL param. shadcn Form/FormField/Input/Badge/Button/Alert primitives.\n\n## Files in scope\n- `apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx [create]`\n- `apps/web/app/(npd)/fa/[id]/_tabs/__tests__/mrp-tab.test.tsx [create]`\n- `prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]`\n\n## Acceptance criteria\n1. Given the MRP tab renders, when compared to fa-screens.jsx:763-804 (fa_mrp_tab), then it shows the same 12 MRP fields in DeptColumns display_order, each material field renders D365StatusInput with Badge colored per status enum (found/nocost/missing), and uses shadcn Form/FormField/Input/Badge primitives — verified by RTL parity checklist (structural + visual + interaction).\n2. Given a material has status='missing', when rendered, then the Input has red background and the Badge says 'Missing' with tooltip 'Material not in D365 — request creation'.\n3. Given a user edits Tara weight and saves, when Server Action runs, then `updateFaCell` is called for `tara_weight` only and the V04 status legend stays visible.\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`.\n\n## Test strategy (RED first)\n- RED: 3 RTL tests covering: (a) 12 fields in correct order with correct D365 status badges, (b) missing status rendering, (c) updateFaCell call with single dirty field.\n- Run: `pnpm --filter web test mrp-tab`.\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not implement other tabs in this slice\n- Do not hardcode field list (use buildDeptZod + DeptColumns reference)\n- Do not skip D365 status badge rendering\n- Do not duplicate D365StatusInput (extract once, reuse)",
+  "title": "T-101 — Add npd permission strings to enum (§2.2, §17.9, §18, §19)",
+  "prompt": "# T-101 — Add npd permission strings to enum\n\n## Goal\nAppend a delimited `NPD` permission group to `packages/rbac/src/permissions.enum.ts` covering the 17 canonical RBAC strings declared by PRD `docs/prd/01-NPD-PRD.md` (§2.2, §17.9, §18, §19). Settings/Auth owns the enum file; this task only contributes a new namespaced section under the `npd.*` prefix. Export `ALL_NPD_PERMISSIONS` so the ESLint enum-lock guard (02-settings T-130) recognizes the module group.\n\n## Implementation contract\n- File: `packages/rbac/src/permissions.enum.ts` — append entries to `Permission` const object with JSDoc citing the PRD anchor. Do NOT remove or rename any existing string.\n- File: `packages/rbac/src/__tests__/permissions.test.ts` — extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_NPD_PERMISSIONS` typed `readonly Permission[]` with length === 17.\n- File: `CODEOWNERS` — verify `/packages/rbac/src/permissions.enum.ts @monopilot/architect` line exists; if missing, add it (already present today).\n\n## Permission strings (17)\n- `brief.create`\n- `npd.project.delete`\n- `npd.core.write`\n- `npd.dashboard.view`\n- `npd.d365_builder.execute`\n- `npd.closed_flag.unset`\n- `npd.schema.edit`\n- `npd.rule.edit`\n- `npd.risk.write`\n- `npd.compliance_doc.write`\n- `npd.formulation.create_draft`\n- `npd.formulation.lock`\n- `npd.recipe.submit_for_trial`\n- `npd.pilot.promote_to_bom`\n- `npd.gate.advance`\n- `npd.gate.approve`\n- `npd.bom.export`\n\n## Files in scope\n- `packages/rbac/src/permissions.enum.ts` [modify]\n- `packages/rbac/src/__tests__/permissions.test.ts` [modify]\n- `CODEOWNERS` [modify if missing entry]\n\n## Acceptance criteria (Given-When-Then)\n- AC1 — Given the enum file is imported, when the consumer reads the new keys, then all 17 strings listed above are present exactly once.\n- AC2 — Given each new permission string is matched against regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, when tested, then every string passes and zero duplicates exist across the union of `Object.values(Permission)`.\n- AC3 — Given the module export, when imported, then `ALL_NPD_PERMISSIONS` is exported as typed `readonly Permission[]` with length === 17.\n- AC4 — Given `CODEOWNERS` is read, when checked, then `packages/rbac/src/permissions.enum.ts` is architect-only (line `/packages/rbac/src/permissions.enum.ts @monopilot/architect` present).\n\n## Test strategy (RED first, vitest)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with the four ACs above. Run RED:\n   `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`\n   — must fail before any enum change.\n2. Implement minimum changes in `permissions.enum.ts`.\n3. Re-run vitest — must pass.\n4. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not weaken the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` or introduce a 4-segment / matrix permission model.\n- Do not introduce a parallel permission model (no per-module `*PermissionEnum` in another file).\n- Do not remove or rename existing strings (Settings/Foundation strings stay intact).\n- Do not edit permission strings owned by other modules.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact RED→GREEN test commands and outputs\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
     "prd",
-    "ui",
-    "fa-mrp-tab",
-    "T3-ui"
+    "auth",
+    "permissions",
+    "T1-schema",
+    "p0-blocker"
   ],
-  "priority": 50,
+  "priority": 90,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-101",
-    "parent_task_id": "T-025",
     "source_prd": "docs/prd/01-NPD-PRD.md",
     "prd_refs": [
-      "§5.8"
+      "§2.2",
+      "§17.9",
+      "§18",
+      "§19"
     ],
-    "category": "ui",
-    "subcategory": "fa-mrp-tab",
-    "task_type": "T3-ui",
-    "parent_feature": "01-npd-fa",
-    "context_budget": "40k",
-    "estimated_effort": "1-3h",
-    "description": "FA MRP tab slice: 12 material fields with D365 found/nocost/missing status badges, schema-driven via buildDeptZod('MRP').",
-    "details": "One tab, one file. Parity vs fa-screens.jsx:763-804. Extract D365StatusInput component (Input + Badge). Save via updateFaCell per dirty field.",
+    "category": "auth",
+    "subcategory": "permissions-enum",
+    "task_type": "T1-schema",
+    "parent_feature": "01-npd-rbac-enum-addition",
+    "context_budget": "30k",
+    "estimated_effort": "1-2h",
+    "description": "Add 17 `npd.*` permission strings to packages/rbac/src/permissions.enum.ts and export ALL_NPD_PERMISSIONS; closes RBAC enum-lock gap flagged in _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md for module 01-npd.",
+    "details": "Strings (count=17): ['brief.create', 'npd.project.delete', 'npd.core.write', 'npd.dashboard.view', 'npd.d365_builder.execute', 'npd.closed_flag.unset', 'npd.schema.edit', 'npd.rule.edit', 'npd.risk.write', 'npd.compliance_doc.write', 'npd.formulation.create_draft', 'npd.formulation.lock', 'npd.recipe.submit_for_trial', 'npd.pilot.promote_to_bom', 'npd.gate.advance', 'npd.gate.approve', 'npd.bom.export']. Rationale: 17 permission strings closing the gap flagged in audit §01-NPD: PRD §2.2 lists 19 capabilities; FG_CREATE/FG_EDIT/BRIEF_CONVERT_TO_NPD_PROJECT are already in the enum (with legacy aliases `fa.create` / `fa.edit` / `brief.convert_to_fa`). This task adds the remaining 17, all namespaced under `npd.*` or `brief.*` so workflow/SoD semantics keep the Settings-owned `npd.released_product_edit.*` strings (already in Settings T-002) intact. Same conventions as 02-settings T-001/T-002: const object with JSDoc per entry citing the PRD anchor, typed `Permission` union via `(typeof Permission)[keyof typeof Permission]`, and `ALL_NPD_PERMISSIONS` declared `as readonly Permission[]`.",
+    "permission_strings": [
+      "brief.create",
+      "npd.project.delete",
+      "npd.core.write",
+      "npd.dashboard.view",
+      "npd.d365_builder.execute",
+      "npd.closed_flag.unset",
+      "npd.schema.edit",
+      "npd.rule.edit",
+      "npd.risk.write",
+      "npd.compliance_doc.write",
+      "npd.formulation.create_draft",
+      "npd.formulation.lock",
+      "npd.recipe.submit_for_trial",
+      "npd.pilot.promote_to_bom",
+      "npd.gate.advance",
+      "npd.gate.approve",
+      "npd.bom.export"
+    ],
     "scope_files": [
-      "apps/web/app/(npd)/fa/[id]/_tabs/mrp-tab.tsx [create]",
-      "apps/web/app/(npd)/fa/[id]/_tabs/__tests__/mrp-tab.test.tsx [create]",
-      "prototypes/design/Monopilot Design System/npd/fa-screens.jsx [ref]"
+      "packages/rbac/src/permissions.enum.ts [modify]",
+      "packages/rbac/src/__tests__/permissions.test.ts [modify]",
+      "CODEOWNERS [modify if missing entry]"
     ],
     "out_of_scope": [
-      "Do not implement Procurement tab (T-102)",
-      "Do not implement Commercial tab (T-103)",
-      "Do not implement Planning tab (T-104)",
-      "Do not wire into FA detail page (T-105)",
-      "Do not run Playwright parity (T-106)"
+      "Do not introduce a 4-level matrix permission model.",
+      "Do not edit other modules' permission strings.",
+      "Do not move permissions into Reference.RolePermissions table (enum is authoritative; the table is only the role→permission assignment mapping).",
+      "Do not couple enum strings to specific UI components."
     ],
-    "dependencies": [
-      "T-009",
-      "T-014",
-      "T-016",
-      "T-020"
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "Settings owns the enum file; this task appends a delimited namespaced group following the T-001 pattern."
+      },
+      {
+        "module": "02-settings",
+        "task_id": "T-130",
+        "reason": "ESLint enum-lock guard (`no-direct-permissions-enum-edit`) registered in packages/rbac/.eslintrc.cjs recognises module groups via ALL_<MODULE>_PERMISSIONS exports — this task adds the corresponding ALL_<MODULE>_PERMISSIONS export. (Previously mis-anchored to T-046, which is SET-006 Onboarding Completion; corrected to T-130 per fixer F4.)"
+      }
     ],
     "parallel_safe_with": [
-      "T-102",
-      "T-103",
-      "T-104"
+      "01-npd permission-enum addition task",
+      "03-technical permission-enum addition task",
+      "04-planning-basic permission-enum addition task",
+      "05-warehouse permission-enum addition task",
+      "06-scanner-p1 permission-enum addition task",
+      "07-planning-ext permission-enum addition task",
+      "08-production permission-enum addition task",
+      "09-quality permission-enum addition task"
     ],
     "acceptance_criteria": [
-      "Given the MRP tab renders, when compared to fa-screens.jsx:763-804, then it shows same 12 MRP fields in DeptColumns display_order, each with D365StatusInput (Input + Badge), and uses shadcn primitives — verified by RTL parity checklist (structural + visual + interaction).",
-      "Given a material has status='missing', when rendered, then Input has red background and Badge says 'Missing' with tooltip.",
-      "Given user edits Tara weight and saves, when Server Action runs, then updateFaCell is called for tara_weight only.",
-      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`."
+      "All 17 permission strings listed in pipeline_inputs.permission_strings are present in packages/rbac/src/permissions.enum.ts, with JSDoc citing the PRD anchor.",
+      "Every new string matches regex ^[a-z_]+\\.[a-z_]+\\.[a-z_]+$ and no duplicates exist across Object.values(Permission); vitest assertion enforces both.",
+      "ALL_NPD_PERMISSIONS is exported from packages/rbac/src/permissions.enum.ts as `readonly Permission[]` with length === 17; type-check passes.",
+      "CODEOWNERS keeps packages/rbac/src/permissions.enum.ts architect-only (`@monopilot/architect`)."
     ],
     "test_strategy": [
-      "RED: 3 RTL tests for 12-field parity, missing-status rendering, single-field save.",
-      "Run 'pnpm --filter web test mrp-tab'.",
-      "Capture screenshots/Playwright artifacts in closeout."
+      "RED: extend packages/rbac/src/__tests__/permissions.test.ts with presence + regex + uniqueness + array-length assertions for the 17 new strings. Run `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`; expect failure.",
+      "GREEN: append the strings + ALL_NPD_PERMISSIONS export; re-run vitest; expect pass.",
+      "Run `pnpm typecheck` and `pnpm lint` after the change; both must pass."
     ],
     "risk_red_lines": [
-      "Do not implement other tabs in this slice",
-      "Do not hardcode field list (use buildDeptZod)",
-      "Do not skip D365 status badge rendering"
+      "Do not weaken the regex ^[a-z_]+\\.[a-z_]+\\.[a-z_]+$.",
+      "Do not introduce a parallel permission model (no per-module *PermissionEnum file).",
+      "Do not remove or rename existing strings.",
+      "Do not edit permission strings owned by other modules.",
+      "Do not couple enum strings to specific UI components or table rows."
     ],
     "skills": [
       "test-driven-development",
@@ -90,9 +125,6 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true,
-    "prototype_index_entry": "fa_mrp_tab",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
-    "prototype_index_ref": "_meta/prototype-labels/prototype-index-npd.json#fa_mrp_tab"
+    "prototype_match": false
   }
 }

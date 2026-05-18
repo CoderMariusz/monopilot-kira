@@ -1,6 +1,6 @@
 {
   "title": "T-060 — UI: TEC-085 factory_specs Review modal + TEC-086 Factory Specs List",
-  "prompt": "Build TEC-085 factory_specs review modal and TEC-086 factory_specs list per §5.2A/§10A using Technical-owned `factory_specs`/`internal_product_spec` as the data source, not generic `reference_tables.specifications`. Match referenced Technical prototype surfaces while applying shared release adapter T-081, RM usability blockers and Technical approver workflow: list -> open factory_spec -> review paired BOM/release blockers -> approve_for_factory or reject through T-080/T-079 APIs. RED tests/ui/tec-085-086-factory-specs.test.tsx. Run: `pnpm vitest run tests/ui/tec-085-086-factory-specs.test.tsx`.",
+  "prompt": "# T-060 — UI: TEC-085 factory_specs Review modal + TEC-086 Factory Specs List\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5.1A, §7.4, §10A TEC-085, §10A TEC-086\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/technical/modals.jsx:460-483` (spec_review_modal); `prototypes/design/Monopilot Design System/technical/other-screens.jsx:74-108` (specs_screen)\n\n## Goal\nCross-item factory_specs/specifications list + Technical review modal for approve-for-factory sign-off.\n\nUI reads/writes Technical-owned factory_specs/internal_product_spec records. Do not use generic reference_tables.specifications as the backing store. Show shared release status, paired BOM status, RM usability blockers, clone-on-write warning for released edits, and read-only Quality lab status when present.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- app/(app)/technical/factory-specs/page.tsx [create]\n- app/(app)/technical/factory-specs/_components/review-modal.tsx [create]\n- tests/ui/tec-085-086-factory-specs.test.tsx [create]\n\n## Out of scope\n- Creating generic reference_tables.specifications storage\n- FactorySpec+BOM approval API internals (T-080)\n- Release adapter internals (T-081)\n\n## Acceptance criteria\n1. Given list and modal render, when compared to prototypes/design/Monopilot Design System/technical/modals.jsx:460-483 and prototypes/design/Monopilot Design System/technical/other-screens.jsx:74-108, then list columns and modal field set match — structural + visual + interaction parity verified by RTL.\n2. Given a Technical approver clicks Approve for factory, when API returns 200, then modal closes, shared release status changes to approved_for_factory/released, and audit evidence is visible.\n3. Given user lacks technical.spec.approve or technical.factory_spec.approve, when on page, then approve/sign-off actions are disabled with a Technical permission explanation.\n4. Given RM usability or release blockers exist, when modal opens, then approve is disabled and each blocker code/remediation from validateRmUsability/shared release guard is shown.\n5. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n6. Given list queries run, then the backing domain is Technical `factory_specs`/`internal_product_spec`, not generic `reference_tables.specifications`.\n7. Given factory_spec has paired BOM pending approval, UI links to T-090 bundle panel and never claims NPD G4 alone unlocks factory use.\n\n## Test strategy\n- RED tests for parity + RBAC + signoff flow.\n- Run: pnpm vitest run tests/ui/tec-085-086-specs.test.tsx\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not bypass audit on signoff.\n- Do not label the approver as Quality Lead; Technical owns factory_spec approval.\n- Do not hide release blockers behind generic validation errors.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Canonical anchor: `prototypes/design/Monopilot Design System/technical/modals.jsx:460-483` (spec_review_modal) — see `_meta/prototype-labels/prototype-index-technical.json` entry and `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Canonical anchor: `prototypes/design/Monopilot Design System/technical/other-screens.jsx:74-108` (specs_screen) — see `_meta/prototype-labels/prototype-index-technical.json` entry and `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
   "labels": [
     "prd",
     "ui",
@@ -16,7 +16,7 @@
     "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
     "prd_refs": [
       "§0",
-      "§5.0",
+      "§5.1A",
       "§7.4",
       "§10A TEC-085",
       "§10A TEC-086"
@@ -68,7 +68,15 @@
     "risk_red_lines": [
       "Do not bypass audit on signoff.",
       "Do not label the approver as Quality Lead; Technical owns factory_spec approval.",
-      "Do not hide release blockers behind generic validation errors."
+      "Do not hide release blockers behind generic validation errors.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
     ],
     "skills": [
       "test-driven-development",
@@ -107,6 +115,8 @@
         "task_id": "T-123",
         "reason": "Authorization helper/preflight used to enable/disable approval actions."
       }
-    ]
+    ],
+    "prototype_match": true,
+    "prototype_index_entry": "spec_review_modal"
   }
 }

@@ -1,0 +1,86 @@
+{
+  "title": "T-070 — true 8-h absolute session lifetime + session_started_at (FT-010)",
+  "prompt": "# T-070 — true 8-h absolute session lifetime + session_started_at (FT-010)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x, §13\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-010** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (M effort)\n\n## Goal\nAdd session_started_at column + session-check logic that enforces an absolute 8-h lifetime regardless of activity.\n\n## Implementation contract\n1. Migration 028 adds `auth_sessions.session_started_at timestamptz not null default now()`.\n2. session-check.ts reads session_started_at on every refresh; if now() - session_started_at > 8h, calls revokeSession and returns 401.\n3. Org override: read `tenant_idp_config.session_max_h` if present and cap at the cluster-wide hard ceiling.\n4. Tests: (a) fresh session refreshes succeed; (b) session_started_at = now() - 7h59m succeeds; (c) session_started_at = now() - 8h01m returns 401.\n\n## Files (scope)\n- packages/db/migrations/028-session-started-at.sql [create]\n- packages/auth/src/session-check.ts [modify]\n- packages/auth/src/__tests__/session-absolute-lifetime.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 028 applied, when an auth_sessions row is created, then session_started_at is populated.\n2. Given a session whose session_started_at is older than 8 hours, when refresh runs, then the call returns 401 and the session is revoked in Supabase.\n3. Given an org override session_max_h=4, when a 5-hour-old session refreshes, then it returns 401 (the lower cap wins).\n4. Given an org override session_max_h=24, when a 9-hour-old session refreshes, then it returns 401 (cluster ceiling of 8h wins).\n\n## Test strategy\n- RED: write session-absolute-lifetime.test.ts asserting all four ACs before implementation.\n- Mock Supabase admin client via vi.fn().\n- Run `pnpm --filter @monopilot/auth test session-absolute-lifetime`.\n\n## Risk red lines\n- Do not couple absolute-lifetime check to idle-timeout check.\n- Do not skip the cluster-wide ceiling when honoring org overrides.\n- Do not log session_started_at as a session secret.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "session",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-070",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§13"
+    ],
+    "original_carry_forward_id": "FT-010",
+    "category": "auth",
+    "subcategory": "session-policy",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "4-8h",
+    "description": "Implement PRD §5.x absolute 8-h session max (separate from idle timeout) by tracking session_started_at and rejecting tokens older than 8h regardless of activity.",
+    "details": "Today session-check.ts enforces only idle_timeout (60min). PRD §5.x requires an absolute 8h cap. Add `session_started_at` (set at login) and reject any refresh whose now()-session_started_at > 8h.",
+    "scope_files": [
+      "packages/db/migrations/028-session-started-at.sql [create]",
+      "packages/auth/src/session-check.ts [modify]",
+      "packages/auth/src/__tests__/session-absolute-lifetime.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change idle-timeout logic here.",
+      "Do not add new RBAC roles."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 028 applied, when an auth_sessions row is created, then session_started_at is populated.",
+      "Given a session whose session_started_at is older than 8 hours, when refresh runs, then the call returns 401 and the session is revoked in Supabase.",
+      "Given an org override session_max_h=4, when a 5-hour-old session refreshes, then it returns 401 (the lower cap wins).",
+      "Given an org override session_max_h=24, when a 9-hour-old session refreshes, then it returns 401 (cluster ceiling of 8h wins)."
+    ],
+    "test_strategy": [
+      "RED: write session-absolute-lifetime.test.ts asserting all four ACs before implementation.",
+      "Mock Supabase admin client via vi.fn().",
+      "Run `pnpm --filter @monopilot/auth test session-absolute-lifetime`."
+    ],
+    "risk_red_lines": [
+      "Do not couple absolute-lifetime check to idle-timeout check.",
+      "Do not skip the cluster-wide ceiling when honoring org overrides.",
+      "Do not log session_started_at as a session secret."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

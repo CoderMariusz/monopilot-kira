@@ -1,0 +1,83 @@
+{
+  "title": "T-110 — bundle full NIST top-25K common-password list (replacing ~200 stub) (FT-050)",
+  "prompt": "# T-110 — bundle full NIST top-25K common-password list (replacing ~200 stub) (FT-050)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §13\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-050** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\npackages/auth ships the full NIST top-25K list and a reproducible fetcher.\n\n## Implementation contract\n1. fetch-nist-25k.ts pulls from a documented source (commit-pinned), normalises (lowercase, dedupe), writes to data/common-passwords-25k.txt.\n2. password-policy.ts loads the file once at module init.\n3. Tests assert: (a) file has ≥ 24_000 entries; (b) 'password' → too_common; (c) 'TG7v$Bk2#xQ8nMz3' → not too_common.\n\n## Files (scope)\n- packages/auth/data/common-passwords-25k.txt [create]\n- packages/auth/src/password-policy.ts [modify]\n- packages/auth/src/__tests__/common-passwords-25k.test.ts [create]\n- packages/auth/scripts/fetch-nist-25k.ts [create]\n\n## Acceptance criteria\n1. Given the data file, when read, then it has at least 24_000 unique entries.\n2. Given password='password', when validateNewPassword runs, then reasons includes 'too_common'.\n3. Given a known-good strong password, when validateNewPassword runs, then 'too_common' is NOT in reasons.\n4. Given the fetcher, when run twice, then the output file is byte-identical (deterministic).\n\n## Test strategy\n- RED: write common-passwords-25k.test.ts asserting entry count + behavior before list is bundled.\n- Run `pnpm --filter @monopilot/auth test common-passwords-25k`.\n\n## Risk red lines\n- Do not commit a copyrighted list source.\n- Do not load the file synchronously on every validate call (cache at init).\n- Do not skip the deterministic-build assertion.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "password-policy",
+    "T5-seed"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-110",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§13"
+    ],
+    "original_carry_forward_id": "FT-050",
+    "category": "auth",
+    "subcategory": "password-policy",
+    "task_type": "T5-seed",
+    "parent_feature": "00-FOUNDATION-i",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Replace the ~200-entry common-password stub with the full NIST top-25K list and add a fetcher script for reproducible regeneration.",
+    "details": "T-061 shipped with a ~200-entry stub. PRD §13 requires the NIST top-25K. Add the canonical list as data + a fetcher script + tests that assert at least 24_000 entries.",
+    "scope_files": [
+      "packages/auth/data/common-passwords-25k.txt [create]",
+      "packages/auth/src/password-policy.ts [modify]",
+      "packages/auth/src/__tests__/common-passwords-25k.test.ts [create]",
+      "packages/auth/scripts/fetch-nist-25k.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change HIBP integration."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the data file, when read, then it has at least 24_000 unique entries.",
+      "Given password='password', when validateNewPassword runs, then reasons includes 'too_common'.",
+      "Given a known-good strong password, when validateNewPassword runs, then 'too_common' is NOT in reasons.",
+      "Given the fetcher, when run twice, then the output file is byte-identical (deterministic)."
+    ],
+    "test_strategy": [
+      "RED: write common-passwords-25k.test.ts asserting entry count + behavior before list is bundled.",
+      "Run `pnpm --filter @monopilot/auth test common-passwords-25k`."
+    ],
+    "risk_red_lines": [
+      "Do not commit a copyrighted list source.",
+      "Do not load the file synchronously on every validate call (cache at init).",
+      "Do not skip the deterministic-build assertion."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "title": "T-040 — NCR outbox events + permission strings (quality.ncr.*)",
+  "prompt": "# T-040 — NCR outbox events + permission strings\n\nPRD: §12.1 P1 INTEGRATIONS consumer-only, §13.3 audit log completeness, §7.1 Epic 8D 09-d-02\n\n## Goal\nWire 6 typed quality.ncr.* outbox events into NCR Server Actions; finalize quality.ncr.* permission enum; stub 05-WH consumer test for critical-close → hold-suggestion contract.\n\n## Implementation contract\n1. packages/events/src/quality/ncr.ts exports 6 typed event interfaces + Zod validators.\n2. NCR Server Actions (T-038) emit events via packages/outbox publisher with idempotency key = ncr_id+status+seq.\n3. packages/rbac/src/permissions.enum.ts gains 8 quality.ncr.* permissions.\n4. Test stub in apps/web/src/server/quality/ncr/__tests__/outbox.test.ts asserts critical-close → 05-WH hold-suggestion contract (the consumer impl lives in 05-WH module).\n\n## Files\n- packages/events/src/quality/ncr.ts [create]\n- packages/events/src/index.ts [modify]\n- apps/web/src/server/quality/ncr/actions.ts [modify]\n- apps/web/src/server/quality/ncr/__tests__/outbox.test.ts [create]\n- packages/rbac/src/permissions.enum.ts [modify]\n\n## Acceptance criteria\n1. 6 event types exported with Zod validators + required fields\n2. closeNcr emits quality.ncr.closed once, deduped by idempotency key\n3. critical close emits an event that the 05-WH stub consumer turns into a hold-suggestion row (in this test the consumer is mocked; real impl in 05-WH)\n4. 8 quality.ncr.* permissions present in enum\n\n## Test strategy (RED first)\n- RED: outbox.test.ts asserting all 4 AC paths before code\n- Run 'pnpm --filter events build && pnpm --filter web test ncr/outbox && pnpm --filter rbac test'\n\n## Risk red lines\n- Use canonical 6 event names (audit A §1)\n- Enforce idempotency keys (Foundation FT-024)\n- Reserve permission strings in packages/rbac canonical enum (audit B §3 red-line)",
+  "labels": [
+    "prd",
+    "api",
+    "outbox",
+    "T4-wiring-test"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-040",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§12.1",
+      "§13.3",
+      "§7.1"
+    ],
+    "category": "api",
+    "subcategory": "ncr-outbox-events",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "35k",
+    "estimated_effort": "2h",
+    "description": "Wire quality.ncr.* outbox events (created/submitted/assigned/status_changed/closed/reopened) into NCR Server Actions, with a typed contract in packages/events and consumer test stubs for 12-REPORTING and 05-WH.",
+    "details": "packages/events/src/quality/ncr.ts declares typed event shapes for quality.ncr.created, quality.ncr.submitted, quality.ncr.assigned, quality.ncr.status_changed, quality.ncr.closed, quality.ncr.reopened. Each event carries {tenant_id (org_id), ncr_id, ncr_number, severity, status, prior_status?, actor_user_id, signature_hash?, occurred_at}. NCR Server Actions (T-038) emit via packages/outbox publisher with idempotency key = ncr_id+status+seq. quality.ncr.closed with severity='critical' triggers a 05-WH hold-suggestion consumer (verified by stub test: GIVEN event published THEN warehouse hold queue receives suggestion). quality.ncr.* event types added to the outbox channel registry. Permission strings (extends T-038 reservation, finalized here): quality.ncr.create, quality.ncr.submit, quality.ncr.assign, quality.ncr.update_status, quality.ncr.close, quality.ncr.close.critical, quality.ncr.read, quality.ncr.export. PRD anchors verified 2026-05-14: §12.1 P1 INTEGRATIONS table lists outbound NCR events as consumer-only (no outbound stage in P1 — outbox is internal cross-module bus, not external API); §13.3 audit log completeness drives the audit-row pairing; §7.1 Epic 8D 09-d-02 scope.",
+    "scope_files": [
+      "packages/events/src/quality/ncr.ts [create]",
+      "packages/events/src/index.ts [modify]",
+      "apps/web/src/server/quality/ncr/actions.ts [modify]",
+      "apps/web/src/server/quality/ncr/__tests__/outbox.test.ts [create]",
+      "packages/rbac/src/permissions.enum.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement 05-WH consumer here (cross-module, owned by 05-WH)",
+      "Do not build outbound HTTP webhooks (P2 INTEGRATIONS stage)",
+      "Do not modify outbox worker (T-040 ops-related is Foundation FT-040)"
+    ],
+    "dependencies": [
+      "T-038",
+      "T-009"
+    ],
+    "parallel_safe_with": [
+      "T-041"
+    ],
+    "acceptance_criteria": [
+      "Given the events typed contract package, when TypeScript build runs, then packages/events exports QualityNcrCreatedEvent, QualityNcrSubmittedEvent, QualityNcrAssignedEvent, QualityNcrStatusChangedEvent, QualityNcrClosedEvent, QualityNcrReopenedEvent, each with required tenant_id, ncr_id, ncr_number, actor_user_id, occurred_at fields and Zod runtime validator",
+      "Given a closeNcr call settles successfully, when outbox is inspected, then 1 quality.ncr.closed row exists with severity, signature_hash, and the idempotency key = ncr_id+'closed'+seq; a second close attempt on the same NCR yields the same key and is deduplicated",
+      "Given a quality.ncr.closed event with severity='critical' is published, when the 05-WH consumer stub receives it, then it inserts a hold-suggestion row tied to the original NCR reference_id; the test asserts the suggestion row, not actual hold creation",
+      "Given packages/rbac, when permissions enum is loaded, then quality.ncr.create, quality.ncr.submit, quality.ncr.assign, quality.ncr.update_status, quality.ncr.close, quality.ncr.close.critical, quality.ncr.read, quality.ncr.export are present (8 permissions)"
+    ],
+    "test_strategy": [
+      "RED: apps/web/src/server/quality/ncr/__tests__/outbox.test.ts asserting 6 event types emitted on respective actions + idempotency + critical→hold-suggestion stub + 8 permissions present before implementation",
+      "Run 'pnpm --filter events build && pnpm --filter web test ncr/outbox && pnpm --filter rbac test'"
+    ],
+    "risk_red_lines": [
+      "Do not invent new event names — use the 6 quality.ncr.* canonical set per audit A §1 cross-module event contract pin",
+      "Do not skip idempotency key (outbox dedup contract — Foundation FT-024)",
+      "Do not bypass packages/rbac/src/permissions.enum.ts (audit B §3 red-line: permission strings reserved in one canonical surface)",
+      "Do not couple 05-WH consumer details to the event shape — events MUST be addressed by tenant_id + ncr_id only; warehouse decides how to act"
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-112",
+      "09-quality:T-038",
+      "09-quality:T-063"
+    ]
+  }
+}

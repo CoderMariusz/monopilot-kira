@@ -1,6 +1,6 @@
 {
   "title": "T-072 — Docs gap: supplier_specs Phase 1 upload/view/review implementation brief",
-  "prompt": "Write a self-contained engineering brief for supplier_specs Phase 1 per 03-TECHNICAL-PRD §5.5 + §15A.3. Output `design/specs/TEC-supplier-specs-phase1.md`. Cover upload, view, review and approval of supplier-provided raw material/component specs: document metadata, declared allergens/attrs, certificates, allowed supplier/item pair, cost/spec review blockers, lifecycle/review statuses, permissions, audit, API routes, UI list/detail/review modal states, RM usability hooks, PO/TO deviation behavior, and taxonomy distinction from customer_spec and factory_specs/internal_product_spec. Phase 1 is internal Technical-maintained master data; do not build supplier portal app code.",
+  "prompt": "# T-072 — Docs gap: supplier_specs Phase 1 upload/view/review implementation brief\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §5.5, §15A.3, §15A.5\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nSelf-contained Phase 1 supplier_specs upload/view/review brief.\n\nThe brief must be implementable by later schema/API/UI tasks without rediscovery. Include exact candidate routes, server actions, fields, validation states, permissions, events and test expectations. Mark supplier portal/external negotiation as Phase 2/out of scope.\n\n## Implementation contract\nSee `## Goal` + scope_files + acceptance_criteria below; preserve prototype parity, server-action semantics, RLS/org-scoping, and module red-lines listed in `## Risk red lines`.\n\n## Files\n- design/specs/TEC-supplier-specs-phase1.md [create]\n\n## Out of scope\n- Implementing API routes\n- Implementing UI components\n- Supplier portal Phase 2\n\n## Acceptance criteria\n1. Brief states supplier_specs is Phase 1 internal Technical-maintained master data and distinct from customer_spec and factory_specs/internal_product_spec.\n2. Brief defines upload/view/review flow including document metadata, status transitions, Technical approval/rejection, audit evidence and permissions.\n3. Brief says PO/TO actual deviations create review tasks/events/non_conformance.requested and do not silently overwrite approved supplier_specs or BOM cost_per_kg.\n4. Brief defines RM usability hooks: approved supplier, active approved non-expired supplier_spec, allergen compatibility, active item, cost/spec review not blocked, and QC/release status where configured.\n5. Brief names candidate API routes/actions and UI states but does not implement app code.\n\n## Test strategy\n- Manual docs review.\n- No automated tests for docs.\n\n## Risk red lines\n- Do not invent a supplier portal implementation for Phase 1.\n- Do not implement app code in this docs task.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n",
   "labels": [
     "prd",
     "docs",
@@ -55,7 +55,11 @@
     ],
     "risk_red_lines": [
       "Do not invent a supplier portal implementation for Phase 1.",
-      "Do not implement app code in this docs task."
+      "Do not implement app code in this docs task.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables."
     ],
     "skills": [
       "requesting-code-review"

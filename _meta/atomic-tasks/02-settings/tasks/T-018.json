@@ -49,7 +49,8 @@
       "GREEN: implement."
     ],
     "risk_red_lines": [
-      "Do not allow self-deactivation (V-SET should reject)."
+      "Do not allow self-deactivation (V-SET should reject).",
+      "Do not introduce REST endpoints; this is a Server Action per stack contract and must respect withOrgContext."
     ],
     "skills": [
       "test-driven-development"

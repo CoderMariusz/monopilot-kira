@@ -1,8 +1,11 @@
 {
-  "title": "T-042 — D365 DLQ management API routes",
-  "prompt": "# T-042 — D365 DLQ management API routes\n\nPRD/UX refs: §8.2.7, UX PROD-012, MODAL-08-10\n\nGoal: Implement DLQ list/replay/mark-resolved/payload routes for Production Manager/Admin.\n\nImplementation details:\nCreate GET /api/admin/integrations/d365/dlq with filters and stats, POST replay that moves an item back to outbox failed/pending retry, POST mark-resolved with resolution notes, and GET payload endpoint returning raw canonical plus mapped D365 JSON. Enforce permissions, audit every replay/resolve, and keep payload display read-only.\n\nScope files:\n- apps/web/app/api/admin/integrations/d365/dlq/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/replay/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/resolve/route.ts [create]\n- packages/api-services/production/d365-dlq.ts [create]\n\nAcceptance criteria:\n1. GET list returns open/resolved rows and aggregate health stats\n2. Replay increments audit trail and makes the event eligible for dispatcher retry\n3. Mark-resolved requires notes and never deletes DLQ evidence\n\nEvidence: include screenshots/artifacts and Playwright traces/artifacts for UI/E2E tasks; include API test output for backend tasks.",
+  "title": "T-042 — D365 DLQ list / replay / resolve / payload routes (08-PROD-e, §8.2.7)",
+  "prompt": "# T-042 — D365 DLQ list / replay / resolve / payload routes\n\nPRD: docs/prd/08-PRODUCTION-PRD.md §8.2.7, §5.5 (DLQ retention), §3.2 RBAC (Prod Manager / Admin)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nExpose admin REST routes consuming `d365_push_dlq` (T-010) for the DLQ admin UI (T-051). Provide list with filters + health stats, replay (re-enqueue to outbox), mark-resolved (with required resolution notes, audit-preserving), and read-only payload retrieval for inspection.\n\n## Implementation contract\n1. `GET /api/admin/integrations/d365/dlq` — query params: `status` (open|resolved|all), `since`, `wo_id`, `page`, `page_size`. Returns rows + aggregate stats (`open_count`, `oldest_age_min`, `success_rate_24h`).\n2. `POST /api/admin/integrations/d365/dlq/[id]/replay` — re-inserts into `production_outbox_events` with `attempt_count` reset and writes an audit row; original DLQ row keeps `status='REPLAYED'` and gains `replayed_by_user_id` + `replayed_at`.\n3. `POST /api/admin/integrations/d365/dlq/[id]/resolve` — body `{ resolution_note: string min(10), resolution_kind }`; sets `status='RESOLVED_NO_PUSH'`, records `resolved_by_user_id` + `resolved_at` + note; never deletes the row.\n4. `GET /api/admin/integrations/d365/dlq/[id]/payload` — returns raw canonical + mapped JSON; read-only.\n5. All routes guarded with Prod Manager OR Admin role from 02-SETTINGS §14 RBAC; every mutation writes an `audit_log` row (actor, action, before/after status, correlation_id).\n\n## Files\n- apps/web/app/api/admin/integrations/d365/dlq/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/replay/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/resolve/route.ts [create]\n- apps/web/app/api/admin/integrations/d365/dlq/[id]/payload/route.ts [create]\n- packages/api-services/production/d365-dlq.ts [create]\n- packages/api-services/production/__tests__/d365-dlq.test.ts [create]\n\n## Acceptance criteria\n1. Given two DLQ rows (one OPEN, one RESOLVED_NO_PUSH), when GET list with `status=open` is called by a Prod Manager, then only the OPEN row plus aggregate stats with non-null `oldest_age_min` are returned.\n2. Given a DLQ row in OPEN state, when POST replay is invoked by an Admin, then a new `production_outbox_events` row is created, the DLQ row transitions to `REPLAYED` with `replayed_by_user_id`/`replayed_at`, and an audit_log row records the action.\n3. Given POST resolve is invoked without `resolution_note` or with note shorter than 10 chars, when the route handler runs, then it returns 422 with a validation error and no DLQ row is mutated.\n\n## Test strategy\n- RED: write packages/api-services/production/__tests__/d365-dlq.test.ts asserting list filter + stats, replay audit trail, resolve note-required, and payload read-only before service exists.\n- Run `pnpm vitest run packages/api-services/production/__tests__/d365-dlq.test.ts`\n- Run `pnpm typecheck` and `pnpm lint`.\n\n## Risk red lines\n- Do not delete DLQ rows on resolve (audit retention until resolved per §5.5).\n- Do not allow replay/resolve without Prod Manager/Admin role.\n- Do not return raw D365 credentials or signed envelope in payload route.\n- Do not let resolve bypass the `resolution_note` min(10) zod constraint.\n",
   "labels": [
     "prd",
+    "api",
+    "integrations",
+    "dlq",
     "T2-api"
   ],
   "priority": 100,
@@ -14,39 +17,55 @@
     "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
     "prd_refs": [
       "§8.2.7",
-      "UX PROD-012",
-      "MODAL-08-10"
+      "§5.5",
+      "§3.2"
     ],
-    "category": "production-readiness",
-    "subcategory": "D365 DLQ management API routes",
+    "category": "api",
+    "subcategory": "d365-dlq-admin",
     "task_type": "T2-api",
-    "parent_feature": "08-PRODUCTION full module readiness",
-    "context_budget": "40k",
-    "estimated_effort": "2-4h",
-    "description": "Implement DLQ list/replay/mark-resolved/payload routes for Production Manager/Admin.",
-    "details": "Create GET /api/admin/integrations/d365/dlq with filters and stats, POST replay that moves an item back to outbox failed/pending retry, POST mark-resolved with resolution notes, and GET payload endpoint returning raw canonical plus mapped D365 JSON. Enforce permissions, audit every replay/resolve, and keep payload display read-only.",
+    "parent_feature": "08-PROD E5 INTEGRATIONS stage 2",
+    "context_budget": "32k",
+    "estimated_effort": "2-3h",
+    "description": "Admin REST routes for D365 DLQ list/replay/resolve/payload with RBAC and audit logging; resolution never deletes DLQ rows.",
+    "details": "Four routes wrap a single d365-dlq service. List supports status/wo_id/since/pagination and embeds aggregate stats (open_count, oldest_age_min, success_rate_24h). Replay re-enqueues into production_outbox_events and writes audit_log + transitions the DLQ row to REPLAYED. Resolve requires resolution_note min(10) (zod) and sets status='RESOLVED_NO_PUSH' without deleting the row. Payload route is read-only (no mutation). Every mutation passes through Prod Manager/Admin RBAC guard from 02-SETTINGS §14 and writes audit_log.",
     "scope_files": [
       "apps/web/app/api/admin/integrations/d365/dlq/route.ts [create]",
       "apps/web/app/api/admin/integrations/d365/dlq/[id]/replay/route.ts [create]",
       "apps/web/app/api/admin/integrations/d365/dlq/[id]/resolve/route.ts [create]",
-      "packages/api-services/production/d365-dlq.ts [create]"
+      "apps/web/app/api/admin/integrations/d365/dlq/[id]/payload/route.ts [create]",
+      "packages/api-services/production/d365-dlq.ts [create]",
+      "packages/api-services/production/__tests__/d365-dlq.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement the dispatcher or adapter (T-041)",
+      "Do not implement the DLQ admin UI (T-051)",
+      "Do not change DLQ schema (T-010)",
+      "Do not own RBAC primitives (02-SETTINGS)"
     ],
     "dependencies": [
       "T-010",
       "T-041"
     ],
+    "parallel_safe_with": [
+      "T-043",
+      "T-044",
+      "T-045"
+    ],
     "acceptance_criteria": [
-      "GET list returns open/resolved rows and aggregate health stats",
-      "Replay increments audit trail and makes the event eligible for dispatcher retry",
-      "Mark-resolved requires notes and never deletes DLQ evidence"
+      "Given two DLQ rows (OPEN/RESOLVED_NO_PUSH), when GET list with status=open is called by Prod Manager, then only the OPEN row plus aggregate stats with non-null oldest_age_min are returned.",
+      "Given a DLQ row in OPEN, when POST replay is invoked by Admin, then a new production_outbox_events row is created, DLQ row transitions to REPLAYED with replayed_by/at and an audit_log row records the action.",
+      "Given POST resolve without resolution_note or with note <10 chars, when handler runs, then it returns 422 validation error and no DLQ row is mutated."
     ],
     "test_strategy": [
-      "RED: add failing unit/integration tests for the cited slice before implementation",
-      "GREEN: run targeted pnpm test command and relevant Playwright check"
+      "RED: packages/api-services/production/__tests__/d365-dlq.test.ts asserting list filter+stats, replay audit, resolve note-required and payload read-only before service exists.",
+      "Run 'pnpm vitest run packages/api-services/production/__tests__/d365-dlq.test.ts'",
+      "Run 'pnpm typecheck' and 'pnpm lint'."
     ],
     "risk_red_lines": [
-      "Do not treat D365 sync/export/Built as production release source-of-truth",
-      "Do not bypass 04-PLANNING WO snapshot or 03-TECHNICAL active factory spec/BOM approval"
+      "Do not delete DLQ rows on resolve.",
+      "Do not allow replay/resolve without Prod Manager/Admin role.",
+      "Do not return raw D365 credentials in payload route.",
+      "Do not bypass resolution_note min(10) constraint."
     ],
     "skills": [
       "test-driven-development",
@@ -63,8 +82,6 @@
         "changed_files",
         "test_commands_and_results",
         "acceptance_criteria_status",
-        "screenshots_or_artifacts",
-        "playwright_traces_or_artifacts",
         "deviations_from_prd",
         "git_status"
       ]
@@ -79,7 +96,7 @@
       {
         "module": "02-settings",
         "task_id": "T-126",
-        "reason": "Authorization helpers/actions/preflight blockers."
+        "reason": "RBAC role guard helpers for Prod Manager / Admin."
       }
     ]
   }

@@ -1,0 +1,105 @@
+{
+  "title": "T-006 — sales_orders + sales_order_lines + allergen_overrides + shipping_audit_log schema (11-shipping-b)",
+  "prompt": "# T-006 — SO + SO-lines + allergen_overrides + shipping_audit_log schema\n\nPRD: docs/prd/11-SHIPPING-PRD.md §9.1 (sales_orders, sales_order_lines), §9.2 (allergen_overrides, shipping_audit_log), §6 D-SHP-7 RLS, §6 D-SHP-8 SO status machine, §6 D-SHP-11 Audit Trail (ADR-008), §11 V-SHIP-SO-*\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce 4 SO-domain tables (`sales_orders`, `sales_order_lines`, `allergen_overrides`, `shipping_audit_log`) with `org_id` as canonical scope, RLS via `app.current_org_id()`, status-machine enum, ext_data JSONB (ADR-028 L3), R13 audit cols, and Drizzle ORM schemas.\n\n## Implementation contract\n1. Read `packages/db/migrations/` — pick next free 4-digit slot.\n2. Migration creates:\n   - ENUM `so_status_enum` with values per §6 D-SHP-8: `('draft','confirmed','allocated','partially_picked','picked','partially_packed','packed','manifested','shipped','partially_delivered','delivered','cancelled')`.\n   - `sales_orders` (org_id, site_id, order_number text UNIQUE per org with format `SO-YYYY-NNNNN`, customer_id FK customers, customer_po text, shipping_address_id FK customer_addresses, order_date date, promised_ship_date date CHECK >= order_date, required_delivery_date date, status so_status_enum NOT NULL DEFAULT 'draft', total_amount_gbp numeric(14,2), allergen_validated boolean NOT NULL DEFAULT false, confirmed_at timestamptz, confirmed_by uuid, shipped_at timestamptz, ext_data jsonb DEFAULT '{}'::jsonb, R13)\n   - `sales_order_lines` (org_id, sales_order_id FK ON DELETE CASCADE, line_number int, product_id uuid (FG SSOT consumer — NPD T-001 product table), quantity_ordered numeric(14,3) CHECK > 0, quantity_allocated numeric(14,3) DEFAULT 0, quantity_picked numeric(14,3) DEFAULT 0, quantity_packed numeric(14,3) DEFAULT 0, quantity_shipped numeric(14,3) DEFAULT 0, unit_price_gbp numeric(14,4) CHECK > 0, line_total_gbp numeric(14,4), requested_lot text, notes text, ext_data jsonb, R13; UNIQUE(sales_order_id, line_number))\n   - `allergen_overrides` (org_id, sales_order_id FK, customer_id FK, conflicting_allergens jsonb NOT NULL, reason_code text, approver_user_id uuid, approver_pin_hash text — used by @monopilot/e-sign T-124, notes text, overridden_at timestamptz NOT NULL DEFAULT now(), audit_hash text NOT NULL) — 21 CFR Part 11 e-sig hook P2.\n   - `shipping_audit_log` (org_id, table_name, record_id uuid, old_data jsonb, new_data jsonb, user_id uuid, ip_address inet, action_reason text, changed_at timestamptz NOT NULL DEFAULT now()) — PG triggers emit; 7y retention BRCGS.\n3. ENABLE + FORCE RLS on all 4 tables. Policies `<table>_org_context` USING `(org_id = app.current_org_id())` WITH CHECK same — no GUC reads.\n4. PG trigger functions `<table>_audit_trigger()` write to `shipping_audit_log` on every INSERT/UPDATE/DELETE of sales_orders + sales_order_lines + allergen_overrides; trigger reads actor `user_id` from `current_setting('app.current_user_id', true)` (different concern from org context; foundation-set).\n5. Drizzle schemas in `packages/db/src/schema/shipping/sales-orders.ts`.\n6. Register the `audit_events` participant: each of the 4 tables also has a `paired audit_events` row via the foundation R13 pattern (T-040). Coordinate with foundation: this task asserts the trigger calls into both `shipping_audit_log` AND `audit_events`.\n7. Cross-module dep: `sales_order_lines.product_id` references NPD `product` table (FG SSOT) — do NOT introduce a parallel `fa_id` or `finished_article_id` column; per Wave0 v4.3 FG SSOT.\n\n## Files\n- packages/db/migrations/00XX_shipping_sales_orders.sql [create]\n- packages/db/src/schema/shipping/sales-orders.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/shipping-sales-orders-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration runs, then ENUM so_status_enum exists with all 12 values, and the 4 tables exist with org_id NOT NULL + R13 cols + RLS + FORCE RLS.\n2. Given pg_policies is inspected, when listed for the 4 tables, then qual/withcheck reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.\n3. Given INSERT on sales_orders with promised_ship_date < order_date, when constraint runs, then the CHECK fails (V-SHIP-SO-04).\n4. Given a sales_orders row is UPDATEd, when the audit trigger fires, then a shipping_audit_log row AND a paired audit_events row are written (both with retention_class=`audit` for shipping_audit_log).\n5. Given two orgs each insert a SO with order_number 'SO-2026-00001', when each SELECTs under app.set_org_context, then each sees only its own row (no cross-org leak; UNIQUE per org holds).\n\n## Test strategy\n- RED: testcontainers Postgres 16 isolation test asserting AC 1-5; grep-asserts pg_policies text references app.current_org_id() and contains no GUC reads.\n- Run `pnpm --filter db migrate && pnpm --filter db test shipping-sales-orders-schema`.\n\n## Risk red lines\n- Do not name the business-scope column `tenant_id`.\n- Do not read `current_setting('app.tenant_id'|'app.current_org_id')` in policies — use `app.current_org_id()`.\n- Do not introduce `fa_id` / `finished_article_id` parallel to `product_id` — FG SSOT per Wave0 v4.3.\n- Do not omit FORCE ROW LEVEL SECURITY.\n- Do not implement status-machine enforcement here — schema-only; state machine in T-007.\n- Do not seed any SO rows.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-006",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§9.2",
+      "§6 D-SHP-7",
+      "§6 D-SHP-8",
+      "§6 D-SHP-11",
+      "§11 V-SHIP-SO-04"
+    ],
+    "category": "data",
+    "subcategory": "schema-sales-orders",
+    "task_type": "T1-schema",
+    "parent_feature": "11-shipping-b",
+    "context_budget": "55k",
+    "estimated_effort": "3-4h",
+    "description": "4 SO-domain tables + status machine ENUM + audit triggers + RLS via app.current_org_id().",
+    "details": "Pre-impl: git status + read migrations/. Status ENUM matches D-SHP-8 exactly (12 values). product_id references NPD product table (FG SSOT). Triggers write both shipping_audit_log AND audit_events (foundation R13 pairing). No GUC reads in policies — app.current_org_id() only.",
+    "scope_files": [
+      "packages/db/migrations/00XX_shipping_sales_orders.sql [create]",
+      "packages/db/src/schema/shipping/sales-orders.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/shipping-sales-orders-schema.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not implement state machine transitions here (T-007).",
+      "Do not implement Server Actions (T-007).",
+      "Do not build UI (T-008/T-009/T-010)."
+    ],
+    "dependencies": [
+      "T-001",
+      "00-foundation/T-125",
+      "00-foundation/T-040 (audit_events)"
+    ],
+    "parallel_safe_with": [
+      "T-011",
+      "T-015",
+      "T-018"
+    ],
+    "cross_module_dependencies": [
+      "01-npd/T-001 (product FG SSOT)",
+      "00-foundation/T-125 (app.current_org_id())",
+      "00-foundation/T-040 (audit_events R13)"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration runs, then so_status_enum has 12 values and the 4 tables exist with org_id NOT NULL, FORCE RLS enabled, and correct FK constraints.",
+      "Given pg_policies inspected, when listed, then qual/withcheck reference app.current_org_id() and contain no current_setting('app.tenant_id'|'app.current_org_id') GUC reads.",
+      "Given INSERT on sales_orders with promised_ship_date < order_date, when CHECK runs, then it fails (V-SHIP-SO-04 constraint).",
+      "Given a sales_orders UPDATE, when audit trigger fires, then shipping_audit_log AND audit_events rows are written (R13 dual-write); AND given two orgs each insert SO 'SO-2026-00001', when each SELECTs under app.set_org_context, then each only sees its own row (RLS isolation)."
+    ],
+    "test_strategy": [
+      "RED: testcontainers Postgres 16 asserting AC 1-5; grep pg_policies text for app.current_org_id() and absence of GUC reads.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test shipping-sales-orders-schema`."
+    ],
+    "risk_red_lines": [
+      "Do not name the business-scope column tenant_id.",
+      "Do not read current_setting('app.tenant_id'|'app.current_org_id') in policies.",
+      "Do not introduce fa_id parallel to product_id (FG SSOT).",
+      "Do not omit FORCE ROW LEVEL SECURITY.",
+      "Do not implement status-machine enforcement here.",
+      "Do not seed SO rows."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

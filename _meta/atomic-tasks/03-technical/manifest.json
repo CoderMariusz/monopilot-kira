@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T00:00:00Z",
   "generator": "manual-wave0-readiness-95-plus-technical-ui-parity-patch",
   "pipeline_name": "kira_dev",
-  "task_count": 90,
+  "task_count": 91,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -95,7 +95,8 @@
     "tasks/T-087.json",
     "tasks/T-088.json",
     "tasks/T-089.json",
-    "tasks/T-090.json"
+    "tasks/T-090.json",
+    "tasks/T-091.json"
   ],
   "coverage_file": "coverage.md",
   "notes": [

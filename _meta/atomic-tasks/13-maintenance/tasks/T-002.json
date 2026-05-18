@@ -1,0 +1,99 @@
+{
+  "title": "T-002 — maintenance_settings + technician_profiles + equipment schema DDL + RLS (13-a, MNT §9.1-9.3)",
+  "prompt": "# T-002 — maintenance_settings + technician_profiles + equipment schema\n\nPRD: docs/prd/13-MAINTENANCE-PRD.md §9.1, §9.2, §9.3, §6.3 (REC-L1 site_id), §14.2 (RLS)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the 3 base maintenance tables (`maintenance_settings`, `technician_profiles`, `equipment`) as a single Drizzle migration with `org_id NOT NULL`, `site_id UUID NULL` (REC-L1 day-1, not retrofit), R13 audit columns, ENABLE+FORCE RLS, and policies using foundation `app.current_org_id()` function (Wave1 T-125). NO `current_setting()` GUC reads.\n\n## Pre-flight schema check\nBefore drafting the migration, read existing migrations in `packages/db/migrations/` to verify (a) latest migration number, (b) that `app.current_org_id()` function exists (Wave1 T-125), (c) that `sites` and `site_user_access` tables exist for `site_id` FK (14-multi-site dependency — if not present, `site_id` is plain UUID NULL with no FK and a comment noting the constraint is added by 14-multi-site).\n\n## Implementation contract\n1. New migration `packages/db/migrations/NNNN_maintenance_a_base.sql` (NNNN = next free) with CREATE TABLE for the three tables per PRD §9.1/9.2/9.3 DDL — `equipment.assigned_operation_id` is optional FK to 02-SETTINGS `manufacturing_operations` (NULL if table not yet present; add comment).\n2. R13 audit cols (`created_at`, `created_by`, `updated_at`, `updated_by`, `deleted_at`) on all 3 tables per Foundation §10 R13.\n3. ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY on all 3.\n4. RLS policy `<table>_org_site` USING (`org_id = app.current_org_id() AND (site_id IS NULL OR site_id IN (SELECT site_id FROM site_user_access WHERE user_id = auth.uid()))`) WITH CHECK same.\n5. Indexes per PRD §9 (`idx_maintenance_settings_org_site`, `idx_equipment_org_site`, `idx_equipment_line`, `idx_equipment_operation`).\n6. Drizzle schema entries in `packages/db/src/schema/maintenance/{settings,technicians,equipment}.ts`; export typed Insert/Select; barrel in `packages/db/src/schema/index.ts`.\n7. Vitest covering RLS isolation (two orgs see only their rows) + FORCE RLS + policy text mentions `app.current_org_id()` not `current_setting()`.\n\n## Files\n- packages/db/migrations/NNNN_maintenance_a_base.sql [create]\n- packages/db/src/schema/maintenance/settings.ts [create]\n- packages/db/src/schema/maintenance/technicians.ts [create]\n- packages/db/src/schema/maintenance/equipment.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/maintenance-a-base.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh DB, when migration runs, then `\\d maintenance_settings`, `\\d technician_profiles`, `\\d equipment` each list the columns per PRD §9.1/9.2/9.3 with `org_id NOT NULL`, `site_id UUID NULL` and the R13 audit cols, and RLS+FORCE RLS are enabled on all three.\n2. Given `app.set_org_context(token, orgA)` for one session and `(token, orgB)` for another, when both call `SELECT * FROM equipment LIMIT 1` as `app_user`, then each only sees their org's rows (RLS enforced).\n3. Given `pg_policies` is inspected, when policies for the three tables are listed, then USING/WITH CHECK reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC reads.\n4. Given the migration is idempotent (`IF NOT EXISTS`), when re-applied to a populated DB, then it succeeds without altering existing rows.\n\n## Test strategy\n- RED: write packages/db/__tests__/maintenance-a-base.test.ts asserting the four ACs before migration exists; tests use `app.set_org_context` per org.\n- Run `pnpm --filter db migrate && pnpm --filter db test maintenance-a-base`.\n\n## Risk red lines\n- Do not name the business-scope column `tenant_id`; Wave0 v4.3 lock uses `org_id`.\n- Do not read `current_setting('app.tenant_id'|'app.current_org_id')` GUC directly; use foundation `app.current_org_id()`.\n- Do not skip ENABLE+FORCE RLS or omit policies — RLS coverage is a release gate.\n- Do not add cascade DELETE on the org FK.\n- Do not retrofit `site_id` later — it is REC-L1 day-1 per PRD §6.3.",
+  "labels": [
+    "prd",
+    "data",
+    "schema",
+    "rls",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-002",
+    "source_prd": "docs/prd/13-MAINTENANCE-PRD.md",
+    "prd_refs": [
+      "§9.1",
+      "§9.2",
+      "§9.3",
+      "§6.3",
+      "§14.2"
+    ],
+    "category": "data",
+    "subcategory": "schema-asset-registry",
+    "task_type": "T1-schema",
+    "parent_feature": "13-MAINTENANCE-a",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create maintenance_settings + technician_profiles + equipment tables with REC-L1 site_id, R13 audit cols, RLS via app.current_org_id() + site_user_access, Drizzle schemas, vitest RLS isolation tests.",
+    "details": "Single migration covering MNT §9.1/9.2/9.3 base tables. Asset hierarchy (site→area→line→machine→component) starts via equipment.parent_line_id FK (08-PROD production_lines) — full ltree expansion deferred to 14-multi-site. Per Auditor A cross-cutting gap on missing apps/worker/RLS sweep tasks: this task's acceptance assertion that policies reference `app.current_org_id()` not GUC closes a known foundation gap-style issue at the table level. Cross-references: foundation T-125 app.current_org_id; 03-technical equipment scope may extend asset hierarchy later — that is a 03-technical task, not this one.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_maintenance_a_base.sql [create]",
+      "packages/db/src/schema/maintenance/settings.ts [create]",
+      "packages/db/src/schema/maintenance/technicians.ts [create]",
+      "packages/db/src/schema/maintenance/equipment.ts [create]",
+      "packages/db/src/schema/index.ts [modify]",
+      "packages/db/__tests__/maintenance-a-base.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not create maintenance_schedules / mwo / spares / calibration here (T-003..T-006)",
+      "Do not add full ltree asset_hierarchy table (14-multi-site)",
+      "Do not seed reference tables (T-013)",
+      "Do not write UI here (T-014+)"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "T-001",
+      "T-003",
+      "T-004"
+    ],
+    "acceptance_criteria": [
+      "Given a fresh DB, when migration runs, then maintenance_settings/technician_profiles/equipment list the columns per PRD §9.1/9.2/9.3 with org_id NOT NULL, site_id UUID NULL, R13 audit cols, and RLS+FORCE RLS enabled",
+      "Given app.set_org_context for two orgs in separate sessions, when SELECT runs as app_user, then each session only sees its own org rows",
+      "Given pg_policies is inspected, when policies are listed, then USING/WITH CHECK reference app.current_org_id() with no current_setting() GUC reads",
+      "Given the migration is idempotent, when re-applied to a populated DB, then it succeeds without altering existing rows"
+    ],
+    "test_strategy": [
+      "RED: write packages/db/__tests__/maintenance-a-base.test.ts asserting RLS isolation + FORCE RLS + policy text references app.current_org_id() before migration exists",
+      "Run `pnpm --filter db migrate && pnpm --filter db test maintenance-a-base`",
+      "Manually inspect `\\d <table>` via psql to verify column shape matches §9 DDL"
+    ],
+    "risk_red_lines": [
+      "Do not name the business-scope column tenant_id; Wave0 v4.3 lock is org_id",
+      "Do not read current_setting('app.tenant_id'|'app.current_org_id') GUC; use foundation app.current_org_id()",
+      "Do not skip ENABLE+FORCE RLS or omit policies",
+      "Do not cascade DELETE on org FK",
+      "Do not retrofit site_id later — REC-L1 day-1 per §6.3"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

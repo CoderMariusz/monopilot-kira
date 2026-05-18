@@ -46,7 +46,8 @@
     ],
     "test_strategy": [
       "RED: 3 cases via fixtures.",
-      "GREEN: implement."
+      "GREEN: implement.",
+      "Run `pnpm --filter @monopilot/web vitest run scripts/rules-deploy.test.ts`."
     ],
     "risk_red_lines": [
       "Do not run from app at request time — CI/CD only.",

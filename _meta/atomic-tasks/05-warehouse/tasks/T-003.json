@@ -1,11 +1,11 @@
 {
-  "title": "T-003 — lp_genealogy table migration",
-  "prompt": "# T-003 — lp_genealogy table migration\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §5.3, §11.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `lp_genealogy` table to log split/merge/consume/output/quarantine_move events with parent/child LP linkage.\n\n## Implementation contract\nAdd `packages/db/src/schema/lp-genealogy.ts` with columns per §5.3: id, tenant_id, parent_lp_id, child_lp_id, operation_type ENUM ('split','merge','consume','output','quarantine_move','adjustment'), quantity, operation_date, wo_id, grn_id, user_id, reason_code, reason_text, is_reversed (default false), context_jsonb. Add cycle-prevention DB trigger or document deferral to T-011 indexes (use simple non-recursive constraint here: child_lp_id != parent_lp_id when both non-null).\n\n## Files (scope)\n- packages/db/src/schema/lp-genealogy.ts [create]\n- packages/db/migrations/0NN_lp_genealogy.sql [create]\n- packages/db/src/schema/lp-genealogy.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d lp_genealogy` is inspected, then all PRD §5.3 columns are present.\n2. Given an INSERT with parent_lp_id = child_lp_id, when committed, then DB raises a CHECK violation.\n3. Given an operation_type 'invalid' is inserted, when committed, then DB raises an enum violation.\n\n## Test strategy\n- RED: lp-genealogy.test.ts asserts CHECK violation and enum rejection.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-genealogy`.\n\n## Risk red lines\n- Do not allow self-loops (parent==child).\n- Do not add recursive triggers in this task (T-011/V-WH-TRACE-002 deferred).\n- Do not store full payload here — use context_jsonb for op-specific metadata.",
+  "title": "T-003 — lp_genealogy table + FSMA 204 indexes + DAG invariant (WH §5.3, §11)",
+  "prompt": "# T-003 — lp_genealogy table + FSMA 204 indexes + DAG invariant (WH §5.3, §11)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §5.3, §11\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `lp_genealogy` operation log capturing every split/merge/consume/output/quarantine_move with parent_lp_id + child_lp_id linkage, the indexes that make §11.2 recursive CTE <30 s, and a DAG invariant trigger (V-WH-TRACE-002).\n\n## Implementation contract\n1. Migration `0NN_lp_genealogy.sql`: table per §5.3 columns including `operation_type` ENUM ('split','merge','consume','output','quarantine_move','adjustment'), `parent_lp_id` UUID FK, `child_lp_id` UUID FK NULL, `wo_id`/`grn_id` nullable FKs, `quantity`, `operation_date`, `reason_code`, `reason_text`, `is_reversed`, `context_jsonb`.\n2. Indexes: `(parent_lp_id, operation_date DESC)`, `(child_lp_id, operation_date DESC)`, `(wo_id, operation_type)` per §5.3.\n3. RLS enable + `tenant_isolation_lp_genealogy` policy.\n4. DAG invariant: insert/update trigger `lp_genealogy_no_cycle` rejecting rows that would create a cycle (parent reachable via descendants).\n5. Drizzle schema `packages/db/src/schema/lp-genealogy.ts` + `lpOperationType` enum union.\n\n## Files\n- packages/db/src/schema/lp-genealogy.ts [create]\n- packages/db/migrations/0NN_lp_genealogy.sql [create]\n- packages/db/src/schema/lp-genealogy.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d lp_genealogy` is inspected, then every §5.3 column exists, three indexes exist, and RLS is enabled.\n2. Given an insert would create a cycle (LP-A → LP-B → LP-A), when attempted, then the trigger raises an exception and rejects the row (V-WH-TRACE-002).\n3. Given a recursive CTE query traverses 1000 genealogy rows depth ≤10, when executed with the index, then it completes in <100 ms (smoke check).\n\n## Test strategy\n- RED: `packages/db/src/schema/lp-genealogy.test.ts` asserting RLS, DAG cycle rejection, and index usage by EXPLAIN.\n- Run `pnpm --filter db migrate && pnpm --filter db test lp-genealogy`.\n\n## Risk red lines\n- Do not allow cycles — DAG invariant must be enforced server-side.\n- Do not skip the three indexes (FSMA 204 SLO <30 s depends on them).\n- Do not omit RLS.\n- Do not auto-cascade DELETE on parent/child FKs — genealogy is append-only.\n\n## Dependencies\n- T-002",
   "labels": [
     "prd",
     "data",
-    "lp-genealogy",
-    "T1-schema"
+    "genealogy",
+    "t1-schema"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -21,11 +21,11 @@
     "category": "data",
     "subcategory": "lp-genealogy",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "25k",
     "estimated_effort": "1h",
-    "description": "Create lp_genealogy table for split/merge/consume/output/quarantine_move audit log per §5.3.",
-    "details": "Drizzle schema + SQL migration with op-type enum and cycle-prevention CHECK (parent != child). Indexes (parent_lp_id, operation_date DESC) deferred to T-011.",
+    "description": "Create `lp_genealogy` operation log capturing every split/merge/consume/output/quarantine_move with parent_lp_id + child_lp_id linkage, the indexes that make §11.2 recursive CTE <30 s, and a DAG invariant trigger (V-WH-TRACE-002).",
+    "details": "Create `lp_genealogy` operation log capturing every split/merge/consume/output/quarantine_move with parent_lp_id + child_lp_id linkage, the indexes that make §11.2 recursive CTE <30 s, and a DAG invariant trigger (V-WH-TRACE-002). Migration `0NN_lp_genealogy.sql`: table per §5.3 columns including `operation_type` ENUM ('split','merge','consume','output','quarantine_move','adjustment'), `parent_lp_id` UUID FK, `child_lp_id` UUID FK NULL, `wo_id`/`grn_id` nullable FKs, `quantity`, `operation_date`, `reason_code`, `reason_text`, `is_reversed`, `context_jsonb`. Indexes: `(parent_lp_id, operation_date DESC)`, `(child_lp_id, operation_date DESC)`, `(wo_id, operation_type)` per §5.3.",
     "scope_files": [
       "packages/db/src/schema/lp-genealogy.ts [create]",
       "packages/db/migrations/0NN_lp_genealogy.sql [create]",
@@ -48,22 +48,24 @@
       "T-009"
     ],
     "acceptance_criteria": [
-      "Given the migration runs, when '\\d lp_genealogy' is inspected, then all PRD §5.3 columns are present",
-      "Given INSERT with parent_lp_id = child_lp_id, when committed, then DB raises a CHECK violation",
-      "Given an operation_type 'invalid' insert, when committed, then DB raises an enum-violation error"
+      "Given the migration runs, when `\\d lp_genealogy` is inspected, then every §5.3 column exists, three indexes exist, and RLS is enabled.",
+      "Given an insert would create a cycle (LP-A → LP-B → LP-A), when attempted, then the trigger raises an exception and rejects the row (V-WH-TRACE-002).",
+      "Given a recursive CTE query traverses 1000 genealogy rows depth ≤10, when executed with the index, then it completes in <100 ms (smoke check)."
     ],
     "test_strategy": [
-      "RED: lp-genealogy.test.ts asserts CHECK + enum violations via tx",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test lp-genealogy'"
+      "RED: `packages/db/src/schema/lp-genealogy.test.ts` asserting RLS, DAG cycle rejection, and index usage by EXPLAIN.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test lp-genealogy`."
     ],
     "risk_red_lines": [
-      "Do not allow parent==child rows",
-      "Do not introduce recursive triggers in this task",
-      "Do not denormalize LP product into this table"
+      "Do not allow cycles — DAG invariant must be enforced server-side.",
+      "Do not skip the three indexes (FSMA 204 SLO <30 s depends on them).",
+      "Do not omit RLS.",
+      "Do not auto-cascade DELETE on parent/child FKs — genealogy is append-only."
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -89,7 +91,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -115,7 +117,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

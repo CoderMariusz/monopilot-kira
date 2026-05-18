@@ -1,0 +1,82 @@
+{
+  "title": "T-104 — org-scoped Postgres sequence for nextSeq7() replacing Date-based counter (FT-044)",
+  "prompt": "# T-104 — org-scoped Postgres sequence for nextSeq7() replacing Date-based counter (FT-044)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §10\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-044** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P2** (S effort)\n\n## Goal\nnextSeq7() reads from an org-scoped Postgres sequence; collision tests pass under N=10k concurrent calls.\n\n## Implementation contract\n1. Migration 036 creates a `seq_short_codes` sequence + a function `app_next_seq_7(p_org_id uuid) returns text` that pads to 7 chars.\n2. nextSeq7 calls the function via the app-role pool.\n3. Test: spawn 1000 parallel nextSeq7 calls for the same org; assert all returned values are unique.\n\n## Files (scope)\n- packages/db/migrations/036-org-scoped-sequences.sql [create]\n- packages/db/src/next-seq-7.ts [modify]\n- packages/db/__tests__/next-seq-7.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 036 applied, when nextSeq7 is called for org A, then it returns a 7-digit string.\n2. Given 1000 parallel nextSeq7 calls for the same org, when run, then all returned values are unique.\n3. Given two orgs, when each calls nextSeq7, then their sequences are independent (org_id is part of the sequence key).\n\n## Test strategy\n- RED: write next-seq-7.test.ts asserting uniqueness under load before migration.\n- Use `Promise.all` of 1000 invocations and assert set size == 1000.\n- Run `pnpm --filter @monopilot/db test next-seq-7`.\n\n## Risk red lines\n- Do not share the sequence across orgs.\n- Do not relax to 6 digits.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "data",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "sequences",
+    "T1-schema"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-104",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§10"
+    ],
+    "original_carry_forward_id": "FT-044",
+    "category": "data",
+    "subcategory": "sequences",
+    "task_type": "T1-schema",
+    "parent_feature": "00-FOUNDATION-d",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Replace Date-based collision-prone nextSeq7() counter with an org-scoped Postgres sequence per org_id.",
+    "details": "T-021's nextSeq7() uses Date.now() to build a 7-digit suffix, which is collision-prone under load. Switch to a per-org sequence backed by Postgres `CREATE SEQUENCE seq_<short>_<org_id>`.",
+    "scope_files": [
+      "packages/db/migrations/036-org-scoped-sequences.sql [create]",
+      "packages/db/src/next-seq-7.ts [modify]",
+      "packages/db/__tests__/next-seq-7.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change the consumer signature of nextSeq7."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given migration 036 applied, when nextSeq7 is called for org A, then it returns a 7-digit string.",
+      "Given 1000 parallel nextSeq7 calls for the same org, when run, then all returned values are unique.",
+      "Given two orgs, when each calls nextSeq7, then their sequences are independent (org_id is part of the sequence key)."
+    ],
+    "test_strategy": [
+      "RED: write next-seq-7.test.ts asserting uniqueness under load before migration.",
+      "Use `Promise.all` of 1000 invocations and assert set size == 1000.",
+      "Run `pnpm --filter @monopilot/db test next-seq-7`."
+    ],
+    "risk_red_lines": [
+      "Do not share the sequence across orgs.",
+      "Do not relax to 6 digits."
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

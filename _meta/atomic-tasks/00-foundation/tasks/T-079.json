@@ -1,0 +1,80 @@
+{
+  "title": "T-079 — SoD semantic correction: check target's existing roles in addition to actor's (FT-019)",
+  "prompt": "# T-079 — SoD semantic correction: check target's existing roles in addition to actor's (FT-019)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nOriginal carry-forward ID: **FT-019** (from `_meta/audits/2026-05-07-foundation-final-carry-forward-backlog.md`)\nSeverity: **P1** (S effort)\n\n## Goal\nExtend SoD evaluator to consider target user's existing roles; pinned conflict pairs blocked.\n\n## Implementation contract\n1. sod.ts adds `getTargetUserRoles(targetUserId, orgId)` query.\n2. Union actor + target role sets; check against conflict pairs.\n3. Test: actor=OrgAdmin grants SchemaAdmin to target who already has OrgAdmin → blocked.\n4. Test: actor=OrgAdmin grants SchemaAdmin to fresh target → blocked (target would accumulate both) — verifies the new semantic.\n\n## Files (scope)\n- packages/rbac/src/sod.ts [modify]\n- packages/rbac/src/__tests__/sod-target-roles.test.ts [create]\n\n## Acceptance criteria\n1. Given target user already holds org.access.admin, when an actor attempts to grant org.schema.admin to that user, then SoD blocks with reason 'target_role_conflict'.\n2. Given target user holds neither role, when an actor grants org.schema.admin, then SoD allows the grant.\n3. Given target user holds org.schema.admin and actor attempts to grant org.access.admin, then SoD blocks (symmetric).\n\n## Test strategy\n- RED: write sod-target-roles.test.ts asserting both symmetric blocks before implementation.\n- Run `pnpm --filter @monopilot/rbac test sod-target-roles`.\n\n## Risk red lines\n- Do not silently drop the actor-side SoD check; the new semantic is additive.\n- Do not relax the dual-control approval flow.\n\n## Closeout evidence\nProvide: changed_files, test_commands_and_results, acceptance_criteria_status (per AC), deviations_from_prd, git_status. Use the test-driven-development skill (RED-first) and requesting-code-review at GREEN.",
+  "labels": [
+    "prd",
+    "auth",
+    "wave-d-carry-forward",
+    "wave-d-followup",
+    "rbac",
+    "sod",
+    "T2-api"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-079",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§3"
+    ],
+    "original_carry_forward_id": "FT-019",
+    "category": "auth",
+    "subcategory": "rbac-sod",
+    "task_type": "T2-api",
+    "parent_feature": "00-FOUNDATION-h",
+    "context_budget": "50k",
+    "estimated_effort": "1-4h",
+    "description": "Fix SoD evaluator to also check target user's existing roles (not only the actor's) so an Org Admin cannot grant Schema Admin to a user who already holds it concurrently with another conflicting role.",
+    "details": "Today the SoD checker only considers actor's role set. The correct semantic per PRD §3 is: prevent any single user from accumulating both Org Admin AND Schema Admin (mutually exclusive at the role-grant level). Check the target's existing role set before allowing a grant.",
+    "scope_files": [
+      "packages/rbac/src/sod.ts [modify]",
+      "packages/rbac/src/__tests__/sod-target-roles.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not add new conflict pairs in this task."
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given target user already holds org.access.admin, when an actor attempts to grant org.schema.admin to that user, then SoD blocks with reason 'target_role_conflict'.",
+      "Given target user holds neither role, when an actor grants org.schema.admin, then SoD allows the grant.",
+      "Given target user holds org.schema.admin and actor attempts to grant org.access.admin, then SoD blocks (symmetric)."
+    ],
+    "test_strategy": [
+      "RED: write sod-target-roles.test.ts asserting both symmetric blocks before implementation.",
+      "Run `pnpm --filter @monopilot/rbac test sod-target-roles`."
+    ],
+    "risk_red_lines": [
+      "Do not silently drop the actor-side SoD check; the new semantic is additive.",
+      "Do not relax the dual-control approval flow."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}

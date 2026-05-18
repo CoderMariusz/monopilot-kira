@@ -1,51 +1,105 @@
 {
-  "title": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
-  "prompt": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration\nImplement this Wave0 missing NPD backend/read-model task. Discover files first; no app code outside scope; D365 is not SSOT; Technical approval controls factory use.",
+  "title": "T-099 — Allergens cascade bulk-rebuild worker on Reference.Allergens_by_RM / Allergens_added_by_Process change (NPD-c §8.5)",
+  "prompt": "# T-099 — Allergens cascade bulk-rebuild worker\n\nPRD: docs/prd/01-NPD-PRD.md §8.5 (Cascade rule), §8.2-§8.4 (Reference.Allergens_*), §8.7 (Refresh allergens UI), §8.9 (Open items)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nWhen the `Reference.Allergens_by_RM` or `Reference.Allergens_added_by_Process` reference tables change in bulk (supplier-spec mass upload, regulatory update, lab-result CSV import), trigger a deterministic background rebuild of `fa.allergens` + `fa.may_contain` across every affected product/FA row in the org. Stale per-FA derivation is the failure mode T-009..T-017 do not cover — they fire only when the FA itself changes, leaving every existing FA stale after a reference-table batch update.\n\n## Implementation contract\n1. New DB migration `packages/db/migrations/00xx_allergen_cascade_rebuild.sql` adds:\n   - Outbox event types `reference.allergens_by_rm.bulk_changed` and `reference.allergens_added_by_process.bulk_changed` (emitted by existing CRUD/import server actions for those reference tables — wire emission from CRUD endpoints, do NOT add new endpoints).\n   - SQL function `app.queue_allergen_cascade_rebuild(org_id uuid, ingredient_codes text[], process_names text[])` that inserts one job row per affected `product.product_code` into the existing job table (T-111 worker registry) using SECURITY DEFINER and `app.current_org_id()` for scope.\n2. New worker job `apps/worker/src/jobs/allergen-cascade-rebuild.ts` registered with T-111 worker registry; consumes outbox events via T-112 dispatcher; computes affected FA set by joining `product.ingredient_codes` against changed `ingredient_codes`, and by joining `prod_detail.manufacturing_operation_1..4` against changed `process_names`; per FA invokes the existing per-FA cascade function (T-009..T-017 entrypoint, e.g. `recomputeAllergens(productCode)`) in batches of 100 inside one tx per batch.\n3. Idempotency: the job key is `(org_id, product_code, source_event_id)`; re-running the same event is a no-op. Concurrency: at most one rebuild per `org_id` in flight (advisory lock `pg_try_advisory_xact_lock(hashtext('npd.allergen_rebuild:' || org_id::text))`).\n4. Observability: emit `npd.allergens.bulk_rebuild_completed` with `{ org_id, source_event_id, affected_count, duration_ms, dropped_count }` and write an R13 audit row to `audit_events` referencing the source change row + each affected FA.\n5. Rate-limit guard via T-121 primitive: at most 1 full-org rebuild per 5 minutes; subsequent triggers within the window coalesce into a single re-run after the window closes (debounce). Hard cap: 10k FAs per single rebuild; over cap → split into chunks and re-enqueue.\n\n## Files\n- packages/db/migrations/00xx_allergen_cascade_rebuild.sql [create]\n- apps/worker/src/jobs/allergen-cascade-rebuild.ts [create]\n- apps/worker/src/jobs/__tests__/allergen-cascade-rebuild.test.ts [create]\n- packages/cascade-engine/src/bulk-rebuild.ts [create]\n- packages/cascade-engine/__tests__/bulk-rebuild.test.ts [create]\n- apps/web/app/(settings)/reference/allergens/_actions/emit-bulk-changed.ts [modify]\n\n## Acceptance criteria\n1. Given 200 FAs reference RM ingredient code `RM1939`, when an admin bulk-imports a CSV that updates `Reference.Allergens_by_RM` for `RM1939` (adding `Soy`), then within 30 seconds the worker has recomputed `fa.allergens` for all 200 FAs and exactly one `npd.allergens.bulk_rebuild_completed` outbox event has been emitted with `affected_count=200` per §8.5 cascade rule.\n2. Given a duplicate `reference.allergens_by_rm.bulk_changed` event is replayed (same `source_event_id`), when the worker processes it, then no FA is recomputed twice and the job count for that key remains 1 (idempotent dedup per §10 outbox contract).\n3. Given two concurrent bulk imports for the same org within 5 minutes, when both events are emitted, then the second is coalesced (debounced) and exactly one rebuild runs covering the union of affected FAs per T-121 rate-limit primitive.\n4. Given org A imports 500 RM allergens and org B imports 50 in parallel, when both workers run, then RLS prevents org A's worker from touching any org B FA row and vice versa (verified via `app.current_org_id()` scoping and the SQL function returns disjoint product_code sets per org).\n5. Given a manual override exists for an FA via `fa_allergen_overrides` (§8.6 / §8.10), when the bulk rebuild touches that FA, then the override row is preserved, the auto-cascade source values are recomputed, and the audit row records that override-diff is now non-empty (override does NOT clear auto cascade per §8.6).\n\n## Test strategy\n- RED 1: vitest in `packages/cascade-engine/__tests__/bulk-rebuild.test.ts` asserts the SQL function returns the correct affected-FA set for a given (ingredient_codes, process_names) tuple — fails before the function exists.\n- RED 2: vitest in `apps/worker/src/jobs/__tests__/allergen-cascade-rebuild.test.ts` mounts the worker registry, fires the bulk-changed event, asserts AC 1 + 2 + 5; uses `setOrgContext` to verify AC 4 RLS isolation.\n- Run `pnpm --filter db migrate && pnpm --filter cascade-engine test bulk-rebuild && pnpm --filter worker test allergen-cascade-rebuild`.\n- Integration smoke (deferred to T-091-class wiring task — not in this scope): trigger via Settings reference CSV import UI.\n\n## Risk red lines\n- Do not run the rebuild synchronously inside the reference-table CRUD request — must be queued via outbox + T-111/T-112 worker; otherwise a 10k-FA org would exceed any HTTP timeout.\n- Do not bypass `app.current_org_id()` in the SQL function — SECURITY DEFINER plus `org_id` argument MUST be cross-checked against the current session's org before queueing jobs.\n- Do not overwrite or clear rows in `fa_allergen_overrides` — overrides are auditable history per §8.6 / §8.10 and override-source diff is the user-visible signal.\n- Do not emit one outbox event per FA — single coalesced `bulk_rebuild_completed` envelope only (otherwise outbox storm).\n- Do not add new D365 or FG-side state transitions — this worker mutates only NPD allergen derivation columns, not factory release state.\n",
   "labels": [
     "monopilot-kira",
     "01-npd",
-    "wave0-hardening"
+    "allergens-cascade",
+    "worker",
+    "wiring-test"
   ],
-  "priority": 80,
+  "priority": 70,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-    "description": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
-    "details": "T-099 — Trial/Pilot/Handoff/Packaging evidence model and gate integration",
+    "prd_task_id": "T-099",
+    "source_prd": "docs/prd/01-NPD-PRD.md",
+    "prd_refs": [
+      "§8.5",
+      "§8.2",
+      "§8.7"
+    ],
+    "category": "integration",
+    "subcategory": "allergens-bulk-rebuild-worker",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "01-NPD-c Allergens cascade",
+    "context_budget": "60k",
+    "estimated_effort": "4-5h",
+    "description": "Background worker + SQL helper that rebuilds fa.allergens / fa.may_contain across every affected FA when Reference.Allergens_by_RM or Reference.Allergens_added_by_Process change in bulk, closing the cascade-rebuild gap explicitly flagged in coverage.md and the 2026-05-14 PRD-vs-tasks audit.",
+    "details": "T-009..T-017 cover per-FA cascade when the FA itself changes; they do not cover the inverse trigger (reference-table mass change → every existing FA stale). This task wires the outbox-driven bulk rebuild via the foundation worker (T-111) + outbox dispatcher (T-112) + rate-limit primitive (T-121), with org-scoped RLS via app.current_org_id(), idempotent dedup, override preservation per §8.6, and a single coalesced completion event. Reference: _meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md row 'Allergens cascade rebuild on bulk import — none — implicit (T-009..T-017 cover schema, not cron rebuild)'.",
     "scope_files": [
-      "Existing NPD/BOM files discovered before editing",
-      "Targeted tests created beside implementation"
+      "packages/db/migrations/00xx_allergen_cascade_rebuild.sql [create]",
+      "apps/worker/src/jobs/allergen-cascade-rebuild.ts [create]",
+      "apps/worker/src/jobs/__tests__/allergen-cascade-rebuild.test.ts [create]",
+      "packages/cascade-engine/src/bulk-rebuild.ts [create]",
+      "packages/cascade-engine/__tests__/bulk-rebuild.test.ts [create]",
+      "apps/web/app/(settings)/reference/allergens/_actions/emit-bulk-changed.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not implement the per-FA cascade engine entry points — they exist in T-009..T-017",
+      "Do not change fa_allergen_overrides schema (T-082) or the override-modal UI",
+      "Do not couple this worker to D365 export or FG release state",
+      "Do not add a UI surface beyond reusing the existing 'Refresh allergens' button (§8.7) — settings-side trigger only"
+    ],
+    "dependencies": [
+      "T-011",
+      "T-012",
+      "T-013"
+    ],
+    "parallel_safe_with": [
+      "T-100"
+    ],
+    "cross_module_dependencies": [
+      "00-FOUNDATION:T-111 apps/worker scaffold + job registry",
+      "00-FOUNDATION:T-112 outbox dispatcher",
+      "00-FOUNDATION:T-121 rate-limit primitive",
+      "00-FOUNDATION:T-040 R13 audit_events table",
+      "02-SETTINGS: reference-tables CRUD endpoints that emit bulk_changed events"
     ],
     "acceptance_criteria": [
-      "Schema/read model supports required NPD evidence or traceability.",
-      "Gate/release readers expose typed blockers/status and are org-scoped.",
-      "D365 is not treated as source of truth.",
-      "Targeted tests and closeout evidence are provided."
+      "Given 200 FAs reference RM ingredient code RM1939, when an admin bulk-imports a CSV that updates Reference.Allergens_by_RM for RM1939 (adding Soy), then within 30 seconds the worker has recomputed fa.allergens for all 200 FAs and exactly one npd.allergens.bulk_rebuild_completed outbox event has been emitted with affected_count=200 per §8.5 cascade rule; and given the same source_event_id is replayed, no FA is recomputed twice (idempotent dedup per §10 outbox contract)",
+      "Given two concurrent bulk imports for the same org within 5 minutes, when both events are emitted, then the second is coalesced (debounced) and exactly one rebuild runs covering the union of affected FAs per T-121 rate-limit primitive",
+      "Given org A imports 500 RM allergens and org B imports 50 in parallel, when both workers run, then RLS prevents org A's worker from touching any org B FA row and vice versa (verified via app.current_org_id() scoping)",
+      "Given a manual override exists for an FA via fa_allergen_overrides (§8.6 / §8.10), when the bulk rebuild touches that FA, then the override row is preserved, the auto-cascade source values are recomputed, and the audit row records that override-diff is now non-empty"
     ],
     "test_strategy": [
-      "Run targeted tests"
+      "RED 1: vitest packages/cascade-engine/__tests__/bulk-rebuild.test.ts asserts the SQL function returns the correct affected-FA set for a given (ingredient_codes, process_names) tuple before the function exists",
+      "RED 2: vitest apps/worker/src/jobs/__tests__/allergen-cascade-rebuild.test.ts mounts the worker registry, fires the bulk-changed event, asserts AC 1 + 2 + 5; uses setOrgContext to verify AC 4 RLS isolation",
+      "Run 'pnpm --filter db migrate && pnpm --filter cascade-engine test bulk-rebuild && pnpm --filter worker test allergen-cascade-rebuild'"
     ],
     "risk_red_lines": [
-      "No D365 as SSOT",
-      "No mocked Technical final approval"
+      "Do not run the rebuild synchronously inside the reference-table CRUD request — must be queued via outbox + T-111/T-112 worker",
+      "Do not bypass app.current_org_id() in the SQL function — SECURITY DEFINER plus org_id argument MUST be cross-checked against the current session's org before queueing jobs",
+      "Do not overwrite or clear rows in fa_allergen_overrides — overrides are auditable history per §8.6 / §8.10",
+      "Do not emit one outbox event per FA — single coalesced bulk_rebuild_completed envelope only",
+      "Do not add new D365 or FG-side state transitions — this worker mutates only NPD allergen derivation columns, not factory release state"
     ],
     "skills": [
-      "repo-navigation",
-      "testing"
+      "test-driven-development",
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
-        "discover",
-        "test",
-        "closeout"
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
       ]
     },
-    "task_type": "T1-schema",
-    "dependencies": [
-      "T-054",
-      "T-055",
-      "T-056"
-    ]
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
   }
 }

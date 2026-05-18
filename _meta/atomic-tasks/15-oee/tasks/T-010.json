@@ -1,0 +1,97 @@
+{
+  "title": "T-010 — OEE outbox publisher (5 events) + Zod payload contracts (OEE §12.2, R1)",
+  "prompt": "# T-010 — OEE outbox publisher\n\nPRD: docs/prd/15-OEE-PRD.md §12.2 (event producer, 5 events), §12.3 (target_system='internal'), R1 outbox pattern\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `oee_outbox_events` table per §12.2 DDL and ship the publisher dispatcher routing 5 events to internal consumers (12-REPORTING cache invalidate, 13-MAINTENANCE D-MNT-3 MTBF/MTTR feed). Define Zod payload contracts in `packages/events/src/oee.ts`. Wire to Wave1 T-111 shared outbox dispatcher.\n\n## Pre-flight\nRead: `packages/db/migrations/` for latest migration number; existing Foundation T-003 events package shape and 13-MAINTENANCE T-012 outbox publisher pattern; Wave1 T-111 outbox dispatcher signature.\n\n## Implementation contract\n1. Migration `packages/db/migrations/NNNN_oee_c_outbox_events.sql` per §12.2 DDL: `oee_outbox_events(id BIGSERIAL PK, event_id UUID UNIQUE, org_id UUID NOT NULL, event_type TEXT, aggregate_id TEXT, payload JSONB, target_system TEXT NOT NULL DEFAULT 'internal', status outbox_status_enum DEFAULT 'pending', attempt_count INT DEFAULT 0, next_retry_at TIMESTAMPTZ, delivered_at TIMESTAMPTZ, enqueued_at TIMESTAMPTZ DEFAULT now())`. RLS via app.current_org_id(). `idx_oee_outbox_dispatch ON oee_outbox_events(status, next_retry_at) WHERE status IN ('pending','failed')`.\n2. `packages/events/src/oee.ts` exports Zod schemas + TS types (event_version='v1', idempotency_key UUID v7 per Foundation R14):\n   - `oee.shift.aggregated` — payload {org_id, site_id, line_id, shift_id, shift_date, oee_pct, availability_pct, performance_pct, quality_pct, total_output_qty, total_downtime_min, occurred_at} (per §12.2 example).\n   - `oee.daily.refreshed` — {org_id, site_id, refreshed_at, row_count}.\n   - `oee.anomaly.detected` (P2) — {org_id, site_id, line_id, shift_id, anomaly_id, severity, oee_pct_actual, oee_pct_expected, deviation_sigma, detected_at}.\n   - `oee.anomaly.resolved` (P2) — {org_id, anomaly_id, resolved_at, resolution_kind: 'auto'|'manual'}.\n   - `oee.maintenance.triggered` (P2) — {org_id, site_id, line_id, trigger_date, avg_availability_pct, threshold_pct, consecutive_days, created_wo_id?}.\n3. Dispatcher `apps/worker/src/oee/outbox-dispatcher.ts`: polls oee_outbox_events; validates payload against Zod schema; routes:\n   - `oee.shift.aggregated` + `oee.daily.refreshed` → 12-REPORTING cache invalidate queue + 13-MAINTENANCE MTBF/MTTR feed queue (D-MNT-3).\n   - `oee.anomaly.*` + `oee.maintenance.triggered` → 12-REPORTING + (P2) 13-MAINTENANCE auto-MWO consumer.\n   - All target_system='internal' (no D365 push per §12.3).\n   On success: status='delivered', delivered_at=now(). On Zod failure: status='failed', DLQ entry, no infinite retry. Idempotent on event_id.\n4. Wire to Wave1 T-111 shared dispatcher polling loop (per-tenant via T-112).\n5. Vitest: (a) all 5 Zod schemas parse sample payloads + reject missing required fields, (b) dispatcher routes shift.aggregated to 2 consumer queues, (c) invalid payload → DLQ + no infinite retry, (d) idempotent re-run on delivered row is no-op, (e) target_system='internal' for all events.\n\n## Files\n- packages/db/migrations/NNNN_oee_c_outbox_events.sql [create]\n- packages/events/src/oee.ts [create]\n- packages/events/src/index.ts [modify]\n- apps/worker/src/oee/outbox-dispatcher.ts [create]\n- apps/worker/src/oee/__tests__/outbox-dispatcher.test.ts [create]\n- packages/events/__tests__/oee.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs, when `\\d oee_outbox_events` is read, then the §12.2 DDL columns + RLS via app.current_org_id() + idx_oee_outbox_dispatch index are present.\n2. Given `oeeShiftAggregatedSchema.parse(payload)` with a valid payload, when called, then it returns the typed payload; missing oee_pct throws ZodError with path `oee_pct`.\n3. Given an outbox row event_type='oee.shift.aggregated', when dispatcher runs, then 2 consumer queue messages are written (12-REPORTING cache invalidate + 13-MAINTENANCE MTBF/MTTR), and outbox row.status='delivered', delivered_at set.\n4. Given an outbox row with invalid payload, when dispatcher runs, then status='failed', DLQ row created, no infinite retry.\n5. Given dispatcher runs twice on the same delivered row, when checked, then second run is a no-op (idempotent on event_id).\n\n## Test strategy\n- RED: vitest oee/outbox-dispatcher + packages/events/oee asserting five ACs.\n- Run `pnpm --filter @monopilot/events vitest run` and `pnpm --filter @monopilot/worker vitest run oee/outbox-dispatcher`.\n\n## Risk red lines\n- Do not push to D365 — OEE stays internal per §12.3.\n- Do not retry indefinitely on validation failure — DLQ + status='failed'.\n- Do not deviate from event_version='v1' — schema evolution policy (Foundation R14).\n- Do not couple dispatcher to consumer module implementations — only route by event_type to consumer queues.\n- Do not skip cross-module routing to 13-MAINTENANCE — D-MNT-3 MTBF/MTTR feed is a cross-module dependency.",
+  "labels": [
+    "prd",
+    "events",
+    "worker",
+    "outbox",
+    "T2-api"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-010",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§12.2",
+      "§12.3",
+      "R1"
+    ],
+    "category": "events",
+    "subcategory": "outbox-publisher",
+    "task_type": "T2-api",
+    "parent_feature": "15-OEE-c",
+    "context_budget": "50k",
+    "estimated_effort": "3-4h",
+    "description": "Zod payload contracts for 5 OEE outbox events + oee_outbox_events table + dispatcher routing to 12-REPORTING + 13-MAINTENANCE + DLQ on validation failure + idempotency.",
+    "details": "Cross-module routing: shift.aggregated + daily.refreshed → 12-REPORTING (cache invalidate) + 13-MAINTENANCE (D-MNT-3 MTBF/MTTR feed); anomaly.* + maintenance.triggered (P2) → 12-REPORTING + 13-MAINTENANCE auto-MWO. All target_system='internal' (§12.3 — no D365 push). Idempotency on event_id. Dispatcher reuses Wave1 T-111 shared loop polling pattern matching 13-MAINTENANCE T-012 publisher.",
+    "scope_files": [
+      "packages/db/migrations/NNNN_oee_c_outbox_events.sql [create]",
+      "packages/events/src/oee.ts [create]",
+      "packages/events/src/index.ts [modify]",
+      "apps/worker/src/oee/outbox-dispatcher.ts [create]",
+      "apps/worker/src/oee/__tests__/outbox-dispatcher.test.ts [create]",
+      "packages/events/__tests__/oee.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Consumer-side implementations in 12-REPORTING / 13-MAINTENANCE",
+      "shift_aggregator_v1 writer (T-008)",
+      "API endpoints (T-011..T-013)",
+      "DLQ inspection UI (P2)"
+    ],
+    "dependencies": [
+      "T-002"
+    ],
+    "parallel_safe_with": [
+      "T-008",
+      "T-009"
+    ],
+    "acceptance_criteria": [
+      "Given migration runs, when \\d oee_outbox_events is read, then §12.2 DDL columns + RLS via app.current_org_id() + idx_oee_outbox_dispatch index are present",
+      "Given oeeShiftAggregatedSchema.parse(payload) with valid payload, when called, then returns typed payload; missing oee_pct throws ZodError",
+      "Given outbox row event_type='oee.shift.aggregated', when dispatcher runs, then 2 consumer queue messages written (12-REPORTING + 13-MAINTENANCE) and status='delivered' set",
+      "Given outbox row with invalid payload, when dispatcher runs, then status='failed', DLQ created, no infinite retry; idempotent re-run on delivered row is no-op"
+    ],
+    "test_strategy": [
+      "RED: vitest oee/outbox-dispatcher + packages/events/oee asserting four ACs",
+      "Run `pnpm --filter @monopilot/events vitest run` and `pnpm --filter @monopilot/worker vitest run oee/outbox-dispatcher`"
+    ],
+    "risk_red_lines": [
+      "Do not push to D365 — OEE stays internal per §12.3",
+      "Do not retry indefinitely on validation failure",
+      "Do not deviate from event_version='v1'",
+      "Do not couple dispatcher to consumer module implementations",
+      "Do not skip cross-module routing to 13-MAINTENANCE (D-MNT-3)"
+    ],
+    "skills": [
+      "test-driven-development",
+      "systematic-debugging",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": false
+  }
+}

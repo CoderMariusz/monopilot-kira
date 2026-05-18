@@ -1,22 +1,76 @@
 {
-  "title": "T-057 — Warehouse readiness validator and prototype label guard",
-  "prompt": "# T-057 — Warehouse readiness validator and prototype label guard\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nHarden readiness validation so coverage, manifest, prototype labels, ACP task shape, and cross-module dependencies stay in sync.\n\n## Implementation contract\nExtend the local readiness validator or add a companion guard that verifies manifest count, coverage rows, task IDs, T3/T4 prototype AC, first-class WH-015/WH-017 labels, WH-109 Phase 1 coverage, M-12 canonical label, and cross_module_dependencies metadata.\n\n## Files (scope)\n- _meta/atomic-tasks/05-warehouse/_validate.py [modify]\n- _meta/atomic-tasks/05-warehouse/coverage.md\n- _meta/atomic-tasks/05-warehouse/manifest.json\n- _meta/prototype-labels/prototype-index-warehouse.json\n- _meta/prototype-labels/master-index.json\n\n## Acceptance criteria\n1. Given _meta/atomic-tasks/05-warehouse/_validate.py runs, then it passes only when manifest task_count matches files, coverage.md includes WH-001..WH-020, M-05..M-15, WH-101..WH-109, and all P1 gaps are resolved or explicitly Phase 2.\n2. Given T3-ui tasks reference prototype files, then acceptance criteria include design/Monopilot Design System paths and data-prototype-label marker requirements.\n3. Given prototype indexes are checked, then available_lp_picker, wo_reservations_panel, use_by_override_modal, shelf_life_rules_admin_page, and shelf_life_rule_edit_modal are present with status metadata.\n4. Given task JSON is inspected, then pipeline_inputs.cross_module_dependencies exists on Warehouse tasks that touch Settings, Technical, Planning, Scanner, Production, Quality, or Shipping contracts.\n\n## Test strategy\n- RED: add fixture check that fails on missing WH-109, M-12, WH-015, or WH-017 labels.\n- GREEN: run python3 _validate.py from _meta/atomic-tasks/05-warehouse and git diff --check.\n- Run python3 scripts/check_warehouse_readiness.py if a companion script is added.\n\n## Risk red lines\n- Do not loosen ACP TaskCreate top-level schema.\n- Do not mark P1 unresolved gaps as pass without explicit user decision.\n- Do not require P2 surfaces to have P1 implementation tasks.",
+  "title": "T-057 — Warehouse readiness validator + prototype-label guard (WH §16.6)",
+  "prompt": "# T-057 — Warehouse readiness validator + prototype-label guard (WH §16.6)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §16.6, _meta/prototype-labels/prototype-index-warehouse.json, _meta/atomic-tasks/05-warehouse/coverage.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd CI-runnable readiness validator that asserts: (1) every prototype-index-warehouse.json label has either an implementation file with `data-prototype-label` OR an explicit planned-marker exception; (2) coverage.md table rows match manifest task_count; (3) every task has PRD §X.Y refs that exist in the PRD.\n\n## Implementation contract\n1. `_meta/atomic-tasks/05-warehouse/validators/readiness-check.ts` (or shell) runnable in CI.\n2. Iterate prototype-index-warehouse.json → for each label with `prototype_status='OK'`, grep `apps/web/` for `data-prototype-label=\"<label>\"`; fail if missing AND no planned-marker exception.\n3. Parse coverage.md task rows + manifest.json task_count + tasks/T-*.json files; assert all three counts match (57).\n4. Parse each task's prd_refs; grep PRD for each §X.Y; fail if any anchor missing.\n5. Output a machine-readable summary `readiness-check.json` + human-readable Markdown.\n\n## Files\n- _meta/atomic-tasks/05-warehouse/_validate.py [modify]\n- _meta/atomic-tasks/05-warehouse/coverage.md\n- _meta/atomic-tasks/05-warehouse/manifest.json\n- _meta/prototype-labels/prototype-index-warehouse.json\n- _meta/prototype-labels/master-index.json\n\n## Acceptance criteria\n1. Given all 57 tasks present + coverage.md has 57 rows + manifest task_count=57, when validator runs, then it exits 0.\n2. Given a task's prd_refs include a missing §X.Y, when validator runs, then it exits non-zero with a clear error line.\n3. Given a prototype-index label has no `data-prototype-label` in the implementation and no planned-marker, when validator runs, then it exits non-zero.\n4. Given a P2/P3 label is correctly tagged as planned, when validator runs, then it is skipped (no error).\n\n## Test strategy\n- RED: validator emits 3 known errors on a seeded broken state.\n- GREEN: validator emits 0 errors against current 05-warehouse state.\n- Run `pnpm warehouse:readiness-check`.\n\n## Risk red lines\n- Do not let CI green without this validator running.\n- Do not silently skip missing labels — explicit exception list only.\n- Do not couple validator to non-warehouse modules (per-module isolation).\n\n## Dependencies\n- T-048\n- T-049\n- T-050\n- T-051\n- T-052\n- T-053\n- T-054\n- T-055\n- T-056",
   "labels": [
-    "docs",
+    "prd",
     "test",
     "readiness",
-    "T4-wiring-test"
+    "validator",
+    "t4-wiring-test"
   ],
   "priority": 120,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-057",
     "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§16.6",
+      "_meta/prototype-labels/prototype-index-warehouse.json",
+      "_meta/atomic-tasks/05-warehouse/coverage.md"
+    ],
+    "category": "test",
+    "subcategory": "readiness-validator",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "05-warehouse-wave0-closeout",
     "context_budget": "35k",
+    "estimated_effort": "1d",
+    "description": "Add CI-runnable readiness validator that asserts: (1) every prototype-index-warehouse.json label has either an implementation file with `data-prototype-label` OR an explicit planned-marker exception; (2) coverage.md table rows match manifest task_count; (3) every task has PRD §X.Y refs that exist in the PRD.",
+    "details": "Add CI-runnable readiness validator that asserts: (1) every prototype-index-warehouse.json label has either an implementation file with `data-prototype-label` OR an explicit planned-marker exception; (2) coverage.md table rows match manifest task_count; (3) every task has PRD §X.Y refs that exist in the PRD. `_meta/atomic-tasks/05-warehouse/validators/readiness-check.ts` (or shell) runnable in CI. Iterate prototype-index-warehouse.json → for each label with `prototype_status='OK'`, grep `apps/web/` for `data-prototype-label=\"<label>\"`; fail if missing AND no planned-marker exception.",
+    "scope_files": [
+      "_meta/atomic-tasks/05-warehouse/_validate.py [modify]",
+      "_meta/atomic-tasks/05-warehouse/coverage.md",
+      "_meta/atomic-tasks/05-warehouse/manifest.json",
+      "_meta/prototype-labels/prototype-index-warehouse.json",
+      "_meta/prototype-labels/master-index.json"
+    ],
+    "out_of_scope": [
+      "No product runtime implementation",
+      "No changes to non-warehouse validators unless shared helper is already present"
+    ],
+    "dependencies": [
+      "T-048",
+      "T-049",
+      "T-050",
+      "T-051",
+      "T-052",
+      "T-053",
+      "T-054",
+      "T-055",
+      "T-056"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given all 57 tasks present + coverage.md has 57 rows + manifest task_count=57, when validator runs, then it exits 0.",
+      "Given a task's prd_refs include a missing §X.Y, when validator runs, then it exits non-zero with a clear error line.",
+      "Given a prototype-index label has no `data-prototype-label` in the implementation and no planned-marker, when validator runs, then it exits non-zero.",
+      "Given a P2/P3 label is correctly tagged as planned, when validator runs, then it is skipped (no error)."
+    ],
+    "test_strategy": [
+      "RED: validator emits 3 known errors on a seeded broken state.",
+      "GREEN: validator emits 0 errors against current 05-warehouse state.",
+      "Run `pnpm warehouse:readiness-check`."
+    ],
+    "risk_red_lines": [
+      "Do not let CI green without this validator running.",
+      "Do not silently skip missing labels — explicit exception list only.",
+      "Do not couple validator to non-warehouse modules (per-module isolation)."
+    ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "systematic-debugging"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -33,10 +87,16 @@
         "git_status"
       ]
     },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -62,65 +122,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    },
-    "prd_task_id": "T-057",
-    "prd_refs": [
-      "§16.6",
-      "_meta/prototype-labels/prototype-index-warehouse.json",
-      "_meta/atomic-tasks/05-warehouse/coverage.md"
-    ],
-    "category": "test",
-    "subcategory": "readiness-validator",
-    "task_type": "T4-wiring-test",
-    "parent_feature": "warehouse-wave0-closeout",
-    "estimated_effort": "1d",
-    "description": "Harden readiness validation so coverage, manifest, prototype labels, ACP task shape, and cross-module dependencies stay in sync.",
-    "details": "Extend the local readiness validator or add a companion guard that verifies manifest count, coverage rows, task IDs, T3/T4 prototype AC, first-class WH-015/WH-017 labels, WH-109 Phase 1 coverage, M-12 canonical label, and cross_module_dependencies metadata.",
-    "scope_files": [
-      "_meta/atomic-tasks/05-warehouse/_validate.py [modify]",
-      "_meta/atomic-tasks/05-warehouse/coverage.md",
-      "_meta/atomic-tasks/05-warehouse/manifest.json",
-      "_meta/prototype-labels/prototype-index-warehouse.json",
-      "_meta/prototype-labels/master-index.json"
-    ],
-    "out_of_scope": [
-      "No product runtime implementation",
-      "No changes to non-warehouse validators unless shared helper is already present"
-    ],
-    "dependencies": [
-      "T-048",
-      "T-049",
-      "T-050",
-      "T-051",
-      "T-052",
-      "T-053",
-      "T-054",
-      "T-055",
-      "T-056"
-    ],
-    "parallel_safe_with": [],
-    "acceptance_criteria": [
-      "Given _meta/atomic-tasks/05-warehouse/_validate.py runs, then it passes only when manifest task_count matches files, coverage.md includes WH-001..WH-020, M-05..M-15, WH-101..WH-109, and all P1 gaps are resolved or explicitly Phase 2.",
-      "Given T3-ui tasks reference prototype files, then acceptance criteria include design/Monopilot Design System paths and data-prototype-label marker requirements.",
-      "Given prototype indexes are checked, then available_lp_picker, wo_reservations_panel, use_by_override_modal, shelf_life_rules_admin_page, and shelf_life_rule_edit_modal are present with status metadata.",
-      "Given task JSON is inspected, then pipeline_inputs.cross_module_dependencies exists on Warehouse tasks that touch Settings, Technical, Planning, Scanner, Production, Quality, or Shipping contracts."
-    ],
-    "test_strategy": [
-      "RED: add fixture check that fails on missing WH-109, M-12, WH-015, or WH-017 labels.",
-      "GREEN: run python3 _validate.py from _meta/atomic-tasks/05-warehouse and git diff --check.",
-      "Run python3 scripts/check_warehouse_readiness.py if a companion script is added."
-    ],
-    "risk_red_lines": [
-      "Do not loosen ACP TaskCreate top-level schema.",
-      "Do not mark P1 unresolved gaps as pass without explicit user decision.",
-      "Do not require P2 surfaces to have P1 implementation tasks."
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

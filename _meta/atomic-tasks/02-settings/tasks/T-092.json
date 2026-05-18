@@ -45,10 +45,12 @@
       "Default-enabled set per spec."
     ],
     "test_strategy": [
-      "RED: write test. GREEN: emit seed."
+      "RED: write test. GREEN: emit seed.",
+      "Run `pnpm --filter @monopilot/db test:integration -- modules.test`."
     ],
     "risk_red_lines": [
-      "Do not enable Phase 2/3 modules by default."
+      "Do not enable Phase 2/3 modules by default.",
+      "Do not modify or delete pre-existing seed rows; new seeds must be additive only."
     ],
     "skills": [
       "test-driven-development"

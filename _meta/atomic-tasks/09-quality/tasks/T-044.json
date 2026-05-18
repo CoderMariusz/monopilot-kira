@@ -1,0 +1,104 @@
+{
+  "title": "T-044 — QA-009a ncr_detail page + ncr_close_modal hook (prototype parity)",
+  "prompt": "# T-044 — QA-009a ncr_detail page + ncr_close_modal hook\n\nPRD: docs/prd/09-QUALITY-PRD.md §8.3 QUA-105 (NCR detail P1 promotion), §8.5 traceability, §11.4 V-QA-NCR-005/006, §5.3 signature evidence\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:126-283 (ncr_detail) + quality/modals.jsx:385-466 (ncr_close_modal)\n\n## Goal\nTwo-column NCR detail page with main investigation form + sidebar (status workflow, linked records, activity timeline) + sticky action bar, opening ncr_close_modal for close flow. 1:1 parity vs prototype. Renders SignedBanner immutability when status='closed'.\n\n## Implementation contract\n1. apps/web/src/app/quality/ncr/[id]/page.tsx (RSC) loads NCR + linked records + activity (ncr_events) in parallel.\n2. Main column: detection summary, description (read-only after submit), root cause Textarea + root_cause_category Select (rcCat ← T-042), immediate_action Textarea, CAPA P2 placeholder Card (disabled overlay, BL-QA-01).\n3. Sidebar: status workflow (server-driven state machine; Next/Close buttons → Server Actions), linked records list (hold/inspection/ccp_deviation/complaint), activity timeline from ncr_events.\n4. Sticky action bar bottom: Save autosave on blur (Server Action), Close NCR → opens ncr_close_modal (T-046).\n5. SignedBanner shown when closed_at IS NOT NULL; all editable fields locked.\n6. Overdue banner top: server-computed (response_due_at < now()).\n\n## Prototype parity\nAnchor: `prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:126-283` (ncr_detail).\nParity checklist (verify all):\n- 2-col grid 1fr 380px\n- Main: detection card + description + root cause Textarea + rcCat Select + immediate_action + CAPA placeholder (P2 opacity-50)\n- Sidebar: status workflow card + linked records list + activity timeline (shadcn Timeline or custom ul with dot connectors)\n- Sticky bottom action bar (Close NCR + Save)\n- SignedBanner when closed (Alert variant=success with lock icon)\n- Overdue banner when overdue (Alert variant=destructive)\n\n## Files\n- apps/web/src/app/quality/ncr/[id]/page.tsx [create]\n- apps/web/src/components/quality/ncr/NcrDetailClient.tsx [create]\n- apps/web/src/components/quality/ncr/NcrStatusWorkflow.tsx [create]\n- apps/web/src/components/quality/ncr/NcrActivityTimeline.tsx [create]\n- apps/web/src/components/quality/ncr/__tests__/NcrDetailClient.test.tsx [create]\n- prototypes/design/Monopilot Design System/quality/ncr-screens.jsx [ref]\n\n## Acceptance criteria (Given-When-Then)\n1. Compared to prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:126-283 — parity on structure, visuals, interaction (RTL + checklist)\n2. Given status='closed', when page renders, then SignedBanner shows + root cause Textarea is read-only + status workflow Close button is hidden\n3. Given critical NCR not yet closed, when user clicks Close NCR action, then ncr_close_modal opens with dual-sign layout (two ESignBlock components rendered)\n4. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy (RED first)\n- RED: NcrDetailClient.test.tsx asserting parity + closed immutability + critical opens dual-sign before implementation\n- Run 'pnpm --filter web test NcrDetailClient'\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not allow client to edit fields when closed_at IS NOT NULL — read-only Server-rendered view (translation-notes-quality §QA-009a)\n- Do not paste prototype JSX verbatim — translate to RSC + shadcn\n- Do not skip overdue banner (server-computed)\n- Do not couple to ncr_close_modal internals — open via URL searchParam state for modal (?modal=close)",
+  "labels": [
+    "prd",
+    "ui",
+    "ncr",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-044",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§8.3 QUA-105",
+      "§8.5",
+      "§11.4",
+      "§5.3"
+    ],
+    "category": "ui",
+    "subcategory": "qa-ncr-detail",
+    "task_type": "T3-ui",
+    "parent_feature": "09-QUALITY-d NCR",
+    "context_budget": "60k",
+    "estimated_effort": "4-5h",
+    "description": "NCR detail page (RSC + sidebar workflow + activity timeline + sticky action bar) with ncr_close_modal hook, 1:1 prototype parity. SignedBanner immutability on close.",
+    "details": "Server Component loads NCR + ncr_events + linked records in parallel. 2-col layout (1fr 380px). Main: detection summary, description (locked after submit), rootCause Textarea + rootCauseCategory Select (rcCat from T-042), immediate_action Textarea, CAPA P2 placeholder Card (disabled overlay per BL-QA-01). Sidebar: status workflow (Next/Close buttons → Server Actions), linked records (hold/inspection/ccp_deviation/complaint), activity timeline. Sticky action bar (Save autosave on blur + Close NCR opens ncr_close_modal T-046). SignedBanner Alert + immutability when closed_at IS NOT NULL. Overdue banner top when response_due_at < now(). Translation-notes red-lines: status workflow server-driven; activity events from ncr_events table; CAPA P2 disabled card has data-state='disabled' attribute. Anchor: prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:126-283.",
+    "scope_files": [
+      "apps/web/src/app/quality/ncr/[id]/page.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrDetailClient.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrStatusWorkflow.tsx [create]",
+      "apps/web/src/components/quality/ncr/NcrActivityTimeline.tsx [create]",
+      "apps/web/src/components/quality/ncr/__tests__/NcrDetailClient.test.tsx [create]",
+      "prototypes/design/Monopilot Design System/quality/ncr-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "Do not implement ncr_close_modal (T-046)",
+      "Do not implement CAPA workflow (P2 Epic 8G, BL-QA-01)",
+      "Do not modify NCR Server Actions (T-038)"
+    ],
+    "dependencies": [
+      "T-037",
+      "T-038",
+      "T-042",
+      "T-046"
+    ],
+    "parallel_safe_with": [
+      "T-045"
+    ],
+    "acceptance_criteria": [
+      "Given the NCR detail page renders, when compared to prototypes/design/Monopilot Design System/quality/ncr-screens.jsx:126-283 (ncr_detail), then it matches on structural parity (2-col grid 1fr 380px, main investigation form + sidebar status workflow + linked records list + activity timeline + sticky action bar), visual parity (shadcn Card/Textarea/Select/Alert/Button only, CAPA P2 placeholder with opacity-50), and interaction parity (Save autosave on blur via Server Action, Close NCR opens ncr_close_modal via ?modal=close URL state, status workflow Next/Close buttons trigger Server Actions) — verified by RTL render plus parity checklist in pipeline_inputs.details",
+      "Given status='closed' and closed_at IS NOT NULL, when page renders, then SignedBanner is shown, root cause Textarea is read-only (disabled), and status workflow Close button is hidden",
+      "Given a critical-severity NCR not yet closed, when user clicks Close NCR action, then ncr_close_modal opens with two ESignBlock components (dual-sign layout) per V-QA-NCR-006",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED: NcrDetailClient.test.tsx asserting parity (2-col + sidebar + sticky bar) + closed immutability + critical dual-sign hook + overdue banner",
+      "Run 'pnpm --filter web test NcrDetailClient'",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not allow client-side edit when closed_at IS NOT NULL — Server Component renders read-only variant (translation-notes-quality §QA-009a + audit B §3)",
+      "Do not paste prototype JSX verbatim — translate to RSC + shadcn",
+      "Do not skip overdue banner (server-computed boolean prop)",
+      "Do not couple to modal internals — URL searchParam ?modal=close for modal open state",
+      "Do not invent client-only status workflow — Server Actions own transitions"
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": [
+      "00-foundation:T-124",
+      "09-quality:T-038",
+      "09-quality:T-046"
+    ]
+  }
+}

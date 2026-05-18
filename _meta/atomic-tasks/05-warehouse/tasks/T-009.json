@@ -1,13 +1,13 @@
 {
-  "title": "T-009 — warehouse_settings table + 32 toggle defaults",
-  "prompt": "# T-009 — warehouse_settings table + toggle defaults\n\nPRD: `docs/prd/05-WAREHOUSE-PRD.md` §5.8, §16.1.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate `warehouse_settings` key-value table per §5.8 and seed all 32+ toggles from §16.1 with their PRD defaults.\n\n## Implementation contract\nDrizzle schema `packages/db/src/schema/warehouse-settings.ts`: id, tenant_id, warehouse_id (nullable for tenant-wide), setting_key VARCHAR(64), setting_value JSONB, marker VARCHAR(32) (UNIVERSAL/APEX-CONFIG/EVOLVING), updated_at/by. UNIQUE(tenant_id, warehouse_id, setting_key) (NULL warehouse_id treated as global).\nSeed migration inserts the 32 keys from §16.1 with default values + markers (e.g. 'auto_generate_lp_number'=true [UNIVERSAL]).\n\n## Files (scope)\n- packages/db/src/schema/warehouse-settings.ts [create]\n- packages/db/migrations/0NN_warehouse_settings.sql [create]\n- packages/db/seed/warehouse-settings-defaults.ts [create]\n- packages/db/src/schema/warehouse-settings.test.ts [create]\n\n## Acceptance criteria\n1. Given the migration runs and seed executes for a fresh tenant, when SELECT FROM warehouse_settings, then 32 default rows are returned.\n2. Given a duplicate (tenant, warehouse, key) insert, when committed, then DB raises a unique violation.\n3. Given the test reads default 'expiry_warning_days_red', when parsed as JSON, then it equals 7 per §16.1.\n\n## Test strategy\n- RED: warehouse-settings.test.ts asserts seed count and value defaults match §16.1.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-settings`.\n\n## Risk red lines\n- Do not omit any §16.1 toggle.\n- Do not change defaults from PRD values.\n- Do not implement settings UI (T-074).",
+  "title": "T-009 — warehouse_settings table + 41 toggle defaults (WH §5.8, §16.1)",
+  "prompt": "# T-009 — warehouse_settings table + 41 toggle defaults (WH §5.8, §16.1)\n\nPRD: docs/prd/05-WAREHOUSE-PRD.md §5.8, §16.1\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `warehouse_settings` tenant-scoped key-value config table and seed the 41 toggle/numeric defaults from §16.1 (auto_generate_lp_number, lp_number_prefix='LP', expiry thresholds, FEFO toggles, scanner timeouts, label config, etc.).\n\n## Implementation contract\n1. Migration `0NN_warehouse_settings.sql`: `(id, org_id, warehouse_id NULL, key VARCHAR(64) NOT NULL, value JSONB NOT NULL, value_type ENUM('bool','int','string','json'), updated_at, updated_by)`.\n2. `UNIQUE(org_id, warehouse_id, key)` (warehouse_id NULL = tenant-default).\n3. RLS + app.current_org_id() RLS policy.\n4. Seed migration `0NN_warehouse_settings_seed.sql` inserting the 41 §16.1 defaults for org_id = template tenant (or trigger-based per-tenant default on tenant creation).\n5. Drizzle schema + typed `getSetting<T>(key)` helper.\n\n## Files\n- packages/db/src/schema/warehouse-settings.ts [create]\n- packages/db/migrations/0NN_warehouse_settings.sql [create]\n- packages/db/seed/warehouse-settings-defaults.ts [create]\n- packages/db/src/schema/warehouse-settings.test.ts [create]\n\n## Acceptance criteria\n1. Given a fresh tenant is created, when settings are queried, then all 41 §16.1 keys exist with their documented defaults (e.g., lp_number_prefix='LP', expiry_warning_days_red=7, scanner_idle_timeout_sec=300).\n2. Given a warehouse-specific override `(warehouse_id=X, key='lp_number_prefix', value='LPA')`, when `getSetting('lp_number_prefix', warehouse_id=X)` is called, then it returns 'LPA' not 'LP'.\n3. Given RLS, when tenant B reads tenant A's settings, then zero rows are returned.\n\n## Test strategy\n- RED: `packages/db/src/schema/warehouse-settings.test.ts` asserting 41 defaults + warehouse override + RLS.\n- Run `pnpm --filter db migrate && pnpm --filter db test warehouse-settings`.\n\n## Risk red lines\n- Do not hard-code defaults in application code — they MUST live in the seed migration.\n- Do not skip RLS.\n- Do not omit `lp_number_prefix` — LP numbering depends on it (§6.3).",
   "labels": [
     "prd",
     "data",
     "settings",
-    "T1-schema"
+    "t1-schema"
   ],
-  "priority": 80,
+  "priority": 50,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
   "pipeline_inputs": {
@@ -21,11 +21,11 @@
     "category": "data",
     "subcategory": "settings",
     "task_type": "T1-schema",
-    "parent_feature": "warehouse-foundation",
+    "parent_feature": "05-warehouse-a",
     "context_budget": "30k",
     "estimated_effort": "1-2h",
-    "description": "Create warehouse_settings table and seed all §16.1 toggles with PRD defaults.",
-    "details": "Drizzle schema + migration + seed. UNIQUE(tenant_id, warehouse_id, setting_key). Seed loops the 32-row §16.1 table.",
+    "description": "Create `warehouse_settings` tenant-scoped key-value config table and seed the 41 toggle/numeric defaults from §16.1 (auto_generate_lp_number, lp_number_prefix='LP', expiry thresholds, FEFO toggles, scanner timeouts, label config, etc.).",
+    "details": "Create `warehouse_settings` tenant-scoped key-value config table and seed the 41 toggle/numeric defaults from §16.1 (auto_generate_lp_number, lp_number_prefix='LP', expiry thresholds, FEFO toggles, scanner timeouts, label config, etc.). Migration `0NN_warehouse_settings.sql`: `(id, org_id, warehouse_id NULL, key VARCHAR(64) NOT NULL, value JSONB NOT NULL, value_type ENUM('bool','int','string','json'), updated_at, updated_by)`. `UNIQUE(org_id, warehouse_id, key)` (warehouse_id NULL = tenant-default). RLS uses foundation `app.current_org_id()` function (Wave0 decision; see `_meta/audits/2026-05-14-tenant-context-remediation.md`).",
     "scope_files": [
       "packages/db/src/schema/warehouse-settings.ts [create]",
       "packages/db/migrations/0NN_warehouse_settings.sql [create]",
@@ -47,18 +47,20 @@
       "T-008"
     ],
     "acceptance_criteria": [
-      "Given the seed runs for a tenant, when SELECT FROM warehouse_settings is run, then 32 rows exist matching §16.1 keys",
-      "Given a duplicate (tenant, warehouse, key) insert, when committed, then DB raises a unique violation",
-      "Given the default 'expiry_warning_days_red', when read, then JSON value equals 7"
+      "Given a fresh tenant is created, when settings are queried, then all 41 §16.1 keys exist with their documented defaults (e.g., lp_number_prefix='LP', expiry_warning_days_red=7, scanner_idle_timeout_sec=300).",
+      "Given a warehouse-specific override `(warehouse_id=X, key='lp_number_prefix', value='LPA')`, when `getSetting('lp_number_prefix', warehouse_id=X)` is called, then it returns 'LPA' not 'LP'.",
+      "Given RLS, when tenant B reads tenant A's settings, then zero rows are returned."
     ],
     "test_strategy": [
-      "RED: warehouse-settings.test.ts asserts seed count and selected default values from §16.1",
-      "Run 'pnpm --filter db migrate && pnpm --filter db test warehouse-settings'"
+      "RED: `packages/db/src/schema/warehouse-settings.test.ts` asserting 41 defaults + warehouse override + RLS.",
+      "Run `pnpm --filter db migrate && pnpm --filter db test warehouse-settings`."
     ],
     "risk_red_lines": [
-      "Do not omit §16.1 toggles",
-      "Do not change PRD default values",
-      "Do not embed settings UI"
+      "Do not read current_setting('app.tenant_id') or current_setting('app.current_org_id') directly — use the foundation app.current_org_id() function so the NULL-safe setter contract is preserved.",
+      "Do not use tenant_id as the business-scope column; per Wave0 v4.3 lock it is org_id. See _meta/audits/2026-05-14-tenant-context-remediation.md.",
+      "Do not hard-code defaults in application code — they MUST live in the seed migration.",
+      "Do not skip RLS.",
+      "Do not omit `lp_number_prefix` — LP numbering depends on it (§6.3)."
     ],
     "skills": [
       "test-driven-development",
@@ -88,7 +90,7 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "contract": "rule_registry, warehouses/locations/printers, feature flags, tenant security policy"
+        "contract": "rule_registry (fefo_strategy_v1, lp_state_machine_v1), warehouses/locations/printers, feature flags, tenant security policy, gs1_prefix"
       },
       {
         "module": "03-technical",
@@ -114,7 +116,6 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    ]
   }
 }

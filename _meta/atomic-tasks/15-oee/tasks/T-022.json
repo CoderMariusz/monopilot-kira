@@ -1,0 +1,104 @@
+{
+  "title": "T-022 — UI: OEE-ADM-003 Shift Patterns + Non-Production Calendar (shifts_screen, 15-OEE-e)",
+  "prompt": "# T-022 — OEE-ADM-003 Shift Patterns + Non-Production Calendar UI\n\nPRD: docs/prd/15-OEE-PRD.md §15.3 OEE-ADM-003 (Shift Patterns + Non-Production Calendar), §11 V-OEE-SHIFT-1..4 (24h coverage, no overlap, IANA timezone), amendment OEE-PRD-AMEND-01 (15-OEE owns writes)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306 (shifts_screen — moved to prototype-index-oee.json 2026-04-30)\n\n## Goal\nServer Component admin page `/oee/shifts` (alias `/settings/shifts` legacy redirect) rendering left-pane shift_patterns CRUD table + right-pane 7-col CSS-grid month calendar editing org_non_production_days. Save writes shift_patterns + org_non_production_days in one transaction + emits `oee.shift_pattern.changed` outbox event for 12-REPORTING cache-bust per §15.3 OEE-ADM-003. Server-side validators enforce V-OEE-SHIFT-1..4.\n\n## Implementation contract\n1. `apps/web/app/(oee)/shifts/page.tsx` (RSC): middleware redirect if role !== oee_admin (V-OEE-ACCESS-2); reads shift_patterns + org_non_production_days for current org+month.\n2. `ShiftsClient` ('use client'): two-pane layout — left pane TanStack Table for shift_patterns with inline Edit/Delete + top-right [+ Add shift pattern]; right pane react-day-picker (shadcn Calendar) with multi-select day toggle + reason Select (Holiday/Maintenance/Plant Closure/Custom per PRD §15.3 layout).\n3. Single Server Action `saveShiftsAndCalendar`: validates Zod payload {patterns: SP[], non_production_days: NPD[]}; enforces V-OEE-SHIFT-1 (24h coverage on planned production days), V-OEE-SHIFT-2 (start_time != end_time), V-OEE-SHIFT-3 (no per-line overlap), V-OEE-SHIFT-4 (IANA timezone validated via Intl.supportedValuesOf('timeZone')); single transaction UPSERT + DELETE; emits outbox event `oee.shift_pattern.changed` (consumer 12-REPORTING) on success.\n4. RBAC check via `oee.shift_pattern.edit` (T-001 enum).\n5. UI warning when validators detect > 4h coverage gap (V-OEE-SHIFT-1 soft warning, not hard reject per PRD §15.3).\n6. RTL test snapshot + parity checklist against prototype line range.\n\n## Files\n- apps/web/app/(oee)/shifts/page.tsx [create]\n- apps/web/app/(oee)/shifts/_components/shifts-client.tsx [create]\n- apps/web/app/(oee)/shifts/_components/non-production-calendar.tsx [create]\n- apps/web/app/(oee)/shifts/_actions/save-shifts.ts [create]\n- apps/web/app/(oee)/shifts/_components/__tests__/shifts-client.test.tsx [create]\n- apps/web/app/(oee)/shifts/_actions/__tests__/save-shifts.test.ts [create]\n- apps/web/middleware.ts [modify] (alias /settings/shifts → /oee/shifts)\n- prototypes/design/Monopilot Design System/settings/org-screens.jsx [ref]\n\n## Acceptance criteria\n1. Given the production page renders, when compared to prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306 (shifts_screen), then it has the left-pane shift_patterns table + right-pane 7-col month calendar with reason taxonomy — verified by RTL snapshot + parity checklist.\n2. Given saveShiftsAndCalendar is called with two shift_patterns on the same line whose times overlap, when Server Action validates, then it returns 422 with error mentioning V-OEE-SHIFT-3 and writes no rows.\n3. Given saveShiftsAndCalendar is called with timezone='Atlantis/Lost', when Server Action validates, then it returns 422 with error mentioning V-OEE-SHIFT-4 (invalid IANA timezone).\n4. Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and the outbox event `oee.shift_pattern.changed` is emitted on successful save (verified via worker test fake).\n\n## Test strategy\n- RED: RTL test + Server Action test asserting four ACs (parity, V-OEE-SHIFT-3 overlap, V-OEE-SHIFT-4 IANA, outbox emission).\n- Run `pnpm --filter @monopilot/web vitest run app/(oee)/shifts`.\n\n## Risk red lines\n- Do not skip middleware role gate.\n- Do not paste prototype JSX verbatim — translate to shadcn Calendar + TanStack Table.\n- Do not split shift_patterns + org_non_production_days into two transactions — atomic save per PRD §15.3.\n- Do not skip outbox event emission — 12-REPORTING cache bust depends on it.\n- Do not validate IANA tz against a hard-coded list — use `Intl.supportedValuesOf('timeZone')` (V-OEE-SHIFT-4).",
+  "labels": [
+    "prd",
+    "ui",
+    "oee-007",
+    "admin",
+    "T3-ui"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-022",
+    "source_prd": "docs/prd/15-OEE-PRD.md",
+    "prd_refs": [
+      "§15.3 OEE-ADM-003",
+      "§11 V-OEE-SHIFT-1..4",
+      "amendment OEE-PRD-AMEND-01"
+    ],
+    "category": "ui",
+    "subcategory": "shifts-and-non-production-calendar",
+    "task_type": "T3-ui",
+    "parent_feature": "15-OEE-e",
+    "context_budget": "60k",
+    "estimated_effort": "4-6h",
+    "description": "OEE-ADM-003 shift_patterns + non-production calendar editor + atomic Server Action save + outbox event matching shifts_screen prototype.",
+    "details": "Closes part of Auditor A OEE-007. amendment OEE-PRD-AMEND-01 default: 15-OEE owns writes. Atomic save enforces V-OEE-SHIFT-1..4 invariants. Outbox event consumed by 12-REPORTING cache invalidate (and future 13-MAINTENANCE PM scheduling).\n\nAdditional acceptance detail: UI closeout includes screenshot/artifact + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md.",
+    "scope_files": [
+      "apps/web/app/(oee)/shifts/page.tsx [create]",
+      "apps/web/app/(oee)/shifts/_components/shifts-client.tsx [create]",
+      "apps/web/app/(oee)/shifts/_components/non-production-calendar.tsx [create]",
+      "apps/web/app/(oee)/shifts/_actions/save-shifts.ts [create]",
+      "apps/web/app/(oee)/shifts/_components/__tests__/shifts-client.test.tsx [create]",
+      "apps/web/app/(oee)/shifts/_actions/__tests__/save-shifts.test.ts [create]",
+      "apps/web/middleware.ts [modify]",
+      "prototypes/design/Monopilot Design System/settings/org-screens.jsx [ref]"
+    ],
+    "out_of_scope": [
+      "OEE settings page T-020",
+      "Shift configs viewer T-021",
+      "Country-pack holiday seeds (industry-config; later)"
+    ],
+    "dependencies": [
+      "T-001",
+      "T-003",
+      "T-004",
+      "T-010"
+    ],
+    "parallel_safe_with": [
+      "T-020",
+      "T-021"
+    ],
+    "acceptance_criteria": [
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/settings/org-screens.jsx:255-306 (shifts_screen), then it has the left-pane shift_patterns table + right-pane 7-col month calendar with reason taxonomy — verified by RTL snapshot + parity checklist",
+      "Given saveShiftsAndCalendar is called with two overlapping shift_patterns on the same line, when Server Action validates, then it returns 422 mentioning V-OEE-SHIFT-3 and writes no rows",
+      "Given saveShiftsAndCalendar is called with timezone='Atlantis/Lost', when Server Action validates, then it returns 422 mentioning V-OEE-SHIFT-4 (invalid IANA timezone)",
+      "Given the task is closed out, when reviewers inspect evidence, then UI closeout includes screenshot/artifact + Playwright trace per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and outbox event `oee.shift_pattern.changed` is emitted on successful save"
+    ],
+    "test_strategy": [
+      "RED: RTL + Server Action test asserting four ACs (parity, V-OEE-SHIFT-3 overlap, V-OEE-SHIFT-4 IANA, outbox emission)",
+      "Run `pnpm --filter @monopilot/web vitest run app/(oee)/shifts`",
+      "Capture screenshots and Playwright trace; attach artifact paths in closeout"
+    ],
+    "risk_red_lines": [
+      "Do not skip middleware role gate",
+      "Do not paste prototype JSX verbatim",
+      "Do not split save into two transactions — atomic per PRD §15.3",
+      "Do not skip outbox event emission",
+      "Do not validate IANA tz against hard-coded list — Intl.supportedValuesOf('timeZone')"
+    ],
+    "skills": [
+      "test-driven-development",
+      "frontend-design",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "prototype_match": true,
+    "prototype_index_entry": "shifts_screen",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+  }
+}
