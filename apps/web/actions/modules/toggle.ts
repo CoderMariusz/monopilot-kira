@@ -187,7 +187,7 @@ async function enabledReverseDependencies({
     [downstream],
   );
 
-  const enabledCodes = new Set(rows.filter((row) => row.enabled).map((row) => row.module_code));
+  const enabledCodes = new Set(rows.map((row) => row.module_code));
   return downstream
     .filter((code) => enabledCodes.has(code))
     .filter((code) => directlyDependsOn(code, moduleCode, moduleByCode) || (reverseGraph.get(code)?.length ?? 0) > 0)
