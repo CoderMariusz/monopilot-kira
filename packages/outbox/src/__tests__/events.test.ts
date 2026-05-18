@@ -5,6 +5,20 @@ import { resolve } from 'node:path';
 const repoRoot = resolve(__dirname, '../../../..');
 const eventsModulePath = resolve(repoRoot, 'packages/outbox/src/events.enum.ts');
 const codeownersPath = resolve(repoRoot, 'CODEOWNERS');
+const expectedSettingsEvents = [
+  'settings.org.created',
+  'settings.org.updated',
+  'settings.user.invited',
+  'settings.user.deactivated',
+  'settings.role.assigned',
+  'settings.module.toggled',
+  'settings.reference.row_updated',
+  'settings.schema.migration_requested',
+  'settings.rule.deployed',
+  'settings.sso.config_changed',
+  'settings.scim.token_created',
+] as const;
+
 const expectedCanonicalEvents = [
   'org.created',
   'user.invited',
@@ -22,6 +36,8 @@ const expectedCanonicalEvents = [
   'tenant.migration.run',
   'tenant.migration.run.failed',
   'tenant.cohort.advanced',
+  // T-003 — settings outbox events
+  ...expectedSettingsEvents,
 ] as const;
 
 type EventsModule = {
@@ -29,6 +45,7 @@ type EventsModule = {
   LegacyEventAlias: Record<string, string>;
   ALL_EVENTS: readonly string[];
   ALL_EVENT_ALIASES: Readonly<Record<string, string>>;
+  ALL_SETTINGS_EVENTS: readonly string[];
   normalizeEventType: (input: string) => string;
 };
 
@@ -42,12 +59,25 @@ async function loadEventsModule(): Promise<EventsModule> {
 }
 
 describe('outbox event type source of truth', () => {
-  it('exports exactly the canonical foundation event values without duplicates', async () => {
+  it('exports exactly the canonical foundation and settings event values without duplicates', async () => {
     const { ALL_EVENTS, EventType } = await loadEventsModule();
 
     expect(ALL_EVENTS).toEqual(expectedCanonicalEvents);
     expect(Object.values(EventType)).toEqual(expectedCanonicalEvents);
     expect(new Set(ALL_EVENTS).size).toBe(ALL_EVENTS.length);
+  });
+
+  it('exports the locked settings event group with valid unique strings', async () => {
+    const { ALL_EVENTS, ALL_SETTINGS_EVENTS, EventType } = await loadEventsModule();
+
+    expect(ALL_SETTINGS_EVENTS).toEqual(expectedSettingsEvents);
+    expect(new Set(ALL_SETTINGS_EVENTS).size).toBe(ALL_SETTINGS_EVENTS.length);
+
+    for (const eventType of ALL_SETTINGS_EVENTS) {
+      expect(eventType).toMatch(/^settings\.[a-z_]+\.[a-z_]+$/);
+      expect(ALL_EVENTS).toContain(eventType);
+      expect(Object.values(EventType)).toContain(eventType);
+    }
   });
 
   it('keeps all canonical event values in the locked lowercase dotted format', async () => {
