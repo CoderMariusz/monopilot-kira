@@ -153,3 +153,35 @@ create unique index if not exists schema_migrations_filename_unique
 create index if not exists schema_migrations_org_id_idx on public.schema_migrations (org_id);
 create index if not exists schema_migrations_table_code_idx on public.schema_migrations (table_code);
 create index if not exists schema_migrations_org_table_code_idx on public.schema_migrations (org_id, table_code);
+
+-- status CHECK: enforce closed set; idempotent re-add.
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.schema_migrations'::regclass
+      and conname = 'schema_migrations_status_check'
+  ) then
+    alter table public.schema_migrations drop constraint schema_migrations_status_check;
+  end if;
+
+  alter table public.schema_migrations
+    add constraint schema_migrations_status_check
+    check (status in ('pending', 'approved', 'running', 'completed', 'failed', 'rolled_back'));
+end $$;
+
+-- RLS: enable (no FORCE) so the owner-run migrate runner keeps writing
+-- legacy rows with NULL org_id; app_user is constrained by org_id policy.
+-- See packages/db/scripts/migrate.ts (owner connection, runner_apply rows).
+alter table public.schema_migrations enable row level security;
+
+drop policy if exists schema_migrations_org_context on public.schema_migrations;
+create policy schema_migrations_org_context
+  on public.schema_migrations
+  for all
+  to app_user
+  using (org_id = app.current_org_id())
+  with check (org_id = app.current_org_id());
+
+revoke all on public.schema_migrations from public;
+grant select, insert, update, delete on public.schema_migrations to app_user;

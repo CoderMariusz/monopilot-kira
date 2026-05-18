@@ -178,6 +178,8 @@ begin
       return new;
     end;
     $function$;
+
+    revoke all on function public.seed_system_roles_on_org_insert() from public;
   end if;
 end $$;
 
@@ -212,17 +214,43 @@ alter table public.users
   add column if not exists last_login_at timestamptz,
   add column if not exists updated_at timestamptz;
 
-update public.users u
-set
-  name = coalesce(u.name, u.display_name, u.email::text),
-  language = coalesce(u.language, 'pl'),
-  is_active = coalesce(u.is_active, true),
-  created_at = coalesce(u.created_at, now()),
-  updated_at = coalesce(u.updated_at, now()),
-  role_id = coalesce(
-    u.role_id,
-    (select r.id from public.roles r where r.org_id = u.org_id and r.code = 'legacy_user' limit 1)
+do $$
+declare
+  has_display_name boolean;
+begin
+  has_display_name := exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'users'
+      and column_name = 'display_name'
   );
+
+  if has_display_name then
+    update public.users u
+    set
+      name = coalesce(u.name, u.display_name, u.email::text),
+      language = coalesce(u.language, 'pl'),
+      is_active = coalesce(u.is_active, true),
+      created_at = coalesce(u.created_at, now()),
+      updated_at = coalesce(u.updated_at, now()),
+      role_id = coalesce(
+        u.role_id,
+        (select r.id from public.roles r where r.org_id = u.org_id and r.code = 'legacy_user' limit 1)
+      );
+  else
+    update public.users u
+    set
+      name = coalesce(u.name, u.email::text),
+      language = coalesce(u.language, 'pl'),
+      is_active = coalesce(u.is_active, true),
+      created_at = coalesce(u.created_at, now()),
+      updated_at = coalesce(u.updated_at, now()),
+      role_id = coalesce(
+        u.role_id,
+        (select r.id from public.roles r where r.org_id = u.org_id and r.code = 'legacy_user' limit 1)
+      );
+  end if;
+end $$;
 
 alter table public.users
   alter column id set default gen_random_uuid(),

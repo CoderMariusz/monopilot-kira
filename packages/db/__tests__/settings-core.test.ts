@@ -280,6 +280,41 @@ describe('settings core schema contract (T-004 RED)', () => {
       'no raw tenant/current_org_id GUC reads',
     );
   });
+
+  it('revokes execute on the SECURITY DEFINER seed_system_roles_on_org_insert from public', () => {
+    const sql = migrationCorpus();
+    expectSqlMatch(
+      sql,
+      /create\s+or\s+replace\s+function\s+public\.seed_system_roles_on_org_insert[\s\S]{0,400}security\s+definer/i,
+      'seed_system_roles_on_org_insert is SECURITY DEFINER',
+    );
+    expectSqlMatch(
+      sql,
+      /revoke\s+all\s+on\s+function\s+public\.seed_system_roles_on_org_insert\s*\(\s*\)\s+from\s+public/i,
+      'SECURITY DEFINER function revokes execute from public',
+    );
+  });
+
+  it('guards users.display_name backfill with a column-existence check', () => {
+    const sql = migrationCorpus();
+    const settingsCorePath = findSettingsCoreMigrationPaths().find((p) => p.endsWith('037-settings-core.sql'));
+    expect(settingsCorePath, '037-settings-core.sql located').toBeDefined();
+    const settingsCore = readFileSync(settingsCorePath as string, 'utf8');
+
+    if (/u\.display_name/.test(settingsCore)) {
+      expectSqlMatch(
+        settingsCore,
+        /information_schema\.columns[\s\S]{0,400}'display_name'/i,
+        '037 references display_name so it must guard with information_schema.columns existence check',
+      );
+      expectSqlMatch(
+        settingsCore,
+        /coalesce\s*\(\s*u\.name\s*,\s*u\.email::text\s*\)/i,
+        '037 contains a no-display_name fallback branch',
+      );
+    }
+    expectSqlNotMatch(sql, /current_setting\s*\(\s*['"]app\.(?:tenant_id|current_org_id)['"]/i, 'no raw GUC reads');
+  });
 });
 
 runIntegrationSuite('settings core migration behavior as app_user', () => {

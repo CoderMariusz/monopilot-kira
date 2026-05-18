@@ -133,6 +133,36 @@ describe('schema metadata contract (T-005 RED)', () => {
     expectSql(sql, /create\s+policy[\s\S]{0,260}on\s+public\.reference_schemas[\s\S]{0,400}org_id\s*=\s*app\.current_org_id\s*\(\s*\)/i, 'reference_schemas policy scopes org_id with app.current_org_id()');
     expect(sql).not.toMatch(/current_setting\s*\(\s*['"]app\.(?:tenant_id|current_org_id)['"]/i);
   });
+
+  it('constrains schema_migrations.status to the canonical state machine', () => {
+    const sql = migrationCorpus();
+    for (const value of ['pending', 'approved', 'running', 'completed', 'failed', 'rolled_back']) {
+      expectSql(
+        sql,
+        new RegExp(`schema_migrations[\\s\\S]*?status[\\s\\S]{0,400}check[\\s\\S]{0,400}'${value}'`, 'i'),
+        `schema_migrations.status allows ${value}`,
+      );
+    }
+  });
+
+  it('enables RLS on schema_migrations with an app_user org-context policy and revokes public', () => {
+    const sql = migrationCorpus();
+    expectSql(
+      sql,
+      /alter\s+table\s+public\.schema_migrations\s+enable\s+row\s+level\s+security/i,
+      'schema_migrations enables RLS',
+    );
+    expectSql(
+      sql,
+      /create\s+policy[\s\S]{0,300}on\s+public\.schema_migrations[\s\S]{0,500}to\s+app_user[\s\S]{0,300}org_id\s*=\s*app\.current_org_id\s*\(\s*\)/i,
+      'schema_migrations app_user policy scopes org_id with app.current_org_id()',
+    );
+    expectSql(
+      sql,
+      /revoke\s+all\s+on\s+public\.schema_migrations\s+from\s+public/i,
+      'schema_migrations revokes public',
+    );
+  });
 });
 
 runIntegrationSuite('schema metadata migration behavior (requires DATABASE_URL)', () => {
@@ -177,6 +207,44 @@ runIntegrationSuite('schema metadata migration behavior (requires DATABASE_URL)'
     } finally {
       await appPool?.end();
       await adminPool?.end();
+    }
+  });
+
+  runIntegrationTest('schema_migrations enforces status CHECK and RLS via pg_catalog inspection', async () => {
+    const { getOwnerConnection } = await import('../test-utils/test-pool.js');
+    const pool = getOwnerConnection();
+    try {
+      for (const filePath of migrationFiles()) {
+        await pool.query(readFileSync(filePath, 'utf8'));
+      }
+
+      const checkDef = await pool.query<{ pg_get_constraintdef: string }>(
+        `select pg_get_constraintdef(c.oid) from pg_constraint c
+         where c.conrelid = 'public.schema_migrations'::regclass
+           and c.conname = 'schema_migrations_status_check'`,
+      );
+      expect(checkDef.rows.length, 'schema_migrations_status_check exists').toBe(1);
+      const def = checkDef.rows[0]?.pg_get_constraintdef ?? '';
+      for (const v of ['pending', 'approved', 'running', 'completed', 'failed', 'rolled_back']) {
+        expect(def).toContain(`'${v}'`);
+      }
+
+      const rls = await pool.query<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
+        `select relrowsecurity, relforcerowsecurity from pg_class
+         where oid = 'public.schema_migrations'::regclass`,
+      );
+      expect(rls.rows[0]?.relrowsecurity, 'RLS enabled').toBe(true);
+
+      const policies = await pool.query<{ qual: string | null; with_check: string | null; roles: string[] }>(
+        `select qual, with_check, roles from pg_policies
+         where schemaname = 'public' and tablename = 'schema_migrations'`,
+      );
+      expect(policies.rows.length, 'at least one policy').toBeGreaterThanOrEqual(1);
+      const appUserPolicy = policies.rows.find((r) => (r.roles ?? []).includes('app_user'));
+      expect(appUserPolicy, 'app_user policy present').toBeDefined();
+      expect(`${appUserPolicy?.qual ?? ''} ${appUserPolicy?.with_check ?? ''}`).toContain('app.current_org_id()');
+    } finally {
+      await pool.end();
     }
   });
 });
