@@ -78,13 +78,9 @@ export async function sendPasswordReset(
     return { error: 'Email is required.', success: false };
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/${locale}/login`,
   });
-
-  if (error) {
-    return { success: true, error: null };
-  }
 
   return { success: true, error: null };
 }
