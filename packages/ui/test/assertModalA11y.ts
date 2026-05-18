@@ -20,8 +20,19 @@ export async function assertModalA11y(container: HTMLElement) {
   // aria-labelledby
   expect(dialogElement).toHaveAttribute('aria-labelledby');
   const labelledById = dialogElement.getAttribute('aria-labelledby');
-  const labelElement = container.querySelector(`#${labelledById}`);
+  const labelElement = labelledById
+    ? Array.from(container.querySelectorAll('[id]')).find((element) => element.id === labelledById)
+    : undefined;
   expect(labelElement).toBeDefined();
+
+  // Focus-trap proof: the shared Modal primitive marks the Radix focus scope on
+  // Dialog.Content, and Radix installs focus guards in document.body while the
+  // focus scope is mounted. A fake ARIA-only dialog has neither proof.
+  const hasTrapMarker = dialogElement.getAttribute('data-focus-trap') === 'radix-dialog';
+  const hasRadixFocusGuards = document.querySelectorAll('[data-radix-focus-guard]').length >= 2;
+  if (!hasTrapMarker || !hasRadixFocusGuards) {
+    throw new Error('Modal focus trap is not demonstrably installed');
+  }
 
   // Axe accessibility scan
   const results = await axe(container);

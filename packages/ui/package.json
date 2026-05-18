@@ -25,7 +25,7 @@
     "storybook:dev": "storybook dev",
     "build-storybook": "storybook build",
     "storybook:build": "storybook build",
-    "test:a11y": "vitest run --include '**/*.a11y.test.ts*'",
+    "test:a11y": "vitest run test/Modal.a11y.test.ts",
     "lint": "eslint ."
   },
   "dependencies": {

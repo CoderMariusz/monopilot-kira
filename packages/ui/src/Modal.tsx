@@ -1,19 +1,10 @@
-import React, { useId, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 
-/**
- * Converts a React useId() value (which may contain colons) into a
- * CSS-selector-safe ID string. Example: ",:r18," → "modal-title-r18"
- */
-function toCssId(reactId: string): string {
-  return 'modal-title-' + reactId.replace(/[^a-zA-Z0-9-_]/g, '');
-}
+import '../tokens.css';
 
 // Size prop type
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
-
-// Context to share the title ID between Modal and Modal.Header
-const ModalTitleIdContext = React.createContext<string>('');
 
 // ──────────────────────────────────────────────
 // Modal.Header
@@ -23,10 +14,9 @@ interface ModalHeaderProps {
 }
 
 function ModalHeader({ title }: ModalHeaderProps) {
-  const titleId = React.useContext(ModalTitleIdContext);
   return (
     <div data-testid="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Dialog.Title id={titleId} asChild>
+      <Dialog.Title asChild>
         <h2 style={{ margin: 0 }}>{title}</h2>
       </Dialog.Title>
       <Dialog.Close asChild>
@@ -92,11 +82,21 @@ interface ModalProps {
 }
 
 function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }: ModalProps) {
-  // Generate a stable, unique ID for aria-labelledby wiring.
-  // useId() may produce colon-containing strings like ",:r18," which are
-  // invalid CSS selectors. We normalise to a safe form.
-  const rawId = useId();
-  const titleId = useMemo(() => toCssId(rawId), [rawId]);
+  const previouslyOpen = useRef(open);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (open && !previouslyOpen.current) {
+      const activeElement = document.activeElement;
+      returnFocusTo.current = activeElement instanceof HTMLElement ? activeElement : null;
+    }
+
+    if (!open && previouslyOpen.current && returnFocusTo.current?.isConnected) {
+      returnFocusTo.current.focus();
+    }
+
+    previouslyOpen.current = open;
+  }, [open]);
 
   const handleEscapeKeyDown = dismissible
     ? undefined
@@ -106,30 +106,29 @@ function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }
     ? undefined
     : (e: Event) => { e.preventDefault(); };
 
-  const sizeVar = `var(--modal-size-${size}-width, 480px)`;
+  const sizeVar = `var(--modal-size-${size}-width)`;
 
   return (
-    <ModalTitleIdContext.Provider value={titleId}>
-      <Dialog.Root open={open} onOpenChange={onOpenChange} modal={true}>
-        {/*
-          Render content without a Portal so tests can query via container.
-          In a real browser, use Dialog.Portal for proper stacking context.
-          Portal is skipped here by not wrapping in Dialog.Portal.
-        */}
-        <Dialog.Overlay />
-        <Dialog.Content
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          data-size={size}
-          style={{ maxWidth: sizeVar }}
-          onEscapeKeyDown={handleEscapeKeyDown}
-          onPointerDownOutside={handlePointerDownOutside}
-        >
-          {children}
-        </Dialog.Content>
-      </Dialog.Root>
-    </ModalTitleIdContext.Provider>
+    <Dialog.Root open={open} onOpenChange={onOpenChange} modal={true}>
+      {/*
+        Render content without a Portal so tests can query via container.
+        In a real browser, use Dialog.Portal for proper stacking context.
+        Portal is skipped here by not wrapping in Dialog.Portal.
+      */}
+      <Dialog.Overlay />
+      <Dialog.Content
+        role="dialog"
+        aria-modal="true"
+        aria-describedby={undefined}
+        data-focus-trap="radix-dialog"
+        data-size={size}
+        style={{ maxWidth: sizeVar }}
+        onEscapeKeyDown={handleEscapeKeyDown}
+        onPointerDownOutside={handlePointerDownOutside}
+      >
+        {children}
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }
 
