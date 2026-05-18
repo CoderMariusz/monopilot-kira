@@ -1,311 +1,149 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import React, { useState } from 'react';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { assertModalA11y } from '../../test/assertModalA11y';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import Modal from '../Modal';
-import React from 'react';
+import { assertModalA11y } from '../../test/assertModalA11y';
 
-describe('Modal (Radix Dialog wrapper)', () => {
-  describe('AC1: Structural & visual parity with invite-modal (access-screens.jsx:131-154)', () => {
-    it('renders with header containing title and close button', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Invite user" />
-          <Modal.Body>Content</Modal.Body>
-          <Modal.Footer>
-            <button>Cancel</button>
-            <button>Send</button>
-          </Modal.Footer>
-        </Modal>
-      );
+const uiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const repoRoot = path.resolve(uiRoot, '../..');
 
-      const header = container.querySelector('[data-testid="modal-header"]');
-      expect(header).not.toBeNull();
+function readText(relativePath: string): string {
+  return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+}
 
-      const title = screen.queryByText('Invite user');
-      expect(title).not.toBeNull();
-      expect(title).toHaveTextContent('Invite user');
+function findFiles(root: string, predicate: (filePath: string) => boolean): string[] {
+  if (!fs.existsSync(root)) return [];
 
-      const closeButton = container.querySelector('[data-testid="modal-close-button"]');
-      expect(closeButton).not.toBeNull();
-      expect(closeButton).toHaveAttribute('aria-label', 'Close');
-      expect(closeButton).toHaveAttribute('type', 'button');
-    });
+  return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const absolutePath = path.join(root, entry.name);
+    if (entry.isDirectory()) return findFiles(absolutePath, predicate);
+    return predicate(absolutePath) ? [absolutePath] : [];
+  });
+}
 
-    it('renders body with form-grid-2 structure support', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Test" />
-          <Modal.Body>
-            <div className="form-grid-2">
-              <input type="text" placeholder="Field 1" />
-              <input type="text" placeholder="Field 2" />
-            </div>
-          </Modal.Body>
-        </Modal>
-      );
+describe('Modal primitive contract', () => {
+  it('matches the settings access invite-modal hierarchy and reads width from tokens.css', () => {
+    const { container } = render(
+      <Modal open onOpenChange={() => {}} size="md">
+        <Modal.Header title="Invite user" />
+        <Modal.Body>
+          <div className="field"><label>Email address</label><input type="email" /></div>
+          <div className="form-grid-2">
+            <div className="field"><label>Role</label><select><option>Manager</option></select></div>
+            <div className="field"><label>Site</label><select><option>Kraków HQ</option></select></div>
+          </div>
+          <div className="field"><label>Personal message (optional)</label><textarea rows={2} /></div>
+          <div className="alert alert-blue">They&apos;ll receive an email with a magic link.</div>
+        </Modal.Body>
+        <Modal.Footer>
+          <button className="btn btn-secondary">Cancel</button>
+          <button className="btn btn-primary">Send invitation</button>
+        </Modal.Footer>
+      </Modal>,
+    );
 
-      const formGrid = container.querySelector('.form-grid-2');
-      expect(formGrid).not.toBeNull();
-      expect(formGrid).toHaveClass('form-grid-2');
-      expect(formGrid?.querySelectorAll('input[type="text"]')).toHaveLength(2);
-    });
+    const dialog = screen.getByRole('dialog', { name: 'Invite user' });
+    expect(dialog.tagName.toLowerCase()).not.toBe('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('data-size', 'md');
+    expect(dialog.getAttribute('style')).toMatch(/--modal-size-md-width(?!,)/);
 
-    it('renders footer with Cancel and primary action right-aligned', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-          <Modal.Footer>
-            <button className="btn btn-secondary">Cancel</button>
-            <button className="btn btn-primary">Action</button>
-          </Modal.Footer>
-        </Modal>
-      );
+    expect(container.querySelector('[data-testid="modal-header"]')).toContainElement(screen.getByText('Invite user'));
+    expect(container.querySelector('[data-testid="modal-close-button"]')).toHaveAttribute('aria-label', 'Close');
+    expect(container.querySelector('[data-testid="modal-body"] .form-grid-2')).toBeTruthy();
+    expect(container.querySelector('[data-testid="modal-footer"]')).toContainElement(screen.getByRole('button', { name: 'Cancel' }));
+    expect(container.querySelector('[data-testid="modal-footer"]')).toContainElement(screen.getByRole('button', { name: 'Send invitation' }));
+  });
 
-      const footer = container.querySelector('[data-testid="modal-footer"]');
-      expect(footer).not.toBeNull();
+  it('traps focus while open, closes on Escape only when dismissible, and restores focus to the invoker', async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
 
-      const cancelBtn = screen.queryByText('Cancel');
-      expect(cancelBtn).not.toBeNull();
-      expect(cancelBtn).toHaveTextContent('Cancel');
-      expect(cancelBtn).toHaveClass('btn', 'btn-secondary');
+    const locked = render(
+      <Modal open onOpenChange={onOpenChange} dismissible={false}>
+        <Modal.Header title="Locked modal" />
+        <Modal.Body><input aria-label="First field" /></Modal.Body>
+        <Modal.Footer><button>Cancel</button><button>Confirm</button></Modal.Footer>
+      </Modal>,
+    );
 
-      const actionBtn = screen.queryByText('Action');
-      expect(actionBtn).not.toBeNull();
-      expect(actionBtn).toHaveTextContent('Action');
-      expect(actionBtn).toHaveClass('btn', 'btn-primary');
-    });
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Locked modal' }), { key: 'Escape' });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    locked.unmount();
 
-    it('uses Radix Dialog primitive (not native <dialog>)', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      // Radix Dialog renders with role="dialog"
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).not.toBeNull();
-      expect(dialogElement).toHaveAttribute('role', 'dialog');
-
-      // Native <dialog> should not be present
-      const nativeDialog = container.querySelector('dialog');
-      expect(nativeDialog).toBeNull();
-    });
-
-    it('reads sizes from tokens.css (sm/md/lg/xl)', async () => {
-      const sizes = ['sm', 'md', 'lg', 'xl'];
-
-      for (const size of sizes) {
-        const { container, unmount } = render(
-          <Modal open={true} onOpenChange={() => {}} size={size}>
-            <Modal.Header title={`Modal ${size}`} />
-            <Modal.Body>Content</Modal.Body>
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open invite modal</button>
+          <Modal open={open} onOpenChange={setOpen}>
+            <Modal.Header title="Invite user" />
+            <Modal.Body><input aria-label="Email address" /></Modal.Body>
+            <Modal.Footer><button>Cancel</button><button>Send invitation</button></Modal.Footer>
           </Modal>
-        );
+        </>
+      );
+    }
 
-        const dialogContent = container.querySelector('[role="dialog"]');
-        expect(dialogContent).not.toBeNull();
-        expect(dialogContent).toHaveAttribute('data-size', size);
+    render(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'Open invite modal' });
+    await user.click(trigger);
+    await user.tab();
+    expect(screen.getByRole('dialog', { name: 'Invite user' })).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+});
 
-        unmount();
-      }
-    });
+describe('Modal accessibility helper contract', () => {
+  it('fails a fake dialog that has ARIA labels but no demonstrable focus trap', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <button>Outside page control</button>
+      <div role="dialog" aria-modal="true" aria-labelledby="fake-title">
+        <h2 id="fake-title">Fake modal</h2>
+        <button>First</button>
+        <button>Last</button>
+      </div>
+    `;
+
+    await expect(assertModalA11y(container)).rejects.toThrow(/focus trap|focus/i);
+  });
+});
+
+describe('Modal governance and CI coverage', () => {
+  it('blocks direct @radix-ui/react-dialog imports outside packages/ui via root ESLint no-restricted-imports', () => {
+    const eslintConfigPath = path.join(repoRoot, '.eslintrc.js');
+    expect(fs.existsSync(eslintConfigPath)).toBe(true);
+    const eslintConfig = fs.readFileSync(eslintConfigPath, 'utf8');
+
+    expect(eslintConfig).toContain('no-restricted-imports');
+    expect(eslintConfig).toContain('@radix-ui/react-dialog');
+    expect(eslintConfig).toMatch(/packages\/ui/);
   });
 
-  describe('AC1: Interactional requirements', () => {
-    it('closes when ESC key is pressed', async () => {
-      const onOpenChange = vi.fn();
-      const user = userEvent.setup();
+  it('defines one Storybook 8 modal story for every size variant', () => {
+    const stories = readText('packages/ui/.storybook/Modal.stories.tsx');
 
-      const { container } = render(
-        <Modal open={true} onOpenChange={onOpenChange}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).not.toBeNull();
-
-      fireEvent.keyDown(dialogElement || document, { key: 'Escape' });
-
-      await waitFor(() => {
-        expect(onOpenChange).toHaveBeenCalledWith(false);
-      });
-    });
-
-    it('traps focus inside the dialog while open', async () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Test" />
-          <Modal.Body>
-            <input type="text" data-testid="input-1" />
-            <input type="text" data-testid="input-2" />
-          </Modal.Body>
-          <Modal.Footer>
-            <button data-testid="btn-cancel">Cancel</button>
-            <button data-testid="btn-primary">Confirm</button>
-          </Modal.Footer>
-        </Modal>
-      );
-
-      const closeButton = container.querySelector('[data-testid="modal-close-button"]');
-      const input1 = screen.getByTestId('input-1');
-      const input2 = screen.getByTestId('input-2');
-      const btnCancel = screen.getByTestId('btn-cancel');
-      const btnPrimary = screen.getByTestId('btn-primary');
-
-      // All interactive elements should exist with the right semantics
-      expect(closeButton).not.toBeNull();
-      expect(closeButton).toHaveAttribute('aria-label', 'Close');
-      expect(input1).toHaveAttribute('type', 'text');
-      expect(input2).toHaveAttribute('type', 'text');
-      expect(btnCancel).toHaveTextContent('Cancel');
-      expect(btnPrimary).toHaveTextContent('Confirm');
-
-      // Focus should be trapped (Radix Dialog handles this automatically)
-      // Verify focus is within the dialog
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).not.toBeNull();
-      expect(dialogElement?.contains(input1)).toBe(true);
-      expect(dialogElement?.contains(btnPrimary)).toBe(true);
-    });
-
-    it('returns focus to the triggering element on close', async () => {
-      const triggerRef = { current: null as HTMLButtonElement | null };
-
-      const TestComponent = () => {
-        const [open, setOpen] = React.useState(false);
-        return (
-          <>
-            <button ref={triggerRef} onClick={() => setOpen(true)}>
-              Open Modal
-            </button>
-            {open && (
-              <Modal open={open} onOpenChange={setOpen}>
-                <Modal.Header title="Test" />
-                <Modal.Body>Content</Modal.Body>
-              </Modal>
-            )}
-          </>
-        );
-      };
-
-      const { rerender } = render(<TestComponent />);
-
-      const trigger = triggerRef.current;
-      expect(trigger).not.toBeNull();
-      expect(trigger).toHaveTextContent('Open Modal');
-
-      // This is tested via Radix Dialog's built-in behavior
-      // A real integration test would verify focus restoration
-    });
+    for (const [storyName, size] of [['Small', 'sm'], ['Medium', 'md'], ['Large', 'lg'], ['ExtraLarge', 'xl']] as const) {
+      expect(stories).toMatch(new RegExp(`export\\s+const\\s+${storyName}\\b`));
+      expect(stories).toContain(`size="${size}"`);
+    }
   });
 
-  describe('AC1: Accessibility compliance', () => {
-    it('passes axe-core accessibility scan', async () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Accessible Modal" />
-          <Modal.Body>
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" placeholder="test@example.com" />
-          </Modal.Body>
-          <Modal.Footer>
-            <button>Cancel</button>
-            <button>Confirm</button>
-          </Modal.Footer>
-        </Modal>
-      );
+  it('runs axe-core over the four Storybook modal stories in a Vitest CI test', () => {
+    const a11yTests = findFiles(path.join(uiRoot, 'src'), (filePath) => /\.a11y\.test\.tsx?$/.test(filePath))
+      .concat(findFiles(path.join(uiRoot, 'test'), (filePath) => /\.a11y\.test\.tsx?$/.test(filePath)));
+    expect(a11yTests.length).toBeGreaterThan(0);
 
-      await assertModalA11y(container);
-    });
-
-    it('sets role="dialog" and aria-modal="true"', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toHaveAttribute('role', 'dialog');
-      expect(dialogElement).toHaveAttribute('aria-modal', 'true');
-    });
-
-    it('sets aria-labelledby to header title ID', () => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}}>
-          <Modal.Header title="Modal Title" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toHaveAttribute('aria-labelledby');
-
-      const labelledById = dialogElement?.getAttribute('aria-labelledby');
-      expect(labelledById).toBeTruthy();
-
-      const titleElement = container.querySelector(`#${labelledById}`);
-      expect(titleElement).not.toBeNull();
-      expect(titleElement?.textContent).toContain('Modal Title');
-    });
-  });
-
-  describe('AC3: Modal size variants (sm/md/lg/xl)', () => {
-    it.each(['sm', 'md', 'lg', 'xl'])('renders Modal with size variant: %s', (size) => {
-      const { container } = render(
-        <Modal open={true} onOpenChange={() => {}} size={size}>
-          <Modal.Header title={`Modal ${size}`} />
-          <Modal.Body>Content for {size}</Modal.Body>
-        </Modal>
-      );
-
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).toHaveAttribute('data-size', size);
-
-      const computedStyle = window.getComputedStyle(dialogElement!);
-      // Width should be set from tokens (will be checked when tokens.css is properly loaded)
-      expect(dialogElement).not.toBeNull();
-      expect(computedStyle).toBeDefined();
-    });
-  });
-
-  describe('AC4: dismissible flag', () => {
-    it('closes modal when dismissible=true and backdrop is clicked', async () => {
-      const onOpenChange = vi.fn();
-
-      const { container } = render(
-        <Modal open={true} onOpenChange={onOpenChange} dismissible={true}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      // Radix Dialog closes on outside click by default when dismissible=true
-      const overlay = container.querySelector('[data-state="open"]');
-      expect(overlay).not.toBeNull();
-      expect(overlay).toHaveAttribute('data-state', 'open');
-    });
-
-    it('does not close on backdrop click when dismissible=false', () => {
-      const onOpenChange = vi.fn();
-
-      const { container } = render(
-        <Modal open={true} onOpenChange={onOpenChange} dismissible={false}>
-          <Modal.Header title="Test" />
-          <Modal.Body>Content</Modal.Body>
-        </Modal>
-      );
-
-      const dialogElement = container.querySelector('[role="dialog"]');
-      expect(dialogElement).not.toBeNull();
-      expect(dialogElement).toHaveAttribute('role', 'dialog');
-    });
+    const combined = a11yTests.map((filePath) => fs.readFileSync(filePath, 'utf8')).join('\n');
+    expect(combined).toContain('@axe-core/playwright');
+    for (const size of ['sm', 'md', 'lg', 'xl']) expect(combined).toContain(size);
+    expect(combined).toMatch(/serious|critical/);
   });
 });
