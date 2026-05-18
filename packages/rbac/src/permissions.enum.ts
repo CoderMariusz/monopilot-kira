@@ -25,6 +25,74 @@ export const Permission = {
   SETTINGS_AUDIT_READ: 'settings.audit.read',
   /** Settings tenant impersonation access; PRD 02-SETTINGS §3 lines 119-120. */
   SETTINGS_IMPERSONATE_TENANT: 'settings.impersonate.tenant',
+
+  // Schema
+  /** Settings schema lifecycle permissions; PRD 02-SETTINGS §3, §6, §10, §14. */
+  SETTINGS_SCHEMA_VIEW: 'settings.schema.view',
+  SETTINGS_SCHEMA_EDIT: 'settings.schema.edit',
+  SETTINGS_SCHEMA_PROMOTE_L1: 'settings.schema.promote_l1',
+
+  // Rules
+  /** Settings rules registry permissions; PRD 02-SETTINGS §3, §7, §10, §14. */
+  SETTINGS_RULES_VIEW: 'settings.rules.view',
+
+  // Reference
+  /** Settings reference-data governance permissions; PRD 02-SETTINGS §3, §8, §10, §14. */
+  SETTINGS_REFERENCE_VIEW: 'settings.reference.view',
+  SETTINGS_REFERENCE_EDIT: 'settings.reference.edit',
+  SETTINGS_REFERENCE_IMPORT: 'settings.reference.import',
+
+  // Infra
+  /** Settings infrastructure configuration permissions; PRD 02-SETTINGS §3, §10, §11, §14. */
+  SETTINGS_INFRA_VIEW: 'settings.infra.view',
+  SETTINGS_INFRA_EDIT: 'settings.infra.edit',
+
+  // D365
+  /** Settings D365 integration permissions; PRD 02-SETTINGS §3, §10, §11, §14. */
+  SETTINGS_D365_VIEW: 'settings.d365.view',
+  SETTINGS_D365_EDIT: 'settings.d365.edit',
+  SETTINGS_D365_TOGGLE: 'settings.d365.toggle',
+
+  // Email
+  /** Settings email configuration permissions; PRD 02-SETTINGS §3, §10, §11, §14. */
+  SETTINGS_EMAIL_VIEW: 'settings.email.view',
+  SETTINGS_EMAIL_EDIT: 'settings.email.edit',
+
+  // Onboarding
+  /** Settings onboarding completion permission; PRD 02-SETTINGS §3, §12, §14. */
+  SETTINGS_ONBOARDING_COMPLETE: 'settings.onboarding.complete',
+
+  // Security
+  /** Settings security configuration permission; PRD 02-SETTINGS §3, §11, §13, §14. */
+  SETTINGS_SECURITY_EDIT: 'settings.security.edit',
+
+  // SSO
+  /** Settings SSO administration permissions; PRD 02-SETTINGS §3, §11, §13, §14. */
+  SETTINGS_SSO_VIEW: 'settings.sso.view',
+  SETTINGS_SSO_EDIT: 'settings.sso.edit',
+
+  // SCIM
+  /** Settings SCIM administration permissions; PRD 02-SETTINGS §3, §11, §13, §14. */
+  SETTINGS_SCIM_VIEW: 'settings.scim.view',
+  SETTINGS_SCIM_EDIT: 'settings.scim.edit',
+
+  // IP Allowlist
+  /** Settings IP allowlist permissions; PRD 02-SETTINGS §3, §11, §13, §14. */
+  SETTINGS_IP_ALLOWLIST_VIEW: 'settings.ip_allowlist.view',
+  SETTINGS_IP_ALLOWLIST_EDIT: 'settings.ip_allowlist.edit',
+
+  // Flags
+  /** Settings feature flag permissions; PRD 02-SETTINGS §3, §10, §14. */
+  SETTINGS_FLAGS_VIEW: 'settings.flags.view',
+  SETTINGS_FLAGS_EDIT: 'settings.flags.edit',
+
+  // Workflow Authorization
+  /** Settings/Auth-owned workflow authorization permissions; PRD 02-SETTINGS §3 PO decision 2026-05-03, §6, §10, §14. */
+  SETTINGS_AUTHORIZATION_VIEW: 'settings.authorization.view',
+  SETTINGS_AUTHORIZATION_EDIT: 'settings.authorization.edit',
+  NPD_RELEASED_PRODUCT_EDIT_REQUEST: 'npd.released_product_edit.request',
+  NPD_RELEASED_PRODUCT_EDIT_AUTHORIZE: 'npd.released_product_edit.authorize',
+  TECHNICAL_PRODUCT_SPEC_APPROVE: 'technical.product_spec.approve',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -38,6 +106,38 @@ export const ALL_SETTINGS_CORE_PERMISSIONS = [
   Permission.SETTINGS_ROLES_ASSIGN,
   Permission.SETTINGS_AUDIT_READ,
   Permission.SETTINGS_IMPERSONATE_TENANT,
+] as readonly Permission[];
+
+export const ALL_SETTINGS_EXT_PERMISSIONS = [
+  Permission.SETTINGS_SCHEMA_VIEW,
+  Permission.SETTINGS_SCHEMA_EDIT,
+  Permission.SETTINGS_SCHEMA_PROMOTE_L1,
+  Permission.SETTINGS_RULES_VIEW,
+  Permission.SETTINGS_REFERENCE_VIEW,
+  Permission.SETTINGS_REFERENCE_EDIT,
+  Permission.SETTINGS_REFERENCE_IMPORT,
+  Permission.SETTINGS_INFRA_VIEW,
+  Permission.SETTINGS_INFRA_EDIT,
+  Permission.SETTINGS_D365_VIEW,
+  Permission.SETTINGS_D365_EDIT,
+  Permission.SETTINGS_D365_TOGGLE,
+  Permission.SETTINGS_EMAIL_VIEW,
+  Permission.SETTINGS_EMAIL_EDIT,
+  Permission.SETTINGS_ONBOARDING_COMPLETE,
+  Permission.SETTINGS_SECURITY_EDIT,
+  Permission.SETTINGS_SSO_VIEW,
+  Permission.SETTINGS_SSO_EDIT,
+  Permission.SETTINGS_SCIM_VIEW,
+  Permission.SETTINGS_SCIM_EDIT,
+  Permission.SETTINGS_IP_ALLOWLIST_VIEW,
+  Permission.SETTINGS_IP_ALLOWLIST_EDIT,
+  Permission.SETTINGS_FLAGS_VIEW,
+  Permission.SETTINGS_FLAGS_EDIT,
+  Permission.SETTINGS_AUTHORIZATION_VIEW,
+  Permission.SETTINGS_AUTHORIZATION_EDIT,
+  Permission.NPD_RELEASED_PRODUCT_EDIT_REQUEST,
+  Permission.NPD_RELEASED_PRODUCT_EDIT_AUTHORIZE,
+  Permission.TECHNICAL_PRODUCT_SPEC_APPROVE,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {
