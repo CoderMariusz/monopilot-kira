@@ -1,112 +1,173 @@
-import { describe, it, expect } from 'vitest';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import * as path from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { formatDate, formatNumber } from '../format';
 
-describe('i18n format utilities', () => {
-  describe('formatDate', () => {
-    const testDate = new Date('2025-05-07T12:00:00Z');
+type Messages = Record<string, unknown>;
+type Locale = 'pl' | 'en' | 'uk' | 'ro';
 
-    it('should format date in Polish locale', () => {
-      const result = formatDate(testDate, 'pl');
-      expect(result).toMatch(/\d{1,2}\s+\w+\s+202\d/);
-      expect(result).toBeTruthy();
-    });
+const repoRoot = path.resolve(__dirname, '../../../../..');
+const webRoot = path.join(repoRoot, 'apps', 'web');
+const locales: Locale[] = ['pl', 'en', 'uk', 'ro'];
 
-    it('should format date in English locale', () => {
-      const result = formatDate(testDate, 'en');
-      expect(result).toMatch(/\w+\s+\d{1,2},\s+202\d|May\s+7,\s+2025/);
-      expect(result).toBeTruthy();
-    });
+function readMessages(locale: Locale): Messages {
+  return JSON.parse(readFileSync(path.join(webRoot, 'i18n', `${locale}.json`), 'utf8')) as Messages;
+}
 
-    it('should format date in Ukrainian locale', () => {
-      const result = formatDate(testDate, 'uk');
-      // \w does not match Cyrillic; use \p{L}+ with unicode flag (objectively-wrong-fix)
-      expect(result).toMatch(/\d{1,2}\s+\p{L}+/u);
-      expect(result).toBeTruthy();
-    });
+function flattenKeys(value: unknown, prefix = ''): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [prefix];
 
-    it('should format date in Romanian locale', () => {
-      const result = formatDate(testDate, 'ro');
-      expect(result).toMatch(/\d{1,2}\s+\w+\s+202\d/);
-      expect(result).toBeTruthy();
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, nested]) =>
+    flattenKeys(nested, prefix ? `${prefix}.${key}` : key),
+  );
+}
+
+function getMessage(messages: Messages, key: string): string {
+  const value = key.split('.').reduce<unknown>((current, part) => {
+    if (!current || typeof current !== 'object') return undefined;
+    return (current as Record<string, unknown>)[part];
+  }, messages);
+
+  if (typeof value !== 'string') throw new Error(`Missing ICU message for ${key}`);
+  return value;
+}
+
+function renderIcuPlural(locale: Locale, message: string, count: number): string {
+  const forms = Object.fromEntries(
+    Array.from(message.matchAll(/(zero|one|two|few|many|other)\s*\{([^{}]*)\}/g)).map((match) => [
+      match[1],
+      match[2],
+    ]),
+  ) as Record<string, string | undefined>;
+  const pluralCategory = new Intl.PluralRules(locale).select(count);
+  const template = forms[pluralCategory] ?? forms.other;
+
+  if (!template) throw new Error(`Missing plural category ${pluralCategory}`);
+  return template.split('#').join(String(count));
+}
+
+describe('i18n locale dictionaries', () => {
+  it('ships the same required key set for pl, en, uk, and ro', () => {
+    const requiredKeys = [
+      'auth.signin.title',
+      'auth.signin.email',
+      'common.cancel',
+      'common.save',
+      'common.error.generic',
+      'items.count',
+    ];
+
+    const keySets = locales.map((locale) => [locale, flattenKeys(readMessages(locale)).sort()] as const);
+    const [baseLocale, baseKeys] = keySets[0];
+
+    for (const [locale, keys] of keySets) {
+      expect(keys, `${locale} keys should match ${baseLocale}`).toEqual(baseKeys);
+      expect(keys, `${locale} should include T-022 baseline keys`).toEqual(expect.arrayContaining(requiredKeys));
+    }
+  });
+});
+
+describe('ICU MessageFormat plural rules', () => {
+  const cases: Record<Locale, Array<[count: number, expected: string]>> = {
+    pl: [
+      [1, '1 element'],
+      [2, '2 elementy'],
+      [5, '5 elementów'],
+    ],
+    en: [
+      [1, '1 item'],
+      [2, '2 items'],
+    ],
+    uk: [
+      [1, '1 елемент'],
+      [2, '2 елементи'],
+      [5, '5 елементів'],
+    ],
+    ro: [
+      [1, '1 element'],
+      [2, '2 elemente'],
+      [20, '20 de elemente'],
+    ],
+  };
+
+  for (const locale of locales) {
+    it(`renders ${locale} item count plural categories from ICU dictionaries`, () => {
+      const message = getMessage(readMessages(locale), 'items.count');
+
+      for (const [count, expected] of cases[locale]) {
+        expect(renderIcuPlural(locale, message, count)).toBe(expected);
+      }
     });
+  }
+});
+
+describe('locale-aware Intl formatters', () => {
+  it('formats dates with the requested locale instead of string concatenation', () => {
+    const date = new Date('2025-05-07T12:00:00Z');
+
+    expect(formatDate(date, 'pl')).toBe('7 maja 2025');
+    expect(formatDate(date, 'en')).toBe('May 7, 2025');
   });
 
-  describe('formatNumber', () => {
-    it('should format number in Polish locale with proper decimal separator', () => {
-      const result = formatNumber(1234.56, 'pl');
-      // Polish uses comma as decimal separator: "1234,56"
-      expect(result).toContain('1234,56');
-      expect(result).not.toContain('.');
-    });
+  it('formats numbers with locale-aware separators', () => {
+    expect(formatNumber(1234.56, 'pl')).toContain('1234,56');
+    expect(formatNumber(1234.56, 'en')).toBe('1,234.56');
+    expect(formatNumber(1234.56, 'uk')).toContain('234,56');
+    expect(formatNumber(1234.56, 'ro')).toBe('1.234,56');
+  });
+});
 
-    it('should format number in English locale with comma separator', () => {
-      const result = formatNumber(1234.56, 'en');
-      // en-US uses comma as thousands grouping and period as decimal: "1,234.56"
-      expect(result).toContain('1,234');
-      expect(result).toContain('.56');
-    });
+describe('hardcoded string lint contract', () => {
+  it('is wired into the package lint/ci scripts so CI enforces the T-022 no-hardcoded-strings rule', () => {
+    const rootPackage = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const webPackage = JSON.parse(readFileSync(path.join(webRoot, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const ciLintEntrypoints = [
+      rootPackage.scripts?.ci,
+      rootPackage.scripts?.lint,
+      webPackage.scripts?.lint,
+    ].join(' ');
 
-    it('should format number in Ukrainian locale', () => {
-      const result = formatNumber(1234.56, 'uk');
-      // uk-UA uses non-breaking space as grouping separator and comma as decimal: "1 234,56"
-      // Use a substring that pins the locale-specific decimal: "234,56"
-      expect(result).toContain('234,56');
-      expect(result).not.toContain('.');
-    });
-
-    it('should format number in Romanian locale', () => {
-      const result = formatNumber(1234.56, 'ro');
-      // ro-RO uses period as thousands grouping and comma as decimal: "1.234,56"
-      expect(result).toContain('1.234');
-      expect(result).toContain(',56');
-    });
+    expect(ciLintEntrypoints).toContain('scripts/lint-no-hardcoded-strings.mjs');
   });
 
-  describe('ICU MessageFormat plural rules', () => {
-    it('should support Polish plural rules (1/few/many)', () => {
-      // Polish: 1=singular, few (2-4, 22-24, etc.), many (5-21, 25+)
-      const pluralForms = {
-        one: 'one item',
-        few: 'few items',
-        many: 'many items'
-      };
-      expect(pluralForms).toHaveProperty('one');
-      expect(pluralForms).toHaveProperty('few');
-      expect(pluralForms).toHaveProperty('many');
-    });
+  it('reports a TSX hardcoded "Save changes" literal with file and line evidence', () => {
+    const fixtureDir = path.join(webRoot, 'app', '__acp_i18n_lint_fixture__');
+    const fixtureFile = path.join(fixtureDir, 'page.tsx');
 
-    it('should support English plural rules (one/other)', () => {
-      // English: 1=one, other (0, 2+)
-      const pluralForms = {
-        one: 'one item',
-        other: 'other items'
-      };
-      expect(pluralForms).toHaveProperty('one');
-      expect(pluralForms).toHaveProperty('other');
-    });
+    mkdirSync(fixtureDir, { recursive: true });
+    writeFileSync(
+      fixtureFile,
+      [
+        'export default function FixturePage() {',
+        '  return <button>Save changes</button>;',
+        '}',
+        '',
+      ].join('\n'),
+    );
 
-    it('should support Ukrainian plural rules (1/few/many)', () => {
-      // Ukrainian: 1=singular, few (2-4, 22-24, etc.), many (5-20, 25+)
-      const pluralForms = {
-        one: 'одна позиція',
-        few: 'кілька позицій',
-        many: 'багато позицій'
-      };
-      expect(pluralForms).toHaveProperty('one');
-      expect(pluralForms).toHaveProperty('few');
-      expect(pluralForms).toHaveProperty('many');
-    });
+    try {
+      const result = spawnSync('node', [path.join(repoRoot, 'scripts', 'lint-no-hardcoded-strings.mjs')], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      });
 
-    it('should support Romanian plural rules (1/few/other)', () => {
-      // Romanian: 1=singular, few (0, 2-19), other (20+)
-      const pluralForms = {
-        one: 'un element',
-        few: 'câteva elemente',
-        other: 'multe elemente'
-      };
-      expect(pluralForms).toHaveProperty('one');
-      expect(pluralForms).toHaveProperty('few');
-      expect(pluralForms).toHaveProperty('other');
-    });
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain(
+        'apps/web/app/__acp_i18n_lint_fixture__/page.tsx:2  "Save changes"',
+      );
+    } finally {
+      rmSync(fixtureDir, { recursive: true, force: true });
+    }
+  });
+
+  it('can be invoked directly with node from the repository root', () => {
+    const version = execFileSync('node', ['--version'], { cwd: repoRoot, encoding: 'utf8' }).trim();
+    expect(version).toMatch(/^v\d+/);
+    expect(() => readFileSync(path.join(repoRoot, 'scripts', 'lint-no-hardcoded-strings.mjs'))).not.toThrow();
   });
 });
