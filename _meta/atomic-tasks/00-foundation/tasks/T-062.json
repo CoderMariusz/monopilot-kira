@@ -1,0 +1,64 @@
+{
+  "title": "T-062 — Login screen UI (sign-in, forgot-password, MFA-challenge pages)",
+  "prompt": "# T-062 — Login screen UI (sign-in, forgot-password, MFA-challenge pages)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` — sections: §5.x (auth), §W0-v4.3\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nImplement the web-app login flow as Next.js Server + Client Components under `app/[locale]/login/` so that Supabase Auth (T-011) is fully reachable from the browser.  This is the entry point for all E2E tests.\n\n## Prototype reference\n`prototypes/design/Monopilot Design System/scanner/login.jsx` — screen `LoginScreen`.\nNote: the scanner prototype is for a mobile-scanner / MES terminal.  Adapt the visual layout to a centred card (desktop web) using shadcn/ui `<Card>`, `<Input>`, `<Button>`, `<Form>`.  Keep the same brand identity: MonoPilot logo, dark-blue primary colour, clean minimal style.\n\nDesign language reference: `prototypes/design/Monopilot Design System/settings/app.jsx` (shell & topbar colour tokens).\n\n## Pages to create\n\n### 1. Sign-in page\nRoute: `/[locale]/login`  \nFile: `apps/web/app/[locale]/login/page.tsx`\n\nLayout: centred card (max-w-md) with:\n- MonoPilot logo / wordmark\n- Email field (`type=email`, autofocus)\n- Password field (`type=password`)\n- \"Forgot password?\" link → `/[locale]/login/forgot-password`\n- Primary CTA: \"Sign in\"\n- Divider → (future: SSO button placeholder — render but disabled)\n- Error state: shadcn `<Alert variant=\"destructive\">` for wrong credentials\n- Loading state: spinner on button while submitting\n\nAuth flow:\n1. Client calls Server Action `signInWithPassword(email, password)` (see actions.ts below)\n2. On success: `redirect('/[locale]/')` (locale-aware)\n3. On error: display error message from Supabase (invalid credentials, account locked, etc.)\n\n### 2. Forgot-password page\nRoute: `/[locale]/login/forgot-password`  \nFile: `apps/web/app/[locale]/login/forgot-password/page.tsx`\n\nLayout: centred card with:\n- Heading \"Reset your password\"\n- Email field\n- CTA \"Send reset link\"\n- Success state: \"Check your email — a reset link has been sent.\"\n- Back link → `/[locale]/login`\n\nAuth flow: calls `supabase.auth.resetPasswordForEmail(email, { redirectTo })`\n\n### 3. MFA challenge page\nRoute: `/[locale]/login/mfa`  \nFile: `apps/web/app/[locale]/login/mfa/page.tsx`\n\nLayout: centred card with:\n- Heading \"Two-factor authentication\"\n- 6-digit TOTP code input (single numeric `<Input>`, maxLength 6)\n- CTA \"Verify\"\n- Error state: \"Invalid or expired code\"\n- \"Use recovery code\" link (stub — display only)\n\nAuth flow: calls `supabase.auth.mfa.challengeAndVerify({ factorId, code })`\n\n## Server Actions\nFile: `apps/web/app/[locale]/login/_actions/auth.ts`\n\n```typescript\n'use server';\nimport { createSupabaseServerClient } from '@/lib/supabase/server';\nimport { redirect } from 'next/navigation';\n\nexport async function signInWithPassword(formData: FormData) {\n  const email = formData.get('email') as string;\n  const password = formData.get('password') as string;\n  const locale = formData.get('locale') as string;\n  const supabase = await createSupabaseServerClient();\n  const { error } = await supabase.auth.signInWithPassword({ email, password });\n  if (error) return { error: error.message };\n  redirect(`/${locale}/`);\n}\n\nexport async function sendPasswordReset(formData: FormData) {\n  const email = formData.get('email') as string;\n  const supabase = await createSupabaseServerClient();\n  await supabase.auth.resetPasswordForEmail(email, {\n    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/login`\n  });\n  return { success: true };\n}\n```\n\n## Shared layout\nFile: `apps/web/app/[locale]/login/layout.tsx`\n\nMinimal layout — no sidebar/topbar, full-screen centred, dark-tinted background (`bg-slate-950`).\n\n```tsx\nexport default function LoginLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <div className=\"min-h-screen bg-slate-950 flex items-center justify-center\">\n      {children}\n    </div>\n  );\n}\n```\n\n## Files (scope)\n- `apps/web/app/[locale]/login/page.tsx` [create]\n- `apps/web/app/[locale]/login/layout.tsx` [create]\n- `apps/web/app/[locale]/login/forgot-password/page.tsx` [create]\n- `apps/web/app/[locale]/login/mfa/page.tsx` [create]\n- `apps/web/app/[locale]/login/_actions/auth.ts` [create]\n- `apps/web/messages/en.json` [modify — add Login.* keys]\n- `apps/web/messages/pl.json` [modify — add Login.* keys]\n\n## i18n keys to add\n```json\n{\n  \"Login\": {\n    \"title\": \"Sign in to MonoPilot\",\n    \"email\": \"Email\",\n    \"password\": \"Password\",\n    \"submit\": \"Sign in\",\n    \"forgotPassword\": \"Forgot password?\",\n    \"errorInvalidCredentials\": \"Invalid email or password\",\n    \"errorAccountLocked\": \"Account locked. Contact your administrator.\",\n    \"forgotPasswordTitle\": \"Reset your password\",\n    \"forgotPasswordSubmit\": \"Send reset link\",\n    \"forgotPasswordSuccess\": \"Check your email — a reset link has been sent.\",\n    \"mfaTitle\": \"Two-factor authentication\",\n    \"mfaCode\": \"Authentication code\",\n    \"mfaSubmit\": \"Verify\",\n    \"mfaError\": \"Invalid or expired code\"\n  }\n}\n```\n\n## Acceptance criteria\n1. Navigating to `/en/login` renders the sign-in card (no 404, no redirect loop)\n2. Submitting correct credentials redirects to `/en/` and a Supabase session cookie is set\n3. Submitting wrong credentials shows the error alert without page reload\n4. Navigating to `/en/login/forgot-password` renders the reset form\n5. Navigating to `/en/login/mfa` renders the TOTP code entry form\n6. `pnpm --filter @monopilot/web typecheck` passes with zero errors\n\n## Dependencies (must be complete first)\n- T-011 (Supabase Auth backend wiring)\n- T-022 (next-intl scaffold)\n- T-025 (packages/ui + shadcn bootstrap)\n\n## Wave assignment\nFala 0 — required before any E2E test (T-080+) can run against the web UI.\n\n## Closeout evidence\nProvide: changed_files, typecheck output, acceptance_criteria_status, git_status.",
+  "labels": [
+    "ui",
+    "auth",
+    "T3-ui"
+  ],
+  "priority": 15,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-062",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5.x",
+      "§W0-v4.3"
+    ],
+    "category": "auth",
+    "subcategory": "ui",
+    "task_type": "T3-ui",
+    "parent_feature": "00-FOUNDATION-impl-f auth-ui",
+    "context_budget": "40k",
+    "estimated_effort": "1-2h",
+    "description": "Implement sign-in, forgot-password, and MFA-challenge pages at app/[locale]/login/ using shadcn/ui Card+Form+Input+Button components wired to Supabase Auth signInWithPassword.",
+    "prototype_path": "prototypes/design/Monopilot Design System/scanner/login.jsx",
+    "prototype_index_ref": "login_screen",
+    "scope_files": [
+      "apps/web/app/[locale]/login/page.tsx [create]",
+      "apps/web/app/[locale]/login/layout.tsx [create]",
+      "apps/web/app/[locale]/login/forgot-password/page.tsx [create]",
+      "apps/web/app/[locale]/login/mfa/page.tsx [create]",
+      "apps/web/app/[locale]/login/_actions/auth.ts [create]",
+      "apps/web/messages/en.json [modify]",
+      "apps/web/messages/pl.json [modify]"
+    ],
+    "out_of_scope": [
+      "SAML SSO implementation (T-012)",
+      "Magic-link flow UI (backend in T-011)",
+      "Scanner/mobile login screen (separate scanner app)",
+      "Any settings screens"
+    ],
+    "dependencies": [
+      "T-011",
+      "T-022",
+      "T-025"
+    ],
+    "acceptance_criteria": [
+      "Navigating to /en/login renders the sign-in card (no 404, no redirect loop)",
+      "Submitting correct credentials redirects to /en/ and a Supabase session cookie is set",
+      "Submitting wrong credentials shows the error alert without page reload",
+      "Navigating to /en/login/forgot-password renders the reset form",
+      "Navigating to /en/login/mfa renders the TOTP code entry form",
+      "pnpm --filter @monopilot/web typecheck passes with zero errors"
+    ],
+    "wave": "Fala 0",
+    "routing_hints": {
+      "implementation": "sonnet",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    }
+  }
+}
