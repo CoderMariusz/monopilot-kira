@@ -7,6 +7,8 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
+      "@monopilot/db": ["packages/db/src/index.ts"],
+      "@monopilot/db/*": ["packages/db/src/*"],
       "@monopilot/*": ["packages/*/src"]
     },
     "strict": true,

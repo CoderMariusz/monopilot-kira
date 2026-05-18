@@ -43,6 +43,7 @@ const runWithDb = hasDatabaseUrl ? it : it.skip;
 
 let dbPool: pg.Pool | null = null;
 let dbClient: pg.PoolClient | null = null;
+const testTenantId = '99999999-9999-9999-9999-999999999098';
 const testOrgId = '99999999-9999-9999-9999-999999999099';
 const testDeptCode = 't034_drift_dept';
 
@@ -72,11 +73,17 @@ beforeAll(async () => {
   await tryReadAndExec(dbClient, auditMigrationPath);
   await tryReadAndExec(dbClient, schemaDrivenMigrationPath);
 
-  // Ensure org row exists for FK reference.
+  // Ensure tenant + org rows exist for FK / NOT NULL references.
   await dbClient.query(
-    `INSERT INTO public.organizations (id, name)
-     VALUES ($1, 't034-org') ON CONFLICT (id) DO NOTHING`,
-    [testOrgId],
+    `INSERT INTO public.tenants (id, name, region_cluster, data_plane_url)
+     VALUES ($1, 't034-tenant', 'eu', 'https://t034.example.invalid')
+     ON CONFLICT (id) DO NOTHING`,
+    [testTenantId],
+  );
+  await dbClient.query(
+    `INSERT INTO public.organizations (id, tenant_id, name, industry_code)
+     VALUES ($1, $2, 't034-org', 'generic') ON CONFLICT (id) DO NOTHING`,
+    [testOrgId, testTenantId],
   );
 });
 

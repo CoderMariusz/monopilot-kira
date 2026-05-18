@@ -220,7 +220,8 @@ describe('outbox_events table and worker (integration tests)', () => {
     `;
 
     const explainResult = await dbClient.query(explainQuery);
-    const plan = JSON.parse(explainResult.rows[0]['QUERY PLAN'])[0];
+    const rawPlan = explainResult.rows[0]['QUERY PLAN'];
+    const plan = Array.isArray(rawPlan) ? rawPlan[0] : JSON.parse(String(rawPlan))[0];
 
     // Extract the plan tree to find if an index is used
     function findIndexInPlan(node: any): boolean {

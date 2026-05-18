@@ -48,7 +48,7 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@monopilot/ui'],
+  transpilePackages: ['@monopilot/ui', '@monopilot/db'],
   env: {
     DEV_AUTH_BYPASS: process.env.DEV_AUTH_BYPASS ?? '',
   },

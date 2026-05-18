@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-import { getOwnerConnection, getAppConnection } from '@monopilot/db/test-utils/test-pool';
+import { getOwnerConnection, getAppConnection } from '../../../db/test-utils/test-pool';
 
 // The handler module under test. Importing a non-existent module fails the
 // suite at collection time during RED. The implementer creates it during GREEN.

@@ -46,30 +46,23 @@ export default defineConfig({
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
-    alias: {
-      '@monopilot/ui': path.resolve(__dirname, '../../packages/ui/src'),
+    alias: [
+      { find: /^@monopilot\/ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ui/src/$1') },
+      { find: /^@monopilot\/db\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/db/src/$1') },
+      { find: '@monopilot/ui', replacement: path.resolve(__dirname, '../../packages/ui/src') },
       // Force all packages to use the web app's React 19 so there's only one React
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      { find: 'react', replacement: path.resolve(__dirname, 'node_modules/react') },
+      { find: 'react-dom', replacement: path.resolve(__dirname, 'node_modules/react-dom') },
       // Resolve packages that are in packages/ui/node_modules (pnpm workspace)
-      'react-hook-form': path.resolve(__dirname, '../../packages/ui/node_modules/react-hook-form'),
-      'zustand': path.resolve(__dirname, '../../packages/ui/node_modules/zustand'),
-      '@radix-ui/react-tabs': path.resolve(__dirname, '../../packages/ui/node_modules/@radix-ui/react-tabs'),
-    },
+      { find: 'react-hook-form', replacement: path.resolve(__dirname, '../../packages/ui/node_modules/react-hook-form') },
+      { find: 'zustand', replacement: path.resolve(__dirname, '../../packages/ui/node_modules/zustand') },
+      { find: '@radix-ui/react-tabs', replacement: path.resolve(__dirname, '../../packages/ui/node_modules/@radix-ui/react-tabs') },
+    ],
   },
   test: {
     environment: 'jsdom',
     globals: true,
+    include: ['app/**/*.test.tsx'],
     setupFiles: ['../../packages/ui/test/setup.ts', './test-setup.ui.ts'],
-    alias: {
-      '@monopilot/ui': path.resolve(__dirname, '../../packages/ui/src'),
-      // Force all packages to use the web app's React 19 so there's only one React
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      // Resolve packages that are in packages/ui/node_modules (pnpm workspace)
-      'react-hook-form': path.resolve(__dirname, '../../packages/ui/node_modules/react-hook-form'),
-      'zustand': path.resolve(__dirname, '../../packages/ui/node_modules/zustand'),
-      '@radix-ui/react-tabs': path.resolve(__dirname, '../../packages/ui/node_modules/@radix-ui/react-tabs'),
-    },
   },
 });

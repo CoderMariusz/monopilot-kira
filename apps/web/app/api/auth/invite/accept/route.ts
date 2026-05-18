@@ -1,6 +1,5 @@
 export const runtime = 'nodejs';
 
-// @ts-expect-error Workspace package subpath is resolved by Vitest/package runtime and mocked in tests.
 import { getOwnerConnection } from '@monopilot/db/clients';
 
 type InviteRow = {
@@ -21,6 +20,13 @@ function owner(): OwnerConnection {
 function json(status: number, body: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function gone(body: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), {
+    status: 410,
     headers: { 'content-type': 'application/json' },
   });
 }
@@ -51,7 +57,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const invite = await lookupInvite(token);
   if (!invite) return json(404, { error: 'invite token not found' });
-  if (isExpired(invite.invite_token_expires_at)) return json(410, { error: 'invite expired: gone' });
+  if (isExpired(invite.invite_token_expires_at)) return gone({ error: 'invite expired: gone' });
 
   return json(200, { ok: 'true', email: invite.email });
 }
@@ -77,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
   const row = consumed.rows[0];
   if (!row) {
     const stale = await lookupInvite(token);
-    if (stale && isExpired(stale.invite_token_expires_at)) return json(410, { error: 'invite expired: gone' });
+    if (stale && isExpired(stale.invite_token_expires_at)) return gone({ error: 'invite expired: gone' });
     return json(404, { error: 'invite token not found' });
   }
 

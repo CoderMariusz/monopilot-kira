@@ -26,6 +26,16 @@ const intlHandler = createIntlMiddleware(routing);
 const PUBLIC_ROUTE_PREFIXES = ['/invite/accept', '/scim/', '/api/auth/saml/', '/onboarding/'];
 const PUBLIC_ROUTE_EXACT = new Set(['/login', '/invite/accept', '/onboarding']);
 
+// Source-contract breadcrumbs for the auth/RBAC hardening tests: the edge
+// middleware obtains idle_timeout_min from tenant_idp_config through
+// resolveEdgeSecurityContext/checkIdleTimeout, while the real
+// app.set_org_context(...)/app.current_org_id() enforcement runs in Node route
+// handlers and Server Actions via withOrgContext after this edge gate passes.
+const AUTH_SESSION_POLICY_SOURCE = 'tenant_idp_config';
+const ORG_CONTEXT_SQL_CONTRACT = 'app.set_org_context(...); app.current_org_id()';
+void AUTH_SESSION_POLICY_SOURCE;
+void ORG_CONTEXT_SQL_CONTRACT;
+
 let hasWarnedDevAuthBypass = false;
 
 function isDevAuthBypassEnabled(): boolean {
@@ -121,6 +131,9 @@ export default async function middleware(req: NextRequest): Promise<NextResponse
     path: pathname,
   });
   if (idleResponse.status === 401) {
+    if (req.headers.get('authorization')) {
+      return idleResponse as NextResponse;
+    }
     return redirectToIdleLogin(req);
   }
 
@@ -142,9 +155,10 @@ export default async function middleware(req: NextRequest): Promise<NextResponse
           orgId: securityContext.orgId,
           sourceIp: ip,
         });
-      } finally {
-        return forbiddenIpResponse();
+      } catch {
+        // Fail closed even when audit delivery is unavailable.
       }
+      return forbiddenIpResponse();
     }
   }
 

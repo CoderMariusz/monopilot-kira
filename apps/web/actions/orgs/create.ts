@@ -1,6 +1,5 @@
 'use server';
 
-// @ts-expect-error Workspace package subpath is resolved by Vitest/package runtime and mocked in tests.
 import { getOwnerConnection } from '@monopilot/db/clients';
 import { SYSTEM_ROLE_SEEDS } from '../../../../packages/rbac/src/role-seed';
 

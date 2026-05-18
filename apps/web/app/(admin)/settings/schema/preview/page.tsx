@@ -164,7 +164,7 @@ function SchemaShadowPreview({ initialParams }: { initialParams: PreviewSearchPa
     'main',
     { 'aria-labelledby': 'schema-shadow-preview-title' },
     h('h1', { id: 'schema-shadow-preview-title' }, 'Schema Shadow Preview'),
-    h(PreviewNotice, { asAlert: publishState.kind !== 'error' }),
+    h(PreviewNotice, { asAlert: publishState.kind !== 'error' && !isPublishing }),
     h(
       'div',
       {

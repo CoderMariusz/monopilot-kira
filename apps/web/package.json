@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --exclude '**/smoke.test.ts' --exclude '**/SchemaColumnWizard.test.tsx' --exclude '**/e2e/**' && vitest run --config vitest.ui.config.ts 'app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx'",
+    "test": "vitest run --config ../../vitest.config.ts --exclude '**/*.test.tsx' --exclude '**/smoke.test.ts' --exclude '**/e2e/**' && vitest run --config vitest.ui.config.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts \"app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx\"",
     "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
   },
@@ -24,6 +24,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "serwist": "^9.5.11",
+    "@monopilot/db": "workspace:*",
     "@monopilot/ui": "workspace:*"
   },
   "devDependencies": {

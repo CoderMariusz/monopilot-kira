@@ -38,9 +38,8 @@ type OrgContext = {
 type WithOrgContext = <T>(action: (ctx: OrgContext) => Promise<T>) => Promise<T>;
 
 async function runWithOrgContext<T>(action: (ctx: OrgContext) => Promise<T>): Promise<T> {
-  const mockedOrPackagePath = '@monopilot/db/with-org-context';
   try {
-    const mod = (await import(mockedOrPackagePath)) as { withOrgContext?: WithOrgContext };
+    const mod = (await import('@monopilot/db/with-org-context')) as { withOrgContext?: WithOrgContext };
     if (typeof mod.withOrgContext === 'function') return mod.withOrgContext(action);
   } catch {
     // The package subpath is not exported in this checkout; production uses the web HOF below.

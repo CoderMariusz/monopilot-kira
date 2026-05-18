@@ -201,7 +201,7 @@ describe('settings core schema contract (T-004 RED)', () => {
       ['organizationModules', 'organization_modules'],
     ] as const) {
       expect(
-        new RegExp(`export\\s+const\\s+${exportName}\\s*=\\s*pgTable\\(\\s*['\"]${tableName}['\"]`, 'i').test(
+        new RegExp(`export\\s+const\\s+${exportName}\\s*=\\s*pgTable\\(\\s*['"]${tableName}['"]`, 'i').test(
           source,
         ),
         `${exportName} pgTable(${tableName})`,

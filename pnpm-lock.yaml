@@ -38,6 +38,9 @@ importers:
       '@boxyhq/saml-jackson':
         specifier: ^26.2.0
         version: 26.2.0(@azure/core-client@1.10.1)(@types/node@20.19.39)
+      '@monopilot/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@monopilot/ui':
         specifier: workspace:*
         version: link:../../packages/ui

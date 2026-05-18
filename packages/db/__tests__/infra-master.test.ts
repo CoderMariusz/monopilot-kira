@@ -68,7 +68,7 @@ describe('infra master schema contract (T-009 RED)', () => {
     const source = readFileSync(schemaPath, 'utf8');
     for (const [exportName, tableName] of infraTables) {
       expect(
-        new RegExp(`export\\s+const\\s+${exportName}\\s*=\\s*pgTable\\(\\s*['\"]${tableName}['\"]`, 'i').test(
+        new RegExp(`export\\s+const\\s+${exportName}\\s*=\\s*pgTable\\(\\s*['"]${tableName}['"]`, 'i').test(
           source,
         ),
         `${exportName} pgTable(${tableName})`,
@@ -77,7 +77,7 @@ describe('infra master schema contract (T-009 RED)', () => {
 
     for (const tableName of orgScopedTables) {
       expect(
-        new RegExp(`pgTable\\(\\s*['\"]${tableName}['\"][\\s\\S]*orgId:\\s*uuid\\(\\s*['\"]org_id['\"]\\s*\\)[\\s\\S]{0,220}references\\(`, 'i').test(
+        new RegExp(`pgTable\\(\\s*['"]${tableName}['"][\\s\\S]*orgId:\\s*uuid\\(\\s*['"]org_id['"]\\s*\\)[\\s\\S]{0,220}references\\(`, 'i').test(
           source,
         ),
         `${tableName}.org_id references organizations`,
@@ -129,7 +129,7 @@ describe('infra master schema contract (T-009 RED)', () => {
     expectSqlMatch(sql, /insert\s+into\s+(?:public\.)?allergens/i, 'seed inserts into allergens');
     expectSqlMatch(sql, /\bname\b[\s\S]{0,80}\bname_pl\b|\bname_pl\b[\s\S]{0,80}\bname\b/i, 'seed carries English and Polish names');
     for (const code of eu14Codes) {
-      expectSqlMatch(sql, new RegExp(`['\"]${code}['\"]`, 'i'), `${code} allergen code is seeded`);
+      expectSqlMatch(sql, new RegExp(`['"]${code}['"]`, 'i'), `${code} allergen code is seeded`);
     }
     const uniqueCodes = new Set(sql.match(/['"]A(?:0[1-9]|1[0-4])['"]/g)?.map((code) => code.replace(/['"]/g, '')) ?? []);
     expect(uniqueCodes, 'exactly EU-14 A01..A14 codes are seeded').toHaveLength(14);
