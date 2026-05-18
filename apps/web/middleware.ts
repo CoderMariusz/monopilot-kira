@@ -1,5 +1,6 @@
 /**
- * Next.js middleware — edge-safe next-intl locale routing.
+ * Next.js middleware — edge-safe next-intl locale routing plus T-035 security
+ * composition.
  *
  * IMPORTANT: Middleware runs in the Edge runtime on Next/Vercel. Do not import
  * Node-only modules here (`pg`, Node `crypto`, Supabase server helpers that pull
@@ -11,8 +12,19 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
 import { routing } from './i18n/routing';
+import { checkIdleTimeout } from './lib/auth/session-check';
+import {
+  auditAdminIpBlocked,
+  establishOrgContext,
+  isRequestIpAllowed,
+  resolveEdgeSecurityContext,
+  verifyScimBearer,
+} from './lib/auth/edge-middleware-policy';
 
 const intlHandler = createIntlMiddleware(routing);
+
+const PUBLIC_ROUTE_PREFIXES = ['/invite/accept', '/scim/', '/api/auth/saml/', '/onboarding/'];
+const PUBLIC_ROUTE_EXACT = new Set(['/login', '/invite/accept', '/onboarding']);
 
 let hasWarnedDevAuthBypass = false;
 
@@ -37,17 +49,120 @@ function isDevAuthBypassEnabled(): boolean {
   return true;
 }
 
-export default function middleware(req: NextRequest): NextResponse {
-  // Preserve the existing DEV_AUTH_BYPASS warning semantics without importing
-  // Node-only auth/session modules into the Edge middleware bundle.
-  isDevAuthBypassEnabled();
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTE_EXACT.has(pathname) || PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function sourceIp(req: NextRequest): string {
+  const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  return forwardedFor || req.headers.get('x-real-ip')?.trim() || 'unknown';
+}
+
+function isProtectedAdminRoute(pathname: string): boolean {
+  return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
+function redirectTo(req: NextRequest, pathname: string): NextResponse {
+  const url = new URL(req.nextUrl.toString());
+  url.pathname = pathname;
+  url.search = '';
+  return NextResponse.redirect(url);
+}
+
+function redirectToIdleLogin(req: NextRequest): NextResponse {
+  const url = new URL(req.nextUrl.toString());
+  url.pathname = '/login';
+  url.search = '?reason=idle';
+
+  return NextResponse.redirect(url, {
+    headers: {
+      'set-cookie': 'sb-access-token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+    },
+  });
+}
+
+function forbiddenIpResponse(): NextResponse {
+  return new Response(JSON.stringify({ error: 'IP_NOT_ALLOWED' }), {
+    status: 403,
+    headers: { 'content-type': 'application/json' },
+  }) as NextResponse;
+}
+
+export default async function middleware(req: NextRequest): Promise<NextResponse> {
+  // Preserve the existing DEV_AUTH_BYPASS warning semantics. In non-production
+  // dev bypass keeps local app shells reachable but still never enables in prod.
+  if (isDevAuthBypassEnabled()) {
+    return intlHandler(req) as NextResponse;
+  }
+
+  const { pathname } = req.nextUrl;
+
+  // SCIM bearer traffic is a public integration surface, but valid bearer
+  // requests still get a fast-path verifier before all user/session guards.
+  if (pathname === '/scim' || pathname.startsWith('/scim/')) {
+    const authorization = req.headers.get('authorization');
+    if (authorization && (await verifyScimBearer(authorization))) {
+      return intlHandler(req) as NextResponse;
+    }
+  }
+
+  // Public route bypass must happen before user/org resolution so auth setup,
+  // invite acceptance, SAML callbacks, and onboarding screens cannot loop.
+  if (isPublicRoute(pathname)) {
+    return intlHandler(req) as NextResponse;
+  }
+
+  const securityContext = await resolveEdgeSecurityContext(req);
+  const ip = sourceIp(req);
+
+  // Admin IP allowlist is fail-closed by the policy helper; middleware denies
+  // before onboarding/session/org work and audits only sanitized fields.
+  if (isProtectedAdminRoute(pathname) && securityContext.role === 'admin') {
+    let allowed = false;
+    try {
+      allowed = isRequestIpAllowed(ip, securityContext.adminIpAllowlistCidrs);
+    } catch {
+      allowed = false;
+    }
+    if (!allowed) {
+      try {
+        await auditAdminIpBlocked({
+          attemptedRoute: pathname,
+          eventType: 'admin_ip_blocked',
+          orgId: securityContext.orgId,
+          sourceIp: ip,
+        });
+      } finally {
+        return forbiddenIpResponse();
+      }
+    }
+  }
+
+  // Onboarding guard comes before idle timeout/org context per T-035.
+  if (!securityContext.onboardingCompletedAt) {
+    return redirectTo(
+      req,
+      securityContext.role === 'admin' ? '/onboarding' : '/onboarding/in-progress',
+    );
+  }
+
+  const idleResponse = await checkIdleTimeout({
+    accessToken: securityContext.accessToken,
+    idleTimeoutMin: securityContext.sessionIdleTimeoutMinutes,
+    path: pathname,
+  });
+  if (idleResponse.status === 401) {
+    return redirectToIdleLogin(req);
+  }
+
+  await establishOrgContext(securityContext);
 
   return intlHandler(req) as NextResponse;
 }
 
 export const config = {
-  // Match all pathnames except for
-  // - … if they start with `/api`, `/_next` or `/_vercel`
-  // - … the ones containing a dot (e.g. `favicon.ico`)
-  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
+  // Match all pathnames except for internal/static assets. Public auth/setup
+  // routes are intentionally matched so middleware can explicitly bypass them
+  // and tests can prove the allowlist remains reachable.
+  matcher: ['/((?!_next|_vercel|.*\\..*).*)'],
 };
