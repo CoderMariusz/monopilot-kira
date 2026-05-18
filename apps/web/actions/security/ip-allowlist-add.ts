@@ -15,31 +15,35 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type IpaddrAddress = {
-  kind(): string;
-  toString(): string;
-  match(range: readonly [IpaddrAddress, number], bits?: number): boolean;
+export type AddIpRangeResult =
+  | { ok: true; data: { id: string; cidr: string; label: string | null } }
+  | { ok: false; error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' };
+
+type ParsedInput = {
+  cidr: string;
+  label: string | null;
 };
 
-type IpaddrModule = {
-  parseCIDR(cidr: string): [IpaddrAddress, number];
+type IpRangeRow = {
+  id: string;
+  cidr: string;
+  label: string | null;
 };
 
 export async function addIpRange(cidr: string, label?: string | null): Promise<AddIpRangeResult> {
   const input = normalizeInput(cidr, label);
   if (!input) return { ok: false, error: 'INVALID_INPUT' };
 
+  // CIDR validity + default-open detection happens BEFORE we open a DB
+  // transaction so an attacker cannot probe persistence with bogus CIDRs.
+  const classified = classifyCidr(input.cidr);
+  if (classified === 'invalid') return { ok: false, error: 'INVALID_INPUT' };
+  if (classified === 'default_open') return { ok: false, error: 'CIDR_OVERLAP_DEFAULT' };
+
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
       const allowed = await hasEditPermission({ client, userId, orgId });
       if (!allowed) return { ok: false, error: 'FORBIDDEN' };
-
-      const defaultOpenCidr = '0.0.0.0/0';
-      const overlapsDefault = await overlapsDefaultOpenCidr(input.cidr, defaultOpenCidr);
-      if (overlapsDefault == null) return { ok: false, error: 'INVALID_INPUT' };
-      if (overlapsDefault) {
-        return { ok: false, error: 'CIDR_OVERLAP_DEFAULT' };
-      }
 
       const inserted = await client.query<IpRangeRow>(
         `insert into public.admin_ip_allowlist
@@ -79,21 +83,6 @@ export async function addIpRange(cidr: string, label?: string | null): Promise<A
   });
 }
 
-export type AddIpRangeResult =
-  | { ok: true; data: { id: string; cidr: string; label: string | null } }
-  | { ok: false; error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' };
-
-type ParsedInput = {
-  cidr: string;
-  label: string | null;
-};
-
-type IpRangeRow = {
-  id: string;
-  cidr: string;
-  label: string | null;
-};
-
 function normalizeInput(cidr: string | null | undefined, label: string | null | undefined): ParsedInput | null {
   if (typeof cidr !== 'string') return null;
   const normalizedCidr = cidr.trim();
@@ -105,55 +94,40 @@ function normalizeInput(cidr: string | null | undefined, label: string | null | 
   return { cidr: normalizedCidr, label: normalizedLabel.length > 0 ? normalizedLabel : null };
 }
 
-async function overlapsDefaultOpenCidr(cidr: string, defaultOpenCidr: string): Promise<boolean | null> {
-  const ipaddr = await loadIpaddrJs();
-  let parsed: [IpaddrAddress, number];
-  let defaultOpen: [IpaddrAddress, number];
-  try {
-    parsed = ipaddr.parseCIDR(cidr);
-    defaultOpen = ipaddr.parseCIDR(defaultOpenCidr);
-  } catch {
-    return null;
-  }
-
-  const [address, prefix] = parsed;
-  const [defaultAddress, defaultPrefix] = defaultOpen;
-  return address.kind() === 'ipv4' && prefix === defaultPrefix && address.match([defaultAddress, defaultPrefix], defaultPrefix);
-}
-
-async function loadIpaddrJs(): Promise<IpaddrModule> {
-  const dynamicImport = Function('moduleName', 'return import(moduleName)') as (moduleName: string) => Promise<IpaddrModule>;
-  try {
-    return await dynamicImport('ipaddr.js');
-  } catch {
-    return { parseCIDR: parseIpv4CidrFallback };
-  }
-}
-
-function parseIpv4CidrFallback(cidr: string): [IpaddrAddress, number] {
-  const [addressText, prefixText] = cidr.split('/');
-  if (!addressText || prefixText == null) throw new Error('INVALID_CIDR');
-  const octets = addressText.split('.').map((part) => Number(part));
+/**
+ * Classify a CIDR for default-route detection. Returns:
+ *  - 'default_open' for 0.0.0.0/0 (IPv4 catch-all) or ::/0 (IPv6 catch-all)
+ *  - 'invalid'      for syntactically malformed CIDRs
+ *  - 'ok'           for everything else (delegated to Postgres INET validation)
+ *
+ * The IPv6 default-open guard is the contract gap that allowed `::/0` to be
+ * persisted before T-035 hardening. Treat any /0 prefix as default-open
+ * regardless of address family — there is no legitimate reason to allowlist
+ * the entire internet for admin routes.
+ */
+function classifyCidr(cidr: string): 'ok' | 'invalid' | 'default_open' {
+  const slashIndex = cidr.indexOf('/');
+  if (slashIndex < 0) return 'invalid';
+  const address = cidr.slice(0, slashIndex);
+  const prefixText = cidr.slice(slashIndex + 1);
+  if (!address || !prefixText || !/^[0-9]+$/.test(prefixText)) return 'invalid';
   const prefix = Number(prefixText);
-  if (octets.length !== 4 || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
-    throw new Error('INVALID_CIDR');
-  }
-  if (!octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)) {
-    throw new Error('INVALID_CIDR');
+  if (!Number.isInteger(prefix) || prefix < 0) return 'invalid';
+
+  // IPv6 detection is structural: any address that contains `:` is treated as
+  // IPv6 for the purposes of the default-open guard. Full IPv6 normalization
+  // is deferred to Postgres `inet` parsing on insert.
+  const isIpv6 = address.includes(':');
+  if (isIpv6) {
+    if (prefix > 128) return 'invalid';
+    return prefix === 0 ? 'default_open' : 'ok';
   }
 
-  const numeric = octets.reduce((value, octet) => (value << 8) + octet, 0) >>> 0;
-  const address: IpaddrAddress = {
-    kind: () => 'ipv4',
-    toString: () => addressText,
-    match: ([rangeAddress], bits = prefix) => {
-      const rangeOctets = rangeAddress.toString().split('.').map((part) => Number(part));
-      const rangeNumeric = rangeOctets.reduce((value, octet) => (value << 8) + octet, 0) >>> 0;
-      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
-      return (numeric & mask) === (rangeNumeric & mask);
-    },
-  };
-  return [address, prefix];
+  if (prefix > 32) return 'invalid';
+  if (prefix === 0) return 'default_open';
+  // /0 catches the universal route; lower-prefix overlap is allowed because
+  // the operator may legitimately allowlist large corporate ranges.
+  return 'ok';
 }
 
 async function hasEditPermission({ client, userId, orgId }: OrgActionContext): Promise<boolean> {

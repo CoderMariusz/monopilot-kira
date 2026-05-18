@@ -261,6 +261,11 @@ function makeClient(): FakeClient {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
       const blob = `${sql} ${JSON.stringify(params)}`;
 
+      // Settings RBAC probe used by createScimToken / listScimTokens /
+      // revokeScimToken. Grant the manage permission for the happy-path test.
+      if (normalized.includes('from public.user_roles')) {
+        return { rows: [{ ok: true }], rowCount: 1 };
+      }
       if (normalized.includes('from public.organizations') && normalized.includes('seat_limit')) {
         return { rows: [{ seat_limit: 1 }], rowCount: 1 };
       }

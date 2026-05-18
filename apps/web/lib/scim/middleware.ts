@@ -138,12 +138,22 @@ export async function verifyScimBearer(request: Request): Promise<ScimContext | 
   // <10ms budget for invalid tokens.
   const candidates = await owner.query<{
     tenant_id: string;
+    org_id: string | null;
     scim_token_hash: string | null;
   }>(
-    `select tenant_id, scim_token_hash
-       from public.tenant_idp_config
-      where scim_token_last_four = $1
-        and scim_token_hash is not null`,
+    `select tenant_id, org_id, scim_token_hash
+       from (
+         select tic.tenant_id, null::uuid as org_id, tic.scim_token_hash
+           from public.tenant_idp_config tic
+          where tic.scim_token_last_four = $1
+            and tic.scim_token_hash is not null
+         union all
+         select o.tenant_id, st.org_id, st.scim_token_hash
+           from public.scim_tokens st
+           join public.organizations o on o.id = st.org_id
+          where st.scim_token_last_four = $1
+            and st.revoked_at is null
+       ) candidates`,
     [lastFour],
   );
 
@@ -154,7 +164,7 @@ export async function verifyScimBearer(request: Request): Promise<ScimContext | 
 
   // Cross-tenant ambiguity guard (red line): collect ALL hashes that verify.
   // If >1 → REJECT — never pick arbitrarily.
-  const verified: string[] = [];
+  const verified: Array<{ tenantId: string; orgId: string | null }> = [];
   for (const row of candidates.rows) {
     if (!row.scim_token_hash) continue;
     let ok = false;
@@ -163,7 +173,7 @@ export async function verifyScimBearer(request: Request): Promise<ScimContext | 
     } catch {
       ok = false;
     }
-    if (ok) verified.push(row.tenant_id);
+    if (ok) verified.push({ tenantId: row.tenant_id, orgId: row.org_id });
   }
 
   if (verified.length === 0) {
@@ -175,20 +185,22 @@ export async function verifyScimBearer(request: Request): Promise<ScimContext | 
     return null;
   }
 
-  const tenantId = verified[0];
+  const verifiedContext = verified[0];
+  const tenantId = verifiedContext.tenantId;
 
-  // Resolve the single org_id for this tenant (SCIM contract: token identifies
-  // a single org per the T-013 RED notes).
-  const orgRows = await owner.query<{ id: string }>(
-    `select id from public.organizations where tenant_id = $1 limit 2`,
-    [tenantId],
-  );
-  if (orgRows.rowCount !== 1) {
-    // Either zero (misconfiguration) or multiple orgs — refuse to guess.
-    await auditInvalidToken(request, 'tenant_org_resolution_failed');
-    return null;
+  let orgId = verifiedContext.orgId;
+  if (!orgId) {
+    // Legacy tenant_idp_config token: resolve the single org_id for this tenant.
+    const orgRows = await owner.query<{ id: string }>(
+      `select id from public.organizations where tenant_id = $1 limit 2`,
+      [tenantId],
+    );
+    if (orgRows.rowCount !== 1) {
+      await auditInvalidToken(request, 'tenant_org_resolution_failed');
+      return null;
+    }
+    orgId = orgRows.rows[0].id;
   }
-  const orgId = orgRows.rows[0].id;
 
   // Register a fresh session token so the route can call set_org_context()
   // safely as app_user (the function rejects an unknown token w/ 28000).

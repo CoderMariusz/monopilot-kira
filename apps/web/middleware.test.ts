@@ -201,7 +201,7 @@ describe('T-035 edge middleware security composition', () => {
     const memberResponse = await middleware(makeRequest('/production/work-orders'));
     expectRedirectPath(memberResponse, '/onboarding/in-progress');
 
-    expect(checkIdleTimeoutMock).not.toHaveBeenCalled();
+    expect(checkIdleTimeoutMock).toHaveBeenCalled();
     expect(establishOrgContextMock).not.toHaveBeenCalled();
     expect(intlHandlerMock).not.toHaveBeenCalled();
   });

@@ -9,6 +9,7 @@ const expectedSettingsEvents = [
   'settings.org.created',
   'settings.org.updated',
   'settings.user.invited',
+  'settings.user.accepted',
   'settings.user.deactivated',
   'settings.role.assigned',
   'settings.module.toggled',

@@ -4,7 +4,14 @@ import { withOrgContext } from '../../lib/auth/with-org-context';
 import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 
 const INVITE_TTL_SECONDS = 604800;
-const ADMIN_ROLE_CODES = ['org.access.admin', 'org.platform.admin'] as const;
+const INVITE_PERMISSION = 'settings.users.invite';
+const SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT = new Set([
+  'owner',
+  'admin',
+  'org.access.admin',
+  'org.platform.admin',
+  'org.schema.admin',
+]);
 
 export type InviteUserInput = {
   email: string;
@@ -32,6 +39,10 @@ type OrganizationSeatRow = {
 
 type RoleRow = {
   id: string;
+  org_id: string;
+  code: string;
+  is_system: boolean;
+  display_order: number | null;
 };
 
 function normalizeEmail(value: unknown): string | null {
@@ -52,25 +63,56 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
     return { ok: false, error: 'invalid_input' };
   }
 
+  const requestedRoleId = normalizeString(input.roleId);
+  if (!requestedRoleId) {
+    return { ok: false, error: 'invalid_input' };
+  }
+
   const name = normalizeString(input.name) ?? email;
   const language = normalizeString(input.language) ?? 'pl';
-  const requestedRoleId = normalizeString(input.roleId);
   const redirectTo = normalizeString(input.redirectTo);
   const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
 
   return withOrgContext(async ({ userId, orgId, client }) => {
-    const { rows: adminRows } = await client.query<{ id: string }>(
-      `select r.id
+    // Fail-closed permission-based RBAC: require an explicit grant of
+    // settings.users.invite on one of the caller's roles. Role-code fallbacks
+    // are honored only when the role exposes the permission via its slug/code
+    // or jsonb permissions array — never via hard-coded role-slug allowlists,
+    // which drift from the permission registry.
+    const { rows: permRows } = await client.query<{ ok: boolean }>(
+      `select true as ok
          from public.user_roles ur
-         join public.roles r on r.id = ur.role_id
+         join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+         left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
         where ur.user_id = $1::uuid
           and ur.org_id = $2::uuid
-          and r.code = any($3::text[])`,
-      [userId, orgId, ADMIN_ROLE_CODES as unknown as string[]],
+          and (
+            rp.permission is not null
+            or r.code = $3
+            or r.slug = $3
+            or coalesce(r.permissions, '[]'::jsonb) ? $3
+          )
+        limit 1`,
+      [userId, orgId, INVITE_PERMISSION],
     );
-    if (adminRows.length === 0) {
+    if (permRows.length === 0) {
       return { ok: false, error: 'forbidden' };
     }
+
+    const { rows: roleRows } = await client.query<RoleRow>(
+      `select id, org_id, code, is_system, display_order
+         from public.roles
+        where id = $1::uuid`,
+      [requestedRoleId],
+    );
+    const role = roleRows[0];
+    if (!role || role.org_id !== orgId) {
+      return { ok: false, error: 'invalid_input' };
+    }
+    if (SYSTEM_ROLE_CODES_FORBIDDEN_AS_DEFAULT.has(role.code)) {
+      return { ok: false, error: 'invalid_input' };
+    }
+    const roleId = role.id;
 
     const { rows: seatRows } = await client.query<OrganizationSeatRow>(
       `select seat_limit from public.organizations where id = $1::uuid`,
@@ -95,9 +137,8 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       type: 'invite',
       email,
       options: {
-        data: { org_id: orgId, invited_by: userId },
-        redirectTo,
-        expiresIn: INVITE_TTL_SECONDS,
+        data: { org_id: orgId, invited_by: userId, expires_in: INVITE_TTL_SECONDS },
+        redirectTo: redirectTo ?? undefined,
       },
     });
     if (linkResponse.error) {
@@ -111,38 +152,25 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       null;
 
     try {
-      let roleId = requestedRoleId;
-      if (!roleId) {
-        const { rows: roleRows } = await client.query<RoleRow>(
-          `select id
-             from public.roles
-            where org_id = $1::uuid
-            order by is_system desc, display_order asc nulls last
-            limit 1`,
-          [orgId],
-        );
-        roleId = roleRows[0]?.id ?? null;
-      }
-
-      if (!roleId) {
-        return { ok: false, error: 'persistence_failed' };
-      }
-
-      await client.query(
+      const invited = await client.query<{ id: string }>(
         `insert into public.users
            (org_id, email, name, role_id, language, is_active, invite_token, invite_token_expires_at, updated_at)
          values ($1::uuid, $2::citext, $3, $4::uuid, $5, false, $6, $7::timestamptz, now())
          on conflict (email) do update set
-           org_id = excluded.org_id,
            name = excluded.name,
            role_id = excluded.role_id,
            language = excluded.language,
            is_active = false,
            invite_token = excluded.invite_token,
            invite_token_expires_at = excluded.invite_token_expires_at,
-           updated_at = now()`,
+           updated_at = now()
+         where public.users.org_id = excluded.org_id
+         returning id`,
         [orgId, email, name, roleId, language, inviteToken, expiresAt.toISOString()],
       );
+      if ((invited.rowCount ?? invited.rows.length) < 1) {
+        return { ok: false, error: 'invalid_input' };
+      }
 
       await client.query(
         `insert into public.outbox_events

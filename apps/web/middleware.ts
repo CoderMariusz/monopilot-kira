@@ -115,8 +115,18 @@ export default async function middleware(req: NextRequest): Promise<NextResponse
   const securityContext = await resolveEdgeSecurityContext(req);
   const ip = sourceIp(req);
 
-  // Admin IP allowlist is fail-closed by the policy helper; middleware denies
-  // before onboarding/session/org work and audits only sanitized fields.
+  const idleResponse = await checkIdleTimeout({
+    accessToken: securityContext.accessToken,
+    idleTimeoutMin: securityContext.sessionIdleTimeoutMinutes,
+    path: pathname,
+  });
+  if (idleResponse.status === 401) {
+    return redirectToIdleLogin(req);
+  }
+
+  // Admin IP allowlist is fail-closed by the policy helper. It runs only after
+  // the Supabase token was verified by checkIdleTimeout, so decoded edge claims
+  // cannot be trusted before signature verification.
   if (isProtectedAdminRoute(pathname) && securityContext.role === 'admin') {
     let allowed = false;
     try {
@@ -144,15 +154,6 @@ export default async function middleware(req: NextRequest): Promise<NextResponse
       req,
       securityContext.role === 'admin' ? '/onboarding' : '/onboarding/in-progress',
     );
-  }
-
-  const idleResponse = await checkIdleTimeout({
-    accessToken: securityContext.accessToken,
-    idleTimeoutMin: securityContext.sessionIdleTimeoutMinutes,
-    path: pathname,
-  });
-  if (idleResponse.status === 401) {
-    return redirectToIdleLogin(req);
   }
 
   await establishOrgContext(securityContext);
