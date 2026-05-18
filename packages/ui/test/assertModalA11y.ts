@@ -3,10 +3,6 @@ import { axe, toHaveNoViolations } from 'jest-axe';
 
 expect.extend(toHaveNoViolations);
 
-/**
- * Assertion helper for Modal a11y compliance
- * Verifies: role='dialog', aria-modal='true', aria-labelledby set, focus trap
- */
 export async function assertModalA11y(container: HTMLElement) {
   const dialogElement = container.querySelector('[role="dialog"]');
 
@@ -25,9 +21,7 @@ export async function assertModalA11y(container: HTMLElement) {
     : undefined;
   expect(labelElement).toBeDefined();
 
-  // Focus-trap proof: the shared Modal primitive marks the Radix focus scope on
-  // Dialog.Content, and Radix installs focus guards in document.body while the
-  // focus scope is mounted. A fake ARIA-only dialog has neither proof.
+  // Radix installs [data-radix-focus-guard] in document.body while a focus scope is mounted; fake dialogs have neither marker.
   const hasTrapMarker = dialogElement.getAttribute('data-focus-trap') === 'radix-dialog';
   const hasRadixFocusGuards = document.querySelectorAll('[data-radix-focus-guard]').length >= 2;
   if (!hasTrapMarker || !hasRadixFocusGuards) {
