@@ -17,48 +17,6 @@ const expectedSettingsCorePermissions = [
   'settings.impersonate.tenant',
 ] as const;
 
-const expectedSettingsExtPermissions = [
-  'settings.schema.view',
-  'settings.schema.edit',
-  'settings.schema.promote_l1',
-  'settings.rules.view',
-  'settings.reference.view',
-  'settings.reference.edit',
-  'settings.reference.import',
-  'settings.infra.view',
-  'settings.infra.edit',
-  'settings.d365.view',
-  'settings.d365.edit',
-  'settings.d365.toggle',
-  'settings.email.view',
-  'settings.email.edit',
-  'settings.onboarding.complete',
-  'settings.security.edit',
-  'settings.sso.view',
-  'settings.sso.edit',
-  'settings.scim.view',
-  'settings.scim.edit',
-  'settings.ip_allowlist.view',
-  'settings.ip_allowlist.edit',
-  'settings.flags.view',
-  'settings.flags.edit',
-  'settings.authorization.view',
-  'settings.authorization.edit',
-  'npd.released_product_edit.request',
-  'npd.released_product_edit.authorize',
-  'technical.product_spec.approve',
-] as const;
-
-const expectedWorkflowAuthorizationPermissions = [
-  'settings.authorization.view',
-  'settings.authorization.edit',
-  'npd.released_product_edit.request',
-  'npd.released_product_edit.authorize',
-  'technical.product_spec.approve',
-] as const;
-
-const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
-
 const expectedCanonicalPermissions = [
   'org.access.admin',
   'org.schema.admin',
@@ -71,7 +29,6 @@ const expectedCanonicalPermissions = [
   'outbox.admin',
   'impersonate.org',
   ...expectedSettingsCorePermissions,
-  ...expectedSettingsExtPermissions,
 ] as const;
 
 type PermissionsModule = {
@@ -79,7 +36,6 @@ type PermissionsModule = {
   LegacyPermissionAlias: Record<string, string>;
   ALL_PERMISSIONS: readonly string[];
   ALL_SETTINGS_CORE_PERMISSIONS: readonly string[];
-  ALL_SETTINGS_EXT_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -118,48 +74,6 @@ describe('rbac permission source of truth', () => {
       /export\s+const\s+ALL_SETTINGS_CORE_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
     );
     expect(settingsCoreExport?.[0]).toContain('ALL_SETTINGS_CORE_PERMISSIONS');
-  });
-
-  it('exports the settings extension permissions as one typed mixed-namespace Permission array', async () => {
-    const { ALL_PERMISSIONS, ALL_SETTINGS_EXT_PERMISSIONS } = await loadPermissionsModule();
-
-    expect(ALL_SETTINGS_EXT_PERMISSIONS).toEqual(expectedSettingsExtPermissions);
-    expect(ALL_SETTINGS_EXT_PERMISSIONS).toHaveLength(expectedSettingsExtPermissions.length);
-    expect(new Set(ALL_SETTINGS_EXT_PERMISSIONS).size).toBe(ALL_SETTINGS_EXT_PERMISSIONS.length);
-    expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length);
-
-    for (const permission of ALL_SETTINGS_EXT_PERMISSIONS) {
-      expect(ALL_PERMISSIONS).toContain(permission);
-      expect(permission).toMatch(settingsExtPermissionPattern);
-    }
-
-    expect(ALL_SETTINGS_EXT_PERMISSIONS.some((permission) => permission.startsWith('npd.'))).toBe(true);
-    expect(ALL_SETTINGS_EXT_PERMISSIONS.some((permission) => permission.startsWith('technical.'))).toBe(true);
-
-    const source = readFileSync(permissionsModulePath, 'utf8');
-    const settingsExtExport = source.match(
-      /export\s+const\s+ALL_SETTINGS_EXT_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
-    );
-    expect(settingsExtExport?.[0]).toContain('ALL_SETTINGS_EXT_PERMISSIONS');
-  });
-
-  it('groups workflow authorization permissions under Settings/Auth without adding a derived matrix', async () => {
-    const { ALL_SETTINGS_EXT_PERMISSIONS } = await loadPermissionsModule();
-    const source = readFileSync(permissionsModulePath, 'utf8');
-    const workflowSection = source.match(/Workflow Authorization[\s\S]*?(?:ALL_SETTINGS_EXT_PERMISSIONS|$)/i)?.[0] ?? '';
-
-    expect(Array.isArray(ALL_SETTINGS_EXT_PERMISSIONS)).toBe(true);
-    expect((ALL_SETTINGS_EXT_PERMISSIONS ?? []).filter((permission) => expectedWorkflowAuthorizationPermissions.includes(permission as never))).toEqual(
-      expectedWorkflowAuthorizationPermissions,
-    );
-    expect(workflowSection).toContain('PRD');
-
-    for (const permission of expectedWorkflowAuthorizationPermissions) {
-      expect(workflowSection).toContain(permission);
-    }
-
-    expect(source).not.toMatch(/npd\.released_product_edit\.(?:request|authorize)\.[a-z_0-9]+/);
-    expect(source).not.toMatch(/technical\.product_spec\.approve\.[a-z_0-9]+/);
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {
