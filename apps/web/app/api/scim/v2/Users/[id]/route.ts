@@ -91,25 +91,53 @@ export async function GET(request: Request, route: RouteCtx): Promise<Response> 
   });
 }
 
-/**
- * Parse a single JSON-Patch op of shape { op:'replace', path:'active', value:false }.
- * Returns true when this op is a deactivation request.
- */
-function isDeactivateOp(op: PatchOp): boolean {
-  if (!op || typeof op !== 'object') return false;
-  if (typeof op.op !== 'string') return false;
-  if (op.op.toLowerCase() !== 'replace') return false;
-  // path may be 'active' or omitted (with value:{active:false})
-  if (op.path === 'active' && op.value === false) return true;
-  if (
-    !op.path &&
-    op.value &&
-    typeof op.value === 'object' &&
-    (op.value as Record<string, unknown>).active === false
-  ) {
-    return true;
+function normalizePatchPath(path: string | undefined): string | null {
+  if (!path) return null;
+  const last = path.split(':').pop() ?? path;
+  return last.split('.')[0]?.trim().toLowerCase() ?? null;
+}
+
+function collectPatchAssignments(ops: PatchOp[]): {
+  email?: string;
+  displayName?: string | null;
+  externalId?: string | null;
+  active?: boolean;
+} {
+  const next: {
+    email?: string;
+    displayName?: string | null;
+    externalId?: string | null;
+    active?: boolean;
+  } = {};
+
+  const apply = (path: string | undefined, value: unknown, remove = false) => {
+    const normalized = normalizePatchPath(path);
+    if (!normalized) return;
+    if (normalized === 'username' && !remove && typeof value === 'string') next.email = value;
+    if (normalized === 'displayname') {
+      next.displayName = remove ? null : typeof value === 'string' ? value : null;
+    }
+    if (normalized === 'externalid') {
+      next.externalId = remove ? null : typeof value === 'string' ? value : null;
+    }
+    if (normalized === 'active') {
+      next.active = remove ? false : value !== false;
+    }
+  };
+
+  for (const op of ops) {
+    if (!op || typeof op !== 'object' || typeof op.op !== 'string') continue;
+    const action = op.op.toLowerCase();
+    if (!['add', 'replace', 'remove'].includes(action)) continue;
+    if (!op.path && op.value && typeof op.value === 'object' && action !== 'remove') {
+      const value = op.value as Record<string, unknown>;
+      for (const [key, fieldValue] of Object.entries(value)) apply(key, fieldValue, false);
+      continue;
+    }
+    apply(op.path, op.value, action === 'remove');
   }
-  return false;
+
+  return next;
 }
 
 export async function PATCH(request: Request, route: RouteCtx): Promise<Response> {
@@ -127,12 +155,36 @@ export async function PATCH(request: Request, route: RouteCtx): Promise<Response
   }
 
   const ops = Array.isArray(body.Operations) ? body.Operations : [];
-  const deactivate = ops.some(isDeactivateOp);
+  const assignments = collectPatchAssignments(ops);
 
   const { id } = await route.params;
 
-  if (deactivate) {
-    const updated = await withScimOrgContext(ctx, async (client) => {
+  const row = await withScimOrgContext(ctx, async (client) => {
+    const setClauses: string[] = [];
+    const params: unknown[] = [id];
+    const addParam = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    if (assignments.email !== undefined) {
+      setClauses.push(`email = ${addParam(assignments.email)}`);
+    }
+    if (assignments.displayName !== undefined) {
+      setClauses.push(
+        assignments.displayName === null ? 'display_name = null' : `display_name = ${addParam(assignments.displayName)}`,
+      );
+    }
+    if (assignments.externalId !== undefined) {
+      setClauses.push(
+        assignments.externalId === null ? 'external_id = null' : `external_id = ${addParam(assignments.externalId)}`,
+      );
+    }
+    if (assignments.active !== undefined) {
+      setClauses.push(assignments.active ? 'deleted_at = null' : 'deleted_at = now()');
+    }
+
+    if (setClauses.length > 0) {
       const { rows, rowCount } = await client.query<{
         id: string;
         email: string;
@@ -141,39 +193,14 @@ export async function PATCH(request: Request, route: RouteCtx): Promise<Response
         deleted_at: Date | null;
       }>(
         `update public.users
-            set deleted_at = now()
+            set ${setClauses.join(', ')}
           where id = $1
           returning id, email, display_name, external_id, deleted_at`,
-        [id],
+        params,
       );
       return rowCount === 1 ? rows[0] : null;
-    });
-
-    if (!updated) return notFound();
-
-    const requestId = request.headers.get('x-request-id') ?? randomUUID();
-    try {
-      await getScimOwnerPool().query(
-        `insert into public.audit_events (
-           org_id, actor_user_id, actor_type, action, resource_type, resource_id,
-           request_id, retention_class
-         ) values ($1, null, 'scim', 'user.deactivated_via_scim', 'User', $2,
-                   $3::uuid, 'operational')`,
-        [ctx.orgId, updated.id, requestId],
-      );
-    } catch {
-      /* audit best-effort */
     }
 
-    return new Response(JSON.stringify(toScimUser(updated)), {
-      status: 200,
-      headers: { 'content-type': SCIM_CT },
-    });
-  }
-
-  // Non-deactivate PATCH ops are accepted but no-op for this minimal impl.
-  // Read back current row (RLS-scoped).
-  const row = await withScimOrgContext(ctx, async (client) => {
     const { rows } = await client.query<{
       id: string;
       email: string;
@@ -189,6 +216,23 @@ export async function PATCH(request: Request, route: RouteCtx): Promise<Response
   });
 
   if (!row) return notFound();
+
+  if (assignments.active === false) {
+    const requestId = request.headers.get('x-request-id') ?? randomUUID();
+    try {
+      await getScimOwnerPool().query(
+        `insert into public.audit_events (
+           org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+           request_id, retention_class
+         ) values ($1, null, 'scim', 'user.deactivated_via_scim', 'User', $2,
+                   $3::uuid, 'operational')`,
+        [ctx.orgId, row.id, requestId],
+      );
+    } catch {
+      /* audit best-effort */
+    }
+  }
+
   return new Response(JSON.stringify(toScimUser(row)), {
     status: 200,
     headers: { 'content-type': SCIM_CT },
