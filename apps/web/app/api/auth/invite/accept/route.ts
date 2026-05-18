@@ -6,7 +6,6 @@ import { getOwnerConnection } from '@monopilot/db/clients';
 type InviteRow = {
   email: string;
   invite_token_expires_at: string | Date | null;
-  expires_at: string | Date | null;
 };
 
 type OwnerConnection = {
@@ -32,9 +31,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { rows } = await owner().query<InviteRow>(
-    `select email,
-            invite_token_expires_at,
-            invite_token_expires_at as expires_at
+    `select email, invite_token_expires_at
        from public.users
       where invite_token = $1
       limit 1`,
@@ -45,7 +42,7 @@ export async function GET(request: Request): Promise<Response> {
     return json(404, { error: 'invite token not found' });
   }
 
-  const expiresAt = invite.expires_at ?? invite.invite_token_expires_at;
+  const expiresAt = invite.invite_token_expires_at;
   if (!expiresAt || new Date(expiresAt).getTime() <= Date.now()) {
     return new Response(JSON.stringify({ error: 'invite expired: gone' }), {
       status: 410,
