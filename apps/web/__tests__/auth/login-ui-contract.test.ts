@@ -45,7 +45,7 @@ describe('T-126 login UI contract', () => {
     const source = readIfExists('layout.tsx');
 
     expect(source).toContain('min-h-screen');
-    expect(source).toContain('bg-slate-950');
+    expect(source).toMatch(/radial-gradient|bg-\[radial-gradient|from-\[#f8fafc\]|from-slate-50/);
     expect(source).toContain('items-center');
     expect(source).toContain('justify-center');
   });

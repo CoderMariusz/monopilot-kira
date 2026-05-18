@@ -1,6 +1,48 @@
 @import "tailwindcss";
 
+@source "../app/**/*.{js,jsx,ts,tsx}";
+@source "../../../packages/ui/src/**/*.{js,jsx,ts,tsx}";
+
 @theme {
-  --color-background: #ffffff;
+  --color-background: #f8fafc;
   --color-foreground: #0f172a;
+  --font-sans: "Inter", Arial, "Segoe UI", system-ui;
+}
+
+:root {
+  --text: #0f172a;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --border: #d8e0ea;
+  --blue: #1976d2;
+  --blue-600: #1565c0;
+  --red-050a: rgba(254, 226, 226, 0.55);
+  --red-050: #fee2e2;
+  --red-700: #b91c1c;
+  --green-050a: rgba(220, 252, 231, 0.7);
+  --green-050: #dcfce7;
+  --green-700: #15803d;
+  --info-050a: rgba(219, 234, 254, 0.72);
+  --blue-050: #dbeafe;
+  --blue-700: #1d4ed8;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #dbeafe 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, #e0f2fe 0%, transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  background-color: #eef2f7;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
 }
