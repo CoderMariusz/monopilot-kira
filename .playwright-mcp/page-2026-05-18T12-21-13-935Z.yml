@@ -1,0 +1,20 @@
+- generic [active] [ref=e1]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: M
+        - generic [ref=e8]: MonoPilot
+      - link "← Back to sign in" [ref=e9] [cursor=pointer]:
+        - /url: /en/login
+      - heading "Reset your password" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Enter your email and we will send you a reset link.
+      - generic [ref=e12]:
+        - generic [ref=e13]: The link expires in 30 minutes. Check your spam folder if it does not arrive within 2 minutes.
+        - generic [ref=e14]:
+          - generic [ref=e15]: Work email
+          - textbox "Work email" [ref=e17]:
+            - /placeholder: you@company.com
+        - button "Send reset link" [ref=e18]
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]

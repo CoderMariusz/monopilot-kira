@@ -1,0 +1,17 @@
+- generic [active] [ref=e1]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: M
+        - generic [ref=e8]: MonoPilot
+      - heading "Two-factor authentication" [level=1] [ref=e9]
+      - paragraph [ref=e10]: Enter the six-digit TOTP code from your authenticator app.
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - generic [ref=e13]: Verification code
+          - textbox "Verification code" [ref=e15]
+        - button "Verify" [ref=e16]
+      - button "Use recovery code" [ref=e17]
+  - button "Open Next.js Dev Tools" [ref=e23] [cursor=pointer]:
+    - img [ref=e24]
+  - alert [ref=e27]
