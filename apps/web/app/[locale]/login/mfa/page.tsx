@@ -38,7 +38,7 @@ export default function MfaPage({ params }: MfaPageProps) {
             role="alert"
             className="mb-1 rounded-md border border-red-100 border-l-[3px] border-l-red-600 bg-red-50/70 px-3 py-2.5 text-xs text-red-700"
           >
-            {state.error || 'Invalid or expired code'}
+            {state.error}
           </div>
         ) : null}
 
