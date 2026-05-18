@@ -10,12 +10,16 @@ window.SETTINGS_NAV = [
   { group: "Data", admin: true, items: [
     { key: "products",  label: "Products & SKUs", ic: "▢" },
     { key: "boms",      label: "BOMs & recipes",  ic: "⛓" },
+    { key: "processes", label: "Processes",       ic: "⟶", highlight: true },
+    { key: "manufacturing-ops", label: "Manufacturing operations", ic: "⚒", highlight: true },
     { key: "partners",  label: "Suppliers & customers", ic: "↔" },
-    { key: "units",     label: "Units & conversions", ic: "⚖" }
+    { key: "units",     label: "Units & conversions", ic: "⚖" },
+    { key: "import-export", label: "Import / Export", ic: "⇅", highlight: true }
   ]},
   { group: "Access", admin: true, items: [
     { key: "users",     label: "Users & roles",   ic: "◉" },
-    { key: "security",  label: "Security",        ic: "🔒" }
+    { key: "security",  label: "Security",        ic: "🔒" },
+    { key: "audit-logs", label: "Audit logs",     ic: "◷", highlight: true }
   ]},
   { group: "Operations", admin: true, items: [
     { key: "devices",   label: "Scanner devices", ic: "📱" },
@@ -38,6 +42,9 @@ window.SETTINGS_NAV = [
     { key: "rules",          label: "Rules registry",     ic: "✦" },
     { key: "flags",          label: "Feature flags (L)",  ic: "◨" },
     { key: "schema",         label: "Schema browser",     ic: "▦" },
+    { key: "schema-wizard",  label: "  └ Column wizard",  ic: "✎" },
+    { key: "schema-migrations", label: "  └ Migrations queue", ic: "⇣", highlight: true },
+    { key: "tenant",         label: "Tenant variations",  ic: "❖", highlight: true },
     { key: "reference",      label: "Reference data",     ic: "⚙" },
     { key: "email-config",   label: "Email templates",    ic: "✉" },
     { key: "email-vars",     label: "Email variables",    ic: "§" },
@@ -68,6 +75,23 @@ window.SETTINGS_USERS = [
 window.SETTINGS_SITES = [
   { id: "S1", name: "Kraków HQ",   addr: "ul. Zakładowa 12, Kraków, PL", lines: 4, workers: 48, primary: true, x: 60, y: 55 },
   { id: "S2", name: "Wrocław Plant", addr: "ul. Produkcyjna 8, Wrocław, PL", lines: 2, workers: 22, primary: false, x: 32, y: 45 }
+];
+
+// Processes — used by NPD to generate WIP codes (WIP-{INITIAL}-{NNNNNNN})
+// Each process has a 2-letter initial that becomes the suffix in WIP product codes.
+// The counter auto-increments every time a new WIP is created in NPD via this process.
+window.SETTINGS_PROCESSES = [
+  { id: "P-MX", code: "MX", name: "Mix",          initial: "MX", counter: 1247, yield_default: 99, active: true,  desc: "Combine RM into homogeneous mass (dough, batter, brine).", legacy: "M" },
+  { id: "P-BK", code: "BK", name: "Bake",         initial: "BK", counter:  893, yield_default: 88, active: true,  desc: "Thermal cooking in oven. Yield loss to evaporation.",        legacy: "B" },
+  { id: "P-PR", code: "PR", name: "Prove",        initial: "PR", counter:  412, yield_default: 96, active: true,  desc: "Controlled fermentation / proofing in cabinet.",             legacy: "P" },
+  { id: "P-SL", code: "SL", name: "Slice",        initial: "SL", counter: 2104, yield_default: 95, active: true,  desc: "Slicer cuts WIP into portions.",                              legacy: "S" },
+  { id: "P-MP", code: "MP", name: "MAP pack",     initial: "MP", counter: 1873, yield_default: 99, active: true,  desc: "Modified Atmosphere Packaging.",                              legacy: "A" },
+  { id: "P-DV", code: "DV", name: "Divide",       initial: "DV", counter:  340, yield_default: 97, active: true,  desc: "Portioner divides bulk into target weights.",                 legacy: "D" },
+  { id: "P-BF", code: "BF", name: "Bulk Ferment", initial: "BF", counter:  178, yield_default: 98, active: true,  desc: "Long-form fermentation in bulk vessels.",                     legacy: "F" },
+  { id: "P-EW", code: "EW", name: "Egg Wash",     initial: "EW", counter:   92, yield_default: 99, active: true,  desc: "Apply egg wash glaze before bake.",                           legacy: "E" },
+  { id: "P-CO", code: "CO", name: "Cool",         initial: "CO", counter:  655, yield_default: 99, active: true,  desc: "Spiral / blast cooling.",                                     legacy: "C" },
+  { id: "P-PK", code: "PK", name: "Pack",         initial: "PK", counter: 3201, yield_default: 99, active: true,  desc: "Primary pack into pre-form / flow-wrap.",                     legacy: "K" },
+  { id: "P-SM", code: "SM", name: "Smoke",        initial: "SM", counter:  201, yield_default: 92, active: false, desc: "Smokehouse cure cycle. Currently inactive.",                  legacy: "X" }
 ];
 
 window.SETTINGS_LINES = [

@@ -1,0 +1,11 @@
+{
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && (pnpm --filter @monopilot/db migrate || echo \"[WARN] Migrations skipped\") && cd apps/web && pnpm build",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/internal/cron/drift",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

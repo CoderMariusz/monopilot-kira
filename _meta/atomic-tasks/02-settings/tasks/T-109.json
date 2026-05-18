@@ -84,7 +84,7 @@
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
     },
-    "prototype_match": true,
+    "prototype_match": false,
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_reference": {
       "source_file": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
@@ -92,6 +92,9 @@
       "label": "promotions_screen",
       "component_type": "page-layout",
       "is_exact_match": false
-    }
+    },
+    "prototype_index_entry": "audit_log_full_screen (closest pattern — filterable audit list; SET-064 is tenant_migrations not org audit)",
+    "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#audit_log_full_screen",
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/audit-log-full.jsx:54-251"
   }
 }
