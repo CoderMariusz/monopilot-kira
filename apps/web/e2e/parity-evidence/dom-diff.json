@@ -1,0 +1,79 @@
+{
+  "task": "AUTH-UI-PARITY-001",
+  "prototype_path": "prototypes/auth/login.html",
+  "reviewed_at": "2026-05-18T12:22:00Z",
+  "viewport": "1280x800",
+  "regions": {
+    "gradient_shell": {
+      "prototype": "min-h-screen radial+linear soft gradient (blue-tinted dbeafe/e0f2fe → f8fafc/eef2f7)",
+      "implementation": "body.backgroundImage: radial-gradient(1200px 600px at 15% -10%, rgb(219,234,254) 0%, transparent 60%), radial-gradient(900px 500px at 110% 110%, rgb(224,242,254) 0%, transparent 55%), linear-gradient(rgb(248,250,252) 0%, rgb(238,242,247) 100%)",
+      "match": true,
+      "notes": "Exact gradient values match prototype spec"
+    },
+    "brand_lockup": {
+      "prototype": "36px square 'M' tile (blue gradient), 'MonoPilot' wordmark bold",
+      "implementation": "div.h-9.w-9 with M (computed 36x36px), MonoPilot text with Mono bold + Pilot medium",
+      "match": true,
+      "aria_snapshot": "generic: M, generic: MonoPilot"
+    },
+    "card_container": {
+      "prototype": "centered card max-w-[480px], rounded-xl, white bg, shadow, 36px padding",
+      "implementation": "section.rounded-[12px].border.bg-white.px-[36px].pt-[36px] — computed cardWidth=480px, cardBorderRadius=12px",
+      "match": true
+    },
+    "title_subtitle": {
+      "prototype": "'Welcome back' (h1 22px bold), 'Sign in to your MES workspace' (13px slate-500)",
+      "implementation": "heading 'Welcome back' level=1, paragraph 'Sign in to your MES workspace'",
+      "match": true
+    },
+    "email_field": {
+      "prototype": "label 'Work email', input type=email, placeholder 'you@company.com', autoFocus",
+      "implementation": "textbox 'Work email' [active] (autoFocus), placeholder='you@company.com', computed height=40px, radius=6px",
+      "match": true
+    },
+    "password_field": {
+      "prototype": "label 'Password', input type=password, placeholder dots",
+      "implementation": "textbox 'Password', placeholder '••••••••'",
+      "match": true
+    },
+    "remember_forgot_row": {
+      "prototype": "checkbox 'Remember me for 30 days' (checked default), 'Forgot password?' link right-aligned",
+      "implementation": "checkbox 'Remember me for 30 days' [checked], link 'Forgot password?' → /en/login/forgot-password",
+      "match": true
+    },
+    "primary_cta": {
+      "prototype": "button 'Sign in' h-[42px] w-full bg-[#1976d2]",
+      "implementation": "button 'Sign in', computed blue bg #1976d2",
+      "match": true
+    },
+    "sso_section": {
+      "prototype": "'OR' divider, button 'SSO sign-in coming soon' disabled",
+      "implementation": "generic 'or' divider, button 'SSO sign-in coming soon' [disabled]",
+      "match": true
+    },
+    "admin_link": {
+      "prototype": "'Do not have an account? Contact your admin' mailto link",
+      "implementation": "text + link 'Contact your admin' → mailto:admin@monopilot.app",
+      "match": true
+    },
+    "footer": {
+      "prototype": "contentinfo: '© 2026 MonoPilot MES · Privacy · Terms · Status · v3.1.0'",
+      "implementation": "contentinfo with exact same text and links",
+      "match": true
+    },
+    "css_utilities": {
+      "prototype": "body font Inter (not Times), card 480px, border-radius 12px, inputs 40px / 6px radius",
+      "implementation": "bodyFontFamily='Inter, Arial, Segoe UI, system-ui', cardWidth=480, cardBorderRadius=12px, inputHeight=40, inputBorderRadius=6px",
+      "match": true
+    }
+  },
+  "deviations": [
+    {
+      "region": "contact_admin_copy",
+      "prototype": "\"Don't have an account? Contact your admin\"",
+      "implementation": "\"Do not have an account? Contact your admin\"",
+      "intentional": true,
+      "reason": "Apostrophe-free variant avoids HTML entity handling in JSX; semantic meaning identical"
+    }
+  ]
+}

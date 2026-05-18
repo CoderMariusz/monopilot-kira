@@ -1,0 +1,87 @@
+{
+  "task": "AUTH-UI-PARITY-001",
+  "prototype_path": "prototypes/auth/login.html",
+  "prototype_route": "file://prototypes/auth/login.html",
+  "target_routes": [
+    "/en/login",
+    "/en/login/forgot-password",
+    "/en/login/mfa?factorId=red-contract"
+  ],
+  "reviewed_at": "2026-05-18T12:22:00Z",
+  "reviewed_head": "a2a05e956ad534c6fa0a17de2f2124e52044e370",
+  "viewports": [
+    { "name": "desktop", "width": 1280, "height": 800 }
+  ],
+  "region_selectors": [
+    "gradient_shell",
+    "brand_lockup",
+    "card_container",
+    "title_subtitle",
+    "email_field",
+    "password_field",
+    "remember_forgot_row",
+    "primary_cta",
+    "sso_section",
+    "admin_link",
+    "footer",
+    "css_utilities"
+  ],
+  "parity_matrix": [
+    { "region": "gradient_shell", "structural": "pass", "visual": "pass", "interaction": "n/a", "data": "n/a" },
+    { "region": "brand_lockup", "structural": "pass", "visual": "pass", "interaction": "n/a", "data": "n/a" },
+    { "region": "card_container", "structural": "pass", "visual": "pass", "interaction": "n/a", "data": "n/a" },
+    { "region": "title_subtitle", "structural": "pass", "visual": "pass", "interaction": "n/a", "data": "n/a" },
+    { "region": "email_field", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "password_field", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "remember_forgot_row", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "primary_cta", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "sso_section", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "admin_link", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "footer", "structural": "pass", "visual": "pass", "interaction": "pass", "data": "n/a" },
+    { "region": "css_utilities", "structural": "n/a", "visual": "pass", "interaction": "n/a", "data": "n/a" }
+  ],
+  "computed_style_evidence": {
+    "route": "/en/login",
+    "bodyFontFamily": "Inter, Arial, \"Segoe UI\", system-ui",
+    "bodyBackgroundImage": "radial-gradient(1200px 600px at 15% -10%, ...) + linear-gradient",
+    "cardWidth": 480,
+    "cardBorderRadius": "12px",
+    "inputHeight": 40,
+    "inputBorderRadius": "6px",
+    "assertions": {
+      "not_times_new_roman": "pass",
+      "has_gradient_background": "pass",
+      "card_width_470_500": "pass",
+      "card_radius_10_14": "pass",
+      "input_height_gte_38": "pass",
+      "input_radius_gte_5": "pass"
+    }
+  },
+  "screenshots": {
+    "login_desktop": "apps/web/e2e/parity-evidence/login-page-desktop.png",
+    "forgot_password_desktop": "apps/web/e2e/parity-evidence/forgot-password-page-desktop.png",
+    "mfa_desktop": "apps/web/e2e/parity-evidence/mfa-page-desktop.png",
+    "prototype_reference": "prototypes/screenshots/login.png"
+  },
+  "console_errors": 0,
+  "console_warnings": 2,
+  "warning_detail": [
+    "PWA manifest icon size mismatch (pre-existing, unrelated to this task)",
+    "CSS preload not-used-within-seconds (Turbopack dev mode artifact, CSS applied correctly per computed styles)"
+  ],
+  "deviations": [
+    {
+      "region": "admin_contact_copy",
+      "prototype_text": "Don't have an account? Contact your admin",
+      "implementation_text": "Do not have an account? Contact your admin",
+      "severity": "cosmetic",
+      "tracked": true
+    }
+  ],
+  "overall_status": "pass",
+  "coverage": {
+    "viewport_coverage": "1/1",
+    "region_coverage": "12/12",
+    "route_coverage": "3/3"
+  }
+}
