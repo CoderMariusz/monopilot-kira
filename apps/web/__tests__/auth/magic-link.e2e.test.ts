@@ -35,6 +35,7 @@
  *   3. Missing deps: @supabase/supabase-js, @supabase/ssr (not in package.json)
  */
 
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 // ─── Module imports that WILL FAIL until GREEN implements them ────────────────
@@ -584,4 +585,26 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
       }
     },
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('RED source contract: middleware owns auth session policy', () => {
+  const middlewareSource = () => readFileSync(`${process.cwd()}/middleware.ts`, 'utf8');
+
+  it('reads idle_timeout_min from tenant_idp_config instead of an environment-only fallback', () => {
+    const source = middlewareSource();
+
+    // T-011 contract: idle timeout is tenant-configured, not a process-wide env knob.
+    expect(source).toMatch(/tenant_idp_config/i);
+    expect(source).not.toMatch(/IDLE_TIMEOUT_MIN/);
+  });
+
+  it('establishes non-spoofable org context with app.set_org_context before protected requests continue', () => {
+    const source = middlewareSource();
+
+    // T-011/T-007 contract: middleware must call the foundation setter; comments alone do not satisfy this.
+    expect(source).toMatch(/set_org_context\s*\(/);
+    expect(source).toMatch(/app\.current_org_id\s*\(/);
+    expect(source).not.toMatch(/current_setting\('app\.(tenant_id|current_org_id)'\)/);
+  });
 });
