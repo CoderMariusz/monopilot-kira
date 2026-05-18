@@ -15,7 +15,34 @@ export enum EventType {
   TENANT_MIGRATION_RUN = 'tenant.migration.run',
   TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
   TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
+
+  // T-003 — settings outbox events
+  SETTINGS_ORG_CREATED = 'settings.org.created',
+  SETTINGS_ORG_UPDATED = 'settings.org.updated',
+  SETTINGS_USER_INVITED = 'settings.user.invited',
+  SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
+  SETTINGS_ROLE_ASSIGNED = 'settings.role.assigned',
+  SETTINGS_MODULE_TOGGLED = 'settings.module.toggled',
+  SETTINGS_REFERENCE_ROW_UPDATED = 'settings.reference.row_updated',
+  SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
+  SETTINGS_RULE_DEPLOYED = 'settings.rule.deployed',
+  SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
+  SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
 }
+
+export const ALL_SETTINGS_EVENTS = [
+  EventType.SETTINGS_ORG_CREATED,
+  EventType.SETTINGS_ORG_UPDATED,
+  EventType.SETTINGS_USER_INVITED,
+  EventType.SETTINGS_USER_DEACTIVATED,
+  EventType.SETTINGS_ROLE_ASSIGNED,
+  EventType.SETTINGS_MODULE_TOGGLED,
+  EventType.SETTINGS_REFERENCE_ROW_UPDATED,
+  EventType.SETTINGS_SCHEMA_MIGRATION_REQUESTED,
+  EventType.SETTINGS_RULE_DEPLOYED,
+  EventType.SETTINGS_SSO_CONFIG_CHANGED,
+  EventType.SETTINGS_SCIM_TOKEN_CREATED,
+] as const;
 
 export const LegacyEventAlias = {
   'fa.created': EventType.FG_CREATED,
