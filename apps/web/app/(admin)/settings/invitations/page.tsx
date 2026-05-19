@@ -186,7 +186,7 @@ export default function InvitationsPage(props: Partial<InvitationsPageProps> = {
     let cancelled = false;
     async function loadRuntimeInvitations() {
       try {
-        const lifecycle = await import('../../../../actions/users/invitations-lifecycle');
+        const lifecycle = await import('../../../../actions/users/invitations-lifecycle.js');
         const result = await lifecycle.listInvitations();
         if (cancelled) return;
         setRuntimeActions({ resendInvitation: lifecycle.resendInvitation, revokeInvitation: lifecycle.revokeInvitation });
