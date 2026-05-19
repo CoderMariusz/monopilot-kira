@@ -167,6 +167,11 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     expect(result).toEqual({ ok: false, blockers: expectedTechnicalBlockers });
     expect(statementIndex('org_authorization_policies')).toBeGreaterThanOrEqual(0);
     expect(statementIndex('rule_definitions')).toBeGreaterThanOrEqual(0);
+    const gateRuleSql = callBlob('rule_definitions').toLowerCase();
+    expect(gateRuleSql).not.toContain('is_active');
+    expect(gateRuleSql).toContain('active_from <= now()');
+    expect(gateRuleSql).toContain('active_to is null');
+    expect(gateRuleSql).toContain('active_to > now()');
     expect(currentClient.mutations).toEqual([]);
   });
 
@@ -214,6 +219,25 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     expect(policyFor(ORG_ID, NPD_POLICY)?.version).toBe(8);
     expect(policyFor(OTHER_ORG_ID, NPD_POLICY)?.version).toBe(3);
     expect(callBlob('update public.org_authorization_policies')).toContain('app.current_org_id()');
+    const auditCall = currentClient.calls[statementIndex('insert into public.audit_events')]!;
+    const auditSql = auditCall.sql.toLowerCase();
+    expect(auditSql).toContain('action');
+    expect(auditSql).toContain('resource_type');
+    expect(auditSql).toContain('resource_id');
+    expect(auditSql).toContain('request_id');
+    expect(auditSql).toContain('after_state');
+    expect(auditSql).not.toContain('event_type');
+    expect(auditSql).not.toContain('subject_type');
+    expect(auditSql).not.toContain('subject_id');
+    expect(auditSql).not.toContain('reason');
+    expect(auditSql).not.toContain('metadata');
+    expect(String(auditCall.params[5])).toContain('audit_reason');
+    const outboxCall = currentClient.calls[statementIndex('insert into public.outbox_events')]!;
+    const outboxSql = `${outboxCall.sql} ${JSON.stringify(outboxCall.params)}`.toLowerCase();
+    expect(outboxSql).toContain('aggregate_id');
+    expect(outboxSql).not.toContain('null');
+    expect(outboxCall.params).toContain('audit.recorded');
+    expect(outboxCall.params).not.toContain('settings.authorization_policy.updated');
     expect(currentClient.mutations).toEqual([
       { kind: 'policy_update', policyCode: NPD_POLICY, orgId: ORG_ID },
       { kind: 'audit', policyCode: NPD_POLICY, orgId: ORG_ID },
@@ -311,7 +335,7 @@ function makeClient(): FakeClient {
       if (normalized.includes('rule_definitions')) {
         const gateCode = params.find((param): param is string => typeof param === 'string' && param === TECHNICAL_GATE);
         return gateCode && client.activeGateRules.has(gateCode)
-          ? { rows: [{ rule_code: gateCode, is_active: true, active: true }], rowCount: 1 }
+          ? { rows: [{ rule_code: gateCode, active_from: '2026-01-01T00:00:00Z', active_to: null }], rowCount: 1 }
           : { rows: [], rowCount: 0 };
       }
 
@@ -332,7 +356,8 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('insert into public.outbox_events')) {
-        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY);
+        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY)
+          ?? policyCodeFromJsonParam(params);
         client.mutations.push({ kind: 'outbox', policyCode, orgId: ORG_ID });
         return { rows: [], rowCount: 1 };
       }
@@ -390,6 +415,19 @@ function policyFor(orgId: string, policyCode: PolicyRow['policy_code']): (Policy
   return currentClient.policies.find((policy) => policy.org_id === orgId && policy.policy_code === policyCode) as
     | (PolicyRow & { updated_by?: string })
     | undefined;
+}
+
+function policyCodeFromJsonParam(params: readonly unknown[]): PolicyRow['policy_code'] | undefined {
+  for (const param of params) {
+    if (typeof param !== 'string' || !param.startsWith('{')) continue;
+    try {
+      const parsed = JSON.parse(param) as { policy_code?: unknown };
+      if (parsed.policy_code === NPD_POLICY || parsed.policy_code === TECHNICAL_POLICY) return parsed.policy_code;
+    } catch {
+      // Ignore non-JSON string params.
+    }
+  }
+  return undefined;
 }
 
 function statementIndex(fragment: string): number {

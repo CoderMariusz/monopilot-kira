@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import {
@@ -23,6 +24,11 @@ type OrgActionContext = {
   userId: string;
   orgId: string;
   client: QueryClient;
+};
+
+type ParsedUpdateAuthorizationPolicyInput = Omit<UpdateAuthorizationPolicyInput, 'policyCode' | 'auditReason'> & {
+  policyCode: AuthorizationPolicyCode;
+  auditReason: string | null;
 };
 
 const SETTINGS_AUTHORIZATION_EDIT = 'settings.authorization.edit';
@@ -78,45 +84,56 @@ export async function updateAuthorizationPolicy(
       const row = updated.rows[0];
       if ((updated.rowCount ?? updated.rows.length) < 1 || !row) return { ok: false, error: 'policy_not_found' };
 
+      const nextVersion = toNumber(row.version);
+      const requestId = randomUUID();
+
       await client.query(
         `insert into public.audit_events
-           (org_id, actor_user_id, event_type, subject_type, subject_id, reason, metadata)
-         values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::jsonb)`,
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id,
+            after_state, request_id, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, $4, $5, $6::jsonb, $7::uuid, 'security')`,
         [
           orgId,
           userId,
-          'settings.authorization_policy.updated',
+          'authorization_policy_update',
           'org_authorization_policy',
           parsed.policyCode,
-          parsed.auditReason,
-          JSON.stringify({ policy_code: parsed.policyCode, version: toNumber(row.version) }),
+          JSON.stringify({
+            policy_code: parsed.policyCode,
+            previous_version: toNumber(current.version ?? 0),
+            version: nextVersion,
+            audit_reason: parsed.auditReason,
+          }),
+          requestId,
         ],
       );
 
       await client.query(
-        `with selected_policy as (select $6::text as policy_code)
-         insert into public.outbox_events
+        `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
-         select $1::uuid, $2, $3, null, $4::jsonb, $5
-           from selected_policy`,
+         values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6)`,
         [
           orgId,
-          'settings.authorization_policy.updated',
+          'audit.recorded',
           'org_authorization_policy',
+          orgId,
           JSON.stringify({
             org_id: orgId,
+            action: 'authorization_policy_update',
+            resource_type: 'org_authorization_policy',
+            resource_id: parsed.policyCode,
             policy_code: parsed.policyCode,
-            version: toNumber(row.version),
+            version: nextVersion,
             actor_user_id: userId,
             audit_reason: parsed.auditReason,
+            request_id: requestId,
           }),
           'authorization-policy-actions-v1',
-          parsed.policyCode,
         ],
       );
 
       revalidatePath(AUTHORIZATION_SETTINGS_PATH);
-      return { ok: true, data: { policyCode: row.policy_code, version: toNumber(row.version) } };
+      return { ok: true, data: { policyCode: row.policy_code, version: nextVersion } };
     } catch {
       return { ok: false, error: 'persistence_failed' };
     }
@@ -138,10 +155,7 @@ async function hasAuthorizationEditPermission({ client, userId, orgId }: OrgActi
   return (rowCount ?? rows.length) > 0;
 }
 
-function parseInput(input: UpdateAuthorizationPolicyInput | null | undefined): (UpdateAuthorizationPolicyInput & {
-  policyCode: AuthorizationPolicyCode;
-  auditReason: string | null;
-}) | null {
+function parseInput(input: UpdateAuthorizationPolicyInput | null | undefined): ParsedUpdateAuthorizationPolicyInput | null {
   if (!input || typeof input !== 'object') return null;
   if (input.policyCode !== 'npd_post_release_edit' && input.policyCode !== 'technical_product_spec_approval') return null;
   if (!input.patch || typeof input.patch !== 'object') return null;

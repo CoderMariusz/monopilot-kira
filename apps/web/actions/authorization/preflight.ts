@@ -51,8 +51,8 @@ export type AuthorizationPolicyRow = {
 
 type GateRuleRow = {
   rule_code?: string | null;
-  is_active?: boolean | null;
-  active?: boolean | null;
+  active_from?: string | null;
+  active_to?: string | null;
 };
 
 export async function runNpdPostReleaseEditPreflight(input: {
@@ -130,17 +130,18 @@ export async function readAuthorizationPolicy(
 
 async function readActiveGateRule(client: QueryClient, gateRuleCode: string): Promise<boolean> {
   const { rows, rowCount } = await client.query<GateRuleRow>(
-    `select rule_code, is_active, is_active as active
+    `select rule_code, active_from, active_to
        from public.rule_definitions
       where org_id = app.current_org_id()
         and rule_code = $1
         and rule_type = 'gate'
-        and is_active = true
+        and active_from <= now()
+        and (active_to is null or active_to > now())
       order by version desc
       limit 1`,
     [gateRuleCode],
   );
-  return (rowCount ?? rows.length) > 0 && rows.some((row) => row.is_active === true || row.active === true);
+  return (rowCount ?? rows.length) > 0;
 }
 
 function isEnabled(policy: AuthorizationPolicyRow): boolean {
