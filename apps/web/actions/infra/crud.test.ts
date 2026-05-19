@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +29,10 @@ type FakeClient = {
   query: <T = Record<string, unknown>>(sql: string, params?: readonly unknown[]) => Promise<{ rows: T[]; rowCount: number }>;
 };
 
+type FakeClientOptions = {
+  outboxAllowedEventTypes?: Set<string>;
+};
+
 const { _runWithOrgContext } = vi.hoisted(() => ({
   _runWithOrgContext: vi.fn(),
 }));
@@ -39,7 +45,7 @@ vi.mock('../../lib/auth/with-org-context', () => ({
   withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) => _runWithOrgContext(action)),
 }));
 
-function makeClient(): FakeClient {
+function makeClient(options: FakeClientOptions = {}): FakeClient {
   const client: FakeClient = {
     calls: [],
     locations: new Map<string, InfraLocation>([
@@ -65,6 +71,12 @@ function makeClient(): FakeClient {
 
       if (normalized.startsWith('insert into public.outbox_events')) {
         const eventType = String(params.find((value) => typeof value === 'string' && value.includes('.')) ?? 'infra.unknown.changed');
+        if (options.outboxAllowedEventTypes && !options.outboxAllowedEventTypes.has(eventType)) {
+          const error = new Error(`outbox_events_event_type_check rejected ${eventType}`) as Error & { code: string; constraint: string };
+          error.code = '23514';
+          error.constraint = 'outbox_events_event_type_check';
+          throw error;
+        }
         const aggregateId = String(params.find((value) => typeof value === 'string' && isUuid(value)) ?? 'unknown');
         const payloadRaw = params[params.length - 1];
         client.outboxEntries.push({ event_type: eventType, aggregate_id: aggregateId, payload: safeJsonParse(payloadRaw) });
@@ -159,6 +171,27 @@ function safeJsonParse(value: unknown): unknown {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function currentOutboxConstraintEventTypes(): Set<string> {
+  const migrationsDir = path.resolve(__dirname, '../../../../packages/db/migrations');
+  const migrationFiles = readdirSync(migrationsDir)
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .sort();
+
+  let latestConstraintBody = '';
+  for (const fileName of migrationFiles) {
+    const sql = readFileSync(path.join(migrationsDir, fileName), 'utf8');
+    const addConstraintIndex = sql.toLowerCase().lastIndexOf('add constraint outbox_events_event_type_check check');
+    if (addConstraintIndex === -1) continue;
+    latestConstraintBody = sql.slice(addConstraintIndex);
+  }
+
+  if (!latestConstraintBody) {
+    expect.fail('Infra CRUD RED contract: outbox_events_event_type_check must exist in migrations before infra mutations can emit outbox rows');
+  }
+
+  return new Set(Array.from(latestConstraintBody.matchAll(/'([^']+)'/g), (match) => match[1]));
 }
 
 let currentClient: FakeClient;
@@ -260,5 +293,45 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const forced = await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true });
     expect(forced).toMatchObject({ ok: true, data: { isActive: false }, warning: { code: 'ACTIVE_WO_REFERENCES', activeWorkOrders: 2 } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.warehouse.deactivated')).toBe(true);
+  });
+
+  it('Outbox on mutations persists only event types accepted by outbox_events_event_type_check', async () => {
+    currentClient = makeClient({ outboxAllowedEventTypes: currentOutboxConstraintEventTypes() });
+
+    const upsertLocation = await loadAction<
+      (input: { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string }) => Promise<{ ok: boolean; error?: string }>
+    >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+    const upsertMachine = await loadAction<
+      (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
+    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
+    const upsertLine = await loadAction<
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string }>
+    >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
+    const deactivateWarehouse = await loadAction<
+      (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string }>
+    >('warehouse.ts', 'deactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+
+    const mutationResults = [
+      { eventType: 'settings.location.upserted', result: await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-03', name: 'Rack 03', level: 3, locationType: 'rack' }) },
+      { eventType: 'settings.machine.upserted', result: await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }) },
+      { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }) },
+      { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }) },
+    ].map(({ eventType, result }) => ({ eventType, ok: result.ok, error: result.ok ? undefined : result.error }));
+
+    expect(
+      mutationResults,
+      'Infra CRUD outbox event types must be admitted by the real outbox_events_event_type_check constraint; 23514 maps to persistence_failed and rolls back mutations.',
+    ).toEqual([
+      { eventType: 'settings.location.upserted', ok: true, error: undefined },
+      { eventType: 'settings.machine.upserted', ok: true, error: undefined },
+      { eventType: 'settings.line.upserted', ok: true, error: undefined },
+      { eventType: 'settings.warehouse.deactivated', ok: true, error: undefined },
+    ]);
+    expect(currentClient.outboxEntries.map((entry) => entry.event_type)).toEqual([
+      'settings.location.upserted',
+      'settings.machine.upserted',
+      'settings.line.upserted',
+      'settings.warehouse.deactivated',
+    ]);
   });
 });
