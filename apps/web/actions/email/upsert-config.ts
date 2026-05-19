@@ -220,9 +220,7 @@ function findUnknownTemplateVars(template: string, allowedVars: Set<string>): st
     }
     match = tokenPattern.exec(template);
   }
-  const values: string[] = [];
-  unknown.forEach((value) => values.push(value));
-  return values.sort();
+  return Array.from(unknown).sort();
 }
 
 async function hasPermission(ctx: OrgActionContext, permission: string): Promise<boolean> {
