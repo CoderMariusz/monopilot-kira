@@ -56,15 +56,30 @@ export type AddColumnResult =
         migrationStatus?: 'pending' | 'completed';
       };
     }
-  | { ok: false; error: 'invalid_input' | 'invalid_dropdown_source' | 'forbidden' | 'persistence_failed' };
+  | {
+      ok: false;
+      error: 'INVALID_INPUT' | 'INVALID_DATA_TYPE' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'PERSISTENCE_FAILED';
+      data?: Record<string, unknown>;
+    };
 
 const FORBIDDEN = 'forbidden' as const;
-const ALLOWED_DATA_TYPES = new Set(['text', 'number', 'date', 'enum', 'formula', 'relation']);
+const ALLOWED_DATA_TYPES = ['text', 'number', 'date', 'enum', 'formula', 'relation'] as const;
+const ALLOWED_DATA_TYPE_SET = new Set<string>(ALLOWED_DATA_TYPES);
 const CODE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/;
 
 export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResult> {
-  const input = parseAddColumnInput(rawInput);
-  if (!input) return { ok: false, error: 'invalid_input' };
+  const parsed = parseAddColumnInput(rawInput);
+  if (parsed.kind === 'invalid_data_type') {
+    return {
+      ok: false,
+      error: 'INVALID_DATA_TYPE',
+      data: { received: parsed.received, allowed: [...ALLOWED_DATA_TYPES] },
+    };
+  }
+  if (parsed.kind === 'invalid') {
+    return { ok: false, error: 'INVALID_INPUT' };
+  }
+  const input = parsed.value;
 
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
@@ -72,9 +87,19 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
 
       if (input.dropdownSource) {
         const sourceExists = await referenceTableExists({ client, tableCode: input.dropdownSource });
-        if (!sourceExists) return { ok: false, error: 'invalid_dropdown_source' };
+        if (!sourceExists) {
+          return {
+            ok: false,
+            error: 'DROPDOWN_SOURCE_FK_VIOLATION',
+            data: { dropdownSource: input.dropdownSource },
+          };
+        }
       } else if (input.dataType === 'enum' || input.dataType === 'relation') {
-        return { ok: false, error: 'invalid_dropdown_source' };
+        return {
+          ok: false,
+          error: 'DROPDOWN_SOURCE_FK_VIOLATION',
+          data: { dropdownSource: null, reason: 'enum/relation data type requires dropdown_source' },
+        };
       }
 
       const plan = tierPlan(input.scope);
@@ -92,10 +117,10 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
       }
 
       if (plan.tier === 'L1') {
-        if (!input.approvedBy || !input.approvedAt || Number.isNaN(Date.parse(input.approvedAt))) {
-          return { ok: false, error: 'invalid_input' };
-        }
-
+        // V-SET-03: L1 promotion ALWAYS queues a schema_migrations row with
+        // status='pending'. approved_by/approved_at are optional at request time;
+        // superadmin approval is captured in a separate approver UI/flow that
+        // updates the queued row. We never run DDL from this action.
         await client.query(
           `insert into public.schema_migrations
              (org_id, table_code, column_code, action, tier_before, tier_after,
@@ -205,38 +230,49 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
         },
       };
     } catch (error) {
-      if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
-      return { ok: false, error: 'persistence_failed' };
+      if (error === FORBIDDEN) return { ok: false, error: 'FORBIDDEN' };
+      return { ok: false, error: 'PERSISTENCE_FAILED' };
     }
   });
 }
 
-function parseAddColumnInput(input: AddColumnInput | null | undefined): ParsedAddColumnInput | null {
-  if (!input || typeof input !== 'object') return null;
+type ParseResult =
+  | { kind: 'ok'; value: ParsedAddColumnInput }
+  | { kind: 'invalid' }
+  | { kind: 'invalid_data_type'; received: string };
+
+function parseAddColumnInput(input: AddColumnInput | null | undefined): ParseResult {
+  if (!input || typeof input !== 'object') return { kind: 'invalid' };
   const tableCode = normalizeCode(input.tableCode);
   const columnCode = normalizeCode(input.columnCode);
   const scope = normalizeScope(input.scope);
   const dataType = typeof input.dataType === 'string' ? input.dataType.trim().toLowerCase() : '';
-  if (!tableCode || !columnCode || !scope || !ALLOWED_DATA_TYPES.has(dataType)) return null;
+  if (!tableCode || !columnCode || !scope) return { kind: 'invalid' };
+  if (!ALLOWED_DATA_TYPE_SET.has(dataType)) {
+    return { kind: 'invalid_data_type', received: typeof input.dataType === 'string' ? input.dataType : String(input.dataType) };
+  }
 
   const dropdownSource = normalizeCode(input.dropdownSource);
   const validationJson = plainObject(input.validationJson) ?? {};
   const presentationJson = plainObject(input.presentationJson) ?? {};
   const expectedSchemaVersion = integerOrNull(input.expectedSchemaVersion);
-  if (input.expectedSchemaVersion !== undefined && expectedSchemaVersion === null) return null;
+  if (input.expectedSchemaVersion !== undefined && expectedSchemaVersion === null) return { kind: 'invalid' };
 
   return {
-    tableCode,
-    columnCode,
-    scope,
-    dataType,
-    dropdownSource,
-    validationJson,
-    presentationJson,
-    expectedSchemaVersion,
-    dryRun: input.dryRun === true,
-    approvedBy: normalizeUuid(input.approvedBy),
-    approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt.trim() : null,
+    kind: 'ok',
+    value: {
+      tableCode,
+      columnCode,
+      scope,
+      dataType,
+      dropdownSource,
+      validationJson,
+      presentationJson,
+      expectedSchemaVersion,
+      dryRun: input.dryRun === true,
+      approvedBy: normalizeUuid(input.approvedBy),
+      approvedAt: normalizeIso(input.approvedAt),
+    },
   };
 }
 
@@ -297,6 +333,13 @@ function normalizeUuid(value: unknown): string | null {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)
     ? trimmed
     : null;
+}
+
+function normalizeIso(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || Number.isNaN(Date.parse(trimmed))) return null;
+  return trimmed;
 }
 
 function integerOrNull(value: unknown): number | null {

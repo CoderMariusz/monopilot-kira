@@ -91,7 +91,6 @@ export async function rollbackUpgrade(rawInput: RollbackUpgradeInput): Promise<R
         [input.migrationId],
       );
       if ((updated.rowCount ?? updated.rows.length) < 1) return { ok: false, error: 'invalid_state' };
-      markUnitTestFakeMigrationRolledBack(client, input.migrationId);
 
       await writeOutbox({
         client,
@@ -130,12 +129,6 @@ function parseCompletedAt(migration: MigrationRow): Date | null {
   if (!raw) return null;
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function markUnitTestFakeMigrationRolledBack(client: QueryClient, migrationId: string): void {
-  const fakeClient = client as QueryClient & { migrations?: Map<string, { status: string }> };
-  const fakeMigration = fakeClient.migrations?.get(migrationId);
-  if (fakeMigration) fakeMigration.status = 'rolled_back';
 }
 
 async function requirePermission({

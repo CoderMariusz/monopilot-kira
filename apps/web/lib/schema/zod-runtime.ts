@@ -1,3 +1,5 @@
+import { z, ZodType, ZodTypeAny } from 'zod';
+
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 128;
 
@@ -15,19 +17,6 @@ export type RuntimeColumn = {
   deprecated_at?: string | null;
 };
 
-export type RuntimeIssue = {
-  path: Array<string | number>;
-  message?: string;
-};
-
-export type RuntimeParseResult =
-  | { success: true; data: Record<string, unknown> }
-  | { success: false; error: { issues: RuntimeIssue[] } };
-
-export type RuntimeSchema = {
-  safeParse: (value: unknown) => RuntimeParseResult;
-};
-
 type SchemaScope = {
   orgId: string;
   tableCode: string;
@@ -35,7 +24,7 @@ type SchemaScope = {
 };
 
 type CacheEntry = {
-  schema: RuntimeSchema;
+  schema: ZodType;
   expiresAt: number;
   touchedAt: number;
 };
@@ -47,7 +36,7 @@ export type GetZodRuntimeSchemaInput = SchemaScope & {
 const schemaCache = new Map<string, CacheEntry>();
 let accessCounter = 0;
 
-export async function getZodRuntimeSchema(input: GetZodRuntimeSchemaInput): Promise<RuntimeSchema> {
+export async function getZodRuntimeSchema(input: GetZodRuntimeSchemaInput): Promise<ZodType> {
   const scope = {
     orgId: input.orgId,
     tableCode: input.tableCode,
@@ -94,66 +83,67 @@ export function invalidateZodRuntimeSchemaCache(scope?: Partial<SchemaScope>): v
   }
 }
 
-function compileRuntimeSchema(columns: RuntimeColumn[]): RuntimeSchema {
-  const activeColumns = columns.filter((column) => !column.deprecated_at);
-
-  return {
-    safeParse(value: unknown): RuntimeParseResult {
-      if (!isRecord(value)) {
-        return { success: false, error: { issues: [{ path: [], message: 'Expected an object payload' }] } };
-      }
-
-      const data: Record<string, unknown> = {};
-      const issues: RuntimeIssue[] = [];
-      for (const column of activeColumns) {
-        const hasValue = Object.prototype.hasOwnProperty.call(value, column.column_code);
-        const rawValue = value[column.column_code];
-
-        if (!hasValue || rawValue === undefined || rawValue === null || rawValue === '') {
-          if (column.required_for_done) {
-            issues.push({ path: [column.column_code], message: 'Required' });
-          }
-          continue;
-        }
-
-        const parsedValue = parseColumnValue(column, rawValue);
-        if (parsedValue.ok === false) {
-          issues.push({ path: [column.column_code], message: parsedValue.message });
-          continue;
-        }
-        data[column.column_code] = parsedValue.value;
-      }
-
-      if (issues.length > 0) return { success: false, error: { issues } };
-      return { success: true, data };
-    },
-  };
+function compileRuntimeSchema(columns: RuntimeColumn[]): ZodType {
+  const shape: Record<string, ZodTypeAny> = {};
+  for (const column of columns) {
+    if (column.deprecated_at) continue;
+    const baseSchema = columnSchema(column);
+    shape[column.column_code] = column.required_for_done ? baseSchema : baseSchema.optional();
+  }
+  // strip unknown keys to keep the schema strict but tolerant: deprecated keys
+  // submitted by stale clients are dropped without failing.
+  return z.object(shape).strip();
 }
 
-function parseColumnValue(column: RuntimeColumn, value: unknown): { ok: true; value: unknown } | { ok: false; message: string } {
+function columnSchema(column: RuntimeColumn): ZodTypeAny {
+  const validation = (column.validation_json ?? {}) as Record<string, unknown>;
   switch (column.data_type) {
     case 'text':
-    case 'enum':
     case 'formula':
     case 'relation': {
-      if (typeof value !== 'string') return { ok: false, message: 'Expected a string' };
-      const regex = safeRegex(column.validation_json?.regex);
-      if (regex && !regex.test(value)) return { ok: false, message: 'Invalid format' };
-      return { ok: true, value };
+      let s = z.string({ message: `${column.column_code} must be a string` });
+      const regex = safeRegex(validation.regex);
+      if (regex) s = s.regex(regex, { message: `${column.column_code} does not match required pattern` });
+      const minLen = numberOrNull((validation.length as Record<string, unknown> | undefined)?.min);
+      const maxLen = numberOrNull((validation.length as Record<string, unknown> | undefined)?.max);
+      if (minLen !== null) s = s.min(minLen);
+      if (maxLen !== null) s = s.max(maxLen);
+      return s;
     }
     case 'number': {
-      if (typeof value !== 'number' || Number.isNaN(value)) return { ok: false, message: 'Expected a number' };
-      return { ok: true, value };
+      let n = z.number({ message: `${column.column_code} must be a number` });
+      const range = (validation.range ?? {}) as Record<string, unknown>;
+      const min = numberOrNull(range.min);
+      const max = numberOrNull(range.max);
+      if (min !== null) n = n.min(min);
+      if (max !== null) n = n.max(max);
+      return n;
     }
     case 'date': {
-      if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
-        return { ok: false, message: 'Expected an ISO date string' };
+      // Accept ISO8601 string; parseable by Date.parse. We use z.string().refine to keep
+      // the public API plain-JSON-shaped while still rejecting malformed dates.
+      return z.string({ message: `${column.column_code} must be an ISO date string` }).refine(
+        (value) => !Number.isNaN(Date.parse(value)),
+        { message: `${column.column_code} must be a parseable ISO date string` },
+      );
+    }
+    case 'enum': {
+      const options = enumOptions(validation);
+      if (options.length === 0) {
+        // No allow-list yet: accept any string until UI/admin defines dropdown options.
+        return z.string({ message: `${column.column_code} must be a string` });
       }
-      return { ok: true, value };
+      return z.enum(options as [string, ...string[]]);
     }
     default:
-      return { ok: false, message: 'Unsupported data type' };
+      return z.unknown();
   }
+}
+
+function enumOptions(validation: Record<string, unknown>): string[] {
+  const direct = validation.options ?? validation.enum;
+  if (!Array.isArray(direct)) return [];
+  return direct.filter((value): value is string => typeof value === 'string');
 }
 
 function safeRegex(pattern: unknown): RegExp | null {
@@ -163,6 +153,11 @@ function safeRegex(pattern: unknown): RegExp | null {
   } catch {
     return null;
   }
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return value;
 }
 
 function cacheKey(scope: SchemaScope): string {
@@ -196,8 +191,4 @@ function evictExpiredAndLru(now: number): void {
     if (lruKey === null) break;
     schemaCache.delete(lruKey);
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ const withOrgContextPath = resolve(repoRoot, 'apps/web/lib/auth/with-org-context
 const previewUpgradePath = resolve(repoRoot, 'apps/web/actions/tenant/preview-upgrade.ts');
 const startUpgradePath = resolve(repoRoot, 'apps/web/actions/tenant/start-upgrade.ts');
 const rollbackUpgradePath = resolve(repoRoot, 'apps/web/actions/tenant/rollback-upgrade.ts');
+const promoteCanaryPath = resolve(repoRoot, 'apps/web/actions/tenant/promote-canary.ts');
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -34,14 +35,22 @@ type QueryCall = { sql: string; params: unknown[] };
 type MigrationRow = {
   id: string;
   component: string;
+  current_version: string;
   target_version: string;
   status: string;
   canary_pct: number;
   completed_at: string;
 };
+type RuleDefinitionRow = {
+  rule_code: string;
+  version: number;
+  definition_json: Record<string, unknown>;
+};
 type FakeClient = {
   calls: QueryCall[];
   migrations: Map<string, MigrationRow>;
+  ruleDefinitions: RuleDefinitionRow[];
+  affectedRulesCount: number;
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -83,8 +92,8 @@ beforeEach(() => {
   );
 });
 
-describe('tenant upgrade orchestration Server Actions (TASK-000168/T-028 RED)', () => {
-  it('previewUpgrade returns a JSON diff and affected row count through withOrgContext', async () => {
+describe('tenant upgrade orchestration Server Actions (T-028 PRD §9.4 / V-SET-32..33)', () => {
+  it('previewUpgrade computes a real JSON diff from rule_definitions plus affected count, without mock-injected diffs', async () => {
     expect(existsSync(withOrgContextPath), 'withOrgContext helper must exist on disk before it is mocked').toBe(true);
     const { previewUpgrade } = await loadPreviewUpgrade();
 
@@ -106,13 +115,17 @@ describe('tenant upgrade orchestration Server Actions (TASK-000168/T-028 RED)', 
       },
     });
     expect(_withOrgContextRunner).toHaveBeenCalledTimes(1);
-    expect(statementIndex('tenant_migrations')).toBeGreaterThanOrEqual(0);
-    expect(statementIndex('affected')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('public.tenant_migrations')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('public.rule_definitions')).toBeGreaterThanOrEqual(0);
     expect(statementIndex('insert into public.tenant_migrations')).toBe(-1);
     expect(statementIndex('update public.tenant_migrations')).toBe(-1);
+    // Reject the previous false-green: production SQL must not synthesize an empty changes array.
+    const previewSrc = readFileSync(previewUpgradePath, 'utf8');
+    expect(previewSrc).not.toMatch(/jsonb_build_array\s*\(\s*\)/);
+    expect(previewSrc).not.toMatch(/affected rows for upgrade preview/);
   });
 
-  it('startUpgrade blocks post-onboarding region changes with REGION_CHANGE_BLOCKED before persistence', async () => {
+  it('startUpgrade blocks post-onboarding region changes with REGION_CHANGE_BLOCKED (V-SET-32) before persistence', async () => {
     expect(existsSync(withOrgContextPath), 'withOrgContext helper must exist on disk before it is mocked').toBe(true);
     const { startUpgrade } = await loadStartUpgrade();
 
@@ -134,7 +147,7 @@ describe('tenant upgrade orchestration Server Actions (TASK-000168/T-028 RED)', 
     expect(statementIndex('insert into public.outbox_events')).toBe(-1);
   });
 
-  it('rollbackUpgrade rolls back completed canaries inside 7 days and refuses stale rollback windows', async () => {
+  it('rollbackUpgrade rolls back completed canaries within 7 days (real SQL state mutation, no fixture hacks), and refuses stale rollback windows', async () => {
     expect(existsSync(withOrgContextPath), 'withOrgContext helper must exist on disk before it is mocked').toBe(true);
     const { rollbackUpgrade } = await loadRollbackUpgrade();
 
@@ -144,6 +157,7 @@ describe('tenant upgrade orchestration Server Actions (TASK-000168/T-028 RED)', 
     });
 
     expect(rolledBack).toEqual({ ok: true, data: { migrationId: MIGRATION_ID, status: 'rolled_back' } });
+    // The status flip must come from the real SQL UPDATE round-trip — not a side-channel mutation of fixture state.
     expect(currentClient.migrations.get(MIGRATION_ID)?.status).toBe('rolled_back');
     const updateIndex = statementIndex('update public.tenant_migrations');
     const outboxIndex = statementIndex('insert into public.outbox_events');
@@ -166,6 +180,20 @@ describe('tenant upgrade orchestration Server Actions (TASK-000168/T-028 RED)', 
         normalizeSql(call.sql).includes('update public.tenant_migrations'),
       ),
     ).toBe(false);
+  });
+
+  it('production sources are free of test-coupling hacks (no markUnitTestFakeMigrationRolledBack, no fake fixture mutation helpers)', () => {
+    const sources = [
+      readFileSync(previewUpgradePath, 'utf8'),
+      readFileSync(startUpgradePath, 'utf8'),
+      readFileSync(rollbackUpgradePath, 'utf8'),
+      readFileSync(promoteCanaryPath, 'utf8'),
+    ];
+    for (const src of sources) {
+      expect(src).not.toMatch(/markUnitTestFake/);
+      expect(src).not.toMatch(/UnitTest|FakeMigration|FakeClient|fakeMigration|fixture\b/i);
+      expect(src).not.toMatch(/compatibility token|V-SET-\d+ tests?/i);
+    }
   });
 });
 
@@ -213,6 +241,7 @@ function makeClient(): FakeClient {
         id: MIGRATION_ID,
         component: 'rule_engine',
         target_version: 'v2',
+        current_version: 'v1',
         status: 'completed',
         canary_pct: 10,
         completed_at: '2026-05-15T12:00:00.000Z',
@@ -224,16 +253,25 @@ function makeClient(): FakeClient {
         id: EXPIRED_MIGRATION_ID,
         component: 'rule_engine',
         target_version: 'v2',
+        current_version: 'v1',
         status: 'completed',
         canary_pct: 10,
         completed_at: '2026-05-01T12:00:00.000Z',
       },
     ],
   ]);
+  // Real per-version rule_definitions rows. Production code must derive the diff
+  // by comparing JSON between versions; the fixture never short-circuits the diff.
+  const ruleDefinitions: RuleDefinitionRow[] = [
+    { rule_code: 'qa.release_gate', version: 1, definition_json: { threshold: 0.95 } },
+    { rule_code: 'qa.release_gate', version: 2, definition_json: { threshold: 0.98 } },
+  ];
   const calls: QueryCall[] = [];
   const client: FakeClient = {
     calls,
     migrations,
+    ruleDefinitions,
+    affectedRulesCount: 42,
     query: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       const normalized = normalizeSql(sql);
@@ -246,45 +284,43 @@ function makeClient(): FakeClient {
         return { rows: [{ id: ORG_ID, region: 'eu', region_cluster: 'eu', onboarding_completed_at: '2026-01-01T00:00:00.000Z' }], rowCount: 1 };
       }
 
-      if (normalized.includes('tenant_migrations') && normalized.includes('component') && normalized.includes('rule_engine')) {
-        return { rows: [{ component: 'rule_engine', current_version: 'v1', version: 'v1', target_version: 'v1', status: 'completed' }], rowCount: 1 };
+      if (
+        normalized.includes('from public.tenant_migrations')
+        && normalized.includes('component')
+        && !params.includes(MIGRATION_ID)
+        && !params.includes(EXPIRED_MIGRATION_ID)
+      ) {
+        return { rows: [{ component: 'rule_engine', current_version: 'v1', target_version: 'v1', status: 'completed' }], rowCount: 1 };
       }
 
-      if (normalized.includes('tenant_migrations') && params.includes(MIGRATION_ID)) {
+      if (normalized.includes('from public.tenant_migrations') && params.includes(MIGRATION_ID)) {
         return { rows: [migrations.get(MIGRATION_ID)!], rowCount: 1 };
       }
 
-      if (normalized.includes('tenant_migrations') && params.includes(EXPIRED_MIGRATION_ID)) {
+      if (normalized.includes('from public.tenant_migrations') && params.includes(EXPIRED_MIGRATION_ID)) {
         return { rows: [migrations.get(EXPIRED_MIGRATION_ID)!], rowCount: 1 };
       }
 
-      if (normalized.includes('affected')) {
-        return { rows: [{ affected_rows: 42, affectedRows: 42, impact_count: 42, count: '42' }], rowCount: 1 };
+      // Count of all rule_definitions matching the component (affected_rows).
+      if (normalized.includes('from public.rule_definitions') && normalized.includes('count(')) {
+        return { rows: [{ affected_rows: client.affectedRulesCount }], rowCount: 1 };
       }
 
-      if (normalized.includes('diff') || normalized.includes('upgrade_manifest') || normalized.includes('upgrade_manifests')) {
-        return {
-          rows: [
-            {
-              diff: {
-                fromVersion: 'v1',
-                toVersion: 'v2',
-                changes: [{ path: 'rules.qa.release_gate.threshold', before: 0.95, after: 0.98 }],
-              },
-              affected_rows: 42,
-            },
-          ],
-          rowCount: 1,
-        };
+      // Real per-version rule_definitions for diff computation.
+      if (normalized.includes('from public.rule_definitions')) {
+        return { rows: ruleDefinitions, rowCount: ruleDefinitions.length };
       }
 
       if (normalized.includes('update public.tenant_migrations')) {
         const migrationId = params.find((param) => param === MIGRATION_ID || param === EXPIRED_MIGRATION_ID) as string | undefined;
         if (migrationId) {
           const migration = migrations.get(migrationId);
-          if (migration) migration.status = 'rolled_back';
+          if (migration && migration.status === 'completed') {
+            migration.status = 'rolled_back';
+            return { rows: [{ id: migrationId, status: 'rolled_back' }], rowCount: 1 };
+          }
         }
-        return { rows: migrationId ? [migrations.get(migrationId)] : [], rowCount: migrationId ? 1 : 0 };
+        return { rows: [], rowCount: 0 };
       }
 
       if (normalized.includes('insert into public.outbox_events')) {
@@ -292,7 +328,7 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('insert into public.tenant_migrations')) {
-        return { rows: [{ id: '66666666-6666-4666-8666-666666666666', status: 'started' }], rowCount: 1 };
+        return { rows: [{ id: '66666666-6666-4666-8666-666666666666', status: 'scheduled' }], rowCount: 1 };
       }
 
       return { rows: [], rowCount: 0 };

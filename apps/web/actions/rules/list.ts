@@ -155,8 +155,14 @@ function buildListQuery(input: ListRulesInput): { sql: string; params: unknown[]
     params.push(input.departmentCode);
     where.push(`coalesce(rd.definition_json->>'departmentCode', rd.definition_json->>'department_code', split_part(rd.rule_code, '_', 1)) = $${params.length}`);
   }
-  if (input.active === true) where.push('rd.active_to is null');
-  if (input.active === false) where.push('rd.active_to is not null');
+  // Registry list = one row per rule_code (the currently active version).
+  // active=true (default) → active_to is null. active=false → return only retired rows.
+  // Historical versions for an individual rule are exposed via getRule(versions[]).
+  if (input.active === false) {
+    where.push('rd.active_to is not null');
+  } else {
+    where.push('rd.active_to is null');
+  }
   return {
     sql: `select rd.id,
                  rd.rule_code,

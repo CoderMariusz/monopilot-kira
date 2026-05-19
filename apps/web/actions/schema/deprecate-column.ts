@@ -42,7 +42,7 @@ export type DeprecateColumnResult =
   | { ok: true; data: { tableCode: string; columnCode: string; schemaVersion: number; deprecatedAt: string } }
   | {
       ok: false;
-      error: 'invalid_input' | 'forbidden' | 'not_found' | 'schema_version_conflict' | 'persistence_failed';
+      error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONCURRENT_EDIT' | 'PERSISTENCE_FAILED';
       data?: { currentSchemaVersion: number; diff: Record<string, unknown> };
     };
 
@@ -51,20 +51,20 @@ const CODE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/;
 
 export async function deprecateColumn(rawInput: DeprecateColumnInput): Promise<DeprecateColumnResult> {
   const input = parseDeprecateColumnInput(rawInput);
-  if (!input) return { ok: false, error: 'invalid_input' };
+  if (!input) return { ok: false, error: 'INVALID_INPUT' };
 
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
       await requireSchemaEditor({ client, userId, orgId });
 
       const existing = await findSchemaColumn({ client, tableCode: input.tableCode, columnCode: input.columnCode });
-      if (!existing) return { ok: false, error: 'not_found' };
+      if (!existing) return { ok: false, error: 'NOT_FOUND' };
 
       const currentVersion = Number(existing.schema_version);
       if (currentVersion !== input.expectedSchemaVersion) {
         return {
           ok: false,
-          error: 'schema_version_conflict',
+          error: 'CONCURRENT_EDIT',
           data: {
             currentSchemaVersion: currentVersion,
             diff: {
@@ -114,8 +114,8 @@ export async function deprecateColumn(rawInput: DeprecateColumnInput): Promise<D
         },
       };
     } catch (error) {
-      if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
-      return { ok: false, error: 'persistence_failed' };
+      if (error === FORBIDDEN) return { ok: false, error: 'FORBIDDEN' };
+      return { ok: false, error: 'PERSISTENCE_FAILED' };
     }
   });
 }

@@ -24,22 +24,21 @@ type ReferenceRow = {
   display_order: number | null;
 };
 
-type ReferenceUsage = {
+type SchemaReference = {
   table_code: string;
   column_code: string;
   dropdown_source: string;
-  referencing_active_rows?: number | string | null;
 };
 
-type FkWarning = {
-  code: 'FK_REFERENCE_WARNING';
+type FkReferenceWarning = {
+  code: 'REFERENCED_BY_SCHEMA';
   message: string;
   references: Array<{ tableCode: string; columnCode: string; activeRows: number }>;
 };
 
 export type SoftDeleteReferenceRowResult =
-  | { ok: true; data: { tableCode: string; rowKey: string; version: number; isActive: boolean }; warning?: FkWarning }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'VERSION_CONFLICT' | 'FK_REFERENCE_WARNING' | 'persistence_failed'; warning?: FkWarning };
+  | { ok: true; data: { tableCode: string; rowKey: string; version: number; isActive: boolean }; warning?: FkReferenceWarning }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'VERSION_CONFLICT' | 'persistence_failed' };
 
 export async function softDeleteReferenceRow(rawInput: unknown): Promise<SoftDeleteReferenceRowResult> {
   const input = parseSoftDeleteInput(rawInput);
@@ -50,10 +49,9 @@ export async function softDeleteReferenceRow(rawInput: unknown): Promise<SoftDel
       const allowed = await hasPermission({ client, userId, orgId }, EDIT_PERMISSION);
       if (!allowed) return { ok: false, error: 'forbidden' };
 
-      const warning = await buildFkWarning(client, input.tableCode);
-      if (warning && !input.confirmReferenced) {
-        return { ok: false, error: 'FK_REFERENCE_WARNING', warning };
-      }
+      const before = await getExistingRow(client, input.tableCode, input.rowKey);
+
+      const warning = await buildReferencedBySchemaWarning(client, input.tableCode, input.rowKey);
 
       const { rows, rowCount } = await client.query<ReferenceRow>(
         `update public.reference_tables
@@ -68,11 +66,32 @@ export async function softDeleteReferenceRow(rawInput: unknown): Promise<SoftDel
       );
       const row = rows[0];
       if ((rowCount ?? rows.length) < 1 || !row) {
-        const exists = await getExistingRow(client, input.tableCode, input.rowKey);
-        return exists ? { ok: false, error: 'VERSION_CONFLICT' } : { ok: false, error: 'not_found' };
+        return before ? { ok: false, error: 'VERSION_CONFLICT' } : { ok: false, error: 'not_found' };
       }
 
       await refreshReferenceTableMv(client, orgId, input.tableCode);
+      await writeAuditLog(client, {
+        orgId,
+        actorUserId: userId,
+        action: 'reference.row.soft_delete',
+        resourceId: `${input.tableCode}:${input.rowKey}`,
+        beforeState: before ? { rowData: before.row_data, version: before.version, isActive: before.is_active } : null,
+        afterState: { rowData: row.row_data, version: row.version, isActive: row.is_active, warning: warning ?? null },
+      });
+      await writeOutbox(client, {
+        orgId,
+        eventType: 'reference.row.soft_deleted',
+        aggregateType: 'reference_table',
+        aggregateId: orgId,
+        payload: {
+          tableCode: row.table_code,
+          rowKey: row.row_key,
+          version: row.version,
+          referencedBySchema: Boolean(warning),
+          references: warning?.references ?? [],
+        },
+      });
+
       return {
         ok: true,
         data: { tableCode: row.table_code, rowKey: row.row_key, version: row.version, isActive: row.is_active },
@@ -84,14 +103,14 @@ export async function softDeleteReferenceRow(rawInput: unknown): Promise<SoftDel
   }
 }
 
-function parseSoftDeleteInput(raw: unknown): { tableCode: string; rowKey: string; expectedVersion: number; confirmReferenced: boolean } | null {
+function parseSoftDeleteInput(raw: unknown): { tableCode: string; rowKey: string; expectedVersion: number } | null {
   if (!raw || typeof raw !== 'object') return null;
-  const candidate = raw as { tableCode?: unknown; rowKey?: unknown; expectedVersion?: unknown; confirmReferenced?: unknown };
+  const candidate = raw as { tableCode?: unknown; rowKey?: unknown; expectedVersion?: unknown };
   const tableCode = normalizeCode(candidate.tableCode);
   const rowKey = normalizeRowKey(candidate.rowKey);
   const expectedVersion = Number(candidate.expectedVersion);
   if (!tableCode || !rowKey || !Number.isInteger(expectedVersion) || expectedVersion < 1) return null;
-  return { tableCode, rowKey, expectedVersion, confirmReferenced: candidate.confirmReferenced === true };
+  return { tableCode, rowKey, expectedVersion };
 }
 
 function normalizeCode(value: unknown): string | null {
@@ -120,24 +139,43 @@ async function hasPermission(ctx: OrgActionContext, permission: string): Promise
   return rows.length > 0;
 }
 
-async function buildFkWarning(client: QueryClient, tableCode: string): Promise<FkWarning | undefined> {
-  const { rows } = await client.query<ReferenceUsage>(
-    `select table_code, column_code, dropdown_source, 0::integer as referencing_active_rows
+async function buildReferencedBySchemaWarning(
+  client: QueryClient,
+  tableCode: string,
+  rowKey: string,
+): Promise<FkReferenceWarning | undefined> {
+  const { rows: schemaRows } = await client.query<SchemaReference>(
+    `select table_code, column_code, dropdown_source
        from public.reference_schemas
       where org_id = app.current_org_id()
         and dropdown_source = $1
         and deprecated_at is null`,
     [tableCode],
   );
-  if (rows.length === 0) return undefined;
+  if (schemaRows.length === 0) return undefined;
+
+  const references: Array<{ tableCode: string; columnCode: string; activeRows: number }> = [];
+  for (const ref of schemaRows) {
+    const { rows: countRows } = await client.query<{ active_count: number | string | null }>(
+      `select count(*)::integer as active_count
+         from public.reference_tables
+        where org_id = app.current_org_id()
+          and table_code = $1
+          and is_active = true
+          and (row_data ->> $2) = $3`,
+      [ref.table_code, ref.column_code, rowKey],
+    );
+    const activeRows = Number(countRows[0]?.active_count ?? 0);
+    if (activeRows > 0) {
+      references.push({ tableCode: ref.table_code, columnCode: ref.column_code, activeRows });
+    }
+  }
+
+  if (references.length === 0) return undefined;
   return {
-    code: 'FK_REFERENCE_WARNING',
-    message: 'This reference value is used by generated schema dropdown fields; confirm before soft delete.',
-    references: rows.map((row) => ({
-      tableCode: row.table_code,
-      columnCode: row.column_code,
-      activeRows: Number(row.referencing_active_rows ?? 0),
-    })),
+    code: 'REFERENCED_BY_SCHEMA',
+    message: 'This reference value is used by generated schema dropdown fields; soft-delete proceeds with a warning.',
+    references,
   };
 }
 
@@ -156,4 +194,35 @@ async function getExistingRow(client: QueryClient, tableCode: string, rowKey: st
 
 async function refreshReferenceTableMv(client: QueryClient, orgId: string, tableCode: string): Promise<void> {
   await client.query(`select app.refresh_reference_table_mv($1::uuid, $2)`, [orgId, tableCode]);
+}
+
+async function writeAuditLog(
+  client: QueryClient,
+  params: { orgId: string; actorUserId: string; action: string; resourceId: string; beforeState: unknown; afterState: unknown },
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'reference_table', $4, $5::jsonb, $6::jsonb, 'standard')`,
+    [
+      params.orgId,
+      params.actorUserId,
+      params.action,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+    ],
+  );
+}
+
+async function writeOutbox(
+  client: QueryClient,
+  params: { orgId: string; eventType: string; aggregateType: string; aggregateId: string; payload: unknown },
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-reference-v1')`,
+    [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
+  );
 }

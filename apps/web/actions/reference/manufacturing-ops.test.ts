@@ -19,7 +19,7 @@ type ManufacturingOperation = {
   operation_seq: number;
   industry_code: 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
   is_active: boolean;
-  marker: 'ORG-CONFIG';
+  marker: 'ORG-CONFIG' | 'APEX-CONFIG';
 };
 
 type QueryCall = { sql: string; params: readonly unknown[] };
@@ -28,7 +28,10 @@ type FakeClient = {
   calls: QueryCall[];
   permissions: Set<Permission>;
   rows: Map<string, ManufacturingOperation>;
-  referencedNames: Set<string>;
+  faCounts: Record<string, number>;
+  templateCounts: Record<string, number>;
+  auditEntries: Array<{ action: string; resource_id: string }>;
+  outboxEntries: Array<{ event_type: string }>;
   query: <T = Record<string, unknown>>(
     sql: string,
     params?: readonly unknown[],
@@ -58,6 +61,7 @@ function seedRows(): ManufacturingOperation[] {
     makeOperation({ id: 'op-knead', operation_name: 'Knead', process_suffix: 'KN', description: 'Kneading dough', operation_seq: 2, industry_code: 'bakery' }),
     makeOperation({ id: 'op-proof', operation_name: 'Proof', process_suffix: 'PR', description: 'Proofing/bulk fermentation', operation_seq: 3, industry_code: 'bakery' }),
     makeOperation({ id: 'op-bake', operation_name: 'Bake', process_suffix: 'BK', description: 'Baking in oven', operation_seq: 4, industry_code: 'bakery' }),
+    makeOperation({ id: 'op-custom-pa', operation_name: 'Custom_A', process_suffix: 'CA', description: 'Custom step A', operation_seq: 1, industry_code: 'custom' }),
   ];
 }
 
@@ -82,14 +86,18 @@ function normalizeSql(sql: string): string {
 
 function usesDedicatedManufacturingOpsTable(call: QueryCall): boolean {
   const sql = normalizeSql(call.sql);
-  return sql.includes('reference.manufacturingoperations') || sql.includes('manufacturing_operations');
+  return /"reference"\."manufacturingoperations"/.test(sql) || sql.includes('manufacturing_operations');
 }
 
 function stringParam(params: readonly unknown[], value: string): boolean {
   return params.map(String).includes(value);
 }
 
-function makeClient(options: { permissions?: Permission[]; referencedNames?: string[] } = {}): FakeClient {
+function makeClient(options: {
+  permissions?: Permission[];
+  faCounts?: Record<string, number>;
+  templateCounts?: Record<string, number>;
+} = {}): FakeClient {
   const rows = new Map(seedRows().map((row) => [row.id, row]));
   const client: FakeClient = {
     calls: [],
@@ -103,7 +111,10 @@ function makeClient(options: { permissions?: Permission[]; referencedNames?: str
       ],
     ),
     rows,
-    referencedNames: new Set(options.referencedNames ?? ['Mix']),
+    faCounts: options.faCounts ?? { Mix: 5 },
+    templateCounts: options.templateCounts ?? { Mix: 3 },
+    auditEntries: [],
+    outboxEntries: [],
     async query(sql, params = []) {
       client.calls.push({ sql, params });
       const normalized = normalizeSql(sql);
@@ -118,10 +129,27 @@ function makeClient(options: { permissions?: Permission[]; referencedNames?: str
         return { rows: (allowed ? [{ ok: true }] : []) as never[], rowCount: allowed ? 1 : 0 };
       }
 
-      if (normalized.includes('template_operation') || normalized.includes('manufacturing_operation_')) {
-        const referencedName = params.map(String).find((param) => client.referencedNames.has(param));
-        const count = referencedName ? 2 : 0;
-        return { rows: (count > 0 ? [{ active_fa_count: count, template_count: count }] : []) as never[], rowCount: count > 0 ? 1 : 0 };
+      if (normalized.includes('app.count_manufacturing_operation_usage')) {
+        const operationName = String(params[1] ?? '');
+        const activeFa = client.faCounts[operationName] ?? 0;
+        const templates = client.templateCounts[operationName] ?? 0;
+        return {
+          rows: [{ active_fa_count: activeFa, template_count: templates }] as never[],
+          rowCount: 1,
+        };
+      }
+
+      if (normalized.startsWith('insert into public.audit_log')) {
+        const action = String(params[2] ?? '');
+        const resourceId = String(params[3] ?? '');
+        client.auditEntries.push({ action, resource_id: resourceId });
+        return { rows: [{ id: client.auditEntries.length }] as never[], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('insert into public.outbox_events')) {
+        const eventType = String(params[1] ?? '');
+        client.outboxEntries.push({ event_type: eventType });
+        return { rows: [{ id: client.outboxEntries.length }] as never[], rowCount: 1 };
       }
 
       if (!usesDedicatedManufacturingOpsTable({ sql, params })) {
@@ -130,24 +158,33 @@ function makeClient(options: { permissions?: Permission[]; referencedNames?: str
 
       if (normalized.startsWith('select')) {
         const industry = params.map(String).find((param) => ['bakery', 'pharma', 'fmcg', 'generic', 'custom'].includes(param));
+        const idFilter = params.map(String).find((p) => client.rows.has(p));
         const onlyActive = normalized.includes('is_active = true') || normalized.includes('is_active=true');
         const selected = Array.from(client.rows.values())
           .filter((row) => !industry || row.industry_code === industry)
+          .filter((row) => !idFilter || row.id === idFilter)
           .filter((row) => !onlyActive || row.is_active)
           .sort((a, b) => a.operation_seq - b.operation_seq);
         return { rows: selected as never[], rowCount: selected.length };
       }
 
       if (normalized.startsWith('insert')) {
-        const operationName = params.map(String).find((param) => /^[A-Za-z0-9 ]{1,50}$/.test(param) && !['ORG-CONFIG', ORG_ID].includes(param)) ?? 'Created';
-        const processSuffix = params.map(String).find((param) => /^[A-Z0-9]{2,4}$/.test(param) && param !== 'ORG-CONFIG') ?? 'CR';
-        const industry = (params.map(String).find((param) => ['bakery', 'pharma', 'fmcg', 'generic', 'custom'].includes(param)) ?? 'custom') as ManufacturingOperation['industry_code'];
-        const seq = Number(params.find((param) => typeof param === 'number') ?? 99);
+        // Both create.ts (org_id, operation_name, process_suffix, description, operation_seq, industry_code, is_active)
+        // and reset-to-seed.ts (org_id, operation_name, process_suffix, description, operation_seq, industry_code)
+        // place description at $4 and industry_code at $6. Use positional binding rather than heuristics so the
+        // mock cannot accidentally swap operation_name for description.
+        const operationName = String(params[1] ?? 'Created');
+        const processSuffix = String(params[2] ?? 'CR');
+        const description = params[3] === null || params[3] === undefined ? null : String(params[3]);
+        const seq = Number(params[4] ?? 99);
+        const industry = (params[5] && ['bakery', 'pharma', 'fmcg', 'generic', 'custom'].includes(String(params[5]))
+          ? String(params[5])
+          : 'custom') as ManufacturingOperation['industry_code'];
         const inserted = makeOperation({
-          id: `op-${processSuffix.toLowerCase()}`,
+          id: `op-${industry}-${processSuffix.toLowerCase()}`,
           operation_name: operationName,
           process_suffix: processSuffix,
-          description: params.map(String).find((param) => param.includes('Custom')) ?? null,
+          description,
           operation_seq: seq,
           industry_code: industry,
         });
@@ -156,7 +193,7 @@ function makeClient(options: { permissions?: Permission[]; referencedNames?: str
       }
 
       if (normalized.startsWith('update')) {
-        if (normalized.includes('operation_seq')) {
+        if (normalized.includes('operation_seq') && !normalized.includes('description')) {
           for (const [id, row] of Array.from(client.rows.entries())) {
             const idx = params.indexOf(id);
             if (idx >= 0) row.operation_seq = Number(params[idx + 1]);
@@ -173,8 +210,16 @@ function makeClient(options: { permissions?: Permission[]; referencedNames?: str
       }
 
       if (normalized.startsWith('delete')) {
-        client.rows.clear();
-        return { rows: [], rowCount: 4 };
+        const industry = params.map(String).find((param) => ['bakery', 'pharma', 'fmcg', 'generic', 'custom'].includes(param));
+        if (industry) {
+          // Industry-safe delete: only remove rows in this industry.
+          for (const [id, row] of Array.from(client.rows.entries())) {
+            if (row.industry_code === industry) client.rows.delete(id);
+          }
+        } else {
+          client.rows.clear();
+        }
+        return { rows: [], rowCount: client.rows.size };
       }
 
       return { rows: [], rowCount: 0 };
@@ -213,7 +258,7 @@ async function loadAction<T extends (...args: never[]) => unknown>(
   }
 }
 
-describe('Reference.ManufacturingOperations Server Actions (T-038 RED)', () => {
+describe('Reference.ManufacturingOperations Server Actions (T-038)', () => {
   it('creates only valid dedicated-table ORG-CONFIG rows and enforces suffix/name/industry validation', async () => {
     const createManufacturingOperation = await loadAction<
       (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation }>
@@ -237,6 +282,8 @@ describe('Reference.ManufacturingOperations Server Actions (T-038 RED)', () => {
     expect(currentClient.calls.some(usesDedicatedManufacturingOpsTable)).toBe(true);
     expect(currentClient.calls.some((call) => normalizeSql(call.sql).includes('reference_tables'))).toBe(false);
     expect(currentClient.calls.some((call) => call.sql.includes('ORG-CONFIG') || stringParam(call.params, 'ORG-CONFIG'))).toBe(true);
+    expect(currentClient.auditEntries.some((entry) => entry.action === 'manufacturing_operations.create')).toBe(true);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.created')).toBe(true);
   });
 
   it('updates mutable fields only and rejects attempts to change immutable suffix or operation name', async () => {
@@ -253,26 +300,52 @@ describe('Reference.ManufacturingOperations Server Actions (T-038 RED)', () => {
     const result = await updateManufacturingOperation({ id: 'op-mix', description: 'updated mixing step', operationSeq: 6, industryCode: 'bakery', isActive: true });
     expect(result).toMatchObject({ ok: true, data: { id: 'op-mix', operation_name: 'Mix', process_suffix: 'MX', description: 'updated mixing step' } });
     expect(currentClient.calls.filter((call) => normalizeSql(call.sql).startsWith('update')).every(usesDedicatedManufacturingOpsTable)).toBe(true);
+    expect(currentClient.auditEntries.some((entry) => entry.action === 'manufacturing_operations.update')).toBe(true);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.updated')).toBe(true);
   });
 
-  it('deactivate blocks referenced operations and otherwise returns the required V-SET-MFG-06 warning while soft-deleting', async () => {
+  it('deactivate raises CONFIRMATION_REQUIRED with real referenced_count from app.count_manufacturing_operation_usage; confirmation proceeds', async () => {
     const deactivateManufacturingOperation = await loadAction<
-      (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; warning?: { code: string }; data?: ManufacturingOperation }>
+      (input: Record<string, unknown>) => Promise<{
+        ok: boolean;
+        error?: string;
+        warning?: { code: string; activeFaCount?: number; templateCount?: number; referencedCount?: number };
+        data?: ManufacturingOperation;
+      }>
     >('manufacturing-ops/deactivate.ts', 'deactivateManufacturingOperation', () => import(`${__dirname}/manufacturing-ops/deactivate.ts`) as Promise<Record<string, unknown>>);
 
-    await expect(deactivateManufacturingOperation({ id: 'op-mix' })).resolves.toMatchObject({
+    const result = await deactivateManufacturingOperation({ id: 'op-mix' });
+    expect(result).toMatchObject({
       ok: false,
-      error: 'operation_referenced',
+      error: 'CONFIRMATION_REQUIRED',
       warning: { code: 'OPERATION_REFERENCED' },
     });
+    expect(result.warning?.activeFaCount, 'referenced_count must come from real app.count_manufacturing_operation_usage query, not a hardcoded literal').toBe(5);
+    expect(result.warning?.templateCount).toBe(3);
     expect(currentClient.rows.get('op-mix')?.is_active).toBe(true);
+    expect(
+      currentClient.calls.some((call) => normalizeSql(call.sql).includes('app.count_manufacturing_operation_usage')),
+      'deactivate must call the database-level usage function (no magic SQL comments)',
+    ).toBe(true);
+    expect(
+      currentClient.calls.some((call) => /\/\*[^*]*manufacturing_operation_[0-9]/.test(call.sql)),
+      'deactivate must NOT carry magic SQL comments such as /* manufacturing_operation_1 ... */ that exist only for test pattern matching',
+    ).toBe(false);
 
-    const result = await deactivateManufacturingOperation({ id: 'op-bake', confirmDeactivateWarning: true });
-    expect(result).toMatchObject({ ok: true, warning: { code: 'DEACTIVATE_WARNING' }, data: { id: 'op-bake', is_active: false } });
-    expect(currentClient.rows.get('op-bake')?.is_active).toBe(false);
+    const confirmed = await deactivateManufacturingOperation({ id: 'op-mix', confirmReferenced: true });
+    expect(confirmed).toMatchObject({ ok: true, warning: { code: 'OPERATION_REFERENCED' }, data: { id: 'op-mix', is_active: false } });
+    expect(currentClient.rows.get('op-mix')?.is_active).toBe(false);
+    expect(currentClient.auditEntries.some((entry) => entry.action === 'manufacturing_operations.deactivate')).toBe(true);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.deactivated')).toBe(true);
+
+    currentClient = makeClient({ faCounts: {}, templateCounts: {} });
+    const unreferenced = await deactivateManufacturingOperation({ id: 'op-bake' });
+    expect(unreferenced).toMatchObject({ ok: false, error: 'CONFIRMATION_REQUIRED', warning: { code: 'DEACTIVATE_WARNING' } });
+    const proceed = await deactivateManufacturingOperation({ id: 'op-bake', confirmDeactivateWarning: true });
+    expect(proceed).toMatchObject({ ok: true, warning: { code: 'DEACTIVATE_WARNING' }, data: { id: 'op-bake', is_active: false } });
   });
 
-  it('bulk reorders operation_seq with a seq-1 invariant and reset-to-seed replaces rows with the exact industry baseline', async () => {
+  it('reorder enforces seq-1 invariant; reset-to-seed replaces only the target industry rows, preserves customs, and audits the bulk action', async () => {
     const reorderManufacturingOperations = await loadAction<
       (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation[] }>
     >('manufacturing-ops/reorder.ts', 'reorderManufacturingOperations', () => import(`${__dirname}/manufacturing-ops/reorder.ts`) as Promise<Record<string, unknown>>);
@@ -302,5 +375,12 @@ describe('Reference.ManufacturingOperations Server Actions (T-038 RED)', () => {
         { operation_seq: 4, operation_name: 'Drying', process_suffix: 'DR', description: 'Drying/lyophilization', industry_code: 'pharma', marker: 'ORG-CONFIG', is_active: true },
       ],
     });
+    expect(currentClient.rows.get('op-custom-pa'), 'reset-to-seed must not delete custom-industry rows when resetting a different industry').toBeDefined();
+    expect(
+      currentClient.calls.some((call) => /delete\s+from\s+"reference"\."manufacturingoperations"/i.test(call.sql) && !stringParam(call.params, 'pharma')),
+      'reset-to-seed must scope delete by industry_code; unscoped deletes destroy cross-industry data',
+    ).toBe(false);
+    expect(currentClient.auditEntries.some((entry) => entry.action === 'manufacturing_operations.reset_to_seed')).toBe(true);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.reset_to_seed')).toBe(true);
   });
 });

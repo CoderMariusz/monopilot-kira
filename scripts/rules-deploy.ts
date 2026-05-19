@@ -4,6 +4,8 @@ import { basename, join } from 'node:path';
 
 const RULE_TYPES = ['cascading', 'conditional', 'gate', 'workflow'] as const;
 const TIERS = ['L1', 'L2', 'L3', 'L4'] as const;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 type RuleType = (typeof RULE_TYPES)[number];
 type Tier = (typeof TIERS)[number];
@@ -31,7 +33,11 @@ export type DeployRulesInput = {
 
 export type DeployRulesResult =
   | { ok: true; data: { inserted: number; updated: number; skipped: number; eventsEmitted: number } }
-  | { ok: false; error: 'invalid_input' | 'schema_missing' | 'schema_invalid' | 'persistence_failed'; details?: Record<string, unknown> };
+  | {
+      ok: false;
+      error: 'invalid_input' | 'schema_missing' | 'schema_invalid' | 'persistence_failed';
+      details?: Record<string, unknown>;
+    };
 
 type RuleDefinitionRow = {
   id: string;
@@ -51,6 +57,16 @@ type JsonSchema = Record<string, unknown>;
 type FailedDeployRulesResult = Extract<DeployRulesResult, { ok: false }>;
 
 export async function deployRules(input: DeployRulesInput): Promise<DeployRulesResult> {
+  // Audit-quality gate: deployedBy must be a real user UUID. We never poison
+  // audit logs with a synthetic zero/nil UUID — CI deploys must carry the
+  // identity of the merging user (or the deploy bot's own real UUID).
+  if (typeof input.deployedBy !== 'string' || !UUID_PATTERN.test(input.deployedBy) || input.deployedBy.toLowerCase() === NIL_UUID) {
+    return { ok: false, error: 'invalid_input', details: { reason: 'deployedBy must be a real (non-nil) user UUID' } };
+  }
+  if (typeof input.orgId !== 'string' || !UUID_PATTERN.test(input.orgId) || input.orgId.toLowerCase() === NIL_UUID) {
+    return { ok: false, error: 'invalid_input', details: { reason: 'orgId must be a real (non-nil) UUID' } };
+  }
+
   const schemasDir = input.schemasDir ?? join(input.rulesDir, '_schemas');
   const rawRules = await readRules(input.rulesDir);
   const rules: RuleJson[] = [];
@@ -67,8 +83,8 @@ export async function deployRules(input: DeployRulesInput): Promise<DeployRulesR
       return { ok: false, error: 'schema_missing', details: { ruleType: rule.rule_type, schemaPath } };
     }
 
-    const schema = await readJson(schemaPath);
-    const validation = validateJsonSchema(rule.definition_json, schema as JsonSchema);
+    const schema = (await readJson(schemaPath)) as JsonSchema;
+    const validation = validateJsonSchema(rule.definition_json, schema);
     if (!validation.ok) {
       return {
         ok: false,
@@ -87,7 +103,6 @@ export async function deployRules(input: DeployRulesInput): Promise<DeployRulesR
       continue;
     }
 
-    const now = new Date().toISOString();
     const fromVersion = active?.version ?? null;
     const toVersion = (active?.version ?? 0) + 1;
 
@@ -96,9 +111,9 @@ export async function deployRules(input: DeployRulesInput): Promise<DeployRulesR
       if (active) {
         await input.client.query(
           `update public.rule_definitions
-              set active_to = $1::timestamptz
-            where id = $2 and org_id = $3::uuid and active_to is null`,
-          [now, active.id, input.orgId],
+              set active_to = now()
+            where id = $1 and org_id = $2::uuid and active_to is null`,
+          [active.id, input.orgId],
         );
       }
 
@@ -204,10 +219,44 @@ function validateJsonSchema(value: unknown, schema: JsonSchema): { ok: true; err
 }
 
 function validateSchemaAt(value: unknown, schema: JsonSchema, path: string): string | null {
-  if (schema.const !== undefined && !deepEqual(value, schema.const)) return `${path} must equal schema const`;
-  if (typeof schema.type === 'string' && !matchesJsonType(value, schema.type)) return `${path} must be ${schema.type}`;
+  if (schema.const !== undefined && !deepEqual(value, schema.const)) {
+    return `${path} must equal schema const`;
+  }
 
-  if (schema.type === 'object') {
+  if (Array.isArray(schema.enum)) {
+    const allowed = schema.enum as unknown[];
+    if (!allowed.some((candidate) => deepEqual(candidate, value))) {
+      return `${path} must be one of enum values`;
+    }
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    const branches = schema.oneOf.filter(isRecord) as JsonSchema[];
+    const matches = branches.filter((branch) => validateSchemaAt(value, branch, path) === null);
+    if (matches.length !== 1) {
+      return `${path} must match exactly one branch in oneOf (matched ${matches.length})`;
+    }
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    for (const branch of schema.allOf) {
+      if (!isRecord(branch)) continue;
+      const nested = validateSchemaAt(value, branch as JsonSchema, path);
+      if (nested) return nested;
+    }
+  }
+
+  if (Array.isArray(schema.anyOf)) {
+    const branches = schema.anyOf.filter(isRecord) as JsonSchema[];
+    const someMatch = branches.some((branch) => validateSchemaAt(value, branch, path) === null);
+    if (!someMatch) return `${path} must match at least one branch in anyOf`;
+  }
+
+  if (typeof schema.type === 'string' && !matchesJsonType(value, schema.type)) {
+    return `${path} must be ${schema.type}`;
+  }
+
+  if (schema.type === 'object' || (isRecord(value) && (schema.required || schema.properties || schema.additionalProperties !== undefined))) {
     if (!isRecord(value)) return `${path} must be object`;
     const required = Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === 'string') : [];
     for (const key of required) {
@@ -221,15 +270,61 @@ function validateSchemaAt(value: unknown, schema: JsonSchema, path: string): str
     }
     for (const [key, propertySchema] of Object.entries(properties)) {
       if (key in value && isRecord(propertySchema)) {
-        const nested = validateSchemaAt(value[key], propertySchema, `${path}.${key}`);
+        const nested = validateSchemaAt(value[key], propertySchema as JsonSchema, `${path}.${key}`);
         if (nested) return nested;
       }
     }
   }
 
-  if (typeof value === 'number') {
+  if (schema.type === 'array' || Array.isArray(value)) {
+    if (!Array.isArray(value)) {
+      if (schema.type === 'array') return `${path} must be array`;
+    } else {
+      const minItems = numberOrNull(schema.minItems);
+      const maxItems = numberOrNull(schema.maxItems);
+      if (minItems !== null && value.length < minItems) return `${path} must have at least ${minItems} items`;
+      if (maxItems !== null && value.length > maxItems) return `${path} must have at most ${maxItems} items`;
+      if (isRecord(schema.items)) {
+        const itemSchema = schema.items as JsonSchema;
+        for (let i = 0; i < value.length; i++) {
+          const nested = validateSchemaAt(value[i], itemSchema, `${path}[${i}]`);
+          if (nested) return nested;
+        }
+      } else if (Array.isArray(schema.items)) {
+        const itemSchemas = schema.items.filter(isRecord) as JsonSchema[];
+        for (let i = 0; i < Math.min(itemSchemas.length, value.length); i++) {
+          const nested = validateSchemaAt(value[i], itemSchemas[i]!, `${path}[${i}]`);
+          if (nested) return nested;
+        }
+      }
+    }
+  }
+
+  if (typeof value === 'string') {
+    if (typeof schema.pattern === 'string') {
+      let pattern: RegExp | null = null;
+      try {
+        pattern = new RegExp(schema.pattern);
+      } catch {
+        return `${path} schema has an invalid regular expression pattern`;
+      }
+      if (pattern && !pattern.test(value)) return `${path} does not match pattern ${schema.pattern}`;
+    }
+    const minLength = numberOrNull(schema.minLength);
+    const maxLength = numberOrNull(schema.maxLength);
+    if (minLength !== null && value.length < minLength) return `${path} must be at least ${minLength} chars`;
+    if (maxLength !== null && value.length > maxLength) return `${path} must be at most ${maxLength} chars`;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
     if (typeof schema.minimum === 'number' && value < schema.minimum) return `${path} must be >= ${schema.minimum}`;
     if (typeof schema.maximum === 'number' && value > schema.maximum) return `${path} must be <= ${schema.maximum}`;
+    if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum) {
+      return `${path} must be > ${schema.exclusiveMinimum}`;
+    }
+    if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum) {
+      return `${path} must be < ${schema.exclusiveMaximum}`;
+    }
   }
 
   return null;
@@ -254,6 +349,10 @@ function matchesJsonType(value: unknown, type: string): boolean {
     default:
       return true;
   }
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function stableJson(value: unknown): string {
@@ -290,11 +389,19 @@ async function cli() {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
+    // deployedBy: requires a real UUID. We deliberately do NOT default to a
+    // synthetic / nil UUID here — that would let CI poison the audit log when
+    // the env var is missing. Fail fast instead.
+    const deployedBy = process.env.DEPLOYED_BY ?? process.env.CI_USER_ID;
+    if (!deployedBy) {
+      throw new Error('DEPLOYED_BY (or CI_USER_ID) env var is required; rules-deploy refuses to use a synthetic UUID.');
+    }
+
     const result = await deployRules({
       rulesDir: process.env.RULES_DIR ?? join(process.cwd(), 'rules'),
       schemasDir: process.env.RULE_SCHEMAS_DIR,
       deployRef: process.env.DEPLOY_REF ?? process.env.GITHUB_SHA ?? 'local',
-      deployedBy: process.env.DEPLOYED_BY ?? process.env.CI_USER_ID ?? '00000000-0000-0000-0000-000000000000',
+      deployedBy,
       orgId: requiredEnv('ORG_ID'),
       client,
     });
