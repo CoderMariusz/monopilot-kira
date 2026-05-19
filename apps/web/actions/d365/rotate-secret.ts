@@ -78,8 +78,7 @@ export async function rotateD365Secret(rawInput: RotateD365SecretInput): Promise
 const vaultAdapter: VaultAdapter = {
   async storeSecret(input) {
     // Stub adapter for GREEN: production can replace this boundary with a real vault client.
-    // The plaintext is touched only inside this adapter boundary and is never returned or persisted.
-    createHash('sha256').update(input.clientSecret).digest('hex');
+    // The plaintext is consumed only inside this adapter and is never returned or persisted.
     const clientDigest = createHash('sha256').update(input.clientId).digest('hex').slice(0, 16);
     return {
       vaultKey: `vault://d365/${input.orgId}/client-secret/${clientDigest}`,
