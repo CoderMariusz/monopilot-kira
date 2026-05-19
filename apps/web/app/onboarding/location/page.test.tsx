@@ -6,6 +6,11 @@
  * prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx:7-238.
  * Missing production modules render an empty placeholder so RED reports behavior
  * assertion failures, not module-resolution noise.
+ *
+ * Playwright unavailable in this ACP RED tests-only worktree: screenshot pairs,
+ * DOM diff JSON, and parity_report.json are closeout artifacts outside RED scope.
+ * Focused RTL inline snapshots below provide the required AC-4 fallback evidence
+ * for the SET-003 form and wizard stepper; closeout must still produce artifacts.
  */
 
 import React from 'react';
@@ -152,6 +157,46 @@ function stepperLabels() {
   return screen.getAllByRole('button', { name: /SET-00[1-6]/ }).map((button) => button.textContent);
 }
 
+function compactText(element: Element) {
+  return element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
+function stepperAriaFallbackSnapshot() {
+  const stepper = document.querySelector('[aria-label="Onboarding steps"]');
+  expect(stepper, 'SET-003 parity fallback needs the rendered wizard stepper').not.toBeNull();
+
+  return within(stepper as HTMLElement)
+    .getAllByRole('button')
+    .map((button) => ({
+      role: 'button',
+      name: compactText(button),
+      current: button.getAttribute('aria-current') ?? 'none',
+    }));
+}
+
+function set003FormAriaFallbackSnapshot() {
+  const region = screen.getByRole('region', { name: /SET-003 · First location/i });
+  const controls = [/Location path \(ltree\)/i, /^Zone$/i, /Bin code/i, /Parent warehouse/i].map(
+    (label) => {
+      const control = within(region).getByLabelText(label) as HTMLInputElement;
+      return {
+        label: control.labels?.[0]?.textContent?.trim() ?? control.getAttribute('aria-label') ?? '',
+        value: control.value,
+        readonly: control.hasAttribute('readonly'),
+        invalid: control.getAttribute('aria-invalid') ?? 'false',
+      };
+    },
+  );
+
+  return {
+    role: 'region',
+    name: compactText(within(region).getByRole('heading', { name: /SET-003/i })),
+    help: compactText(within(region).getByText(/Locations are ltree paths/i)),
+    controls,
+    footer: compactText(screen.getByText(/Step 3 of 6 · 2 completed/i)),
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -201,6 +246,79 @@ describe('SET-003 onboarding first-location prototype parity', () => {
     expect(screen.getByRole('button', { name: /Organization profile.*SET-001/i })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('button', { name: /First warehouse.*SET-002/i })).toHaveFocus();
+  });
+
+  it('captures RTL snapshot fallback evidence for the wizard stepper and SET-003 form region', async () => {
+    await renderLocation();
+
+    expect(stepperAriaFallbackSnapshot()).toMatchInlineSnapshot(`
+      [
+        {
+          "current": "none",
+          "name": "1✓ Organization profileSET-001",
+          "role": "button",
+        },
+        {
+          "current": "none",
+          "name": "2✓ First warehouseSET-002",
+          "role": "button",
+        },
+        {
+          "current": "step",
+          "name": "3First locationSET-003",
+          "role": "button",
+        },
+        {
+          "current": "none",
+          "name": "4First productSET-004",
+          "role": "button",
+        },
+        {
+          "current": "none",
+          "name": "5First work orderSET-005",
+          "role": "button",
+        },
+        {
+          "current": "none",
+          "name": "6CompletionSET-006",
+          "role": "button",
+        },
+      ]
+    `);
+    expect(set003FormAriaFallbackSnapshot()).toMatchInlineSnapshot(`
+      {
+        "controls": [
+          {
+            "invalid": "false",
+            "label": "Location path (ltree)",
+            "readonly": false,
+            "value": "FG › Zone A › Rack 1 › Bin 1",
+          },
+          {
+            "invalid": "false",
+            "label": "Zone",
+            "readonly": false,
+            "value": "Zone A",
+          },
+          {
+            "invalid": "false",
+            "label": "Bin code",
+            "readonly": false,
+            "value": "BIN-A1-01",
+          },
+          {
+            "invalid": "false",
+            "label": "Parent warehouse",
+            "readonly": true,
+            "value": "FG-01",
+          },
+        ],
+        "footer": "Step 3 of 6 · 2 completed",
+        "help": "Locations are ltree paths (e.g. \`FG › Zone A › Rack 1 › Bin 3\`). Scanner picks are routed by location.",
+        "name": "SET-003 · First location",
+        "role": "region",
+      }
+    `);
   });
 
   it('materializes a four-level ltree location row and advances the wizard on continue', async () => {
