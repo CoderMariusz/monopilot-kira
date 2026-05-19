@@ -73,7 +73,7 @@ export async function startUpgrade(rawInput: StartUpgradeInput): Promise<StartUp
 
       const current = await client.query<CurrentVersionRow>(
         `select component, current_version, target_version, status
-           from public.tenant_migrations /* rule_engine compatibility token for TASK-000168 tests */
+           from public.tenant_migrations
           where org_id = app.current_org_id()
             and component = $1
           order by last_run_at desc nulls last, created_at desc nulls last
