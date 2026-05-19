@@ -31,6 +31,7 @@ type FakeClient = {
 
 type FakeClientOptions = {
   outboxAllowedEventTypes?: Set<string>;
+  requireCurrentOrgFunctionForInfraTables?: boolean;
 };
 
 const { _runWithOrgContext } = vi.hoisted(() => ({
@@ -66,6 +67,10 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
       client.calls.push({ sql, params });
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       const paramsText = params.map(String).join(' ');
+
+      if (options.requireCurrentOrgFunctionForInfraTables) {
+        assertInfraQueryUsesCurrentOrgFunction(normalized, paramsText);
+      }
 
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
 
@@ -158,6 +163,24 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
     },
   };
   return client;
+}
+
+function assertInfraQueryUsesCurrentOrgFunction(normalizedSql: string, paramsText: string): void {
+  const touchesInfraBusinessTable = [
+    'public.locations',
+    'public.machines',
+    'public.production_lines',
+    'public.warehouses',
+    'public.work_orders',
+  ].some((tableName) => normalizedSql.includes(tableName));
+  if (!touchesInfraBusinessTable) return;
+
+  if (/current_setting\('app\.(tenant_id|current_org_id)'/.test(normalizedSql)) {
+    throw new Error(`Infra CRUD runtime org-context invariant failed: raw context GUC used in SQL; params=${paramsText}`);
+  }
+  if (!normalizedSql.includes('app.current_org_id()')) {
+    throw new Error(`Infra CRUD runtime org-context invariant failed: missing app.current_org_id() in SQL; params=${paramsText}`);
+  }
 }
 
 function safeJsonParse(value: unknown): unknown {
@@ -333,5 +356,42 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       'settings.line.upserted',
       'settings.warehouse.deactivated',
     ]);
+  });
+
+  it('runtime SQL for infra business tables uses app.current_org_id() instead of raw org ids or GUC reads', async () => {
+    currentClient = makeClient({ requireCurrentOrgFunctionForInfraTables: true });
+
+    const upsertLocation = await loadAction<
+      (input: { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string }) => Promise<{ ok: boolean; error?: string }>
+    >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+    const upsertMachine = await loadAction<
+      (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
+    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
+    const upsertLine = await loadAction<
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string }>
+    >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
+    const deactivateWarehouse = await loadAction<
+      (input: { warehouseId: string; force?: boolean }) => Promise<{ ok: boolean; error?: string }>
+    >('warehouse.ts', 'deactivateWarehouse', () => import(`${__dirname}/warehouse.ts`) as Promise<Record<string, unknown>>);
+
+    const results = [
+      await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-04', name: 'Rack 04', level: 3, locationType: 'rack' }),
+      await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }),
+      await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }),
+      await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }),
+    ];
+
+    expect(results.map((result) => ({ ok: result.ok, error: result.ok ? undefined : result.error }))).toEqual([
+      { ok: true, error: undefined },
+      { ok: true, error: undefined },
+      { ok: true, error: undefined },
+      { ok: true, error: undefined },
+    ]);
+    expect(_runWithOrgContext).toHaveBeenCalledTimes(4);
+    expect(
+      currentClient.calls.filter((call) =>
+        ['public.locations', 'public.machines', 'public.production_lines', 'public.warehouses', 'public.work_orders'].some((tableName) => call.sql.toLowerCase().includes(tableName)),
+      ).length,
+    ).toBeGreaterThanOrEqual(8);
   });
 });
