@@ -177,11 +177,17 @@ describe('SET-010 company profile prototype parity', () => {
     expect(within(identity).getByLabelText(/regon/i)).toHaveValue(organization.regon);
     expect(within(identity).getByRole('combobox', { name: /industry/i })).toHaveValue('Meat processing');
     expect(within(identity).getByLabelText(/gs1 prefix/i)).toHaveValue(organization.gs1Prefix);
+    expect(within(identity).getByRole('button', { name: /cancel/i })).toHaveAttribute('data-slot', 'button');
+    expect(within(identity).getByRole('button', { name: /save changes/i })).toHaveAttribute('data-slot', 'button');
+    expect(within(identity).getByRole('button', { name: /save changes/i })).toBeDisabled();
 
     const address = screen.getByRole('region', { name: /registered address/i });
     expect(within(address).getByLabelText(/street/i)).toHaveValue(organization.street);
+    expect(within(address).getByText('City / ZIP')).toBeInTheDocument();
     expect(within(address).getByLabelText(/city/i)).toHaveValue(organization.city);
     expect(within(address).getByLabelText(/zip/i)).toHaveValue(organization.zip);
+    expect(within(address).getByTestId('company-city-input')).toHaveClass('flex-[2]');
+    expect(within(address).getByTestId('company-zip-input')).toHaveClass('flex-1');
     expect(within(address).getByRole('combobox', { name: /country/i })).toHaveValue('Poland');
 
     const contact = screen.getByRole('region', { name: /contact/i });
@@ -198,9 +204,7 @@ describe('SET-010 company profile prototype parity', () => {
     expect(within(locale).getByLabelText(/seat limit/i)).toHaveValue(50);
 
     expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(10);
-    expect(screen.getByRole('button', { name: /cancel/i })).toHaveAttribute('data-slot', 'button');
-    expect(screen.getByRole('button', { name: /save changes/i })).toHaveAttribute('data-slot', 'button');
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+    expect(container.querySelector('main > footer')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     await user.tab();

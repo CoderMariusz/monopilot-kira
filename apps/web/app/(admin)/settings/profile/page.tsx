@@ -185,7 +185,7 @@ function SelectField({ id, label, options, value, disabled, onChange }: SelectFi
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, foot }: { title: string; children: React.ReactNode; foot?: React.ReactNode }) {
   return (
     <section
       aria-labelledby={`company-profile-${title.toLowerCase().replace(/\s+/g, "-")}`}
@@ -197,7 +197,52 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {title}
       </h2>
       <div className="grid gap-4">{children}</div>
+      {foot ? <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">{foot}</div> : null}
     </section>
+  );
+}
+
+function CityZipField({
+  city,
+  zip,
+  disabled,
+  onCityChange,
+  onZipChange,
+}: {
+  city: string;
+  zip: string;
+  disabled?: boolean;
+  onCityChange: (value: string) => void;
+  onZipChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-1 text-sm font-medium text-slate-800">
+      <span>City / ZIP</span>
+      <div className="flex max-w-[420px] gap-2">
+        <Input
+          aria-label="City"
+          className="flex-[2]"
+          data-testid="company-city-input"
+          disabled={disabled}
+          id="company-city"
+          name="City"
+          type="text"
+          value={city}
+          onChange={(event) => onCityChange(event.currentTarget.value)}
+        />
+        <Input
+          aria-label="ZIP"
+          className="flex-1"
+          data-testid="company-zip-input"
+          disabled={disabled}
+          id="company-zip"
+          name="ZIP"
+          type="text"
+          value={zip}
+          onChange={(event) => onZipChange(event.currentTarget.value)}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -300,7 +345,21 @@ export default function CompanyProfilePage({
       {message ? <p role="status">{message}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
 
-      <Section title="Identity">
+      <Section
+        title="Identity"
+        foot={
+          canEdit ? (
+            <>
+              <Button disabled={!isDirty || isSaving} type="button" onClick={() => setDraft(saved)}>
+                Cancel
+              </Button>
+              <Button disabled={!isDirty || isSaving} type="button" onClick={() => void handleSave()}>
+                Save changes
+              </Button>
+            </>
+          ) : null
+        }
+      >
         <TextField
           id="company-trading-name"
           label="Trading name"
@@ -368,19 +427,12 @@ export default function CompanyProfilePage({
           disabled={controlsDisabled}
           onChange={(value) => updateField("street", value)}
         />
-        <TextField
-          id="company-city"
-          label="City"
-          value={draft.city}
+        <CityZipField
+          city={draft.city}
+          zip={draft.zip}
           disabled={controlsDisabled}
-          onChange={(value) => updateField("city", value)}
-        />
-        <TextField
-          id="company-zip"
-          label="ZIP"
-          value={draft.zip}
-          disabled={controlsDisabled}
-          onChange={(value) => updateField("zip", value)}
+          onCityChange={(value) => updateField("city", value)}
+          onZipChange={(value) => updateField("zip", value)}
         />
         <SelectField
           id="company-country"
@@ -457,16 +509,6 @@ export default function CompanyProfilePage({
         </div>
       </Section>
 
-      {canEdit ? (
-        <footer className="flex justify-end gap-2">
-          <Button disabled={!isDirty || isSaving} type="button" onClick={() => setDraft(saved)}>
-            Cancel
-          </Button>
-          <Button disabled={!isDirty || isSaving} type="button" onClick={() => void handleSave()}>
-            Save changes
-          </Button>
-        </footer>
-      ) : null}
     </main>
   );
 }
