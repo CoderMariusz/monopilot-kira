@@ -99,7 +99,6 @@ export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePr
           <div className="divide-y divide-slate-100">
             {recentProjects.map((project) => {
               const productCode = project.productCode || project.code;
-              const projectId = project.projectId || project.id;
               const detailHref = `/fa/${encodeURIComponent(productCode)}`;
 
               return (
@@ -107,7 +106,7 @@ export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePr
                   aria-label={`${project.code} ${project.name} ${project.owner} ${project.currentGate}`}
                   className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-1 py-3 text-sm transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                   href={detailHref}
-                  key={project.id || projectId}
+                  key={project.id}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-slate-900">
