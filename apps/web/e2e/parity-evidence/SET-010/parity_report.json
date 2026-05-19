@@ -1,0 +1,119 @@
+{
+  "task": "T-058",
+  "screen": "SET-010 company_profile_screen",
+  "reviewed_at": "2026-05-19T21:18:36Z",
+  "reviewed_head": "18b78b7a0b37d76aa3c4e96873373d7f2d51e54d",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/org-screens.jsx:4-100",
+  "prototype_route": "prototype-line-range://prototypes/design/Monopilot%20Design%20System/settings/org-screens.jsx#L4-L100",
+  "target_route": "/settings/profile",
+  "target_files": [
+    "apps/web/app/(admin)/settings/profile/page.tsx",
+    "apps/web/app/(admin)/settings/profile/page.test.tsx"
+  ],
+  "evidence_mode": "rtl_structural_fallback",
+  "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:217",
+  "playwright_evidence": {
+    "status": "not_produced",
+    "blocker": "No SET-010 Playwright route/screenshot harness exists in the scoped task files for this GREEN rework; reviewer explicitly accepted the RTL inline snapshot at page.test.tsx:217 as fallback structural evidence when screenshot pairs are unavailable.",
+    "base_url": null,
+    "server_identity": "not_applicable_for_rtl_fallback",
+    "trace_artifacts": []
+  },
+  "viewports": [
+    { "name": "desktop", "width": 1280, "height": 800, "evidence": "rtl_jsdom_fallback" }
+  ],
+  "region_selectors": [
+    {
+      "id": "identity",
+      "label": "Identity",
+      "prototype_selector": "Section title=Identity lines 22-50",
+      "target_selector": "role=region[name=/identity/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:168-182,217"
+    },
+    {
+      "id": "registered_address",
+      "label": "Registered address",
+      "prototype_selector": "Section title=Registered address lines 52-67",
+      "target_selector": "role=region[name=/registered address/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:184-191,217"
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "prototype_selector": "Section title=Contact lines 69-79",
+      "target_selector": "role=region[name=/contact/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:193-196,217"
+    },
+    {
+      "id": "locale",
+      "label": "Locale",
+      "prototype_selector": "Section title=Locale lines 81-97 plus production-only region/tier/seat controls",
+      "target_selector": "role=region[name=/locale/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:198-204,217"
+    }
+  ],
+  "parity_matrix": [
+    {
+      "region": "identity",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_profile_values",
+      "evidence": "Head/subhead, Trading name, Legal name, logo, Upload new, VAT/NIP, REGON, Industry, GS1 prefix, Cancel, Save changes, disabled save, and first keyboard stops asserted."
+    },
+    {
+      "region": "registered_address",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_profile_values",
+      "evidence": "Street, City / ZIP split flex fields, Country combobox, labels and values asserted."
+    },
+    {
+      "region": "contact",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_profile_values",
+      "evidence": "Email type=email, Phone, Website labels and values asserted."
+    },
+    {
+      "region": "locale",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_profile_values",
+      "evidence": "Default currency, Timezone, Date format, production-only Region/Tier/Seat limit asserted; region disabled with support-ticket tooltip in V-SET-32 test."
+    }
+  ],
+  "dom_diff": {
+    "status": "rtl_inline_snapshot_fallback",
+    "prototype_regions": ["Identity", "Registered address", "Contact", "Locale"],
+    "target_regions": ["Identity", "Registered address", "Contact", "Locale"],
+    "unmapped_prototype_regions": [],
+    "unmapped_target_regions": [],
+    "evidence_pointer": "apps/web/app/(admin)/settings/profile/page.test.tsx:217"
+  },
+  "state_coverage": {
+    "loading": "apps/web/app/(admin)/settings/profile/page.test.tsx:250-253",
+    "empty": "apps/web/app/(admin)/settings/profile/page.test.tsx:255-257",
+    "error": "apps/web/app/(admin)/settings/profile/page.test.tsx:259-261",
+    "permission_denied": "apps/web/app/(admin)/settings/profile/page.test.tsx:263-267",
+    "save_success_outbox": "apps/web/app/(admin)/settings/profile/page.test.tsx:276-303",
+    "region_lock_tooltip": "apps/web/app/(admin)/settings/profile/page.test.tsx:312-333"
+  },
+  "coverage": {
+    "viewport_coverage": "1/1 rtl fallback",
+    "region_coverage": "4/4",
+    "selector_coverage": "4/4"
+  },
+  "console_errors": "not_applicable_for_rtl_fallback",
+  "network_errors": "not_applicable_for_rtl_fallback",
+  "deviations": [
+    {
+      "region": "locale",
+      "detail": "Production contract adds read-only Region, Tier, Seat limit and GS1 prefix beyond prototype line-range fields; these are asserted in RTL and preserve SET-010 production requirements."
+    }
+  ],
+  "overall_status": "pass_with_rtl_fallback"
+}
