@@ -33,17 +33,37 @@ export async function testD365Connection(rawInput: TestD365ConnectionInput): Pro
       if (!allowed) return { ok: false, error: 'forbidden' };
 
       const metadataUrl = `${input.baseUrl}/$metadata`;
-      const response = await fetch(metadataUrl, {
-        method: 'GET',
-        headers: { authorization: `Bearer ${input.oauthBearer}` },
-      });
-      if (!response.ok) return { ok: false, error: 'connection_failed' };
+      let response: Response;
+      try {
+        response = await fetch(metadataUrl, {
+          method: 'GET',
+          headers: { authorization: `Bearer ${input.oauthBearer}` },
+        });
+      } catch {
+        await writeAuditLog(client, {
+          orgId,
+          actorUserId: userId,
+          action: 'settings.d365_connection_test.failed',
+          afterState: { metadata_url: metadataUrl, last_test_status: 'failed', reason: 'request_failed' },
+        });
+        return { ok: false, error: 'connection_failed' };
+      }
+
+      if (!response.ok) {
+        await writeAuditLog(client, {
+          orgId,
+          actorUserId: userId,
+          action: 'settings.d365_connection_test.failed',
+          afterState: { metadata_url: metadataUrl, last_test_status: 'failed', reason: `http_${response.status}` },
+        });
+        return { ok: false, error: 'connection_failed' };
+      }
 
       await writeAuditLog(client, {
         orgId,
         actorUserId: userId,
         action: 'settings.d365_connection_test.succeeded',
-        afterState: { metadata_url: metadataUrl, status: response.status, bearer_supplied: true },
+        afterState: { metadata_url: metadataUrl, last_test_status: 'ok', status: response.status, bearer_supplied: true },
       });
 
       return { ok: true, data: { metadataUrl, status: response.status } };

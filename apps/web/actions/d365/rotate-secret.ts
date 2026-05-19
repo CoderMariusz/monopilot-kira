@@ -53,7 +53,6 @@ export async function rotateD365Secret(rawInput: RotateD365SecretInput): Promise
          values ($1::uuid, $2, $3, $4::jsonb, 0, $5::uuid)
          on conflict (org_id, table_code, row_key)
          do update set row_data = excluded.row_data,
-                       updated_by = $5::uuid,
                        updated_at = now()`,
         [orgId, SECRET_REF_TABLE_CODE, CLIENT_SECRET_ROW_KEY, rowData, userId],
       );

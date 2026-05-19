@@ -169,6 +169,18 @@ describe('D365 constants and connection Server Actions (T-030 RED)', () => {
     ).toHaveLength(0);
   });
 
+  it('setD365Constant updates an existing whitelisted constant without referencing nonexistent columns', async () => {
+    const setD365Constant = await loadAction<
+      (input: { key: string; value: string }) => Promise<{ ok: boolean; error?: string }>
+    >('set-constant.ts', 'setD365Constant', () => importD365Module('./set-constant.js'));
+
+    const result = await setD365Constant({ key: 'PRODUCTIONSITEID', value: 'FNOR-2' });
+
+    expect(result.ok).toBe(true);
+    const updateSql = currentClient.calls.find((call) => /update public\.reference_tables/i.test(call.sql))?.sql ?? '';
+    expect(updateSql, 'reference_tables migration 041 has no updated_by column').not.toMatch(/updated_by/i);
+  });
+
   it('testD365Connection performs HTTPS GET to $metadata with OAuth bearer and writes an audit row', async () => {
     const fetchMock = vi.fn(async () => new Response('<edmx:Edmx />', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -189,6 +201,24 @@ describe('D365 constants and connection Server Actions (T-030 RED)', () => {
     expect(currentClient.auditRows.some((row) => row.action.includes('d365_connection_test'))).toBe(true);
   });
 
+  it('testD365Connection writes an audit row when the metadata endpoint is unreachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unreachable', { status: 503 })),
+    );
+    const testD365Connection = await loadAction<
+      (input: { baseUrl: string; oauthBearer: string }) => Promise<{ ok: boolean; error?: string }>
+    >('test-connection.ts', 'testD365Connection', () => importD365Module('./test-connection.js'));
+
+    const result = await testD365Connection({ baseUrl: 'https://d365.example.test', oauthBearer: REDACTED_SECRET });
+
+    expect(result).toEqual({ ok: false, error: 'connection_failed' });
+    const auditRow = currentClient.auditRows.find((row) => row.action.includes('d365_connection_test'));
+    expect(auditRow, 'failed connection tests must write audit_log').toBeDefined();
+    expect(JSON.stringify(auditRow), 'audit row must not include OAuth bearer plaintext').not.toContain(REDACTED_SECRET);
+    expect(JSON.stringify(auditRow?.after_state)).toContain('failed');
+  });
+
   it('rotateD365Secret stores only a vault reference/audit marker and never persists plaintext secret parameters', async () => {
     const rotateD365Secret = await loadAction<
       (input: { clientId: string; clientSecret: string }) => Promise<{ ok: boolean; error?: string; data?: { vaultKey?: string } }>
@@ -198,7 +228,9 @@ describe('D365 constants and connection Server Actions (T-030 RED)', () => {
 
     expect(result.ok).toBe(true);
     const persistedParams = JSON.stringify(currentClient.calls.map((call) => call.params));
+    const persistedSql = currentClient.calls.map((call) => call.sql).join('\n');
     expect(persistedParams, 'plaintext D365 service account secret must never be sent to DB writes').not.toContain(REDACTED_SECRET);
+    expect(persistedSql, 'reference_tables migration 041 has no updated_by column').not.toMatch(/updated_by/i);
     expect(currentClient.auditRows.some((row) => JSON.stringify(row).includes(REDACTED_SECRET))).toBe(false);
     if (result.ok) expect(result.data?.vaultKey ?? persistedParams).toMatch(/vault|secret_ref|\[REDACTED\]/i);
   });

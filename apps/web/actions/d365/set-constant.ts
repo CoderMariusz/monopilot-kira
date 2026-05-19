@@ -57,12 +57,11 @@ export async function setD365Constant(rawInput: SetD365ConstantInput): Promise<S
         await client.query(
           `update public.reference_tables
               set row_data = $3::jsonb,
-                  updated_by = $4::uuid,
                   updated_at = now()
             where org_id = app.current_org_id()
               and table_code = $1
               and row_key = $2`,
-          [TABLE_CODE, key, rowData, userId],
+          [TABLE_CODE, key, rowData],
         );
       } else {
         await client.query(
