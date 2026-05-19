@@ -6,6 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const scriptPath = resolve(__dirname, 'rules-deploy.ts');
+const repoRulesDir = resolve(__dirname, '..', 'rules');
+const repoSchemasDir = resolve(repoRulesDir, '_schemas');
+const TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE = 'technical_product_spec_approval_gate_v1';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const DEPLOYED_BY = '22222222-2222-4222-8222-222222222222';
 const DEPLOY_REF = 'git-sha-red-fixture';
@@ -68,6 +71,64 @@ describe('rules-deploy CI script (T-026)', () => {
   it('rules/ scope artifact: repo contains rules/.gitkeep so the CI invocation has a source path', () => {
     const gitkeep = resolve(__dirname, '..', 'rules', '.gitkeep');
     expect(existsSync(gitkeep), 'rules/.gitkeep must exist (T-026 scope file)').toBe(true);
+  });
+
+  it('T-123: deploys the active P1 technical product spec approval gate seed and does not bump unchanged JSON', async () => {
+    const deployRules = await loadDeployRules();
+    const client = makeClient([]);
+
+    const first = await deployRules({
+      rulesDir: repoRulesDir,
+      schemasDir: repoSchemasDir,
+      deployRef: DEPLOY_REF,
+      deployedBy: DEPLOYED_BY,
+      orgId: ORG_ID,
+      client,
+    });
+
+    expect(first).toMatchObject({ ok: true });
+    const firstData = (first as { ok: true; data: { inserted: number; updated: number; skipped: number; eventsEmitted: number } }).data;
+    expect(firstData.inserted, 'T-123 seed deploy must insert the technical product-spec approval gate rule').toBeGreaterThanOrEqual(1);
+    expect(firstData.eventsEmitted, 'seed deploy must emit a rule.deployed outbox event for the gate rule').toBeGreaterThanOrEqual(1);
+
+    const seeded = client.ruleDefinitions.find((row) => row.rule_code === TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE);
+    expect(seeded, 'technical_product_spec_approval_gate_v1 must be present in deployed rule_definitions rows').toMatchObject({
+      rule_code: TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE,
+      rule_type: 'gate',
+      tier: 'L1',
+      version: 1,
+    });
+    expect(seeded?.active_to, 'newly seeded gate must be active').toBeNull();
+    expect(seeded?.definition_json).toMatchObject({
+      priority: 'P1',
+      metadata: expect.objectContaining({
+        policy_table: 'org_authorization_policies',
+        approval_gate_rule_code: TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE,
+      }),
+      invariants: expect.objectContaining({
+        requires_new_version: true,
+        required_approval: 'Technical',
+        before_factory_use: true,
+        require_segregation_of_duties: true,
+        variants_may_disable_gate: false,
+        imports_may_disable_gate: false,
+      }),
+    });
+
+    const second = await deployRules({
+      rulesDir: repoRulesDir,
+      schemasDir: repoSchemasDir,
+      deployRef: `${DEPLOY_REF}-second-run`,
+      deployedBy: DEPLOYED_BY,
+      orgId: ORG_ID,
+      client,
+    });
+
+    expect(second).toMatchObject({ ok: true });
+    const gateRows = client.ruleDefinitions.filter((row) => row.rule_code === TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE);
+    expect(gateRows, 'unchanged gate JSON must be idempotent and not create v2').toHaveLength(1);
+    expect(gateRows[0]?.version).toBe(1);
+    expect(client.outboxRows.filter((row) => row.payload.rule_code === TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE)).toHaveLength(1);
   });
 
   it('V-SET-14: rejects a rule with no matching rules/_schemas/<rule_type>.schema.json before DB writes', async () => {
