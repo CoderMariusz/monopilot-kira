@@ -50,7 +50,7 @@ export type EditColumnResult =
   | { ok: true; data: { tableCode: string; columnCode: string; schemaVersion: number } }
   | {
       ok: false;
-      error: 'invalid_input' | 'invalid_dropdown_source' | 'forbidden' | 'not_found' | 'schema_version_conflict' | 'persistence_failed';
+      error: 'INVALID_INPUT' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONCURRENT_EDIT' | 'PERSISTENCE_FAILED';
       data?: { currentSchemaVersion: number; diff: Record<string, unknown> };
     };
 
@@ -60,20 +60,20 @@ const CODE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/;
 
 export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnResult> {
   const input = parseEditColumnInput(rawInput);
-  if (!input) return { ok: false, error: 'invalid_input' };
+  if (!input) return { ok: false, error: 'INVALID_INPUT' };
 
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
       await requireSchemaEditor({ client, userId, orgId });
 
       const existing = await findSchemaColumn({ client, tableCode: input.tableCode, columnCode: input.columnCode });
-      if (!existing) return { ok: false, error: 'not_found' };
+      if (!existing) return { ok: false, error: 'NOT_FOUND' };
 
       const currentVersion = Number(existing.schema_version);
       if (currentVersion !== input.expectedSchemaVersion) {
         return {
           ok: false,
-          error: 'schema_version_conflict',
+          error: 'CONCURRENT_EDIT',
           data: {
             currentSchemaVersion: currentVersion,
             diff: conflictDiff(existing, input.patch),
@@ -84,11 +84,11 @@ export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnR
       const nextDataType = input.patch.dataType ?? existing.data_type;
       const nextDropdownSource = input.patch.dropdownSource !== undefined ? input.patch.dropdownSource : (existing.dropdown_source ?? null);
       if ((nextDataType === 'enum' || nextDataType === 'relation') && !nextDropdownSource) {
-        return { ok: false, error: 'invalid_dropdown_source' };
+        return { ok: false, error: 'DROPDOWN_SOURCE_FK_VIOLATION' };
       }
       if (nextDropdownSource) {
         const sourceExists = await referenceTableExists({ client, tableCode: nextDropdownSource });
-        if (!sourceExists) return { ok: false, error: 'invalid_dropdown_source' };
+        if (!sourceExists) return { ok: false, error: 'DROPDOWN_SOURCE_FK_VIOLATION' };
       }
 
       const updated = await client.query<{ schema_version: number | string }>(
@@ -118,8 +118,8 @@ export async function editColumn(rawInput: EditColumnInput): Promise<EditColumnR
       revalidatePath('/settings/schema');
       return { ok: true, data: { tableCode: input.tableCode, columnCode: input.columnCode, schemaVersion: nextVersion } };
     } catch (error) {
-      if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
-      return { ok: false, error: 'persistence_failed' };
+      if (error === FORBIDDEN) return { ok: false, error: 'FORBIDDEN' };
+      return { ok: false, error: 'PERSISTENCE_FAILED' };
     }
   });
 }

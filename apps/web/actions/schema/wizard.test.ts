@@ -37,15 +37,38 @@ type StoredColumn = {
   tier: 'L1' | 'L2' | 'L3' | 'L4';
   storage: string;
   schema_version: number;
+  dropdown_source: string | null;
+  validation_json: Record<string, unknown> | null;
+  presentation_json: Record<string, unknown> | null;
   deprecated_at: string | null;
+};
+
+type StoredMigration = {
+  org_id: string;
+  table_code: string;
+  column_code: string;
+  action: string;
+  tier_after: string;
+  status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  migration_script: string | null;
+  result_notes: string | null;
+};
+
+type StoredOutbox = {
+  org_id: string;
+  event_type: string;
+  aggregate_type: string;
+  payload: Record<string, unknown>;
 };
 
 type FakeClient = {
   calls: QueryCall[];
   referenceTables: Set<string>;
   columns: Map<string, StoredColumn>;
-  migrations: Array<Record<string, unknown>>;
-  outboxEvents: Array<Record<string, unknown>>;
+  migrations: StoredMigration[];
+  outboxEvents: StoredOutbox[];
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
 };
 
@@ -70,29 +93,44 @@ beforeEach(() => {
   );
 });
 
-describe('schema admin wizard Server Actions (TASK-000132/T-023 RED)', () => {
-  it('V-SET-01/02: rejects invalid data_type and missing dropdown_source before any write', async () => {
+describe('schema admin wizard Server Actions (T-023)', () => {
+  it('V-SET-01: rejects unsupported data_type with discriminator INVALID_DATA_TYPE', async () => {
     const { addColumn } = await loadAddColumn();
 
-    const badType = await addColumn({
+    const result = await addColumn({
       tableCode: 'main_table',
       columnCode: 'invalid_kind',
       scope: 'org-specific',
-      dataType: 'json_blob',
+      dataType: 'boolean',
       expectedSchemaVersion: 1,
     });
-    expect(badType).toEqual({ ok: false, error: 'invalid_input' });
 
-    const missingDropdown = await addColumn({
+    expect(result).toEqual({
+      ok: false,
+      error: 'INVALID_DATA_TYPE',
+      data: expect.objectContaining({ allowed: expect.arrayContaining(['text', 'number', 'date', 'enum', 'formula', 'relation']) }),
+    });
+    expect(writeCalls(), 'V-SET-01 must fail before any reference_schemas/schema_migrations/outbox writes').toHaveLength(0);
+  });
+
+  it('V-SET-02: rejects nonexistent dropdown_source with discriminator DROPDOWN_SOURCE_FK_VIOLATION', async () => {
+    const { addColumn } = await loadAddColumn();
+
+    const result = await addColumn({
       tableCode: 'main_table',
       columnCode: 'pack_finish',
       scope: 'variation',
       dataType: 'enum',
-      dropdownSource: 'missing_reference_table',
+      dropdownSource: 'nonexistent_table',
       expectedSchemaVersion: 1,
     });
-    expect(missingDropdown).toEqual({ ok: false, error: 'invalid_dropdown_source' });
-    expect(writeCalls(), 'invalid schema inputs must not insert/update schema or outbox rows').toHaveLength(0);
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'DROPDOWN_SOURCE_FK_VIOLATION',
+      data: expect.objectContaining({ dropdownSource: 'nonexistent_table' }),
+    });
+    expect(writeCalls(), 'V-SET-02 must fail before any reference_schemas/schema_migrations/outbox writes').toHaveLength(0);
   });
 
   it('dry-run: auto-detects scope=variation as L2 and returns a plan without persistence', async () => {
@@ -100,7 +138,7 @@ describe('schema admin wizard Server Actions (TASK-000132/T-023 RED)', () => {
 
     const result = await addColumn({
       tableCode: 'main_table',
-      columnCode: 'pack_finish',
+      columnCode: 'pack_finish_dry',
       scope: 'variation',
       dataType: 'enum',
       dropdownSource: 'pack_sizes',
@@ -117,7 +155,7 @@ describe('schema admin wizard Server Actions (TASK-000132/T-023 RED)', () => {
     expect(writeCalls(), 'dry-run must validate and plan, not mutate reference_schemas/schema_migrations/outbox').toHaveLength(0);
   });
 
-  it('V-SET-03/L1: queues universal promotions, emits settings.schema.migration_requested, and never executes DDL', async () => {
+  it('V-SET-03: L1 promotion without approved_by queues schema_migrations row with status=pending and emits outbox; no DDL', async () => {
     const { addColumn } = await loadAddColumn();
 
     const result = await addColumn({
@@ -127,10 +165,52 @@ describe('schema admin wizard Server Actions (TASK-000132/T-023 RED)', () => {
       dataType: 'number',
       validationJson: { range: { min: 0, max: 100 } },
       presentationJson: { section: 'Sustainability', order: 90 },
+      // NOTE: no approvedBy / approvedAt — V-SET-03 requires this path to
+      // result in a pending row (admin requests promotion; superadmin approves later).
+      expectedSchemaVersion: 1,
+      dryRun: false,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ tier: 'L1', migrationStatus: 'pending' }),
+    });
+    // schema_migrations row created, status='pending', approved_by IS NULL
+    expect(currentClient.migrations).toEqual([
+      expect.objectContaining({
+        action: 'promote_l2_to_l1',
+        table_code: 'main_table',
+        column_code: 'carbon_score',
+        tier_after: 'L1',
+        status: 'pending',
+        approved_by: null,
+        approved_at: null,
+      }),
+    ]);
+    // outbox event emitted in same context
+    expect(currentClient.outboxEvents).toEqual([
+      expect.objectContaining({
+        event_type: 'settings.schema.migration_requested',
+        org_id: ORG_ID,
+      }),
+    ]);
+    // no live DDL on the action path
+    expect(ddlCalls(), 'L1 promotion Server Action must not execute live DDL').toHaveLength(0);
+  });
+
+  it('V-SET-03: L1 promotion with explicit approved_by is also routed to schema_migrations queue (no live DDL)', async () => {
+    const { addColumn } = await loadAddColumn();
+
+    const result = await addColumn({
+      tableCode: 'main_table',
+      columnCode: 'lifecycle_score',
+      scope: 'universal',
+      dataType: 'number',
+      validationJson: { range: { min: 0, max: 100 } },
+      presentationJson: { section: 'Sustainability', order: 91 },
       approvedBy: APPROVER_ID,
       approvedAt: '2026-05-19T08:00:00.000Z',
       expectedSchemaVersion: 1,
-      dryRun: false,
     });
 
     expect(result).toEqual({
@@ -141,46 +221,49 @@ describe('schema admin wizard Server Actions (TASK-000132/T-023 RED)', () => {
       expect.objectContaining({
         action: 'promote_l2_to_l1',
         table_code: 'main_table',
-        column_code: 'carbon_score',
-        tier_after: 'L1',
+        column_code: 'lifecycle_score',
         status: 'pending',
         approved_by: APPROVER_ID,
+        approved_at: '2026-05-19T08:00:00.000Z',
       }),
     );
-    expect(currentClient.outboxEvents).toContainEqual(
-      expect.objectContaining({ event_type: 'settings.schema.migration_requested', org_id: ORG_ID }),
-    );
-    expect(ddlCalls(), 'L1 promotion Server Action must not execute live DDL').toHaveLength(0);
+    expect(ddlCalls(), 'approved L1 promotion path still never executes live DDL').toHaveLength(0);
   });
 
-  it('V-SET-04: editColumn and deprecateColumn reject stale schema_version with a conflict diff and no mutation', async () => {
+  it('V-SET-04: editColumn rejects stale schema_version with discriminator CONCURRENT_EDIT and returns diff', async () => {
     const { editColumn } = await loadEditColumn();
-    const { deprecateColumn } = await loadDeprecateColumn();
 
-    const editResult = await editColumn({
+    const result = await editColumn({
       tableCode: 'main_table',
       columnCode: 'pack_finish',
       expectedSchemaVersion: 1,
       patch: { presentationJson: { section: 'Packaging', order: 31 } },
     });
-    const deprecateResult = await deprecateColumn({
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'CONCURRENT_EDIT',
+      data: expect.objectContaining({ currentSchemaVersion: 2, diff: expect.any(Object) }),
+    });
+    expect(writeCalls(), 'CONCURRENT_EDIT must not mutate schema or emit outbox').toHaveLength(0);
+  });
+
+  it('V-SET-04: deprecateColumn rejects stale schema_version with discriminator CONCURRENT_EDIT and returns diff', async () => {
+    const { deprecateColumn } = await loadDeprecateColumn();
+
+    const result = await deprecateColumn({
       tableCode: 'main_table',
       columnCode: 'pack_finish',
       expectedSchemaVersion: 1,
       reason: 'superseded by packaging_finish_v2',
     });
 
-    expect(editResult).toEqual({
+    expect(result).toEqual({
       ok: false,
-      error: 'schema_version_conflict',
+      error: 'CONCURRENT_EDIT',
       data: expect.objectContaining({ currentSchemaVersion: 2, diff: expect.any(Object) }),
     });
-    expect(deprecateResult).toEqual({
-      ok: false,
-      error: 'schema_version_conflict',
-      data: expect.objectContaining({ currentSchemaVersion: 2, diff: expect.any(Object) }),
-    });
-    expect(writeCalls(), 'stale publish/deprecate attempts must not update schema or emit outbox').toHaveLength(0);
+    expect(writeCalls(), 'CONCURRENT_EDIT must not mutate schema or emit outbox').toHaveLength(0);
   });
 });
 
@@ -214,7 +297,7 @@ function makeClient(): FakeClient {
   const client: FakeClient = {
     calls: [],
     referenceTables: new Set(['pack_sizes', 'allergens_reference']),
-    columns: new Map([
+    columns: new Map<string, StoredColumn>([
       [
         'main_table:pack_finish',
         {
@@ -226,6 +309,9 @@ function makeClient(): FakeClient {
           tier: 'L2',
           storage: 'tenant_variations',
           schema_version: 2,
+          dropdown_source: 'pack_sizes',
+          validation_json: { required: true },
+          presentation_json: { section: 'Packaging', order: 30 },
           deprecated_at: null,
         },
       ],
@@ -251,24 +337,37 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('from public.reference_schemas')) {
-        const tableCode = params.find((param): param is string => param === 'main_table') ?? String(params[0] ?? '');
-        const columnCode = params.find((param): param is string => param === 'pack_finish' || param === 'carbon_score') ?? String(params[1] ?? '');
+        const tableCode = String(params[0] ?? '');
+        const columnCode = String(params[1] ?? '');
         const row = client.columns.get(`${tableCode}:${columnCode}`);
         return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
       }
 
       if (normalized.includes('insert into public.reference_schemas')) {
-        const row = rowFromParams(params);
+        const row: StoredColumn = {
+          id: EXISTING_COLUMN_ID,
+          org_id: ORG_ID,
+          table_code: stringParam(params, 'main_table'),
+          column_code: stringParam(params, 'pack_finish_dry'),
+          data_type: stringParam(params, 'enum'),
+          tier: 'L2',
+          storage: 'tenant_variations',
+          schema_version: 1,
+          dropdown_source: null,
+          validation_json: {},
+          presentation_json: {},
+          deprecated_at: null,
+        };
         client.columns.set(`${row.table_code}:${row.column_code}`, row);
         return { rows: [row], rowCount: 1 };
       }
 
       if (normalized.includes('update public.reference_schemas')) {
-        const tableCode = params.find((param): param is string => param === 'main_table') ?? 'main_table';
-        const columnCode = params.find((param): param is string => param === 'pack_finish') ?? 'pack_finish';
+        const tableCode = stringParam(params, 'main_table');
+        const columnCode = stringParam(params, 'pack_finish');
         const existing = client.columns.get(`${tableCode}:${columnCode}`);
         if (!existing) return { rows: [], rowCount: 0 };
-        const updated = { ...existing, schema_version: existing.schema_version + 1 };
+        const updated: StoredColumn = { ...existing, schema_version: existing.schema_version + 1 };
         client.columns.set(`${tableCode}:${columnCode}`, updated);
         return { rows: [updated], rowCount: 1 };
       }
@@ -291,40 +390,47 @@ function makeClient(): FakeClient {
   return client;
 }
 
-function rowFromParams(params: unknown[]): StoredColumn {
-  return {
-    id: EXISTING_COLUMN_ID,
-    org_id: ORG_ID,
-    table_code: stringParam(params, 'main_table'),
-    column_code: stringParam(params, 'carbon_score'),
-    data_type: stringParam(params, 'number'),
-    tier: 'L3',
-    storage: 'ext_jsonb',
-    schema_version: 1,
-    deprecated_at: null,
-  };
-}
-
-function migrationFromParams(params: unknown[]): Record<string, unknown> {
+function migrationFromParams(params: unknown[]): StoredMigration {
+  const stringParams = params.filter((p): p is string => typeof p === 'string');
   const blob = JSON.stringify(params);
+  const tableCode = stringParams.find((p) => p === 'main_table') ?? 'main_table';
+  const columnCode =
+    stringParams.find((p) => p === 'carbon_score' || p === 'lifecycle_score') ??
+    stringParams.find((p) => /^[a-z][a-z0-9_]*$/.test(p) && p !== tableCode && p !== 'promote_l2_to_l1' && p !== 'L1' && p !== 'pending') ??
+    '';
   return {
     org_id: ORG_ID,
-    table_code: blob.includes('main_table') ? 'main_table' : params[1],
-    column_code: blob.includes('carbon_score') ? 'carbon_score' : params[2],
-    action: blob.includes('promote_l2_to_l1') ? 'promote_l2_to_l1' : params[3],
-    tier_after: blob.includes('L1') ? 'L1' : params[5],
+    table_code: tableCode,
+    column_code: columnCode,
+    action: blob.includes('promote_l2_to_l1') ? 'promote_l2_to_l1' : 'schema_column_added',
+    tier_after: blob.includes('"L1"') || blob.includes("'L1'") || blob.includes(',L1,') || stringParams.includes('L1') ? 'L1' : 'L2',
     status: blob.includes('pending') ? 'pending' : 'completed',
-    approved_by: blob.includes(APPROVER_ID) ? APPROVER_ID : null,
+    approved_by: stringParams.find((p) => p === APPROVER_ID) ?? null,
+    approved_at: stringParams.find((p) => /^\d{4}-\d{2}-\d{2}T/.test(p)) ?? null,
+    migration_script: stringParams.find((p) => p.startsWith('{')) ?? null,
+    result_notes: stringParams.find((p) => /queued|metadata/i.test(p)) ?? null,
   };
 }
 
-function outboxFromParams(params: unknown[]): Record<string, unknown> {
-  const eventType = params.find((param): param is string => typeof param === 'string' && param.includes('.'));
-  return { org_id: ORG_ID, event_type: eventType, params };
+function outboxFromParams(params: unknown[]): StoredOutbox {
+  const eventType = params.find((p): p is string => typeof p === 'string' && p.includes('.')) ?? '';
+  const payloadParam = params.find((p): p is string => typeof p === 'string' && p.startsWith('{') && p.includes('table_code')) ?? '{}';
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = JSON.parse(payloadParam) as Record<string, unknown>;
+  } catch {
+    payload = {};
+  }
+  return {
+    org_id: ORG_ID,
+    event_type: eventType,
+    aggregate_type: 'schema_migration',
+    payload,
+  };
 }
 
 function stringParam(params: unknown[], fallback: string): string {
-  return params.find((param): param is string => typeof param === 'string' && param.length > 0) ?? fallback;
+  return params.find((param): param is string => typeof param === 'string' && param === fallback) ?? fallback;
 }
 
 function writeCalls(): QueryCall[] {

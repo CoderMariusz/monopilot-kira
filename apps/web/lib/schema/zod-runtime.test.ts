@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 const ORG_A = '11111111-1111-4111-8111-111111111111';
 const ORG_B = '22222222-2222-4222-8222-222222222222';
@@ -15,64 +16,10 @@ type RuntimeColumn = {
   deprecated_at?: string | null;
 };
 
-type RuntimeParseSuccess = { success: true; data: Record<string, unknown> };
-type RuntimeParseFailure = { success: false; error: { issues: Array<{ path: Array<string | number>; message?: string }> } };
-type RuntimeParseResult = RuntimeParseSuccess | RuntimeParseFailure;
-
-type RuntimeSchema = {
-  safeParse: (value: unknown) => RuntimeParseResult;
-};
-
-function isFailure(result: RuntimeParseResult): result is RuntimeParseFailure {
-  return result.success === false;
-}
-
-type ZodRuntimeModule = {
-  getZodRuntimeSchema: (input: {
-    orgId: string;
-    tableCode: string;
-    schemaVersion: number;
-    loadColumns: (scope: { orgId: string; tableCode: string; schemaVersion: number }) => Promise<RuntimeColumn[]>;
-  }) => Promise<RuntimeSchema>;
-  clearZodRuntimeSchemaCache?: () => void;
-};
+type ZodRuntimeModule = typeof import('./zod-runtime.js');
 
 async function loadZodRuntimeModule(): Promise<ZodRuntimeModule> {
-  const modulePath = './zod-runtime';
-  try {
-    const mod = (await import(modulePath)) as Partial<ZodRuntimeModule>;
-    if (typeof mod.getZodRuntimeSchema !== 'function') {
-      throw new Error('getZodRuntimeSchema export is required');
-    }
-    return mod as ZodRuntimeModule;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes('Cannot find module') || !message.includes('zod-runtime')) {
-      throw error;
-    }
-
-    // RED bootstrap: the production module does not exist yet in this worktree.
-    // Return a deliberately non-compliant sentinel so the tests fail as behavior
-    // assertions instead of a Vitest module-load error. GREEN must replace this
-    // by creating apps/web/lib/schema/zod-runtime.ts with the real export.
-    return {
-      async getZodRuntimeSchema(input) {
-        await input.loadColumns({
-          orgId: input.orgId,
-          tableCode: input.tableCode,
-          schemaVersion: input.schemaVersion,
-        });
-        return {
-          safeParse(value) {
-            return { success: true, data: value as Record<string, unknown> };
-          },
-        };
-      },
-      clearZodRuntimeSchemaCache() {
-        // no-op sentinel: cache behavior intentionally absent for RED.
-      },
-    };
-  }
+  return (await import('./zod-runtime.js')) as ZodRuntimeModule;
 }
 
 function column(overrides: Partial<RuntimeColumn>): RuntimeColumn {
@@ -90,14 +37,14 @@ function column(overrides: Partial<RuntimeColumn>): RuntimeColumn {
   };
 }
 
-describe('getZodRuntimeSchema', () => {
+describe('getZodRuntimeSchema (real zod schemas, T-024)', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const mod = await loadZodRuntimeModule();
-    mod.clearZodRuntimeSchemaCache?.();
+    mod.clearZodRuntimeSchemaCache();
   });
 
-  it('caches repeat calls by org_id + table_code + schema_version without reloading columns', async () => {
+  it('caches repeat calls by (org_id, table_code, schema_version) without reloading columns', async () => {
     const mod = await loadZodRuntimeModule();
     const loadColumns = vi.fn(async ({ orgId, tableCode, schemaVersion }) => [
       column({ org_id: orgId, table_code: tableCode, schema_version: schemaVersion, column_code: 'row_name' }),
@@ -114,29 +61,59 @@ describe('getZodRuntimeSchema', () => {
     expect(loadColumns).toHaveBeenCalledTimes(3);
   });
 
-  it('honors regex validation_json when compiling text columns', async () => {
+  it('cache invalidates when schema_version bumps for the same (org_id, table_code)', async () => {
+    const mod = await loadZodRuntimeModule();
+    const loadColumns = vi.fn(async ({ schemaVersion }) => [
+      column({ column_code: 'name', schema_version: schemaVersion }),
+    ]);
+
+    const v7 = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 7, loadColumns });
+    const v8 = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 8, loadColumns });
+
+    expect(v7).not.toBe(v8);
+    expect(loadColumns).toHaveBeenCalledTimes(2);
+
+    // invalidate v7 and v8 explicitly — a third call rebuilds
+    mod.invalidateZodRuntimeSchemaCache({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 8 });
+    const v8b = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 8, loadColumns });
+    expect(v8b).not.toBe(v8);
+    expect(loadColumns).toHaveBeenCalledTimes(3);
+  });
+
+  it('produces a real Zod schema instance (has parse + safeParse + extend)', async () => {
+    const mod = await loadZodRuntimeModule();
+    const loadColumns = vi.fn(async () => [
+      column({ column_code: 'name', data_type: 'text', required_for_done: true }),
+    ]);
+
+    const schema = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 7, loadColumns });
+
+    expect(schema).toBeInstanceOf(z.ZodType);
+    expect(typeof schema.safeParse).toBe('function');
+    expect(typeof schema.parse).toBe('function');
+  });
+
+  it('honors regex from validation_json: ^[A-Z]{3}$ rejects "abc" and accepts "ABC"', async () => {
     const mod = await loadZodRuntimeModule();
     const loadColumns = vi.fn(async () => [
       column({
-        column_code: 'batch_code',
+        column_code: 'tag_code',
         data_type: 'text',
-        validation_json: { regex: '^BATCH-[0-9]{3}$' },
+        validation_json: { regex: '^[A-Z]{3}$' },
       }),
     ]);
 
     const schema = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 8, loadColumns });
 
-    expect(schema.safeParse({ batch_code: 'BATCH-123' }).success).toBe(true);
-    const invalid = schema.safeParse({ batch_code: 'batch-123' });
+    expect(schema.safeParse({ tag_code: 'ABC' }).success).toBe(true);
+    const invalid = schema.safeParse({ tag_code: 'abc' });
     expect(invalid.success).toBe(false);
-    if (isFailure(invalid)) {
-      expect(invalid.error.issues).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: ['batch_code'] })]),
-      );
+    if (!invalid.success) {
+      expect(invalid.error.issues.some((issue) => issue.path[0] === 'tag_code')).toBe(true);
     }
   });
 
-  it('excludes deprecated columns from the generated schema', async () => {
+  it('excludes deprecated columns from the generated schema (V-SET-05)', async () => {
     const mod = await loadZodRuntimeModule();
     const loadColumns = vi.fn(async () => [
       column({ column_code: 'active_code', data_type: 'text', required_for_done: true }),
@@ -153,10 +130,40 @@ describe('getZodRuntimeSchema', () => {
     const withoutDeprecated = schema.safeParse({ active_code: 'A-100' });
     expect(withoutDeprecated.success).toBe(true);
 
+    // Even submitting a value of wrong type for the deprecated column must be ignored
     const withDeprecatedPayload = schema.safeParse({ active_code: 'A-100', legacy_score: 'not-a-number' });
     expect(withDeprecatedPayload.success).toBe(true);
     if (withDeprecatedPayload.success) {
       expect(withDeprecatedPayload.data).not.toHaveProperty('legacy_score');
     }
+  });
+
+  it('range validation: number column min/max are enforced', async () => {
+    const mod = await loadZodRuntimeModule();
+    const loadColumns = vi.fn(async () => [
+      column({
+        column_code: 'pct',
+        data_type: 'number',
+        validation_json: { range: { min: 0, max: 100 } },
+      }),
+    ]);
+
+    const schema = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 9, loadColumns });
+    expect(schema.safeParse({ pct: 50 }).success).toBe(true);
+    expect(schema.safeParse({ pct: -1 }).success).toBe(false);
+    expect(schema.safeParse({ pct: 101 }).success).toBe(false);
+  });
+
+  it('required_for_done=false makes the field optional (accepts missing key)', async () => {
+    const mod = await loadZodRuntimeModule();
+    const loadColumns = vi.fn(async () => [
+      column({ column_code: 'mandatory', data_type: 'text', required_for_done: true }),
+      column({ column_code: 'optional', data_type: 'text', required_for_done: false }),
+    ]);
+
+    const schema = await mod.getZodRuntimeSchema({ orgId: ORG_A, tableCode: 'batch_records', schemaVersion: 9, loadColumns });
+
+    expect(schema.safeParse({ mandatory: 'x' }).success).toBe(true);
+    expect(schema.safeParse({}).success).toBe(false);
   });
 });
