@@ -224,13 +224,13 @@ describe('SM-07 RoleAssignModal search behavior', () => {
       vi.advanceTimersByTime(250);
     });
     expect(screen.getByText(/searching users/i)).toBeInTheDocument();
-    expect(await screen.findByText(/no users match “zzzz”/i)).toBeInTheDocument();
+    expect(screen.getByText(/no users match “zzzz”/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/search user/i), { target: { value: 'jane' } });
     await act(async () => {
       vi.advanceTimersByTime(250);
     });
-    expect(await screen.findByRole('alert')).toHaveTextContent(/unable to search users/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/unable to search users/i);
   });
 });
 
