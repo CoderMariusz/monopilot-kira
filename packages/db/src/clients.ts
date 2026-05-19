@@ -34,7 +34,7 @@ export function getAppConnection(): pg.Pool {
   const url = new URL(connectionString);
   if (!process.env.DATABASE_URL_APP) {
     url.username = 'app_user';
-    url.password = process.env.APP_USER_PASSWORD ?? 'app_user_test_password';
+    url.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
   }
 
   return new Pool({ connectionString: url.toString() });

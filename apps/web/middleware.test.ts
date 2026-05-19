@@ -29,6 +29,13 @@ vi.mock('next-intl/routing', () => ({
   defineRouting: (routing: unknown) => routing,
 }));
 
+vi.mock('./i18n/routing', () => ({
+  routing: {
+    locales: ['pl', 'en', 'uk', 'ro'],
+    defaultLocale: 'en',
+  },
+}));
+
 const {
   auditAdminIpBlockedMock,
   checkIdleTimeoutMock,
@@ -81,7 +88,7 @@ function makeRequest(pathname: string, opts: TestRequestOptions = {}): TestNextR
 
 async function loadMiddleware() {
   vi.resetModules();
-  const mod = (await import('./middleware.js')) as unknown as {
+  const mod = (await import('./proxy.js')) as unknown as {
     default: MiddlewareHandler;
     config: { matcher: Array<string | { source: string }> };
   };
@@ -121,7 +128,17 @@ describe('T-035 edge middleware security composition', () => {
 
   it('keeps the public bypass list reachable and bypasses guards for a valid SCIM bearer request', async () => {
     const { config, default: middleware } = await loadMiddleware();
-    const publicRoutes = ['/login', '/invite/accept', '/scim/v2/Users', '/api/auth/saml/callback', '/onboarding'];
+    const publicRoutes = [
+      '/login',
+      '/en/login',
+      '/pl/onboarding/in-progress',
+      '/invite/accept',
+      '/api/auth/invite/accept',
+      '/scim/v2/Users',
+      '/api/scim/v2/Users',
+      '/api/auth/saml/callback',
+      '/onboarding',
+    ];
 
     for (const route of publicRoutes) {
       expect(config.matcher.some((matcher) => matcherAllows(route, matcher))).toBe(true);
@@ -137,11 +154,28 @@ describe('T-035 edge middleware security composition', () => {
 
     expect(response.status).not.toBe(403);
     expect(verifyScimBearerMock).toHaveBeenCalledWith('Bearer valid-scim-token');
+    expect(verifyScimBearerMock).toHaveBeenCalledTimes(1);
     expect(resolveEdgeSecurityContextMock).not.toHaveBeenCalled();
     expect(isRequestIpAllowedMock).not.toHaveBeenCalled();
     expect(auditAdminIpBlockedMock).not.toHaveBeenCalled();
     expect(checkIdleTimeoutMock).not.toHaveBeenCalled();
     expect(establishOrgContextMock).not.toHaveBeenCalled();
+    expect(intlHandlerMock).not.toHaveBeenCalled();
+  });
+
+  it('passes public API integration routes through without next-intl localization', async () => {
+    const { default: middleware } = await loadMiddleware();
+    const apiRoutes = ['/api', '/api/scim/v2/Users', '/api/auth/saml/callback', '/api/auth/invite/accept'];
+
+    for (const route of apiRoutes) {
+      vi.clearAllMocks();
+      intlHandlerMock.mockReturnValue(TestNextResponse.next());
+      const response = await middleware(makeRequest(route));
+      expect(response.status).toBe(200);
+      expect(intlHandlerMock).not.toHaveBeenCalled();
+      expect(resolveEdgeSecurityContextMock).not.toHaveBeenCalled();
+      expect(checkIdleTimeoutMock).not.toHaveBeenCalled();
+    }
   });
 
   it('returns 403 IP_NOT_ALLOWED and writes a sanitized audit row when admin IP allowlist denies /admin', async () => {
@@ -173,6 +207,34 @@ describe('T-035 edge middleware security composition', () => {
       sourceIp: '198.51.100.42',
     });
     expect(JSON.stringify(auditAdminIpBlockedMock.mock.calls[0])).not.toMatch(/secret|authorization|cookie/i);
+    expect(intlHandlerMock).not.toHaveBeenCalled();
+  });
+
+  it('applies the admin IP allowlist to locale-prefixed admin routes', async () => {
+    resolveEdgeSecurityContextMock.mockResolvedValueOnce({
+      accessToken: 'fresh-access-token',
+      adminIpAllowlistCidrs: ['203.0.113.0/24'],
+      onboardingCompletedAt: '2026-05-01T00:00:00.000Z',
+      orgId: '22222222-2222-2222-2222-222222222222',
+      role: 'admin',
+      sessionIdleTimeoutMinutes: 60,
+    });
+    isRequestIpAllowedMock.mockReturnValueOnce(false);
+    const { default: middleware } = await loadMiddleware();
+
+    const response = await middleware(
+      makeRequest('/en/admin/users', {
+        forwardedFor: '198.51.100.42',
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(auditAdminIpBlockedMock).toHaveBeenCalledWith({
+      attemptedRoute: '/en/admin/users',
+      eventType: 'admin_ip_blocked',
+      orgId: '22222222-2222-2222-2222-222222222222',
+      sourceIp: '198.51.100.42',
+    });
     expect(intlHandlerMock).not.toHaveBeenCalled();
   });
 
@@ -228,5 +290,40 @@ describe('T-035 edge middleware security composition', () => {
     });
     expect(establishOrgContextMock).not.toHaveBeenCalled();
     expect(intlHandlerMock).not.toHaveBeenCalled();
+  });
+
+  it('treats locale-prefixed login/auth/onboarding routes as public so unauthenticated users do not hit a redirect loop', async () => {
+    const { default: middleware } = await loadMiddleware();
+    const localePublicRoutes = [
+      '/en/login',
+      '/pl/login',
+      '/uk/login',
+      '/ro/login',
+      '/en/login/forgot-password',
+      '/en/login/mfa',
+      '/en/invite/accept',
+      '/en/onboarding',
+      '/en/onboarding/in-progress',
+    ];
+
+    for (const route of localePublicRoutes) {
+      checkIdleTimeoutMock.mockClear();
+      resolveEdgeSecurityContextMock.mockClear();
+      const response = await middleware(makeRequest(route));
+      expect(resolveEdgeSecurityContextMock).not.toHaveBeenCalled();
+      expect(checkIdleTimeoutMock).not.toHaveBeenCalled();
+      expect(response.status).not.toBe(307);
+      expect(intlHandlerMock).toHaveBeenCalled();
+    }
+  });
+
+  it('issues a single redirect to /login?reason=idle on protected routes (intl handler upgrades the locale, no loop)', async () => {
+    checkIdleTimeoutMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
+    const { default: middleware } = await loadMiddleware();
+
+    const response = await middleware(makeRequest('/en/production/work-orders'));
+    expect(response.status).toBe(307);
+    const location = response.headers.get('location') ?? '';
+    expect(location).toContain('/login?reason=idle');
   });
 });

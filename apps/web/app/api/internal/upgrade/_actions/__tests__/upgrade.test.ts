@@ -63,7 +63,7 @@ async function applyMigrations(owner: pg.Pool): Promise<void> {
     do $$
     begin
       if not exists (select 1 from pg_roles where rolname = 'app_user') then
-        create role app_user login password 'app_user_test_password';
+        create role app_user login password 'app-user-test-password';
       end if;
     end $$;
   `);

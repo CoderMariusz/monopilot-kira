@@ -1,5 +1,5 @@
 /**
- * T-035 — Edge-runtime policy helpers consumed by `apps/web/middleware.ts`.
+ * T-035 — Edge-runtime policy helpers consumed by `apps/web/proxy.ts`.
  *
  * MUST stay Edge-safe:
  *  - no `pg`, no `node:crypto`, no eager `@supabase/ssr` server import that
@@ -102,9 +102,9 @@ function decodeJwtClaims(token: string | null): JwtClaims {
   try {
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    const json = typeof atob === 'function'
-      ? atob(padded)
-      : Buffer.from(padded, 'base64').toString('utf8');
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as JwtClaims;
   } catch {
     return {};

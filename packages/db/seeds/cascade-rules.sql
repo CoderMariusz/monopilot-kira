@@ -15,6 +15,7 @@ begin
   select id into v_apex_org_id
   from public.organizations
   where external_id = 'apex'
+  order by created_at asc, id asc
   limit 1;
 
   if v_apex_org_id is null then

@@ -13,9 +13,13 @@ do $$
 declare
   v_apex_org_id uuid;
 begin
+  -- Deterministically pick the canonical (earliest-created) Apex org so that
+  -- transient test fixtures inserting additional rows with external_id='apex'
+  -- cannot redirect the seed to an unintended org.
   select id into v_apex_org_id
   from public.organizations
   where external_id = 'apex'
+  order by created_at asc, id asc
   limit 1;
 
   if v_apex_org_id is null then

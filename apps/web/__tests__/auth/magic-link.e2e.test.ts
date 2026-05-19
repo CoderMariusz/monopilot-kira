@@ -19,11 +19,11 @@
  *   Flag raised to orchestrator for decision (see T-011.md).
  *
  * MIDDLEWARE MERGE CONCERN (RED — do NOT implement):
- *   apps/web/middleware.ts ALREADY EXISTS with next-intl routing (T-022 GREEN output).
+ *   apps/web/proxy.ts ALREADY EXISTS with next-intl routing (T-022 GREEN output).
  *   GREEN implementer MUST chain Supabase session check BEFORE next-intl, not replace it.
  *   Suggested pattern:
  *     const intlHandler = createMiddleware(routing);
- *     export default async function middleware(req) {
+ *     export default async function proxy(req) {
  *       const sessionResponse = await handleSupabaseSession(req);
  *       if (sessionResponse) return sessionResponse; // 401 / redirect
  *       return intlHandler(req);
@@ -283,11 +283,11 @@ describe('AC2: idle-timeout 61-min → 401 + re-auth', () => {
 
   /**
    * Simulate the middleware's idle-timeout check.
-   * GREEN implementer: this function models what middleware.ts must implement.
+   * GREEN implementer: this function models what proxy.ts must implement.
    * The real implementation reads the cookie/header access token, decodes the JWT,
    * checks if (now - iat) > idle_timeout_min * 60, and returns 401 if so.
    *
-   * Import path: apps/web/lib/auth/session-check.ts (or inline in middleware.ts)
+   * Import path: apps/web/lib/auth/session-check.ts (or inline in proxy.ts)
    * This module does NOT yet exist — import will fail in RED phase.
    */
   async function invokeMiddlewareWithToken(
@@ -411,7 +411,7 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
     appPool = getAppConnection();
 
     // Ensure app_user role exists (idempotent)
-    const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+    const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
     await ownerPool.query(`
       do $$
       begin
@@ -588,11 +588,11 @@ describe('AC3: server action context → current_setting(app.current_org_id) == 
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('RED source contract: middleware owns auth session policy', () => {
-  const middlewareSource = () => readFileSync(`${process.cwd()}/middleware.ts`, 'utf8');
+describe('RED source contract: proxy owns auth session policy', () => {
+  const proxySource = () => readFileSync(`${process.cwd()}/proxy.ts`, 'utf8');
 
   it('reads idle_timeout_min from tenant_idp_config instead of an environment-only fallback', () => {
-    const source = middlewareSource();
+    const source = proxySource();
 
     // T-011 contract: idle timeout is tenant-configured, not a process-wide env knob.
     expect(source).toMatch(/tenant_idp_config/i);
@@ -600,9 +600,9 @@ describe('RED source contract: middleware owns auth session policy', () => {
   });
 
   it('establishes non-spoofable org context with app.set_org_context before protected requests continue', () => {
-    const source = middlewareSource();
+    const source = proxySource();
 
-    // T-011/T-007 contract: middleware must call the foundation setter; comments alone do not satisfy this.
+    // T-011/T-007 contract: proxy must call the foundation setter; comments alone do not satisfy this.
     expect(source).toMatch(/set_org_context\s*\(/);
     expect(source).toMatch(/app\.current_org_id\s*\(/);
     expect(source).not.toMatch(/current_setting\('app\.(tenant_id|current_org_id)'\)/);

@@ -28,7 +28,7 @@ function makeRequest(pathname: string): NextRequest {
 
 async function loadMiddleware() {
   vi.resetModules();
-  const mod = (await import('../middleware.js')) as unknown as { default: MiddlewareHandler };
+  const mod = (await import('../proxy.js')) as unknown as { default: MiddlewareHandler };
   return mod.default;
 }
 
@@ -96,15 +96,17 @@ describe('middleware DEV_AUTH_BYPASS', () => {
   });
 
   it.each([
-    ['development with bypass', 'development', 'true'],
-    ['production with bypass', 'production', 'true'],
-    ['development without bypass', 'development', undefined],
-  ])('keeps public paths routed through next-intl in %s', async (_label, nodeEnv, bypass) => {
+    ['development with bypass', 'development', 'true', '/login'],
+    ['production with bypass', 'production', 'true', '/login'],
+    ['development without bypass', 'development', undefined, '/login'],
+    ['localized production login', 'production', undefined, '/en/login'],
+    ['localized onboarding', 'production', undefined, '/pl/onboarding/in-progress'],
+  ])('keeps public paths routed through next-intl in %s', async (_label, nodeEnv, bypass, path) => {
     vi.stubEnv('NODE_ENV', nodeEnv);
     if (bypass) vi.stubEnv('DEV_AUTH_BYPASS', bypass);
     const middleware = await loadMiddleware();
 
-    const response = await middleware(makeRequest('/login'));
+    const response = await middleware(makeRequest(path));
 
     expect(response.status).not.toBe(401);
     expect(checkIdleTimeoutMock).not.toHaveBeenCalled();

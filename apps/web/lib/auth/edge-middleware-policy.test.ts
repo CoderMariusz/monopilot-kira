@@ -1,6 +1,6 @@
 /**
  * Behavior tests for the edge-middleware-policy helper imported by
- * apps/web/middleware.ts. These tests deliberately do NOT mock the module —
+ * apps/web/proxy.ts. These tests deliberately do NOT mock the module —
  * they import it directly so a missing file (or a regressed export surface)
  * produces a real failure, not a mock-only false green.
  *
@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 const HELPER_PATH = './edge-middleware-policy.js';
 
 describe('lib/auth/edge-middleware-policy (T-035 edge runtime helper)', () => {
-  it('exports the five symbols middleware.ts imports at runtime', async () => {
+  it('exports the five symbols proxy.ts imports at runtime', async () => {
     const mod = (await import(HELPER_PATH)) as Record<string, unknown>;
     for (const name of [
       'auditAdminIpBlocked',

@@ -21,8 +21,6 @@
 // in `withOrgContext(async (ctx) => …)` so RLS resolves
 // `app.current_org_id()` correctly for the verified user's org.
 
-import { createServerClient } from '@supabase/ssr';
-
 export interface IdleCheckOptions {
   /** Raw JWT access token string. Null/empty → 401 immediately. */
   accessToken: string | null;
@@ -54,7 +52,11 @@ function decodeVerifiedJwtPayload(token: string): JwtPayload {
   const payload = parts[1];
   if (!payload) return {};
   try {
-    const json = Buffer.from(payload, 'base64url').toString('utf8');
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
     return JSON.parse(json) as JwtPayload;
   } catch {
     return {};
@@ -96,19 +98,17 @@ async function verifyAndExtractIat(token: string): Promise<number | null> {
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      // No cookie reads/writes — we pass the bearer explicitly so this is
-      // pure JWT verification, not session resolution.
-      const noopCookies = {
-        getAll: () => [],
-        setAll: () => {
-          /* noop */
+      // Edge-safe signature verification via Supabase Auth REST. Avoid a
+      // server Supabase client here: middleware is bundled for the Edge runtime
+      // and must not pull Node-only modules into the graph.
+      const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+        cache: 'no-store',
+        headers: {
+          apikey: supabaseAnonKey,
+          authorization: `Bearer ${token}`,
         },
-      };
-      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-        cookies: noopCookies,
       });
-      const { data, error } = await supabase.auth.getUser(token);
-      if (error || !data?.user) return null;
+      if (!response.ok) return null;
     } catch {
       return null;
     }

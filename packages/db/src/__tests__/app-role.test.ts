@@ -8,7 +8,7 @@ const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? describe : describe.skip;
 
 const orgA = '11111111-1111-4111-8111-111111111111';
-const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 function appUserDatabaseUrl() {
   if (!databaseUrl) {

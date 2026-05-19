@@ -295,7 +295,7 @@ describe('T-035 AC3: dry-run side-effect-free (no outbox row inserted)', () => {
     const appUrl = new URL(appUrlRaw);
     if (!process.env.DATABASE_URL_APP) {
       appUrl.username = 'app_user';
-      appUrl.password = process.env.APP_USER_PASSWORD ?? 'app_user_test_password';
+      appUrl.password = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
     }
     appConn = new pg.default.Pool({ connectionString: appUrl.toString() });
 

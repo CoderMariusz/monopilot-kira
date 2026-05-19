@@ -35,7 +35,7 @@ const appRoleMigrationPath = resolve(packageRoot, 'migrations/006-app-role.sql')
 const departmentsMigrationPath = resolve(packageRoot, 'migrations/011-departments.sql');
 const apexDepartmentsSeedPath = resolve(packageRoot, 'seeds/apex-departments.sql');
 
-const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 // ── AC1: static metadata check (no DB required) ───────────────────────────────
 

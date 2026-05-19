@@ -161,8 +161,12 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
 
-  const tenantId = randomUUID();
-  const apexOrgId = randomUUID();
+  // Use the canonical bootstrap Apex tenant/org IDs from migration 030. The
+  // manufacturing operations seed resolves the Apex org via external_id='apex'
+  // with deterministic created_at/id ordering; matching the bootstrap row keeps
+  // this assertion stable in CI, where migrations seed Apex before tests run.
+  const tenantId = '00000000-0000-0000-0000-000000000001';
+  const apexOrgId = '00000000-0000-0000-0000-000000000002';
 
   beforeAll(async () => {
     if (!databaseUrl) return;
@@ -179,18 +183,19 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
     // Apply the T-020 migration (will fail in RED because file doesn't exist yet)
     await ownerPool.query(readFileSync(mfgOpsMigrationPath, 'utf8'));
 
-    // Create tenant
+    // Ensure the canonical bootstrap Apex tenant + org exist. In CI these are
+    // already created by migration 030; in standalone runs this keeps the seed
+    // precondition local to the test.
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'T020 AC1 Tenant', 'eu', 'https://t020-ac1.example')
+       values ($1, 'Apex (system)', 'eu', '')
        on conflict (id) do nothing`,
       [tenantId],
     );
 
-    // Create apex org (external_id='apex' is what the seed resolves)
     await ownerPool.query(
       `insert into public.organizations (id, tenant_id, name, industry_code, external_id)
-       values ($1, $2, 'Apex T020', 'fmcg', 'apex')
+       values ($1, $2, 'Apex', 'generic', 'apex')
        on conflict (id) do nothing`,
       [apexOrgId, tenantId],
     );
@@ -204,14 +209,6 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
 
     await ownerPool
       .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [apexOrgId])
-      .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.organizations where id = $1`, [apexOrgId])
-      .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.tenants where id = $1`, [tenantId])
       .catch(() => undefined);
 
     await appPool?.end();

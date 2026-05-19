@@ -18,7 +18,7 @@ const orgB = '22222222-2222-4222-8222-222222222222';
 const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const orgAUser = 'aaaaaaaa-1111-4111-8111-111111111111';
 const orgBUser = 'bbbbbbbb-2222-4222-8222-222222222222';
-const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 async function assertRequiredColumns(adminPool: pg.Pool) {
   const expectedColumns = [

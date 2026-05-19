@@ -46,7 +46,7 @@ const orgId    = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const actorId  = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'; // holds org.access.admin
 const approverId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'; // second admin
 const targetId = 'aaaaaaaa-bbbb-4bbb-8bbb-aaaaaaaaaaaa';
-const appUserPassword = 'app_user_test_password';
+const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

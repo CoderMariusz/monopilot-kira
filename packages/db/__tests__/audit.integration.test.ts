@@ -460,6 +460,27 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
       [org1Id, tenantId, org2Id],
     );
 
+    // app.session_org_contexts lives in shared app schema. In a fresh isolated
+    // run it is created by the schema-substituted migration above, but in the
+    // recursive CI suite another test can have already created it with the
+    // canonical FK to public.organizations. Seed both the isolated schema and,
+    // when present, public.* so the FK is satisfied without weakening RLS.
+    try {
+      await dbClient.query(
+        `INSERT INTO public.tenants (id, name, region_cluster, data_plane_url)
+         VALUES ($1, 'RLS Test Tenant', 'us', 'https://rls-test.example') ON CONFLICT DO NOTHING`,
+        [tenantId],
+      );
+      await dbClient.query(
+        `INSERT INTO public.organizations (id, tenant_id, name, industry_code)
+         VALUES ($1, $2, 'RLS Org 1', 'generic'), ($3, $2, 'RLS Org 2', 'generic')
+         ON CONFLICT DO NOTHING`,
+        [org1Id, tenantId, org2Id],
+      );
+    } catch {
+      // public.* may not exist in a fully schema-isolated RED/fixture run.
+    }
+
     // Seed session tokens into app.session_org_contexts (shared app schema, not test schema)
     await dbClient.query(
       `INSERT INTO app.session_org_contexts (session_token, org_id)
@@ -526,6 +547,14 @@ describe('audit_events 13-field append-only table with retention_class CHECK', (
     // Each org context sees only its own row — RLS is exercised, not just row filtering
     expect(org1VisibleCount).toBe('1');
     expect(org2VisibleCount).toBe('1');
+
+    // Clean up the public.* mirror rows inserted to satisfy the shared
+    // app.session_org_contexts FK. The per-test schema is dropped in afterAll,
+    // but public.organizations/public.tenants persist across recursive runs.
+    await dbClient
+      .query('DELETE FROM public.organizations WHERE id IN ($1, $2)', [org1Id, org2Id])
+      .catch(() => undefined);
+    await dbClient.query('DELETE FROM public.tenants WHERE id = $1', [tenantId]).catch(() => undefined);
   });
 
   runIntegrationTest('sets occurred_at default to now() when not provided', async () => {

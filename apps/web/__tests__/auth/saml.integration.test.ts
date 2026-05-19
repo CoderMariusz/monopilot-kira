@@ -562,7 +562,7 @@ describe('AC3: enforce_for_non_admins blocks non-admin password sign-in with 403
     appPool = getAppConnection();
 
     // Ensure app_user role exists (idempotent)
-    const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+    const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
     await ownerPool.query(`
       do $$
       begin

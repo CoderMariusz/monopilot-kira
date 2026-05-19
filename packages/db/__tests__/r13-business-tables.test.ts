@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { getOwnerConnection, getAppConnection } from '../test-utils/test-pool.js';
 
-const appUserPassword = ['app', 'user', 'test', 'password'].join('_');
+const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 
 const databaseUrl = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;
