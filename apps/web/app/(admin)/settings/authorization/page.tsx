@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { updateAuthorizationPolicy } from "../../../../actions/authorization/policy-actions";
 
 type PolicyStatus = "enabled" | "misconfigured" | "missing_seed";
 
@@ -27,7 +28,15 @@ type SaveAuthorizationPoliciesInput = {
 type SaveAuthorizationPoliciesResult = {
   ok: boolean;
   policies?: PolicySummary[];
-  blockers?: Array<{ code: string; message: string }>;
+  blockers?: Array<{ policyCode?: PolicySummary["policyCode"]; code: string; message: string }>;
+};
+
+type AuthorizationPolicyPatch = {
+  requires_new_version?: boolean;
+  require_segregation_of_duties?: boolean;
+  min_approvers?: number;
+  approval_gate_rule_code?: string;
+  settings_json?: Record<string, unknown>;
 };
 
 type AuthorizationPoliciesPageProps = {
@@ -83,6 +92,37 @@ function enforcePolicyInvariants(policy: PolicySummary): PolicySummary {
   };
 }
 
+function buildPolicyPatch(policy: PolicySummary): AuthorizationPolicyPatch {
+  if (policy.policyCode === "npd_post_release_edit") {
+    return {
+      require_segregation_of_duties: true,
+      requires_new_version: true,
+    };
+  }
+
+  return {
+    approval_gate_rule_code: policy.approvalGateRuleCode ?? "technical_product_spec_approval_gate_v1",
+    min_approvers: Math.max(1, policy.minApprovers ?? 1),
+    require_segregation_of_duties: true,
+    settings_json: { factory_use_blocking_locked: true },
+  };
+}
+
+function mergePolicyBlockers(
+  policies: PolicySummary[],
+  blockers: Array<{ policyCode?: PolicySummary["policyCode"]; code: string; message: string }>,
+): PolicySummary[] {
+  return policies.map((policy) => {
+    const policyBlockers = blockers.filter((blocker) => !blocker.policyCode || blocker.policyCode === policy.policyCode);
+    if (policyBlockers.length < 1) return policy;
+    return {
+      ...policy,
+      status: "misconfigured",
+      blockers: policyBlockers.map((blocker) => ({ code: blocker.code, message: blocker.message })),
+    };
+  });
+}
+
 function renderList(items: string[]) {
   return items.length > 0 ? items.join(", ") : "None configured";
 }
@@ -108,15 +148,12 @@ export default function AuthorizationPoliciesPage({
       return;
     }
 
-    if (!onSave) {
-      setError("Save action is unavailable for authorization policies.");
-      return;
-    }
-
     const payloadPolicies = draftPolicies.map(enforcePolicyInvariants);
 
     try {
-      const result = await onSave({ auditReason: trimmedReason, policies: payloadPolicies });
+      const result = onSave
+        ? await onSave({ auditReason: trimmedReason, policies: payloadPolicies })
+        : await savePoliciesWithT126Action(payloadPolicies, trimmedReason);
 
       if (result?.ok && result.policies) {
         const nextPolicies = result.policies.map(enforcePolicyInvariants);
@@ -128,7 +165,8 @@ export default function AuthorizationPoliciesPage({
       }
 
       if (result?.blockers?.length) {
-        setError(result.blockers.map((blocker) => `${blocker.code}: ${blocker.message}`).join(" "));
+        setDraftPolicies((current) => mergePolicyBlockers(current, result.blockers ?? []));
+        setError(null);
         return;
       }
 
@@ -136,6 +174,51 @@ export default function AuthorizationPoliciesPage({
     } catch {
       setError("Authorization policies could not be saved.");
     }
+  }
+
+  async function savePoliciesWithT126Action(
+    payloadPolicies: PolicySummary[],
+    trimmedReason: string,
+  ): Promise<SaveAuthorizationPoliciesResult> {
+    const results = await Promise.all(
+      payloadPolicies.map(async (policy) => ({
+        policy,
+        result: await updateAuthorizationPolicy({
+          policyCode: policy.policyCode,
+          auditReason: trimmedReason,
+          patch: buildPolicyPatch(policy),
+        }),
+      })),
+    );
+
+    const blockers = results.flatMap(({ policy, result }) => {
+      if (result.ok === true) return [];
+      return [
+        {
+          policyCode: policy.policyCode,
+          code: result.error.toUpperCase(),
+          message: `T-126 rejected ${policy.title}: ${result.error.replaceAll("_", " ")}.`,
+        },
+      ];
+    });
+
+    if (blockers.length > 0) return { ok: false, blockers };
+
+    const versionsByPolicy = new Map<string, number>();
+    for (const { result } of results) {
+      if (result.ok === true) {
+        versionsByPolicy.set(result.data.policyCode, result.data.version);
+      }
+    }
+    return {
+      ok: true,
+      policies: payloadPolicies.map((policy) => ({
+        ...policy,
+        version: versionsByPolicy.get(policy.policyCode) ?? policy.version,
+        blockers: [],
+        status: "enabled",
+      })),
+    };
   }
 
   function handleDiscard() {
