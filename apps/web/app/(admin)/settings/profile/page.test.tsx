@@ -226,12 +226,12 @@ describe('SET-010 company profile prototype parity', () => {
           "Website",
           "Region",
           "Tier",
-          "Seat limit",
           "Industry",
           "Country",
           "Default currency",
           "Timezone",
           "Date format",
+          "Seat limit",
         ],
         "sections": [
           "Identity",
