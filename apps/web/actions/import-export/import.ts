@@ -53,7 +53,7 @@ type AuthorizationPolicyRow = {
   min_approvers: number | null;
 };
 
-type RuleDefinitionRow = { rule_code: string; active: boolean | null };
+type RuleDefinitionRow = { rule_code: string; rule_type: string | null; active: boolean | null };
 
 const IMPORTABLE_TARGETS = new Set(['authorization_policies']);
 const AUTHORIZATION_IMPORT_PERMISSION = 'settings.authorization.edit';
@@ -142,16 +142,31 @@ async function runAuthorizationPolicyPreflight(client: QueryClient, policyCodes:
       order by policy_code`,
   );
 
-  const { rows: activeRules } = await client.query<RuleDefinitionRow>(
-    `select rule_code, active
-       from public.rule_definitions
-      where org_id = app.current_org_id()
-        and active = true`,
-  );
-  const activeRuleCodes = new Set(activeRules.filter((rule) => rule.active !== false).map((rule) => rule.rule_code));
-
   const requestedCodes = new Set(policyCodes);
   const scopedPolicies = requestedCodes.size > 0 ? policies.filter((policy) => requestedCodes.has(policy.policy_code)) : policies;
+
+  const referencedGateCodes = Array.from(
+    new Set(
+      scopedPolicies
+        .filter((policy) => policy.requires_new_version === true)
+        .map((policy) => policy.approval_gate_rule_code)
+        .filter((code): code is string => typeof code === 'string' && code.length > 0),
+    ),
+  );
+
+  const rulesByCode = new Map<string, RuleDefinitionRow>();
+  if (referencedGateCodes.length > 0) {
+    const { rows: rules } = await client.query<RuleDefinitionRow>(
+      `select rule_code, rule_type, (active_to is null) as active
+         from public.rule_definitions
+        where org_id = app.current_org_id()
+          and rule_code = any($1::text[])`,
+      [referencedGateCodes],
+    );
+    for (const rule of rules) {
+      rulesByCode.set(rule.rule_code, rule);
+    }
+  }
 
   const blockers: Array<Record<string, unknown>> = [];
   for (const policy of scopedPolicies) {
@@ -163,8 +178,15 @@ async function runAuthorizationPolicyPreflight(client: QueryClient, policyCodes:
       blockers.push({ code: 'min_approvers_invalid', check: 'V-SET-44', policyCode: policy.policy_code });
       continue;
     }
-    if (policy.requires_new_version && policy.approval_gate_rule_code && !activeRuleCodes.has(policy.approval_gate_rule_code)) {
-      blockers.push({ code: 'approval_gate_rule_missing', check: 'V-SET-44', policyCode: policy.policy_code });
+    if (policy.requires_new_version && policy.approval_gate_rule_code) {
+      const rule = rulesByCode.get(policy.approval_gate_rule_code);
+      if (!rule) {
+        blockers.push({ code: 'approval_gate_rule_missing', check: 'V-SET-44', policyCode: policy.policy_code });
+      } else if (rule.active !== true) {
+        blockers.push({ code: 'approval_gate_rule_inactive', check: 'V-SET-44', policyCode: policy.policy_code });
+      } else if (rule.rule_type !== 'gate') {
+        blockers.push({ code: 'approval_gate_rule_wrong_type', check: 'V-SET-44', policyCode: policy.policy_code });
+      }
     }
   }
   return blockers;
