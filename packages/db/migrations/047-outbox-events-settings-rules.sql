@@ -36,9 +36,14 @@ ALTER TABLE public.outbox_events
       -- 3 new (Wave 4 settings + rules)
       'settings.schema.migration_requested',
       'settings.rule.deployed',
-      'rule.deployed'
+      'rule.deployed',
+      -- T-029 infrastructure CRUD Server Action events
+      'settings.location.upserted',
+      'settings.machine.upserted',
+      'settings.line.upserted',
+      'settings.warehouse.deactivated'
     )
   );
 
 COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events
-  IS 'Wave4: adds settings.schema.migration_requested (T-023 V-SET-03), settings.rule.deployed and rule.deployed (T-026 rules-deploy CLI).';
+  IS 'Wave4: adds settings schema/rule events plus T-029 infrastructure CRUD mutation events.';
