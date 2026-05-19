@@ -41,6 +41,7 @@ export function PasswordResetModal({
     setAcknowledged(false);
     setPending(false);
     setError(null);
+    setToastMessage(null);
     acknowledgementRef.current?.focus();
   }, [open, user.id]);
 
