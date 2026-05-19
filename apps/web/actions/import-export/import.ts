@@ -17,7 +17,7 @@ type StartImportInput = {
   fileName: string;
   contentType: string;
   csvText: string;
-  auditReason?: string;
+  auditReason: string;
 };
 
 type ImportExportJobRow = {
