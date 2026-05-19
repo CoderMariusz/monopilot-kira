@@ -34,9 +34,19 @@ type ReferenceSchemaColumn = {
   validation_json?: unknown;
 };
 
+type ReferenceRowView = {
+  tableCode: string;
+  rowKey: string;
+  rowData: Record<string, unknown>;
+  version: number;
+  isActive: boolean;
+  displayOrder: number | null;
+};
+
 export type UpsertReferenceRowResult =
-  | { ok: true; data: { tableCode: string; rowKey: string; rowData: Record<string, unknown>; version: number; isActive: boolean; displayOrder: number | null } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'VERSION_CONFLICT' | 'persistence_failed'; message?: string };
+  | { ok: true; data: ReferenceRowView }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed'; message?: string }
+  | { ok: false; error: 'VERSION_CONFLICT'; latest: ReferenceRowView };
 
 export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertReferenceRowResult> {
   const input = parseUpsertInput(rawInput);
@@ -53,7 +63,7 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
 
       const existing = await getExistingRow(client, input.tableCode, input.rowKey);
       if (existing && input.expectedVersion !== undefined && existing.version !== input.expectedVersion) {
-        return { ok: false, error: 'VERSION_CONFLICT' };
+        return { ok: false, error: 'VERSION_CONFLICT', latest: mapReferenceRow(existing) };
       }
 
       if (existing) {
@@ -70,12 +80,33 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
           [input.tableCode, input.rowKey, input.rowData, input.displayOrder, input.expectedVersion ?? null],
         );
         const updated = rows[0];
-        if ((rowCount ?? rows.length) < 1 || !updated) return { ok: false, error: 'VERSION_CONFLICT' };
+        if ((rowCount ?? rows.length) < 1 || !updated) {
+          const latest = await getExistingRow(client, input.tableCode, input.rowKey);
+          if (!latest) return { ok: false, error: 'not_found' };
+          return { ok: false, error: 'VERSION_CONFLICT', latest: mapReferenceRow(latest) };
+        }
         if (rowDataChanged) await refreshReferenceTableMv(client, orgId, input.tableCode);
+        await writeAuditLog(client, {
+          orgId,
+          actorUserId: userId,
+          action: 'reference.row.upsert',
+          resourceId: `${input.tableCode}:${input.rowKey}`,
+          beforeState: { rowData: existing.row_data, version: existing.version, isActive: existing.is_active },
+          afterState: { rowData: updated.row_data, version: updated.version, isActive: updated.is_active },
+        });
+        await writeOutbox(client, {
+          orgId,
+          eventType: 'reference.row.upserted',
+          aggregateType: 'reference_table',
+          aggregateId: orgId,
+          payload: { tableCode: updated.table_code, rowKey: updated.row_key, version: updated.version, action: 'update' },
+        });
         return { ok: true, data: mapReferenceRow(updated) };
       }
 
-      if (input.expectedVersion !== undefined) return { ok: false, error: 'VERSION_CONFLICT' };
+      if (input.expectedVersion !== undefined) {
+        return { ok: false, error: 'not_found' };
+      }
 
       const { rows } = await client.query<ReferenceRow>(
         `insert into public.reference_tables
@@ -87,6 +118,21 @@ export async function upsertReferenceRow(rawInput: unknown): Promise<UpsertRefer
       const inserted = rows[0];
       if (!inserted) return { ok: false, error: 'persistence_failed' };
       await refreshReferenceTableMv(client, orgId, input.tableCode);
+      await writeAuditLog(client, {
+        orgId,
+        actorUserId: userId,
+        action: 'reference.row.upsert',
+        resourceId: `${input.tableCode}:${input.rowKey}`,
+        beforeState: null,
+        afterState: { rowData: inserted.row_data, version: inserted.version, isActive: inserted.is_active },
+      });
+      await writeOutbox(client, {
+        orgId,
+        eventType: 'reference.row.upserted',
+        aggregateType: 'reference_table',
+        aggregateId: orgId,
+        payload: { tableCode: inserted.table_code, rowKey: inserted.row_key, version: inserted.version, action: 'insert' },
+      });
       return { ok: true, data: mapReferenceRow(inserted) };
     });
   } catch {
@@ -210,7 +256,38 @@ async function refreshReferenceTableMv(client: QueryClient, orgId: string, table
   await client.query(`select app.refresh_reference_table_mv($1::uuid, $2)`, [orgId, tableCode]);
 }
 
-function mapReferenceRow(row: ReferenceRow): { tableCode: string; rowKey: string; rowData: Record<string, unknown>; version: number; isActive: boolean; displayOrder: number | null } {
+async function writeAuditLog(
+  client: QueryClient,
+  params: { orgId: string; actorUserId: string; action: string; resourceId: string; beforeState: unknown; afterState: unknown },
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'reference_table', $4, $5::jsonb, $6::jsonb, 'standard')`,
+    [
+      params.orgId,
+      params.actorUserId,
+      params.action,
+      params.resourceId,
+      JSON.stringify(params.beforeState),
+      JSON.stringify(params.afterState),
+    ],
+  );
+}
+
+async function writeOutbox(
+  client: QueryClient,
+  params: { orgId: string; eventType: string; aggregateType: string; aggregateId: string; payload: unknown },
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-reference-v1')`,
+    [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
+  );
+}
+
+function mapReferenceRow(row: ReferenceRow): ReferenceRowView {
   return {
     tableCode: row.table_code,
     rowKey: row.row_key,

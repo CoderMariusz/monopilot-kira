@@ -49,7 +49,7 @@ export async function exportReferenceCsv(rawInput: unknown): Promise<ExportRefer
         for (const header of headers.slice(1)) record[header] = normalizedData[header] ?? '';
         return record;
       });
-      const csv = await unparseCsv(records, headers);
+      const csv = renderCsv(records, headers);
 
       return new Response(csv, {
         status: 200,
@@ -121,29 +121,18 @@ async function loadActiveReferenceRows(client: QueryClient, tableCode: string): 
   return rows;
 }
 
-async function unparseCsv(records: Array<Record<string, string>>, headers: string[]): Promise<string> {
-  const Papa = await loadPapaParse();
-  if (Papa?.unparse) return Papa.unparse({ fields: headers, data: records });
-  return unparseCsvFallback(records, headers);
-}
-
-async function loadPapaParse(): Promise<{ unparse?: (input: { fields: string[]; data: Array<Record<string, string>> }) => string } | null> {
-  try {
-    const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<unknown>;
-    const mod = (await dynamicImport('papaparse')) as { default?: unknown };
-    return (mod.default ?? mod) as { unparse?: (input: { fields: string[]; data: Array<Record<string, string>> }) => string };
-  } catch {
-    return null;
-  }
-}
-
-function unparseCsvFallback(records: Array<Record<string, string>>, headers: string[]): string {
+function renderCsv(records: Array<Record<string, string>>, headers: string[]): string {
   return [headers.join(','), ...records.map((record) => headers.map((header) => escapeCsvCell(record[header] ?? '')).join(','))].join('\n');
 }
 
+// CWE-1236: defuse spreadsheet formula injection by prefixing cells that start
+// with a metacharacter Excel/LibreOffice/Numbers would interpret as a formula.
+const FORMULA_INJECTION_TRIGGERS = ['=', '+', '-', '@', '\t', '\r'];
+
 function escapeCsvCell(value: string): string {
-  if (!/[",\r\n]/.test(value)) return value;
-  return `"${value.replace(/"/g, '""')}"`;
+  const sanitized = FORMULA_INJECTION_TRIGGERS.includes(value.charAt(0)) ? `'${value}` : value;
+  if (!/[",\r\n]/.test(sanitized)) return sanitized;
+  return `"${sanitized.replace(/"/g, '""')}"`;
 }
 
 function normalizeRecordData(value: Record<string, unknown>): Record<string, string> {
