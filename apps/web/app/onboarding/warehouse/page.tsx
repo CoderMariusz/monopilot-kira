@@ -374,12 +374,6 @@ export default function FirstWarehouseOnboardingPage({
                 placeholder="Street, city, country"
               />
             </label>
-            {statusMessage ? (
-              <div className="md:col-span-2 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                {statusMessage}
-              </div>
-            ) : null}
-            <div className="md:col-span-2 hidden" aria-hidden="true" />
           </form>
         ) : null}
 
