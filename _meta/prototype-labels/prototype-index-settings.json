@@ -552,94 +552,6 @@
       "estimated_translation_time_min": 120
     },
     {
-      "label": "products_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-      "lines": "4-52",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Product",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_PRODUCTS filtered by category → Drizzle query on products table with ILIKE search on sku/name",
-        "Category pills filter → URL search param ?cat=; Server Component re-renders filtered list",
-        "Table with SKU/name/category/unit/weight/BOM/line columns → TanStack Table with row click detail navigation",
-        "Import CSV button → Server Action with preview step (BL-SET-04 not yet built)",
-        "Add product button → opens product create form modal (not yet built)",
-        "Edit button → opens form modal in edit mode; Server Action for products upsert",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Input",
-        "Tabs"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 80
-    },
-    {
-      "label": "boms_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-      "lines": "55-103",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Product",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_BOMS → Drizzle query on boms table with product and version info",
-        "KPI cards (active/draft/archived) → aggregate counts from boms.status",
-        "BOM settings section → useForm with Server Action for bom_config upsert (auto-calculate, allergen review, version retention)",
-        "BOM table with columns: id/product/version/ingredients/updated/status → TanStack Table read-only",
-        "Compare versions button → routes to /settings/data/boms/:id/compare (detail screen, not yet built)",
-        "Add BOM button → opens BOM create wizard (not yet built)",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Switch",
-        "Select",
-        "Card"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 75
-    },
-    {
-      "label": "partners_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-      "lines": "106-148",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Partner",
-      "interaction": "read-only",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_PARTNERS filtered by type (all/supplier/customer) → Drizzle query on partners table with ILIKE search",
-        "Tab pills (all/supplier/customer) → URL search param ?type=; Server Component re-renders filtered list",
-        "Partners table with columns: id/type/name/contact/email/country/since/status → TanStack Table read-only",
-        "Import button → Server Action with preview wizard for partner CSV import",
-        "Add partner button → opens partner create form modal (not yet built)",
-        "Edit button → opens form modal in edit mode; Server Action for partners upsert",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Input",
-        "Tabs"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 70
-    },
-    {
       "label": "units_screen",
       "file": "prototypes/design/Monopilot Design System/settings/data-screens.jsx",
       "lines": "151-187",
@@ -1048,35 +960,6 @@
       "estimated_translation_time_min": 180
     },
     {
-      "label": "devices_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
-      "lines": "4-95",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Org",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "Warehouse device inventory (Zebra TC22, tally pins, scales) → Drizzle query on warehouse_devices table",
-        "Device status badges (active/offline/error) → computed from device_health.last_heartbeat timestamp",
-        "Pairing/Unpairing button → Server Action calling device provisioning API with confirmation",
-        "Device firmware version display → server-fetched from device_manifest table",
-        "Add device button → opens pairing wizard (not yet built) with QR code scanner or bluetooth",
-        "Offline threshold alert → feature flag devices.offline_alert_hours from flags table",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Alert",
-        "Card"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 70
-    },
-    {
       "label": "notifications_screen",
       "file": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
       "lines": "98-163",
@@ -1195,35 +1078,6 @@
       "estimated_translation_time_min": 90
     },
     {
-      "label": "sites_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
-      "lines": "103-189",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Org",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_SITES → Drizzle query on sites table with location geometry (lat/lng)",
-        "Map widget → next/image with static map tile (Mapbox or equivalent); click to detail drawer",
-        "Add site button → opens site create form modal (not yet built)",
-        "Edit button → opens form modal in edit mode; Server Action for sites upsert",
-        "Delete button → soft delete with confirmation",
-        "Status badges (active/archived) → shadcn Badge with variant map",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Card",
-        "Input"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 75
-    },
-    {
       "label": "warehouses_screen",
       "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
       "lines": "192-252",
@@ -1249,36 +1103,6 @@
         "Select",
         "Button",
         "Badge"
-      ],
-      "known_bugs": [],
-      "estimated_translation_time_min": 90
-    },
-    {
-      "label": "shifts_screen",
-      "file": "prototypes/design/Monopilot Design System/settings/org-screens.jsx",
-      "lines": "255-342",
-      "component_type": "page-layout",
-      "ui_pattern": "list-with-actions",
-      "data_domain": "Org",
-      "interaction": "edit",
-      "complexity": "page-level",
-      "depends_on_prototypes": [],
-      "translation_notes": [
-        "window.SETTINGS_SHIFTS → Drizzle query on shift_patterns and shift_assignments tables",
-        "Add shift button → opens shift create form modal (not yet built)",
-        "Edit button → opens form modal in edit mode; Server Action for shift_patterns upsert",
-        "Calendar widget → shadcn calendar or react-big-calendar; highlight holidays and weekends from holiday_calendar table",
-        "Holiday management section → separate form for holiday_calendar upsert",
-        "Worker assignment inline select → TanStack Table cell with combobox for worker lookup",
-        "Hardcoded labels → next-intl keys"
-      ],
-      "shadcn_equivalent": [
-        "Table",
-        "Badge",
-        "Button",
-        "Card",
-        "Select",
-        "Input"
       ],
       "known_bugs": [],
       "estimated_translation_time_min": 90
