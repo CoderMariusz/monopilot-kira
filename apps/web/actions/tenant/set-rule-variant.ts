@@ -11,7 +11,16 @@ export type SetRuleVariantInput = {
 
 export type SetRuleVariantResult =
   | { ok: true; data: { ruleCode: string; variantVersionId: string } }
-  | { ok: false; error: 'invalid_input' | 'invalid_reference' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'VARIANT_NOT_FOUND'
+        | 'forbidden'
+        | 'not_found'
+        | 'persistence_failed';
+      message?: string;
+    };
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -23,7 +32,7 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type RuleDefinitionRow = { id: string; rule_code?: string };
+type RuleDefinitionRow = { id: string; rule_code?: string; version?: number };
 
 const FORBIDDEN = 'forbidden' as const;
 const RULE_CODE_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$/;
@@ -37,9 +46,10 @@ export async function setRuleVariant(rawInput: SetRuleVariantInput): Promise<Set
     try {
       await requirePermission({ client, userId, orgId, permission: 'settings.org.update' });
 
+      // V-SET-31: variant must reference an existing rule_definitions row (org-scoped).
       const variant = await client.query<RuleDefinitionRow>(
-        `select id, rule_code
-           from public.rule_definitions /* rule_versions compatibility token for V-SET-31 tests */
+        `select id, rule_code, version
+           from public.rule_definitions
           where org_id = app.current_org_id()
             and id = $1::uuid
             and rule_code = $2
@@ -47,7 +57,7 @@ export async function setRuleVariant(rawInput: SetRuleVariantInput): Promise<Set
         [input.variantVersionId, input.ruleCode],
       );
       if ((variant.rowCount ?? variant.rows.length) < 1) {
-        return { ok: false, error: 'invalid_reference' };
+        return { ok: false, error: 'VARIANT_NOT_FOUND' };
       }
 
       const updated = await client.query(

@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +25,7 @@ const setLocalFlagPath = resolve(repoRoot, 'apps/web/actions/tenant/set-local-fl
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
-const RULE_VERSION_ID = '33333333-3333-4333-8333-333333333333';
+const RULE_VARIANT_ID = '33333333-3333-4333-8333-333333333333';
 
 const INITIAL_VARIATIONS = {
   org_id: ORG_ID,
@@ -39,7 +39,7 @@ type QueryCall = { sql: string; params: unknown[] };
 type FakeClient = {
   calls: QueryCall[];
   variations: typeof INITIAL_VARIATIONS;
-  ruleVersionExists: boolean;
+  ruleDefinitionExists: boolean;
   auditLog: QueryCall[];
   outboxEvents: QueryCall[];
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
@@ -93,7 +93,7 @@ beforeEach(() => {
   );
 });
 
-describe('tenant_variations Server Actions (TASK-000136/T-027 RED)', () => {
+describe('tenant_variations Server Actions (T-027 PRD §9.1-9.3 / V-SET-30..31)', () => {
   it('getTenantVariations reads the current org-scoped tenant_variations JSONB payload through withOrgContext', async () => {
     const { getTenantVariations } = await loadGetTenantVariations();
 
@@ -111,12 +111,24 @@ describe('tenant_variations Server Actions (TASK-000136/T-027 RED)', () => {
     expect(statementIndex('from public.tenant_variations')).toBeGreaterThanOrEqual(0);
   });
 
-  it('setDepartmentOverride validates the dept action shape and applies valid split actions with jsonb_set plus audit/outbox', async () => {
+  it('setDepartmentOverride validates shape, applies valid split actions, and raises DUPLICATE_TARGET (V-SET-30) for duplicate split targets', async () => {
     const { setDepartmentOverride } = await loadSetDepartmentOverride();
 
-    const invalid = await setDepartmentOverride({ action: 'delete' as 'split', departmentCode: 'planning' });
+    const invalidShape = await setDepartmentOverride({ action: 'delete' as 'split', departmentCode: 'planning' });
 
-    expect(invalid).toEqual({ ok: false, error: 'invalid_input' });
+    expect(invalidShape).toEqual({ ok: false, error: 'invalid_input' });
+    expect(statementIndex('update public.tenant_variations')).toBe(-1);
+    expect(currentClient.auditLog).toHaveLength(0);
+    expect(currentClient.outboxEvents).toHaveLength(0);
+
+    const duplicate = await setDepartmentOverride({
+      action: 'split',
+      departmentCode: 'planning',
+      targetDepartmentCodes: ['mrp', 'mrp', 'scheduling'],
+      auditReason: 'V-SET-30 duplicate target codes must close-discriminate',
+    });
+
+    expect(duplicate).toEqual({ ok: false, error: 'DUPLICATE_TARGET' });
     expect(statementIndex('update public.tenant_variations')).toBe(-1);
     expect(currentClient.auditLog).toHaveLength(0);
     expect(currentClient.outboxEvents).toHaveLength(0);
@@ -136,23 +148,24 @@ describe('tenant_variations Server Actions (TASK-000136/T-027 RED)', () => {
     expect(currentClient.outboxEvents).toHaveLength(1);
   });
 
-  it('setRuleVariant rejects missing rule versions, and setLocalFlag toggles a tenant flag with audit_log plus settings.module.toggled outbox in the same transaction', async () => {
-    currentClient.ruleVersionExists = false;
+  it('setRuleVariant raises VARIANT_NOT_FOUND (V-SET-31) for missing rule_definitions versions, and setLocalFlag toggles a tenant flag with audit + settings.module.toggled outbox', async () => {
+    currentClient.ruleDefinitionExists = false;
     const { setRuleVariant } = await loadSetRuleVariant();
 
     const rejected = await setRuleVariant({
       ruleCode: 'qa.release_gate',
-      variantVersionId: RULE_VERSION_ID,
+      variantVersionId: RULE_VARIANT_ID,
       auditReason: 'try to point at an absent rule version',
     });
 
-    expect(rejected).toEqual({ ok: false, error: 'invalid_reference' });
-    expect(statementIndex('rule_versions')).toBeGreaterThanOrEqual(0);
+    expect(rejected).toEqual({ ok: false, error: 'VARIANT_NOT_FOUND' });
+    // Real validation must hit the canonical PRD table (rule_definitions, NOT rule_versions).
+    expect(statementIndex('from public.rule_definitions')).toBeGreaterThanOrEqual(0);
     expect(statementIndex('update public.tenant_variations')).toBe(-1);
     expect(currentClient.auditLog).toHaveLength(0);
     expect(currentClient.outboxEvents).toHaveLength(0);
 
-    currentClient.ruleVersionExists = true;
+    currentClient.ruleDefinitionExists = true;
     const { setLocalFlag } = await loadSetLocalFlag();
     const result = await setLocalFlag({
       flagKey: 'modules.09-quality.enabled',
@@ -176,6 +189,20 @@ describe('tenant_variations Server Actions (TASK-000136/T-027 RED)', () => {
     expect(callBlob(currentClient.calls[outboxIndex]!)).toContain(ORG_ID);
     expect(callBlob(currentClient.calls[outboxIndex]!)).toContain('modules.09-quality.enabled');
     expect(_revalidatePath).toHaveBeenCalledWith('/settings/tenant');
+  });
+
+  it('production sources are free of test-coupling SQL comments (no rule_versions compatibility token, no test/fake markers)', () => {
+    const sources = [
+      readFileSync(getTenantVariationsPath, 'utf8'),
+      readFileSync(setDepartmentOverridePath, 'utf8'),
+      readFileSync(setRuleVariantPath, 'utf8'),
+      readFileSync(setLocalFlagPath, 'utf8'),
+    ];
+    for (const src of sources) {
+      expect(src).not.toMatch(/rule_versions/i);
+      expect(src).not.toMatch(/V-SET-\d+ tests?/i);
+      expect(src).not.toMatch(/UnitTestFake|UnitTest|FakeMigration|test[_-]?coupling|fixture/i);
+    }
   });
 });
 
@@ -232,7 +259,7 @@ function makeClient(): FakeClient {
   const client: FakeClient = {
     calls,
     variations: structuredClone(INITIAL_VARIATIONS),
-    ruleVersionExists: true,
+    ruleDefinitionExists: true,
     auditLog: [],
     outboxEvents: [],
     query: async (sql: string, params: unknown[] = []) => {
@@ -247,10 +274,10 @@ function makeClient(): FakeClient {
         return { rows: [client.variations], rowCount: 1 };
       }
 
-      if (normalized.includes('rule_versions') || normalized.includes('rules_registry')) {
+      if (normalized.includes('from public.rule_definitions')) {
         return {
-          rows: client.ruleVersionExists ? [{ id: RULE_VERSION_ID, rule_code: 'qa.release_gate' }] : [],
-          rowCount: client.ruleVersionExists ? 1 : 0,
+          rows: client.ruleDefinitionExists ? [{ id: RULE_VARIANT_ID, rule_code: 'qa.release_gate', version: 2 }] : [],
+          rowCount: client.ruleDefinitionExists ? 1 : 0,
         };
       }
 

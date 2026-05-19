@@ -2,52 +2,57 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   index,
+  numeric,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { organizations, users } from './baseline.js';
 
+// Canonical tenant_migrations table per ADR-031 + migration 040 (org_id, not tenant_id).
+// Wave0 lock: business scope is org_id. The legacy tenant_id/cohort-shaped table from
+// migration 013 was renamed to tenant_migrations_legacy_t038 by migration 040.
 const _table = pgTable(
   'tenant_migrations',
   {
-    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id),
     component: text('component').notNull(),
     currentVersion: text('current_version').notNull(),
-    targetVersion: text('target_version'),
-    cohort: text('cohort').notNull().default('general'),
+    targetVersion: text('target_version').notNull(),
+    status: text('status').notNull().default('scheduled'),
+    canaryPct: numeric('canary_pct', { precision: 7, scale: 4 }).notNull().default('0'),
     lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-    status: text('status').notNull().default('idle'),
-    failureReason: text('failure_reason'),
+    scheduledBy: uuid('scheduled_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.tenantId, table.component] }),
-    cohortCheck: check(
-      'tenant_migrations_cohort_check',
-      sql`${table.cohort} in ('canary', 'early', 'general')`,
-    ),
     statusCheck: check(
-      'tenant_migrations_status_check',
-      sql`${table.status} in ('idle', 'pending', 'running', 'succeeded', 'failed', 'rolled_back')`,
+      'tenant_migrations_l2_status_check',
+      sql`${table.status} in ('scheduled', 'canary', 'progressive', 'completed', 'rolled_back', 'force_scheduled')`,
     ),
-    cohortStatusIdx: index('tenant_migrations_cohort_status_idx').on(table.cohort, table.status),
+    orgStatusIdx: index('tenant_migrations_l2_org_status_idx').on(table.orgId, table.status),
+    orgComponentIdx: index('tenant_migrations_l2_org_component_idx').on(table.orgId, table.component),
   }),
 );
 
 // Introspection shim: drizzle-orm ≥0.40 removed the `_` property from table objects.
-// Tests access `tenantMigrations._` for runtime schema inspection, so we attach a
-// lightweight metadata object keyed by SQL column names.
+// Tests access `tenantMigrations._` for runtime schema inspection.
 const introspectionMeta = {
   columns: {
-    tenant_id: { dataType: 'uuid' as const },
+    id: { dataType: 'uuid' as const },
+    org_id: { dataType: 'uuid' as const },
     component: { dataType: 'string' as const },
     current_version: { dataType: 'string' as const },
     target_version: { dataType: 'string' as const },
-    cohort: { dataType: 'string' as const },
-    last_run_at: { dataType: 'date' as const },
     status: { dataType: 'string' as const },
-    failure_reason: { dataType: 'string' as const },
+    canary_pct: { dataType: 'string' as const },
+    last_run_at: { dataType: 'date' as const },
+    scheduled_by: { dataType: 'uuid' as const },
+    created_at: { dataType: 'date' as const },
   },
 } as const;
 

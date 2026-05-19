@@ -7,6 +7,18 @@ export type PreviewUpgradeInput = {
   targetVersion: string;
 };
 
+export type DiffChange = {
+  path: string;
+  before: unknown;
+  after: unknown;
+};
+
+export type UpgradeDiff = {
+  fromVersion: string;
+  toVersion: string;
+  changes: DiffChange[];
+};
+
 export type PreviewUpgradeResult =
   | {
       ok: true;
@@ -14,7 +26,7 @@ export type PreviewUpgradeResult =
         component: string;
         targetVersion: string;
         affectedRows: number;
-        diff: Record<string, unknown>;
+        diff: UpgradeDiff;
       };
     }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'persistence_failed'; message?: string };
@@ -30,25 +42,19 @@ type OrgActionContext = {
 };
 
 type CurrentVersionRow = {
-  current_version?: string;
-  version?: string;
-  target_version?: string;
-  status?: string;
+  current_version?: string | null;
+  target_version?: string | null;
+  status?: string | null;
 };
 
-type DiffRow = {
-  diff?: Record<string, unknown>;
+type AffectedCountRow = {
   affected_rows?: number | string;
-  affectedRows?: number | string;
-  impact_count?: number | string;
-  count?: number | string;
 };
 
-type AffectedRow = {
-  affected_rows?: number | string;
-  affectedRows?: number | string;
-  impact_count?: number | string;
-  count?: number | string;
+type RuleDefinitionRow = {
+  rule_code: string;
+  version: number | string;
+  definition_json: unknown;
 };
 
 const FORBIDDEN = 'forbidden' as const;
@@ -63,39 +69,22 @@ export async function previewUpgrade(rawInput: PreviewUpgradeInput): Promise<Pre
     try {
       await requirePermission({ client, userId, orgId, permission: 'settings.org.update' });
 
-      const current = await client.query<CurrentVersionRow>(
-        `select component, current_version, target_version, status
-           from public.tenant_migrations
-          where org_id = app.current_org_id()
-            and component = $1
-          order by last_run_at desc nulls last, created_at desc nulls last
-          limit 1`,
-        [input.component],
-      );
-      const currentVersion = current.rows[0]?.current_version ?? current.rows[0]?.version ?? current.rows[0]?.target_version ?? 'unknown';
+      const currentVersion = await readCurrentVersion(client, input.component);
 
-      const manifest = await client.query<DiffRow>(
-        `select jsonb_build_object(
-                  'fromVersion', $3::text,
-                  'toVersion', $2::text,
-                  'changes', jsonb_build_array()
-                ) as diff`,
-        [input.component, input.targetVersion, currentVersion],
-      );
-
-      const affected = await client.query<AffectedRow>(
+      const affected = await client.query<AffectedCountRow>(
         `select count(*)::int as affected_rows
-           from public.rule_definitions /* affected rows for upgrade preview */
+           from public.rule_definitions
           where org_id = app.current_org_id()
             and ($1::text = 'rule_engine' or rule_code like $1 || '.%')`,
         [input.component],
       );
+      const affectedRows = coerceCount(affected.rows[0]?.affected_rows);
 
-      const manifestRow = manifest.rows[0];
-      const affectedRows = coerceCount(
-        manifestRow?.affected_rows ?? manifestRow?.affectedRows ?? manifestRow?.impact_count ?? affected.rows[0]?.affected_rows ?? affected.rows[0]?.affectedRows ?? affected.rows[0]?.impact_count ?? affected.rows[0]?.count,
-      );
-      const diff = normalizeDiff(manifestRow?.diff, currentVersion, input.targetVersion);
+      const fromVersionNum = parseVersionLabel(currentVersion);
+      const toVersionNum = parseVersionLabel(input.targetVersion);
+      const changes = fromVersionNum !== null && toVersionNum !== null
+        ? await loadDiffChanges(client, input.component, fromVersionNum, toVersionNum)
+        : [];
 
       return {
         ok: true,
@@ -103,7 +92,11 @@ export async function previewUpgrade(rawInput: PreviewUpgradeInput): Promise<Pre
           component: input.component,
           targetVersion: input.targetVersion,
           affectedRows,
-          diff,
+          diff: {
+            fromVersion: currentVersion,
+            toVersion: input.targetVersion,
+            changes,
+          },
         },
       };
     } catch (error) {
@@ -111,6 +104,100 @@ export async function previewUpgrade(rawInput: PreviewUpgradeInput): Promise<Pre
       return { ok: false, error: 'persistence_failed' };
     }
   });
+}
+
+async function readCurrentVersion(client: QueryClient, component: string): Promise<string> {
+  const current = await client.query<CurrentVersionRow>(
+    `select current_version, target_version, status
+       from public.tenant_migrations
+      where org_id = app.current_org_id()
+        and component = $1
+      order by last_run_at desc nulls last, created_at desc nulls last
+      limit 1`,
+    [component],
+  );
+  const row = current.rows[0];
+  return row?.current_version ?? row?.target_version ?? 'v1';
+}
+
+async function loadDiffChanges(
+  client: QueryClient,
+  component: string,
+  fromVersion: number,
+  toVersion: number,
+): Promise<DiffChange[]> {
+  const { rows } = await client.query<RuleDefinitionRow>(
+    `select rule_code, version, definition_json
+       from public.rule_definitions
+      where org_id = app.current_org_id()
+        and ($1::text = 'rule_engine' or rule_code like $1 || '.%')
+        and version in ($2::int, $3::int)
+      order by rule_code, version`,
+    [component, fromVersion, toVersion],
+  );
+
+  const byRuleCode = new Map<string, { before?: unknown; after?: unknown }>();
+  for (const row of rows) {
+    const ver = typeof row.version === 'number' ? row.version : Number.parseInt(String(row.version), 10);
+    if (!Number.isFinite(ver)) continue;
+    const bucket = byRuleCode.get(row.rule_code) ?? {};
+    if (ver === fromVersion) bucket.before = row.definition_json;
+    if (ver === toVersion) bucket.after = row.definition_json;
+    byRuleCode.set(row.rule_code, bucket);
+  }
+
+  const changes: DiffChange[] = [];
+  for (const [ruleCode, { before, after }] of byRuleCode.entries()) {
+    if (before === undefined || after === undefined) continue;
+    diffJson(before, after, `rules.${ruleCode}`, changes);
+  }
+  return changes;
+}
+
+function diffJson(before: unknown, after: unknown, path: string, out: DiffChange[]): void {
+  if (isPlainObject(before) && isPlainObject(after)) {
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    for (const key of keys) {
+      diffJson(before[key], after[key], `${path}.${key}`, out);
+    }
+    return;
+  }
+  if (Array.isArray(before) && Array.isArray(after)) {
+    if (before.length !== after.length || before.some((value, index) => !deepEqual(value, after[index]))) {
+      out.push({ path, before, after });
+    }
+    return;
+  }
+  if (!deepEqual(before, after)) {
+    out.push({ path, before, after });
+  }
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, index) => deepEqual(value, b[index]));
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((key) => deepEqual(a[key], b[key]));
+  }
+  return false;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseVersionLabel(label: string): number | null {
+  const match = /^v?(\d+)$/i.exec(label);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[1]!, 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseInput(input: PreviewUpgradeInput | null | undefined): PreviewUpgradeInput | null {
@@ -148,17 +235,4 @@ function coerceCount(value: unknown): number {
     if (Number.isFinite(parsed)) return parsed;
   }
   return 0;
-}
-
-function normalizeDiff(
-  diff: Record<string, unknown> | undefined,
-  currentVersion: string,
-  targetVersion: string,
-): Record<string, unknown> {
-  if (diff && typeof diff === 'object') return diff;
-  return {
-    fromVersion: currentVersion,
-    toVersion: targetVersion,
-    changes: [],
-  };
 }

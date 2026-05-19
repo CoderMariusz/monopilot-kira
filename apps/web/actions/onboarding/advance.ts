@@ -14,6 +14,7 @@ export type OnboardingState = {
   started_at?: string;
   last_activity_at?: string;
   first_wo_at?: string | null;
+  time_to_first_wo_ms?: number | null;
 };
 
 export type OnboardingResult =
@@ -86,6 +87,8 @@ export async function mutateOnboarding(transition: Transition, rawInput: unknown
       }
 
       const persisted = await persistState(context.client, next.state);
+      await writeAuditLog(context, transition, currentState, persisted);
+      await writeOutbox(context, transition, persisted);
       revalidatePath(ONBOARDING_PATH);
       return { ok: true, data: { state: persisted } };
     });
@@ -139,6 +142,7 @@ function buildNextState(
         current_step: 1,
         completed_steps: [],
         skipped_steps: [],
+        last_activity_at: now,
       },
     };
   }
@@ -146,12 +150,16 @@ function buildNextState(
   if (transition === 'first_wo') {
     const occurredAt = parseOccurredAt(rawInput) ?? now;
     if (currentState.first_wo_at) return { ok: true, state: currentState };
+    const startedAt = currentState.started_at;
+    const elapsedMs = startedAt ? Date.parse(occurredAt) - Date.parse(startedAt) : null;
     return {
       ok: true,
       state: {
         ...currentState,
         first_wo_at: occurredAt,
         last_activity_at: now,
+        time_to_first_wo_ms:
+          elapsedMs !== null && Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs : null,
       },
     };
   }
@@ -168,6 +176,25 @@ function buildNextState(
     return {
       ok: true,
       state: { ...currentState, current_step: step, last_activity_at: now },
+    };
+  }
+
+  if (transition === 'skip') {
+    if (REQUIRED_STEPS.has(step) || !OPTIONAL_STEPS.has(step)) {
+      return { ok: false, error: 'required_step' };
+    }
+    if (step < currentState.current_step) {
+      return { ok: false, error: 'stale_step' };
+    }
+    return {
+      ok: true,
+      state: {
+        ...currentState,
+        current_step: Math.max(currentState.current_step, step + 1),
+        skipped_steps: addStep(currentState.skipped_steps, step),
+        completed_steps: removeStep(currentState.completed_steps, step),
+        last_activity_at: now,
+      },
     };
   }
 
@@ -205,22 +232,6 @@ function buildNextState(
     };
   }
 
-  if (transition === 'skip') {
-    if (REQUIRED_STEPS.has(step) || !OPTIONAL_STEPS.has(step)) {
-      return { ok: false, error: 'required_step' };
-    }
-    return {
-      ok: true,
-      state: {
-        ...currentState,
-        current_step: step + 1,
-        skipped_steps: addStep(currentState.skipped_steps, step),
-        completed_steps: removeStep(currentState.completed_steps, step),
-        last_activity_at: now,
-      },
-    };
-  }
-
   return { ok: false, error: 'invalid_step' };
 }
 
@@ -237,6 +248,48 @@ async function persistState(client: QueryClient, state: OnboardingState): Promis
   return normalizeState(rows[0]?.onboarding_state ?? state);
 }
 
+async function writeAuditLog(
+  { client, orgId, userId }: OrgContextLike,
+  transition: Transition,
+  beforeState: OnboardingState,
+  afterState: OnboardingState,
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'onboarding_state', $1::uuid, $4::jsonb, $5::jsonb, 'standard')`,
+    [
+      orgId,
+      userId,
+      `onboarding.${transition}`,
+      JSON.stringify(beforeState),
+      JSON.stringify(afterState),
+    ],
+  );
+}
+
+async function writeOutbox(
+  { client, orgId, userId }: OrgContextLike,
+  transition: Transition,
+  afterState: OnboardingState,
+): Promise<void> {
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, 'organization', $1::uuid, $3::jsonb, 'settings-onboarding-v1')`,
+    [
+      orgId,
+      transition === 'first_wo' ? 'onboarding.first_wo_recorded' : `onboarding.step.${transition}`,
+      JSON.stringify({
+        org_id: orgId,
+        actor_user_id: userId,
+        transition,
+        state: afterState,
+      }),
+    ],
+  );
+}
+
 function normalizeState(raw: unknown): OnboardingState {
   if (!isRecord(raw)) return { ...DEFAULT_STATE };
   return {
@@ -246,6 +299,12 @@ function normalizeState(raw: unknown): OnboardingState {
     started_at: typeof raw.started_at === 'string' ? raw.started_at : undefined,
     last_activity_at: typeof raw.last_activity_at === 'string' ? raw.last_activity_at : undefined,
     first_wo_at: typeof raw.first_wo_at === 'string' ? raw.first_wo_at : raw.first_wo_at === null ? null : undefined,
+    time_to_first_wo_ms:
+      typeof raw.time_to_first_wo_ms === 'number' && Number.isFinite(raw.time_to_first_wo_ms)
+        ? raw.time_to_first_wo_ms
+        : raw.time_to_first_wo_ms === null
+        ? null
+        : undefined,
   };
 }
 

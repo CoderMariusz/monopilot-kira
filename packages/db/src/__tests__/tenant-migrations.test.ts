@@ -333,7 +333,7 @@ describe('tenant_migrations table (canary upgrade orchestration baseline)', () =
   });
 });
 
-describe('tenant_migrations drizzle schema', () => {
+describe('tenant_migrations drizzle schema (post-040 canonical shape)', () => {
   it('exports tenantMigrations table with correct column types', async () => {
     const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
 
@@ -341,32 +341,41 @@ describe('tenant_migrations drizzle schema', () => {
     expect(tenantMigrations._ as any).toBeDefined();
   });
 
-  it('tenant_id column is inferred as UUID string type', async () => {
+  it('org_id column is inferred as UUID (Wave0 lock — never tenant_id)', async () => {
     const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
-    expect(tableConfig.columns.tenant_id).toBeDefined();
-    // Drizzle UUID columns should have a type indicator
-    expect(tableConfig.columns.tenant_id.dataType).toBe('uuid');
+    expect(tableConfig.columns.org_id).toBeDefined();
+    expect(tableConfig.columns.org_id.dataType).toBe('uuid');
+    // Wave0 lock asserts the legacy tenant_id column is no longer modelled
+    // on this canonical export; the legacy tenant_migrations_legacy_t038 table
+    // (renamed by migration 040) is not represented in the schema barrel.
+    expect(tableConfig.columns.tenant_id).toBeUndefined();
   });
 
-  it('cohort column has enum literal union (canary | early | general)', async () => {
+  it('exposes ADR-031 orchestration columns (id, canary_pct, scheduled_by, current/target_version)', async () => {
     const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
-    expect(tableConfig.columns.cohort).toBeDefined();
-    // The column should have CHECK constraint metadata
-    const cohortColumn = tableConfig.columns.cohort;
-    expect(cohortColumn).toBeDefined();
+    expect(tableConfig.columns.id).toBeDefined();
+    expect(tableConfig.columns.id.dataType).toBe('uuid');
+    expect(tableConfig.columns.canary_pct).toBeDefined();
+    expect(tableConfig.columns.scheduled_by).toBeDefined();
+    expect(tableConfig.columns.current_version).toBeDefined();
+    expect(tableConfig.columns.target_version).toBeDefined();
+    expect(tableConfig.columns.last_run_at).toBeDefined();
+    expect(tableConfig.columns.created_at).toBeDefined();
   });
 
-  it('status column has enum literal union (idle | pending | running | succeeded | failed | rolled_back)', async () => {
+  it('status column reflects the canary lifecycle enum (no legacy idle/running/succeeded states)', async () => {
     const { tenantMigrations } = await import('../../schema/tenant-migrations.js');
     const tableConfig = tenantMigrations._ as any;
 
     expect(tableConfig.columns.status).toBeDefined();
-    const statusColumn = tableConfig.columns.status;
-    expect(statusColumn).toBeDefined();
+    expect(tableConfig.columns.status.dataType).toBe('string');
+    // Legacy enum states from migration 013 (renamed to tenant_migrations_legacy_t038) must NOT appear.
+    expect(tableConfig.columns.cohort).toBeUndefined();
+    expect(tableConfig.columns.failure_reason).toBeUndefined();
   });
 
   it('schema is exported from packages/db/src/schema/index.ts', async () => {

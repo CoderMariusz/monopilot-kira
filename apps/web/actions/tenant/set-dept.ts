@@ -16,7 +16,16 @@ export type SetDepartmentOverrideInput = {
 
 export type SetDepartmentOverrideResult =
   | { ok: true; data: { deptOverrides: unknown } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'DUPLICATE_TARGET'
+        | 'forbidden'
+        | 'not_found'
+        | 'persistence_failed';
+      message?: string;
+    };
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -35,12 +44,17 @@ type DepartmentOverride =
   | { action: 'add'; code: string; label?: string; audit_reason?: string }
   | { action: 'rename'; source: string; target: string; label?: string; audit_reason?: string };
 
+type ParsedOverride =
+  | { ok: true; override: DepartmentOverride }
+  | { ok: false; error: 'invalid_input' | 'DUPLICATE_TARGET' };
+
 const FORBIDDEN = 'forbidden' as const;
 const CODE_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 
 export async function setDepartmentOverride(rawInput: SetDepartmentOverrideInput): Promise<SetDepartmentOverrideResult> {
-  const override = parseDepartmentOverride(rawInput);
-  if (!override) return { ok: false, error: 'invalid_input' };
+  const parsed = parseDepartmentOverride(rawInput);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const override = parsed.override;
 
   return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
     try {
@@ -79,35 +93,42 @@ export async function setDepartmentOverride(rawInput: SetDepartmentOverrideInput
   });
 }
 
-function parseDepartmentOverride(input: SetDepartmentOverrideInput | null | undefined): DepartmentOverride | null {
-  if (!input || typeof input !== 'object') return null;
+function parseDepartmentOverride(input: SetDepartmentOverrideInput | null | undefined): ParsedOverride {
+  if (!input || typeof input !== 'object') return { ok: false, error: 'invalid_input' };
   const auditReason = optionalText(input.auditReason, 512);
+
   if (input.action === 'split') {
     const source = normalizeCode(input.departmentCode);
     const targets = normalizeCodeList(input.targetDepartmentCodes);
-    if (!source || targets.length === 0 || hasDuplicates(targets) || targets.includes(source)) return null;
-    return { action: 'split', source, targets, audit_reason: auditReason };
+    if (!source || targets.length === 0) return { ok: false, error: 'invalid_input' };
+    if (hasDuplicates(targets) || targets.includes(source)) {
+      return { ok: false, error: 'DUPLICATE_TARGET' };
+    }
+    return { ok: true, override: { action: 'split', source, targets, audit_reason: auditReason } };
   }
   if (input.action === 'merge') {
     const sources = normalizeCodeList(input.sourceDepartmentCodes);
     const target = normalizeCode(input.targetDepartmentCode);
-    if (sources.length < 2 || hasDuplicates(sources) || !target || sources.includes(target)) return null;
-    return { action: 'merge', sources, target, audit_reason: auditReason };
+    if (sources.length < 2 || !target) return { ok: false, error: 'invalid_input' };
+    if (hasDuplicates(sources) || sources.includes(target)) {
+      return { ok: false, error: 'DUPLICATE_TARGET' };
+    }
+    return { ok: true, override: { action: 'merge', sources, target, audit_reason: auditReason } };
   }
   if (input.action === 'add') {
     const code = normalizeCode(input.newDepartmentCode ?? input.departmentCode);
     const label = optionalText(input.label, 100);
-    if (!code) return null;
-    return { action: 'add', code, label, audit_reason: auditReason };
+    if (!code) return { ok: false, error: 'invalid_input' };
+    return { ok: true, override: { action: 'add', code, label, audit_reason: auditReason } };
   }
   if (input.action === 'rename') {
     const source = normalizeCode(input.departmentCode);
     const target = normalizeCode(input.newDepartmentCode ?? input.targetDepartmentCode);
     const label = optionalText(input.label, 100);
-    if (!source || !target || source === target) return null;
-    return { action: 'rename', source, target, label, audit_reason: auditReason };
+    if (!source || !target || source === target) return { ok: false, error: 'invalid_input' };
+    return { ok: true, override: { action: 'rename', source, target, label, audit_reason: auditReason } };
   }
-  return null;
+  return { ok: false, error: 'invalid_input' };
 }
 
 function deptOverridePath(override: DepartmentOverride): string[] {
