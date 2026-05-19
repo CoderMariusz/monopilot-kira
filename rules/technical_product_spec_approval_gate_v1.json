@@ -1,0 +1,49 @@
+{
+  "rule_code": "technical_product_spec_approval_gate_v1",
+  "rule_type": "gate",
+  "tier": "L1",
+  "definition_json": {
+    "priority": "P1",
+    "description": "Authorized NPD post-release edits create new BOM/product-spec versions and require Technical approval before factory use.",
+    "metadata": {
+      "source_prd": "docs/prd/02-SETTINGS-PRD.md",
+      "source_refs": [
+        "§7.2 rule registry",
+        "§7.3 rules deploy",
+        "§3 PO decision 2026-05-03",
+        "§5.1 org_authorization_policies",
+        "Rule table #32",
+        "V-SET-44"
+      ],
+      "policy_table": "org_authorization_policies",
+      "policy_code": "technical_product_spec_approval",
+      "approval_gate_rule_code": "technical_product_spec_approval_gate_v1",
+      "consumers": [
+        "authorization-policy preflights",
+        "settings read-only rule views",
+        "01-NPD post-release edit request",
+        "03-TECHNICAL product-spec approval workflow"
+      ],
+      "read_only_registry": true
+    },
+    "invariants": {
+      "requires_new_version": true,
+      "required_approval": "Technical",
+      "before_factory_use": true,
+      "require_segregation_of_duties": true,
+      "variants_may_disable_gate": false,
+      "imports_may_disable_gate": false
+    },
+    "enforcement": {
+      "trigger": "authorized_npd_post_release_edit",
+      "result": "new_bom_and_product_spec_version_before_factory_use",
+      "approval_stage": "before_factory_use",
+      "blockers": [
+        "approval_gate_rule_missing",
+        "approval_gate_rule_inactive",
+        "approval_gate_rule_wrong_type",
+        "min_approvers_invalid"
+      ]
+    }
+  }
+}

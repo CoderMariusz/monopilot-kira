@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "required": ["priority", "description", "metadata", "invariants", "enforcement"],
+  "additionalProperties": false,
+  "properties": {
+    "priority": { "type": "string", "enum": ["P1", "P2"] },
+    "description": { "type": "string", "minLength": 1 },
+    "metadata": {
+      "type": "object",
+      "required": ["source_prd", "source_refs", "policy_table", "policy_code", "approval_gate_rule_code", "consumers", "read_only_registry"],
+      "additionalProperties": false,
+      "properties": {
+        "source_prd": { "type": "string", "minLength": 1 },
+        "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "policy_table": { "const": "org_authorization_policies" },
+        "policy_code": { "const": "technical_product_spec_approval" },
+        "approval_gate_rule_code": { "const": "technical_product_spec_approval_gate_v1" },
+        "consumers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "read_only_registry": { "const": true }
+      }
+    },
+    "invariants": {
+      "type": "object",
+      "required": [
+        "requires_new_version",
+        "required_approval",
+        "before_factory_use",
+        "require_segregation_of_duties",
+        "variants_may_disable_gate",
+        "imports_may_disable_gate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requires_new_version": { "const": true },
+        "required_approval": { "const": "Technical" },
+        "before_factory_use": { "const": true },
+        "require_segregation_of_duties": { "const": true },
+        "variants_may_disable_gate": { "const": false },
+        "imports_may_disable_gate": { "const": false }
+      }
+    },
+    "enforcement": {
+      "type": "object",
+      "required": ["trigger", "result", "approval_stage", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "trigger": { "const": "authorized_npd_post_release_edit" },
+        "result": { "const": "new_bom_and_product_spec_version_before_factory_use" },
+        "approval_stage": { "const": "before_factory_use" },
+        "blockers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}
