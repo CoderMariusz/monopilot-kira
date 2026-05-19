@@ -196,7 +196,16 @@ export default async function proxy(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Onboarding guard comes before idle timeout/org context per T-035.
+  // Locale home is the post-login landing/check page. It is still behind the
+  // verified Supabase token gate above, but it must remain reachable even when
+  // older JWTs do not yet carry onboarding metadata; otherwise a successful
+  // password sign-in can look like it bounced back to auth instead of landing.
+  if (stripLocalePrefix(pathname) === '/') {
+    await establishOrgContext(securityContext);
+    return intlHandler(req) as NextResponse;
+  }
+
+  // Onboarding guard comes before downstream app routes per T-035.
   if (!securityContext.onboardingCompletedAt) {
     return redirectTo(
       req,

@@ -81,11 +81,90 @@ function cookieValue(request: unknown, name: string): string | null {
   return null;
 }
 
+function cookieEntries(request: unknown): Array<readonly [string, string]> {
+  const cookieHeader = headerValue(request, 'cookie');
+  if (!cookieHeader) return [];
+  const entries: Array<readonly [string, string]> = [];
+  for (const part of cookieHeader.split(';')) {
+    const [rawName, ...rawValueParts] = part.trim().split('=');
+    if (!rawName || rawValueParts.length === 0) continue;
+    const rawValue = rawValueParts.join('=');
+    try {
+      entries.push([rawName, decodeURIComponent(rawValue)] as const);
+    } catch {
+      entries.push([rawName, rawValue] as const);
+    }
+  }
+  return entries;
+}
+
+function base64UrlDecode(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function combineChunkedCookie(entries: Array<readonly [string, string]>, baseName: string): string | null {
+  const direct = entries.find(([name]) => name === baseName)?.[1];
+  if (direct) return direct;
+
+  const chunks = entries
+    .map(([name, value]) => {
+      const match = new RegExp(`^${escapeRegex(baseName)}\\.(\\d+)$`).exec(name);
+      return match ? { index: Number(match[1]), value } : null;
+    })
+    .filter((chunk): chunk is { index: number; value: string } => chunk != null)
+    .sort((a, b) => a.index - b.index);
+
+  if (chunks.length === 0 || chunks[0].index !== 0) return null;
+  for (let i = 0; i < chunks.length; i += 1) {
+    if (chunks[i].index !== i) return null;
+  }
+  return chunks.map((chunk) => chunk.value).join('');
+}
+
+function accessTokenFromSupabaseSsrCookie(request: unknown): string | null {
+  const entries = cookieEntries(request);
+  const baseNames = new Set<string>();
+  for (const [name] of entries) {
+    const baseName = name.replace(/\.\d+$/, '');
+    if (/^sb-[a-z0-9]+-auth-token$/i.test(baseName)) baseNames.add(baseName);
+  }
+
+  for (const baseName of Array.from(baseNames)) {
+    const combined = combineChunkedCookie(entries, baseName);
+    if (!combined) continue;
+    try {
+      const decoded = combined.startsWith('base64-')
+        ? base64UrlDecode(combined.slice('base64-'.length))
+        : combined;
+      const parsed = JSON.parse(decoded) as unknown;
+      if (parsed && typeof parsed === 'object' && 'access_token' in parsed) {
+        const token = (parsed as { access_token?: unknown }).access_token;
+        if (typeof token === 'string' && token.length > 0) return token;
+      }
+      if (Array.isArray(parsed) && typeof parsed[0] === 'string' && parsed[0].length > 0) {
+        return parsed[0];
+      }
+    } catch {
+      // Ignore malformed cookies; checkIdleTimeout will fail closed if no token is found.
+    }
+  }
+
+  return null;
+}
+
 function bearerToken(request: unknown): string | null {
   const auth = headerValue(request, 'authorization');
   const match = auth?.match(/^Bearer\s+(\S+)$/i);
   if (match?.[1]) return match[1];
-  return cookieValue(request, 'sb-access-token');
+  return cookieValue(request, 'sb-access-token') ?? accessTokenFromSupabaseSsrCookie(request);
 }
 
 type JwtClaims = {
@@ -100,11 +179,7 @@ function decodeJwtClaims(token: string | null): JwtClaims {
   const payload = token.split('.')[1];
   if (!payload) return {};
   try {
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    const json = new TextDecoder().decode(bytes);
+    const json = base64UrlDecode(payload);
     return JSON.parse(json) as JwtClaims;
   } catch {
     return {};

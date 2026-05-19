@@ -88,6 +88,51 @@ describe('lib/auth/edge-middleware-policy (T-035 edge runtime helper)', () => {
   });
 
 
+  it('resolveEdgeSecurityContext extracts access token from Supabase SSR auth-token cookie', async () => {
+    const { resolveEdgeSecurityContext } = (await import(HELPER_PATH)) as {
+      resolveEdgeSecurityContext: (request: Request) => Promise<{
+        accessToken: string | null;
+        orgId: string | null;
+        role: string;
+        onboardingCompletedAt: string | null;
+      }>;
+    };
+    const payload = Buffer.from(JSON.stringify({
+      app_metadata: {
+        org_id: '22222222-2222-4222-8222-222222222222',
+        role: 'member',
+        onboarding_completed_at: '2026-05-02T00:00:00.000Z',
+      },
+    })).toString('base64url');
+    const token = `stub.${payload}.sig`;
+    const sessionCookie = `base64-${Buffer.from(JSON.stringify({ access_token: token, refresh_token: 'refresh-redacted' })).toString('base64url')}`;
+
+    const ctx = await resolveEdgeSecurityContext(new Request('https://app.example.com/en', {
+      headers: { cookie: `sb-khjvkhzwfzuwzrusgobp-auth-token=${encodeURIComponent(sessionCookie)}` },
+    }));
+
+    expect(ctx.accessToken).toBe(token);
+    expect(ctx.role).toBe('member');
+    expect(ctx.orgId).toBe('22222222-2222-4222-8222-222222222222');
+    expect(ctx.onboardingCompletedAt).toBe('2026-05-02T00:00:00.000Z');
+  });
+
+  it('resolveEdgeSecurityContext extracts access token from chunked Supabase SSR auth-token cookies', async () => {
+    const { resolveEdgeSecurityContext } = (await import(HELPER_PATH)) as {
+      resolveEdgeSecurityContext: (request: Request) => Promise<{ accessToken: string | null }>;
+    };
+    const sessionJwt = 'chunked.access.jwt';
+    const encoded = `base64-${Buffer.from(JSON.stringify({ access_token: sessionJwt })).toString('base64url')}`;
+    const first = encoded.slice(0, 20);
+    const second = encoded.slice(20);
+
+    const ctx = await resolveEdgeSecurityContext(new Request('https://app.example.com/en', {
+      headers: { cookie: `sb-khjvkhzwfzuwzrusgobp-auth-token.1=${encodeURIComponent(second)}; sb-khjvkhzwfzuwzrusgobp-auth-token.0=${encodeURIComponent(first)}` },
+    }));
+
+    expect(ctx.accessToken).toBe(sessionJwt);
+  });
+
   it('resolveEdgeSecurityContext keeps onboardingCompletedAt null for a valid token that lacks onboarding claim', async () => {
     const { resolveEdgeSecurityContext } = (await import(HELPER_PATH)) as {
       resolveEdgeSecurityContext: (request: Request) => Promise<{ accessToken: string | null; onboardingCompletedAt: string | null; role: string }>;

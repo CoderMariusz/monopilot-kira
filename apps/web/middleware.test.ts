@@ -268,6 +268,29 @@ describe('T-035 edge middleware security composition', () => {
     expect(intlHandlerMock).not.toHaveBeenCalled();
   });
 
+  it('allows authenticated locale home to render as the post-login landing page even before onboarding metadata is present', async () => {
+    resolveEdgeSecurityContextMock.mockResolvedValueOnce({
+      accessToken: 'fresh-access-token',
+      adminIpAllowlistCidrs: [],
+      onboardingCompletedAt: null,
+      orgId: '55555555-5555-5555-5555-555555555555',
+      role: 'member',
+      sessionIdleTimeoutMinutes: 60,
+    });
+    const { default: middleware } = await loadMiddleware();
+
+    const response = await middleware(makeRequest('/en'));
+
+    expect(response.status).toBe(200);
+    expect(checkIdleTimeoutMock).toHaveBeenCalledWith({
+      accessToken: 'fresh-access-token',
+      idleTimeoutMin: 60,
+      path: '/en',
+    });
+    expect(establishOrgContextMock).toHaveBeenCalled();
+    expect(intlHandlerMock).toHaveBeenCalled();
+  });
+
   it('forces logout on idle timeout before resolving org_id for protected routes', async () => {
     checkIdleTimeoutMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }));
     const { default: middleware } = await loadMiddleware();

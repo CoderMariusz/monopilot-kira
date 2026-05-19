@@ -103,6 +103,15 @@ describe('T-126 login UI contract', () => {
     expect(source).toContain('resetPasswordForEmail');
     expect(source).toContain('NEXT_PUBLIC_SITE_URL');
   });
+
+  it('defines /[locale] as an authenticated landing page so successful login visibly leaves the login form', () => {
+    const source = readWebFile('app/[locale]/page.tsx');
+
+    expect(source).toContain('createServerSupabaseClient');
+    expect(source).toContain('supabase.auth.getUser');
+    expect(source).toMatch(/Jesteś zalogowany|You are signed in/);
+    expect(source).toMatch(/Redirect po logowaniu działa|redirect/i);
+  });
 });
 
 describe('AUTH-UI-PARITY-001 prototype parity RED contract', () => {
