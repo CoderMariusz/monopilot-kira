@@ -127,7 +127,7 @@ function statusLabel(status: PermissionStatus) {
   return 'Enabled by org policy';
 }
 
-function policySummary(permission: RolePermission) {
+function resolvedPolicySummary(permission: RolePermission) {
   if (permission.status === 'disabled_by_org_policy') return 'Org policy blocks this workflow or assignment grant.';
   return permission.policySummary;
 }
@@ -234,7 +234,7 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
                           {statusLabel(permission.status)}
                         </Badge>
                       </div>
-                      {policySummary(permission) ? <p className="mt-2 text-sm text-slate-600">{policySummary(permission)}</p> : null}
+                      {resolvedPolicySummary(permission) ? <p className="mt-2 text-sm text-slate-600">{resolvedPolicySummary(permission)}</p> : null}
                     </li>
                   ))}
                 </ul>
