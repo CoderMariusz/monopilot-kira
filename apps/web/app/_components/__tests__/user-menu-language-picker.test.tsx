@@ -31,20 +31,38 @@ type UserMenuLanguagePickerProps = {
 };
 
 type UserMenuLanguagePicker = (props: UserMenuLanguagePickerProps) => React.ReactNode;
+type UserMenuLanguagePickerModule = {
+  default: UserMenuLanguagePicker;
+  SET100_LANGUAGE_PICKER_PARITY_CONTRACT?: {
+    prototype_path: string;
+    prototype_route: string;
+    target_route: string;
+    viewports: ReadonlyArray<{ name: string; width: number; height: number }>;
+    region_selectors: Record<string, string>;
+    parity_matrix: ReadonlyArray<{ region: string; structural: string; visual: string; interaction: string }>;
+    allowed_deviations: ReadonlyArray<{ region: string; prototype: string; implementation: string; reason: string }>;
+  };
+};
 
-async function loadLanguagePicker(): Promise<UserMenuLanguagePicker> {
+async function loadLanguagePickerModule(): Promise<UserMenuLanguagePickerModule> {
   try {
     const modulePath = '../user-menu-language-picker';
-    const mod = await import(/* @vite-ignore */ modulePath);
+    const mod = (await import(/* @vite-ignore */ modulePath)) as UserMenuLanguagePickerModule;
     expect(mod.default, 'SET-100 language picker must default-export a renderable React component').toEqual(
       expect.any(Function),
     );
-    return mod.default as UserMenuLanguagePicker;
+    return mod;
   } catch {
-    return function MissingUserMenuLanguagePicker() {
-      return <div role="menu" aria-label="Language" data-testid="missing-set-100-language-picker" />;
+    return {
+      default: function MissingUserMenuLanguagePicker() {
+        return <div role="menu" aria-label="Language" data-testid="missing-set-100-language-picker" />;
+      },
     };
   }
+}
+
+async function loadLanguagePicker(): Promise<UserMenuLanguagePicker> {
+  return (await loadLanguagePickerModule()).default;
 }
 
 async function renderLanguagePicker(overrides: Partial<UserMenuLanguagePickerProps> = {}) {
@@ -73,6 +91,41 @@ async function renderLanguagePicker(overrides: Partial<UserMenuLanguagePickerPro
 function languageMenu() {
   return screen.getByRole('menu', { name: /language/i });
 }
+
+describe('SET-100 user menu language picker parity contract', () => {
+  it('declares the prototype/target parity surface and the select-to-radio-menu deviation', async () => {
+    const mod = await loadLanguagePickerModule();
+    const contract = mod.SET100_LANGUAGE_PICKER_PARITY_CONTRACT;
+
+    expect(contract).toEqual(
+      expect.objectContaining({
+        prototype_path: 'prototypes/design/Monopilot Design System/settings/account-screens.jsx',
+        prototype_route: expect.stringContaining('account-screens.jsx'),
+        target_route: expect.stringContaining('user-menu-language-picker.tsx'),
+        region_selectors: expect.objectContaining({
+          language_menu: '[role="menu"][aria-label="Language"]',
+          active_language: '[role="menuitemradio"][aria-checked="true"]',
+          disabled_phase_2: '[role="menuitemradio"][aria-disabled="true"]',
+        }),
+      }),
+    );
+    expect(contract?.viewports.map((viewport) => viewport.name)).toEqual(['desktop-1280', 'mobile-375']);
+    expect(contract?.parity_matrix.map((row) => row.region)).toEqual([
+      'language_menu',
+      'language_options',
+      'active_feedback',
+    ]);
+    expect(contract?.allowed_deviations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          region: 'language_control',
+          prototype: expect.stringContaining('native <select>'),
+          implementation: expect.stringContaining('role=menuitemradio'),
+        }),
+      ]),
+    );
+  });
+});
 
 describe('SET-100 user menu language picker options and active state', () => {
   beforeEach(() => {

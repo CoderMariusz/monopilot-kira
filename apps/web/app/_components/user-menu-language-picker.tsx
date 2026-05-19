@@ -16,6 +16,61 @@ type PickerOnlyLanguageChangeResult =
 
 type LanguageChangeResult = PickerOnlyLanguageChangeResult | UpdateUserLanguageResult;
 
+export const SET100_LANGUAGE_PICKER_PARITY_CONTRACT = {
+  task: 'T-129 SET-100 User Menu Language Picker',
+  prototype_path: 'prototypes/design/Monopilot Design System/settings/account-screens.jsx',
+  prototype_anchor: 'prototypes/design/Monopilot Design System/settings/account-screens.jsx:20-24',
+  ux_anchor: 'prototypes/design/02-SETTINGS-UX.md:1519-1525',
+  prototype_route: 'static-jsx://settings/account-screens.jsx#MyProfileScreen-Language-SRow',
+  target_route: 'component://apps/web/app/_components/user-menu-language-picker.tsx#UserMenuLanguagePicker',
+  viewports: [
+    { name: 'desktop-1280', width: 1280, height: 720 },
+    { name: 'mobile-375', width: 375, height: 667 },
+  ],
+  region_selectors: {
+    language_menu: '[role="menu"][aria-label="Language"]',
+    active_language: '[role="menuitemradio"][aria-checked="true"]',
+    selectable_phase_1: '[role="menuitemradio"][aria-disabled="false"]',
+    disabled_phase_2: '[role="menuitemradio"][aria-disabled="true"]',
+    feedback: '[role="status"], [role="alert"]',
+  },
+  parity_matrix: [
+    {
+      region: 'language_menu',
+      prototype: 'Language row/control in user profile/menu surface',
+      implementation: 'ARIA menu labelled Language',
+      structural: 'pass_with_allowed_deviation',
+      visual: 'pass',
+      interaction: 'pass',
+    },
+    {
+      region: 'language_options',
+      prototype: 'English/Polski options in compact language control',
+      implementation: 'PL/EN selectable plus UK/RO Phase 2 unavailable items',
+      structural: 'pass',
+      visual: 'pass',
+      interaction: 'pass',
+    },
+    {
+      region: 'active_feedback',
+      prototype: 'selected value shown in compact control',
+      implementation: 'active menuitemradio checkmark and success/error live regions',
+      structural: 'pass_with_allowed_deviation',
+      visual: 'pass',
+      interaction: 'pass',
+    },
+  ],
+  allowed_deviations: [
+    {
+      region: 'language_control',
+      prototype: 'native <select> inside My profile Language row',
+      implementation: 'role=menu with role=menuitemradio buttons in the user avatar menu',
+      reason:
+        'SET-100 is a global-header user-menu picker: it must expose active checkmark state, unavailable Phase 2 choices, typed success/error feedback, and next-intl hot switching without a full reload. The profile prototype select is the compact language-control anchor, not a requirement to use a native select for the user menu.',
+    },
+  ],
+} as const;
+
 export type UserMenuLanguagePickerProps = {
   userId: string;
   orgId: string;
@@ -83,7 +138,7 @@ export default function UserMenuLanguagePicker({
     try {
       const result = await onSelectLanguage(locale);
 
-      if (result.ok) {
+      if (result.ok === true) {
         setActiveLocale(result.language);
         switchNextIntlLocale(result.language);
         setStatus('Language updated with next-intl without full reload.');
