@@ -5,11 +5,10 @@
  * RED scope: tests only. The production component is expected to be added by IMPL.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { DashboardPipelinePreview } from '../dashboard-pipeline-preview';
+import type { DashboardPipelinePreviewProps } from '../dashboard-pipeline-preview';
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string | { pathname?: string }; children: React.ReactNode }) => {
@@ -18,29 +17,7 @@ vi.mock('next/link', () => ({
   },
 }));
 
-type GateStatus = 'todo' | 'in-progress' | 'blocked' | 'done';
-
-type RecentProject = {
-  id: string;
-  projectId: string;
-  code: string;
-  productCode: string;
-  name: string;
-  owner: string;
-  currentGate: string;
-  gateStatus: GateStatus;
-};
-
-type DashboardPipelinePreviewProps = {
-  recentProjects: RecentProject[];
-};
-
-type DashboardPipelinePreviewComponent = React.ComponentType<DashboardPipelinePreviewProps>;
-
-const currentFile = fileURLToPath(import.meta.url);
-const componentPath = path.resolve(path.dirname(currentFile), '../dashboard-pipeline-preview.tsx');
-
-const sampleRecentProjects: RecentProject[] = [
+const sampleRecentProjects: DashboardPipelinePreviewProps['recentProjects'] = [
   {
     id: 'npd-project-001',
     projectId: 'npd-project-001',
@@ -63,25 +40,21 @@ const sampleRecentProjects: RecentProject[] = [
   },
 ];
 
-async function loadDashboardPipelinePreview(): Promise<DashboardPipelinePreviewComponent> {
-  if (!existsSync(componentPath)) {
-    expect.fail(
-      'DashboardPipelinePreview production component is missing at apps/web/app/(npd)/_components/dashboard-pipeline-preview.tsx; IMPL must add the client component before these RTL behavior tests can render.',
-    );
-  }
-
-  const componentUrl = pathToFileURL(componentPath).href;
-  const mod = (await import(componentUrl)) as {
-    default?: DashboardPipelinePreviewComponent;
-    DashboardPipelinePreview?: DashboardPipelinePreviewComponent;
+function makeRecentProject(index: number): DashboardPipelinePreviewProps['recentProjects'][number] {
+  const code = `FA57${String(index).padStart(2, '0')}`;
+  return {
+    id: `npd-project-${index}`,
+    projectId: `npd-project-${index}`,
+    code,
+    productCode: code,
+    name: `Compact preview project ${index}`,
+    owner: 'NPD Owner',
+    currentGate: index % 2 === 0 ? 'Commercial' : 'Technical',
+    gateStatus: ['todo', 'in-progress', 'blocked', 'done'][index % 4] as DashboardPipelinePreviewProps['recentProjects'][number]['gateStatus'],
   };
-  const Component = mod.DashboardPipelinePreview ?? mod.default;
-  expect(Component, 'DashboardPipelinePreview must be exported as a named or default React component').toBeTypeOf('function');
-  return Component;
 }
 
-async function renderPreview(recentProjects: RecentProject[]) {
-  const DashboardPipelinePreview = await loadDashboardPipelinePreview();
+function renderPreview(recentProjects: DashboardPipelinePreviewProps['recentProjects']) {
   return render(<DashboardPipelinePreview recentProjects={recentProjects} />);
 }
 
@@ -111,6 +84,17 @@ describe('AC1: populated pipeline preview card parity', () => {
     expect(badges[0]).toHaveTextContent(/in progress/i);
     expect(badges[1]).toHaveTextContent(/blocked/i);
     expect(badges.every((badge) => /●|•|dot/i.test(badge.textContent ?? '') || badge.querySelector('[aria-hidden="true"]'))).toBe(true);
+  });
+
+  it('keeps the mini-view compact by rendering no more than the first ten recent projects', async () => {
+    const elevenRecentProjects = Array.from({ length: 11 }, (_, index) => makeRecentProject(index + 1));
+    const { container } = await renderPreview(elevenRecentProjects);
+
+    const card = container.querySelector('[data-slot="card"]') ?? screen.getByRole('region', { name: /pipeline/i });
+    const projectRows = within(card as HTMLElement).getAllByRole('link', { name: /FA57\d{2}.*Compact preview project/i });
+
+    expect(projectRows, 'Dashboard mini-view must stay within the top 5-10 recent-project rows').toHaveLength(10);
+    expect(within(card as HTMLElement).queryByRole('link', { name: /FA5711.*Compact preview project 11/i })).not.toBeInTheDocument();
   });
 });
 
