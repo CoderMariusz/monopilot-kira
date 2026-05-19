@@ -110,7 +110,7 @@ export async function deployRules(input: DeployRulesInput): Promise<DeployRulesR
          returning id, org_id, rule_code, rule_type, tier, definition_json, version, active_to, deployed_by, deploy_ref`,
         [input.orgId, rule, toVersion, input.deployedBy, input.deployRef],
       );
-      const insertedRow = (inserted.rows[0] ?? { id: null }) as Partial<RuleDefinitionRow>;
+      const insertedId = (inserted.rows[0] as Partial<RuleDefinitionRow> | undefined)?.id ?? null;
       counters.inserted += 1;
 
       const eventPayload = {
@@ -125,7 +125,7 @@ export async function deployRules(input: DeployRulesInput): Promise<DeployRulesR
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
          values ($1::uuid, $2, 'rule', $3, $4::jsonb, 'rules-deploy-v1')`,
-        [input.orgId, 'rule.deployed', insertedRow.id ?? null, eventPayload],
+        [input.orgId, 'rule.deployed', insertedId, eventPayload],
       );
       counters.eventsEmitted += 1;
       await input.client.query('commit');
