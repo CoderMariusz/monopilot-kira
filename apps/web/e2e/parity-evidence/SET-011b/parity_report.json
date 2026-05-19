@@ -1,0 +1,105 @@
+{
+  "task": "T-127",
+  "screen": "SET-011b authorization_policies_screen",
+  "reviewed_at": "2026-05-19T22:52:59Z",
+  "reviewed_head": "c033f1e46141ec7400d46dff921c4bdb65715e00",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239",
+  "prototype_route": "prototype-line-range://prototypes/design/Monopilot%20Design%20System/settings/access-screens.jsx#L154-L239",
+  "target_route": "/settings/authorization",
+  "target_files": [
+    "apps/web/app/(admin)/settings/authorization/page.tsx",
+    "apps/web/app/(admin)/settings/authorization/page.test.tsx"
+  ],
+  "evidence_mode": "rtl_structural_fallback",
+  "evidence_pointer": "apps/web/app/(admin)/settings/authorization/page.test.tsx:130-177",
+  "playwright_evidence": {
+    "status": "not_produced",
+    "blocker": "No SET-011b Playwright route/screenshot harness exists in the scoped GREEN rework. The task records RTL structural fallback evidence and an inline snapshot for the two policy-card layout; screenshots/traces should be produced by a later browser/e2e parity harness when available.",
+    "base_url": null,
+    "server_identity": "not_applicable_for_rtl_fallback",
+    "trace_artifacts": [],
+    "screenshot_pairs": []
+  },
+  "viewports": [
+    { "name": "desktop", "width": 1280, "height": 800, "evidence": "rtl_jsdom_fallback" }
+  ],
+  "region_selectors": [
+    {
+      "id": "npd_post_release_edit",
+      "label": "NPD post-release edit authorization",
+      "prototype_selector": "SecurityScreen Section+SRow form pattern lines 164-183 translated to authorization policy card rows",
+      "target_selector": "role=region[name=/npd post-release edit authorization/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/authorization/page.test.tsx:114-120,130-177"
+    },
+    {
+      "id": "technical_product_spec_approval",
+      "label": "Technical product-spec approval gate",
+      "prototype_selector": "SecurityScreen Section+SRow form pattern lines 201-218 translated to authorization policy card rows",
+      "target_selector": "role=region[name=/technical product-spec approval gate/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/authorization/page.test.tsx:122-127,130-177"
+    },
+    {
+      "id": "save_controls",
+      "label": "Save authorization policies",
+      "prototype_selector": "SecurityScreen form action pattern lines 343-347 translated to audit-reason save controls",
+      "target_selector": "role=region[name=/policy changes/i]",
+      "evidence_pointer": "apps/web/app/(admin)/settings/authorization/page.test.tsx:230-284"
+    }
+  ],
+  "parity_matrix": [
+    {
+      "region": "npd_post_release_edit",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_policy_summary_values",
+      "evidence": "Card primitive, Badge primitive, Section+SRow density rows, permission strings, authorizer roles, status badge, version, and invariant banner asserted."
+    },
+    {
+      "region": "technical_product_spec_approval",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_policy_summary_values",
+      "evidence": "Card primitive, Badge primitive, approval gate rule technical_product_spec_approval_gate_v1, minimum approvers, locked factory-use invariant, and status badge asserted."
+    },
+    {
+      "region": "save_controls",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "t126_action_result_or_test_callback",
+      "evidence": "Audit reason required, pending save state, disabled controls, save/discard, T-126 action wiring, and server blocker handling asserted."
+    }
+  ],
+  "dom_diff": {
+    "status": "rtl_inline_snapshot_fallback",
+    "prototype_regions": ["SecurityScreen Section+SRow pattern"],
+    "target_regions": ["NPD post-release edit authorization", "Technical product-spec approval gate", "Policy changes"],
+    "unmapped_prototype_regions": [],
+    "unmapped_target_regions": [],
+    "evidence_pointer": "apps/web/app/(admin)/settings/authorization/page.test.tsx:130-177"
+  },
+  "state_coverage": {
+    "loading": "apps/web/app/(admin)/settings/authorization/page.test.tsx:265-284 pending save state",
+    "missing_seed": "apps/web/app/(admin)/settings/authorization/page.test.tsx:196-227",
+    "misconfigured": "apps/web/app/(admin)/settings/authorization/page.test.tsx:196-227,326-352",
+    "permission_denied": "apps/web/app/(admin)/settings/authorization/page.test.tsx:181-193",
+    "save_success": "apps/web/app/(admin)/settings/authorization/page.test.tsx:230-263",
+    "audit_log_link": "apps/web/app/(admin)/settings/authorization/page.test.tsx:354-361"
+  },
+  "coverage": {
+    "viewport_coverage": "1/1 rtl fallback",
+    "region_coverage": "3/3",
+    "selector_coverage": "3/3"
+  },
+  "console_errors": "not_applicable_for_rtl_fallback",
+  "network_errors": "not_applicable_for_rtl_fallback",
+  "deviations": [
+    {
+      "region": "prototype_source",
+      "detail": "SET-011b has no exact canonical prototype; implementation is spec-driven and uses access-screens.jsx SecurityScreen Section+SRow/Card/Button/Badge form density as the nearest reusable pattern."
+    }
+  ],
+  "overall_status": "pass_with_rtl_fallback"
+}

@@ -11,7 +11,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../../../actions/authorization/policy-actions', () => ({
@@ -126,6 +126,57 @@ describe('SET-011b layout and invariant summaries', () => {
     expect(within(technicalCard).getByText('technical_product_spec_approval_gate_v1')).toBeInTheDocument();
     expect(within(technicalCard).getByText(/factory-use blocking is locked on/i)).toBeInTheDocument();
   });
+
+  it('records the RTL structural fallback snapshot for SET-011b parity evidence', async () => {
+    await renderAuthorizationPolicies();
+
+    const structuralFallback = screen.getAllByTestId('authorization-policy-card').map((card) => {
+      const cardRoot = card.closest('[data-slot="card"]') as HTMLElement | null;
+      expect(cardRoot, 'authorization policy card should be wrapped by the Card primitive').not.toBeNull();
+      return {
+        region: cardRoot!.getAttribute('aria-label'),
+        primitive: cardRoot!.getAttribute('data-slot'),
+        statusBadge: cardRoot!.querySelector('[data-slot="badge"]')?.textContent?.trim(),
+        rows: Array.from(cardRoot!.querySelectorAll('.text-sm.font-medium')).map((node) => node.textContent?.trim()),
+        invariants: Array.from(cardRoot!.querySelectorAll('[data-slot="alert"] p')).map((node) => node.textContent?.trim()),
+      };
+    });
+
+    expect(structuralFallback).toMatchInlineSnapshot(`
+      [
+        {
+          "invariants": [
+            "Requires a new released version for every approved post-release edit.",
+            "Self-authorization is never allowed.",
+          ],
+          "primitive": "card",
+          "region": "NPD post-release edit authorization",
+          "rows": [
+            "Required authorization permission",
+            "Request permissions",
+            "Authorizer roles",
+          ],
+          "statusBadge": "Enabled",
+        },
+        {
+          "invariants": [
+            "technical_product_spec_approval_gate_v1 is visible and locked against edits.",
+            "Factory-use blocking is locked on.",
+            "Self-authorization is never allowed.",
+          ],
+          "primitive": "card",
+          "region": "Technical product-spec approval gate",
+          "rows": [
+            "Required authorization permission",
+            "Authorizer roles",
+            "Minimum approvers",
+            "Approval gate rule",
+          ],
+          "statusBadge": "Enabled",
+        },
+      ]
+    `);
+  });
 });
 
 describe('SET-011b read-only permission state', () => {
@@ -210,6 +261,27 @@ describe('SET-011b saving, audit reason and discard', () => {
 
     expect(await screen.findByText(/version 4/i)).toBeInTheDocument();
     expect(await screen.findByText(/version 6/i)).toBeInTheDocument();
+  });
+
+  it('shows a pending save state and disables write controls while T-126 save is in flight', async () => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: { ok: true; policies: PolicySummary[] }) => void;
+    const onSave = vi.fn(
+      () => new Promise<{ ok: true; policies: PolicySummary[] }>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    await renderAuthorizationPolicies({ onSave });
+
+    await user.type(screen.getByRole('textbox', { name: /audit reason/i }), 'Quarterly authorization policy review');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent(/saving authorization policies/i);
+    expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /discard/i })).toBeDisabled();
+
+    resolveSave({ ok: true, policies: basePolicies });
+    await waitFor(() => expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled());
   });
 
   it('wires the editable page save flow to the T-126 updateAuthorizationPolicy action for both policy cards', async () => {
