@@ -7,19 +7,23 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
-import { completeOnboarding } from '../_actions';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
+import { completeOnboarding, restartOnboarding } from '../_actions';
 import { OnboardingCompleteClient } from './_components/complete-client';
 
-export default async function OnboardingCompletePage() {
+export default async function OnboardingCompletePage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
       <OnboardingCompleteClient
         state={ctx.state === 'permission_denied' ? 'error' : ctx.state}
         completeOnboarding={completeOnboarding}
+        restartOnboarding={restartOnboarding}
       />
     );
   }
+
+  await redirectIfOnboardingStepMismatch('completion', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingCompleteClient
@@ -36,6 +40,7 @@ export default async function OnboardingCompletePage() {
         savedAt: ctx.onboardingState.savedAt,
       }}
       completeOnboarding={completeOnboarding}
+      restartOnboarding={restartOnboarding}
     />
   );
 }

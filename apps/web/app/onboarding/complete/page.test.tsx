@@ -16,11 +16,13 @@ import userEvent from '@testing-library/user-event';
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
+const usePathnameMock = vi.fn(() => '/en/onboarding/complete');
 
 vi.mock('next/navigation', () => ({
   redirect: (href: string) => {
     throw new Error(`NEXT_REDIRECT:${href}`);
   },
+  usePathname: usePathnameMock,
   useRouter: () => ({
     push: routerPush,
     replace: vi.fn(),
@@ -83,7 +85,7 @@ const baseProps: OnboardingCompletionPageProps = {
   completeOnboarding: vi.fn().mockResolvedValue({
     ok: true,
     onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-    redirectTo: '/admin',
+    redirectTo: '/settings/users',
   } satisfies CompleteOnboardingResult),
   retryLoad: vi.fn(),
 };
@@ -113,7 +115,7 @@ async function renderCompletion(overrides: Partial<OnboardingCompletionPageProps
     completeOnboarding: overrides.completeOnboarding ?? vi.fn().mockResolvedValue({
       ok: true,
       onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-      redirectTo: '/admin',
+      redirectTo: '/settings/users',
     } satisfies CompleteOnboardingResult),
     retryLoad: overrides.retryLoad ?? vi.fn(),
   };
@@ -136,6 +138,7 @@ function stepperLabels() {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  usePathnameMock.mockReturnValue('/en/onboarding/complete');
 });
 
 describe('SET-006 onboarding completion prototype parity', () => {
@@ -203,7 +206,7 @@ describe('SET-006 onboarding completion prototype parity', () => {
     const completeOnboarding = vi.fn().mockResolvedValue({
       ok: true,
       onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-      redirectTo: '/admin',
+      redirectTo: '/settings/users',
     } satisfies CompleteOnboardingResult);
     await renderCompletion({ completeOnboarding });
 
@@ -219,7 +222,9 @@ describe('SET-006 onboarding completion prototype parity', () => {
     expect(completeOnboarding).toHaveBeenCalledWith({ orgId: 'org-apex' });
     expect(await screen.findByText(/onboarding completed/i)).toBeInTheDocument();
     expect(screen.getByText(/2026-05-19T21:00:00.000Z/i)).toBeInTheDocument();
-    expect(routerPush).toHaveBeenCalledWith('/admin');
+    expect(routerRefresh).toHaveBeenCalledTimes(1);
+    expect(routerPush).toHaveBeenCalledWith('/en/settings/users');
+    expect(routerPush).not.toHaveBeenCalledWith('/admin');
     expect(routerPush).not.toHaveBeenCalledWith('/onboarding');
   });
 

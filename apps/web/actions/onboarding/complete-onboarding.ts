@@ -1,5 +1,6 @@
 import { revalidatePath } from 'next/cache';
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { createServerSupabaseClient } from '../../lib/auth/supabase-server';
 
 export type CompleteOnboardingInput = { orgId: string };
 
@@ -39,6 +40,12 @@ async function stampOnboardingClaim(userId: string, completedAt: string): Promis
   return !updated.error;
 }
 
+async function refreshCurrentSession(): Promise<boolean> {
+  const supabase = await createServerSupabaseClient();
+  const refreshed = await supabase.auth.refreshSession();
+  return !refreshed.error && Boolean(refreshed.data.session);
+}
+
 export async function completeOnboarding(rawInput: CompleteOnboardingInput): Promise<CompleteOnboardingResult> {
   'use server';
 
@@ -64,6 +71,7 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
       revalidatePath('/settings/onboarding');
+      revalidatePath('/settings/users');
       return {
         ok: true,
         onboardingCompletedAt: row.onboarding_completed_at,
@@ -76,6 +84,11 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
 
     const stamped = await stampOnboardingClaim(result.authUserId, result.onboardingCompletedAt);
     if (!stamped) {
+      return { ok: false, error: 'AUTH_METADATA_FAILED' };
+    }
+
+    const refreshed = await refreshCurrentSession();
+    if (!refreshed) {
       return { ok: false, error: 'SESSION_REFRESH_FAILED' };
     }
 

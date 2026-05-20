@@ -7,6 +7,7 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
 import {
   skipOnboardingWorkOrderStep,
   completeOnboardingWorkOrderStep,
@@ -14,7 +15,7 @@ import {
 } from '../_actions';
 import { OnboardingWorkOrderClient } from './_components/workorder-client';
 
-export default async function OnboardingWorkOrderPage() {
+export default async function OnboardingWorkOrderPage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
@@ -26,6 +27,8 @@ export default async function OnboardingWorkOrderPage() {
       />
     );
   }
+
+  await redirectIfOnboardingStepMismatch('first_wo', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingWorkOrderClient

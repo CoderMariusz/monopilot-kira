@@ -7,10 +7,11 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
 import { skipOnboardingProductStep, completeOnboardingProductStep } from '../_actions';
 import { OnboardingProductClient } from './_components/product-client';
 
-export default async function OnboardingProductPage() {
+export default async function OnboardingProductPage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
@@ -21,6 +22,8 @@ export default async function OnboardingProductPage() {
       />
     );
   }
+
+  await redirectIfOnboardingStepMismatch('first_product', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingProductClient

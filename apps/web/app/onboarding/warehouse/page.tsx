@@ -7,6 +7,7 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
 import { createFirstWarehouse } from '../_actions';
 import { OnboardingWarehouseClient } from './_components/warehouse-client';
 
@@ -17,7 +18,7 @@ const EMPTY_INITIAL_WAREHOUSE = {
   address: '',
 };
 
-export default async function OnboardingWarehousePage() {
+export default async function OnboardingWarehousePage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
@@ -27,6 +28,8 @@ export default async function OnboardingWarehousePage() {
       />
     );
   }
+
+  await redirectIfOnboardingStepMismatch('first_warehouse', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingWarehouseClient

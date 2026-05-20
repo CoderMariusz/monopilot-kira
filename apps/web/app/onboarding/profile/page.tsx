@@ -7,14 +7,17 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
 import { saveOrgProfile } from '../_actions';
 import { OnboardingProfileClient } from './_components/profile-client';
 
-export default async function OnboardingProfilePage() {
+export default async function OnboardingProfilePage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return <OnboardingProfileClient state={ctx.state} saveOrgProfile={saveOrgProfile} />;
   }
+
+  await redirectIfOnboardingStepMismatch('org_profile', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingProfileClient

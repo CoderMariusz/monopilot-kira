@@ -7,10 +7,11 @@
  */
 
 import { loadOnboardingContext } from '../_loader';
+import { redirectIfOnboardingStepMismatch, type OnboardingRouteProps } from '../_routing';
 import { createFirstLocation } from '../_actions';
 import { OnboardingLocationClient } from './_components/location-client';
 
-export default async function OnboardingLocationPage() {
+export default async function OnboardingLocationPage(props: OnboardingRouteProps = {}) {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
@@ -20,6 +21,8 @@ export default async function OnboardingLocationPage() {
       />
     );
   }
+
+  await redirectIfOnboardingStepMismatch('first_location', ctx.onboardingState.currentStep, props);
 
   return (
     <OnboardingLocationClient

@@ -5,6 +5,7 @@ import { createFirstWarehouse as createFirstWarehouseAction } from '../../action
 import { createFirstLocation as createFirstLocationAction } from '../../actions/onboarding/create-first-location';
 import { markFirstWoCreated as markFirstWoCreatedAction } from '../../actions/onboarding/mark-first-wo-created';
 import { completeOnboarding as completeOnboardingAction } from '../../actions/onboarding/complete-onboarding';
+import { restartOnboarding as restartOnboardingAction } from '../../actions/onboarding/restart';
 import { skipOnboardingStep } from '../../actions/onboarding/skip-step';
 import { completeOnboardingStep } from '../../actions/onboarding/complete-step';
 
@@ -33,6 +34,10 @@ export async function markFirstWoCreated(input: Parameters<typeof markFirstWoCre
 
 export async function completeOnboarding(input: Parameters<typeof completeOnboardingAction>[0]) {
   return completeOnboardingAction(input);
+}
+
+export async function restartOnboarding(input: Parameters<typeof restartOnboardingAction>[0] = {}) {
+  return restartOnboardingAction(input);
 }
 
 export async function skipOnboardingProductStep(step: 4): Promise<ProductSkipResult> {

@@ -20,6 +20,11 @@ type CompleteOnboardingResult = {
   error?: string;
 };
 
+type RestartOnboardingResult = {
+  ok: boolean;
+  error?: string;
+};
+
 type OnboardingCompletionPageProps = {
   organization?: {
     id: string;
@@ -34,6 +39,7 @@ type OnboardingCompletionPageProps = {
   };
   state?: 'ready' | 'loading' | 'error';
   completeOnboarding?: (input: { orgId: string }) => Promise<CompleteOnboardingResult>;
+  restartOnboarding?: () => Promise<RestartOnboardingResult>;
   retryLoad?: () => void;
 };
 
@@ -117,11 +123,27 @@ async function missingCompleteOnboarding(): Promise<CompleteOnboardingResult> {
   return { ok: false, error: 'PERSISTENCE_FAILED' };
 }
 
+async function missingRestartOnboarding(): Promise<RestartOnboardingResult> {
+  return { ok: false, error: 'PERSISTENCE_FAILED' };
+}
+
+function localeAwarePath(pathname: string | null, target: string): string {
+  const normalizedTarget = target.startsWith('/') ? target : `/${target}`;
+  if (/^\/[a-z]{2}(?:-[A-Z]{2})?(?:\/|$)/.test(normalizedTarget)) {
+    return normalizedTarget;
+  }
+
+  const firstSegment = pathname?.split('/').filter(Boolean)[0];
+  const locale = firstSegment && /^[a-z]{2}(?:-[A-Z]{2})?$/.test(firstSegment) ? firstSegment : 'en';
+  return `/${locale}${normalizedTarget}`;
+}
+
 export function OnboardingCompleteClient({
   organization = DEFAULT_ORGANIZATION,
   onboardingState = DEFAULT_ONBOARDING_STATE,
   state = 'ready',
   completeOnboarding = missingCompleteOnboarding,
+  restartOnboarding = missingRestartOnboarding,
   retryLoad,
 }: OnboardingCompletionPageProps) {
   const t = useTranslations('onboarding');
@@ -131,6 +153,7 @@ export function OnboardingCompleteClient({
   const [completed, setCompleted] = useState<OnboardingStepKey[]>(onboardingState.completedSteps);
   const [skipped, setSkipped] = useState<OnboardingStepKey[]>(onboardingState.skippedSteps);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedAt, setCompletedAt] = useState<string | null>(organization.onboardingCompletedAt);
@@ -139,12 +162,27 @@ export function OnboardingCompleteClient({
   const currentIndex = ONBOARDING_STEPS.findIndex((step) => step.key === currentStep.key);
   const percent = Math.round((completed.length / ONBOARDING_STEPS.length) * 100);
 
-  function restart() {
-    setCurrent('org_profile');
-    setCompleted([]);
-    setSkipped([]);
+  async function restart() {
+    setIsRestarting(true);
     setStatusMessage(null);
     setErrorMessage(null);
+    try {
+      const result = await restartOnboarding();
+      if (!result.ok) {
+        setErrorMessage(result.error ?? 'PERSISTENCE_FAILED');
+        return;
+      }
+
+      setCurrent('org_profile');
+      setCompleted([]);
+      setSkipped([]);
+      setCompletedAt(null);
+      setStatusMessage('Onboarding restarted. organizations.onboarding_state was committed.');
+      router.refresh();
+      router.push(localeAwarePath(pathname, '/onboarding/profile'));
+    } finally {
+      setIsRestarting(false);
+    }
   }
 
   function navigateStep(step: OnboardingStepKey) {
@@ -191,10 +229,8 @@ export function OnboardingCompleteClient({
       setCompleted((existing) => (existing.includes('completion') ? existing : [...existing, 'completion']));
       setStatusMessage('Onboarding completed. organizations.onboarding_completed_at was committed.');
       const target = result.redirectTo ?? '/settings/users';
-      const normalizedTarget = target.startsWith('/') ? target : `/${target}`;
-      const firstSegment = pathname?.split('/').filter(Boolean)[0];
-      const locale = firstSegment && /^[a-z]{2}(?:-[A-Z]{2})?$/.test(firstSegment) ? firstSegment : 'en';
-      router.push(`/${locale}${normalizedTarget}`);
+      router.refresh();
+      router.push(localeAwarePath(pathname, target));
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +271,7 @@ export function OnboardingCompleteClient({
           <p className="mt-1 text-sm text-slate-600">{t('wizard_subtitle', { percent })}</p>
         </div>
         <div className="flex gap-2">
-          <Button type="button" className="btn-secondary" onClick={restart}>
+          <Button type="button" className="btn-secondary" onClick={restart} disabled={isRestarting || isSubmitting}>
             {t('restart')}
           </Button>
           {currentStep.skippable ? (
@@ -328,7 +364,7 @@ export function OnboardingCompleteClient({
           Step {currentStep.num} of 6 · {completed.length} completed{skipped.length ? ` · ${skipped.length} skipped` : ''}
         </div>
         {current === 'completion' ? (
-          <Button type="button" className="btn-primary" onClick={finishOnboarding} disabled={isSubmitting}>
+          <Button type="button" className="btn-primary" onClick={finishOnboarding} disabled={isSubmitting || isRestarting}>
             {isSubmitting ? 'Finishing…' : t('finish')}
           </Button>
         ) : (
