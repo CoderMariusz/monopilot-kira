@@ -8,7 +8,7 @@
 
 import { loadOnboardingContext } from '../_loader';
 import { createFirstWarehouse } from '../_actions';
-import { FirstWarehouseOnboardingClient } from './_components/warehouse-client';
+import { OnboardingWarehouseClient } from './_components/warehouse-client';
 
 const EMPTY_INITIAL_WAREHOUSE = {
   name: '',
@@ -21,7 +21,7 @@ export default async function OnboardingWarehousePage() {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
-      <FirstWarehouseOnboardingClient
+      <OnboardingWarehouseClient
         state={ctx.state}
         createFirstWarehouse={createFirstWarehouse}
       />
@@ -29,7 +29,7 @@ export default async function OnboardingWarehousePage() {
   }
 
   return (
-    <FirstWarehouseOnboardingClient
+    <OnboardingWarehouseClient
       state="ready"
       orgId={ctx.orgId}
       onboardingState={{

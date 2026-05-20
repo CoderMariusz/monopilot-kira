@@ -8,13 +8,13 @@
 
 import { loadOnboardingContext } from '../_loader';
 import { completeOnboarding } from '../_actions';
-import { OnboardingCompletionClient } from './_components/complete-client';
+import { OnboardingCompleteClient } from './_components/complete-client';
 
 export default async function OnboardingCompletePage() {
   const ctx = await loadOnboardingContext();
   if (ctx.state !== 'ready') {
     return (
-      <OnboardingCompletionClient
+      <OnboardingCompleteClient
         state={ctx.state === 'permission_denied' ? 'error' : ctx.state}
         completeOnboarding={completeOnboarding}
       />
@@ -22,7 +22,7 @@ export default async function OnboardingCompletePage() {
   }
 
   return (
-    <OnboardingCompletionClient
+    <OnboardingCompleteClient
       state="ready"
       organization={{
         id: ctx.organization.id,

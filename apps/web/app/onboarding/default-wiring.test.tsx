@@ -72,13 +72,13 @@ describe('B1 onboarding default wiring', () => {
       })),
     }));
 
-    const skip = await (await import('../../actions/onboarding/skip-step')).skipOnboardingStep(4);
+    const skip = await (await import('../../actions/onboarding/skip-step.js')).skipOnboardingStep(4);
     expect(skip).toEqual({ ok: true, skippedStep: 4, nextStep: 'first_wo' });
 
-    const complete = await (await import('../../actions/onboarding/complete-step')).completeOnboardingStep(5);
+    const complete = await (await import('../../actions/onboarding/complete-step.js')).completeOnboardingStep(5);
     expect(complete).toEqual({ ok: true, completedStep: 5, nextStep: 'completion' });
 
-    const wo = await (await import('../../actions/onboarding/mark-first-wo-created')).markFirstWoCreated({
+    const wo = await (await import('../../actions/onboarding/mark-first-wo-created.js')).markFirstWoCreated({
       orgId: 'org-a',
       workOrderId: 'wo-1',
       createdAt: '2026-05-20T06:00:00.000Z',
