@@ -35,6 +35,7 @@ export default async function OnboardingLocationPage() {
         skippedSteps: ctx.onboardingState.skippedSteps,
         savedAt: ctx.onboardingState.savedAt,
       }}
+      firstWarehouse={ctx.firstWarehouse ?? undefined}
       createFirstLocation={createFirstLocation}
     />
   );

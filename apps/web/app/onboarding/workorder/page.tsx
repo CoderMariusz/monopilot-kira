@@ -39,7 +39,7 @@ export default async function OnboardingWorkOrderPage() {
         currentStep: 'first_wo',
         completedSteps: ctx.onboardingState.completedSteps,
         skippedSteps: ctx.onboardingState.skippedSteps,
-        firstWoAt: null,
+        firstWoAt: ctx.onboardingState.firstWoAt,
         savedAt: ctx.onboardingState.savedAt,
       }}
       skipOnboardingStep={skipOnboardingWorkOrderStep}
