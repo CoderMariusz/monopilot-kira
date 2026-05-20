@@ -1,13 +1,8 @@
 /**
  * @vitest-environment jsdom
- * B1 default-wiring proof — verifies that each onboarding page route imports
- * a real Server Action wrapper (so production Next runtime calls real DB-bound
- * code instead of failing closed on missing test-injected props), and that the
- * wrapper modules return the per-step result shapes that page handlers expect.
- *
- * These tests would fail if a page were reverted to optional-mutation-only
- * wiring or if a wrapper's response shape drifted away from page.tsx
- * expectations (the Wave 7/8 false-green this branch fixes).
+ * B1 default-wiring proof — verifies that each onboarding production route is
+ * an RSC wrapper that imports the shared server loader and action adapter, and
+ * that the action adapter reaches the real DB-bound Server Action modules.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -19,53 +14,45 @@ function pageSource(route: string): string {
   return readFileSync(resolve(repoRoot, 'apps/web/app/onboarding', route, 'page.tsx'), 'utf8');
 }
 
+function appOnboardingSource(file: string): string {
+  return readFileSync(resolve(repoRoot, 'apps/web/app/onboarding', file), 'utf8');
+}
+
 afterEach(() => {
   vi.resetModules();
 });
 
 describe('B1 onboarding default wiring', () => {
-  it('profile page wires saveOrgProfile + loadOnboardingContext server actions', () => {
-    const src = pageSource('profile');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/save-org-profile'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/load'/);
-    expect(src).toMatch(/saveOrgProfile = saveOrgProfileAction/);
+  it('all onboarding pages are production RSC wrappers wired through shared loader/actions', () => {
+    for (const route of ['profile', 'warehouse', 'location', 'product', 'workorder', 'complete']) {
+      const src = pageSource(route);
+      expect(src.startsWith("'use client'"), `${route} must not be a test-only client page`).toBe(false);
+      expect(src).toMatch(/from '\.\.\/_loader'/);
+      expect(src).toMatch(/from '\.\.\/_actions'/);
+      expect(src).toMatch(new RegExp(`<.*Client[\\s\\S]*${route === 'profile' ? 'saveOrgProfile' : route === 'warehouse' ? 'createFirstWarehouse' : route === 'location' ? 'createFirstLocation' : route === 'complete' ? 'completeOnboarding' : route === 'product' ? 'skipOnboardingStep' : 'markFirstWoCreated'}`));
+    }
   });
 
-  it('warehouse page wires createFirstWarehouse + loadOnboardingContext', () => {
-    const src = pageSource('warehouse');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/create-first-warehouse'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/load'/);
-    expect(src).toMatch(/createFirstWarehouse = createFirstWarehouseAction/);
+  it('shared RSC loader delegates to the real withOrgContext-backed onboarding loader', () => {
+    const src = appOnboardingSource('_loader.ts');
+    expect(src).toMatch(/from '\.\.\/\.\.\/actions\/onboarding\/load'/);
+    expect(src).toMatch(/loadRealOnboardingContext\(\)/);
+    expect(src).toMatch(/firstWarehouse/);
   });
 
-  it('location page wires createFirstLocation + loadOnboardingContext', () => {
-    const src = pageSource('location');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/create-first-location'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/load'/);
-    expect(src).toMatch(/createFirstLocation = createFirstLocationAction/);
-  });
-
-  it('product page wires step skip/complete via real onboarding mutators', () => {
-    const src = pageSource('product');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/skip-step'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/complete-step'/);
-    expect(src).toMatch(/skipOnboardingStep = defaultSkipForStep4/);
-    expect(src).toMatch(/completeOnboardingStep = defaultCompleteForStep4/);
-  });
-
-  it('workorder page wires skip/complete + markFirstWoCreated', () => {
-    const src = pageSource('workorder');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/skip-step'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/complete-step'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/mark-first-wo-created'/);
-    expect(src).toMatch(/markFirstWoCreated = markFirstWoCreatedAction/);
-  });
-
-  it('complete page wires completeOnboarding + loadOnboardingContext', () => {
-    const src = pageSource('complete');
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/complete-onboarding'/);
-    expect(src).toMatch(/from '\.\.\/\.\.\/\.\.\/actions\/onboarding\/load'/);
-    expect(src).toMatch(/completeOnboarding = completeOnboardingAction/);
+  it('shared action adapter imports real Server Action modules outside tests', () => {
+    const src = appOnboardingSource('_actions.ts');
+    for (const action of [
+      'save-org-profile',
+      'create-first-warehouse',
+      'create-first-location',
+      'skip-step',
+      'complete-step',
+      'mark-first-wo-created',
+      'complete-onboarding',
+    ]) {
+      expect(src).toMatch(new RegExp(`from '\\.\\.\\/\\.\\.\\/actions\\/onboarding\\/${action}'`));
+    }
   });
 
   it('wrappers translate mutateOnboarding {ok:true,data:{state}} into per-step shapes', async () => {
