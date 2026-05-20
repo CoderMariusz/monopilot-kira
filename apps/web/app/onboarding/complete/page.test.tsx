@@ -90,7 +90,7 @@ const baseProps: OnboardingCompletionPageProps = {
 
 async function loadOnboardingCompletionPage(): Promise<OnboardingCompletionPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/complete-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-006 completion page must default-export a renderable React component').toEqual(
       expect.any(Function),

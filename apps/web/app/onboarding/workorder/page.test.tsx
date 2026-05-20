@@ -128,7 +128,7 @@ const baseProps: OnboardingWorkOrderPageProps = {
 
 async function loadOnboardingWorkOrderPage(): Promise<OnboardingWorkOrderPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/workorder-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-005 workorder page must default-export a renderable React component').toEqual(
       expect.any(Function),

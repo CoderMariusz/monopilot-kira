@@ -116,7 +116,7 @@ const baseProps: OnboardingLocationPageProps = {
 
 async function loadOnboardingLocationPage(): Promise<OnboardingLocationPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/location-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-003 location page must default-export a renderable React component').toEqual(
       expect.any(Function),

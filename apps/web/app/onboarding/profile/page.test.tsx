@@ -126,7 +126,7 @@ const baseProps: OnboardingProfilePageProps = {
 
 async function loadOnboardingProfilePage(): Promise<OnboardingProfilePage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/profile-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-001 profile page must default-export a renderable React component').toEqual(
       expect.any(Function),
