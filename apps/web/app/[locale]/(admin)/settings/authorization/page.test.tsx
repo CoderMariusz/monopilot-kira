@@ -59,6 +59,7 @@ type AuthorizationPageProps = {
     technical: TechnicalPolicy | null;
   };
   auditLogHref: string;
+  labels: Record<string, string>;
   updateAuthorizationPolicy: ReturnType<typeof vi.fn>;
 };
 
@@ -66,9 +67,70 @@ type AuthorizationPage = (props: AuthorizationPageProps) => React.ReactNode | Pr
 
 const TECHNICAL_GATE = 'technical_product_spec_approval_gate_v1';
 
-vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
-}));
+const labels = {
+  auditLink: 'View audit log →',
+  auditReason: 'Audit reason',
+  auditReasonRequired: 'Audit reason is required',
+  auditReasonPlaceholder: 'Describe why these authorization settings are changing',
+  approvalPermission: 'Approval permission',
+  approvalPermissionHint: 'Fixed permission string used by the Technical gate.',
+  approvalThresholds: 'Approval thresholds',
+  approverRoles: 'Approver roles',
+  approverRolesHint: 'Roles selected by the authorization policy row.',
+  authorizePermission: 'Authorize permission',
+  authorizePermissionHint: 'Fixed permission string required to approve a request.',
+  authorizedRoles: 'Authorized roles',
+  authorizedRolesHint: 'Roles selected by T-126 policy data.',
+  blockFactoryUseUntilApproved: 'Block factory-use until approved',
+  blockerApprovalPolicyDisabled: 'Approval policy is disabled',
+  blockerApproverRoleMissing: 'Select at least one approver role',
+  blockerAuthorizePermissionMissing: 'Authorize permission is missing',
+  blockerAuthorizerRoleMissing: 'Select at least one authorized role',
+  blockerGateRuleMissing: 'Technical approval gate rule is missing',
+  blockerMinApproversInvalid: 'Minimum approvers must be at least 1',
+  blockerPolicyDisabled: 'Policy is disabled',
+  blockerRequestPermissionMissing: 'Request permission is missing',
+  blockerRequiresNewVersionRequired: 'requires_new_version must remain true for released-product edits',
+  blockerSelfAuthorization: 'Requester and authorizer must be different users',
+  blockersTitle: 'Typed blockers from T-126 preflight',
+  discard: 'Discard',
+  dualSignOff: 'Dual sign-off',
+  dualSignOffNotRequired: 'Not required',
+  dualSignOffRequired: 'Required',
+  errorBody: 'Authorization policies could not be loaded. Refresh and try again.',
+  errorTitle: 'Unable to load authorization policies',
+  factoryUseLock: 'Factory-use lock',
+  gateRuleCode: 'Gate rule code',
+  gateRuleCodeHint: 'Immutable rule binding from V-SET-44.',
+  invariantBanner: 'Authorized edits always create a new BOM/product-spec version; in-place mutation is never allowed. Factory-use approval remains locked until Technical signs off.',
+  invariantFlags: 'Invariant flags',
+  loadingLabel: 'Loading authorization policies',
+  minimumApprovers: 'Minimum approvers',
+  minimumAuthorizers: 'Minimum authorizers',
+  minimumAuthorizersHint: 'T-126 validates blockers and segregation of duties on save.',
+  missingSeedBody: 'Required org_authorization_policies rows are absent. Seed these policy codes before editing settings:',
+  missingSeedTitle: 'Authorization policy seed missing',
+  noRoleSelected: 'No role selected',
+  npdDescription: 'Authorizes released product/BOM edit requests after NPD release.',
+  npdTitle: 'NPD post-release edit authorization',
+  pageSubtitle: 'Control who can request released product/BOM edits and technical approval gates.',
+  pageTitle: 'Authorization Policies',
+  policiesSaved: 'Policies saved.',
+  policySaveError: 'Unable to save policies',
+  readOnlyNotice: 'Read-only: settings.authorization.edit is required to change authorization policies.',
+  requestPermission: 'Request permission',
+  requestPermissionHint: 'Fixed permission string used by workflows.',
+  requiresNewVersion: 'Requires new version',
+  savePolicies: 'Save policies',
+  saveSectionLabel: 'Save authorization policies',
+  segregationOfDuties: 'Segregation of duties',
+  statusDisabled: 'Disabled',
+  statusEnabled: 'Enabled',
+  statusMisconfigured: 'Misconfigured',
+  technicalDescription: 'Blocks production/factory use until Technical approval is recorded.',
+  technicalTitle: 'Technical product-spec approval gate',
+  version: 'Version',
+};
 
 vi.mock('../../../../../actions/authorization/policy-actions', () => ({
   updateAuthorizationPolicy: vi.fn().mockResolvedValue({ ok: true, data: { version: 1 } }),
@@ -119,7 +181,7 @@ const readyPolicies: AuthorizationPageProps['policies'] = {
 
 async function loadAuthorizationPage(): Promise<AuthorizationPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './authorization-screen.client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-011b authorization page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -140,6 +202,7 @@ async function renderAuthorizationPage(overrides: Partial<AuthorizationPageProps
     roles,
     policies: readyPolicies,
     auditLogHref: '/en/settings/audit?action=authorization_policy_update',
+    labels,
     updateAuthorizationPolicy: vi.fn().mockResolvedValue({ ok: true, data: { version: 8 } }),
     ...overrides,
   };
@@ -162,6 +225,20 @@ describe('SET-011b Authorization Policies layout', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it('keeps the App Router page as a Server Component and moves interactivity to the client leaf', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const dir = path.join(process.cwd(), 'app/[locale]/(admin)/settings/authorization');
+    const pageSource = await fs.readFile(path.join(dir, 'page.tsx'), 'utf8');
+    const clientSource = await fs.readFile(path.join(dir, 'authorization-screen.client.tsx'), 'utf8');
+
+    expect(pageSource.startsWith("'use client'"), 'page.tsx must not be a Client Component').toBe(false);
+    expect(pageSource.startsWith('"use client"'), 'page.tsx must not be a Client Component').toBe(false);
+    expect(pageSource).toContain('getTranslations');
+    expect(pageSource).toContain('withOrgContext');
+    expect(clientSource.startsWith('"use client"')).toBe(true);
   });
 
   it('renders the two policy cards with read-only permission strings, status badges, invariant banner, and audit link', async () => {
