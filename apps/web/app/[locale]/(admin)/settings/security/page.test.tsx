@@ -330,7 +330,21 @@ describe('SET-012 security screen prototype parity', () => {
     });
     expect(screen.getByRole('dialog', { name: /add ip range/i })).toHaveAttribute('data-modal-id', 'SM-IP-ALLOWLIST');
 
-    expect(container.querySelectorAll('input[data-slot="switch"], input[data-slot="checkbox"], select[data-slot], table[data-slot]').length).toBe(0);
+    const switchControls = screen.getAllByRole('switch');
+    expect(switchControls).toHaveLength(4);
+    expect(switchControls.every((control) => control.matches('button[data-slot="switch"]'))).toBe(true);
+    expect(container.querySelectorAll('input[role="switch"], input[type="checkbox"]').length).toBe(0);
+
+    const checkboxControls = screen.getAllByRole('checkbox');
+    expect(checkboxControls).toHaveLength(3);
+    expect(checkboxControls.every((control) => control.matches('button[data-slot="checkbox"]'))).toBe(true);
+
+    const selectControls = screen.getAllByRole('combobox');
+    expect(selectControls).toHaveLength(4);
+    expect(selectControls.every((control) => control.matches('button[data-slot="select-trigger"]'))).toBe(true);
+    expect(container.querySelectorAll('[data-slot="select"]').length).toBe(4);
+    expect(container.querySelectorAll('select').length).toBe(0);
+
     expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(2);
     expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(2);
 
