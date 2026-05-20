@@ -5,7 +5,9 @@
     "settings",
     "ui",
     "settings-d-modals-parity",
-    "T4-wiring-test"
+    "T4-wiring-test",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 80,
   "max_attempts": 3,
@@ -42,6 +44,23 @@
     ],
     "prototype_match": true,
     "prototype_index_entry": "rule_dry_run_modal, delete_reference_data_modal, ref_row_edit_modal",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
+    ],
+    "checkpoint_policy": {
+      "closeout_requires": [
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
+      ]
+    }
   }
 }

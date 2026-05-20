@@ -1,11 +1,13 @@
 {
   "title": "T-100 — Tenant Variations Dashboard (SET-060)",
-  "prompt": "# T-100 — Tenant Variations Dashboard (SET-060)\n\n## Goal\nSET-060 Tenant Variations Dashboard production component (spec-driven; no exact prototype).\n\nSpec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-060 / tenant-variations` replaces prototype parity as the authoritative UI contract. Reuse cards/toggles/status patterns from settings admin screens where available; do not implement FlagsAdminScreen as tenant variations. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.\n\n## Files in scope\n- apps/web/app/(admin)/settings/tenant/page.tsx [create]\n- apps/web/app/(admin)/settings/tenant/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, it MUST satisfy `prototypes/design/02-SETTINGS-UX.md SET-060 / tenant-variations` as the source of truth. UX spec replaces prototype parity for this task; no wrong/adjacent prototype may be used as a 1:1 source. Reused prototype elements must be limited to matching primitives/patterns and must not change the screen semantics, routes, fields, or states required by the UX spec.\n- Given the org has 2 dept_overrides + 3 rule variants set, when page renders, then each section header shows the correct count.\n- Given Edit is clicked on a dept override, when navigation runs, then router.push to /settings/tenant/depts.\n\n## Test strategy (RED first)\n- RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.\n- GREEN: build component, wire Server Action(s).\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/page.test.tsx [create]` and `pnpm typecheck`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).\n- Do not paste prototype JSX wholesale — translate to production contract.\n- Do not regress accessibility (axe violations = fail).\n- Do not claim 1:1 prototype parity for this screen; exact prototype is missing and UX spec is authoritative.",
+  "prompt": "# T-100 — Tenant Variations Dashboard (SET-060)\n\n## Goal\nSET-060 Tenant Variations Dashboard production component (spec-driven; no exact prototype).\n\nSpec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-060 / tenant-variations` replaces prototype parity as the authoritative UI contract. Reuse cards/toggles/status patterns from settings admin screens where available; do not implement FlagsAdminScreen as tenant variations. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.\n\n## Files in scope\n- apps/web/app/[locale]/(admin)/settings/tenant/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/tenant/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, it MUST satisfy `prototypes/design/02-SETTINGS-UX.md SET-060 / tenant-variations` as the source of truth. UX spec replaces prototype parity for this task; no wrong/adjacent prototype may be used as a 1:1 source. Reused prototype elements must be limited to matching primitives/patterns and must not change the screen semantics, routes, fields, or states required by the UX spec.\n- Given the org has 2 dept_overrides + 3 rule variants set, when page renders, then each section header shows the correct count.\n- Given Edit is clicked on a dept override, when navigation runs, then router.push to /settings/tenant/depts.\n\n## Test strategy (RED first)\n- RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.\n- GREEN: build component, wire Server Action(s).\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/tenant/page.test.tsx [create]` and `pnpm typecheck`.\n\n## Risk red lines\n- Do not import @radix-ui/react-dialog outside packages/ui (§0 ESLint rule).\n- Do not paste prototype JSX wholesale — translate to production contract.\n- Do not regress accessibility (axe violations = fail).\n- Do not claim 1:1 prototype parity for this screen; exact prototype is missing and UX spec is authoritative.",
   "labels": [
     "prd",
     "ui",
     "set-060",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -27,8 +29,8 @@
     "description": "SET-060 Tenant Variations Dashboard production component (spec-driven; no exact prototype).",
     "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for this screen. `prototypes/design/02-SETTINGS-UX.md SET-060 / tenant-variations` replaces prototype parity as the authoritative UI contract. Reuse cards/toggles/status patterns from settings admin screens where available; do not implement FlagsAdminScreen as tenant variations. Any prototype snippets are element/pattern references only, not 1:1 screen sources. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Dashboard shows an Authorization Policies summary card for npd_post_release_edit and technical_product_spec_approval with Enabled/Misconfigured/Disabled statuses and a link to /settings/authorization.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/tenant/page.tsx",
-      "apps/web/app/(admin)/settings/tenant/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/tenant/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/tenant/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",
@@ -47,7 +49,7 @@
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/tenant/page.test.tsx [create]` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/tenant/page.test.tsx [create]` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -58,7 +60,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -72,7 +78,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

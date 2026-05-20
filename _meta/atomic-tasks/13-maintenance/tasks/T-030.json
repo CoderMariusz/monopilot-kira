@@ -6,7 +6,9 @@
     "e2e",
     "playwright",
     "cross-module",
-    "T4-wiring-test"
+    "T4-wiring-test",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 95,
   "max_attempts": 3,
@@ -77,7 +79,11 @@
     "skills": [
       "test-driven-development",
       "systematic-debugging",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -92,7 +98,13 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "playwright_artifacts"
+        "playwright_artifacts",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

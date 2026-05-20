@@ -1,0 +1,103 @@
+{
+  "title": "T-135 — Foundation shell unit contracts (RTL) — sidebar/topbar/layout/subnav/PageHeader/scanner",
+  "prompt": "# T-135 — Foundation shell unit contracts (RTL)\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nConsolidate the per-component RTL specs created by UI-129/130/131/132 and T-134 into a single contract suite that asserts the cross-component invariants the brief defines as KRYTYCZNE. Each invariant is one focused spec; together they form the shell unit gate that runs before the Playwright gate (T-136). This task does NOT replace the per-component specs — it adds the cross-component contracts that no single UI task owns.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §7 risks (scanner inherits AppShell, login renders sidebar, SiteSwitcher too early, T-130 not done when UI-132 ready, language picker `'use client'`).\n\n## Files (scope)\n- `apps/web/components/shell/__tests__/shell-contract.test.tsx` [create — RTL suite covering the cross-component invariants below]\n- `apps/web/lib/navigation/__tests__/shell-nav-integrity.test.ts` [create — pure-data integrity assertions on UI-128 manifests as they appear at runtime]\n\nDo NOT create new product code in this task. Do NOT modify any UI-127..UI-132 / T-133 / T-134 source file. Do NOT modify proxy.ts or any T-XXX.json outside this wave.\n\n## Invariants to assert (the suite)\n1. AppShell composition — rendering `(app)/layout.tsx` (with a mocked authed Supabase client + mocked `next/headers`) yields exactly one `data-testid=\"app-shell\"`, exactly one `app-sidebar`, exactly one `app-topbar`, and children are rendered under `app-shell-main`.\n2. Login isolation — rendering the `(auth)/login/page.tsx` tree must NOT contain any of `app-shell`, `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame` test-ids.\n3. Settings composition — rendering `(app)/(admin)/settings/layout.tsx` with mocked authed session yields `app-shell` AND `settings-subnav` AND a `settings-main` region; the active settings item carries `aria-current=\"page\"`.\n4. Scanner isolation — rendering `(scanner)/layout.tsx` yields `scanner-frame` and contains NONE of `app-shell`/`app-sidebar`/`app-topbar`/`settings-subnav`.\n5. SiteCrumb static slot — `<SiteCrumb orgName=\"Acme\"/>` renders text `Acme`, carries `data-todo=\"multi-site-T-020\"`, and contains no `role=\"combobox\"` / `role=\"listbox\"` / `<select>` / Radix Select primitives.\n6. RBAC TODO — every `settings-subnav` item in the rendered tree carries `data-todo=\"rbac/02-settings/T-130\"`; no item is conditionally hidden by a permission check.\n7. Language picker mount boundary — rendering `<UserMenu>` mounts `UserMenuLanguagePicker` exactly once; `UserMenuLanguagePicker` source file has not been modified (assert via `fs.readFileSync` hash comparison stored as a frozen baseline in the test).\n8. Tokens consumed — for each of `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame`, the suite asserts the relevant `getComputedStyle` width/height resolves to the UI-127 CSS variable value (not a literal px elsewhere). The CSS-var values themselves come from `apps/web/app/globals.css` parsed at test time.\n9. Nav manifest integrity — `APP_NAV_GROUPS` has 4 groups and 12 items; all `route` values are locale-relative (start with `/`, do not start with `/en` or `/pl`); every `i18n_key` resolves in both `apps/web/i18n/en.json` and `pl.json`; `count_slot === null` and `permission_key === null` on every item; `rbac_todo` is a non-empty string on every item that the brief earmarks for RBAC gating.\n10. Settings nav manifest integrity — same shape as (9) for `SETTINGS_NAV_GROUPS`; route uniqueness; key uniqueness; i18n resolution in both locales.\n\n## Acceptance criteria\n1. All 10 invariants implemented as discrete `it(...)` cases under either `shell-contract.test.tsx` (rendering) or `shell-nav-integrity.test.ts` (pure data).\n2. Each invariant case has a comment naming the brief §7 risk or §3 luka it guards.\n3. The suite is RED before UI-129..UI-132 + T-134 land and GREEN after they all land. Pipeline must run T-135 after each of those is closed; this is enforced by the wave DAG (priority 85, depends on UI-129, UI-130, UI-131, UI-132, T-134).\n4. `pnpm --filter web test shell-contract shell-nav-integrity -- --run` passes.\n5. `pnpm --filter web typecheck` and `lint` pass.\n6. No file outside `apps/web/components/shell/__tests__/` and `apps/web/lib/navigation/__tests__/` is modified.\n\n## Out of scope\n- Browser-level (Playwright) assertions — T-136 owns them.\n- Visual regression / screenshot diffing.\n- Per-component specs that already exist in UI-129..UI-132/T-134 (do NOT duplicate them).\n- Mocking Supabase / next/headers beyond what the tests need to render.\n\n## RED test\nThe suite is itself the RED test for the wave; commit it before promoting UI-131..T-134, then re-run after.\n\n## Risk red lines\n- Do not import production code from `apps/web/app/[locale]/(app)/` directly into Vitest fixtures without mocking `next/headers`, `next/navigation`, `next-intl`, and `createServerSupabaseClient` — they require the App Router runtime otherwise.\n- Do not fork the navigation manifest in tests — import the real modules from UI-128.\n- Do not assert pixel-perfect visual diffs here (T-136).\n- Do not modify product source files; only test files.\n\n## Closeout\nProvide: test_commands_and_results, acceptance_criteria_status, changed_files (only the two test files), git_status, deviations_from_prototype (n/a — pure unit contracts).",
+  "labels": [
+    "wave-app-shell-foundation",
+    "test",
+    "foundation",
+    "shell",
+    "rtl",
+    "T4-wiring-test"
+  ],
+  "priority": 85,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-135",
+    "human_task_id": "T-135-foundation-shell-unit-contracts",
+    "display_task_id": "T-135",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §7 all risks",
+      "brief §3 Luka A/B/C/D/E/F/G"
+    ],
+    "category": "test",
+    "subcategory": "shell-unit-contracts",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "35k",
+    "estimated_effort": "2-3h",
+    "description": "Cross-component RTL + data integrity suite asserting the brief's §7 risks and the UI-127..UI-132/T-134 invariants. Two test files only — no product code modified.",
+    "details": "shell-contract.test.tsx mocks next/headers, next/navigation, next-intl, and createServerSupabaseClient to render (app)/layout.tsx, (app)/(admin)/settings/layout.tsx, (scanner)/layout.tsx, and (auth)/login/page.tsx trees. shell-nav-integrity.test.ts imports APP_NAV_GROUPS and SETTINGS_NAV_GROUPS from UI-128 and asserts structure, uniqueness, locale-relative routes, i18n resolution against apps/web/i18n/{en,pl,uk,ro}.json, count_slot/permission_key null, rbac_todo populated. Both files are RED until UI-129..T-134 land.",
+    "scope_files": [
+      "apps/web/components/shell/__tests__/shell-contract.test.tsx [create]",
+      "apps/web/lib/navigation/__tests__/shell-nav-integrity.test.ts [create]"
+    ],
+    "scope_paths": [
+      "apps/web/components/shell/__tests__/",
+      "apps/web/lib/navigation/__tests__/"
+    ],
+    "out_of_scope": [
+      "Playwright browser assertions (T-136)",
+      "Visual regression / screenshot diffs",
+      "Duplicating per-component specs from UI-129..UI-132/T-134",
+      "Modifying any product source file",
+      "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+    ],
+    "dependencies": [
+      "UI-129",
+      "UI-130",
+      "UI-131",
+      "UI-132",
+      "T-134"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "10 invariants implemented as discrete it() cases, each with a comment naming brief §7 risk or §3 luka",
+      "shell-contract.test.tsx covers AppShell composition, login isolation, settings composition, scanner isolation, SiteCrumb static, RBAC TODO presence, language picker mount boundary, token consumption",
+      "shell-nav-integrity.test.ts covers manifest counts, route uniqueness, locale-relative routes, en/pl/uk/ro i18n resolution, count_slot/permission_key null, rbac_todo populated",
+      "Suite is RED before UI-129..T-134 land and GREEN after",
+      "pnpm --filter web test shell-contract shell-nav-integrity -- --run passes",
+      "typecheck + lint pass",
+      "Only the two test files are modified; no product source change"
+    ],
+    "test_strategy": [
+      "Write shell-contract.test.tsx + shell-nav-integrity.test.ts (RED — components do not exist yet)",
+      "Promote UI-129..UI-132 + T-134 (each turns part of the suite green)",
+      "pnpm --filter web test shell-contract shell-nav-integrity -- --run",
+      "pnpm --filter web typecheck",
+      "pnpm --filter web lint"
+    ],
+    "risk_red_lines": [
+      "Mock next/headers, next/navigation, next-intl, createServerSupabaseClient — do not pull the live runtime",
+      "Import the real navigation manifests — do not fork them in test fixtures",
+      "Do not assert pixel-perfect visuals here (T-136)",
+      "Do not modify any product source file",
+      "Do not duplicate per-component specs"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-verification",
+      "MON-t4-test"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "closeout_requires": [
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ]
+    },
+    "wave": "app-shell-foundation-20260520"
+  }
+}

@@ -1,11 +1,13 @@
 {
-  "title": "T-026 \u2014 UI: FIN-010 Variance Drill-down (fin_variance_drilldown, \u00a78.4)",
-  "prompt": "# T-026 \u2014 FIN-010 Variance Drill-down UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.4 FIN-010 [UNIVERSAL]; \u00a711.5 V-FIN-VAR-01..04 highlights.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621` (`fin_variance_drilldown`)\n\n## Goal\nClient Component page `/finance/variance/drilldown` with 5-level hierarchical drill (Category \u2192 Item \u2192 WO \u2192 Transaction \u2192 Raw record) + sticky side panel + breadcrumb trail + deep-linkable URL params.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621`.\nshadcn primitives: Card, Table, TableRow, TableCell, Breadcrumb, BreadcrumbItem, Button, Badge, Separator.\nDepends_on_prototypes: `variance_note_modal` (T-025 created).\nParity checklist:\n1. Level state driven by URL params (`?level=0..4&cat=&item=&wo=`) via nuqs.\n2. Breadcrumb trail clickable per step (resets to that level + URL update).\n3. Level 0: 4 tile Cards (Material / Labor / Overhead / Waste) showing total variance per category for the active period. Click \u2192 level=1.\n4. Level 1: Item list ranked by absolute variance with RankBar component (% of category total) and VarBadge. Click \u2192 level=2.\n5. Level 2: WO list contributing to selected item. Click \u2192 level=3.\n6. Level 3: Embedded condensed WO cost summary (first card + variance breakdown reused from T-020) + transaction list (material_consumption_costs rows for the item+WO). 'View Full WO Cost Card' Link \u2192 T-020 page.\n7. Level 4: Raw transaction record SummaryList: TX ID, timestamp, LP consumed Link (\u2192 05-WH), qty_kg, unit_cost, cost method, source.\n8. Sticky right sidebar (240px, top-24): aktywne filters (period, category, item) + running tally drill-path variance contribution. Quick actions: 'Add Note' \u2192 MODAL-07 (T-025), 'Export' \u2192 MODAL-10 (T-032).\n\n## Implementation contract\n1. `app/finance/variance/drilldown/page.tsx` \u2014 RSC reads URL params + fetches data for the current level only (other levels are pre-cached via React.cache if cheap, else lazy via SWR).\n2. `app/finance/variance/drilldown/_components/drilldown-client.tsx` \u2014 Client component for level state + breadcrumb interactions.\n3. `app/finance/_components/rank-bar.tsx` \u2014 shared primitive (horizontal bar with fav/unfav color).\n4. RBAC: visible to `fin.wo_cost.view` permission (own line for prod_manager via RLS).\n\n## Files\n- apps/web/app/finance/variance/drilldown/page.tsx [create]\n- apps/web/app/finance/variance/drilldown/_components/drilldown-client.tsx [create]\n- apps/web/app/finance/_components/rank-bar.tsx [create]\n- apps/web/app/finance/variance/drilldown/_components/__tests__/drilldown-client.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given URL ?level=0, when page renders, then 4 category tiles with totals; clicking 'Material' updates URL to ?level=1&cat=Material and shows ranked items. AND given URL ?level=1&cat=Material, when item RM-X clicked, then URL=?level=2&cat=Material&item=RM-X and WO list shown.\n- Given level=3 with WO selected, when rendered, then condensed WO summary + tx list; 'View Full WO Cost Card' routes to /finance/wos/[woId]/cost. AND given level=4 with WO and tx selected, when rendered, then raw tx + LP link to 05-WH.\n- Given Breadcrumb shows 4 steps and user clicks step 1, when handled, then URL resets to ?level=1&cat=Material (item/wo cleared).\n- Given sidebar 'Add Note' clicked, when modal opens, then MODAL-07 with drill-down's WO context. AND given page compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621 (parity), then 5 levels + breadcrumb + sidebar render correctly.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: drilldown-client.test.tsx asserts URL-driven level state + breadcrumb interactions + level transitions + sidebar Add Note + RTL snapshot of each level.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/variance/drilldown`.\n\n## Risk red lines\n- Do not store level state in useState only \u2014 must be URL-driven (deep-linkable per UX).\n- Do not paste prototype JSX verbatim.\n- Do not over-fetch \u2014 fetch only the data for the current level (paginate higher levels).\n- Do not break the back button (URL state preserves history).\n- Do not regress accessibility (Breadcrumb requires aria-current='page' on the active step).\n",
+  "title": "T-026 — UI: FIN-010 Variance Drill-down (fin_variance_drilldown, §8.4)",
+  "prompt": "# T-026 — FIN-010 Variance Drill-down UI\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.4 FIN-010 [UNIVERSAL]; §11.5 V-FIN-VAR-01..04 highlights.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621` (`fin_variance_drilldown`)\n\n## Goal\nClient Component page `/finance/variance/drilldown` with 5-level hierarchical drill (Category → Item → WO → Transaction → Raw record) + sticky side panel + breadcrumb trail + deep-linkable URL params.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621`.\nshadcn primitives: Card, Table, TableRow, TableCell, Breadcrumb, BreadcrumbItem, Button, Badge, Separator.\nDepends_on_prototypes: `variance_note_modal` (T-025 created).\nParity checklist:\n1. Level state driven by URL params (`?level=0..4&cat=&item=&wo=`) via nuqs.\n2. Breadcrumb trail clickable per step (resets to that level + URL update).\n3. Level 0: 4 tile Cards (Material / Labor / Overhead / Waste) showing total variance per category for the active period. Click → level=1.\n4. Level 1: Item list ranked by absolute variance with RankBar component (% of category total) and VarBadge. Click → level=2.\n5. Level 2: WO list contributing to selected item. Click → level=3.\n6. Level 3: Embedded condensed WO cost summary (first card + variance breakdown reused from T-020) + transaction list (material_consumption_costs rows for the item+WO). 'View Full WO Cost Card' Link → T-020 page.\n7. Level 4: Raw transaction record SummaryList: TX ID, timestamp, LP consumed Link (→ 05-WH), qty_kg, unit_cost, cost method, source.\n8. Sticky right sidebar (240px, top-24): aktywne filters (period, category, item) + running tally drill-path variance contribution. Quick actions: 'Add Note' → MODAL-07 (T-025), 'Export' → MODAL-10 (T-032).\n\n## Implementation contract\n1. `app/finance/variance/drilldown/page.tsx` — RSC reads URL params + fetches data for the current level only (other levels are pre-cached via React.cache if cheap, else lazy via SWR).\n2. `app/finance/variance/drilldown/_components/drilldown-client.tsx` — Client component for level state + breadcrumb interactions.\n3. `app/finance/_components/rank-bar.tsx` — shared primitive (horizontal bar with fav/unfav color).\n4. RBAC: visible to `fin.wo_cost.view` permission (own line for prod_manager via RLS).\n\n## Files\n- apps/web/app/finance/variance/drilldown/page.tsx [create]\n- apps/web/app/finance/variance/drilldown/_components/drilldown-client.tsx [create]\n- apps/web/app/finance/_components/rank-bar.tsx [create]\n- apps/web/app/finance/variance/drilldown/_components/__tests__/drilldown-client.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given URL ?level=0, when page renders, then 4 category tiles with totals; clicking 'Material' updates URL to ?level=1&cat=Material and shows ranked items. AND given URL ?level=1&cat=Material, when item RM-X clicked, then URL=?level=2&cat=Material&item=RM-X and WO list shown.\n- Given level=3 with WO selected, when rendered, then condensed WO summary + tx list; 'View Full WO Cost Card' routes to /finance/wos/[woId]/cost. AND given level=4 with WO and tx selected, when rendered, then raw tx + LP link to 05-WH.\n- Given Breadcrumb shows 4 steps and user clicks step 1, when handled, then URL resets to ?level=1&cat=Material (item/wo cleared).\n- Given sidebar 'Add Note' clicked, when modal opens, then MODAL-07 with drill-down's WO context. AND given page compared to prototypes/design/Monopilot Design System/finance/variance-screens.jsx:454-621 (parity), then 5 levels + breadcrumb + sidebar render correctly.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: drilldown-client.test.tsx asserts URL-driven level state + breadcrumb interactions + level transitions + sidebar Add Note + RTL snapshot of each level.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/variance/drilldown`.\n\n## Risk red lines\n- Do not store level state in useState only — must be URL-driven (deep-linkable per UX).\n- Do not paste prototype JSX verbatim.\n- Do not over-fetch — fetch only the data for the current level (paginate higher levels).\n- Do not break the back button (URL state preserves history).\n- Do not regress accessibility (Breadcrumb requires aria-current='page' on the active step).\n",
   "labels": [
     "prd",
     "ui",
     "fin-010",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-026",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.4",
-      "\u00a711.5"
+      "§8.4",
+      "§11.5"
     ],
     "category": "ui",
     "subcategory": "fin-010-drilldown",
@@ -25,7 +27,7 @@
     "context_budget": "55k",
     "estimated_effort": "4-5h",
     "description": "FIN-010 Variance Drill-down with 5-level hierarchy + URL-driven state + sticky sidebar quick actions (Add Note / Export).",
-    "details": "URL params via nuqs ensures share/bookmark per UX requirement. Breadcrumb resets to selected level. Sidebar Add Note hooks into MODAL-07 (T-025). RankBar shared with FIN-001 dashboard (T-031). [AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "URL params via nuqs ensures share/bookmark per UX requirement. Breadcrumb resets to selected level. Sidebar Add Note hooks into MODAL-07 (T-025). RankBar shared with FIN-001 dashboard (T-031). [AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/variance/drilldown/page.tsx [create]",
       "apps/web/app/finance/variance/drilldown/_components/drilldown-client.tsx [create]",
@@ -64,7 +66,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,7 +84,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

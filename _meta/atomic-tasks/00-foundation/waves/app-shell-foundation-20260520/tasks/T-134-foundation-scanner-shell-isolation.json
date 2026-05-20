@@ -1,0 +1,201 @@
+{
+  "title": "T-134 — Foundation scanner route-group isolation + ScannerFrame device chrome",
+  "prompt": "# T-134 — Foundation scanner shell isolation\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReplace the T-133 pass-through stub at `apps/web/app/[locale]/(scanner)/layout.tsx` with the ScannerFrame device chrome (390×844). The `(scanner)` route group is a deliberate exception: it MUST NOT inherit the AppShell desktop layout from `(app)`. Scanner pages mount under `(scanner)` (siblings of `(app)`, not children), so `app-sidebar` / `app-topbar` are physically absent from their DOM.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66` — `ScannerFrame`, `StatusBar`, `Content`, `BottomActions`.\n- Brief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka F + §7 risks (scanner inherits AppShell = KRYTYCZNE).\n\n## Files (scope)\n- `apps/web/app/[locale]/(scanner)/layout.tsx` [modify — replace T-133 stub with the ScannerFrame mount]\n- `apps/web/components/shell/scanner-frame.tsx` [create — Client Component (`'use client'`) device chrome 390×844 with notch + status bar + content + bottom-actions slots]\n- `apps/web/components/shell/__tests__/scanner-frame.test.tsx` [create — RTL fixture, axe-core 0 violations]\n- `apps/web/e2e/scanner-isolation.spec.ts` [create — Playwright: visit a scanner placeholder route, assert ScannerFrame present, AppSidebar/AppTopbar absent]\n- `apps/web/app/[locale]/(scanner)/dev/scanner/page.tsx` [create — minimal placeholder Server Component at `/<locale>/dev/scanner` rendering inside ScannerFrame so the e2e spec has a route to load; carries `// TODO(scanner-module): replace when scanner module lands` header comment]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(app)/layout.tsx` (UI-131), or any T-XXX.json outside this wave. Do NOT add any other scanner route — the placeholder is the e2e harness only.\n\n## Contract\n```tsx\n// apps/web/components/shell/scanner-frame.tsx\nexport interface ScannerFrameProps {\n  statusBar?: ReactNode;\n  bottomActions?: ReactNode;\n  children: ReactNode;\n}\nexport function ScannerFrame(props: ScannerFrameProps): JSX.Element;\n```\nRoot: `<div data-testid=\"scanner-frame\" style={{ width: 'var(--shell-scanner-w)', height: 'var(--shell-scanner-h)' }} className=\"…\">`. Layout:\n1. notch (decorative div),\n2. `<div data-testid=\"scanner-status-bar\">{statusBar}</div>`,\n3. `<div data-testid=\"scanner-content\" className=\"flex-1 overflow-auto\">{children}</div>`,\n4. `<div data-testid=\"scanner-bottom-actions\">{bottomActions}</div>`.\n\n```tsx\n// apps/web/app/[locale]/(scanner)/layout.tsx (Server Component)\nexport default function ScannerLayout({ children }: { children: ReactNode }): JSX.Element\n```\nCentres ScannerFrame in the viewport (`flex min-h-screen items-center justify-center bg-shell-bg`). Mounts `<ScannerFrame>{children}</ScannerFrame>`. NO Supabase session fetch, NO sidebar import, NO topbar import.\n\n## Acceptance criteria\n1. `apps/web/app/[locale]/(scanner)/layout.tsx` does NOT import `AppSidebar`, `AppTopbar`, or `(app)/layout.tsx`. Grep proof in closeout.\n2. Visiting `/en/dev/scanner` renders `data-testid=scanner-frame`, `scanner-status-bar`, `scanner-content`, `scanner-bottom-actions`; computed width 390px, computed height 844px (from UI-127 tokens).\n3. Visiting `/en/dev/scanner` response body does NOT contain `data-testid=\"app-sidebar\"`, `data-testid=\"app-topbar\"`, or `data-testid=\"app-shell\"`.\n4. Visiting `/en/` still renders `data-testid=\"app-shell\"` (UI-131 unchanged).\n5. RTL `scanner-frame.test.tsx` asserts the four test-ids + axe-core 0 violations.\n6. Playwright `scanner-isolation.spec.ts` asserts the presence/absence contract above.\n7. `pnpm --filter web test scanner-frame -- --run`, `pnpm exec playwright test e2e/scanner-isolation.spec.ts`, typecheck, lint all pass.\n8. `apps/web/proxy.ts`, `apps/web/app/[locale]/(app)/layout.tsx`, and `apps/web/components/shell/app-sidebar.tsx|app-topbar.tsx` are byte-identical before/after.\n\n## Out of scope\n- Real scanner module pages (a future module wave).\n- Any scanner business logic (scan, decode, route).\n- Touch keyboard / haptics / camera (future).\n- Mobile responsive variants beyond the 390×844 device frame.\n- Modifying AppShell components.\n\n## RED test\nWrite `scanner-frame.test.tsx` and `scanner-isolation.spec.ts` first; they must fail because the component and route do not exist.\n\n## Risk red lines\n- `(scanner)` MUST be a sibling route group of `(app)`, NEVER nested under `(app)`. T-133 created the sibling group.\n- Do NOT import any `(app)` component or layout into `(scanner)`. The Playwright assert is the contract.\n- Do NOT introduce a Supabase auth check inside `(scanner)/layout.tsx` — scanner auth model is the scanner module's deliverable.\n- Do NOT modify `apps/web/proxy.ts` or the AppShell layouts.\n- Do NOT introduce any new scanner URL beyond the `_dev` harness placeholder.\n\n## Closeout (fail-closed)\nProvide: screenshots (390×844 emulator viewport for `/en/dev/scanner` + desktop-1280 for `/en/` showing AppShell unchanged), screenshot_or_dom_diff_artifacts against `scanner/shell.jsx:1-66`, visual_parity_evidence, prototype_reference, console_network_check, acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.\n\n## Route harness rule\nUse `apps/web/app/[locale]/(scanner)/dev/scanner/page.tsx` for the e2e harness. Do not use `_dev`: underscored App Router segments are private/excluded and do not create public URLs.\n",
+  "labels": [
+    "wave-app-shell-foundation",
+    "ui",
+    "foundation",
+    "shell",
+    "scanner",
+    "T3-ui"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-134",
+    "human_task_id": "T-134-foundation-scanner-shell-isolation",
+    "display_task_id": "T-134",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §3 Luka F",
+      "brief §7 risk: scanner inherits AppShell (KRYTYCZNE)"
+    ],
+    "category": "ui",
+    "subcategory": "shell-scanner-isolation",
+    "task_type": "T3-ui",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Replace (scanner)/layout.tsx stub with ScannerFrame device chrome (390×844). Sibling of (app); MUST NOT inherit AppSidebar/AppTopbar. Adds a minimal public dev/scanner placeholder route so the isolation Playwright spec has a route to load.",
+    "details": "ScannerFrame Client Component uses UI-127 --shell-scanner-w/h tokens and renders notch + status-bar + content + bottom-actions slots with stable data-testids. (scanner)/layout.tsx centres the frame, mounts no sidebar/topbar, no auth check. dev/scanner page is the e2e harness only (public URL segment; do not use an underscored private segment). RTL + Playwright contract asserts presence on /en/dev/scanner and absence of AppShell test-ids.",
+    "scope_files": [
+      "apps/web/app/[locale]/(scanner)/layout.tsx [modify — replace T-133 stub]",
+      "apps/web/components/shell/scanner-frame.tsx [create]",
+      "apps/web/components/shell/__tests__/scanner-frame.test.tsx [create]",
+      "apps/web/e2e/scanner-isolation.spec.ts [create]",
+      "apps/web/app/[locale]/(scanner)/dev/scanner/page.tsx [create — e2e harness only]"
+    ],
+    "scope_paths": [
+      "apps/web/app/[locale]/(scanner)/",
+      "apps/web/components/shell/",
+      "apps/web/e2e/scanner-isolation.spec.ts"
+    ],
+    "out_of_scope": [
+      "Real scanner module pages",
+      "Scanner business logic (decode, route, hardware)",
+      "Auth model inside (scanner)",
+      "Modifying AppShell components or layouts",
+      "Editing apps/web/proxy.ts",
+      "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+    ],
+    "dependencies": [
+      "UI-127",
+      "T-133"
+    ],
+    "parallel_safe_with": [
+      "UI-129",
+      "UI-130",
+      "UI-131",
+      "UI-132"
+    ],
+    "acceptance_criteria": [
+      "(scanner)/layout.tsx imports neither AppSidebar nor AppTopbar nor (app) layout",
+      "/en/dev/scanner renders scanner-frame at 390x844 with status-bar, content, bottom-actions test-ids",
+      "/en/dev/scanner response body contains no app-sidebar, app-topbar, app-shell test-ids",
+      "/en/ continues to render app-shell unchanged",
+      "axe-core 0 violations on ScannerFrame fixture",
+      "Vitest scanner-frame spec passes; Playwright scanner-isolation spec passes",
+      "typecheck + lint pass",
+      "proxy.ts, (app)/layout.tsx, app-sidebar.tsx, app-topbar.tsx byte-identical before/after"
+    ],
+    "acceptance_criteria_structured": [
+      {
+        "description": "No AppShell imports in (scanner)/layout.tsx",
+        "verifiable_by": "grep -E '(app-sidebar|app-topbar|\\(app\\)/layout)' apps/web/app/[locale]/(scanner)/layout.tsx",
+        "expected": "no matches"
+      },
+      {
+        "description": "Scanner frame token sizing",
+        "verifiable_by": "pnpm --filter web test scanner-frame -- --run",
+        "expected": "computed style width=390px, height=844px"
+      },
+      {
+        "description": "DOM isolation",
+        "verifiable_by": "pnpm exec playwright test e2e/scanner-isolation.spec.ts",
+        "expected": "all assertions pass"
+      }
+    ],
+    "test_strategy": [
+      "Write scanner-frame.test.tsx and e2e/scanner-isolation.spec.ts first (RED)",
+      "pnpm --filter web test scanner-frame -- --run",
+      "pnpm exec playwright test e2e/scanner-isolation.spec.ts",
+      "pnpm --filter web typecheck && pnpm --filter web lint",
+      "git diff --name-only apps/web/proxy.ts apps/web/app/[locale]/(app)/layout.tsx apps/web/components/shell/app-sidebar.tsx apps/web/components/shell/app-topbar.tsx -- expected empty"
+    ],
+    "risk_red_lines": [
+      "(scanner) must remain a sibling of (app); never nest inside (app)",
+      "Do not import any (app) component or layout into (scanner)",
+      "Do not add a Supabase auth check inside (scanner)/layout.tsx",
+      "Do not modify apps/web/proxy.ts or AppShell components",
+      "Do not introduce any scanner URL beyond the /dev/scanner harness"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "acp-verification",
+      "MON-t3-ui",
+      "MON-t4-test"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "fail_closed_on_missing_ui_evidence": true,
+      "closeout_requires": [
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check",
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ],
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_path": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66",
+      "prototypes/design/Monopilot Design System/scanner/shell.jsx:9-66"
+    ],
+    "target_route": "/{locale}/dev/scanner (e2e harness) — production scanner routes ship with the scanner module wave",
+    "viewports": [
+      {
+        "name": "scanner-device",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "name": "desktop-1280",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "region_selectors": {
+      "scanner_frame": "[data-testid='scanner-frame']",
+      "scanner_status_bar": "[data-testid='scanner-status-bar']",
+      "scanner_content": "[data-testid='scanner-content']",
+      "scanner_bottom_actions": "[data-testid='scanner-bottom-actions']",
+      "absent_app_shell": "[data-testid='app-shell']",
+      "absent_app_sidebar": "[data-testid='app-sidebar']",
+      "absent_app_topbar": "[data-testid='app-topbar']"
+    },
+    "parity_matrix": [
+      {
+        "region": "device frame",
+        "prototype": "ScannerFrame 390x844 + notch (scanner/shell.jsx:9-66)",
+        "implementation": "ScannerFrame component sized via --shell-scanner-w/h tokens",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "status bar slot",
+        "prototype": "StatusBar at top",
+        "implementation": "scanner-status-bar slot",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "bottom actions slot",
+        "prototype": "BottomActions at bottom",
+        "implementation": "scanner-bottom-actions slot",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "AppShell isolation",
+        "prototype": "n/a (prototype shows scanner alone)",
+        "implementation": "no app-sidebar/app-topbar/app-shell in DOM",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      }
+    ],
+    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
+    "wave": "app-shell-foundation-20260520"
+  }
+}

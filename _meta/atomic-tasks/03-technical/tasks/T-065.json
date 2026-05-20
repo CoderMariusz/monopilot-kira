@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-bom-snapshots",
-    "docs"
+    "spec-bom-snapshots"
   ],
   "priority": 150,
   "max_attempts": 3,

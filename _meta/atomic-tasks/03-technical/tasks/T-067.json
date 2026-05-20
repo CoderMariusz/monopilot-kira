@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-lab-results-log",
-    "docs"
+    "spec-lab-results-log"
   ],
   "priority": 150,
   "max_attempts": 3,

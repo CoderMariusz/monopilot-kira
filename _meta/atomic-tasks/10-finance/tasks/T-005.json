@@ -1,11 +1,13 @@
 {
-  "title": "T-005 \u2014 UI: FIN-017 Finance Settings page (fin_settings prototype) (\u00a78.4 FIN-017)",
-  "prompt": "# T-005 \u2014 FIN-017 Finance Settings page UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.4 FIN-017 [UNIVERSAL]; \u00a76.1 row 1 (finance_settings); \u00a714.1 L2 per-tenant variations; \u00a75.3 21 CFR Part 11 (critical_approval_pin_required).\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458 (`fin_settings`)\n\n## Goal\nServer Component page `/finance/settings` rendering 6 collapsible Card sections (General, Standard Cost Policy, Variance Display Thresholds, Overhead Allocation, Fiscal Calendar, D365 Integration) matching the `fin_settings` prototype 1:1, with sticky unsaved-changes bar, Save / Reset CTAs, and the embedded \"Manage Cost Centers\" + \"Lock Period (Phase 2)\" links.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458`\nDepends_on_prototypes from index: `period_lock_modal` (P2 stub, render disabled with `Badge variant='secondary' label='Phase 2'`).\nshadcn primitives required: Card, CardHeader, CardContent, Form, FormField, RadioGroup, RadioGroupItem, Select, SelectItem, Input, Checkbox, Button, Alert, Badge.\nParity checklist (all must match):\n1. Section 'General': Default Valuation Method RadioGroup (FIFO/WAC bound to `finance_settings.default_valuation_method`); Default Currency read-only display with `[ORG-CONFIG]` marker + link 'Manage Currencies' \u2192 `/finance/fx-rates`; Variance Calculation Enabled checkbox.\n2. Section 'Standard Cost Policy': Critical Approval PIN Required checkbox bound to `finance_settings.critical_approval_pin_required`; Effective Date Policy Select (future-only / current-allowed / backdating-warn); Cost Basis Default Select; Cost Change Warning Threshold % Input (default 20, min 0, max 100) \u2014 fires V-FIN-STD-06 warn in MODAL-01.\n3. Section 'Variance Display Thresholds': read-only info Alert citing P2 EPIC 10-O; thresholds On Track \u22645% / Warning 5\u201310% / Critical >10% as display chips.\n4. Section 'Overhead Allocation': Default Allocation Basis Select (labor_hours/machine_hours/units); Default Overhead Rate % Input.\n5. Section 'Fiscal Calendar': Calendar Type Select (Standard Gregorian / 4-4-5 / 4-5-4) with `[INDUSTRY-CONFIG]` marker; Fiscal Year Start Month Select; warning Alert on Calendar Type change ('affects period-end variance + budget P2').\n6. Section 'D365 Integration': D365 Integration Enabled toggle gated by feature flag `integration.d365.finance_posting.enabled` (default OFF); Consolidation Cutoff Time TimePicker (default 23:00); Reconciliation Schedule read-only display.\n7. Sticky Unsaved-Changes top bar (sticky top-0 z-50 bg-background/95 backdrop-blur) \u2014 renders when isDirty===true.\n8. Footer: Save Settings (calls `updateFinanceSettings` Server Action from T-004) + Reset to Defaults (with confirmation modal).\n9. Embedded link 'Manage Cost Centers' \u2192 `/finance/cost-centers` (T-006) and 'Lock Period (Phase 2)' Button gated disabled with tooltip 'Available in Phase 2'.\n10. RBAC: visible to `fin.settings.write` holders for write, others read-only.\n\n## Implementation contract\n1. `app/finance/settings/page.tsx` \u2014 RSC fetches `finance_settings` via `getFinanceSettings()` server fn; passes to client.\n2. `app/finance/settings/_components/settings-form.tsx` ('use client') \u2014 `useForm(zodResolver(finSettingsSchema))`; tracks `isDirty`; sticky save bar via shadcn Alert primitive in a sticky container.\n3. Server Action `updateFinanceSettings(data)` already exists from T-004 \u2014 wire on submit.\n4. Translations: hardcoded labels staged as `next-intl` placeholders `t('finance.settings.*')` \u2014 actual keys can be added in a later i18n task; for now, English literals match prototype text 1:1.\n\n## Files\n- apps/web/app/finance/settings/page.tsx [create]\n- apps/web/app/finance/settings/_components/settings-form.tsx [create]\n- apps/web/app/finance/settings/_components/__tests__/settings-form.test.tsx [create]\n- apps/web/app/finance/settings/page.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the production page renders, when compared to prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458, then it has the same 6 sections in the same order with the same controls \u2014 verified by RTL snapshot + parity checklist.\n- Given user changes Default Valuation Method, when no Save yet, then sticky Unsaved-Changes Alert appears with Save/Discard.\n- Given user without fin.settings.write, when page renders, then all inputs disabled and Save hidden.\n- Given Calendar Type changed, when new value set, then warning Alert renders inline. AND given D365 Integration Enabled toggle is changed when feature flag integration.d365.finance_posting.enabled is OFF, then the toggle is disabled with tooltip 'Feature flag off'.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: settings-form.test.tsx mounts the form with mocked initial values; asserts parity checklist items 1-9 via RTL queries + snapshot; asserts dirty-state behavior; asserts RBAC read-only mode.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/settings`.\n- Playwright spec optional but artifacts captured per UI parity policy.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim \u2014 translate per shadcn primitives.\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not call `updateFinanceSettings` without the RBAC gate (Server Action already checks; UI gates Save button to avoid form submission attempts).\n- Do not skip the feature-flag gate on D365 toggle (default OFF post Go-live per \u00a712.8).\n- Do not regress accessibility (axe violations = fail).\n- Do not enable the Period Lock button in Phase 1 \u2014 keep disabled with tooltip per \u00a78.4 FIN-020 P2.\n",
+  "title": "T-005 — UI: FIN-017 Finance Settings page (fin_settings prototype) (§8.4 FIN-017)",
+  "prompt": "# T-005 — FIN-017 Finance Settings page UI\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.4 FIN-017 [UNIVERSAL]; §6.1 row 1 (finance_settings); §14.1 L2 per-tenant variations; §5.3 21 CFR Part 11 (critical_approval_pin_required).\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458 (`fin_settings`)\n\n## Goal\nServer Component page `/finance/settings` rendering 6 collapsible Card sections (General, Standard Cost Policy, Variance Display Thresholds, Overhead Allocation, Fiscal Calendar, D365 Integration) matching the `fin_settings` prototype 1:1, with sticky unsaved-changes bar, Save / Reset CTAs, and the embedded \"Manage Cost Centers\" + \"Lock Period (Phase 2)\" links.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458`\nDepends_on_prototypes from index: `period_lock_modal` (P2 stub, render disabled with `Badge variant='secondary' label='Phase 2'`).\nshadcn primitives required: Card, CardHeader, CardContent, Form, FormField, RadioGroup, RadioGroupItem, Select, SelectItem, Input, Checkbox, Button, Alert, Badge.\nParity checklist (all must match):\n1. Section 'General': Default Valuation Method RadioGroup (FIFO/WAC bound to `finance_settings.default_valuation_method`); Default Currency read-only display with `[ORG-CONFIG]` marker + link 'Manage Currencies' → `/finance/fx-rates`; Variance Calculation Enabled checkbox.\n2. Section 'Standard Cost Policy': Critical Approval PIN Required checkbox bound to `finance_settings.critical_approval_pin_required`; Effective Date Policy Select (future-only / current-allowed / backdating-warn); Cost Basis Default Select; Cost Change Warning Threshold % Input (default 20, min 0, max 100) — fires V-FIN-STD-06 warn in MODAL-01.\n3. Section 'Variance Display Thresholds': read-only info Alert citing P2 EPIC 10-O; thresholds On Track ≤5% / Warning 5–10% / Critical >10% as display chips.\n4. Section 'Overhead Allocation': Default Allocation Basis Select (labor_hours/machine_hours/units); Default Overhead Rate % Input.\n5. Section 'Fiscal Calendar': Calendar Type Select (Standard Gregorian / 4-4-5 / 4-5-4) with `[INDUSTRY-CONFIG]` marker; Fiscal Year Start Month Select; warning Alert on Calendar Type change ('affects period-end variance + budget P2').\n6. Section 'D365 Integration': D365 Integration Enabled toggle gated by feature flag `integration.d365.finance_posting.enabled` (default OFF); Consolidation Cutoff Time TimePicker (default 23:00); Reconciliation Schedule read-only display.\n7. Sticky Unsaved-Changes top bar (sticky top-0 z-50 bg-background/95 backdrop-blur) — renders when isDirty===true.\n8. Footer: Save Settings (calls `updateFinanceSettings` Server Action from T-004) + Reset to Defaults (with confirmation modal).\n9. Embedded link 'Manage Cost Centers' → `/finance/cost-centers` (T-006) and 'Lock Period (Phase 2)' Button gated disabled with tooltip 'Available in Phase 2'.\n10. RBAC: visible to `fin.settings.write` holders for write, others read-only.\n\n## Implementation contract\n1. `app/finance/settings/page.tsx` — RSC fetches `finance_settings` via `getFinanceSettings()` server fn; passes to client.\n2. `app/finance/settings/_components/settings-form.tsx` ('use client') — `useForm(zodResolver(finSettingsSchema))`; tracks `isDirty`; sticky save bar via shadcn Alert primitive in a sticky container.\n3. Server Action `updateFinanceSettings(data)` already exists from T-004 — wire on submit.\n4. Translations: hardcoded labels staged as `next-intl` placeholders `t('finance.settings.*')` — actual keys can be added in a later i18n task; for now, English literals match prototype text 1:1.\n\n## Files\n- apps/web/app/finance/settings/page.tsx [create]\n- apps/web/app/finance/settings/_components/settings-form.tsx [create]\n- apps/web/app/finance/settings/_components/__tests__/settings-form.test.tsx [create]\n- apps/web/app/finance/settings/page.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the production page renders, when compared to prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458, then it has the same 6 sections in the same order with the same controls — verified by RTL snapshot + parity checklist.\n- Given user changes Default Valuation Method, when no Save yet, then sticky Unsaved-Changes Alert appears with Save/Discard.\n- Given user without fin.settings.write, when page renders, then all inputs disabled and Save hidden.\n- Given Calendar Type changed, when new value set, then warning Alert renders inline. AND given D365 Integration Enabled toggle is changed when feature flag integration.d365.finance_posting.enabled is OFF, then the toggle is disabled with tooltip 'Feature flag off'.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: settings-form.test.tsx mounts the form with mocked initial values; asserts parity checklist items 1-9 via RTL queries + snapshot; asserts dirty-state behavior; asserts RBAC read-only mode.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/settings`.\n- Playwright spec optional but artifacts captured per UI parity policy.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim — translate per shadcn primitives.\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not call `updateFinanceSettings` without the RBAC gate (Server Action already checks; UI gates Save button to avoid form submission attempts).\n- Do not skip the feature-flag gate on D365 toggle (default OFF post Go-live per §12.8).\n- Do not regress accessibility (axe violations = fail).\n- Do not enable the Period Lock button in Phase 1 — keep disabled with tooltip per §8.4 FIN-020 P2.\n",
   "labels": [
     "prd",
     "ui",
     "fin-017",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -15,10 +17,10 @@
     "prd_task_id": "T-005",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.4",
-      "\u00a76.1",
-      "\u00a714.1",
-      "\u00a75.3"
+      "§8.4",
+      "§6.1",
+      "§14.1",
+      "§5.3"
     ],
     "category": "ui",
     "subcategory": "fin-017-settings",
@@ -27,7 +29,7 @@
     "context_budget": "55k",
     "estimated_effort": "3-4h",
     "description": "FIN-017 Finance Settings page (RSC + client form) matching fin_settings prototype 1:1 with sticky unsaved-changes bar.",
-    "details": "6-section form with collapsible Cards, sticky save bar, RBAC-gated read-only mode for non-writers, feature-flag-gated D365 toggle, Phase 2 Period Lock disabled button. [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "6-section form with collapsible Cards, sticky save bar, RBAC-gated read-only mode for non-writers, feature-flag-gated D365 toggle, Phase 2 Period Lock disabled button. [AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/settings/page.tsx [create]",
       "apps/web/app/finance/settings/_components/settings-form.tsx [create]",
@@ -48,7 +50,7 @@
       "T-007"
     ],
     "acceptance_criteria": [
-      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458, then it has the same 6 sections in the same order with the same controls \u2014 verified by RTL snapshot + parity checklist.",
+      "Given the production page renders, when compared to prototypes/design/Monopilot Design System/finance/other-screens.jsx:362-458, then it has the same 6 sections in the same order with the same controls — verified by RTL snapshot + parity checklist.",
       "Given user changes Default Valuation Method, when no Save yet, then sticky Unsaved-Changes Alert appears with Save/Discard.",
       "Given user without fin.settings.write, when page renders, then all inputs disabled and Save hidden.",
       "Given Calendar Type changed, when new value set, then warning Alert renders inline. AND given D365 Integration Enabled toggle is changed when feature flag integration.d365.finance_posting.enabled is OFF, then the toggle is disabled with tooltip 'Feature flag off'."
@@ -69,7 +71,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -83,7 +89,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

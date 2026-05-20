@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "manufacturing-ops-docs",
-    "docs"
+    "manufacturing-ops-docs"
   ],
   "priority": 150,
   "max_attempts": 3,

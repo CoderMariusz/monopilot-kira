@@ -10,7 +10,9 @@
     "e2e-spine",
     "T2-api",
     "T3-ui",
-    "T4-wiring-test"
+    "T4-wiring-test",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -74,7 +76,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -88,7 +94,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

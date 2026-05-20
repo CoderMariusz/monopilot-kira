@@ -1,11 +1,13 @@
 {
-  "title": "T-026 \u2014 Site config override modal MS-102 (dynamic-field form by setting_key)",
-  "prompt": "# T-026 \u2014 Site config override modal\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710B MS-102, \u00a713.2 (ADR-031 L2 override)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512 (site_config_override_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7M-08\n\n## Goal\nPer-setting override modal: pick setting_key, view L1 org default inline, set L2 override (input type adapts by key type), optional effective_from + notes. Clear Override reverts to L1 with audit entry.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx \u2014 shadcn Dialog with shadcn Select for setting_key, dynamic input (Input/Select/Checkbox) by config_schema.type, read-only L1 base card.\n2. config_schema lookup: query `config_schema` table (existing, owned by 02-SET ADR-031) by setting_key \u2014 returns {type: 'string'|'number'|'select'|'boolean', options?: string[], description}.\n3. Server Action upsertSiteConfigOverride({siteId, key, value, effectiveFrom, notes}):\n   - Role gate: admin OR site_manager AT this site.\n   - Upserts into site_settings (org_id, site_id, setting_key, setting_value, source='l2_override').\n   - Audit_events row.\n4. Server Action clearSiteConfigOverride({siteId, key}):\n   - Sets source='default' (or deletes row depending on design \u2014 deletes per \u00a710B 'reverts to L1 base immediately').\n   - Audit_events row.\n5. Tests: input type adaptation per key, role gate, L1 base displayed, Clear path audited.\n\n## Files\n- apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/upsert-site-config-override.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/clear-site-config-override.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-config-override-modal.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 8\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given modal opens, when compared to modals.jsx:472-512 (site_config_override_modal), then Setting select + L1 base card + dynamic input (Override Value) + Effective From + Notes + Save/Clear buttons match \u2014 RTL parity.\n2. Given setting_key='fefo_strategy' is selected (config_schema.type='select', options=['FEFO','LIFO']), when modal renders, then Override Value is a shadcn Select with 2 options.\n3. Given setting_key='quality_check_frequency' is selected (config_schema.type='number'), when modal renders, then Override Value is shadcn Input type='number'.\n4. Given a user with role=site_manager at site_X submits upsert for site_Y, when Server Action runs, then UnauthorizedConfigOverride is thrown (V-MS-05 site scoping + role gate at primary site).\n5. Given upsertSiteConfigOverride settles, when site_settings is queried, then exactly one row exists for (org_id, site_id, setting_key) with source='l2_override' and audit_events has 1 row 'site_config_override_set'.\n6. Given clearSiteConfigOverride is invoked, when settles, then site_settings row for that key is deleted (or source set to 'default'); audit_events 'site_config_override_cleared' written.\n7. Given the page is in withSiteContext(siteId=Y) but the modal tries to upsert siteId=X, when Server Action runs, then SiteContextMismatch is thrown (V-MS-16).\n\n## Test strategy\n- RED: RTL parity + input type adaptation + role/site gate + L1 base displayed + Clear flow + V-MS-16 site mismatch before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-config-override-modal' + Playwright site-config-override.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512 (site_config_override_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not hardcode input types \u2014 must read from config_schema lookup (02-SET-owned).\n- Do not allow site_manager to override at site they're not assigned to.\n- Do not bypass V-MS-16 \u2014 siteId argument must match withSiteContext.\n- Do not omit Clear Override audit row.\n- Do not allow override for keys that are L1-only (config_schema.l2_overridable=false) \u2014 surface error.",
+  "title": "T-026 — Site config override modal MS-102 (dynamic-field form by setting_key)",
+  "prompt": "# T-026 — Site config override modal\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §10B MS-102, §13.2 (ADR-031 L2 override)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512 (site_config_override_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §M-08\n\n## Goal\nPer-setting override modal: pick setting_key, view L1 org default inline, set L2 override (input type adapts by key type), optional effective_from + notes. Clear Override reverts to L1 with audit entry.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx — shadcn Dialog with shadcn Select for setting_key, dynamic input (Input/Select/Checkbox) by config_schema.type, read-only L1 base card.\n2. config_schema lookup: query `config_schema` table (existing, owned by 02-SET ADR-031) by setting_key — returns {type: 'string'|'number'|'select'|'boolean', options?: string[], description}.\n3. Server Action upsertSiteConfigOverride({siteId, key, value, effectiveFrom, notes}):\n   - Role gate: admin OR site_manager AT this site.\n   - Upserts into site_settings (org_id, site_id, setting_key, setting_value, source='l2_override').\n   - Audit_events row.\n4. Server Action clearSiteConfigOverride({siteId, key}):\n   - Sets source='default' (or deletes row depending on design — deletes per §10B 'reverts to L1 base immediately').\n   - Audit_events row.\n5. Tests: input type adaptation per key, role gate, L1 base displayed, Clear path audited.\n\n## Files\n- apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/upsert-site-config-override.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/clear-site-config-override.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-config-override-modal.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 8→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given modal opens, when compared to modals.jsx:472-512 (site_config_override_modal), then Setting select + L1 base card + dynamic input (Override Value) + Effective From + Notes + Save/Clear buttons match — RTL parity.\n2. Given setting_key='fefo_strategy' is selected (config_schema.type='select', options=['FEFO','LIFO']), when modal renders, then Override Value is a shadcn Select with 2 options.\n3. Given setting_key='quality_check_frequency' is selected (config_schema.type='number'), when modal renders, then Override Value is shadcn Input type='number'.\n4. Given a user with role=site_manager at site_X submits upsert for site_Y, when Server Action runs, then UnauthorizedConfigOverride is thrown (V-MS-05 site scoping + role gate at primary site).\n5. Given upsertSiteConfigOverride settles, when site_settings is queried, then exactly one row exists for (org_id, site_id, setting_key) with source='l2_override' and audit_events has 1 row 'site_config_override_set'.\n6. Given clearSiteConfigOverride is invoked, when settles, then site_settings row for that key is deleted (or source set to 'default'); audit_events 'site_config_override_cleared' written.\n7. Given the page is in withSiteContext(siteId=Y) but the modal tries to upsert siteId=X, when Server Action runs, then SiteContextMismatch is thrown (V-MS-16).\n\n## Test strategy\n- RED: RTL parity + input type adaptation + role/site gate + L1 base displayed + Clear flow + V-MS-16 site mismatch before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-config-override-modal' + Playwright site-config-override.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512 (site_config_override_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not hardcode input types — must read from config_schema lookup (02-SET-owned).\n- Do not allow site_manager to override at site they're not assigned to.\n- Do not bypass V-MS-16 — siteId argument must match withSiteContext.\n- Do not omit Clear Override audit row.\n- Do not allow override for keys that are L1-only (config_schema.l2_overridable=false) — surface error.",
   "labels": [
     "prd",
     "ui",
     "config-override",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-026",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710B MS-102",
-      "\u00a713.2"
+      "§10B MS-102",
+      "§13.2"
     ],
     "category": "ui",
     "subcategory": "config-override",
@@ -24,8 +26,8 @@
     "parent_feature": "14-MULTI-SITE-e site mgmt UI",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Dynamic-field modal for setting site_settings L2 overrides \u2014 input type adapts to setting key type via config_schema lookup; L1 base displayed read-only; Clear Override reverts to L1 with audit entry.",
-    "details": "Dynamic-field modal for setting site_settings L2 overrides \u2014 input type adapts to setting key type via config_schema lookup; L1 base displayed read-only; Clear Override reverts to L1 with audit entry. Scope: Per-setting override modal: pick setting_key, view L1 org default inline, set L2 override (input type adapts by key type), optional effective_from + notes. Touches: apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/. Constraints: 1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx \u2014 shadcn Dialog with shadcn Select for setting_key, dynamic input (Input/Select/Checkbox) by config_schema.type, read-only L1 base card. 2. config_schema lookup: query `config_schema` table (existing, owned by 02-SET ADR-031) by setting_key \u2014 returns {type: 'stri. Distinguished from sibling 14-multi-site tasks by its narrow config-override focus against PRD \u00a710B MS-102, \u00a713.2. AC count consolidated from 8\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Dynamic-field modal for setting site_settings L2 overrides — input type adapts to setting key type via config_schema lookup; L1 base displayed read-only; Clear Override reverts to L1 with audit entry.",
+    "details": "Dynamic-field modal for setting site_settings L2 overrides — input type adapts to setting key type via config_schema lookup; L1 base displayed read-only; Clear Override reverts to L1 with audit entry. Scope: Per-setting override modal: pick setting_key, view L1 org default inline, set L2 override (input type adapts by key type), optional effective_from + notes. Touches: apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/. Constraints: 1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx — shadcn Dialog with shadcn Select for setting_key, dynamic input (Input/Select/Checkbox) by config_schema.type, read-only L1 base card. 2. config_schema lookup: query `config_schema` table (existing, owned by 02-SET ADR-031) by setting_key — returns {type: 'stri. Distinguished from sibling 14-multi-site tasks by its narrow config-override focus against PRD §10B MS-102, §13.2. AC count consolidated from 8→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/app/(multi-site)/sites/[siteId]/_components/site-config-override-modal.tsx [create]",
       "apps/web/app/(multi-site)/sites/[siteId]/_actions/upsert-site-config-override.ts [create]",
@@ -34,8 +36,8 @@
       "prototypes/design/Monopilot Design System/multi-site/modals.jsx [modify]"
     ],
     "out_of_scope": [
-      "Do not implement config_schema CRUD (02-SET \u00a79 ADR-031 owns).",
-      "Do not implement config promotion across levels (\u00a710B MS-105 is P2)."
+      "Do not implement config_schema CRUD (02-SET §9 ADR-031 owns).",
+      "Do not implement config promotion across levels (§10B MS-105 is P2)."
     ],
     "dependencies": [
       "T-004",
@@ -53,7 +55,7 @@
       "T-025"
     ],
     "acceptance_criteria": [
-      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512, then Setting select + L1 base card + dynamic input + Effective From + Notes + Save/Clear match \u2014 RTL parity; AND given setting_key='fefo_strategy' (type='select') when modal renders then Override Value shows RadioGroup of options.",
+      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:472-512, then Setting select + L1 base card + dynamic input + Effective From + Notes + Save/Clear match — RTL parity; AND given setting_key='fefo_strategy' (type='select') when modal renders then Override Value shows RadioGroup of options.",
       "Given user role=site_manager at site_X submits upsert for site_Y, when Server Action runs, then UnauthorizedConfigOverride thrown (V-MS-05 + role gate); AND given page in withSiteContext(siteId=Y) but modal tries siteId=X when Server Action runs then SiteContextMismatch thrown.",
       "Given upsertSiteConfigOverride settles, when site_settings queried, then 1 row for (org_id, site_id, setting_key) source='l2_override' + audit_events 'site_config_override_set' written.",
       "Given clearSiteConfigOverride invoked, when settles, then row deleted + audit_events 'site_config_override_cleared' written."
@@ -64,16 +66,20 @@
       "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "Do not hardcode input types \u2014 read config_schema (02-SET-owned).",
+      "Do not hardcode input types — read config_schema (02-SET-owned).",
       "Do not allow site_manager to override at unassigned site.",
-      "Do not bypass V-MS-16 \u2014 siteId arg must match withSiteContext.",
+      "Do not bypass V-MS-16 — siteId arg must match withSiteContext.",
       "Do not omit Clear Override audit row.",
       "Do not allow override for L1-only keys (config_schema.l2_overridable=false)."
     ],
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -88,7 +94,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

@@ -1,11 +1,13 @@
 {
-  "title": "T-013 \u2014 UI: FIN-019 Bulk Import Standard Costs MODAL-04 (bulk_import_csv_modal, \u00a78.4)",
-  "prompt": "# T-013 \u2014 FIN-019 Bulk Import Standard Costs (MODAL-04) UI + Server Action\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.4 FIN-019 [UNIVERSAL]; \u00a78.5 MODAL-04; \u00a711.2 V-FIN-STD-01..08 per row.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/modals.jsx:247-340` (`bulk_import_csv_modal`)\n\n## Goal\nThree-step wizard modal (Upload \u2192 Map & Validate \u2192 Review & Import) triggered from FIN-002 'Import CSV' CTA, supporting .csv / .xlsx files up to 500 rows. Server-side: file parser + per-row Zod validation + bulkImportStdCosts Server Action.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/modals.jsx:247-340`.\nshadcn primitives: Dialog, DialogContent, DialogFooter, Table, TableHeader, TableRow, TableCell, Checkbox, Button, Badge, Alert + custom Stepper component (build shared `components/ui/stepper.tsx`).\nParity checklist:\n1. Step 1 (Upload): drag-and-drop zone (react-dropzone), `accept={'text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}`, 'Download Template CSV' link \u2192 GET `/api/finance/std-costs/import/template`.\n2. Step 2 (Map & Validate): preview first 5 rows; auto-mapped column dropdowns (override allowed); validation summary tile (X valid / Y errors / Z warnings); error rows highlighted bg-red-50; 'Skip error rows and import valid only' Checkbox.\n3. Step 3 (Review & Import): summary 'X standard costs will be created as drafts'; missing item_codes warning; 'Submit all for approval immediately (Finance Manager only)' Checkbox (gated by `fin.standard_cost.approve` permission).\n4. Stepper component: clickable steps for completed; current step highlighted; build as shared primitive.\n5. Cancel/Back/Next footer per step.\n\n## Implementation contract\n1. Route Handler `apps/web/app/api/finance/std-costs/import/parse/route.ts` (POST) \u2014 receives multipart upload, streams via `papaparse` (CSV) or `xlsx` package, returns `{ valid: Row[], errors: ErrorRow[], warnings: WarnRow[] }` per Zod stdCostImportSchema row-level validation (V-FIN-STD-01..08).\n2. Route Handler `apps/web/app/api/finance/std-costs/import/template/route.ts` (GET) \u2014 streams template CSV with headers derived from stdCostImportSchema.\n3. Server Action `bulkImportStdCosts(parsedRows, options)` \u2014 inside DB transaction; calls `createStandardCostDraft` per row; if `submit_for_approval=true` AND user has `fin.standard_cost.approve` permission, calls `submitForApproval` per id; logs to `import_skipped_rows` audit table for any skipped errors.\n4. Modal component `bulk-import-modal.tsx` ('use client') with `useReducer` for step state.\n5. RBAC: requires `fin.standard_cost.bulk_import` (T-001 permission).\n\n## Files\n- apps/web/app/finance/standard-costs/_components/bulk-import-modal.tsx [create]\n- apps/web/app/finance/standard-costs/_actions/bulk-import.ts [create]\n- apps/web/app/api/finance/std-costs/import/parse/route.ts [create]\n- apps/web/app/api/finance/std-costs/import/template/route.ts [create]\n- apps/web/components/ui/stepper.tsx [create]\n- apps/web/app/finance/_lib/import-schema.ts [create] (Zod schema for row validation)\n- apps/web/app/finance/standard-costs/_components/__tests__/bulk-import-modal.test.tsx [create]\n- apps/web/app/finance/standard-costs/_actions/__tests__/bulk-import.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the modal renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:247-340, then 3 steps + Stepper + dropzone + preview + checkboxes + footer transitions match 1:1 (RTL parity snapshot \u2014 structural + interaction parity verified).\n- Given a 600-row CSV uploaded, when parse runs, then response includes error 'Max 500 rows per import' and step does NOT advance. AND given a row with effective_to < effective_from, when validation runs, then it appears in errors[] with V-FIN-STD-01 rule cited.\n- Given 'Skip error rows' checked and Import clicked, when commit, then only valid rows become drafts; skipped rows in import_skipped_rows audit table. AND given import succeeds, when modal closes, then FIN-002 list re-renders with new draft rows.\n- Given user without fin.standard_cost.approve, when 'Submit for approval' Checkbox is rendered, then it is disabled/hidden with tooltip.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: bulk-import-modal.test.tsx asserts parity + step transitions + 500-row limit + Submit-on-approval gating. bulk-import.test.ts seeds CSV fixtures (valid / invalid rows), runs the action, asserts row counts + audit emission.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/standard-costs/_components/__tests__/bulk-import-modal.test.tsx apps/web/app/finance/standard-costs/_actions/__tests__/bulk-import.test.ts`.\n\n## Risk red lines\n- Do not parse files in the browser (memory + injection risk) \u2014 Route Handler only.\n- Do not allow >500 rows per request (per PRD \u00a78.4 wizard contract).\n- Do not skip RLS / `withOrgContext` in the Server Action.\n- Do not bypass V-FIN-STD-01..08 per-row validation.\n- Do not log raw file contents \u2014 only schema-violating values + row indices.\n- Do not stream the file to disk \u2014 keep in-memory; if too large, reject with 413.\n- Do not auto-approve drafts unless user has `fin.standard_cost.approve` permission.\n",
+  "title": "T-013 — UI: FIN-019 Bulk Import Standard Costs MODAL-04 (bulk_import_csv_modal, §8.4)",
+  "prompt": "# T-013 — FIN-019 Bulk Import Standard Costs (MODAL-04) UI + Server Action\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.4 FIN-019 [UNIVERSAL]; §8.5 MODAL-04; §11.2 V-FIN-STD-01..08 per row.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/modals.jsx:247-340` (`bulk_import_csv_modal`)\n\n## Goal\nThree-step wizard modal (Upload → Map & Validate → Review & Import) triggered from FIN-002 'Import CSV' CTA, supporting .csv / .xlsx files up to 500 rows. Server-side: file parser + per-row Zod validation + bulkImportStdCosts Server Action.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/modals.jsx:247-340`.\nshadcn primitives: Dialog, DialogContent, DialogFooter, Table, TableHeader, TableRow, TableCell, Checkbox, Button, Badge, Alert + custom Stepper component (build shared `components/ui/stepper.tsx`).\nParity checklist:\n1. Step 1 (Upload): drag-and-drop zone (react-dropzone), `accept={'text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}`, 'Download Template CSV' link → GET `/api/finance/std-costs/import/template`.\n2. Step 2 (Map & Validate): preview first 5 rows; auto-mapped column dropdowns (override allowed); validation summary tile (X valid / Y errors / Z warnings); error rows highlighted bg-red-50; 'Skip error rows and import valid only' Checkbox.\n3. Step 3 (Review & Import): summary 'X standard costs will be created as drafts'; missing item_codes warning; 'Submit all for approval immediately (Finance Manager only)' Checkbox (gated by `fin.standard_cost.approve` permission).\n4. Stepper component: clickable steps for completed; current step highlighted; build as shared primitive.\n5. Cancel/Back/Next footer per step.\n\n## Implementation contract\n1. Route Handler `apps/web/app/api/finance/std-costs/import/parse/route.ts` (POST) — receives multipart upload, streams via `papaparse` (CSV) or `xlsx` package, returns `{ valid: Row[], errors: ErrorRow[], warnings: WarnRow[] }` per Zod stdCostImportSchema row-level validation (V-FIN-STD-01..08).\n2. Route Handler `apps/web/app/api/finance/std-costs/import/template/route.ts` (GET) — streams template CSV with headers derived from stdCostImportSchema.\n3. Server Action `bulkImportStdCosts(parsedRows, options)` — inside DB transaction; calls `createStandardCostDraft` per row; if `submit_for_approval=true` AND user has `fin.standard_cost.approve` permission, calls `submitForApproval` per id; logs to `import_skipped_rows` audit table for any skipped errors.\n4. Modal component `bulk-import-modal.tsx` ('use client') with `useReducer` for step state.\n5. RBAC: requires `fin.standard_cost.bulk_import` (T-001 permission).\n\n## Files\n- apps/web/app/finance/standard-costs/_components/bulk-import-modal.tsx [create]\n- apps/web/app/finance/standard-costs/_actions/bulk-import.ts [create]\n- apps/web/app/api/finance/std-costs/import/parse/route.ts [create]\n- apps/web/app/api/finance/std-costs/import/template/route.ts [create]\n- apps/web/components/ui/stepper.tsx [create]\n- apps/web/app/finance/_lib/import-schema.ts [create] (Zod schema for row validation)\n- apps/web/app/finance/standard-costs/_components/__tests__/bulk-import-modal.test.tsx [create]\n- apps/web/app/finance/standard-costs/_actions/__tests__/bulk-import.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the modal renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:247-340, then 3 steps + Stepper + dropzone + preview + checkboxes + footer transitions match 1:1 (RTL parity snapshot — structural + interaction parity verified).\n- Given a 600-row CSV uploaded, when parse runs, then response includes error 'Max 500 rows per import' and step does NOT advance. AND given a row with effective_to < effective_from, when validation runs, then it appears in errors[] with V-FIN-STD-01 rule cited.\n- Given 'Skip error rows' checked and Import clicked, when commit, then only valid rows become drafts; skipped rows in import_skipped_rows audit table. AND given import succeeds, when modal closes, then FIN-002 list re-renders with new draft rows.\n- Given user without fin.standard_cost.approve, when 'Submit for approval' Checkbox is rendered, then it is disabled/hidden with tooltip.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: bulk-import-modal.test.tsx asserts parity + step transitions + 500-row limit + Submit-on-approval gating. bulk-import.test.ts seeds CSV fixtures (valid / invalid rows), runs the action, asserts row counts + audit emission.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/standard-costs/_components/__tests__/bulk-import-modal.test.tsx apps/web/app/finance/standard-costs/_actions/__tests__/bulk-import.test.ts`.\n\n## Risk red lines\n- Do not parse files in the browser (memory + injection risk) — Route Handler only.\n- Do not allow >500 rows per request (per PRD §8.4 wizard contract).\n- Do not skip RLS / `withOrgContext` in the Server Action.\n- Do not bypass V-FIN-STD-01..08 per-row validation.\n- Do not log raw file contents — only schema-violating values + row indices.\n- Do not stream the file to disk — keep in-memory; if too large, reject with 413.\n- Do not auto-approve drafts unless user has `fin.standard_cost.approve` permission.\n",
   "labels": [
     "prd",
     "ui",
     "fin-019",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -15,9 +17,9 @@
     "prd_task_id": "T-013",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.4",
-      "\u00a78.5",
-      "\u00a711.2"
+      "§8.4",
+      "§8.5",
+      "§11.2"
     ],
     "category": "ui",
     "subcategory": "fin-019-bulk-import",
@@ -26,7 +28,7 @@
     "context_budget": "55k",
     "estimated_effort": "3-4h",
     "description": "FIN-019 Bulk Import wizard (3 steps) + parse Route Handler + template Route Handler + bulkImportStdCosts Server Action + shared Stepper primitive.",
-    "details": "Reusable Stepper primitive added at components/ui/stepper.tsx. Server-side parse + Zod validation. Max 500 rows. Optional immediate submit-for-approval gated by fin.standard_cost.approve permission. Skipped rows logged to import_skipped_rows for audit. [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "Reusable Stepper primitive added at components/ui/stepper.tsx. Server-side parse + Zod validation. Max 500 rows. Optional immediate submit-for-approval gated by fin.standard_cost.approve permission. Skipped rows logged to import_skipped_rows for audit. [AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/standard-costs/_components/bulk-import-modal.tsx [create]",
       "apps/web/app/finance/standard-costs/_actions/bulk-import.ts [create]",
@@ -49,7 +51,7 @@
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "Given the modal renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:247-340, then 3 steps + Stepper + dropzone + preview + checkboxes + footer transitions match 1:1 (RTL parity snapshot \u2014 structural + interaction parity verified).",
+      "Given the modal renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:247-340, then 3 steps + Stepper + dropzone + preview + checkboxes + footer transitions match 1:1 (RTL parity snapshot — structural + interaction parity verified).",
       "Given a 600-row CSV uploaded, when parse runs, then response includes error 'Max 500 rows per import' and step does NOT advance. AND given a row with effective_to < effective_from, when validation runs, then it appears in errors[] with V-FIN-STD-01 rule cited.",
       "Given 'Skip error rows' checked and Import clicked, when commit, then only valid rows become drafts; skipped rows in import_skipped_rows audit table. AND given import succeeds, when modal closes, then FIN-002 list re-renders with new draft rows.",
       "Given user without fin.standard_cost.approve, when 'Submit for approval' Checkbox is rendered, then it is disabled/hidden with tooltip."
@@ -71,7 +73,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -85,7 +91,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

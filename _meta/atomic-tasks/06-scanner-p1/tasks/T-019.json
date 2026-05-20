@@ -5,7 +5,9 @@
     "prd",
     "ui",
     "scn-011b-pin-setup",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -67,7 +69,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -84,7 +90,14 @@
         "git_status",
         "mobile_390x844_screenshot",
         "playwright_trace",
-        "prototype_label_parity_notes"
+        "prototype_label_parity_notes",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

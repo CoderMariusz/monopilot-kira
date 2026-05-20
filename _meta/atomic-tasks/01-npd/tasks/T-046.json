@@ -5,7 +5,9 @@
     "prd",
     "ui",
     "d365-modals",
-    "T0-root"
+    "T0-root",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -64,14 +66,26 @@
       "Do not invoke buildD365 directly from client during wizard",
       "Do not render plain HTML <input> for MFA"
     ],
-    "skills": [],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
+    ],
     "checkpoint_policy": {
       "required_checkpoints": [
         "CLOSEOUT"
       ],
       "closeout_requires": [
         "child_task_status",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

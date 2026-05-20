@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-regulatory-dashboard",
-    "docs"
+    "spec-regulatory-dashboard"
   ],
   "priority": 150,
   "max_attempts": 3,

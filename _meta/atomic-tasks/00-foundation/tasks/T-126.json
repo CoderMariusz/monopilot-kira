@@ -4,7 +4,9 @@
   "labels": [
     "ui",
     "auth",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 15,
   "max_attempts": 3,
@@ -59,6 +61,23 @@
       "implementation": "sonnet",
       "review": "opus_if_high_risk_or_ui_or_architecture",
       "close": "spark_low_risk_else_opus"
+    },
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
+    ],
+    "checkpoint_policy": {
+      "closeout_requires": [
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
+      ]
     }
   }
 }

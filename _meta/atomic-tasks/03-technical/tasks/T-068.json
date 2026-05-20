@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-cost-import-d365",
-    "docs"
+    "spec-cost-import-d365"
   ],
   "priority": 150,
   "max_attempts": 3,

@@ -1,11 +1,13 @@
 {
   "title": "T-107 — Line List screen (SET-018 §12.2)",
-  "prompt": "# T-107 — Line List screen (SET-018 §12.2)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Line List screen from §12.2 — list `production_lines` with a per-row machine sequence preview (ordered chip row) and filter by warehouse + status. Activation guarded by V-SET-62 (≥1 machine).\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/lines/page.tsx (Server Component) fetches production_lines + their assigned machines (joined order_seq).\n2. Each row shows: line name, default_location_id breadcrumb, machine sequence chips (ordered) up to 6, overflow `+N more`, status badge.\n3. Toolbar: warehouse filter, status filter, bulk activate/deactivate buttons calling T-029 actions.\n4. Bulk activate flow surfaces V-SET-62 NO_MACHINE error per row (shown inline); successful rows proceed.\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/(admin)/settings/infra/lines/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/lines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting page with mocked lines (one with 0 machines, one with 4 machines); assert chips render, V-SET-62 error path on activate.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + chips + bulk action wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not bypass V-SET-62 client-side; rely on T-029 server enforcement.\n- Do not implement Line Edit drag-drop (separate SET-019 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`\n**Label:** `warehouses_screen`\n**Component type:** page-layout\n\n> **No exact prototype** — closest visual pattern: `warehouses_screen` at `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`. Build in the same structural style as this screen. Re-use the same page-layout for the list; render machine sequence chips inline using shadcn Badge variants in the same density tokens as the capacity bar pattern.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts\n- Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field\n- Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert\n- Toggle primitives (mixed lots, block expired) → shadcn Switch\n- Expiry threshold number input → shadcn Input type='number' with min/max constraints from config\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Progress`, `Switch`, `Input`, `Select`, `Button`, `Badge`\n\n",
+  "prompt": "# T-107 — Line List screen (SET-018 §12.2)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the Line List screen from §12.2 — list `production_lines` with a per-row machine sequence preview (ordered chip row) and filter by warehouse + status. Activation guarded by V-SET-62 (≥1 machine).\n\n## Implementation contract\n1. Page at apps/web/app/[locale]/(admin)/settings/infra/lines/page.tsx (Server Component) fetches production_lines + their assigned machines (joined order_seq).\n2. Each row shows: line name, default_location_id breadcrumb, machine sequence chips (ordered) up to 6, overflow `+N more`, status badge.\n3. Toolbar: warehouse filter, status filter, bulk activate/deactivate buttons calling T-029 actions.\n4. Bulk activate flow surfaces V-SET-62 NO_MACHINE error per row (shown inline); successful rows proceed.\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/[locale]/(admin)/settings/infra/lines/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/infra/lines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting page with mocked lines (one with 0 machines, one with 4 machines); assert chips render, V-SET-62 error path on activate.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/infra/lines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + chips + bulk action wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not bypass V-SET-62 client-side; rely on T-029 server enforcement.\n- Do not implement Line Edit drag-drop (separate SET-019 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`\n**Label:** `warehouses_screen`\n**Component type:** page-layout\n\n> **No exact prototype** — closest visual pattern: `warehouses_screen` at `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`. Build in the same structural style as this screen. Re-use the same page-layout for the list; render machine sequence chips inline using shadcn Badge variants in the same density tokens as the capacity bar pattern.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts\n- Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field\n- Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert\n- Toggle primitives (mixed lots, block expired) → shadcn Switch\n- Expiry threshold number input → shadcn Input type='number' with min/max constraints from config\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Progress`, `Switch`, `Input`, `Select`, `Button`, `Badge`\n\n",
   "labels": [
     "prd",
     "ui",
     "set-018",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -28,8 +30,8 @@
     "description": "Line List screen (SET-018): production_lines list with machine sequence preview chips and V-SET-62 activate guard.",
     "details": "PRD §12.2 SET-018: Line List with `machine sequence preview` capability. Machine chips ordered by line_machines.seq; bulk activate must hit T-029 activateLine which raises NO_MACHINE (V-SET-62) when no machines assigned — UI surfaces inline row-level error and proceeds with successful rows.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/infra/lines/page.tsx",
-      "apps/web/app/(admin)/settings/infra/lines/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/infra/lines/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/infra/lines/page.test.tsx"
     ],
     "out_of_scope": [
       "SET-019 Line Edit drag-drop machine assignment — separate screen",
@@ -54,7 +56,7 @@
     "test_strategy": [
       "RED: RTL test mounts list with seed (line0=0 machines, line4=4 machines, line8=8 machines); asserts chip render + +N overflow + V-SET-62 inline error.",
       "GREEN: implement Server Component + chips + bulk activate error rendering.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/lines/page.test.tsx` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/infra/lines/page.test.tsx` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -64,7 +66,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -78,7 +84,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

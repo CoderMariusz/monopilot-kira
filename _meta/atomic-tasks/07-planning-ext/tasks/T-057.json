@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "readiness",
-    "docs"
+    "readiness"
   ],
   "priority": 150,
   "max_attempts": 3,

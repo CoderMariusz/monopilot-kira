@@ -1,11 +1,13 @@
 {
-  "title": "T-019 \u2014 UI: FIN-003a WO Costs List page (fin_wo_list, \u00a78.4)",
-  "prompt": "# T-019 \u2014 FIN-003a WO Costs List UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.4 FIN-003a [UNIVERSAL]; \u00a711.5 V-FIN-VAR-01..04 color coding.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122` (`fin_wo_list`)\n\n## Goal\nServer Component page `/finance/wos` rendering shadcn DataTable of `work_order_costs` rows, with status tabs, variance filter, VarBadge color-coded, D365 journal ref link, row click \u2192 detail page.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122`.\nshadcn primitives: Table, TableHeader, TableRow, TableCell, Tabs, TabsList, TabsTrigger, Input, Select, Button, Badge.\nParity checklist:\n1. Status tabs (All / Open / Closed / Posted) with counts via single GROUP BY query.\n2. Variance Filter Select (All / Favorable / Unfavorable / >5% / >10%) bound to URL via nuqs.\n3. Other filters: search Input, date-range DatePicker, cost-center Select, production-line Select.\n4. DataTable columns: WO Number (Link \u2192 `/finance/wos/[woId]/cost`), Product, Production Line, Cost Center, Status badge (WoCostStatusBadge: open=amber, closed=blue, posted=green), Total Cost Actual GBP (mono), Total Variance (VarBadge: >10%=destructive, >5%=warning, \u22645%=secondary), Variance %, D365 Journal Ref (Link \u2192 `/finance/d365?tab=batches&journal=<ref>` when posted), Costing Date.\n5. Empty state: shadcn EmptyState pattern (centered icon + heading + clear-filters CTA).\n6. Export CSV CTA opens MODAL-10 (deferred to T-032 \u2014 Button renders 'Coming soon' tooltip in P1 placeholder, OR if T-032 lands first, wires directly).\n7. RBAC: visible to `fin.wo_cost.view` holders.\n\n## Implementation contract\n1. `app/finance/wos/page.tsx` \u2014 RSC fetches filtered page + counts.\n2. `app/finance/wos/_components/wo-list-table.tsx` \u2014 TanStack DataTable client.\n3. Shared `app/finance/_components/wo-cost-status-badge.tsx` + `var-badge.tsx` (used here and FIN-003 detail).\n\n## Files\n- apps/web/app/finance/wos/page.tsx [create]\n- apps/web/app/finance/wos/_components/wo-list-table.tsx [create]\n- apps/web/app/finance/_components/wo-cost-status-badge.tsx [create]\n- apps/web/app/finance/_components/var-badge.tsx [create]\n- apps/web/app/finance/wos/_components/__tests__/wo-list-table.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122, then 4 status tabs + 5 filter controls + 10 columns + EmptyState match \u2014 RTL snapshot + parity checklist.\n- Given URL ?status=closed, when page renders, then DataTable shows only status='closed' and 'Closed' tab active. AND given URL ?variance=fav, when page renders, then DataTable shows only rows with total_variance < 0.\n- Given row with total_variance > 12%, when rendered, then VarBadge variant is 'destructive' per V-FIN-VAR-02. AND given row with status='posted' and d365_journal_id non-null, when D365 Journal Ref rendered, then it is a clickable Link.\n- Given user clicks a row, when navigation finishes, then URL is /finance/wos/<woId>/cost. AND given user without fin.wo_cost.view, when page renders, then forbidden page returned.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: wo-list-table.test.tsx asserts parity + URL params + VarBadge variants + D365 link + row click navigation + RBAC.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/wos`.\n\n## Risk red lines\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not skip nuqs URL state \u2014 filters must be shareable.\n- Do not regress accessibility (axe).\n- Do not show D365 link when posted_to_d365_at IS NULL.\n- Do not paste prototype JSX verbatim.\n",
+  "title": "T-019 — UI: FIN-003a WO Costs List page (fin_wo_list, §8.4)",
+  "prompt": "# T-019 — FIN-003a WO Costs List UI\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.4 FIN-003a [UNIVERSAL]; §11.5 V-FIN-VAR-01..04 color coding.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122` (`fin_wo_list`)\n\n## Goal\nServer Component page `/finance/wos` rendering shadcn DataTable of `work_order_costs` rows, with status tabs, variance filter, VarBadge color-coded, D365 journal ref link, row click → detail page.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122`.\nshadcn primitives: Table, TableHeader, TableRow, TableCell, Tabs, TabsList, TabsTrigger, Input, Select, Button, Badge.\nParity checklist:\n1. Status tabs (All / Open / Closed / Posted) with counts via single GROUP BY query.\n2. Variance Filter Select (All / Favorable / Unfavorable / >5% / >10%) bound to URL via nuqs.\n3. Other filters: search Input, date-range DatePicker, cost-center Select, production-line Select.\n4. DataTable columns: WO Number (Link → `/finance/wos/[woId]/cost`), Product, Production Line, Cost Center, Status badge (WoCostStatusBadge: open=amber, closed=blue, posted=green), Total Cost Actual GBP (mono), Total Variance (VarBadge: >10%=destructive, >5%=warning, ≤5%=secondary), Variance %, D365 Journal Ref (Link → `/finance/d365?tab=batches&journal=<ref>` when posted), Costing Date.\n5. Empty state: shadcn EmptyState pattern (centered icon + heading + clear-filters CTA).\n6. Export CSV CTA opens MODAL-10 (deferred to T-032 — Button renders 'Coming soon' tooltip in P1 placeholder, OR if T-032 lands first, wires directly).\n7. RBAC: visible to `fin.wo_cost.view` holders.\n\n## Implementation contract\n1. `app/finance/wos/page.tsx` — RSC fetches filtered page + counts.\n2. `app/finance/wos/_components/wo-list-table.tsx` — TanStack DataTable client.\n3. Shared `app/finance/_components/wo-cost-status-badge.tsx` + `var-badge.tsx` (used here and FIN-003 detail).\n\n## Files\n- apps/web/app/finance/wos/page.tsx [create]\n- apps/web/app/finance/wos/_components/wo-list-table.tsx [create]\n- apps/web/app/finance/_components/wo-cost-status-badge.tsx [create]\n- apps/web/app/finance/_components/var-badge.tsx [create]\n- apps/web/app/finance/wos/_components/__tests__/wo-list-table.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122, then 4 status tabs + 5 filter controls + 10 columns + EmptyState match — RTL snapshot + parity checklist.\n- Given URL ?status=closed, when page renders, then DataTable shows only status='closed' and 'Closed' tab active. AND given URL ?variance=fav, when page renders, then DataTable shows only rows with total_variance < 0.\n- Given row with total_variance > 12%, when rendered, then VarBadge variant is 'destructive' per V-FIN-VAR-02. AND given row with status='posted' and d365_journal_id non-null, when D365 Journal Ref rendered, then it is a clickable Link.\n- Given user clicks a row, when navigation finishes, then URL is /finance/wos/<woId>/cost. AND given user without fin.wo_cost.view, when page renders, then forbidden page returned.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: wo-list-table.test.tsx asserts parity + URL params + VarBadge variants + D365 link + row click navigation + RBAC.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/wos`.\n\n## Risk red lines\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not skip nuqs URL state — filters must be shareable.\n- Do not regress accessibility (axe).\n- Do not show D365 link when posted_to_d365_at IS NULL.\n- Do not paste prototype JSX verbatim.\n",
   "labels": [
     "prd",
     "ui",
     "fin-003a",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-019",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.4",
-      "\u00a711.5"
+      "§8.4",
+      "§11.5"
     ],
     "category": "ui",
     "subcategory": "fin-003a-wo-list",
@@ -25,7 +27,7 @@
     "context_budget": "50k",
     "estimated_effort": "3h",
     "description": "FIN-003a WO Costs List page matching fin_wo_list prototype with status tabs, variance filter, color-coded VarBadge, and D365 journal link.",
-    "details": "Shared WoCostStatusBadge + VarBadge extracted under app/finance/_components for reuse in FIN-003 detail (T-020) and FIN-001 dashboard (T-031). URL-first filter state via nuqs. [AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "Shared WoCostStatusBadge + VarBadge extracted under app/finance/_components for reuse in FIN-003 detail (T-020) and FIN-001 dashboard (T-031). URL-first filter state via nuqs. [AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/wos/page.tsx [create]",
       "apps/web/app/finance/wos/_components/wo-list-table.tsx [create]",
@@ -46,7 +48,7 @@
       "T-020"
     ],
     "acceptance_criteria": [
-      "Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122, then 4 status tabs + 5 filter controls + 10 columns + EmptyState match \u2014 RTL snapshot + parity checklist.",
+      "Given the page renders, when compared to prototypes/design/Monopilot Design System/finance/wo-screens.jsx:1-122, then 4 status tabs + 5 filter controls + 10 columns + EmptyState match — RTL snapshot + parity checklist.",
       "Given URL ?status=closed, when page renders, then DataTable shows only status='closed' and 'Closed' tab active. AND given URL ?variance=fav, when page renders, then DataTable shows only rows with total_variance < 0.",
       "Given row with total_variance > 12%, when rendered, then VarBadge variant is 'destructive' per V-FIN-VAR-02. AND given row with status='posted' and d365_journal_id non-null, when D365 Journal Ref rendered, then it is a clickable Link.",
       "Given user clicks a row, when navigation finishes, then URL is /finance/wos/<woId>/cost. AND given user without fin.wo_cost.view, when page renders, then forbidden page returned."
@@ -66,7 +68,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -80,7 +86,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

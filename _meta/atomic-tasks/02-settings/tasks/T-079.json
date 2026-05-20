@@ -1,11 +1,13 @@
 {
   "title": "T-079 — Audit log viewer screen (SET-013) — partition-aware paginated query",
-  "prompt": "# T-079 — Audit log viewer screen (SET-013) — partition-aware paginated query\n\n## Goal\nBuild SET-013 (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)) following prototype `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239` 1:1 plus the production contract notes below.\n\nFull audit log viewer with filters: table_name, action, user_id, date range. Pagination is partition-aware (date-range first to limit partition scan). Viewer scope = caller's org_id only.\n\n## Files in scope\n- apps/web/app/(admin)/settings/audit/page.tsx [create]\n- apps/web/app/(admin)/settings/audit/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, when compared to `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239` (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.\n- Given the caller has settings.audit.read but not impersonate.tenant, when page is requested with org_id != caller's org, then 403 is returned.\n- Given a date range of 'last 7 days' is selected, when query runs, then only the relevant 1-2 partitions are scanned (verified by EXPLAIN).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/audit/page.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `docs/prd/02-SETTINGS-PRD.md` v3.5.\n",
+  "prompt": "# T-079 — Audit log viewer screen (SET-013) — partition-aware paginated query\n\n## Goal\nBuild SET-013 (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)) following prototype `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239` 1:1 plus the production contract notes below.\n\nFull audit log viewer with filters: table_name, action, user_id, date range. Pagination is partition-aware (date-range first to limit partition scan). Viewer scope = caller's org_id only.\n\n## Files in scope\n- apps/web/app/[locale]/(admin)/settings/audit/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/audit/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given the production page renders, when compared to `prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239` (prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log)), then it has structural parity (the same form sections, same field labels, same shadcn primitives, same modals invoked from same triggers), visual parity (same shadcn/Radix primitives — no drift to plain HTML, same density tokens), and interaction parity (same enable/disable rules, same loading/empty/error states, same keyboard focus order) — verified by an RTL snapshot test plus the parity checklist embedded in `pipeline_inputs.details`.\n- Given the caller has settings.audit.read but not impersonate.tenant, when page is requested with org_id != caller's org, then 403 is returned.\n- Given a date range of 'last 7 days' is selected, when query runs, then only the relevant 1-2 partitions are scanned (verified by EXPLAIN).\n\n## Test strategy (RED first)\n1. Add a failing test that exercises the acceptance criteria above. The RED command is:\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/audit/page.test.tsx [create]`\n2. Run RED — it must fail before any production code is written.\n3. Implement the smallest change needed for GREEN.\n4. Re-run RED command — must pass.\n5. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not edit files outside the listed scope without documenting why in CLOSEOUT.\n- Do not weaken existing acceptance criteria from prior tasks.\n- Do not introduce REST endpoints; use Server Actions per stack contract.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED→GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. Primitives in `packages/ui`. PRD: `docs/prd/02-SETTINGS-PRD.md` v3.5.\n",
   "labels": [
     "prd",
     "ui",
     "set-013",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -26,8 +28,8 @@
     "description": "SET-013 prototype: none (UX prototypes/design/02-SETTINGS-UX.md §audit log) production component (prototype-parity).",
     "details": "Prototype: prototypes/design/Monopilot Design System/settings/access-screens.jsx:154-239. Translation notes (canonical from prototype-index-settings.json): see `_meta/prototype-labels/translation-notes-settings.md` and the entry's `translation_notes` array. Production contract: data via Server Components (Drizzle); mutations via Server Actions; primitives from `packages/ui` only (no @radix-ui/react-dialog import outside packages/ui per §0). Parity checklist (verify item-by-item before GREEN):\n1. Section/region count + order matches prototype.\n2. Field labels + types match prototype.\n3. shadcn/Radix primitives match (Input, Select, Switch, Dialog etc).\n4. Action buttons present in same order with same enable/disable rules.\n5. Loading/empty/error states render per prototype.\n6. Modal triggers open the correct modal id (SM-NN).\n7. Keyboard focus order matches prototype.\n8. assertModalA11y() passes for any modals invoked.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/audit/page.tsx",
-      "apps/web/app/(admin)/settings/audit/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/audit/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/audit/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",
@@ -46,7 +48,7 @@
     "test_strategy": [
       "RED: write RTL test that mounts the page with mocked data and asserts the parity AC items + ac_extra coverage.",
       "GREEN: build component, wire Server Action(s).",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/audit/page.test.tsx [create]` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/audit/page.test.tsx [create]` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -56,7 +58,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -70,7 +76,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

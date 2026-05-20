@@ -1,11 +1,13 @@
 {
   "title": "T-106 — Machine List screen (SET-016 §12.2)",
-  "prompt": "# T-106 — Machine List screen (SET-016 §12.2)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild Machine List screen from §12.2 — status indicator + location breadcrumb per row, filter by status / warehouse, bulk activate/deactivate. Pulls from `machines` joined to `locations` via ltree to render breadcrumb (Warehouse > Zone > Rack > Bin).\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/infra/machines/page.tsx is a Server Component fetching `machines` joined to `locations` (with ltree path → label crumb).\n2. List columns: name, code, status indicator (online/offline/maintenance from machines.specs.status), location breadcrumb, deactivated_at badge.\n3. Toolbar: status filter, warehouse filter, bulk-select + bulk activate/deactivate calling T-029 server actions.\n4. Each row has Edit link routing to /settings/infra/machines/[id] (out of scope here — SET-017 Machine Edit is a separate screen).\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/(admin)/settings/infra/machines/page.tsx [create]\n- apps/web/app/(admin)/settings/infra/machines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting list with mocked machines + locations seed; assert breadcrumb render, status filter, bulk action wiring.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + bulk action.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not query without withOrgContext (RLS).\n- Do not implement Edit modal (separate SET-017 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`\n**Label:** `warehouses_screen`\n**Component type:** page-layout\n\n> **No exact prototype** — closest visual pattern: `warehouses_screen` at `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`. Build in the same structural style as this screen. Re-use the same page-layout (PageHead + Section + table) and status badge tokens; add a status indicator chip column and a location breadcrumb column.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts\n- Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field\n- Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert\n- Toggle primitives (mixed lots, block expired) → shadcn Switch\n- Expiry threshold number input → shadcn Input type='number' with min/max constraints from config\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Progress`, `Switch`, `Input`, `Select`, `Button`, `Badge`\n\n",
+  "prompt": "# T-106 — Machine List screen (SET-016 §12.2)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §12.2 (Infrastructure CRUD UI table)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild Machine List screen from §12.2 — status indicator + location breadcrumb per row, filter by status / warehouse, bulk activate/deactivate. Pulls from `machines` joined to `locations` via ltree to render breadcrumb (Warehouse > Zone > Rack > Bin).\n\n## Implementation contract\n1. Page at apps/web/app/[locale]/(admin)/settings/infra/machines/page.tsx is a Server Component fetching `machines` joined to `locations` (with ltree path → label crumb).\n2. List columns: name, code, status indicator (online/offline/maintenance from machines.specs.status), location breadcrumb, deactivated_at badge.\n3. Toolbar: status filter, warehouse filter, bulk-select + bulk activate/deactivate calling T-029 server actions.\n4. Each row has Edit link routing to /settings/infra/machines/[id] (out of scope here — SET-017 Machine Edit is a separate screen).\n5. RBAC: requires `settings.infra.read` for view, `settings.infra.update` for bulk actions.\n\n## Files\n- apps/web/app/[locale]/(admin)/settings/infra/machines/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/infra/machines/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test mounting list with mocked machines + locations seed; assert breadcrumb render, status filter, bulk action wiring.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/infra/machines/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + bulk action.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not import @radix-ui/* outside packages/ui (§0).\n- Do not query without withOrgContext (RLS).\n- Do not implement Edit modal (separate SET-017 screen).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`\n**Label:** `warehouses_screen`\n**Component type:** page-layout\n\n> **No exact prototype** — closest visual pattern: `warehouses_screen` at `prototypes/design/Monopilot Design System/settings/org-screens.jsx:192-252`. Build in the same structural style as this screen. Re-use the same page-layout (PageHead + Section + table) and status badge tokens; add a status indicator chip column and a location breadcrumb column.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Hardcoded warehouse rows → Drizzle query on warehouses table joined with zones and bin_locations for counts\n- Inline capacity bar (width % style) → shadcn Progress component; color threshold logic (>80% amber, >95% red) in server-computed field\n- Storage rules section → useForm with zodResolver; Server Action for warehouse_settings upsert\n- Toggle primitives (mixed lots, block expired) → shadcn Switch\n- Expiry threshold number input → shadcn Input type='number' with min/max constraints from config\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Progress`, `Switch`, `Input`, `Select`, `Button`, `Badge`\n\n",
   "labels": [
     "prd",
     "ui",
     "set-016",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -27,8 +29,8 @@
     "description": "Machine List screen (SET-016): status indicator + location breadcrumb + filters + bulk activate/deactivate.",
     "details": "PRD §12.2 SET-016: Machine List with `status indicator, location breadcrumb` capability. Status comes from `machines.specs.status` JSONB field per §5.6 + §12.1. Breadcrumb derived from joined `locations.path` ltree; helper `pathToBreadcrumb(path)` maps each path segment to a labeled crumb.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.infra.update`, when they view the list, then bulk action buttons are disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/infra/machines/page.tsx",
-      "apps/web/app/(admin)/settings/infra/machines/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/infra/machines/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/infra/machines/page.test.tsx"
     ],
     "out_of_scope": [
       "SET-017 Machine Edit form (specs JSONB editor) — separate screen",
@@ -53,7 +55,7 @@
     "test_strategy": [
       "RED: RTL test mounts list with mocked seed (machines + locations); asserts breadcrumb render, status filter, bulk-action invocation, RBAC disable.",
       "GREEN: implement Server Component + breadcrumb helper + filters + bulk wiring.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/infra/machines/page.test.tsx` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/infra/machines/page.test.tsx` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -63,7 +65,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -77,7 +83,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

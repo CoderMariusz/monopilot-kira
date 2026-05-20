@@ -1,11 +1,13 @@
 {
-  "title": "T-006 \u2014 UI: FIN-018 Cost Centers Admin + MODAL-13 GL Mapping (\u00a78.4 FIN-018, \u00a78.4 FIN-021)",
-  "prompt": "# T-006 \u2014 Cost Centers Admin + GL Mapping modal UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.4 FIN-018 Cost Centers Admin [UNIVERSAL]; \u00a78.4 FIN-021 GL Account Mapping Modal [INDUSTRY-CONFIG]; \u00a78.5 MODAL-13 contract; \u00a711.1 V-FIN-SETUP-04 hierarchy / V-FIN-SETUP-05 GL mapping.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/finance/modals.jsx:649-681 (`cost_center_gl_mapping_modal`)\n\n## Goal\nServer Component page `/finance/cost-centers` with treeview (left) + detail-form panel (right) for `cost_centers` hierarchy CRUD + embedded MODAL-13 dialog for create/edit + GL mapping wiring.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/modals.jsx:649-681` for MODAL-13. Cost Centers Admin page itself is marked `[NO-PROTOTYPE-YET]` for the tree view (PRD \u00a78.4 FIN-018 note) \u2014 implement structurally using shadcn Sidebar / Tree primitive + the modal as the create/edit dialog. Re-use shared finance shell.\nshadcn primitives: Dialog, DialogContent, DialogFooter, Form, FormField, Select, SelectItem, Input, Checkbox, Button, Card, Separator, Tooltip.\nParity checklist (MODAL-13):\n1. Modal size 'default'; create/edit shared via `editing` boolean from props.\n2. Code Input (alphanumeric + dash, max 20, Zod regex `/^[A-Z0-9\\-]{1,20}$/`).\n3. Name Input (max 100).\n4. Parent Cost Center Select (loaded via `getCostCenterTree` from T-004; excludes self + descendants to prevent cycle \u2014 V-FIN-SETUP-04 client-side; server trigger is SoT).\n5. Production Line Select (from 02-Settings join \u2014 read-only list for P1).\n6. Allocation Basis Select (labor_hours / machine_hours / units).\n7. D365 Dimension Code Input (`[ORG-CONFIG]` marker).\n8. Is Active Checkbox.\n9. Save button \u2192 `createCostCenter` or `updateCostCenter` Server Action (T-004); on cycle violation from trigger, surfaces user-facing error message.\nGL Mapping modal (FIN-021, same prototype file): triggered from a sub-tab on the page (or embedded in FIN-016 D365 Integration GL Mapping tab \u2014 T-030).\n\n## Implementation contract\n1. `app/finance/cost-centers/page.tsx` \u2014 RSC fetches `getCostCenterTree()` + paginates flat list.\n2. `app/finance/cost-centers/_components/cost-center-tree.tsx` ('use client') \u2014 shadcn Tree-style sidebar component (build minimal recursive Tree using nested `<ul>` + Tailwind indent).\n3. `app/finance/cost-centers/_components/cost-center-modal.tsx` \u2014 MODAL-13 dialog ('use client') wraps shadcn Dialog with form state.\n4. `app/finance/cost-centers/_components/gl-mapping-modal.tsx` \u2014 FIN-021 dialog (separate `<Dialog>` invocation but reuses same form primitives).\n5. RBAC: visible to `fin.cost_center.admin`; non-admins see read-only tree.\n\n## Files\n- apps/web/app/finance/cost-centers/page.tsx [create]\n- apps/web/app/finance/cost-centers/_components/cost-center-tree.tsx [create]\n- apps/web/app/finance/cost-centers/_components/cost-center-modal.tsx [create]\n- apps/web/app/finance/cost-centers/_components/gl-mapping-modal.tsx [create]\n- apps/web/app/finance/cost-centers/_components/__tests__/cost-center-modal.test.tsx [create]\n- apps/web/app/finance/cost-centers/_components/__tests__/cost-center-tree.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given MODAL-13 dialog renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:649-681, then field labels + Save/Cancel + Active match 1:1 (RTL parity snapshot \u2014 structural + visual + interaction parity verified).\n- Given edit mode for cost center A with child B, when Parent dropdown opens, then A and B are absent (cycle-prevention UX).\n- Given user submits Code 'cc with space', when Zod validates, then submission fails with regex error. AND given d365_account_code 'BAD-FORMAT' on GL modal, when submit, then Zod rejects the malformed account code.\n- Given user without fin.cost_center.admin, when page renders, then admin buttons hidden and tree is read-only. AND given a race cycle attempt and DB trigger raises, when action returns, then modal surfaces a friendly error message (no raw exception).\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: cost-center-modal.test.tsx asserts parity, parent dropdown excludes self+descendants, Zod regex on Code + d365 account code, RBAC button visibility, error-surface flow on DB trigger raise.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/cost-centers`.\n\n## Risk red lines\n- Do not implement cycle detection only in the UI \u2014 the DB trigger from T-003 is SoT.\n- Do not paste prototype JSX verbatim \u2014 translate per shadcn primitives.\n- Do not skip the `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]` marker indicators in the UI (per UX doc convention).\n- Do not delete a cost center that has child rows \u2014 surface ON DELETE RESTRICT error to user.\n- Do not regress accessibility (axe).\n",
+  "title": "T-006 — UI: FIN-018 Cost Centers Admin + MODAL-13 GL Mapping (§8.4 FIN-018, §8.4 FIN-021)",
+  "prompt": "# T-006 — Cost Centers Admin + GL Mapping modal UI\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.4 FIN-018 Cost Centers Admin [UNIVERSAL]; §8.4 FIN-021 GL Account Mapping Modal [INDUSTRY-CONFIG]; §8.5 MODAL-13 contract; §11.1 V-FIN-SETUP-04 hierarchy / V-FIN-SETUP-05 GL mapping.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/finance/modals.jsx:649-681 (`cost_center_gl_mapping_modal`)\n\n## Goal\nServer Component page `/finance/cost-centers` with treeview (left) + detail-form panel (right) for `cost_centers` hierarchy CRUD + embedded MODAL-13 dialog for create/edit + GL mapping wiring.\n\n## Prototype parity\nReference: `prototypes/design/Monopilot Design System/finance/modals.jsx:649-681` for MODAL-13. Cost Centers Admin page itself is marked `[NO-PROTOTYPE-YET]` for the tree view (PRD §8.4 FIN-018 note) — implement structurally using shadcn Sidebar / Tree primitive + the modal as the create/edit dialog. Re-use shared finance shell.\nshadcn primitives: Dialog, DialogContent, DialogFooter, Form, FormField, Select, SelectItem, Input, Checkbox, Button, Card, Separator, Tooltip.\nParity checklist (MODAL-13):\n1. Modal size 'default'; create/edit shared via `editing` boolean from props.\n2. Code Input (alphanumeric + dash, max 20, Zod regex `/^[A-Z0-9\\-]{1,20}$/`).\n3. Name Input (max 100).\n4. Parent Cost Center Select (loaded via `getCostCenterTree` from T-004; excludes self + descendants to prevent cycle — V-FIN-SETUP-04 client-side; server trigger is SoT).\n5. Production Line Select (from 02-Settings join — read-only list for P1).\n6. Allocation Basis Select (labor_hours / machine_hours / units).\n7. D365 Dimension Code Input (`[ORG-CONFIG]` marker).\n8. Is Active Checkbox.\n9. Save button → `createCostCenter` or `updateCostCenter` Server Action (T-004); on cycle violation from trigger, surfaces user-facing error message.\nGL Mapping modal (FIN-021, same prototype file): triggered from a sub-tab on the page (or embedded in FIN-016 D365 Integration GL Mapping tab — T-030).\n\n## Implementation contract\n1. `app/finance/cost-centers/page.tsx` — RSC fetches `getCostCenterTree()` + paginates flat list.\n2. `app/finance/cost-centers/_components/cost-center-tree.tsx` ('use client') — shadcn Tree-style sidebar component (build minimal recursive Tree using nested `<ul>` + Tailwind indent).\n3. `app/finance/cost-centers/_components/cost-center-modal.tsx` — MODAL-13 dialog ('use client') wraps shadcn Dialog with form state.\n4. `app/finance/cost-centers/_components/gl-mapping-modal.tsx` — FIN-021 dialog (separate `<Dialog>` invocation but reuses same form primitives).\n5. RBAC: visible to `fin.cost_center.admin`; non-admins see read-only tree.\n\n## Files\n- apps/web/app/finance/cost-centers/page.tsx [create]\n- apps/web/app/finance/cost-centers/_components/cost-center-tree.tsx [create]\n- apps/web/app/finance/cost-centers/_components/cost-center-modal.tsx [create]\n- apps/web/app/finance/cost-centers/_components/gl-mapping-modal.tsx [create]\n- apps/web/app/finance/cost-centers/_components/__tests__/cost-center-modal.test.tsx [create]\n- apps/web/app/finance/cost-centers/_components/__tests__/cost-center-tree.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given MODAL-13 dialog renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:649-681, then field labels + Save/Cancel + Active match 1:1 (RTL parity snapshot — structural + visual + interaction parity verified).\n- Given edit mode for cost center A with child B, when Parent dropdown opens, then A and B are absent (cycle-prevention UX).\n- Given user submits Code 'cc with space', when Zod validates, then submission fails with regex error. AND given d365_account_code 'BAD-FORMAT' on GL modal, when submit, then Zod rejects the malformed account code.\n- Given user without fin.cost_center.admin, when page renders, then admin buttons hidden and tree is read-only. AND given a race cycle attempt and DB trigger raises, when action returns, then modal surfaces a friendly error message (no raw exception).\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: cost-center-modal.test.tsx asserts parity, parent dropdown excludes self+descendants, Zod regex on Code + d365 account code, RBAC button visibility, error-surface flow on DB trigger raise.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/cost-centers`.\n\n## Risk red lines\n- Do not implement cycle detection only in the UI — the DB trigger from T-003 is SoT.\n- Do not paste prototype JSX verbatim — translate per shadcn primitives.\n- Do not skip the `[ORG-CONFIG]` / `[INDUSTRY-CONFIG]` marker indicators in the UI (per UX doc convention).\n- Do not delete a cost center that has child rows — surface ON DELETE RESTRICT error to user.\n- Do not regress accessibility (axe).\n",
   "labels": [
     "prd",
     "ui",
     "fin-018",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -15,9 +17,9 @@
     "prd_task_id": "T-006",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.4",
-      "\u00a78.5",
-      "\u00a711.1"
+      "§8.4",
+      "§8.5",
+      "§11.1"
     ],
     "category": "ui",
     "subcategory": "fin-018-cost-centers",
@@ -25,8 +27,8 @@
     "parent_feature": "10-FINANCE-a",
     "context_budget": "55k",
     "estimated_effort": "3-4h",
-    "description": "FIN-018 Cost Centers Admin page (tree+modal) + FIN-021 GL Mapping modal \u2014 implementing MODAL-13 prototype parity + DB-trigger-driven cycle UX.",
-    "details": "Treeview structurally implements [NO-PROTOTYPE-YET] page wrapper; MODAL-13 is the canonical prototype source. Parent dropdown filters out self+descendants client-side; server trigger from T-003 is final cycle SoT. GL Mapping modal reuses cost-center modal patterns with d365 account regex matched to T-003 schema CHECK. [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "description": "FIN-018 Cost Centers Admin page (tree+modal) + FIN-021 GL Mapping modal — implementing MODAL-13 prototype parity + DB-trigger-driven cycle UX.",
+    "details": "Treeview structurally implements [NO-PROTOTYPE-YET] page wrapper; MODAL-13 is the canonical prototype source. Parent dropdown filters out self+descendants client-side; server trigger from T-003 is final cycle SoT. GL Mapping modal reuses cost-center modal patterns with d365 account regex matched to T-003 schema CHECK. [AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/cost-centers/page.tsx [create]",
       "apps/web/app/finance/cost-centers/_components/cost-center-tree.tsx [create]",
@@ -49,7 +51,7 @@
       "T-007"
     ],
     "acceptance_criteria": [
-      "Given MODAL-13 dialog renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:649-681, then field labels + Save/Cancel + Active match 1:1 (RTL parity snapshot \u2014 structural + visual + interaction parity verified).",
+      "Given MODAL-13 dialog renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:649-681, then field labels + Save/Cancel + Active match 1:1 (RTL parity snapshot — structural + visual + interaction parity verified).",
       "Given edit mode for cost center A with child B, when Parent dropdown opens, then A and B are absent (cycle-prevention UX).",
       "Given user submits Code 'cc with space', when Zod validates, then submission fails with regex error. AND given d365_account_code 'BAD-FORMAT' on GL modal, when submit, then Zod rejects the malformed account code.",
       "Given user without fin.cost_center.admin, when page renders, then admin buttons hidden and tree is read-only. AND given a race cycle attempt and DB trigger raises, when action returns, then modal surfaces a friendly error message (no raw exception)."
@@ -60,16 +62,20 @@
       "Closeout-evidence check (hoisted from former AC): UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (referenced by ui_evidence_policy + checkpoint_policy.closeout_requires)."
     ],
     "risk_red_lines": [
-      "Do not implement cycle detection only in UI \u2014 DB trigger is SoT.",
+      "Do not implement cycle detection only in UI — DB trigger is SoT.",
       "Do not paste prototype JSX verbatim.",
       "Do not skip [ORG-CONFIG] / [INDUSTRY-CONFIG] markers.",
-      "Do not delete cost center with children \u2014 surface RESTRICT error.",
+      "Do not delete cost center with children — surface RESTRICT error.",
       "Do not regress accessibility."
     ],
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -83,7 +89,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

@@ -1,11 +1,13 @@
 {
-  "title": "T-007 \u2014 UI: FIN-008 FX Rates page + MODAL-05 (fin_fx_rates + fx_rate_override_modal)",
-  "prompt": "# T-007 \u2014 FIN-008 FX Rates + MODAL-05 UI\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a78.1 FIN-008 Exchange Rates + Currencies; \u00a78.5 MODAL-05 FX Rate Override; \u00a711.1 V-FIN-SETUP-03 (warn if rate older than 7 days); \u00a75.5 GBP base for Apex.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:119-250` (`fin_fx_rates`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:342-383` (`fx_rate_override_modal`)\n\n## Goal\nServer Component page `/finance/fx-rates` listing currencies + active rates + 30-day history TrendChart; MODAL-05 dialog for manual override with conditional reason validation; stale-rate Alert when any active rate > 7 days old.\n\n## Prototype parity\nReferences:\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:119-250` page shell\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:342-383` override modal\nshadcn primitives: Table, TableHeader, TableRow, TableCell, Select, Button, Badge, Alert, Card (page); Dialog, DialogContent, DialogFooter, Form, FormField, Input, RadioGroup, RadioGroupItem, Textarea, Button (modal).\nParity checklist (page):\n1. Stale Rate Alert (amber) when any active currency rate has `updated_at < now() - 7 days` (V-FIN-SETUP-03 \u2014 server-rendered).\n2. Currencies Table: Code, Name, Is Base badge, Current Rate (mono font), Rate Age badge (fresh/stale/expired \u2014 `<5d=secondary`, `5-7d=warning`, `>7d=destructive`), Last Updated, Source Badge (manual/api), Edit button \u2192 MODAL-05.\n3. Rate History Card: currency Selector + TrendChart (Recharts LineChart) for 30 days of history \u2014 fetched via `getExchangeRateHistory` from T-004.\n4. 'Change Base Currency' link guarded by `fin.currency.admin` permission \u2014 opens P2-disabled confirmation modal (P2 toast 'Available in Phase 2' is acceptable).\nParity checklist (modal):\n1. Modal size 'default'; single-page form.\n2. Source RadioGroup (Manual / API Pull); switching to API hides Reason field.\n3. New Rate Input (mono font, NUMERIC(15,6), Zod >0).\n4. Effective Date DatePicker (cannot be in the future for P1 \u2014 Zod refine).\n5. Reason Textarea (only when source='manual'; Zod superRefine: `min(20)` chars required).\n6. Summary panel: Currency code, Current Rate (read-only), Effective Date.\n7. Save \u2192 `createExchangeRate` Server Action (T-004); on success closes modal + toast + revalidates page.\n\n## Implementation contract\n1. `app/finance/fx-rates/page.tsx` \u2014 RSC fetches active currencies + their latest rates + stale flag.\n2. `app/finance/fx-rates/_components/fx-table.tsx` \u2014 client component for table + history chart.\n3. `app/finance/fx-rates/_components/fx-override-modal.tsx` \u2014 MODAL-05.\n4. `app/finance/fx-rates/_components/__tests__/fx-table.test.tsx` + `fx-override-modal.test.tsx`.\n\n## Files\n- apps/web/app/finance/fx-rates/page.tsx [create]\n- apps/web/app/finance/fx-rates/_components/fx-table.tsx [create]\n- apps/web/app/finance/fx-rates/_components/fx-override-modal.tsx [create]\n- apps/web/app/finance/fx-rates/_components/__tests__/fx-table.test.tsx [create]\n- apps/web/app/finance/fx-rates/_components/__tests__/fx-override-modal.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given page renders with any active currency whose updated_at > 7 days ago, when user lands, then Stale Rate amber Alert is present citing V-FIN-SETUP-03. AND given Rate Age column, when rate age is 3/6/9 days, then badge variant is secondary/warning/destructive respectively.\n- Given MODAL-05 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:342-383, then Source RadioGroup + Reason conditional + Effective Date + Summary match 1:1 (RTL parity snapshot \u2014 structural + visual + interaction parity verified).\n- Given source='Manual' and reason 'too short', when Save click, then Zod superRefine rejects and Server Action NOT invoked. AND given source='API Pull', when Save click, then Reason is not rendered and Save passes validation without a reason.\n- Given user without fin.currency.admin, when page renders, then Edit + 'Change Base Currency' hidden. AND given successful override commit, when modal closes, then table re-renders with new rate and Source badge.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: fx-override-modal.test.tsx asserts parity, conditional Reason visibility, Zod min-length, Source toggle, Save invocation. fx-table.test.tsx asserts stale Alert rendering by mocking `now()`, Rate Age badge variants, RBAC visibility.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/fx-rates`.\n\n## Risk red lines\n- Do not recompute historical transactions when an FX rate is overridden \u2014 per translation note the action ONLY updates `exchange_rates` table; past `material_consumption_costs` retain their original unit_costs.\n- Do not skip the stale-rate Alert (V-FIN-SETUP-03 must be visible to operators).\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not paste prototype JSX verbatim.\n- Do not regress accessibility.\n",
+  "title": "T-007 — UI: FIN-008 FX Rates page + MODAL-05 (fin_fx_rates + fx_rate_override_modal)",
+  "prompt": "# T-007 — FIN-008 FX Rates + MODAL-05 UI\n\nPRD: docs/prd/10-FINANCE-PRD.md §8.1 FIN-008 Exchange Rates + Currencies; §8.5 MODAL-05 FX Rate Override; §11.1 V-FIN-SETUP-03 (warn if rate older than 7 days); §5.5 GBP base for Apex.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototypes:\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:119-250` (`fin_fx_rates`)\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:342-383` (`fx_rate_override_modal`)\n\n## Goal\nServer Component page `/finance/fx-rates` listing currencies + active rates + 30-day history TrendChart; MODAL-05 dialog for manual override with conditional reason validation; stale-rate Alert when any active rate > 7 days old.\n\n## Prototype parity\nReferences:\n- `prototypes/design/Monopilot Design System/finance/variance-screens.jsx:119-250` page shell\n- `prototypes/design/Monopilot Design System/finance/modals.jsx:342-383` override modal\nshadcn primitives: Table, TableHeader, TableRow, TableCell, Select, Button, Badge, Alert, Card (page); Dialog, DialogContent, DialogFooter, Form, FormField, Input, RadioGroup, RadioGroupItem, Textarea, Button (modal).\nParity checklist (page):\n1. Stale Rate Alert (amber) when any active currency rate has `updated_at < now() - 7 days` (V-FIN-SETUP-03 — server-rendered).\n2. Currencies Table: Code, Name, Is Base badge, Current Rate (mono font), Rate Age badge (fresh/stale/expired — `<5d=secondary`, `5-7d=warning`, `>7d=destructive`), Last Updated, Source Badge (manual/api), Edit button → MODAL-05.\n3. Rate History Card: currency Selector + TrendChart (Recharts LineChart) for 30 days of history — fetched via `getExchangeRateHistory` from T-004.\n4. 'Change Base Currency' link guarded by `fin.currency.admin` permission — opens P2-disabled confirmation modal (P2 toast 'Available in Phase 2' is acceptable).\nParity checklist (modal):\n1. Modal size 'default'; single-page form.\n2. Source RadioGroup (Manual / API Pull); switching to API hides Reason field.\n3. New Rate Input (mono font, NUMERIC(15,6), Zod >0).\n4. Effective Date DatePicker (cannot be in the future for P1 — Zod refine).\n5. Reason Textarea (only when source='manual'; Zod superRefine: `min(20)` chars required).\n6. Summary panel: Currency code, Current Rate (read-only), Effective Date.\n7. Save → `createExchangeRate` Server Action (T-004); on success closes modal + toast + revalidates page.\n\n## Implementation contract\n1. `app/finance/fx-rates/page.tsx` — RSC fetches active currencies + their latest rates + stale flag.\n2. `app/finance/fx-rates/_components/fx-table.tsx` — client component for table + history chart.\n3. `app/finance/fx-rates/_components/fx-override-modal.tsx` — MODAL-05.\n4. `app/finance/fx-rates/_components/__tests__/fx-table.test.tsx` + `fx-override-modal.test.tsx`.\n\n## Files\n- apps/web/app/finance/fx-rates/page.tsx [create]\n- apps/web/app/finance/fx-rates/_components/fx-table.tsx [create]\n- apps/web/app/finance/fx-rates/_components/fx-override-modal.tsx [create]\n- apps/web/app/finance/fx-rates/_components/__tests__/fx-table.test.tsx [create]\n- apps/web/app/finance/fx-rates/_components/__tests__/fx-override-modal.test.tsx [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given page renders with any active currency whose updated_at > 7 days ago, when user lands, then Stale Rate amber Alert is present citing V-FIN-SETUP-03. AND given Rate Age column, when rate age is 3/6/9 days, then badge variant is secondary/warning/destructive respectively.\n- Given MODAL-05 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:342-383, then Source RadioGroup + Reason conditional + Effective Date + Summary match 1:1 (RTL parity snapshot — structural + visual + interaction parity verified).\n- Given source='Manual' and reason 'too short', when Save click, then Zod superRefine rejects and Server Action NOT invoked. AND given source='API Pull', when Save click, then Reason is not rendered and Save passes validation without a reason.\n- Given user without fin.currency.admin, when page renders, then Edit + 'Change Base Currency' hidden. AND given successful override commit, when modal closes, then table re-renders with new rate and Source badge.\nNote: UI closeout must include screenshot/artifact evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` (verified via test_strategy + checkpoint_policy.closeout_requires; previously a separate AC, hoisted to process layer by Fixer F13 2026-05-14).\n_(AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: fx-override-modal.test.tsx asserts parity, conditional Reason visibility, Zod min-length, Source toggle, Save invocation. fx-table.test.tsx asserts stale Alert rendering by mocking `now()`, Rate Age badge variants, RBAC visibility.\n- Run `pnpm --filter @monopilot/web vitest run apps/web/app/finance/fx-rates`.\n\n## Risk red lines\n- Do not recompute historical transactions when an FX rate is overridden — per translation note the action ONLY updates `exchange_rates` table; past `material_consumption_costs` retain their original unit_costs.\n- Do not skip the stale-rate Alert (V-FIN-SETUP-03 must be visible to operators).\n- Do not use HTML `<select>` instead of shadcn Select.\n- Do not paste prototype JSX verbatim.\n- Do not regress accessibility.\n",
   "labels": [
     "prd",
     "ui",
     "fin-008",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -15,10 +17,10 @@
     "prd_task_id": "T-007",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a78.1",
-      "\u00a78.5",
-      "\u00a711.1",
-      "\u00a75.5"
+      "§8.1",
+      "§8.5",
+      "§11.1",
+      "§5.5"
     ],
     "category": "ui",
     "subcategory": "fin-008-fx-rates",
@@ -27,7 +29,7 @@
     "context_budget": "55k",
     "estimated_effort": "3-4h",
     "description": "FIN-008 FX Rates page + MODAL-05 override modal with conditional Reason validation + stale rate Alert (V-FIN-SETUP-03).",
-    "details": "Page renders stale Alert server-side; table shows Rate Age badge with 3 variants. Modal conditionally renders Reason field based on Source radio; manual requires reason \u226520 chars via Zod superRefine. Historical transactions are NOT recalculated on override (audit-compliant). Recharts LineChart used for 30d history (per translation note \u2014 pass actual floats, no \u00d710000 scaling). [AC count consolidated from 8\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "Page renders stale Alert server-side; table shows Rate Age badge with 3 variants. Modal conditionally renders Reason field based on Source radio; manual requires reason ≥20 chars via Zod superRefine. Historical transactions are NOT recalculated on override (audit-compliant). Recharts LineChart used for 30d history (per translation note — pass actual floats, no ×10000 scaling). [AC count consolidated from 8→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "apps/web/app/finance/fx-rates/page.tsx [create]",
       "apps/web/app/finance/fx-rates/_components/fx-table.tsx [create]",
@@ -50,7 +52,7 @@
     ],
     "acceptance_criteria": [
       "Given page renders with any active currency whose updated_at > 7 days ago, when user lands, then Stale Rate amber Alert is present citing V-FIN-SETUP-03. AND given Rate Age column, when rate age is 3/6/9 days, then badge variant is secondary/warning/destructive respectively.",
-      "Given MODAL-05 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:342-383, then Source RadioGroup + Reason conditional + Effective Date + Summary match 1:1 (RTL parity snapshot \u2014 structural + visual + interaction parity verified).",
+      "Given MODAL-05 renders, when compared to prototypes/design/Monopilot Design System/finance/modals.jsx:342-383, then Source RadioGroup + Reason conditional + Effective Date + Summary match 1:1 (RTL parity snapshot — structural + visual + interaction parity verified).",
       "Given source='Manual' and reason 'too short', when Save click, then Zod superRefine rejects and Server Action NOT invoked. AND given source='API Pull', when Save click, then Reason is not rendered and Save passes validation without a reason.",
       "Given user without fin.currency.admin, when page renders, then Edit + 'Change Base Currency' hidden. AND given successful override commit, when modal closes, then table re-renders with new rate and Source badge."
     ],
@@ -69,7 +71,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -83,7 +89,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

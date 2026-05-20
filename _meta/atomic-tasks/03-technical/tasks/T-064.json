@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-bulk-import",
-    "docs"
+    "spec-bulk-import"
   ],
   "priority": 150,
   "max_attempts": 3,

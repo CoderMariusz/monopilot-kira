@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "supplier-specs",
-    "docs"
+    "supplier-specs"
   ],
   "priority": 120,
   "max_attempts": 3,

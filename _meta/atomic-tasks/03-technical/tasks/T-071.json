@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "adr-notes",
-    "docs"
+    "adr-notes"
   ],
   "priority": 150,
   "max_attempts": 3,

@@ -1,11 +1,13 @@
 {
   "title": "T-119 — Pending Invitations screen (SET-010)",
-  "prompt": "# T-119 — Pending Invitations screen (SET-010)\n\n## Goal\nSET-010 Pending Invitations production screen, in scope per PO 2026-05-03.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `prototypes/design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `prototypes/settings/access-screens.jsx` and `prototypes/settings/modals.jsx`.\n\n## Files in scope\n- apps/web/app/(admin)/settings/invitations/page.tsx [create]\n- apps/web/app/(admin)/settings/invitations/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given /settings/invitations renders, then it follows UX SET-010: table columns Email, Role, Invited By, Invited At, Expires At, Status, Actions; Pending/Expired/Accepted badges; Invite User trigger; loading and empty states.\n- Given an invitation is Pending or Expired, when Resend is clicked, then the invite action is called and success/error toast is shown.\n- Given an invitation is Pending, when Revoke is confirmed, then the invitation is revoked/audited and disappears or changes status without affecting accepted users.\n\n## Test strategy (RED first)\n- RED: RTL page test for table columns/states and resend/revoke calls.\n- GREEN: build screen wired to existing invite actions.\n- Run page test, typecheck, lint.\n\n## Risk red lines\n- Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.\n- Do not invent custom invite semantics outside T-017/T-052 contracts.\n\n## Depth patch — UI permissions and invitation lifecycle\n- Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions.\n- Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user.\n- Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry.\n- Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.\n",
+  "prompt": "# T-119 — Pending Invitations screen (SET-010)\n\n## Goal\nSET-010 Pending Invitations production screen, in scope per PO 2026-05-03.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `prototypes/design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `prototypes/settings/access-screens.jsx` and `prototypes/settings/modals.jsx`.\n\n## Files in scope\n- apps/web/app/[locale]/(admin)/settings/invitations/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/invitations/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given /settings/invitations renders, then it follows UX SET-010: table columns Email, Role, Invited By, Invited At, Expires At, Status, Actions; Pending/Expired/Accepted badges; Invite User trigger; loading and empty states.\n- Given an invitation is Pending or Expired, when Resend is clicked, then the invite action is called and success/error toast is shown.\n- Given an invitation is Pending, when Revoke is confirmed, then the invitation is revoked/audited and disappears or changes status without affecting accepted users.\n\n## Test strategy (RED first)\n- RED: RTL page test for table columns/states and resend/revoke calls.\n- GREEN: build screen wired to existing invite actions.\n- Run page test, typecheck, lint.\n\n## Risk red lines\n- Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.\n- Do not invent custom invite semantics outside T-017/T-052 contracts.\n\n## Depth patch — UI permissions and invitation lifecycle\n- Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions.\n- Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user.\n- Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry.\n- Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.\n",
   "labels": [
     "prd",
     "ui",
     "set-010",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -23,8 +25,8 @@
     "description": "SET-010 Pending Invitations production screen, in scope per PO 2026-05-03.",
     "details": "Canonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. If an exact screen prototype is missing, implement spec-driven from `prototypes/design/02-SETTINGS-UX.md` and reuse available prototype elements/patterns only where they match the UX contract. Exact prototype for SET-010 is not confirmed; use UX SET-010 as authoritative and reuse user/invite table plus modal patterns from `prototypes/settings/access-screens.jsx` and `prototypes/settings/modals.jsx`. Depth patch 2026-05-03: ## Depth patch — UI permissions and invitation lifecycle - Add route/nav visibility checks: `/settings/invitations` is visible only to users who can view users/invitations; write controls require invite/admin permissions. - Distinguish actions by state: Pending supports Resend/Revoke; Expired supports Resend and optional cleanup; Accepted is read-only and must never revoke a real user. - Show resend/revoke pending, success, error, and audit result states; include confirmation copy with invite email and expiry. - Tests must cover permission-denied/read-only, all three statuses, loading/empty/error, and that accepted invitations cannot be revoked.\nPreserved acceptance requirements: Screen enforces `settings.users.invite`/`settings.roles.assign` permissions: users without invite permission see read-only table and no Invite/Resend/Revoke write controls.; Navigation/route access and write controls are permission-filtered; missing write permission renders a read-only table with no Invite/Resend/Revoke controls.; Accepted invitations are immutable/read-only; revoke never affects accepted users.; RTL tests cover pending, expired, accepted, loading, empty, error, and permission-denied states.\n\nAdditional acceptance detail preserved from compressed AC list:\n- RTL covers pending, expired, accepted, loading, empty, error and permission-denied states.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/invitations/page.tsx",
-      "apps/web/app/(admin)/settings/invitations/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/invitations/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/invitations/page.test.tsx"
     ],
     "dependencies": [
       "T-017",
@@ -44,7 +46,7 @@
       "Add permission-denied/read-only test case for missing invite/admin permissions.",
       "Add RTL permission-denied/read-only test, accepted-immutable test, and loading/empty/error state tests.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/invitations/page.test.tsx`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/invitations/page.test.tsx`."
     ],
     "risk_red_lines": [
       "Do not fold Pending Invitations into /settings/users only; PO says Pending Invitations is in scope as its own Settings screen.",
@@ -66,7 +68,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -80,7 +86,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {
@@ -90,8 +103,6 @@
       "close": "spark_low_risk_else_opus"
     },
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
-    "prototype_index_entry": "users_screen (closest pattern — invited-users status column)",
-    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/access-screens.jsx:4-152",
     "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#users_screen"
   }
 }

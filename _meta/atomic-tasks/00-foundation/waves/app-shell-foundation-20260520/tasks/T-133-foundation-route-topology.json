@@ -1,0 +1,142 @@
+{
+  "title": "T-133 — Foundation route topology refactor: (app) / (auth) / (scanner) groups + contract test",
+  "prompt": "# T-133 — Foundation route topology refactor + contract\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReorganise `apps/web/app/[locale]/` into three sibling route groups — `(app)`, `(auth)`, `(scanner)` — without changing any URL, so UI-131 can attach the AppShell to `(app)` only, login keeps its own card layout under `(auth)`, and `(scanner)` is wired before T-134 lands the ScannerFrame. Also produce the contract test that proves no 404 / no wrong redirect after the move.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A; §7 risks (login-renders-sidebar, scanner-inherits-shell, reorg-breaks-tests). `apps/web/proxy.ts` already centralises auth/idle/i18n at the edge — DO NOT move auth into a Node middleware here.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [create — placeholder Server Component that just returns `<>{children}</>`; UI-131 fills it with the AppShell + auth guard]\n- `apps/web/app/[locale]/(auth)/layout.tsx` [create — empty pass-through; login keeps its own visual layout]\n- `apps/web/app/[locale]/(scanner)/layout.tsx` [create — empty pass-through; T-134 fills it with ScannerFrame]\n- relocate: `apps/web/app/[locale]/login/` → `apps/web/app/[locale]/(auth)/login/`\n- relocate: `apps/web/app/[locale]/page.tsx` → `apps/web/app/[locale]/(app)/page.tsx`\n- relocate: `apps/web/app/(admin)/` → `apps/web/app/[locale]/(app)/(admin)/` (URLs stay because route groups are URL-transparent; verify with the contract test)\n- relocate: `apps/web/app/(npd)/` → `apps/web/app/[locale]/(app)/(npd)/`\n- relocate (if exists): any `apps/web/app/(settings)/` → `apps/web/app/[locale]/(app)/(settings)/`\n- `apps/web/e2e/route-topology.spec.ts` [create — Playwright contract test, see below]\n- Update import paths only where module-relative imports break.\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx` (NextIntlProvider stays), `[locale]/login/layout.tsx` content (move-only), any `T-XXX.json` outside this wave, or `00-foundation/manifest.json`.\n\n## URL contract (assertions for the spec)\nEvery URL below MUST resolve with HTTP 200 (or 302→login for unauth) BOTH before and after the refactor:\n\n- `GET /en/` → before-after: same status, same redirect chain\n- `GET /en/login` → 200\n- `GET /en/login/forgot-password` → 200\n- `GET /en/login/mfa?factorId=red-contract` → 200\n- `GET /en/settings`, `/en/settings/users`, `/en/settings/roles`, `/en/settings/profile`, `/en/settings/security`, `/en/settings/invitations`, `/en/settings/authorization`, `/en/settings/schema/preview`, `/en/settings/reference/manufacturing-operations` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/account/profile`, `/en/account/notifications` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/fa/<productCode>` → 200\n- `GET /pl/login` → 200 (locale mirror)\n\nNot covered here:\n- `(scanner)` routes don't exist yet (T-134 introduces them). The contract test only asserts the empty `(scanner)/layout.tsx` exists.\n\n## Auth-guard placement\nAuth guard stays in `proxy.ts` (existing). UI-131 will additionally call `createServerSupabaseClient().auth.getUser()` inside `(app)/layout.tsx` as a defence-in-depth Server-Component check — that's a UI-131 deliverable, not T-133.\n\n## Acceptance criteria\n1. Each of the 18+ URLs above returns the same status before and after relocation (proven by running the new spec twice in the same run — once against snapshot URLs, once against the relocated tree).\n2. Existing Playwright specs (`apps/web/e2e/auth.spec.ts`, `apps/web/e2e/login-ui-parity.spec.ts`) pass unchanged.\n3. Existing vitest suite (`pnpm --filter web test`) passes unchanged — no test file is renamed/moved, only `app/` subtrees move.\n4. Typecheck passes (`pnpm --filter web typecheck`).\n5. `apps/web/app/[locale]/(app)/layout.tsx`, `(auth)/layout.tsx`, `(scanner)/layout.tsx` exist as pass-through stubs; the file headers cite the wave + this task id and reference the follow-on tasks (UI-131 / T-134).\n6. proxy.ts is NOT modified.\n\n## Out of scope\n- AppShell wrapper content (UI-131).\n- AuthGuard in Server Component (UI-131).\n- ScannerFrame (T-134).\n- New URLs / removed URLs / locale changes.\n\n## RED test\nWrite `route-topology.spec.ts` and run against the pre-refactor tree first — capture baseline statuses. Then perform the relocation, run again, diff. The committed spec asserts the post-refactor contract; the baseline run is referenced in closeout.\n\n## Risk red lines\n- Do not move `proxy.ts` or change its matcher.\n- Do not change any URL externally — route groups are URL-transparent.\n- Do not delete the existing `[locale]/login/layout.tsx` content; only relocate it.\n- Do not rename any test file (would alter coverage and blame).\n- Do not modify `_meta/atomic-tasks/00-foundation/manifest.json` or any task under `tasks/T-001..T-126`.\n\n## Closeout\nProvide: changed_files (with `git mv` history preserved), test_commands_and_results for both baseline and post-refactor runs, acceptance_criteria_status, git_status, deviations_from_prototype (n/a — pure structural), and the route-topology diff table.\n\nIf any URL changes status across the refactor, the task is BLOCKED — do not promote.\n\n## Existing-tree inventory and collision policy (binding)\nBefore moving anything, inventory the current App Router tree with `git status --short apps/web/app` and a file listing for these known collision/risk areas:\n- `apps/web/app/(admin)/settings/users/**`\n- `apps/web/app/[locale]/(admin)/settings/users/**`\n- `apps/web/app/(auth)/actions.ts`\n- `apps/web/app/(settings)/schema/_actions/**`\n- `apps/web/app/onboarding/**` special routes\n\nIA decision for this task:\n- Final authenticated shell group is `apps/web/app/[locale]/(app)`.\n- Final settings pages live at `apps/web/app/[locale]/(app)/(admin)/settings/*`; do not create or keep a parallel `apps/web/app/[locale]/(app)/(settings)/*` settings UI tree.\n- Existing duplicate settings/users implementations must be compared and merged surgically. Do not pretend this is a simple `git mv`; do not overwrite either side without preserving tests, route contracts, and imports.\n- Preserve `apps/web/app/(auth)/actions.ts` behaviour/imports unless inventory proves it must move; update imports explicitly if it moves.\n- Treat `apps/web/app/(settings)/schema/_actions/**` as action support code, not the settings subnav layout target. Preserve or relocate only after import inventory proves the safe destination.\n- Onboarding routes are special: leave them outside the AppShell unless the inventory/contract explicitly proves they are authenticated shell routes; document the decision in closeout.\n",
+  "labels": [
+    "wave-app-shell-foundation",
+    "test",
+    "foundation",
+    "shell",
+    "routing",
+    "T4-wiring-test"
+  ],
+  "priority": 60,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-133",
+    "human_task_id": "T-133-foundation-route-topology",
+    "display_task_id": "T-133",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §3 Luka A",
+      "brief §7 risk: reorg breaks tests",
+      "brief §7 risk: scanner inherits AppShell",
+      "brief §7 risk: login renders sidebar"
+    ],
+    "category": "test",
+    "subcategory": "route-topology",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Inventory the existing apps/web/app topology, then surgically refactor locale/authenticated route groups without changing any URL; commit a Playwright contract spec that proves URL parity before/after and documents collision decisions.",
+    "details": "Create three sibling route-group layouts (pass-through stubs) only after inventorying existing collisions. Relocate login/ to (auth), page.tsx and authenticated module pages to (app). Merge existing settings routes into the final IA path apps/web/app/[locale]/(app)/(admin)/settings/*, resolving collisions between apps/web/app/(admin)/settings/users and apps/web/app/[locale]/(admin)/settings/users without overwrites. Inventory and preserve apps/web/app/(auth)/actions.ts, apps/web/app/(settings)/schema/_actions, and onboarding special routes. Add a contract spec (e2e/route-topology.spec.ts) that visits canonical URLs and asserts status parity. Do not touch proxy.ts. Do not edit 00-foundation/manifest.json or T-001..T-126.json. Document the move in closeout with inventory, collision decisions, and git history.",
+    "scope_files": [
+      "apps/web/app/[locale]/(app)/layout.tsx [create — pass-through stub]",
+      "apps/web/app/[locale]/(auth)/layout.tsx [create — pass-through stub]",
+      "apps/web/app/[locale]/(scanner)/layout.tsx [create — pass-through stub]",
+      "apps/web/app/[locale]/login/** → apps/web/app/[locale]/(auth)/login/** [surgical move after inventory]",
+      "apps/web/app/[locale]/page.tsx → apps/web/app/[locale]/(app)/page.tsx [surgical move after inventory]",
+      "apps/web/app/(admin)/** + apps/web/app/[locale]/(admin)/** → apps/web/app/[locale]/(app)/(admin)/** [inventory, merge collisions, preserve tests]",
+      "apps/web/app/(npd)/** → apps/web/app/[locale]/(app)/(npd)/** [surgical move after inventory]",
+      "apps/web/app/(auth)/actions.ts [inventory; preserve or explicitly update imports if moved]",
+      "apps/web/app/(settings)/schema/_actions/** [inventory; preserve/relocate only if import inventory requires]",
+      "apps/web/app/onboarding/** [inventory special routes; default leave outside AppShell unless contract says otherwise]",
+      "apps/web/e2e/route-topology.spec.ts [create]"
+    ],
+    "scope_paths": [
+      "apps/web/app/[locale]/",
+      "apps/web/app/(admin)/",
+      "apps/web/app/[locale]/(admin)/",
+      "apps/web/app/(npd)/",
+      "apps/web/app/(auth)/actions.ts",
+      "apps/web/app/(settings)/schema/_actions/",
+      "apps/web/app/onboarding/",
+      "apps/web/e2e/route-topology.spec.ts"
+    ],
+    "out_of_scope": [
+      "AppShell content (UI-131)",
+      "Server-Component auth defence-in-depth (UI-131)",
+      "ScannerFrame (T-134)",
+      "Any URL change / locale change",
+      "Editing proxy.ts",
+      "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+    ],
+    "dependencies": [
+      "T-022",
+      "T-126"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Inventory closeout lists current paths and decisions for (admin)/settings/users, [locale]/(admin)/settings/users, (auth)/actions.ts, (settings)/schema/_actions, and onboarding special routes",
+      "All canonical URLs in the contract list return the same status before and after relocation",
+      "Settings IA is single-source: final settings UI pages live under apps/web/app/[locale]/(app)/(admin)/settings/*; no parallel apps/web/app/[locale]/(app)/(settings)/* settings UI tree is introduced",
+      "Duplicate settings/users sources are merged surgically with no silent overwrite and tests/contracts preserved",
+      "apps/web/e2e/auth.spec.ts and login-ui-parity.spec.ts pass unchanged",
+      "pnpm --filter web test passes unchanged (no test file renamed)",
+      "pnpm --filter web typecheck passes",
+      "(app)/(auth)/(scanner)/layout.tsx exist as pass-through stubs with header comments naming this task and follow-ons",
+      "apps/web/proxy.ts is byte-identical before/after"
+    ],
+    "acceptance_criteria_structured": [
+      {
+        "description": "proxy.ts untouched",
+        "verifiable_by": "git diff --name-only apps/web/proxy.ts",
+        "expected": "no output"
+      },
+      {
+        "description": "Route groups exist",
+        "verifiable_by": "test -f apps/web/app/[locale]/(app)/layout.tsx && test -f apps/web/app/[locale]/(auth)/layout.tsx && test -f apps/web/app/[locale]/(scanner)/layout.tsx",
+        "expected": "all three present"
+      },
+      {
+        "description": "URL contract",
+        "verifiable_by": "pnpm exec playwright test apps/web/e2e/route-topology.spec.ts",
+        "expected": "all assertions pass"
+      }
+    ],
+    "test_strategy": [
+      "Inventory existing App Router tree and dirty state before moving files; document collision decisions in closeout",
+      "Capture baseline statuses for the canonical URL list against the pre-refactor tree",
+      "Write apps/web/e2e/route-topology.spec.ts asserting the post-refactor contract (RED before relocation)",
+      "Perform surgical moves/merges preserving history where safe; when collisions exist, compare contents and update imports/tests explicitly rather than blind git mv",
+      "pnpm exec playwright test apps/web/e2e/route-topology.spec.ts",
+      "pnpm exec playwright test apps/web/e2e/auth.spec.ts apps/web/e2e/login-ui-parity.spec.ts",
+      "pnpm --filter web test -- --run",
+      "pnpm --filter web typecheck"
+    ],
+    "risk_red_lines": [
+      "Do not modify apps/web/proxy.ts",
+      "Do not change any URL externally",
+      "Do not delete the existing [locale]/login/layout.tsx content (move only)",
+      "Do not rename any test file",
+      "Do not edit _meta/atomic-tasks/00-foundation/manifest.json or T-001..T-126.json",
+      "Do not introduce apps/web/app/[locale]/(app)/(settings)/* as a second settings UI topology",
+      "Do not overwrite duplicate settings/users sources without inventory and merge notes"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-verification",
+      "MON-t4-test"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "closeout_requires": [
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ]
+    },
+    "wave": "app-shell-foundation-20260520"
+  }
+}

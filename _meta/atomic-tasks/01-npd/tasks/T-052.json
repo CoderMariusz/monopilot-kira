@@ -5,7 +5,9 @@
     "prd",
     "ui",
     "dashboard",
-    "T0-root"
+    "T0-root",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 1,
@@ -60,11 +62,23 @@
       "Do not implement code under this root task",
       "Do not paste prototype JSX verbatim in any slice"
     ],
-    "skills": [],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
+    ],
     "checkpoint_policy": {
       "required_checkpoints": [],
       "closeout_requires": [
-        "slice_task_ids_closed"
+        "slice_task_ids_closed",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

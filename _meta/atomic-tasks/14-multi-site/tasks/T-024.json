@@ -1,11 +1,13 @@
 {
-  "title": "T-024 \u2014 Site decommission modal with V-MS-21 pre-condition gates (MS-104, BL guard)",
-  "prompt": "# T-024 \u2014 Site decommission modal\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710B MS-104, \u00a711.6 V-MS-21, \u00a714.4 BRCGS+FSMA 204\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633 (site_decommission_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7M-10\n\n## Goal\nDestructive archival modal that decommissions a site after V-MS-21 pre-condition gates clear. Type-to-confirm site_code (case-sensitive) + Admin-only + writes 7-year retention audit entry; emits site_decommissioned outbox event.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx \u2014 shadcn Dialog with dismissible={false}, pre-condition checklist (each item red+actionable link if unmet), type-to-confirm input, Decommission button disabled until all conditions clear + input matches site_code.\n2. Server Action decommissionSite(siteId, confirmCode):\n   - V-MS-21 server-side re-check (re-query, not trust client) of 4 pre-conditions: no open WOs (work_orders.state IN_PROGRESS/PLANNED), no in-transit ISTs (transfer_orders.state in {shipped, in_transit, planned}), no open quality holds (quality_holds.released_at IS NULL), no users whose only site_user_access is this site.\n   - Assert sites.is_default=false (per V-MS-03 \u2014 default site cannot be decommissioned).\n   - Assert role=admin.\n   - Set sites.active=false; mark all site_user_access for this site active=false; mark all replication_conflicts site-scoped resolved with reason='site_decommissioned'.\n   - Write audit_events row with 7-year retention tag (retention_class='regulatory_7y').\n   - Emit site.decommissioned outbox event.\n3. Server Component pre-computes checklist counts and passes as props (not fetched client-side).\n4. Tests: V-MS-21 negative paths each (open WO blocks, in-transit IST blocks, quality hold blocks, only-site user blocks) + V-MS-03 default-site block + happy path + audit retention tag + outbox event emitted.\n\n## Files\n- apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/decommission-site.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/compute-decommission-preconditions.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-decommission-modal.test.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/__tests__/decommission-site.test.ts [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the modal opens, when compared to modals.jsx:577-633 (site_decommission_modal), then dismissible=false, checklist with action links, type-to-confirm input, Decommission button gated \u2014 RTL parity + Playwright trace.\n2. Given the site has 3 open WOs, when checklist renders, then 'Close N WO(s)' line is red with deep-link to /production/wo?site=siteId&state=in_progress and Decommission button stays disabled.\n3. Given all pre-conditions are clear but the input value != site_code, when Decommission is clicked, then button is disabled (no click).\n4. Given the input matches site_code and all checklist clear, when decommissionSite settles, then sites.active=false, all site_user_access rows for site_id set active=false, replication_conflicts site-scoped resolved with reason='site_decommissioned'.\n5. Given the site is_default=true, when decommissionSite is invoked, then V-MS-03 DefaultSiteCannotBeDecommissioned is thrown \u2014 even before V-MS-21 checks.\n6. Given decommissionSite settles, when audit_events is queried, then 1 row exists with action='site_decommissioned', retention_class='regulatory_7y', actor=user_id.\n7. Given decommissionSite settles, when warehouse_outbox_events is queried, then exactly 1 row 'site.decommissioned' exists with payload {site_id, decommissioned_at, actor_user_id}.\n8. Given user role != admin, when decommissionSite is invoked, then UnauthorizedDecommission is thrown.\n\n## Test strategy\n- RED: RTL parity + V-MS-21 4 negative + V-MS-03 default-site + V-MS-21 happy path + audit retention + outbox + role gate before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-decommission-modal' + Playwright site-decommission.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633 (site_decommission_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not trust client-side pre-condition counts \u2014 Server Action MUST re-query.\n- Do not allow case-insensitive type-to-confirm \u2014 site_code match must be exact (case-sensitive).\n- Do not allow dismissible Dialog \u2014 onInteractOutside/onEscapeKeyDown preventDefault per \u00a710B MS-104.\n- Do not purge data \u2014 D-MS-3 archive-only; historical traceability preserved.\n- Do not skip 7-year retention tag \u2014 BRCGS+FSMA 204 \u00a75.2/\u00a714.4 compliance.\n- Do not allow decommissioning is_default=true site (V-MS-03 short-circuit).",
+  "title": "T-024 — Site decommission modal with V-MS-21 pre-condition gates (MS-104, BL guard)",
+  "prompt": "# T-024 — Site decommission modal\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §10B MS-104, §11.6 V-MS-21, §14.4 BRCGS+FSMA 204\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633 (site_decommission_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §M-10\n\n## Goal\nDestructive archival modal that decommissions a site after V-MS-21 pre-condition gates clear. Type-to-confirm site_code (case-sensitive) + Admin-only + writes 7-year retention audit entry; emits site_decommissioned outbox event.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx — shadcn Dialog with dismissible={false}, pre-condition checklist (each item red+actionable link if unmet), type-to-confirm input, Decommission button disabled until all conditions clear + input matches site_code.\n2. Server Action decommissionSite(siteId, confirmCode):\n   - V-MS-21 server-side re-check (re-query, not trust client) of 4 pre-conditions: no open WOs (work_orders.state IN_PROGRESS/PLANNED), no in-transit ISTs (transfer_orders.state in {shipped, in_transit, planned}), no open quality holds (quality_holds.released_at IS NULL), no users whose only site_user_access is this site.\n   - Assert sites.is_default=false (per V-MS-03 — default site cannot be decommissioned).\n   - Assert role=admin.\n   - Set sites.active=false; mark all site_user_access for this site active=false; mark all replication_conflicts site-scoped resolved with reason='site_decommissioned'.\n   - Write audit_events row with 7-year retention tag (retention_class='regulatory_7y').\n   - Emit site.decommissioned outbox event.\n3. Server Component pre-computes checklist counts and passes as props (not fetched client-side).\n4. Tests: V-MS-21 negative paths each (open WO blocks, in-transit IST blocks, quality hold blocks, only-site user blocks) + V-MS-03 default-site block + happy path + audit retention tag + outbox event emitted.\n\n## Files\n- apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/decommission-site.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/compute-decommission-preconditions.ts [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_components/__tests__/site-decommission-modal.test.tsx [create]\n- apps/web/app/(multi-site)/sites/[siteId]/_actions/__tests__/decommission-site.test.ts [create]\n- prototypes/design/Monopilot Design System/multi-site/modals.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the modal opens, when compared to modals.jsx:577-633 (site_decommission_modal), then dismissible=false, checklist with action links, type-to-confirm input, Decommission button gated — RTL parity + Playwright trace.\n2. Given the site has 3 open WOs, when checklist renders, then 'Close N WO(s)' line is red with deep-link to /production/wo?site=siteId&state=in_progress and Decommission button stays disabled.\n3. Given all pre-conditions are clear but the input value != site_code, when Decommission is clicked, then button is disabled (no click).\n4. Given the input matches site_code and all checklist clear, when decommissionSite settles, then sites.active=false, all site_user_access rows for site_id set active=false, replication_conflicts site-scoped resolved with reason='site_decommissioned'.\n5. Given the site is_default=true, when decommissionSite is invoked, then V-MS-03 DefaultSiteCannotBeDecommissioned is thrown — even before V-MS-21 checks.\n6. Given decommissionSite settles, when audit_events is queried, then 1 row exists with action='site_decommissioned', retention_class='regulatory_7y', actor=user_id.\n7. Given decommissionSite settles, when warehouse_outbox_events is queried, then exactly 1 row 'site.decommissioned' exists with payload {site_id, decommissioned_at, actor_user_id}.\n8. Given user role != admin, when decommissionSite is invoked, then UnauthorizedDecommission is thrown.\n\n## Test strategy\n- RED: RTL parity + V-MS-21 4 negative + V-MS-03 default-site + V-MS-21 happy path + audit retention + outbox + role gate before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-decommission-modal' + Playwright site-decommission.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633 (site_decommission_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not trust client-side pre-condition counts — Server Action MUST re-query.\n- Do not allow case-insensitive type-to-confirm — site_code match must be exact (case-sensitive).\n- Do not allow dismissible Dialog — onInteractOutside/onEscapeKeyDown preventDefault per §10B MS-104.\n- Do not purge data — D-MS-3 archive-only; historical traceability preserved.\n- Do not skip 7-year retention tag — BRCGS+FSMA 204 §5.2/§14.4 compliance.\n- Do not allow decommissioning is_default=true site (V-MS-03 short-circuit).",
   "labels": [
     "prd",
     "ui",
     "decommission",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-024",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710B MS-104",
-      "\u00a711.6 V-MS-21"
+      "§10B MS-104",
+      "§11.6 V-MS-21"
     ],
     "category": "ui",
     "subcategory": "site-decommission",
@@ -24,8 +26,8 @@
     "parent_feature": "14-MULTI-SITE-e site mgmt UI",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Destructive type-to-confirm modal with server-computed pre-condition checklist (open WOs / in-transit ISTs / quality holds / unassigned users) \u2014 V-MS-21 critical gate + 7-year audit retention metadata.",
-    "details": "Destructive type-to-confirm modal with server-computed pre-condition checklist (open WOs / in-transit ISTs / quality holds / unassigned users) \u2014 V-MS-21 critical gate + 7-year audit retention metadata. Scope: Destructive archival modal that decommissions a site after V-MS-21 pre-condition gates clear. Touches: apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/. Constraints: 1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx \u2014 shadcn Dialog with dismissible={false}, pre-condition checklist (each item red+actionable link if unmet), type-to-confirm input, Decommission button disabled until all conditions clear + input matches site_code. 2. Server Action decommissionSite(siteId, confirmCod. Distinguished from sibling 14-multi-site tasks by its narrow site-decommission focus against PRD \u00a710B MS-104, \u00a711.6 V-MS-21. AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Destructive type-to-confirm modal with server-computed pre-condition checklist (open WOs / in-transit ISTs / quality holds / unassigned users) — V-MS-21 critical gate + 7-year audit retention metadata.",
+    "details": "Destructive type-to-confirm modal with server-computed pre-condition checklist (open WOs / in-transit ISTs / quality holds / unassigned users) — V-MS-21 critical gate + 7-year audit retention metadata. Scope: Destructive archival modal that decommissions a site after V-MS-21 pre-condition gates clear. Touches: apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/, apps/web/app/(multi-site)/sites/. Constraints: 1. apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx — shadcn Dialog with dismissible={false}, pre-condition checklist (each item red+actionable link if unmet), type-to-confirm input, Decommission button disabled until all conditions clear + input matches site_code. 2. Server Action decommissionSite(siteId, confirmCod. Distinguished from sibling 14-multi-site tasks by its narrow site-decommission focus against PRD §10B MS-104, §11.6 V-MS-21. AC count consolidated from 9→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/app/(multi-site)/sites/[siteId]/_components/site-decommission-modal.tsx [create]",
       "apps/web/app/(multi-site)/sites/[siteId]/_actions/decommission-site.ts [create]",
@@ -64,7 +66,7 @@
       "T-026"
     ],
     "acceptance_criteria": [
-      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633, then dismissible=false, checklist with action links, type-to-confirm, gated button \u2014 RTL parity + Playwright trace; AND given site has 3 open WOs when checklist renders then 'Close N WO(s)' red with deep-link + Decommission disabled.",
+      "Given modal opens, when compared to prototypes/design/Monopilot Design System/multi-site/modals.jsx:577-633, then dismissible=false, checklist with action links, type-to-confirm, gated button — RTL parity + Playwright trace; AND given site has 3 open WOs when checklist renders then 'Close N WO(s)' red with deep-link + Decommission disabled.",
       "Given all pre-conditions clear but input != site_code, when Decommission clicked, then button disabled; AND given is_default=true when decommissionSite invoked then V-MS-03 DefaultSiteCannotBeDecommissioned thrown; AND given user role != admin when decommissionSite invoked then UnauthorizedDecommission thrown.",
       "Given input matches site_code and all clear, when decommissionSite settles, then sites.active=false, site_user_access rows active=false, replication_conflicts site-scoped resolved.",
       "Given decommissionSite settles, when audit_events queried, then 1 row action='site_decommissioned', retention_class='regulatory_7y', actor=user_id; AND given decommissionSite settles when warehouse_outbox_events queried then 1 row 'site.decommissioned' emitted."
@@ -75,18 +77,22 @@
       "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "Do not trust client-side counts \u2014 Server Action re-queries.",
+      "Do not trust client-side counts — Server Action re-queries.",
       "Do not allow case-insensitive type-to-confirm.",
-      "Do not allow dismissible Dialog \u2014 preventDefault on outside-click + escape.",
-      "Do not purge data \u2014 archive-only (D-MS-3).",
-      "Do not skip 7y retention tag (\u00a714.4 compliance).",
+      "Do not allow dismissible Dialog — preventDefault on outside-click + escape.",
+      "Do not purge data — archive-only (D-MS-3).",
+      "Do not skip 7y retention tag (§14.4 compliance).",
       "Do not allow decommissioning is_default=true site (V-MS-03)."
     ],
     "skills": [
       "test-driven-development",
       "requesting-code-review",
       "frontend-design",
-      "systematic-debugging"
+      "systematic-debugging",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -101,7 +107,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

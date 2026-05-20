@@ -1,11 +1,13 @@
 {
   "title": "T-115 — Manufacturing Operation Audit Trail screen (SET-057 §8.9.12)",
-  "prompt": "# T-115 — Manufacturing Operation Audit Trail screen (SET-057 §8.9.12)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §8.9.11 + §8.9.12 (Manufacturing Operations Audit Trail)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-057 Manufacturing Operation Audit Trail — per-operation history viewer linked from SET-055 list 'View History' icon. Shows User / Action / Timestamp / Field diff (old → new) per change. Searchable by operation_name, user, date range.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx (Server Component) reads audit_log entries WHERE entity_type='manufacturing_operation' AND entity_id=operation_id, ordered by timestamp DESC.\n2. List columns: timestamp, user (display name), action (create|update|delete), changed fields summary chip.\n3. Each row expandable to show field-by-field diff (old → new) per §8.9.11 spec; uses the same recursive diff helper as T-108 / T-114.\n4. Toolbar: search by operation_name (header lookup), date range filter, user filter dropdown.\n5. RBAC: requires `manufacturing_operations.view` (per §8.9.10) AND `settings.audit.read`.\n\n## Files\n- apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx [create]\n- apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 3 audit_log entries for one manufacturing_operation (create + update + delete); asserts ordered render, expand-to-diff, RBAC.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + expand-diff.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not duplicate SET-013 global audit viewer (T-079); this is operation-scoped.\n- Do not bypass withOrgContext (RLS).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`\n**Label:** `rule_detail_screen`\n**Component type:** tabs\n\n> **No exact prototype** — closest visual pattern: `rule_detail_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`. Build in the same structural style as this screen. Re-use the Rule Detail screen's `aud` tab Audit log table pattern (admin-screens.jsx lines 338-345) plus the filter toolbar density of rules_registry_screen (152-210). Expandable rows reveal field-by-field old→new diff.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking\n- window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables\n- DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting\n- Version history table (Array.from loop) → real version rows from rules_registry_versions table\n- 'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff\n- Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result\n- openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Table`, `Badge`, `Button`\n\n",
+  "prompt": "# T-115 — Manufacturing Operation Audit Trail screen (SET-057 §8.9.12)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §8.9.11 + §8.9.12 (Manufacturing Operations Audit Trail)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-057 Manufacturing Operation Audit Trail — per-operation history viewer linked from SET-055 list 'View History' icon. Shows User / Action / Timestamp / Field diff (old → new) per change. Searchable by operation_name, user, date range.\n\n## Implementation contract\n1. Page at apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx (Server Component) reads audit_log entries WHERE entity_type='manufacturing_operation' AND entity_id=operation_id, ordered by timestamp DESC.\n2. List columns: timestamp, user (display name), action (create|update|delete), changed fields summary chip.\n3. Each row expandable to show field-by-field diff (old → new) per §8.9.11 spec; uses the same recursive diff helper as T-108 / T-114.\n4. Toolbar: search by operation_name (header lookup), date range filter, user filter dropdown.\n5. RBAC: requires `manufacturing_operations.view` (per §8.9.10) AND `settings.audit.read`.\n\n## Files\n- apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 3 audit_log entries for one manufacturing_operation (create + update + delete); asserts ordered render, expand-to-diff, RBAC.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + expand-diff.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not duplicate SET-013 global audit viewer (T-079); this is operation-scoped.\n- Do not bypass withOrgContext (RLS).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`\n**Label:** `rule_detail_screen`\n**Component type:** tabs\n\n> **No exact prototype** — closest visual pattern: `rule_detail_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`. Build in the same structural style as this screen. Re-use the Rule Detail screen's `aud` tab Audit log table pattern (admin-screens.jsx lines 338-345) plus the filter toolbar density of rules_registry_screen (152-210). Expandable rows reveal field-by-field old→new diff.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking\n- window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables\n- DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting\n- Version history table (Array.from loop) → real version rows from rules_registry_versions table\n- 'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff\n- Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result\n- openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Table`, `Badge`, `Button`\n\n",
   "labels": [
     "prd",
     "ui",
     "set-057",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -28,8 +30,8 @@
     "description": "Manufacturing Operation Audit Trail (SET-057): per-operation history viewer with diff and search filters.",
     "details": "PRD §8.9.11/§8.9.12 SET-057: `Per-operation history viewer`. Linked from SET-055 list 'View History' icon (T-077). Shows User / Action / Timestamp / Field diff (old→new) per §8.9.11 sample audit_log entries. Reuses the same diff helper as T-108 / T-114 if exposed as shared util.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `manufacturing_operations.view` or `settings.audit.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx",
-      "apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx"
     ],
     "out_of_scope": [
       "Global audit log (covered by SET-013 / T-079)",
@@ -53,7 +55,7 @@
     "test_strategy": [
       "RED: RTL test seeds 3 audit entries + asserts list order, expand-to-diff, date filter, RBAC 403.",
       "GREEN: implement Server Component + filters + expand-diff renderer.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/manufacturing-ops/[operation_id]/history/page.test.tsx` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -63,7 +65,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -77,7 +83,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

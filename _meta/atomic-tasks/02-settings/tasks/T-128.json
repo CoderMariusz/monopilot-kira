@@ -1,11 +1,13 @@
 {
   "title": "T-128 — Schema Shadow Preview screen (SET-034)",
-  "prompt": "# T-128 — Schema Shadow Preview screen (SET-034)\n\n## Goal\nBuild SET-034 Schema Shadow Preview as a spec-driven Settings screen for dry-running a draft schema column in a simulated form with sample data and no production writes.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. No exact canonical prototype exists for SET-034, so implement from `prototypes/design/02-SETTINGS-UX.md SET-034` and PRD §6.6.\n\n## Files in scope\n- apps/web/app/(admin)/settings/schema/preview/page.tsx [create]\n- apps/web/app/(admin)/settings/schema/preview/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given `/settings/schema/preview` renders, then it follows UX SET-034: 40/60 split, draft column selector on the left, rendered sample React form on the right, and a persistent preview-only notice.\n- Given a draft column is selected, when preview renders, then it uses generated runtime schema/sample data without writing to production schema, reference tables, or tenant migrations.\n- Given Publish this Column is clicked, when the user has permission, then it routes/calls the same Step 8 publish path used by SET-031/T-097 and preserves concurrent-edit handling.\n- Given no drafts, loading, permission-denied, or schema-generation error states occur, then the screen renders clear non-mutating states.\n\nNote: AC count consolidated from 5→4 by Fixer F8 2026-05-14 (no coverage lost; former AC5 UI closeout evidence is a procedural/process-meta assertion hoisted to `test_strategy` bullet 4 and `details`; enforced by `pipeline_inputs.ui_evidence_policy` + `checkpoint_policy.closeout_requires` + explicit `test_strategy` bullet).\n\n## Test strategy (RED first)\n- RED: RTL page tests for split layout, draft selection, sample form render, preview-only notice, publish handoff, no-draft/loading/error/permission states.\n- GREEN: build page wired to existing schema draft/runtime helpers.\n- Run page test, typecheck, lint, and capture UI evidence per policy.\n\n## Risk red lines\n- Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.\n- Do not write production schema, migrations, or reference data from preview render.\n- Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-034 is authoritative.\n- Do not bypass L1/L2/L3 promotion and concurrent-edit rules.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "prompt": "# T-128 — Schema Shadow Preview screen (SET-034)\n\n## Goal\nBuild SET-034 Schema Shadow Preview as a spec-driven Settings screen for dry-running a draft schema column in a simulated form with sample data and no production writes.\n\nCanonical Settings prototype source of truth is `prototypes/design/Monopilot Design System/settings/*.jsx`. No exact canonical prototype exists for SET-034, so implement from `prototypes/design/02-SETTINGS-UX.md SET-034` and PRD §6.6.\n\n## Files in scope\n- apps/web/app/[locale]/(admin)/settings/schema/preview/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/schema/preview/page.test.tsx [create]\n\n## Acceptance criteria (all must hold)\n- Given `/settings/schema/preview` renders, then it follows UX SET-034: 40/60 split, draft column selector on the left, rendered sample React form on the right, and a persistent preview-only notice.\n- Given a draft column is selected, when preview renders, then it uses generated runtime schema/sample data without writing to production schema, reference tables, or tenant migrations.\n- Given Publish this Column is clicked, when the user has permission, then it routes/calls the same Step 8 publish path used by SET-031/T-097 and preserves concurrent-edit handling.\n- Given no drafts, loading, permission-denied, or schema-generation error states occur, then the screen renders clear non-mutating states.\n\nNote: AC count consolidated from 5→4 by Fixer F8 2026-05-14 (no coverage lost; former AC5 UI closeout evidence is a procedural/process-meta assertion hoisted to `test_strategy` bullet 4 and `details`; enforced by `pipeline_inputs.ui_evidence_policy` + `checkpoint_policy.closeout_requires` + explicit `test_strategy` bullet).\n\n## Test strategy (RED first)\n- RED: RTL page tests for split layout, draft selection, sample form render, preview-only notice, publish handoff, no-draft/loading/error/permission states.\n- GREEN: build page wired to existing schema draft/runtime helpers.\n- Run page test, typecheck, lint, and capture UI evidence per policy.\n\n## Risk red lines\n- Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.\n- Do not write production schema, migrations, or reference data from preview render.\n- Do not claim 1:1 prototype parity; exact canonical prototype is missing and UX SET-034 is authoritative.\n- Do not bypass L1/L2/L3 promotion and concurrent-edit rules.\n## Closeout evidence required\n- changed_files (with line counts)\n- exact test commands and outputs (RED -> GREEN, typecheck, lint)\n- acceptance_criteria_status (one row per AC: pass/fail)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
     "prd",
     "ui",
     "set-034",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -28,8 +30,8 @@
     "description": "SET-034 Schema Shadow Preview production screen (spec-driven; no exact prototype).",
     "details": "Spec-driven UI: no exact canonical prototype exists under `prototypes/design/Monopilot Design System/settings/*.jsx` for SET-034. `prototypes/design/02-SETTINGS-UX.md SET-034` and PRD §6.4/§6.6 are authoritative. Preview is non-mutating and reuses existing schema draft/runtime/publish helpers rather than duplicating the column wizard. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence. AC count consolidated from 5→4 by Fixer F8 2026-05-14 (no coverage lost; former AC5 closeout-evidence hoisted to test_strategy bullet 4 + this details note; enforced by ui_evidence_policy + checkpoint_policy.closeout_requires).",
     "scope_files": [
-      "apps/web/app/(admin)/settings/schema/preview/page.tsx",
-      "apps/web/app/(admin)/settings/schema/preview/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/schema/preview/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/schema/preview/page.test.tsx"
     ],
     "out_of_scope": [
       "broaden scope beyond listed files",
@@ -52,7 +54,7 @@
       "GREEN: build page wired to existing schema draft/runtime helpers.",
       "Run page test, typecheck and lint.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/schema/preview/page.test.tsx`."
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/schema/preview/page.test.tsx`."
     ],
     "risk_red_lines": [
       "Do not create an ad-hoc schema editor or duplicate SET-031 publish logic.",
@@ -63,7 +65,11 @@
     "prototype_match": true,
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -77,7 +83,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

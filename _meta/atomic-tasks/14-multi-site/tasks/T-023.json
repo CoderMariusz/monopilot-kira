@@ -1,11 +1,13 @@
 {
-  "title": "T-023 \u2014 Activation 3-step wizard page + state machine (D-MS-14, ms_activation_wizard) MS-010",
-  "prompt": "# T-023 \u2014 Activation 3-step wizard page\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a713.5 D-MS-14, \u00a711.5 V-MS-18/V-MS-19, \u00a710C MS-010\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652 (ms_activation_wizard)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_activation_wizard\n\n## Goal\nDedicated full-page wizard at /multi-site/activate that takes the org through Phase D-MS-14 state machine (inactive \u2192 wizard_in_progress \u2192 dual_run \u2192 activated). Resumable via activation_wizard_draft. Final 'Activate' button opens MODAL-ACTIVATION-CONFIRM that triggers T-030 backfill job.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/activate/page.tsx (RSC) \u2014 guards: if org.multi_site_state \u2209 {inactive, wizard_in_progress}, redirect to /multi-site/sites; if user role != admin, 403.\n2. ActivationWizardClient (client) \u2014 3 steps: Create Sites (useFieldArray site rows), Assign Users (users\u00d7sites matrix), Backfill & Review (preview counts from backfillPreview Server Action + 3 confirm checkboxes).\n3. Server Actions:\n   - saveWizardDraft({step, payload}) \u2192 upserts activation_wizard_draft row keyed (org_id, draft_kind='multi_site_activation').\n   - previewBackfill() \u2192 returns row counts per the 20 \u00a79.8 site-scoped operational tables that will be stamped with default_site_id.\n   - startActivation() \u2192 V-MS-18 asserts 3 steps complete; V-MS-19 backfill-coverage 100% assertion before enabling; transitions org_settings.multi_site_state to 'dual_run'.\n4. Tests: V-MS-18 enforcement (cannot Activate without all 3 steps), V-MS-19 (backfill preview returns counts for all 20 tables), wizard guard redirects, draft resumability.\n\n## Files\n- apps/web/app/(multi-site)/activate/page.tsx [create]\n- apps/web/app/(multi-site)/activate/_components/activation-wizard-client.tsx [create]\n- apps/web/app/(multi-site)/activate/_actions/save-wizard-draft.ts [create]\n- apps/web/app/(multi-site)/activate/_actions/preview-backfill.ts [create]\n- apps/web/app/(multi-site)/activate/_actions/start-activation.ts [create]\n- packages/db/migrations/0051_activation_wizard_draft.sql [create]\n- apps/web/app/(multi-site)/activate/_components/__tests__/activation-wizard.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 8\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to admin-screens.jsx:495-652 (ms_activation_wizard), then 3 steps + per-step layout (site rows useFieldArray, users\u00d7sites matrix, backfill preview) match \u2014 RTL parity + Playwright trace.\n2. Given org.multi_site_state='activated', when GET /multi-site/activate, then redirect to /multi-site/sites (cannot re-activate).\n3. Given user role != admin, when GET /multi-site/activate, then 403.\n4. Given previewBackfill is invoked, when the response settles, then it returns an object with row counts keyed by all 20 site-scoped \u00a79.8 tables (V-MS-19 coverage check).\n5. Given startActivation is called with only 2 steps complete, when it runs, then BackfillStepsIncomplete (V-MS-18) is thrown.\n6. Given startActivation succeeds, when org_settings is re-queried, then multi_site_state='dual_run' and an audit_events row 'multisite_activation_started' is written.\n7. Given saveWizardDraft is called twice with different step payloads, when activation_wizard_draft is queried, then exactly one row exists per (org_id, draft_kind), updated_at advanced.\n\n## Test strategy\n- RED: RTL parity + redirect + 403 + V-MS-19 preview + V-MS-18 enforcement + state transition + draft resumability before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run activation-wizard' + Playwright activation-wizard.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652 (ms_activation_wizard).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not allow startActivation if any of 3 steps incomplete (V-MS-18).\n- Do not couple backfill to actual ALTER TABLE here \u2014 preview only; T-030 owns the migration.\n- Do not let non-admin reach the page (Server-side guard).\n- Do not commit state transition without writing audit_events row.",
+  "title": "T-023 — Activation 3-step wizard page + state machine (D-MS-14, ms_activation_wizard) MS-010",
+  "prompt": "# T-023 — Activation 3-step wizard page\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §13.5 D-MS-14, §11.5 V-MS-18/V-MS-19, §10C MS-010\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652 (ms_activation_wizard)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §ms_activation_wizard\n\n## Goal\nDedicated full-page wizard at /multi-site/activate that takes the org through Phase D-MS-14 state machine (inactive → wizard_in_progress → dual_run → activated). Resumable via activation_wizard_draft. Final 'Activate' button opens MODAL-ACTIVATION-CONFIRM that triggers T-030 backfill job.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/activate/page.tsx (RSC) — guards: if org.multi_site_state ∉ {inactive, wizard_in_progress}, redirect to /multi-site/sites; if user role != admin, 403.\n2. ActivationWizardClient (client) — 3 steps: Create Sites (useFieldArray site rows), Assign Users (users×sites matrix), Backfill & Review (preview counts from backfillPreview Server Action + 3 confirm checkboxes).\n3. Server Actions:\n   - saveWizardDraft({step, payload}) → upserts activation_wizard_draft row keyed (org_id, draft_kind='multi_site_activation').\n   - previewBackfill() → returns row counts per the 20 §9.8 site-scoped operational tables that will be stamped with default_site_id.\n   - startActivation() → V-MS-18 asserts 3 steps complete; V-MS-19 backfill-coverage 100% assertion before enabling; transitions org_settings.multi_site_state to 'dual_run'.\n4. Tests: V-MS-18 enforcement (cannot Activate without all 3 steps), V-MS-19 (backfill preview returns counts for all 20 tables), wizard guard redirects, draft resumability.\n\n## Files\n- apps/web/app/(multi-site)/activate/page.tsx [create]\n- apps/web/app/(multi-site)/activate/_components/activation-wizard-client.tsx [create]\n- apps/web/app/(multi-site)/activate/_actions/save-wizard-draft.ts [create]\n- apps/web/app/(multi-site)/activate/_actions/preview-backfill.ts [create]\n- apps/web/app/(multi-site)/activate/_actions/start-activation.ts [create]\n- packages/db/migrations/0051_activation_wizard_draft.sql [create]\n- apps/web/app/(multi-site)/activate/_components/__tests__/activation-wizard.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 8→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to admin-screens.jsx:495-652 (ms_activation_wizard), then 3 steps + per-step layout (site rows useFieldArray, users×sites matrix, backfill preview) match — RTL parity + Playwright trace.\n2. Given org.multi_site_state='activated', when GET /multi-site/activate, then redirect to /multi-site/sites (cannot re-activate).\n3. Given user role != admin, when GET /multi-site/activate, then 403.\n4. Given previewBackfill is invoked, when the response settles, then it returns an object with row counts keyed by all 20 site-scoped §9.8 tables (V-MS-19 coverage check).\n5. Given startActivation is called with only 2 steps complete, when it runs, then BackfillStepsIncomplete (V-MS-18) is thrown.\n6. Given startActivation succeeds, when org_settings is re-queried, then multi_site_state='dual_run' and an audit_events row 'multisite_activation_started' is written.\n7. Given saveWizardDraft is called twice with different step payloads, when activation_wizard_draft is queried, then exactly one row exists per (org_id, draft_kind), updated_at advanced.\n\n## Test strategy\n- RED: RTL parity + redirect + 403 + V-MS-19 preview + V-MS-18 enforcement + state transition + draft resumability before page exists.\n- Run 'pnpm --filter @monopilot/web vitest run activation-wizard' + Playwright activation-wizard.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652 (ms_activation_wizard).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not allow startActivation if any of 3 steps incomplete (V-MS-18).\n- Do not couple backfill to actual ALTER TABLE here — preview only; T-030 owns the migration.\n- Do not let non-admin reach the page (Server-side guard).\n- Do not commit state transition without writing audit_events row.",
   "labels": [
     "prd",
     "ui",
     "activation",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 80,
   "max_attempts": 3,
@@ -15,10 +17,10 @@
     "prd_task_id": "T-023",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a713.5 D-MS-14",
-      "\u00a711.5 V-MS-18",
-      "\u00a711.5 V-MS-19",
-      "\u00a710C MS-010"
+      "§13.5 D-MS-14",
+      "§11.5 V-MS-18",
+      "§11.5 V-MS-19",
+      "§10C MS-010"
     ],
     "category": "ui",
     "subcategory": "activation-wizard",
@@ -27,7 +29,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "3-step page wizard (Create Sites / Assign Users / Backfill & Review) gated to org_settings.multi_site_state='inactive' or 'wizard_in_progress' + activation_wizard_draft resumability + Activate button opens MODAL-ACTIVATION-CONFIRM (T-028 follow-up scoped here).",
-    "details": "3-step page wizard (Create Sites / Assign Users / Backfill & Review) gated to org_settings.multi_site_state='inactive' or 'wizard_in_progress' + activation_wizard_draft resumability + Activate button opens MODAL-ACTIVATION-CONFIRM (T-028 follow-up scoped here). Scope: Dedicated full-page wizard at /multi-site/activate that takes the org through Phase D-MS-14 state machine (inactive \u2192 wizard_in_progress \u2192 dual_run \u2192 activated). Touches: apps/web/app/(multi-site)/activate/page.tsx, apps/web/app/(multi-site)/activate/_components/activation-wizard-client.tsx, apps/web/app/(multi-site)/activate/_actions/save-wizard-draft.ts, apps/web/app/(multi-site)/activate/_actions/preview-backfill.ts. Constraints: 1. apps/web/app/(multi-site)/activate/page.tsx (RSC) \u2014 guards: if org.multi_site_state \u2209 {inactive, wizard_in_progress}, redirect to /multi-site/sites; if user role != admin, 403. 2. ActivationWizardClient (client) \u2014 3 steps: Create Sites (useFieldArray site rows), Assign Users (users\u00d7sites matrix), Backfill & Review (preview counts from backfillPr. Distinguished from sibling 14-multi-site tasks by its narrow activation-wizard focus against PRD \u00a713.5 D-MS-14, \u00a711.5 V-MS-18, \u00a711.5 V-MS-19, \u00a710C MS-010. AC count consolidated from 8\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "details": "3-step page wizard (Create Sites / Assign Users / Backfill & Review) gated to org_settings.multi_site_state='inactive' or 'wizard_in_progress' + activation_wizard_draft resumability + Activate button opens MODAL-ACTIVATION-CONFIRM (T-028 follow-up scoped here). Scope: Dedicated full-page wizard at /multi-site/activate that takes the org through Phase D-MS-14 state machine (inactive → wizard_in_progress → dual_run → activated). Touches: apps/web/app/(multi-site)/activate/page.tsx, apps/web/app/(multi-site)/activate/_components/activation-wizard-client.tsx, apps/web/app/(multi-site)/activate/_actions/save-wizard-draft.ts, apps/web/app/(multi-site)/activate/_actions/preview-backfill.ts. Constraints: 1. apps/web/app/(multi-site)/activate/page.tsx (RSC) — guards: if org.multi_site_state ∉ {inactive, wizard_in_progress}, redirect to /multi-site/sites; if user role != admin, 403. 2. ActivationWizardClient (client) — 3 steps: Create Sites (useFieldArray site rows), Assign Users (users×sites matrix), Backfill & Review (preview counts from backfillPr. Distinguished from sibling 14-multi-site tasks by its narrow activation-wizard focus against PRD §13.5 D-MS-14, §11.5 V-MS-18, §11.5 V-MS-19, §10C MS-010. AC count consolidated from 8→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/app/(multi-site)/activate/page.tsx [create]",
       "apps/web/app/(multi-site)/activate/_components/activation-wizard-client.tsx [create]",
@@ -57,8 +59,8 @@
       "T-022"
     ],
     "acceptance_criteria": [
-      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652, then 3 steps + per-step layouts match \u2014 RTL parity + Playwright trace; AND given org.multi_site_state='activated' when GET /multi-site/activate then redirect to /multi-site/sites; AND given user role != admin when GET /multi-site/activate then 403.",
-      "Given previewBackfill invoked, when response settles, then object with row counts for all 20 site-scoped \u00a79.8 tables (V-MS-19).",
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:495-652, then 3 steps + per-step layouts match — RTL parity + Playwright trace; AND given org.multi_site_state='activated' when GET /multi-site/activate then redirect to /multi-site/sites; AND given user role != admin when GET /multi-site/activate then 403.",
+      "Given previewBackfill invoked, when response settles, then object with row counts for all 20 site-scoped §9.8 tables (V-MS-19).",
       "Given startActivation called with only 2 steps complete, when runs, then BackfillStepsIncomplete (V-MS-18) thrown; AND given startActivation succeeds when org_settings re-queried then multi_site_state='dual_run' + audit_events row 'multi_site_activation_started'.",
       "Given saveWizardDraft called twice with different step payloads, when activation_wizard_draft queried, then exactly one row per (org_id, draft_kind), updated_at advanced."
     ],
@@ -70,7 +72,7 @@
     "risk_red_lines": [
       "Do not paste prototype JSX wholesale.",
       "Do not allow startActivation if any step incomplete (V-MS-18).",
-      "Do not couple to ALTER TABLE \u2014 preview only; T-030 owns migration.",
+      "Do not couple to ALTER TABLE — preview only; T-030 owns migration.",
       "Do not let non-admin reach page.",
       "Do not commit state transition without audit_events row."
     ],
@@ -78,7 +80,11 @@
       "test-driven-development",
       "requesting-code-review",
       "frontend-design",
-      "systematic-debugging"
+      "systematic-debugging",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -93,7 +99,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

@@ -1,0 +1,30 @@
+{
+  "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+  "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+  "generated_at": "2026-05-20T00:00:00Z",
+  "generator": "opus-foundation-appshell-wave",
+  "wave": "app-shell-foundation-20260520",
+  "parent_module": "00-foundation",
+  "stage_as": "draft",
+  "pipeline_name": "kira_dev",
+  "task_count": 10,
+  "tasks": [
+    "tasks/UI-127-foundation-shell-tokens.json",
+    "tasks/UI-128-foundation-navigation-manifest.json",
+    "tasks/UI-129-foundation-app-sidebar.json",
+    "tasks/UI-130-foundation-app-topbar.json",
+    "tasks/UI-131-foundation-app-shell-layout.json",
+    "tasks/UI-132-foundation-page-header-settings-nav.json",
+    "tasks/T-133-foundation-route-topology.json",
+    "tasks/T-134-foundation-scanner-shell-isolation.json",
+    "tasks/T-135-foundation-shell-unit-contracts.json",
+    "tasks/T-136-foundation-shell-browser-error-discovery.json"
+  ],
+  "coverage_file": "coverage.md",
+  "import_request": "import-request.draft.json",
+  "validator": "validate_wave.py",
+  "do_not_modify": [
+    "_meta/atomic-tasks/00-foundation/manifest.json",
+    "_meta/atomic-tasks/00-foundation/tasks/T-001.json..T-126.json"
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "title": "UI-128 — Foundation navigation manifest (core module nav data + types)",
+  "prompt": "# UI-128 — Foundation navigation manifest\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide a single typed source of truth for the desktop AppSidebar groups/items and for the Settings sub-nav, so UI-129 and UI-132 do not duplicate copy or hard-code routes. This is a data/contract task — no JSX, no styling.\n\n## Source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`): groups Core / Operations / QA & Shipping / Premium.\n- Cross-ref the active-item placement in every `<module>/shell.jsx` to confirm the same item list across modules (settings, technical, production, warehouse, planning, quality, shipping, finance, oee, maintenance).\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` + the `window.SETTINGS_NAV` array referenced there (search prototypes/data*.jsx if needed).\n- Brief: `/tmp/monopilot-shell-gap-brief-combined.md` §1 (snapshot), §3 Luka B/E.\n\n## Files (scope)\n- `apps/web/lib/navigation/app-nav.ts` [create — exports `APP_NAV_GROUPS: AppNavGroup[]`]\n- `apps/web/lib/navigation/settings-nav.ts` [create — exports `SETTINGS_NAV_GROUPS: SettingsNavGroup[]`]\n- `apps/web/lib/navigation/types.ts` [create — `AppNavGroup`, `AppNavItem`, `SettingsNavGroup`, `SettingsNavItem` with `i18n_key`, `route`, `icon_token`, `count_slot` (always `null` here), `permission_key` (always `null` here), `rbac_todo` flag, `highlight` flag]\n- `apps/web/lib/navigation/__tests__/app-nav.test.ts` [create]\n- `apps/web/lib/navigation/__tests__/settings-nav.test.ts` [create]\n- `apps/web/i18n/en.json` [modify — add `Navigation.app.*` and `Navigation.settings.*` keys; values from prototype labels]\n- `apps/web/i18n/pl.json` [modify — same keys translated]\n\nDo NOT modify proxy.ts, [locale]/layout.tsx, or any T-XXX.json outside this wave.\n\n## Contract\nGroups must include exactly: `Core` (Dashboard, Settings), `Operations` (Planning, Production, Warehouse), `QA & Shipping` (Quality, Shipping), `Premium` (Technical, NPD, Finance, OEE, Maintenance). Routes use the post-T-133 topology (e.g. `/settings`, `/planning`, `/production`, etc.) and MUST be locale-relative (no `/en` hard-code; the consumer applies the locale).\n\nEach item:\n```ts\n{ key: 'settings', i18n_key: 'Navigation.app.settings', route: '/settings', icon_token: 'cog', count_slot: null, permission_key: null, rbac_todo: 'gate by 02-settings/T-130 after RBAC enum lock' }\n```\n\nSettings sub-nav items match `window.SETTINGS_NAV` in the prototype (Users, Roles, Authorization, Invitations, Security, Profile, Schema, Reference, …) with the same group labels.\n\n## Acceptance criteria\n1. `APP_NAV_GROUPS` has exactly 4 groups in declared order with the 12 items above.\n2. `SETTINGS_NAV_GROUPS` matches the prototype `SETTINGS_NAV` content 1:1 (item count, order, labels, icons, highlights).\n3. Every item carries a unique `i18n_key` resolvable in both `en.json` and `pl.json`.\n4. RTL/unit tests assert: total counts, key uniqueness, route uniqueness, no hard-coded locale prefix, `count_slot === null` on every item, `permission_key === null` on every item, and `rbac_todo` non-empty for every item that would later be RBAC-gated.\n5. `pnpm --filter web test app-nav settings-nav -- --run` passes; `pnpm --filter web typecheck` passes; `pnpm --filter web lint` passes.\n\n## Out of scope\n- Rendering (UI-129 sidebar, UI-132 settings subnav).\n- Permissions enum / RBAC (02-settings/T-130).\n- Module-specific module sub-navs (PlanNav, ProdNav, WhNav, ...).\n- Topbar links.\n\n## RED test\nCreate `app-nav.test.ts` and `settings-nav.test.ts` first, failing because exports do not exist; then implement.\n\n## Risk red lines\n- Never hard-code a locale prefix into a route field.\n- Never gate items here — emit `rbac_todo` and leave `permission_key: null`.\n- Do not import this file from server-only modules without `'server-only'` consideration (data is plain JSON; safe everywhere).\n\n## Closeout\nProvide: acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype (note any item label that differs from the literal prototype label and why).",
+  "labels": [
+    "wave-app-shell-foundation",
+    "ui",
+    "foundation",
+    "shell",
+    "navigation",
+    "T3-ui"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "UI-128",
+    "human_task_id": "UI-128-foundation-navigation-manifest",
+    "display_task_id": "UI-128",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §1 snapshot",
+      "brief §3 Luka B",
+      "brief §3 Luka E",
+      "brief §6 OOS module sub-navs"
+    ],
+    "category": "ui",
+    "subcategory": "navigation-manifest",
+    "task_type": "T3-ui",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "25k",
+    "estimated_effort": "1h",
+    "description": "Typed nav manifest (TypeScript) for AppSidebar groups/items and Settings sub-nav, with i18n keys, count and permission slots as null, and rbac_todo flags. Frontend navigation manifest + unit tests; no JSX render component.",
+    "details": "Transcribe the four sidebar groups (Core/Operations/QA & Shipping/Premium) and 12 module items from prototypes/design/Monopilot Design System/settings/shell.jsx:3-21, cross-checked against every other module's shell.jsx. Transcribe SETTINGS_NAV from settings/shell.jsx:35-59 (search prototypes/data* for the source array). Emit frontend AppNavGroup/SettingsNavGroup with locale-relative routes, icon_token, count_slot=null, permission_key=null, rbac_todo string. Add apps/web/i18n/{en,pl,uk,ro}.json keys for every label. RTL/unit tests assert structure and uniqueness.",
+    "scope_files": [
+      "apps/web/lib/navigation/types.ts [create]",
+      "apps/web/lib/navigation/app-nav.ts [create]",
+      "apps/web/lib/navigation/settings-nav.ts [create]",
+      "apps/web/lib/navigation/__tests__/app-nav.test.ts [create]",
+      "apps/web/lib/navigation/__tests__/settings-nav.test.ts [create]",
+      "apps/web/i18n/en.json [modify]",
+      "apps/web/i18n/pl.json [modify]",
+      "apps/web/i18n/uk.json [modify]",
+      "apps/web/i18n/ro.json [modify]"
+    ],
+    "scope_paths": [
+      "apps/web/lib/navigation/",
+      "apps/web/i18n/"
+    ],
+    "out_of_scope": [
+      "Sidebar/subnav JSX (UI-129, UI-132)",
+      "RBAC enum (02-settings/T-130)",
+      "Module sub-navs (each module T3-ui)",
+      "Topbar links",
+      "Editing 00-foundation/manifest.json"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "UI-127"
+    ],
+    "acceptance_criteria": [
+      "APP_NAV_GROUPS has 4 groups in order Core/Operations/QA & Shipping/Premium with the 12 declared items",
+      "SETTINGS_NAV_GROUPS matches the prototype SETTINGS_NAV 1:1 in count, order, labels, icons, highlights",
+      "Every item has a unique i18n_key resolvable in apps/web/i18n/{en,pl,uk,ro}.json",
+      "All count_slot=null, permission_key=null, rbac_todo non-empty for future-RBAC items",
+      "pnpm --filter web test app-nav settings-nav -- --run passes; typecheck and lint pass"
+    ],
+    "test_strategy": [
+      "Write app-nav.test.ts and settings-nav.test.ts asserting structure first (RED)",
+      "pnpm --filter web test app-nav settings-nav -- --run",
+      "pnpm --filter web typecheck",
+      "pnpm --filter web lint"
+    ],
+    "risk_red_lines": [
+      "Do not hard-code a locale prefix into route fields",
+      "Do not gate items by permissions — UI-128 has no RBAC awareness",
+      "Do not import server-only modules from these files"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-verification",
+      "acp-ui-parity",
+      "MON-t3-ui"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": false,
+      "review_minimum": "sonnet",
+      "closeout_requires": [
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype",
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check"
+      ],
+      "fail_closed_on_missing_ui_evidence": true,
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:3-21",
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:35-59",
+      "prototypes/design/Monopilot Design System/technical/shell.jsx:3-22"
+    ],
+    "wave": "app-shell-foundation-20260520",
+    "target_route": "/en/settings/profile",
+    "viewports": [
+      "desktop-1440x900"
+    ],
+    "region_selectors": {
+      "app_nav_manifest": "APP_NAV_GROUPS",
+      "settings_nav_manifest": "SETTINGS_NAV_GROUPS"
+    },
+    "parity_matrix": [
+      {
+        "prototype": "settings/shell.jsx:3-21",
+        "target": "APP_NAV_GROUPS",
+        "checks": [
+          "group order",
+          "item labels",
+          "icon tokens",
+          "route targets"
+        ]
+      },
+      {
+        "prototype": "settings/shell.jsx:35-59",
+        "target": "SETTINGS_NAV_GROUPS",
+        "checks": [
+          "group order",
+          "item labels",
+          "highlight badges",
+          "role/admin metadata"
+        ]
+      }
+    ]
+  }
+}

@@ -73,6 +73,8 @@ interface ModalProps {
   onOpenChange: (open: boolean) => void;
   /** Size variant — maps to --modal-size-{size}-width token */
   size?: ModalSize | string;
+  /** Optional stable prototype/modal registry id for parity evidence. */
+  modalId?: string;
   /**
    * When false the backdrop click and ESC key will NOT close the dialog.
    * Defaults to true (dismissible).
@@ -81,7 +83,7 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
-function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }: ModalProps) {
+function Modal({ open, onOpenChange, size = 'md', modalId, dismissible = true, children }: ModalProps) {
   const previouslyOpen = useRef(open);
   const returnFocusTo = useRef<HTMLElement | null>(null);
 
@@ -122,6 +124,7 @@ function Modal({ open, onOpenChange, size = 'md', dismissible = true, children }
         aria-describedby={undefined}
         data-focus-trap="radix-dialog"
         data-size={size}
+        data-modal-id={modalId}
         style={{ maxWidth: sizeVar }}
         onEscapeKeyDown={handleEscapeKeyDown}
         onPointerDownOutside={handlePointerDownOutside}

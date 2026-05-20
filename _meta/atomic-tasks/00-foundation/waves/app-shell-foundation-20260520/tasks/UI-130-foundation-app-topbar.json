@@ -1,0 +1,201 @@
+{
+  "title": "UI-130 — Foundation AppTopbar + UserMenu host (mounts existing language picker, static SiteCrumb slot)",
+  "prompt": "# UI-130 — Foundation AppTopbar + UserMenu host\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppTopbar/>` and the `<UserMenu/>` host that re-mounts the existing language picker at `apps/web/app/_components/user-menu-language-picker.tsx` (external existing reference, not a dependency task). Provide a static `SiteCrumb` slot rendering only `org.name` — the live multi-site switcher lands in `14-multi-site/T-020`.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:23-33` (`STopbar`).\n- Cross-ref: `multi-site/shell.jsx` (`MsTopbar`) — site-switch slot position.\n- Topbar height = 56px (UI-127 `--shell-topbar-h`).\n\n## Files (scope)\n- `apps/web/components/shell/app-topbar.tsx` [create — **Server Component** that does the data fetch (`createServerSupabaseClient().auth.getUser()`, plus org name lookup) and renders the Client `<UserMenu/>` as a child]\n- `apps/web/components/shell/user-menu.tsx` [create — Client Component (`'use client'`) that hosts the Radix dropdown and mounts `<UserMenuLanguagePicker/>` from apps/web/app/_components/user-menu-language-picker.tsx + a `<form action={signOut}>` Sign out button]\n- `apps/web/components/shell/site-crumb.tsx` [create — static `<span data-testid=\"app-topbar-sitecrumb\">{orgName}</span>` placeholder Client Component; receives `orgName` as prop; carries inline comment `// TODO(multi-site/14-multi-site/T-020): replace with live SiteSwitcher`]\n- `apps/web/components/shell/__tests__/app-topbar.test.tsx` [create]\n- `apps/web/components/shell/__tests__/user-menu.test.tsx` [create]\n- `apps/web/components/shell/__tests__/site-crumb.test.tsx` [create]\n- `apps/web/app/[locale]/(app)/_actions/sign-out.ts` [create — `'use server'` `signOut()` Server Action calling `supabase.auth.signOut()` and redirecting to `/${locale}/login`]\n- `apps/web/i18n/en.json` and `pl.json` [modify — `Topbar.searchPlaceholder`, `Topbar.signOut`, `Topbar.openUserMenu`]\n\nDo NOT modify `proxy.ts`, the existing `user-menu-language-picker.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// app-topbar.tsx (Server Component)\nexport async function AppTopbar({ locale }: { locale: string }): Promise<JSX.Element>\n```\nServer-renders: brand-mark + `<SearchPlaceholder/>` (just an `<input placeholder=\"Topbar.searchPlaceholder\" aria-label=\"Search\"/>` — no behaviour) + `<SiteCrumb orgName=...>` + `<UserMenu user=... locale=... initialLanguageProps={...}>`.\n\n```tsx\n// user-menu.tsx (Client)\nexport function UserMenu({\n  user, locale, languagePickerProps, signOutAction,\n}: UserMenuProps): JSX.Element\n```\nRenders a Radix `DropdownMenu` triggered by `<button data-testid=\"app-topbar-user-trigger\">` showing user initials. Menu contents (top→bottom):\n1. user identity row (name + email),\n2. `<UserMenuLanguagePicker {...languagePickerProps}/>` (external existing reference),\n3. `<form action={signOutAction}><button type=\"submit\" data-testid=\"app-topbar-sign-out\">{t('Topbar.signOut')}</button></form>`.\n\nAll prop types come from `user-menu-language-picker.tsx` — do not redefine them; import.\n\n## Acceptance criteria\n1. `AppTopbar` is Server Component (no `'use client'`) and renders 56px height (token).\n2. `UserMenu` is Client Component and mounts the existing `UserMenuLanguagePicker` unchanged.\n3. `SiteCrumb` renders only `orgName` text; an inline comment + a `data-todo=\"multi-site-T-020\"` attribute marks the slot.\n4. Sign out: clicking the button calls `signOut` Server Action; on success the user is redirected to `/${locale}/login`. Test asserts the form action wiring with a mocked Server Action.\n5. Keyboard: trigger has `aria-haspopup=menu`, opens with Enter/Space, closes with Escape; first item is focused on open; tested with `userEvent`.\n6. axe-core reports 0 violations.\n7. `pnpm --filter web test app-topbar user-menu site-crumb -- --run` passes; typecheck + lint pass.\n8. Browser console clean on render (test asserts no `console.error` spy hits).\n\n## Out of scope\n- Live multi-site SiteSwitcher (14-multi-site/T-020).\n- Search functionality (input is a static placeholder).\n- Role switcher button from the prototype (admin/user role picker is dev-only; not wired here).\n- Notification bell (none in prototype baseline).\n- Mounting in a layout (UI-131).\n- Modifying `user-menu-language-picker.tsx`.\n\n## RED test\nWrite the three tests first; they must fail because the components do not exist.\n\n## Risk red lines\n- AppTopbar MUST be a Server Component. The language picker is `'use client'` — placing it directly inside AppTopbar would force the topbar client. Wrap it in the `<UserMenu/>` Client child.\n- Do not modify `user-menu-language-picker.tsx`.\n- Do not move the picker file.\n- SiteCrumb is text only; do not introduce a Radix `Select` or any dropdown here.\n- Do not modify `apps/web/proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts vs `settings/shell.jsx:23-33` + `multi-site/shell.jsx`, visual_parity_evidence, prototype_reference, console_network_check, acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+  "labels": [
+    "wave-app-shell-foundation",
+    "ui",
+    "foundation",
+    "shell",
+    "topbar",
+    "user-menu",
+    "T3-ui"
+  ],
+  "priority": 70,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "UI-130",
+    "human_task_id": "UI-130-foundation-app-topbar",
+    "display_task_id": "UI-130",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §3 Luka C",
+      "brief §7 risks: SiteSwitcher too early, language picker is client"
+    ],
+    "category": "ui",
+    "subcategory": "shell-topbar",
+    "task_type": "T3-ui",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "AppTopbar Server Component + UserMenu Client child that mounts the existing apps/web/app/_components/user-menu-language-picker.tsx and the Server Action sign-out; SiteCrumb is a static orgName slot for 14-multi-site/T-020.",
+    "details": "Server Component AppTopbar fetches user + orgName, renders brand + static search input + SiteCrumb + UserMenu. UserMenu Client wraps Radix DropdownMenu; mounts UserMenuLanguagePicker from apps/web/app/_components/user-menu-language-picker.tsx unchanged. signOut Server Action under (app)/_actions/sign-out.ts. SiteCrumb is text only with TODO + data-todo attribute. Keyboard a11y + axe-core 0 violations. Do not modify user-menu-language-picker.tsx or proxy.ts.",
+    "scope_files": [
+      "apps/web/components/shell/app-topbar.tsx [create — Server Component]",
+      "apps/web/components/shell/user-menu.tsx [create — Client Component]",
+      "apps/web/components/shell/site-crumb.tsx [create — Client placeholder]",
+      "apps/web/components/shell/__tests__/app-topbar.test.tsx [create]",
+      "apps/web/components/shell/__tests__/user-menu.test.tsx [create]",
+      "apps/web/components/shell/__tests__/site-crumb.test.tsx [create]",
+      "apps/web/app/[locale]/(app)/_actions/sign-out.ts [create]",
+      "apps/web/i18n/en.json [modify]",
+      "apps/web/i18n/pl.json [modify]",
+      "apps/web/i18n/uk.json [modify]",
+      "apps/web/i18n/ro.json [modify]"
+    ],
+    "scope_paths": [
+      "apps/web/components/shell/",
+      "apps/web/app/[locale]/(app)/_actions/",
+      "apps/web/i18n/"
+    ],
+    "out_of_scope": [
+      "Live SiteSwitcher (14-multi-site/T-020)",
+      "Search functionality",
+      "Role switcher button",
+      "Notification bell",
+      "Mounting in a layout (UI-131)",
+      "Modifying apps/web/app/_components/user-menu-language-picker.tsx (external existing reference)",
+      "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+    ],
+    "dependencies": [
+      "UI-127",
+      "T-133"
+    ],
+    "parallel_safe_with": [
+      "UI-129"
+    ],
+    "acceptance_criteria": [
+      "AppTopbar has no 'use client' directive and renders height equal to var(--shell-topbar-h)",
+      "UserMenu mounts UserMenuLanguagePicker unchanged with the existing exported props type",
+      "SiteCrumb renders orgName text only; carries // TODO(multi-site/T-020) and data-todo='multi-site-T-020'",
+      "Sign out submits the Server Action and redirects to /<locale>/login",
+      "Trigger has aria-haspopup=menu; menu opens on Enter/Space; closes on Escape; first item focused on open",
+      "axe-core 0 violations on the rendered tree",
+      "pnpm --filter web test app-topbar user-menu site-crumb -- --run passes; typecheck + lint pass",
+      "console.error spy has zero hits during component render"
+    ],
+    "test_strategy": [
+      "Write the three RTL specs first (RED)",
+      "pnpm --filter web test app-topbar user-menu site-crumb -- --run",
+      "pnpm --filter web typecheck",
+      "pnpm --filter web lint"
+    ],
+    "risk_red_lines": [
+      "AppTopbar MUST remain a Server Component",
+      "Do not modify apps/web/app/_components/user-menu-language-picker.tsx",
+      "SiteCrumb is text only — no dropdown / no Select",
+      "Do not modify apps/web/proxy.ts",
+      "Do not introduce role-switcher behaviour"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "acp-verification",
+      "MON-t3-ui",
+      "MON-t2-api"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "fail_closed_on_missing_ui_evidence": true,
+      "closeout_requires": [
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check",
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ],
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:23-33",
+      "prototypes/design/Monopilot Design System/multi-site/shell.jsx"
+    ],
+    "target_route": "component://apps/web/components/shell/app-topbar.tsx#AppTopbar",
+    "viewports": [
+      {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      {
+        "name": "desktop-1280",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "region_selectors": {
+      "topbar_root": "[data-testid='app-topbar']",
+      "topbar_search": "[data-testid='app-topbar-search']",
+      "topbar_sitecrumb": "[data-testid='app-topbar-sitecrumb']",
+      "topbar_user_trigger": "[data-testid='app-topbar-user-trigger']",
+      "topbar_sign_out": "[data-testid='app-topbar-sign-out']",
+      "topbar_language_menu": "[role='menu'][aria-label='Language']"
+    },
+    "parity_matrix": [
+      {
+        "region": "topbar height",
+        "prototype": "56px (STopbar root)",
+        "implementation": "var(--shell-topbar-h)",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "user avatar trigger",
+        "prototype": "<div class='avatar'>KN</div>",
+        "implementation": "button with user initials triggering Radix menu",
+        "structural": "pass_with_allowed_deviation",
+        "visual": "pass",
+        "interaction": "pass"
+      },
+      {
+        "region": "site crumb",
+        "prototype": "multi-site/shell.jsx MsTopbar site label",
+        "implementation": "static text orgName, TODO(multi-site/T-020)",
+        "structural": "pass_with_allowed_deviation",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "language picker",
+        "prototype": "n/a — picker is existing external component",
+        "implementation": "UserMenuLanguagePicker mounted unchanged",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "pass"
+      }
+    ],
+    "allowed_deviations": [
+      {
+        "region": "user avatar trigger",
+        "prototype": "non-interactive avatar div",
+        "implementation": "Radix DropdownMenu trigger button",
+        "reason": "menu accessibility requires a focusable trigger; matches every later module shell"
+      },
+      {
+        "region": "role switcher",
+        "prototype": "admin/user buttons",
+        "implementation": "omitted",
+        "reason": "dev-only fixture in prototype; not part of production behaviour"
+      }
+    ],
+    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
+    "wave": "app-shell-foundation-20260520"
+  }
+}

@@ -1,11 +1,13 @@
 {
   "title": "T-108 — Rule Version Diff screen (SET-042 §7.6)",
-  "prompt": "# T-108 — Rule Version Diff screen (SET-042 §7.6)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §7.6 (Rules UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-042 Rule Version Diff — side-by-side JSON deep diff comparing two `rule_definitions` versions for a given `rule_code`. Read-only. Used as a drilldown from SET-041 (Rule Detail). Diff highlights added / removed / changed paths with stable JSON sort.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx is a Server Component reading two `rule_definitions` rows by `?from=<version>&to=<version>` query params (T-025 read-only Server Action).\n2. Compute deep diff with a deterministic JSON sort + recursive walker; categorize each path as `added`, `removed`, or `changed`.\n3. Render two columns (left=from, right=to) using shadcn ScrollArea + a code-block primitive; highlight diffed paths with token-level color (added=green, removed=red, changed=amber).\n4. Header strip shows: rule_code, from version + status badge, to version + status badge, total counts (added/removed/changed).\n5. RBAC: requires `settings.rules.read` only (read-only screen).\n\n## Files\n- apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx [create]\n- apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds two rule versions with known JSON shapes (one added field, one removed, one changed value); assert diff column counts + path highlighting.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + diff helper + columns.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not introduce write actions (read-only per §7).\n- Do not include external diff libraries with copyleft licenses; use a small in-repo recursive diff helper.\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`\n**Label:** `rule_detail_screen`\n**Component type:** tabs\n\n> **No exact prototype** — closest visual pattern: `rule_detail_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`. Build in the same structural style as this screen. Re-use the Rule Detail screen's `ver` tab + 'Diff vs current' button layout (admin-screens.jsx tab content around lines 279-298). Render side-by-side diff using two shadcn ScrollArea columns inside the same Section/page-layout shell.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking\n- window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables\n- DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting\n- Version history table (Array.from loop) → real version rows from rules_registry_versions table\n- 'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff\n- Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result\n- openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Table`, `Badge`, `Button`\n\n",
+  "prompt": "# T-108 — Rule Version Diff screen (SET-042 §7.6)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §7.6 (Rules UI surfaces)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-042 Rule Version Diff — side-by-side JSON deep diff comparing two `rule_definitions` versions for a given `rule_code`. Read-only. Used as a drilldown from SET-041 (Rule Detail). Diff highlights added / removed / changed paths with stable JSON sort.\n\n## Implementation contract\n1. Page at apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.tsx is a Server Component reading two `rule_definitions` rows by `?from=<version>&to=<version>` query params (T-025 read-only Server Action).\n2. Compute deep diff with a deterministic JSON sort + recursive walker; categorize each path as `added`, `removed`, or `changed`.\n3. Render two columns (left=from, right=to) using shadcn ScrollArea + a code-block primitive; highlight diffed paths with token-level color (added=green, removed=red, changed=amber).\n4. Header strip shows: rule_code, from version + status badge, to version + status badge, total counts (added/removed/changed).\n5. RBAC: requires `settings.rules.read` only (read-only screen).\n\n## Files\n- apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds two rule versions with known JSON shapes (one added field, one removed, one changed value); assert diff column counts + path highlighting.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + diff helper + columns.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not introduce write actions (read-only per §7).\n- Do not include external diff libraries with copyleft licenses; use a small in-repo recursive diff helper.\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`\n**Label:** `rule_detail_screen`\n**Component type:** tabs\n\n> **No exact prototype** — closest visual pattern: `rule_detail_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:216-344`. Build in the same structural style as this screen. Re-use the Rule Detail screen's `ver` tab + 'Diff vs current' button layout (admin-screens.jsx tab content around lines 279-298). Render side-by-side diff using two shadcn ScrollArea columns inside the same Section/page-layout shell.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- Tab state (def/ver/dry/cons/aud) with local useState → shadcn Tabs component; tab id from URL hash for deep-linking\n- window.SETTINGS_RULE_DSL / window.SETTINGS_DRY_RUNS → Drizzle queries on rules_dsl and rule_dry_run_results tables\n- DSL <pre> read-only display → CodeMirror or Monaco in read-only mode with JSON syntax highlighting\n- Version history table (Array.from loop) → real version rows from rules_registry_versions table\n- 'Diff vs current' button → Server Action calling /api/rules/:code/diff/:version returning JSON deep-diff\n- Dry-run results table → paginated query on rule_dry_run_results; 'View I/O' opens RuleDryRunModal with preloaded result\n- openModal('ruleDryRun') → shared Dialog trigger; pass rule and preload props\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`, `Table`, `Badge`, `Button`\n\n",
   "labels": [
     "prd",
     "ui",
     "set-042",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -26,8 +28,8 @@
     "description": "Rule Version Diff (SET-042) — side-by-side JSON deep diff between two rule_definitions versions, read-only.",
     "details": "PRD §7.6 SET-042: `JSON deep diff (side-by-side)`. Read-only per §7 (rules registry is read-only via UI; authoring in PR/migrations only). Diff helper must be deterministic across runs (sort object keys before walk) so snapshot tests are stable. No external diff lib — small in-repo helper.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `settings.rules.read`, when the page is requested, then a 403 page renders.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.tsx",
-      "apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.test.tsx"
     ],
     "out_of_scope": [
       "Edit/promote actions (read-only screen)",
@@ -49,7 +51,7 @@
     "test_strategy": [
       "RED: RTL test seeds two JSON versions with one add/one remove/one change; asserts column counts, highlight classes, RBAC.",
       "GREEN: implement deterministic diff helper + Server Component + side-by-side render.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/rules/[rule_code]/diff/page.test.tsx` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/rules/[rule_code]/diff/page.test.tsx` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -59,7 +61,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -73,7 +79,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

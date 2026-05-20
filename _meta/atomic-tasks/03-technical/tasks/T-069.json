@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "spec-eco-phase2",
-    "docs"
+    "spec-eco-phase2"
   ],
   "priority": 150,
   "max_attempts": 3,

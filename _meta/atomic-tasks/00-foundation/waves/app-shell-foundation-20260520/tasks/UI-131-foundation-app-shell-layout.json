@@ -1,0 +1,164 @@
+{
+  "title": "UI-131 — Foundation (app) route-group layout: AppShell grid + Server-Component auth guard",
+  "prompt": "# UI-131 — Foundation (app) layout\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReplace the T-133 pass-through stub at `apps/web/app/[locale]/(app)/layout.tsx` with the real AppShell grid (Sidebar + Topbar + main) and add a Server-Component defence-in-depth auth check. Edge auth in `proxy.ts` stays primary; this layout is the second gate and the shell host for every authenticated desktop route.\n\n## Source\n- Brief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A + Luka G.\n- Prototype layout: sidebar 280px + topbar 56px + main content; settings/shell.jsx is the canonical layout shape.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [modify — replace stub]\n- `apps/web/app/[locale]/(app)/__tests__/layout.test.tsx` [create — RTL for auth guard branches]\n- `apps/web/e2e/app-shell-layout.spec.ts` [create — Playwright smoke: assert sidebar + topbar appear on `/en/`]\n- `apps/web/app/[locale]/(app)/loading.tsx` [create — minimal shell skeleton, sidebar + topbar widths preserved, content area `<div data-testid=\"app-shell-loading\"/>`]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(auth)/layout.tsx`, `[locale]/(scanner)/layout.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// apps/web/app/[locale]/(app)/layout.tsx (Server Component)\nexport default async function AppLayout({\n  children, params,\n}: { children: ReactNode; params: Promise<{ locale: string }> }) {\n  const { locale } = await params;\n  const supabase = await createServerSupabaseClient();\n  const { data, error } = await supabase.auth.getUser();\n  if (error || !data.user) {\n    redirect(`/${locale}/login`);\n  }\n  return (\n    <div data-testid=\"app-shell\" className=\"grid h-screen grid-rows-[var(--shell-topbar-h)_1fr] grid-cols-[var(--shell-sidebar-w)_1fr]\">\n      <header className=\"col-span-2\"><AppTopbar locale={locale}/></header>\n      <aside><AppSidebar locale={locale}/></aside>\n      <main data-testid=\"app-shell-main\" className=\"overflow-auto\">{children}</main>\n    </div>\n  );\n}\n```\n\nUses tokens from UI-127. Mounts UI-129 + UI-130. The Server-Component guard is defence-in-depth — if `proxy.ts` already redirected, this branch is unreachable, but a misconfigured proxy must not leak shell.\n\n## Acceptance criteria\n1. Visiting `/en/` while authenticated renders `data-testid=app-shell`, `data-testid=app-sidebar`, `data-testid=app-topbar`, and the existing `[locale]/page.tsx` content under `data-testid=app-shell-main`.\n2. Visiting `/en/` while unauthenticated (no Supabase cookie) results in HTTP 307/302 to `/en/login`; the response body never contains `data-testid=app-shell`.\n3. `/en/login` (under `(auth)`) DOES NOT contain `data-testid=app-shell`, `app-sidebar`, or `app-topbar`.\n4. RTL `__tests__/layout.test.tsx` covers: authenticated render, unauth redirect, locale prefix propagation to topbar/sidebar.\n5. Playwright `app-shell-layout.spec.ts` asserts the three test-ids appear on `/en/` and are absent on `/en/login`.\n6. axe-core (rendered tree) reports 0 violations.\n7. `pnpm --filter web typecheck` and `lint` pass.\n8. `apps/web/proxy.ts` is byte-identical before/after.\n\n## Out of scope\n- Settings sub-nav (UI-132).\n- PageHeader primitive (UI-132).\n- Scanner shell (T-134).\n- New URLs / locale changes.\n- Modifying any T-XXX.json outside this wave.\n\n## RED test\nWrite layout.test.tsx and app-shell-layout.spec.ts first — fail because layout still passes through.\n\n## Risk red lines\n- Auth guard belongs in Server Component, NOT in middleware/proxy (avoid conflict with edge i18n).\n- Use the existing `createServerSupabaseClient` helper from `apps/web/lib/auth/supabase-server.ts`.\n- Do not import `proxy.ts`-only helpers (edge runtime) here.\n- Do not introduce `<Suspense/>` boundaries that swallow children — child errors must surface to the App Router error boundary.\n- Do not let `loading.tsx` drop sidebar/topbar dimensions (would cause layout shift).\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440 (authenticated `/en/` + unauthenticated `/en/login`), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype settings/shell.jsx layout), prototype_reference, console_network_check (no errors, no failed requests, no hydration warnings), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+  "labels": [
+    "wave-app-shell-foundation",
+    "ui",
+    "foundation",
+    "shell",
+    "layout",
+    "auth",
+    "T3-ui"
+  ],
+  "priority": 75,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "UI-131",
+    "human_task_id": "UI-131-foundation-app-shell-layout",
+    "display_task_id": "UI-131",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §3 Luka A",
+      "brief §3 Luka G",
+      "brief §7 risk: auth Server vs middleware"
+    ],
+    "category": "ui",
+    "subcategory": "shell-layout",
+    "task_type": "T3-ui",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "40k",
+    "estimated_effort": "2-3h",
+    "description": "Replace (app)/layout.tsx pass-through with the AppShell CSS-grid (Topbar + Sidebar + Main) and a Server-Component Supabase auth guard. Mounts UI-129 and UI-130. proxy.ts unchanged.",
+    "details": "Server Component reads locale from params, calls createServerSupabaseClient().auth.getUser(); redirect to /<locale>/login on error/no user. Otherwise render CSS grid using --shell-topbar-h and --shell-sidebar-w with AppTopbar (header, col-span-2), AppSidebar (aside), main (overflow-auto). loading.tsx preserves shell dimensions. RTL test covers authed/unauthed branches. Playwright spec asserts test-ids on /en/ and their absence on /en/login.",
+    "scope_files": [
+      "apps/web/app/[locale]/(app)/layout.tsx [modify — replace T-133 stub]",
+      "apps/web/app/[locale]/(app)/__tests__/layout.test.tsx [create]",
+      "apps/web/app/[locale]/(app)/loading.tsx [create]",
+      "apps/web/e2e/app-shell-layout.spec.ts [create]"
+    ],
+    "scope_paths": [
+      "apps/web/app/[locale]/(app)/",
+      "apps/web/e2e/app-shell-layout.spec.ts"
+    ],
+    "out_of_scope": [
+      "Settings subnav (UI-132)",
+      "PageHeader primitive (UI-132)",
+      "Scanner shell (T-134)",
+      "Editing proxy.ts or [locale]/layout.tsx",
+      "Modifying T-001..T-126.json or 00-foundation/manifest.json"
+    ],
+    "dependencies": [
+      "UI-127",
+      "UI-128",
+      "UI-129",
+      "UI-130",
+      "T-133"
+    ],
+    "parallel_safe_with": [
+      "T-134"
+    ],
+    "acceptance_criteria": [
+      "/en/ authenticated renders data-testid=app-shell, app-sidebar, app-topbar; main holds existing page content",
+      "/en/ unauthenticated redirects 302/307 to /en/login; response body does not contain data-testid=app-shell",
+      "/en/login response body does not contain data-testid=app-shell or app-sidebar or app-topbar",
+      "RTL layout.test.tsx covers authed, unauthed, locale-prop propagation",
+      "Playwright app-shell-layout.spec.ts passes on /en/ and /en/login",
+      "axe-core 0 violations on rendered tree",
+      "typecheck and lint pass",
+      "apps/web/proxy.ts is byte-identical before/after"
+    ],
+    "test_strategy": [
+      "Write layout.test.tsx + app-shell-layout.spec.ts first (RED)",
+      "pnpm --filter web test layout -- --run",
+      "pnpm exec playwright test e2e/app-shell-layout.spec.ts",
+      "pnpm --filter web typecheck && pnpm --filter web lint",
+      "git diff --name-only apps/web/proxy.ts -- expected empty"
+    ],
+    "risk_red_lines": [
+      "Auth guard belongs in Server Component, not in middleware/proxy",
+      "Do not import edge-runtime helpers here",
+      "Do not introduce a Suspense boundary that swallows child errors",
+      "loading.tsx must keep sidebar/topbar dimensions (no layout shift)",
+      "Do not modify apps/web/proxy.ts"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "acp-supabase",
+      "acp-verification",
+      "MON-t3-ui",
+      "MON-foundation-primitives"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "fail_closed_on_missing_ui_evidence": true,
+      "closeout_requires": [
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check",
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ],
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:1-105"
+    ],
+    "target_route": "/{locale}/ (post-T-133 (app) group)",
+    "viewports": [
+      {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      {
+        "name": "desktop-1280",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "region_selectors": {
+      "shell_root": "[data-testid='app-shell']",
+      "shell_main": "[data-testid='app-shell-main']",
+      "sidebar": "[data-testid='app-sidebar']",
+      "topbar": "[data-testid='app-topbar']"
+    },
+    "parity_matrix": [
+      {
+        "region": "grid layout",
+        "prototype": "sidebar + topbar + main (settings/shell.jsx)",
+        "implementation": "CSS grid via tokens",
+        "structural": "pass",
+        "visual": "pass",
+        "interaction": "n/a"
+      },
+      {
+        "region": "auth boundary",
+        "prototype": "n/a (prototype has no auth)",
+        "implementation": "Server-Component getUser + redirect",
+        "structural": "pass_with_allowed_deviation",
+        "visual": "n/a",
+        "interaction": "pass"
+      }
+    ],
+    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
+    "wave": "app-shell-foundation-20260520"
+  }
+}

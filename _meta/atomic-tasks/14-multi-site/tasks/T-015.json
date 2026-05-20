@@ -1,11 +1,13 @@
 {
-  "title": "T-015 \u2014 Lane list + detail UI (ms_lanes_list, ms_lane_detail) \u2014 MS-100 \u00a710A",
-  "prompt": "# T-015 \u2014 Lane list + detail UI\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710A (Transport Lanes), \u00a710C MS-100/MS-100a UI surfaces table\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype list: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list)\nPrototype detail: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 (ms_lane_detail)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_lanes_list, \u00a7ms_lane_detail (BL-MS-05)\n\n## Goal\nServer Component pages /(multi-site)/lanes and /(multi-site)/lanes/[laneId] rendering filter table + 4-tab detail (overview/rates/history/constraints) matching prototypes 1:1 with shadcn primitives. Replace prototype's CSS-only chart placeholder (BL-MS-05) with Recharts BarChart over `lane_ist_monthly_counts` aggregate.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/lanes/page.tsx (RSC) reads search params (from_site, to_site, active) + queries Drizzle `transport_lanes` with health computed view; passes data to client LanesClient.\n2. apps/web/app/(multi-site)/lanes/[laneId]/page.tsx (RSC) \u2014 4 tabs via shadcn Tabs: Overview (definition cards), Rates (transport_lane_rate_cards table with Add/Approve/Reject/Delete row actions), History (Recharts BarChart from last 12 months IST counts), Constraints (hazmat/cold_chain/customs/max_weight read-only display + Edit button \u2192 opens LaneCreateModal).\n3. RTL test + Playwright parity test verifying 4 cards/tabs match prototype lines.\n4. Empty/loading/error/permission states all rendered per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Files\n- apps/web/app/(multi-site)/lanes/page.tsx [create]\n- apps/web/app/(multi-site)/lanes/_components/lanes-client.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/page.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/lane-detail-tabs.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/lane-history-chart.tsx [create]\n- apps/web/app/(multi-site)/lanes/_components/__tests__/lanes-client.test.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/__tests__/lane-detail-tabs.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given /(multi-site)/lanes is loaded, when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list), then page has the same filter bar (from_site, to_site, active), same table columns (Lane code, From, To, Mode, Carriers, Lane Health badge, Rate Cards count), same row actions (Edit lane Admin-only, Upload Rate Card) \u2014 verified by RTL parity snapshot + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md.\n2. Given /(multi-site)/lanes/[laneId] is loaded, when compared to ist-screens.jsx:551-672 (ms_lane_detail), then 4 tabs (Overview, Rates, History, Constraints) match, History tab renders Recharts BarChart (BL-MS-05 fix), Rates tab table shows carrier/type/rate/currency/effective_from/approval_status badges.\n3. Given user has role=planner (not admin), when /(multi-site)/lanes loads, then Edit lane buttons are not rendered (Server Component permission gate, not client-side hidden).\n4. Given the lane has no rate cards, when Rates tab loads, then empty state per UI-PROTOTYPE-PARITY-POLICY.md (Add Rate Card CTA + empty illustration).\n5. Given Deactivate button is clicked on a lane with in-transit ISTs, when the action runs, then 409 V-MS-29 (lane deactivate blocked) error toast appears and lane remains active.\n6. Given URL ?from_site=siteX, when page renders, then table is filtered to lanes with from_site_id=siteX.\n\n## Test strategy\n- RED: RTL parity test (list page + detail tabs) + Playwright trace asserting visual structural match against prototype line ranges before pages exist.\n- Empty/loading/error/permission states asserted per UI-PROTOTYPE-PARITY-POLICY.md.\n- Run 'pnpm --filter @monopilot/web vitest run apps/web/app/(multi-site)/lanes' + Playwright lane-parity.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list) and prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 (ms_lane_detail).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim \u2014 translate to shadcn primitives per translation-notes-multi-site.md.\n- Do not use HTML <select> instead of shadcn Select.\n- Do not implement the CSS-only chart placeholder \u2014 BL-MS-05 requires real Recharts.\n- Do not let Edit/Deactivate buttons render for non-admin users client-side only \u2014 Server Component permission gate (UI-PROTOTYPE-PARITY-POLICY.md).\n- Do not allow Deactivate when in-transit ISTs reference the lane \u2014 V-MS-29 server-side check.",
+  "title": "T-015 — Lane list + detail UI (ms_lanes_list, ms_lane_detail) — MS-100 §10A",
+  "prompt": "# T-015 — Lane list + detail UI\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §10A (Transport Lanes), §10C MS-100/MS-100a UI surfaces table\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype list: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list)\nPrototype detail: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 (ms_lane_detail)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §ms_lanes_list, §ms_lane_detail (BL-MS-05)\n\n## Goal\nServer Component pages /(multi-site)/lanes and /(multi-site)/lanes/[laneId] rendering filter table + 4-tab detail (overview/rates/history/constraints) matching prototypes 1:1 with shadcn primitives. Replace prototype's CSS-only chart placeholder (BL-MS-05) with Recharts BarChart over `lane_ist_monthly_counts` aggregate.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/lanes/page.tsx (RSC) reads search params (from_site, to_site, active) + queries Drizzle `transport_lanes` with health computed view; passes data to client LanesClient.\n2. apps/web/app/(multi-site)/lanes/[laneId]/page.tsx (RSC) — 4 tabs via shadcn Tabs: Overview (definition cards), Rates (transport_lane_rate_cards table with Add/Approve/Reject/Delete row actions), History (Recharts BarChart from last 12 months IST counts), Constraints (hazmat/cold_chain/customs/max_weight read-only display + Edit button → opens LaneCreateModal).\n3. RTL test + Playwright parity test verifying 4 cards/tabs match prototype lines.\n4. Empty/loading/error/permission states all rendered per UI-PROTOTYPE-PARITY-POLICY.md.\n\n## Files\n- apps/web/app/(multi-site)/lanes/page.tsx [create]\n- apps/web/app/(multi-site)/lanes/_components/lanes-client.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/page.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/lane-detail-tabs.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/lane-history-chart.tsx [create]\n- apps/web/app/(multi-site)/lanes/_components/__tests__/lanes-client.test.tsx [create]\n- apps/web/app/(multi-site)/lanes/[laneId]/_components/__tests__/lane-detail-tabs.test.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given /(multi-site)/lanes is loaded, when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list), then page has the same filter bar (from_site, to_site, active), same table columns (Lane code, From, To, Mode, Carriers, Lane Health badge, Rate Cards count), same row actions (Edit lane Admin-only, Upload Rate Card) — verified by RTL parity snapshot + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md.\n2. Given /(multi-site)/lanes/[laneId] is loaded, when compared to ist-screens.jsx:551-672 (ms_lane_detail), then 4 tabs (Overview, Rates, History, Constraints) match, History tab renders Recharts BarChart (BL-MS-05 fix), Rates tab table shows carrier/type/rate/currency/effective_from/approval_status badges.\n3. Given user has role=planner (not admin), when /(multi-site)/lanes loads, then Edit lane buttons are not rendered (Server Component permission gate, not client-side hidden).\n4. Given the lane has no rate cards, when Rates tab loads, then empty state per UI-PROTOTYPE-PARITY-POLICY.md (Add Rate Card CTA + empty illustration).\n5. Given Deactivate button is clicked on a lane with in-transit ISTs, when the action runs, then 409 V-MS-29 (lane deactivate blocked) error toast appears and lane remains active.\n6. Given URL ?from_site=siteX, when page renders, then table is filtered to lanes with from_site_id=siteX.\n\n## Test strategy\n- RED: RTL parity test (list page + detail tabs) + Playwright trace asserting visual structural match against prototype line ranges before pages exist.\n- Empty/loading/error/permission states asserted per UI-PROTOTYPE-PARITY-POLICY.md.\n- Run 'pnpm --filter @monopilot/web vitest run apps/web/app/(multi-site)/lanes' + Playwright lane-parity.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list) and prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 (ms_lane_detail).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX verbatim — translate to shadcn primitives per translation-notes-multi-site.md.\n- Do not use HTML <select> instead of shadcn Select.\n- Do not implement the CSS-only chart placeholder — BL-MS-05 requires real Recharts.\n- Do not let Edit/Deactivate buttons render for non-admin users client-side only — Server Component permission gate (UI-PROTOTYPE-PARITY-POLICY.md).\n- Do not allow Deactivate when in-transit ISTs reference the lane — V-MS-29 server-side check.",
   "labels": [
     "prd",
     "ui",
     "lane",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-015",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710A",
-      "\u00a710C MS-100"
+      "§10A",
+      "§10C MS-100"
     ],
     "category": "ui",
     "subcategory": "lane-crud-ui",
@@ -25,7 +27,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Server Component lane list page (filter by from/to/active, ETA coloring) + 4-tab lane detail page (overview/rates/history/constraints) matching ist-screens.jsx prototypes 1:1 with shadcn primitives. BL-MS-05 history bar chart Recharts impl.",
-    "details": "Server Component lane list page (filter by from/to/active, ETA coloring) + 4-tab lane detail page (overview/rates/history/constraints) matching ist-screens.jsx prototypes 1:1 with shadcn primitives. BL-MS-05 history bar chart Recharts impl. Scope: Server Component pages /(multi-site)/lanes and /(multi-site)/lanes/[laneId] rendering filter table + 4-tab detail (overview/rates/history/constraints) matching prototypes 1:1 with shadcn primitives. Touches: apps/web/app/(multi-site)/lanes/page.tsx, apps/web/app/(multi-site)/lanes/_components/lanes-client.tsx, apps/web/app/(multi-site)/lanes/, apps/web/app/(multi-site)/lanes/. Constraints: 1. apps/web/app/(multi-site)/lanes/page.tsx (RSC) reads search params (from_site, to_site, active) + queries Drizzle `transport_lanes` with health computed view; passes data to client LanesClient. 2. apps/web/app/(multi-site)/lanes/[laneId]/page.tsx (RSC) \u2014 4 tabs via shadcn Tabs: Overview (definition cards), Rates (transport_lane_rate_cards table . Distinguished from sibling 14-multi-site tasks by its narrow lane-crud-ui focus against PRD \u00a710A, \u00a710C MS-100. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "details": "Server Component lane list page (filter by from/to/active, ETA coloring) + 4-tab lane detail page (overview/rates/history/constraints) matching ist-screens.jsx prototypes 1:1 with shadcn primitives. BL-MS-05 history bar chart Recharts impl. Scope: Server Component pages /(multi-site)/lanes and /(multi-site)/lanes/[laneId] rendering filter table + 4-tab detail (overview/rates/history/constraints) matching prototypes 1:1 with shadcn primitives. Touches: apps/web/app/(multi-site)/lanes/page.tsx, apps/web/app/(multi-site)/lanes/_components/lanes-client.tsx, apps/web/app/(multi-site)/lanes/, apps/web/app/(multi-site)/lanes/. Constraints: 1. apps/web/app/(multi-site)/lanes/page.tsx (RSC) reads search params (from_site, to_site, active) + queries Drizzle `transport_lanes` with health computed view; passes data to client LanesClient. 2. apps/web/app/(multi-site)/lanes/[laneId]/page.tsx (RSC) — 4 tabs via shadcn Tabs: Overview (definition cards), Rates (transport_lane_rate_cards table . Distinguished from sibling 14-multi-site tasks by its narrow lane-crud-ui focus against PRD §10A, §10C MS-100. AC count consolidated from 7→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/app/(multi-site)/lanes/page.tsx [create]",
       "apps/web/app/(multi-site)/lanes/_components/lanes-client.tsx [create]",
@@ -37,7 +39,7 @@
       "prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx [modify]"
     ],
     "out_of_scope": [
-      "Do not implement lane create/edit modal (T-016 covers rate card; lane create modal scoped in next iteration if needed \u2014 for now Edit opens an inline form).",
+      "Do not implement lane create/edit modal (T-016 covers rate card; lane create modal scoped in next iteration if needed — for now Edit opens an inline form).",
       "Do not implement rate card upload wizard (T-016)."
     ],
     "dependencies": [
@@ -50,7 +52,7 @@
       "T-016"
     ],
     "acceptance_criteria": [
-      "Given /(multi-site)/lanes loaded, when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list), then same filter bar + table columns + row actions \u2014 RTL parity snapshot + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md; AND given /(multi-site)/lanes/[laneId] loaded when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 then 4-tab layout + rate-cards table + edit/deactivate actions match.",
+      "Given /(multi-site)/lanes loaded, when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:492-548 (ms_lanes_list), then same filter bar + table columns + row actions — RTL parity snapshot + Playwright trace per UI-PROTOTYPE-PARITY-POLICY.md; AND given /(multi-site)/lanes/[laneId] loaded when compared to prototypes/design/Monopilot Design System/multi-site/ist-screens.jsx:551-672 then 4-tab layout + rate-cards table + edit/deactivate actions match.",
       "Given user role=planner, when /(multi-site)/lanes loads, then Edit lane buttons NOT rendered (Server Component permission gate); AND given lane has no rate cards when Rates tab loads then empty state per UI-PROTOTYPE-PARITY-POLICY.md.",
       "Given Deactivate clicked on lane with in-transit ISTs, when action runs, then 409 V-MS-29 toast + lane remains active.",
       "Given URL ?from_site=siteX, when page renders, then table filtered to from_site_id=siteX."
@@ -62,16 +64,20 @@
       "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "Do not paste prototype JSX verbatim \u2014 translate to shadcn.",
+      "Do not paste prototype JSX verbatim — translate to shadcn.",
       "Do not use HTML <select>.",
       "Do not ship CSS-only chart (BL-MS-05 requires Recharts).",
-      "Do not client-side hide Edit/Deactivate \u2014 Server Component permission gate.",
+      "Do not client-side hide Edit/Deactivate — Server Component permission gate.",
       "Do not allow Deactivate with in-transit ISTs (V-MS-29 server check)."
     ],
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -86,7 +92,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

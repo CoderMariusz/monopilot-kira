@@ -1,11 +1,13 @@
 {
   "title": "T-112 — D365 Sync Audit screen (SET-083 §11.3)",
-  "prompt": "# T-112 — D365 Sync Audit screen (SET-083 §11.3)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §11.3 (D365 Admin UI)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-083 D365 Sync Audit — last N (default 100) sync results + per-row error details + manual trigger button. Read from `d365_sync_runs` table (per T-030 schema). Manual trigger calls T-030 triggerD365Sync action.\n\n## Implementation contract\n1. Page at apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx (Server Component) reads last 100 d365_sync_runs rows for caller's org_id ordered by started_at DESC.\n2. List columns: started_at, finished_at, direction (pull|push), entity_type, status (ok|partial|failed), rows_in / rows_ok / rows_failed, error_summary.\n3. Toolbar: status filter, direction filter, date range filter, 'Run sync now' button (calls T-030 triggerD365Sync).\n4. Per-row 'View errors' link opens read-only modal with full error JSON (errors[] array).\n5. RBAC: requires `settings.integrations.read`; manual trigger requires `owner` per §11.4.\n\n## Files\n- apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx [create]\n- apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 5 sync runs with mixed status; asserts filter, error modal, manual trigger button RBAC gating.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + modal + trigger wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not bypass withOrgContext (RLS).\n- Do not auto-retry from UI (worker handles retries; this is read-only viewer + manual trigger).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210`\n**Label:** `rules_registry_screen`\n**Component type:** table\n\n> **No exact prototype** — closest visual pattern: `rules_registry_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210`. Build in the same structural style as this screen. Re-use the rules registry filter toolbar + Section/table pattern; replace registry-specific filters with status/direction/date-range filters and add a 'Run sync now' primary action in the PageHead actions slot.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- window.SETTINGS_RULES mock array → Drizzle query on rules_registry table with type and coverage filters\n- Type and coverage selects → URL search params; Server Component re-renders filtered list\n- Coverage badge logic (missing 30d) → computed field: last_dry_run_at < now() - interval '30 days'\n- Export JSON button → Server Action streaming JSON from rules_registry table\n- onOpenRule(r.code) → Next.js router.push('/settings/rules/[code]') for rule detail screen\n- Row highlight for missing coverage (background:#fffbeb) → TanStack Table row className callback\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Select`, `Badge`, `Button`\n\n",
+  "prompt": "# T-112 — D365 Sync Audit screen (SET-083 §11.3)\n\nPRD: docs/prd/02-SETTINGS-PRD.md §11.3 (D365 Admin UI)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild SET-083 D365 Sync Audit — last N (default 100) sync results + per-row error details + manual trigger button. Read from `d365_sync_runs` table (per T-030 schema). Manual trigger calls T-030 triggerD365Sync action.\n\n## Implementation contract\n1. Page at apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.tsx (Server Component) reads last 100 d365_sync_runs rows for caller's org_id ordered by started_at DESC.\n2. List columns: started_at, finished_at, direction (pull|push), entity_type, status (ok|partial|failed), rows_in / rows_ok / rows_failed, error_summary.\n3. Toolbar: status filter, direction filter, date range filter, 'Run sync now' button (calls T-030 triggerD365Sync).\n4. Per-row 'View errors' link opens read-only modal with full error JSON (errors[] array).\n5. RBAC: requires `settings.integrations.read`; manual trigger requires `owner` per §11.4.\n\n## Files\n- apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.tsx [create]\n- apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.test.tsx [create]\n\n## Acceptance criteria\nSee `acceptance_criteria` array.\n\n## Test strategy\n1. RED: RTL test seeds 5 sync runs with mixed status; asserts filter, error modal, manual trigger button RBAC gating.\n   `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.test.tsx`\n2. RED must fail.\n3. GREEN: implement Server Component + filters + modal + trigger wiring.\n4. Re-run RED + `pnpm typecheck` + `pnpm lint`.\n\n## Risk red lines\n- Do not bypass withOrgContext (RLS).\n- Do not auto-retry from UI (worker handles retries; this is read-only viewer + manual trigger).\n- Do not import @radix-ui/* outside packages/ui (§0).\n\nStack: TS + Next.js App Router + Drizzle + pnpm + vitest + Playwright + Server Actions. PRD: docs/prd/02-SETTINGS-PRD.md v3.5.\n\n## Prototype reference\n**Source:** `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210`\n**Label:** `rules_registry_screen`\n**Component type:** table\n\n> **No exact prototype** — closest visual pattern: `rules_registry_screen` at `prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-210`. Build in the same structural style as this screen. Re-use the rules registry filter toolbar + Section/table pattern; replace registry-specific filters with status/direction/date-range filters and add a 'Run sync now' primary action in the PageHead actions slot.\n\n### Parity requirements (mandatory ACs)\nThe production implementation MUST match the prototype on three dimensions — add these as explicit ACs:\n1. **Structural parity** — same sections, same field labels, same shadcn primitives invoked, same modals triggered from same actions.\n2. **Visual parity** — same density tokens, same shadcn/Radix primitives (no drift to plain HTML), same layout proportions.\n3. **Interaction parity** — same enable/disable rules, same loading/empty/error states, same keyboard focus order.\n\n### Translation notes (from prototype-labels index)\n- window.SETTINGS_RULES mock array → Drizzle query on rules_registry table with type and coverage filters\n- Type and coverage selects → URL search params; Server Component re-renders filtered list\n- Coverage badge logic (missing 30d) → computed field: last_dry_run_at < now() - interval '30 days'\n- Export JSON button → Server Action streaming JSON from rules_registry table\n- onOpenRule(r.code) → Next.js router.push('/settings/rules/[code]') for rule detail screen\n- Row highlight for missing coverage (background:#fffbeb) → TanStack Table row className callback\n- Hardcoded labels → next-intl keys\n\n### shadcn primitives to use\n`Table`, `Select`, `Badge`, `Button`\n\n",
   "labels": [
     "prd",
     "ui",
     "set-083",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 100,
   "max_attempts": 3,
@@ -27,8 +29,8 @@
     "description": "D365 Sync Audit (SET-083): last N sync runs viewer + filters + per-row error modal + owner-gated manual trigger.",
     "details": "PRD §11.3 SET-083: `Last N sync results + errors + manual trigger`. The 'Run sync now' button must be disabled for non-owner roles per §11.4 (flag flip + ops both require owner). Error JSON modal renders raw payload — no parsing/categorization in scope.\n\nAdditional acceptance detail preserved from compressed AC list:\n- Given the caller lacks `owner` role, when they view the page, then the 'Run sync now' button is disabled with an aria-label explaining insufficient permissions.\n- UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.",
     "scope_files": [
-      "apps/web/app/(admin)/settings/integrations/d365/audit/page.tsx",
-      "apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx"
+      "apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.tsx",
+      "apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.test.tsx"
     ],
     "out_of_scope": [
       "Re-queue / retry from UI (worker handles)",
@@ -50,7 +52,7 @@
     "test_strategy": [
       "RED: RTL test seeds runs + asserts filter, error modal, manual-trigger RBAC disable.",
       "GREEN: implement Server Component + filters + modal + trigger wiring.",
-      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/(admin)/settings/integrations/d365/audit/page.test.tsx` and `pnpm typecheck`.",
+      "Run `pnpm --filter @monopilot/web vitest run apps/web/app/[locale]/(admin)/settings/integrations/d365/audit/page.test.tsx` and `pnpm typecheck`.",
       "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
@@ -60,7 +62,11 @@
     ],
     "skills": [
       "test-driven-development",
-      "requesting-code-review"
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -74,7 +80,14 @@
         "test_commands_and_results",
         "acceptance_criteria_status",
         "deviations_from_prd",
-        "git_status"
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

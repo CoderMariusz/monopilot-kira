@@ -4,8 +4,7 @@
   "labels": [
     "prd",
     "docs",
-    "decisions-log",
-    "docs"
+    "decisions-log"
   ],
   "priority": 150,
   "max_attempts": 3,

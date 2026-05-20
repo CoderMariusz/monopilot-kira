@@ -1,11 +1,13 @@
 {
-  "title": "T-020 \u2014 Site switcher UX (SiteCrumb global header + cookie/localStorage persistence) \u2014 MS-004",
-  "prompt": "# T-020 \u2014 Site switcher UX (SiteCrumb)\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710.1 MS-004 (Site Switcher UX), \u00a711.4 V-MS-17\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype primitive: prototypes/design/Monopilot Design System/_shared/primitives.jsx (SiteCrumb usage in shell.jsx)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7Shared Primitives\n\n## Goal\nGlobal SiteCrumb component in the app header showing current site + dropdown of accessible sites. Auto-select for single-site users (V-MS-17); explicit selection required for multi-site users. Persist selection via httpOnly cookie `ms_site_id` (used by middleware T-007 fallback) + localStorage (UX).\n\n## Implementation contract\n1. apps/web/components/site-switcher.tsx \u2014 shadcn DropdownMenu rendering:\n   - Current site label + chevron (clickable for multi-site).\n   - List of accessible sites from getServerSession.accessibleSites.\n   - Primary site marked with star icon.\n   - 'All Sites' option (super_admin only).\n2. Server Action setSiteContext(siteId | null) writes httpOnly cookie `ms_site_id` + emits audit event 'site_switched'. Client triggers router.refresh() after action settles.\n3. Single-site users see static text (no dropdown) per V-MS-17.\n4. Tests: V-MS-17 single-site renders static; multi-site renders dropdown; switch action sets cookie + audit event; super_admin sees All Sites option.\n\n## Files\n- apps/web/components/site-switcher.tsx [create]\n- apps/web/components/_actions/set-site-context.ts [create]\n- apps/web/components/__tests__/site-switcher.test.tsx [create]\n- apps/web/app/layout.tsx [modify]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given user has 1 active site_user_access row, when SiteSwitcher renders, then static label is shown (no dropdown) per V-MS-17.\n2. Given user has 3 sites accessible, when SiteSwitcher renders, then a DropdownMenu with 3 items appears + primary site marked with star icon.\n3. Given user clicks site Y in dropdown, when setSiteContext(Y) settles, then cookie 'ms_site_id'=Y is httpOnly + secure + sameSite=lax + Path=/; localStorage.ms_site_id=Y; audit_events row 'site_switched' written; router.refresh() invoked.\n4. Given super_admin user, when SiteSwitcher renders, then 'All Sites' option appears at the bottom of the dropdown; selecting it calls setSiteContext(null).\n5. Given the cookie ms_site_id is present and matches an accessible site, when page is reloaded, then SiteSwitcher pre-selects that site (no flash to default).\n6. Given accessibility audit runs (axe), when SiteSwitcher is in the DOM, then zero axe violations.\n\n## Test strategy\n- RED: RTL test all 6 ACs (single-site static, multi-site dropdown, switch action sets cookie+audit, super_admin All Sites, cookie persistence, a11y) before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-switcher' + Playwright site-switcher.spec.ts.\n\n## Risk red lines\n- Do not store ms_site_id in a non-httpOnly cookie \u2014 middleware T-007 needs it server-side.\n- Do not let localStorage drift from cookie \u2014 single source of truth is the cookie (validation in T-007 middleware).\n- Do not hide dropdown via CSS \u2014 V-MS-17 renders static text only for single-site users (no JS-blink).\n- Do not allow site switch without writing audit_events row.\n- Do not allow super_admin All Sites to bypass V-MS-07 audit \u2014 every cross-site read still logged downstream.\n\n## Prototype parity\nSpec-driven UI; canonical source = `docs/prd/14-MULTI-SITE-PRD.md \u00a710.4 / \u00a710B MS-110` plus the nearest reusable design-system pattern from `prototypes/design/Monopilot Design System/_shared/`. The prototype path referenced in the implementation contract is illustrative; the binding contract is the PRD acceptance criteria + the shared dropdown/header primitives.\n",
+  "title": "T-020 — Site switcher UX (SiteCrumb global header + cookie/localStorage persistence) — MS-004",
+  "prompt": "# T-020 — Site switcher UX (SiteCrumb)\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §10.1 MS-004 (Site Switcher UX), §11.4 V-MS-17\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype primitive: prototypes/design/Monopilot Design System/_shared/primitives.jsx (SiteCrumb usage in shell.jsx)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §Shared Primitives\n\n## Goal\nGlobal SiteCrumb component in the app header showing current site + dropdown of accessible sites. Auto-select for single-site users (V-MS-17); explicit selection required for multi-site users. Persist selection via httpOnly cookie `ms_site_id` (used by middleware T-007 fallback) + localStorage (UX).\n\n## Implementation contract\n1. apps/web/components/site-switcher.tsx — shadcn DropdownMenu rendering:\n   - Current site label + chevron (clickable for multi-site).\n   - List of accessible sites from getServerSession.accessibleSites.\n   - Primary site marked with star icon.\n   - 'All Sites' option (super_admin only).\n2. Server Action setSiteContext(siteId | null) writes httpOnly cookie `ms_site_id` + emits audit event 'site_switched'. Client triggers router.refresh() after action settles.\n3. Single-site users see static text (no dropdown) per V-MS-17.\n4. Tests: V-MS-17 single-site renders static; multi-site renders dropdown; switch action sets cookie + audit event; super_admin sees All Sites option.\n\n## Files\n- apps/web/components/site-switcher.tsx [create]\n- apps/web/components/_actions/set-site-context.ts [create]\n- apps/web/components/__tests__/site-switcher.test.tsx [create]\n- apps/web/app/layout.tsx [modify]\n\n## Acceptance criteria\n<!-- AC count consolidated from 7→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given user has 1 active site_user_access row, when SiteSwitcher renders, then static label is shown (no dropdown) per V-MS-17.\n2. Given user has 3 sites accessible, when SiteSwitcher renders, then a DropdownMenu with 3 items appears + primary site marked with star icon.\n3. Given user clicks site Y in dropdown, when setSiteContext(Y) settles, then cookie 'ms_site_id'=Y is httpOnly + secure + sameSite=lax + Path=/; localStorage.ms_site_id=Y; audit_events row 'site_switched' written; router.refresh() invoked.\n4. Given super_admin user, when SiteSwitcher renders, then 'All Sites' option appears at the bottom of the dropdown; selecting it calls setSiteContext(null).\n5. Given the cookie ms_site_id is present and matches an accessible site, when page is reloaded, then SiteSwitcher pre-selects that site (no flash to default).\n6. Given accessibility audit runs (axe), when SiteSwitcher is in the DOM, then zero axe violations.\n\n## Test strategy\n- RED: RTL test all 6 ACs (single-site static, multi-site dropdown, switch action sets cookie+audit, super_admin All Sites, cookie persistence, a11y) before component exists.\n- Run 'pnpm --filter @monopilot/web vitest run site-switcher' + Playwright site-switcher.spec.ts.\n\n## Risk red lines\n- Do not store ms_site_id in a non-httpOnly cookie — middleware T-007 needs it server-side.\n- Do not let localStorage drift from cookie — single source of truth is the cookie (validation in T-007 middleware).\n- Do not hide dropdown via CSS — V-MS-17 renders static text only for single-site users (no JS-blink).\n- Do not allow site switch without writing audit_events row.\n- Do not allow super_admin All Sites to bypass V-MS-07 audit — every cross-site read still logged downstream.\n\n## Prototype parity\nSpec-driven UI; canonical source = `docs/prd/14-MULTI-SITE-PRD.md §10.4 / §10B MS-110` plus the nearest reusable design-system pattern from `prototypes/design/Monopilot Design System/_shared/`. The prototype path referenced in the implementation contract is illustrative; the binding contract is the PRD acceptance criteria + the shared dropdown/header primitives.\n",
   "labels": [
     "prd",
     "ui",
     "switcher",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 60,
   "max_attempts": 3,
@@ -15,8 +17,8 @@
     "prd_task_id": "T-020",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710.1 MS-004",
-      "\u00a711.4 V-MS-17"
+      "§10.1 MS-004",
+      "§11.4 V-MS-17"
     ],
     "category": "ui",
     "subcategory": "site-switcher",
@@ -24,8 +26,8 @@
     "parent_feature": "14-MULTI-SITE-e site mgmt UI",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Global header SiteCrumb component (primitive in _shared) \u2014 dropdown if multiple sites, static label if 1 site (V-MS-17 auto-select), httpOnly cookie ms_site_id + localStorage persistence + Server Component refresh on switch.",
-    "details": "Global header SiteCrumb component (primitive in _shared) \u2014 dropdown if multiple sites, static label if 1 site (V-MS-17 auto-select), httpOnly cookie ms_site_id + localStorage persistence + Server Component refresh on switch. Scope: Global SiteCrumb component in the app header showing current site + dropdown of accessible sites. Touches: apps/web/components/site-switcher.tsx, apps/web/components/_actions/set-site-context.ts, apps/web/components/__tests__/site-switcher.test.tsx, apps/web/app/layout.tsx. Constraints: 1. apps/web/components/site-switcher.tsx \u2014 shadcn DropdownMenu rendering: - Current site label + chevron (clickable for multi-site). - List of accessible sites from getServerSession.accessibleSites. - Primary site marked with star icon. - 'All Sites' option (super_admin only). 2. Server Action setSiteContext(siteId | null) writes httpOnly cookie `m. Distinguished from sibling 14-multi-site tasks by its narrow site-switcher focus against PRD \u00a710.1 MS-004, \u00a711.4 V-MS-17. AC count consolidated from 7\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Global header SiteCrumb component (primitive in _shared) — dropdown if multiple sites, static label if 1 site (V-MS-17 auto-select), httpOnly cookie ms_site_id + localStorage persistence + Server Component refresh on switch.",
+    "details": "Global header SiteCrumb component (primitive in _shared) — dropdown if multiple sites, static label if 1 site (V-MS-17 auto-select), httpOnly cookie ms_site_id + localStorage persistence + Server Component refresh on switch. Scope: Global SiteCrumb component in the app header showing current site + dropdown of accessible sites. Touches: apps/web/components/site-switcher.tsx, apps/web/components/_actions/set-site-context.ts, apps/web/components/__tests__/site-switcher.test.tsx, apps/web/app/layout.tsx. Constraints: 1. apps/web/components/site-switcher.tsx — shadcn DropdownMenu rendering: - Current site label + chevron (clickable for multi-site). - List of accessible sites from getServerSession.accessibleSites. - Primary site marked with star icon. - 'All Sites' option (super_admin only). 2. Server Action setSiteContext(siteId | null) writes httpOnly cookie `m. Distinguished from sibling 14-multi-site tasks by its narrow site-switcher focus against PRD §10.1 MS-004, §11.4 V-MS-17. AC count consolidated from 7→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/components/site-switcher.tsx [create]",
       "apps/web/components/_actions/set-site-context.ts [create]",
@@ -56,16 +58,20 @@
       "For UI parity, capture screenshots/artifacts and Playwright trace/video where applicable; attach artifact paths in closeout."
     ],
     "risk_red_lines": [
-      "Do not store ms_site_id in non-httpOnly cookie \u2014 middleware T-007 needs server-side.",
-      "Do not let localStorage drift \u2014 cookie is source of truth.",
-      "Do not hide dropdown via CSS \u2014 V-MS-17 renders static text only for single-site.",
+      "Do not store ms_site_id in non-httpOnly cookie — middleware T-007 needs server-side.",
+      "Do not let localStorage drift — cookie is source of truth.",
+      "Do not hide dropdown via CSS — V-MS-17 renders static text only for single-site.",
       "Do not allow site switch without audit_events row.",
       "Do not let super_admin All Sites bypass V-MS-07 downstream audit."
     ],
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -80,7 +86,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

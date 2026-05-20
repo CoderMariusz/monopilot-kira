@@ -1,11 +1,13 @@
 {
-  "title": "T-025 \u2014 Site permissions matrix UI 3 views + bulk CSV assign (MS-101)",
-  "prompt": "# T-025 \u2014 Site permissions matrix UI\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a710B MS-101\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138 (ms_permissions)\nBulk modal prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:514-575 (permission_bulk_assign_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md \u00a7ms_permissions, \u00a7M-09\n\n## Goal\nAdmin-only page with 3 view tabs (Matrix / Per-User / Per-Site) over site_user_access + bulk CSV import (User Email, Site Code, Role) reusing the 4-step CsvImportWizard pattern from T-016.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/permissions/page.tsx (RSC) \u2014 fetches users + sites + site_user_access joined; renders shadcn Tabs with 3 views.\n2. Matrix view: sticky-first-col CSS user\u00d7site grid with click-on-empty-cell \u2192 AssignUserModal. Super_admin rows show 'ALL' badge in all site columns.\n3. Per-User view: TanStack Table flat list with edit/remove row actions.\n4. Per-Site view: shadcn Accordion per site.\n5. Bulk CSV: shadcn Tabs (Single / Bulk) in dialog; Bulk = 4-step CsvImportWizard (extracted shared from T-016).\n6. Server Action bulkAssignUsersFromCSV: parse + validate emails-exist + site codes valid + roles valid; report errors per row pre-apply; tx-batch apply.\n7. Server Action assignUser({userId, siteId, role, isPrimary}) \u2014 V-MS-06 if isPrimary=true unset any prior primary for same user.\n8. Tests: matrix click-to-assign opens modal, bulk CSV validation per-row errors, V-MS-06 primary uniqueness enforcement, super_admin ALL badge rendering, admin-only gate.\n\n## Files\n- apps/web/app/(multi-site)/permissions/page.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-matrix-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-per-user-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-per-site-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permission-bulk-assign-modal.tsx [create]\n- apps/web/app/(multi-site)/permissions/_actions/assign-user.ts [create]\n- apps/web/app/(multi-site)/permissions/_actions/bulk-assign-users-from-csv.ts [create]\n- apps/web/app/(multi-site)/permissions/_components/__tests__/permissions-matrix-view.test.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/__tests__/permission-bulk-assign-modal.test.tsx [create]\n- packages/ui/src/csv-import-wizard.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to admin-screens.jsx:4-138 (ms_permissions), then 3 view tabs match (Matrix sticky first col, Per-User flat, Per-Site accordion) \u2014 RTL parity + Playwright trace.\n2. Given super_admin user rows, when Matrix view renders, then all site columns show 'ALL' badge instead of per-site role badge.\n3. Given empty cell at (user_U, site_X), when clicked, then AssignUserModal opens pre-populated with user_U + site_X.\n4. Given assignUser({isPrimary:true}) for user with existing primary at site_Y, when settles, then site_Y row.is_primary=false and new row.is_primary=true (V-MS-06).\n5. Given bulkAssignUsersFromCSV invoked with a CSV where row 3 has invalid email, when previewing, then row 3 shows error 'email does not exist' and apply is blocked until either fix or row 3 is skipped.\n6. Given valid bulk CSV applied, when tx settles, then all valid rows inserted, audit_events 'bulk_site_access_assigned' row written with summary {succeeded, failed, errors}.\n7. Given user role != admin, when GET /multi-site/permissions, then 403.\n8. Given accessibility audit runs (axe), when Matrix is in the DOM, then zero violations (sticky col + role grid roles set correctly).\n\n## Test strategy\n- RED: RTL parity + ALL badge + click-to-assign + V-MS-06 + bulk CSV per-row validation + admin gate + a11y before components exist.\n- Run 'pnpm --filter @monopilot/web vitest run permissions-matrix-view' + 'pnpm --filter @monopilot/web vitest run permission-bulk-assign-modal' + Playwright permissions.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138 (ms_permissions) and prototypes/design/Monopilot Design System/multi-site/modals.jsx:514-575 (permission_bulk_assign_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not implement primary uniqueness in JS \u2014 relies on partial unique index from T-003 + Server Action unset-previous logic.\n- Do not commit bulk CSV partially \u2014 single tx (if any row fails post-validation, roll back the batch).\n- Do not let non-admin reach page (Server-side guard).\n- Do not omit super_admin ALL badge \u2014 V-MS-07 visibility.\n- Do not skip CodeOwners review for CSV wizard primitive \u2014 packages/ui change.",
+  "title": "T-025 — Site permissions matrix UI 3 views + bulk CSV assign (MS-101)",
+  "prompt": "# T-025 — Site permissions matrix UI\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §10B MS-101\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138 (ms_permissions)\nBulk modal prototype: prototypes/design/Monopilot Design System/multi-site/modals.jsx:514-575 (permission_bulk_assign_modal)\nTranslation notes: _meta/prototype-labels/translation-notes-multi-site.md §ms_permissions, §M-09\n\n## Goal\nAdmin-only page with 3 view tabs (Matrix / Per-User / Per-Site) over site_user_access + bulk CSV import (User Email, Site Code, Role) reusing the 4-step CsvImportWizard pattern from T-016.\n\n## Implementation contract\n1. apps/web/app/(multi-site)/permissions/page.tsx (RSC) — fetches users + sites + site_user_access joined; renders shadcn Tabs with 3 views.\n2. Matrix view: sticky-first-col CSS user×site grid with click-on-empty-cell → AssignUserModal. Super_admin rows show 'ALL' badge in all site columns.\n3. Per-User view: TanStack Table flat list with edit/remove row actions.\n4. Per-Site view: shadcn Accordion per site.\n5. Bulk CSV: shadcn Tabs (Single / Bulk) in dialog; Bulk = 4-step CsvImportWizard (extracted shared from T-016).\n6. Server Action bulkAssignUsersFromCSV: parse + validate emails-exist + site codes valid + roles valid; report errors per row pre-apply; tx-batch apply.\n7. Server Action assignUser({userId, siteId, role, isPrimary}) — V-MS-06 if isPrimary=true unset any prior primary for same user.\n8. Tests: matrix click-to-assign opens modal, bulk CSV validation per-row errors, V-MS-06 primary uniqueness enforcement, super_admin ALL badge rendering, admin-only gate.\n\n## Files\n- apps/web/app/(multi-site)/permissions/page.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-matrix-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-per-user-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permissions-per-site-view.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/permission-bulk-assign-modal.tsx [create]\n- apps/web/app/(multi-site)/permissions/_actions/assign-user.ts [create]\n- apps/web/app/(multi-site)/permissions/_actions/bulk-assign-users-from-csv.ts [create]\n- apps/web/app/(multi-site)/permissions/_components/__tests__/permissions-matrix-view.test.tsx [create]\n- apps/web/app/(multi-site)/permissions/_components/__tests__/permission-bulk-assign-modal.test.tsx [create]\n- packages/ui/src/csv-import-wizard.tsx [create]\n- prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx [ref]\n\n## Acceptance criteria\n<!-- AC count consolidated from 9→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given the page renders, when compared to admin-screens.jsx:4-138 (ms_permissions), then 3 view tabs match (Matrix sticky first col, Per-User flat, Per-Site accordion) — RTL parity + Playwright trace.\n2. Given super_admin user rows, when Matrix view renders, then all site columns show 'ALL' badge instead of per-site role badge.\n3. Given empty cell at (user_U, site_X), when clicked, then AssignUserModal opens pre-populated with user_U + site_X.\n4. Given assignUser({isPrimary:true}) for user with existing primary at site_Y, when settles, then site_Y row.is_primary=false and new row.is_primary=true (V-MS-06).\n5. Given bulkAssignUsersFromCSV invoked with a CSV where row 3 has invalid email, when previewing, then row 3 shows error 'email does not exist' and apply is blocked until either fix or row 3 is skipped.\n6. Given valid bulk CSV applied, when tx settles, then all valid rows inserted, audit_events 'bulk_site_access_assigned' row written with summary {succeeded, failed, errors}.\n7. Given user role != admin, when GET /multi-site/permissions, then 403.\n8. Given accessibility audit runs (axe), when Matrix is in the DOM, then zero violations (sticky col + role grid roles set correctly).\n\n## Test strategy\n- RED: RTL parity + ALL badge + click-to-assign + V-MS-06 + bulk CSV per-row validation + admin gate + a11y before components exist.\n- Run 'pnpm --filter @monopilot/web vitest run permissions-matrix-view' + 'pnpm --filter @monopilot/web vitest run permission-bulk-assign-modal' + Playwright permissions.spec.ts.\n\n## Prototype parity\nReference prototype: prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138 (ms_permissions) and prototypes/design/Monopilot Design System/multi-site/modals.jsx:514-575 (permission_bulk_assign_modal).\nImplement matching the canonical layout 1:1 per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`. Capture RTL parity snapshot + Playwright trace as closeout evidence.\n\n## Risk red lines\n- Do not paste prototype JSX wholesale.\n- Do not implement primary uniqueness in JS — relies on partial unique index from T-003 + Server Action unset-previous logic.\n- Do not commit bulk CSV partially — single tx (if any row fails post-validation, roll back the batch).\n- Do not let non-admin reach page (Server-side guard).\n- Do not omit super_admin ALL badge — V-MS-07 visibility.\n- Do not skip CodeOwners review for CSV wizard primitive — packages/ui change.",
   "labels": [
     "prd",
     "ui",
     "permissions-matrix",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -15,7 +17,7 @@
     "prd_task_id": "T-025",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710B MS-101"
+      "§10B MS-101"
     ],
     "category": "ui",
     "subcategory": "permissions-matrix",
@@ -24,7 +26,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Three-view (matrix / per-user / per-site) admin surface over site_user_access; click-to-assign empty cells; bulk CSV upload reusing rate-card-style 4-step wizard; super_admin 'ALL' badge in matrix.",
-    "details": "Three-view (matrix / per-user / per-site) admin surface over site_user_access; click-to-assign empty cells; bulk CSV upload reusing rate-card-style 4-step wizard; super_admin 'ALL' badge in matrix. Scope: Admin-only page with 3 view tabs (Matrix / Per-User / Per-Site) over site_user_access + bulk CSV import (User Email, Site Code, Role) reusing the 4-step CsvImportWizard pattern from T-016. Touches: apps/web/app/(multi-site)/permissions/page.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-matrix-view.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-per-user-view.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-per-site-view.tsx. Constraints: 1. apps/web/app/(multi-site)/permissions/page.tsx (RSC) \u2014 fetches users + sites + site_user_access joined; renders shadcn Tabs with 3 views. 2. Matrix view: sticky-first-col CSS user\u00d7site grid with click-on-empty-cell \u2192 AssignUserModal. Super_admin rows show 'ALL' badge in all site columns. 3. Per-User view: TanStack Table flat list with edit/remov. Distinguished from sibling 14-multi-site tasks by its narrow permissions-matrix focus against PRD \u00a710B MS-101. AC count consolidated from 9\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "details": "Three-view (matrix / per-user / per-site) admin surface over site_user_access; click-to-assign empty cells; bulk CSV upload reusing rate-card-style 4-step wizard; super_admin 'ALL' badge in matrix. Scope: Admin-only page with 3 view tabs (Matrix / Per-User / Per-Site) over site_user_access + bulk CSV import (User Email, Site Code, Role) reusing the 4-step CsvImportWizard pattern from T-016. Touches: apps/web/app/(multi-site)/permissions/page.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-matrix-view.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-per-user-view.tsx, apps/web/app/(multi-site)/permissions/_components/permissions-per-site-view.tsx. Constraints: 1. apps/web/app/(multi-site)/permissions/page.tsx (RSC) — fetches users + sites + site_user_access joined; renders shadcn Tabs with 3 views. 2. Matrix view: sticky-first-col CSS user×site grid with click-on-empty-cell → AssignUserModal. Super_admin rows show 'ALL' badge in all site columns. 3. Per-User view: TanStack Table flat list with edit/remov. Distinguished from sibling 14-multi-site tasks by its narrow permissions-matrix focus against PRD §10B MS-101. AC count consolidated from 9→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "apps/web/app/(multi-site)/permissions/page.tsx [create]",
       "apps/web/app/(multi-site)/permissions/_components/permissions-matrix-view.tsx [create]",
@@ -39,7 +41,7 @@
       "prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx [modify]"
     ],
     "out_of_scope": [
-      "Do not implement role catalog editing (02-SET \u00a78.1 owns).",
+      "Do not implement role catalog editing (02-SET §8.1 owns).",
       "Do not implement permission enum strings here (T-031)."
     ],
     "dependencies": [
@@ -58,7 +60,7 @@
       "T-026"
     ],
     "acceptance_criteria": [
-      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138, then 3 view tabs match (Matrix sticky first col, Per-User flat, Per-Site accordion) \u2014 RTL parity + Playwright trace; AND given super_admin user rows when Matrix view renders then all site columns show 'ALL' badge.",
+      "Given page renders, when compared to prototypes/design/Monopilot Design System/multi-site/admin-screens.jsx:4-138, then 3 view tabs match (Matrix sticky first col, Per-User flat, Per-Site accordion) — RTL parity + Playwright trace; AND given super_admin user rows when Matrix view renders then all site columns show 'ALL' badge.",
       "Given empty cell at (user_U, site_X), when clicked, then AssignUserModal opens pre-populated; AND given assignUser({isPrimary:true}) for user with existing primary at site_Y when settles then site_Y is_primary=false.",
       "Given bulkAssignUsersFromCSV invoked with CSV row 3 invalid email, when previewing, then row 3 shows error 'email does not exist' and apply blocked; AND given valid bulk CSV applied when tx settles then all valid rows inserted + audit_events 'bulk_site_user_assignment' recorded.",
       "Given user role != admin, when GET /multi-site/permissions, then 403; AND given axe runs when Matrix in DOM then zero violations."
@@ -70,8 +72,8 @@
     ],
     "risk_red_lines": [
       "Do not paste prototype JSX wholesale.",
-      "Do not implement primary uniqueness in JS \u2014 partial unique index (T-003) + Server Action unset-previous.",
-      "Do not commit bulk CSV partially \u2014 single tx.",
+      "Do not implement primary uniqueness in JS — partial unique index (T-003) + Server Action unset-previous.",
+      "Do not commit bulk CSV partially — single tx.",
       "Do not let non-admin reach page.",
       "Do not omit super_admin ALL badge (V-MS-07).",
       "Do not skip CodeOwners review for CSV wizard primitive."
@@ -79,7 +81,11 @@
     "skills": [
       "test-driven-development",
       "requesting-code-review",
-      "frontend-design"
+      "frontend-design",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-t3-ui",
+      "Mon-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -94,7 +100,14 @@
         "acceptance_criteria_status",
         "deviations_from_prd",
         "git_status",
-        "screenshot_and_playwright_trace_evidence"
+        "screenshot_and_playwright_trace_evidence",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
       ]
     },
     "routing_hints": {

@@ -1,0 +1,174 @@
+{
+  "title": "T-136 — Foundation AppShell browser error-discovery spec + parity report (Playwright)",
+  "prompt": "# T-136 — Foundation AppShell browser error-discovery spec\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDeliver the wave's final parity gate: a Playwright spec that visits every shell-relevant route in a real browser, fails closed on the listed categories of browser errors, and writes a machine-readable `parity_report.json` with `recommended_followups[]` that a future Opus run can convert into ACP tasks. This task DOES NOT create ACP tasks itself — it only writes the report and lets the operator decide.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka H + §8 (F-AS-T07 contract) + final Spark-style audit summary (\"Browser gate must fail on pageerror/console.error/requestfailed/404/500 and produce follow-up evidence\"). The brief's §8 originally said `error_discovery_mode: true` / non-failing WARN; this wave OVERRIDES that — the spec MUST fail closed on the listed categories. The user-facing report still carries the `recommended_followups[]` array for human triage.\n\n## Files (scope)\n- `apps/web/e2e/shell-smoke.spec.ts` [create — Playwright spec; uses the project's auth-storage fixture from T-123]\n- `apps/web/e2e/parity-evidence/shell/.gitkeep` [create]\n- `apps/web/e2e/parity-evidence/shell/parity_report.schema.json` [create — JSON Schema describing the report shape so consumers (Opus, dashboards) can parse it deterministically]\n- `apps/web/e2e/_helpers/shell-parity.ts` [create — helpers: `installConsoleSpy(page)`, `installNetworkSpy(page)`, `assertShellRegions(page, expected)`, `buildReportEntry(...)`, `writeReport(reportPath, entries)`]\n\nDo NOT modify `apps/web/proxy.ts`, any AppShell product file, or any T-XXX.json outside this wave. Do NOT shell out to ACP or create tasks programmatically.\n\n## Routes visited (per spec)\n| URL | Auth state | expects_shell | expects_subnav | active_nav_item |\n|---|---|---|---|---|\n| `/en/` | authed | true | none | `dashboard` |\n| `/en/settings` | authed | true | `settings` | `settings` |\n| `/en/settings/users` | authed | true | `settings` | `settings` (sidebar) + `users` (subnav) |\n| `/en/settings/roles` | authed | true | `settings` | `settings` (sidebar) + `roles` (subnav) |\n| `/en/login` | unauthed | false | none | n/a |\n| `/en/dev/scanner` | authed (scanner harness — auth model TBD by scanner module) | false (ScannerFrame instead) | none | n/a |\n| `/pl/login` | unauthed | false | none | n/a (locale mirror) |\n\n## Failure conditions (the spec FAILS the run if ANY of these fire on ANY route)\n1. `page.on('pageerror', ...)` — any uncaught JS exception.\n2. `page.on('console', msg => msg.type() === 'error')` — including hydration warnings: any console message whose text matches `/Warning: Text content did not match/i` OR `/Hydration failed/i` OR `/Did not expect server HTML/i`.\n3. `page.on('requestfailed', ...)` — any failed request (network errors, blocked, aborted).\n4. Any response with status `>= 400` (404, 500, etc.) is a failure, EXCEPT when the route's row in the table above has an expected redirect (none of the listed routes do — `/en/login` returns 200 directly).\n5. For rows with `expects_shell: true`: missing landmark/region — any of `[data-testid=\"app-shell\"]`, `[data-testid=\"app-sidebar\"]`, `[data-testid=\"app-topbar\"]`, or no `<main>` element, or no `<nav aria-label=\"Primary\">`.\n6. For rows with `expects_shell: false`: presence of any of `[data-testid=\"app-shell\"]`, `[data-testid=\"app-sidebar\"]`, or `[data-testid=\"app-topbar\"]` in the response body.\n7. Wrong active nav: for rows with `active_nav_item`, that sidebar item must carry `aria-current=\"page\"` AND no other sidebar item may. Same rule for subnav items where applicable.\n8. Wrong localized redirect: visiting `/login` (no locale prefix) MUST redirect to `/${default_locale}/login`; the spec asserts the chain and fails on a missing redirect, a 4xx/5xx during the chain, or a redirect to the wrong locale.\n\nEach failure is recorded in `parity_report.json` AND fails the spec.\n\n## Report contract\nWrite `apps/web/e2e/parity-evidence/shell/parity_report.json`:\n```json\n{\n  \"wave\": \"app-shell-foundation-20260520\",\n  \"task\": \"T-136\",\n  \"generated_at\": \"<ISO-8601>\",\n  \"playwright_version\": \"<from package.json>\",\n  \"entries\": [\n    {\n      \"route\": \"/en/settings/users\",\n      \"auth\": \"authed\",\n      \"expects_shell\": true,\n      \"expects_subnav\": \"settings\",\n      \"active_nav_item\": {\"sidebar\": \"settings\", \"subnav\": \"users\"},\n      \"screenshot_path\": \"apps/web/e2e/parity-evidence/shell/en-settings-users-desktop-1440.png\",\n      \"console_errors\": [{\"text\": \"...\", \"location\": \"...\"}],\n      \"hydration_warnings\": [\"...\"],\n      \"page_errors\": [\"...\"],\n      \"failed_requests\": [{\"url\": \"...\", \"failure\": \"...\"}],\n      \"bad_status_responses\": [{\"url\": \"...\", \"status\": 500}],\n      \"missing_regions\": [\"app-sidebar\"],\n      \"wrong_active_nav\": null,\n      \"wrong_localized_redirect\": null,\n      \"result\": \"FAIL\"\n    }\n  ],\n  \"summary\": {\"pass\": 0, \"fail\": 7, \"warn\": 0},\n  \"recommended_followups\": [\n    {\n      \"kind\": \"task_proposal\",\n      \"display_id_hint\": \"UI-???\",\n      \"category\": \"ui\",\n      \"reason\": \"app-sidebar missing on /en/settings/users — UI-131 mount likely broken\",\n      \"evidence_routes\": [\"/en/settings/users\"],\n      \"prototype_refs\": [\"prototypes/design/Monopilot Design System/settings/shell.jsx:3-21\"],\n      \"note\": \"NOT auto-created. Operator/Opus reviews and decides whether to file via TaskCreate.\"\n    }\n  ]\n}\n```\nThe schema in `parity_report.schema.json` is the canonical shape.\n\nFollow-up rules:\n- Each unique failure category per route produces one `recommended_followups[]` entry.\n- The spec MUST NOT call any ACP API, MUST NOT shell out to `kira_dev`, MUST NOT write outside `apps/web/e2e/parity-evidence/shell/`.\n- The spec MUST set `\"note\": \"NOT auto-created. ...\"` on every entry.\n\n## Acceptance criteria\n1. `apps/web/e2e/shell-smoke.spec.ts` exists, runs under `pnpm exec playwright test e2e/shell-smoke.spec.ts`.\n2. The spec exits non-zero if any failure condition (1–8 above) fires on any visited route.\n3. The spec writes `parity_report.json` AND a per-route full-page screenshot under `apps/web/e2e/parity-evidence/shell/`.\n4. The report validates against `parity_report.schema.json` (assert with `ajv` inside the spec teardown or a separate vitest unit, your choice).\n5. The report contains `recommended_followups[]` populated only on failures; on a fully-passing run the array is empty but present.\n6. No ACP task is created by this spec. No file outside `apps/web/e2e/` is modified by the run.\n7. `apps/web/proxy.ts` and AppShell components are byte-identical before/after.\n8. Locally and in CI the spec is wired into `pnpm exec playwright test` (i.e. picked up by the default test glob).\n\n## Out of scope\n- Auto-creating ACP tasks from the report (deliberately a human / Opus decision step).\n- Visual regression tooling beyond a screenshot dump.\n- Cross-browser matrix (use the project default Playwright browser only).\n- Mobile viewports (deferred wave).\n- Modifying `proxy.ts`, AppShell product code, or any other task JSON.\n\n## RED test\nThe spec is itself the RED gate. Run it once before promoting UI-131/UI-132/T-134 (every route fails); run it after they all land (every route should pass).\n\n## Risk red lines\n- Do NOT mark `error_discovery_mode: true` here — the wave OVERRIDES the brief's original WARN-only stance; this gate MUST fail closed.\n- Do NOT call ACP APIs or create tasks from this spec.\n- Do NOT write outside `apps/web/e2e/parity-evidence/shell/`.\n- Do NOT modify the AppShell components when fixing failures uncovered by this spec — file follow-up tasks instead.\n- Do NOT modify `apps/web/proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: test_commands_and_results (Playwright run output), parity_report.json (committed under `apps/web/e2e/parity-evidence/shell/`), per-route screenshots (also committed), acceptance_criteria_status, changed_files, git_status, deviations_from_prototype, console_network_check (the report IS the check), screenshots, screenshot_or_dom_diff_artifacts, visual_parity_evidence, prototype_reference. `ui_parity_evidence_missing` blocks closeout.",
+  "labels": [
+    "wave-app-shell-foundation",
+    "test",
+    "foundation",
+    "shell",
+    "playwright",
+    "error-discovery",
+    "T4-wiring-test"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-136",
+    "human_task_id": "T-136-foundation-shell-browser-error-discovery",
+    "display_task_id": "T-136",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "brief §3 Luka H",
+      "brief §8 F-AS-T07 contract (with WARN→FAIL override)",
+      "brief Spark-style audit summary: fail on pageerror/console.error/requestfailed/404/500"
+    ],
+    "category": "test",
+    "subcategory": "shell-browser-error-discovery",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "45k",
+    "estimated_effort": "3-4h",
+    "description": "Playwright spec visiting every shell-relevant route in a real browser. Fails closed on pageerror, console.error, requestfailed, 4xx/5xx, hydration errors, missing AppShell regions, wrong active nav item, and wrong localized redirect. Writes machine-readable parity_report.json with recommended_followups[]; does NOT create ACP tasks.",
+    "details": "spec uses T-123 Playwright harness + auth-storage fixture. Visits /en/, /en/settings, /en/settings/users, /en/settings/roles, /en/login, /en/dev/scanner, /pl/login. Installs page.on('pageerror'/'console'/'requestfailed') spies plus response status monitor. Asserts region presence/absence, aria-current correctness, localized redirect chain. Writes parity_report.json conforming to parity_report.schema.json. Each failure adds a recommended_followups[] entry with note='NOT auto-created…'. No ACP API calls.",
+    "scope_files": [
+      "apps/web/e2e/shell-smoke.spec.ts [create]",
+      "apps/web/e2e/parity-evidence/shell/.gitkeep [create]",
+      "apps/web/e2e/parity-evidence/shell/parity_report.schema.json [create]",
+      "apps/web/e2e/_helpers/shell-parity.ts [create]"
+    ],
+    "scope_paths": [
+      "apps/web/e2e/",
+      "apps/web/e2e/parity-evidence/shell/",
+      "apps/web/e2e/_helpers/"
+    ],
+    "out_of_scope": [
+      "Auto-creating ACP tasks from the report",
+      "Visual regression tooling beyond screenshot dump",
+      "Cross-browser matrix",
+      "Mobile viewport variants",
+      "Modifying proxy.ts or any AppShell product file",
+      "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+    ],
+    "dependencies": [
+      "UI-131",
+      "UI-132",
+      "T-134",
+      "T-123"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "apps/web/e2e/shell-smoke.spec.ts visits all 7 listed routes, including /en/dev/scanner for scanner isolation",
+      "Spec fails closed on pageerror, console.error, requestfailed, status>=400, hydration warning matches",
+      "Spec fails closed on missing app-shell/app-sidebar/app-topbar on expects_shell=true routes",
+      "Spec fails closed on present app-shell/app-sidebar/app-topbar on expects_shell=false routes",
+      "Spec fails closed on wrong active sidebar/subnav aria-current",
+      "Spec fails closed on missing or wrong localized redirect for /login (no locale prefix)",
+      "parity_report.json written at apps/web/e2e/parity-evidence/shell/parity_report.json conforming to the committed schema",
+      "Per-route full-page screenshots written under apps/web/e2e/parity-evidence/shell/",
+      "recommended_followups[] populated on failures, empty on green run; every entry carries note='NOT auto-created…'",
+      "Spec does not call any ACP API and writes only inside apps/web/e2e/parity-evidence/shell/",
+      "Spec is picked up by the default Playwright glob",
+      "proxy.ts and AppShell product files are byte-identical before/after"
+    ],
+    "acceptance_criteria_structured": [
+      {
+        "description": "Spec fails closed pre-implementation",
+        "verifiable_by": "Run before UI-131/132/T-134 land",
+        "expected": "non-zero exit; parity_report.json contains FAIL entries"
+      },
+      {
+        "description": "Spec passes post-implementation",
+        "verifiable_by": "Run after the full wave lands",
+        "expected": "exit 0; summary.fail === 0; recommended_followups=[]"
+      },
+      {
+        "description": "Report schema valid",
+        "verifiable_by": "ajv validate -s parity_report.schema.json -d parity_report.json",
+        "expected": "valid"
+      },
+      {
+        "description": "No ACP API calls",
+        "verifiable_by": "grep for taskCreate / ACP_BASE_URL / TaskCreate in shell-smoke.spec.ts and helpers",
+        "expected": "no matches"
+      }
+    ],
+    "test_strategy": [
+      "Author parity_report.schema.json first; commit",
+      "Author shell-smoke.spec.ts + helpers; run RED (fails because UI-131..T-134 not yet promoted)",
+      "Promote UI-131 / UI-132 / T-134",
+      "pnpm exec playwright test e2e/shell-smoke.spec.ts → green",
+      "ajv validate parity_report.json against parity_report.schema.json",
+      "Commit parity_report.json + screenshots as the wave's closeout evidence"
+    ],
+    "risk_red_lines": [
+      "Do not flip back to error_discovery_mode=WARN — this wave overrides the brief; the gate MUST fail closed",
+      "Do not create ACP tasks from this spec; recommended_followups[] is human/Opus material",
+      "Do not write outside apps/web/e2e/parity-evidence/shell/",
+      "Do not modify AppShell components to make this spec pass — file follow-up tasks instead",
+      "Do not modify apps/web/proxy.ts"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "acp-verification",
+      "MON-t4-test"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "fail_closed_on_missing_ui_evidence": true,
+      "closeout_requires": [
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check",
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ],
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:1-105",
+      "prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66"
+    ],
+    "target_route": "browser-level — visits 7 routes listed in the table above",
+    "viewports": [
+      {
+        "name": "desktop-1440",
+        "width": 1440,
+        "height": 900
+      },
+      {
+        "name": "scanner-device",
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "region_selectors": {
+      "app_shell": "[data-testid='app-shell']",
+      "app_sidebar": "[data-testid='app-sidebar']",
+      "app_topbar": "[data-testid='app-topbar']",
+      "settings_subnav": "[data-testid='settings-subnav']",
+      "scanner_frame": "[data-testid='scanner-frame']",
+      "primary_nav": "nav[aria-label='Primary']",
+      "active_nav_item": "[aria-current='page']"
+    },
+    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout; recommended_followups[] is operator-facing only",
+    "wave": "app-shell-foundation-20260520"
+  }
+}
