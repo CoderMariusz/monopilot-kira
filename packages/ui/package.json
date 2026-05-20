@@ -17,6 +17,12 @@
     "./CompactActivity": "./src/CompactActivity.tsx",
     "./RunStrip": "./src/RunStrip.tsx",
     "./Textarea": "./src/Textarea.tsx",
+    "./Switch": "./src/Switch.tsx",
+    "./Checkbox": "./src/Checkbox.tsx",
+    "./Select": "./src/Select.tsx",
+    "./Card": "./src/Card.tsx",
+    "./Badge": "./src/Badge.tsx",
+    "./Table": "./src/Table.tsx",
     "./tokens": "./tokens.css"
   },
   "scripts": {
