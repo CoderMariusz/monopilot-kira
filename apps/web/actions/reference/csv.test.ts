@@ -375,7 +375,7 @@ function stringParam(params: unknown[], pattern?: RegExp, exclude: string[] = []
 function jsonLikeParam(params: unknown[]): Record<string, unknown> | undefined {
   for (const param of params) {
     if (param && typeof param === 'object' && !Array.isArray(param)) return param as Record<string, unknown>;
-    if (typeof param === 'string' && /^[\[{]/.test(param.trim())) {
+    if (typeof param === 'string' && /^(?:\[|\{)/.test(param.trim())) {
       try {
         const parsed = JSON.parse(param) as unknown;
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>;

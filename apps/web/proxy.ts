@@ -38,7 +38,7 @@ const LOCALES = new Set<string>(routing.locales);
 function stripLocalePrefix(pathname: string): string {
   const [, maybeLocale, ...rest] = pathname.split('/');
   if (!maybeLocale || !LOCALES.has(maybeLocale)) return pathname;
-  return `/${rest.join('/')}` || '/';
+  return `/${rest.join('/')}`;
 }
 
 // Source-contract breadcrumbs for the auth/RBAC hardening tests: the edge
