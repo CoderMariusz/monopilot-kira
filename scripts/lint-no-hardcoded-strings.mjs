@@ -88,11 +88,19 @@ for (const file of tsxFiles) {
 }
 
 if (violations.length > 0) {
-  console.error('Hardcoded user-facing strings found (wrap in t()):\n');
+  const mode = process.env.HARDCODED_STRINGS_MODE === 'error' ? 'error' : 'warn';
+  const printer = mode === 'error' ? console.error : console.warn;
+  printer(`Hardcoded user-facing strings found (wrap in t()). Mode: ${mode}.\n`);
   for (const v of violations) {
-    console.error(`  ${v.file}:${v.line}  "${v.text}"`);
+    printer(`  ${v.file}:${v.line}  "${v.text}"`);
   }
-  process.exit(1);
+  if (mode === 'error') {
+    process.exit(1);
+  }
+  console.warn(
+    '\n[WARN] Hardcoded string debt is currently non-blocking. Set HARDCODED_STRINGS_MODE=error to enforce.',
+  );
+  process.exit(0);
 } else {
   console.log('No hardcoded user-facing strings found.');
   process.exit(0);

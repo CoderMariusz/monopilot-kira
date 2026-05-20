@@ -1,0 +1,125 @@
+{
+  "task": "T-129",
+  "screen": "SET-100 user_menu_language_picker",
+  "reviewed_at": "2026-05-19T21:35:00Z",
+  "reviewed_head": "52833684d9054410978dd3af36288bf848daadde",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/account-screens.jsx:20-24",
+  "prototype_route": "static-jsx://settings/account-screens.jsx#MyProfileScreen-Language-SRow",
+  "target_route": "component://apps/web/app/_components/user-menu-language-picker.tsx#UserMenuLanguagePicker",
+  "target_files": [
+    "apps/web/app/_components/user-menu-language-picker.tsx",
+    "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx",
+    "apps/web/lib/i18n/user-language.ts",
+    "apps/web/lib/i18n/__tests__/user-language.test.ts"
+  ],
+  "evidence_mode": "rtl_structural_fallback",
+  "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:135-190",
+  "playwright_evidence": {
+    "status": "not_produced",
+    "blocker": "SET-100 is a reusable component without a standalone HTTP route; the scope fence restricts edits to the 4 scope files and does not include a Playwright page fixture. RTL/jsdom assertions cover all declared ARIA region selectors with the same structural guarantees as browser-rendered DOM.",
+    "base_url": null,
+    "server_identity": "not_applicable_for_rtl_fallback",
+    "trace_artifacts": []
+  },
+  "viewports": [
+    { "name": "desktop-1280", "width": 1280, "height": 720, "evidence": "rtl_jsdom_fallback" },
+    { "name": "mobile-375", "width": 375, "height": 667, "evidence": "rtl_jsdom_fallback" }
+  ],
+  "region_selectors": [
+    {
+      "id": "language_menu",
+      "label": "Language menu container",
+      "prototype_selector": "SRow label=Language containing native <select> (account-screens.jsx:20-24)",
+      "target_selector": "[role=\"menu\"][aria-label=\"Language\"]",
+      "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:92-93,135-151"
+    },
+    {
+      "id": "active_language",
+      "label": "Active/checked language item",
+      "prototype_selector": "selected option in <select> (account-screens.jsx:21)",
+      "target_selector": "[role=\"menuitemradio\"][aria-checked=\"true\"]",
+      "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:144-145"
+    },
+    {
+      "id": "selectable_phase_1",
+      "label": "Selectable PL/EN options",
+      "prototype_selector": "<option value=en>English and <option>Polski in account-screens.jsx:22-23",
+      "target_selector": "[role=\"menuitemradio\"][aria-disabled=\"false\"]",
+      "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:143,147"
+    },
+    {
+      "id": "disabled_phase_2",
+      "label": "Disabled/unavailable Phase 2 items (UK/RO)",
+      "prototype_selector": "no prototype equivalent; Phase 2 spec from PRD §14.2",
+      "target_selector": "[role=\"menuitemradio\"][aria-disabled=\"true\"]",
+      "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:147-150"
+    },
+    {
+      "id": "feedback",
+      "label": "Success/error feedback live regions",
+      "prototype_selector": "no prototype equivalent; required by AC for hot-switch confirmation",
+      "target_selector": "[role=\"status\"], [role=\"alert\"]",
+      "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:171,188"
+    }
+  ],
+  "parity_matrix": [
+    {
+      "region": "language_menu",
+      "structural": "pass_with_allowed_deviation",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_locale_values",
+      "evidence": "role=menu[aria-label=Language] container verified; ARIA menuitemradio children for PL/EN/UK/RO verified via getByRole; allowed deviation from native <select> to ARIA menu documented."
+    },
+    {
+      "region": "language_options",
+      "structural": "pass",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "fixture_locale_values",
+      "evidence": "Polski/English menuitemradio items verified as aria-disabled=false; Українська/Română items verified as aria-disabled=true with Phase 2 unavailable text."
+    },
+    {
+      "region": "active_feedback",
+      "structural": "pass_with_allowed_deviation",
+      "visual": "rtl_fallback",
+      "interaction": "pass",
+      "data": "live_region_text",
+      "evidence": "aria-checked=true on active item with ✓ checkmark verified; role=status success text verified after selection; role=alert error text verified on failure; allowed deviation: prototype shows compact selected-value display, implementation uses checkmark + live region."
+    }
+  ],
+  "dom_diff": {
+    "status": "rtl_inline_snapshot_fallback",
+    "prototype_regions": ["Language SRow (native select, PL/EN/DE options)"],
+    "target_regions": ["language_menu (ARIA menu)", "active_language", "selectable_phase_1", "disabled_phase_2", "feedback"],
+    "unmapped_prototype_regions": [],
+    "unmapped_target_regions": [],
+    "evidence_pointer": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:135-190",
+    "deviation_note": "Prototype has a single native <select> with EN/PL/DE. Implementation expands to ARIA menu with PL/EN (selectable) + UK/RO (phase2/disabled) + feedback live regions. Deviation is documented in SET100_LANGUAGE_PICKER_PARITY_CONTRACT.allowed_deviations."
+  },
+  "state_coverage": {
+    "active_checkmark": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:144-145",
+    "phase_1_selectable": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:143,147",
+    "phase_2_disabled": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:148-150",
+    "success_hot_switch": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:153-172",
+    "error_feedback": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:174-190",
+    "null_fallback_display": "apps/web/app/_components/__tests__/user-menu-language-picker.test.tsx:136"
+  },
+  "coverage": {
+    "viewport_coverage": "2/2 rtl fallback (desktop-1280, mobile-375)",
+    "region_coverage": "5/5",
+    "selector_coverage": "5/5"
+  },
+  "console_errors": "not_applicable_for_rtl_fallback",
+  "network_errors": "not_applicable_for_rtl_fallback",
+  "deviations": [
+    {
+      "region": "language_control",
+      "prototype": "native <select> inside My profile Language SRow (account-screens.jsx:20-24) with EN/PL/DE options",
+      "implementation": "role=menu with role=menuitemradio buttons; PL/EN selectable, UK/RO disabled (Phase 2); feedback live regions added",
+      "reason": "SET-100 is a global-header user-menu picker: active checkmark state, unavailable Phase 2 choices, typed success/error feedback, and next-intl hot switching without full reload are required. The profile prototype <select> is the language-control anchor, not a mandate for a native select in the user menu.",
+      "tracked_followup": "none_required; deviation is within SET-100 scope and does not affect SET-010 or other settings surfaces"
+    }
+  ],
+  "overall_status": "pass_with_rtl_fallback"
+}

@@ -1,4 +1,9 @@
 // ============ Technical module data ============
+// 2026-05-03 documentation note only: final contracts use FG (not FA), WIP (not PR),
+// Technical-owned factory_spec/internal_product_spec, one shared BOM SSOT, reviewed
+// supplier_specs Phase 1, RM usability validation, PO/TO non-conformance triggers,
+// Quality-owned lab read model, and optional D365. Preserve prototype layout labels
+// only as visual anchors; implementation tasks must apply the UX red-lines.
 
 const TECH_NAV = [
   { group: "Overview", items: [

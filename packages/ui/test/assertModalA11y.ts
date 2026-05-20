@@ -1,3 +1,5 @@
+/// <reference path="./declarations.d.ts" />
+
 import { expect } from 'vitest';
 import { axe, toHaveNoViolations } from 'jest-axe';
 

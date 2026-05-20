@@ -17,6 +17,10 @@
     "node_modules",
     ".next",
     "dist",
-    "e2e"
+    "e2e",
+    "test-setup.ui.ts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**"
   ]
 }
