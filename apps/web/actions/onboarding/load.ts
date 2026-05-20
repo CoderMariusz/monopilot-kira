@@ -72,8 +72,15 @@ type OrganizationRow = {
   currency: string;
   gs1_prefix: string | null;
   onboarding_state: unknown;
-  onboarding_completed_at: string | null;
+  onboarding_completed_at: string | Date | null;
 };
+
+function toIsoOrNull(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value === 'string') return value.length > 0 ? value : null;
+  return null;
+}
 
 type WarehouseRow = {
   id: string;
@@ -117,7 +124,7 @@ export async function loadOnboardingContext(): Promise<LoadOnboardingContextResu
           locale: orgRow.locale ?? 'pl',
           currency: orgRow.currency ?? 'PLN',
           gs1Prefix: orgRow.gs1_prefix ?? '',
-          onboardingCompletedAt: orgRow.onboarding_completed_at,
+          onboardingCompletedAt: toIsoOrNull(orgRow.onboarding_completed_at),
           onboardingStartedAt: state.startedAt,
         },
         onboardingState: {
@@ -164,9 +171,9 @@ function normalizeOnboardingState(raw: unknown): {
     completedSteps: completedNums.map((n) => STEP_NUMBER_TO_KEY[n]!).filter(Boolean),
     skippedSteps: skippedNums.map((n) => STEP_NUMBER_TO_KEY[n]!).filter(Boolean),
     skippedStepNumbers: skippedNums,
-    firstWoAt: typeof raw.first_wo_at === 'string' ? raw.first_wo_at : null,
-    startedAt: typeof raw.started_at === 'string' ? raw.started_at : null,
-    lastActivityAt: typeof raw.last_activity_at === 'string' ? raw.last_activity_at : null,
+    firstWoAt: toIsoOrNull(raw.first_wo_at),
+    startedAt: toIsoOrNull(raw.started_at),
+    lastActivityAt: toIsoOrNull(raw.last_activity_at),
   };
 }
 

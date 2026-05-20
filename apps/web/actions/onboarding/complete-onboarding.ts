@@ -11,8 +11,15 @@ export type CompleteOnboardingResult = {
   error?: string;
 };
 
-type Row = { onboarding_completed_at: string };
+type Row = { onboarding_completed_at: string | Date };
 type CompletionWithAuthUser = CompleteOnboardingResult & { authUserId?: string };
+
+function toIsoString(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value === 'string') return value.length > 0 ? value : null;
+  return null;
+}
 
 async function createSupabaseAuthAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -70,11 +77,13 @@ export async function completeOnboarding(rawInput: CompleteOnboardingInput): Pro
       );
       const row = rows[0];
       if (!row) return { ok: false, error: 'not_found' };
+      const completedAtIso = toIsoString(row.onboarding_completed_at);
+      if (!completedAtIso) return { ok: false, error: 'PERSISTENCE_FAILED' };
       revalidatePath('/settings/onboarding');
       revalidatePath('/settings/users');
       return {
         ok: true,
-        onboardingCompletedAt: row.onboarding_completed_at,
+        onboardingCompletedAt: completedAtIso,
         redirectTo: '/settings/users',
         authUserId: context.userId,
       };
