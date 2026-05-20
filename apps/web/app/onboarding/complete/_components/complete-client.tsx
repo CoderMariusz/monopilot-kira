@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 
@@ -125,6 +125,7 @@ export function OnboardingCompleteClient({
   retryLoad,
 }: OnboardingCompletionPageProps) {
   const t = useTranslations('onboarding');
+  const pathname = usePathname();
   const router = useRouter();
   const [current, setCurrent] = useState<OnboardingStepKey>(onboardingState.currentStep);
   const [completed, setCompleted] = useState<OnboardingStepKey[]>(onboardingState.completedSteps);
@@ -189,7 +190,11 @@ export function OnboardingCompleteClient({
       setCompletedAt(timestamp);
       setCompleted((existing) => (existing.includes('completion') ? existing : [...existing, 'completion']));
       setStatusMessage('Onboarding completed. organizations.onboarding_completed_at was committed.');
-      router.push('/admin');
+      const target = result.redirectTo ?? '/settings/users';
+      const normalizedTarget = target.startsWith('/') ? target : `/${target}`;
+      const firstSegment = pathname?.split('/').filter(Boolean)[0];
+      const locale = firstSegment && /^[a-z]{2}(?:-[A-Z]{2})?$/.test(firstSegment) ? firstSegment : 'en';
+      router.push(`/${locale}${normalizedTarget}`);
     } finally {
       setIsSubmitting(false);
     }
