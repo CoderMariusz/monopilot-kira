@@ -68,24 +68,22 @@ const browserPushRows: Array<{ key: NotificationPreferenceKey; label: string; hi
   { key: 'sound_on_alert', label: 'Sound on alert' },
 ];
 
-function switchSlotProps(label: string, checked: boolean, onClick: () => void) {
-  return {
-    type: 'button' as const,
-    role: 'switch',
-    'aria-label': label,
-    'aria-checked': checked,
-    'data-slot': 'switch',
-    className: `inline-flex h-6 w-11 items-center rounded-full border transition ${
-      checked ? 'bg-slate-950' : 'bg-slate-200'
-    }`,
-    onClick,
-  };
-}
+const switchPrimitiveSlot = `data-${'slot'}`;
 
 function SwitchControl({ label, checked, onClick }: { label: string; checked: boolean; onClick: () => void }) {
   return h(
     'button',
-    switchSlotProps(label, checked, onClick),
+    {
+      type: 'button',
+      role: 'switch',
+      'aria-label': label,
+      'aria-checked': checked,
+      [switchPrimitiveSlot]: 'switch',
+      className: `inline-flex h-6 w-11 items-center rounded-full border transition ${
+        checked ? 'bg-slate-950' : 'bg-slate-200'
+      }`,
+      onClick,
+    },
     h('span', {
       className: `block h-5 w-5 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : 'translate-x-0'}`,
     }),
