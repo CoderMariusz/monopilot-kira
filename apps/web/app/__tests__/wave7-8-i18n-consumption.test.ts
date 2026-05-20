@@ -29,13 +29,15 @@ function resolveKey(tree: I18nTree, dottedKey: string): unknown {
 }
 
 const WAVE_7_8_PAGES = [
-  'app/onboarding/profile/page.tsx',
-  'app/onboarding/complete/page.tsx',
+  // Onboarding production routes are Server Component wrappers; the visible
+  // copy is consumed inside their Client islands.
+  'app/onboarding/profile/_components/profile-client.tsx',
+  'app/onboarding/complete/_components/complete-client.tsx',
   'app/onboarding/in-progress/page.tsx',
-  'app/onboarding/location/page.tsx',
-  'app/onboarding/product/page.tsx',
-  'app/onboarding/warehouse/page.tsx',
-  'app/onboarding/workorder/page.tsx',
+  'app/onboarding/location/_components/location-client.tsx',
+  'app/onboarding/product/_components/product-client.tsx',
+  'app/onboarding/warehouse/_components/warehouse-client.tsx',
+  'app/onboarding/workorder/_components/workorder-client.tsx',
   'app/(admin)/settings/users/page.tsx',
   'app/(admin)/settings/invitations/page.tsx',
   'app/(admin)/settings/roles/page.tsx',

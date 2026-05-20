@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 
 type OnboardingStepKey =
@@ -116,13 +117,14 @@ async function missingCompleteOnboarding(): Promise<CompleteOnboardingResult> {
   return { ok: false, error: 'PERSISTENCE_FAILED' };
 }
 
-export function OnboardingCompletionClient({
+export function OnboardingCompleteClient({
   organization = DEFAULT_ORGANIZATION,
   onboardingState = DEFAULT_ONBOARDING_STATE,
   state = 'ready',
   completeOnboarding = missingCompleteOnboarding,
   retryLoad,
 }: OnboardingCompletionPageProps) {
+  const t = useTranslations('onboarding');
   const router = useRouter();
   const [current, setCurrent] = useState<OnboardingStepKey>(onboardingState.currentStep);
   const [completed, setCompleted] = useState<OnboardingStepKey[]>(onboardingState.completedSteps);
@@ -223,19 +225,17 @@ export function OnboardingCompletionClient({
     <main className="mx-auto max-w-5xl px-6 py-8">
       <header className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">SET-001..006</p>
-          <h1 className="text-3xl font-semibold text-slate-950">Onboarding wizard</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            6-step setup · target &lt;15 minutes · state saved automatically (organizations.onboarding_state). {percent}% complete.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('step_eyebrow')}</p>
+          <h1 className="text-3xl font-semibold text-slate-950">{t('wizard_title')}</h1>
+          <p className="mt-1 text-sm text-slate-600">{t('wizard_subtitle', { percent })}</p>
         </div>
         <div className="flex gap-2">
           <Button type="button" className="btn-secondary" onClick={restart}>
-            Restart
+            {t('restart')}
           </Button>
           {currentStep.skippable ? (
             <Button type="button" className="btn-secondary" onClick={skip}>
-              Skip this step →
+              {t('skip_step')}
             </Button>
           ) : null}
         </div>
@@ -317,18 +317,18 @@ export function OnboardingCompletionClient({
 
       <footer className="mt-4 flex items-center justify-between gap-3">
         <Button type="button" className="btn-secondary" onClick={back} disabled={currentIndex === 0}>
-          ← Back
+          {t('back')}
         </Button>
         <div className="text-sm text-slate-500">
           Step {currentStep.num} of 6 · {completed.length} completed{skipped.length ? ` · ${skipped.length} skipped` : ''}
         </div>
         {current === 'completion' ? (
           <Button type="button" className="btn-primary" onClick={finishOnboarding} disabled={isSubmitting}>
-            {isSubmitting ? 'Finishing…' : 'Finish onboarding'}
+            {isSubmitting ? 'Finishing…' : t('finish')}
           </Button>
         ) : (
           <Button type="button" className="btn-primary" onClick={continueStep}>
-            Continue →
+            {t('continue')}
           </Button>
         )}
       </footer>
@@ -336,4 +336,4 @@ export function OnboardingCompletionClient({
   );
 }
 
-export default OnboardingCompletionClient;
+export default OnboardingCompleteClient;

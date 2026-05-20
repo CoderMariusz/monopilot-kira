@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 
 type OnboardingStepKey =
@@ -269,6 +270,7 @@ export function OnboardingProductClient({
   completeOnboardingStep,
   retryLoad,
 }: OnboardingProductPageProps) {
+  const t = useTranslations('onboarding');
   const router = useRouter();
   const initialOnboardingState = onboardingState ?? DEFAULT_STATE;
   const [current, setCurrent] = React.useState<OnboardingStepKey>(initialOnboardingState.currentStep);
@@ -287,7 +289,7 @@ export function OnboardingProductClient({
     return (
       <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
         <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6 }}>
-          Permission denied: settings.onboarding.write is required to create or skip onboarding products.
+          {t('permission_denied')}
         </div>
       </main>
     );
@@ -368,19 +370,17 @@ export function OnboardingProductClient({
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
-          <p style={{ margin: '0 0 4px', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>SET-001..006</p>
-          <h1 style={{ margin: '0 0 4px', fontSize: 24 }}>Onboarding wizard</h1>
-          <p style={{ margin: 0, color: '#586174', fontSize: 13 }}>
-            6-step setup · target &lt;15 minutes · state saved automatically (organizations.onboarding_state). {percent}% complete.
-          </p>
+          <p style={{ margin: '0 0 4px', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>{t('step_eyebrow')}</p>
+          <h1 style={{ margin: '0 0 4px', fontSize: 24 }}>{t('wizard_title')}</h1>
+          <p style={{ margin: 0, color: '#586174', fontSize: 13 }}>{t('wizard_subtitle', { percent })}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'start' }}>
           <Button type="button" onClick={restart} disabled={controlsDisabled}>
-            Restart
+            {t('restart')}
           </Button>
           {current === 'first_product' && currentStep.skippable ? (
             <Button type="button" onClick={skipCurrentStep} disabled={controlsDisabled}>
-              Skip this step →
+              {t('skip_step')}
             </Button>
           ) : null}
         </div>
@@ -446,18 +446,18 @@ export function OnboardingProductClient({
 
       <footer style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 16 }}>
         <Button type="button" onClick={back} disabled={currentIndex === 0 || controlsDisabled}>
-          ← Back
+          {t('back')}
         </Button>
         <div style={{ fontSize: 11, alignSelf: 'center', color: '#586174' }}>
           Step {currentStep.num} of 6 · {completed.length} completed{skipped.length ? ` · ${skipped.length} skipped` : ''}
         </div>
         {current === 'completion' ? (
           <Button type="button" disabled={controlsDisabled} onClick={() => router.push('/settings/profile')}>
-            Finish onboarding
+            {t('finish')}
           </Button>
         ) : (
           <Button type="button" onClick={continueFromStep} disabled={controlsDisabled}>
-            {isMutating ? 'Saving…' : 'Continue →'}
+            {isMutating ? t('saving') : t('continue')}
           </Button>
         )}
       </footer>

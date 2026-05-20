@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import React, { useState } from "react";
 import { Button } from "@monopilot/ui/Button";
 import Textarea from "@monopilot/ui/Textarea";
@@ -186,6 +187,7 @@ export default function AuthorizationPoliciesPage({
   auditLogHref = "/settings/audit?entity=org_authorization_policies",
   onSave,
 }: AuthorizationPoliciesPageProps) {
+  const t = useTranslations('settings.authorization');
   const policiesNotWired = policies === undefined;
   const initialPolicies = policiesNotWired ? [] : policies.map(enforcePolicyInvariants);
   const [savedPolicies, setSavedPolicies] = useState<PolicySummary[]>(initialPolicies);
@@ -200,7 +202,7 @@ export default function AuthorizationPoliciesPage({
       <main aria-labelledby="authorization-policies-heading" className="space-y-5 p-6">
         <header className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Settings / Authorization</p>
-          <h1 id="authorization-policies-heading" className="text-2xl font-semibold">Authorization Policies</h1>
+          <h1 id="authorization-policies-heading" className="text-2xl font-semibold">{t('heading')}</h1>
         </header>
         <div role="alert" data-testid="settings-authorization-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Authorization policies are not available.</strong>
@@ -308,7 +310,7 @@ export default function AuthorizationPoliciesPage({
     <main aria-labelledby="authorization-policies-heading" className="space-y-5 p-6">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Settings / Authorization</p>
-        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">Authorization Policies</h1>
+        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">{t('heading')}</h1>
         <p className="max-w-3xl text-sm text-slate-500">
           Manage org_authorization_policies for NPD post-release edits and Technical approval gates.
           These summaries expose policy state while server-side T-126 blockers remain authoritative.

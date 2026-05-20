@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import React from 'react';
 import { Button } from '@monopilot/ui/Button';
 
@@ -73,6 +74,7 @@ export default function ManufacturingOperationsPage({
   onEditOperation,
   onDeactivateOperation,
 }: ManufacturingOperationsPageProps) {
+  const t = useTranslations('settings.reference_mfg');
   const operationsUnavailable = operations === undefined;
   const operationsList = operations ?? [];
   const [selectedIndustry, setSelectedIndustry] = React.useState<IndustryFilter>(industryFilter);
@@ -93,7 +95,7 @@ export default function ManufacturingOperationsPage({
       <main aria-labelledby="manufacturing-operations-heading" className="settings-reference-page p-6">
         <header>
           <p>SET-055 / PRD §8.9.4</p>
-          <h1 id="manufacturing-operations-heading">Manufacturing Operations</h1>
+          <h1 id="manufacturing-operations-heading">{t('heading')}</h1>
         </header>
         <div role="alert" data-testid="settings-manufacturing-operations-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Manufacturing operations are not available.</strong>
@@ -147,13 +149,13 @@ export default function ManufacturingOperationsPage({
         <ol>
           <li>Settings</li>
           <li>Reference Tables</li>
-          <li>Manufacturing Operations</li>
+          <li>{t('heading')}</li>
         </ol>
       </nav>
 
       <header>
         <p>SET-055 / PRD §8.9.4</p>
-        <h1 id="manufacturing-operations-heading">Manufacturing Operations</h1>
+        <h1 id="manufacturing-operations-heading">{t('heading')}</h1>
         <p>
           Configure tenant-specific operation names, process suffixes, industry seed sets, active state,
           and recipe sequence order.

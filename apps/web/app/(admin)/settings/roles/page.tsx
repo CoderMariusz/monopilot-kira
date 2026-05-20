@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import React, { useId, useState } from 'react';
 
 type RoleCode =
@@ -304,6 +305,7 @@ function AssignRoleDialog({
 }
 
 export default function RolesPage(props: Partial<RolesPageProps> = {}) {
+  const t = useTranslations('settings.roles');
   const [permissionRole, setPermissionRole] = useState<SystemRole | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
 
@@ -312,7 +314,7 @@ export default function RolesPage(props: Partial<RolesPageProps> = {}) {
       <main className="space-y-6 p-6" aria-labelledby="settings-roles-unavailable-heading">
         <header>
           <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 id="settings-roles-unavailable-heading" className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
+          <h1 id="settings-roles-unavailable-heading" className="text-3xl font-bold tracking-tight">{t('heading')}</h1>
         </header>
         <div role="alert" data-testid="settings-roles-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Roles data is not available.</strong>
@@ -336,7 +338,7 @@ export default function RolesPage(props: Partial<RolesPageProps> = {}) {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('heading')}</h1>
           <p className="mt-1 text-sm text-slate-600">
             Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
           </p>

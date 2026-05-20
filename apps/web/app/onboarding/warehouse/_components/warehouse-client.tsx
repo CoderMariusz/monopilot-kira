@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
@@ -135,7 +136,7 @@ async function missingServerAction(): Promise<CreateFirstWarehouseResult> {
   return { ok: false, error: 'PERSISTENCE_FAILED' };
 }
 
-export function FirstWarehouseOnboardingClient({
+export function OnboardingWarehouseClient({
   orgId = '',
   onboardingState = DEFAULT_ONBOARDING_STATE,
   initialWarehouse = DEFAULT_WAREHOUSE,
@@ -144,6 +145,7 @@ export function FirstWarehouseOnboardingClient({
   onNavigateStep,
   onOpenRedirect,
 }: FirstWarehousePageProps) {
+  const t = useTranslations('onboarding');
   const [current, setCurrent] = useState<OnboardingStepKey>(onboardingState.currentStep);
   const [completed, setCompleted] = useState<OnboardingStepKey[]>(onboardingState.completed);
   const [skipped, setSkipped] = useState<OnboardingStepKey[]>(onboardingState.skipped);
@@ -186,7 +188,7 @@ export function FirstWarehouseOnboardingClient({
     return (
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">
-          Permission denied: settings.onboarding.write is required to continue onboarding.
+          {t('permission_denied')}
         </div>
       </main>
     );
@@ -264,19 +266,17 @@ export function FirstWarehouseOnboardingClient({
     <main className="mx-auto max-w-5xl px-6 py-8">
       <header className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">SET-001..006</p>
-          <h1 className="text-3xl font-semibold text-slate-950">Onboarding wizard</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            6-step setup · target &lt;15 minutes · state saved automatically (organizations.onboarding_state). {percent}% complete.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('step_eyebrow')}</p>
+          <h1 className="text-3xl font-semibold text-slate-950">{t('wizard_title')}</h1>
+          <p className="mt-1 text-sm text-slate-600">{t('wizard_subtitle', { percent })}</p>
         </div>
         <div className="flex gap-2">
           <Button type="button" className="btn-secondary" onClick={restart}>
-            Restart
+            {t('restart')}
           </Button>
           {currentStep.skippable ? (
             <Button type="button" className="btn-secondary" onClick={skip}>
-              Skip this step →
+              {t('skip_step')}
             </Button>
           ) : null}
         </div>
@@ -400,22 +400,22 @@ export function FirstWarehouseOnboardingClient({
 
       <footer className="mt-4 flex items-center justify-between gap-3">
         <Button type="button" className="btn-secondary" onClick={back} disabled={currentIndex === 0}>
-          ← Back
+          {t('back')}
         </Button>
         <div className="text-sm text-slate-500">
           Step {currentStep.num} of 6 · {completed.length} completed{skipped.length ? ` · ${skipped.length} skipped` : ''}
         </div>
         {current === 'first_warehouse' ? (
           <Button type="submit" className="btn-primary" form="first-warehouse-form" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Continue →'}
+            {isSubmitting ? t('saving') : t('continue')}
           </Button>
         ) : current === 'completion' ? (
           <Button type="button" className="btn-primary" onClick={() => onOpenRedirect?.('profile')}>
-            Finish onboarding
+            {t('finish')}
           </Button>
         ) : (
           <Button type="button" className="btn-primary" onClick={() => setCurrent(ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, currentIndex + 1)].key)}>
-            Continue →
+            {t('continue')}
           </Button>
         )}
       </footer>
@@ -423,4 +423,4 @@ export function FirstWarehouseOnboardingClient({
   );
 }
 
-export default FirstWarehouseOnboardingClient;
+export default OnboardingWarehouseClient;
