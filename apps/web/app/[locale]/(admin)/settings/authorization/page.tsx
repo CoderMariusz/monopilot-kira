@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { updateAuthorizationPolicy as updateAuthorizationPolicyAction } from '../../../../../actions/authorization/policy-actions';
 import {
@@ -68,12 +71,106 @@ type AuthorizationPageProps = {
   updateAuthorizationPolicy?: (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult>;
 };
 
-type AuthorizationPageState = {
-  auditReason: string;
-  npdMinApprovers: number;
-  fieldAlert: string | null;
-  serverBlockers: Blocker[];
-  saved: boolean;
+type CopyKey =
+  | 'auditLink'
+  | 'auditReason'
+  | 'auditReasonRequired'
+  | 'auditReasonPlaceholder'
+  | 'approvalPermission'
+  | 'approvalPermissionHint'
+  | 'approvalThresholds'
+  | 'approverRoles'
+  | 'approverRolesHint'
+  | 'authorizePermission'
+  | 'authorizePermissionHint'
+  | 'authorizedRoles'
+  | 'authorizedRolesHint'
+  | 'blockFactoryUseUntilApproved'
+  | 'blockersTitle'
+  | 'discard'
+  | 'dualSignOff'
+  | 'dualSignOffNotRequired'
+  | 'dualSignOffRequired'
+  | 'factoryUseLock'
+  | 'gateRuleCode'
+  | 'gateRuleCodeHint'
+  | 'invariantBanner'
+  | 'invariantFlags'
+  | 'loadingLabel'
+  | 'minimumApprovers'
+  | 'minimumAuthorizers'
+  | 'minimumAuthorizersHint'
+  | 'missingSeedBody'
+  | 'missingSeedTitle'
+  | 'noRoleSelected'
+  | 'npdDescription'
+  | 'npdTitle'
+  | 'pageSubtitle'
+  | 'pageTitle'
+  | 'policiesSaved'
+  | 'policySaveError'
+  | 'readOnlyNotice'
+  | 'requestPermission'
+  | 'requestPermissionHint'
+  | 'requiresNewVersion'
+  | 'savePolicies'
+  | 'saveSectionLabel'
+  | 'segregationOfDuties'
+  | 'technicalDescription'
+  | 'technicalTitle'
+  | 'version';
+
+type Copy = (key: CopyKey) => string;
+
+const fallbackCopy: Record<CopyKey, string> = {
+  auditLink: 'View audit log →',
+  auditReason: 'Audit reason',
+  auditReasonRequired: 'Audit reason is required',
+  auditReasonPlaceholder: 'Describe why these authorization settings are changing',
+  approvalPermission: 'Approval permission',
+  approvalPermissionHint: 'Fixed permission string used by the Technical gate.',
+  approvalThresholds: 'Approval thresholds',
+  approverRoles: 'Approver roles',
+  approverRolesHint: 'Roles selected by the authorization policy row.',
+  authorizePermission: 'Authorize permission',
+  authorizePermissionHint: 'Fixed permission string required to approve a request.',
+  authorizedRoles: 'Authorized roles',
+  authorizedRolesHint: 'Roles selected by T-126 policy data.',
+  blockFactoryUseUntilApproved: 'Block factory-use until approved',
+  blockersTitle: 'Typed blockers from T-126 preflight',
+  discard: 'Discard',
+  dualSignOff: 'Dual sign-off',
+  dualSignOffNotRequired: 'Not required',
+  dualSignOffRequired: 'Required',
+  factoryUseLock: 'Factory-use lock',
+  gateRuleCode: 'Gate rule code',
+  gateRuleCodeHint: 'Immutable rule binding from V-SET-44.',
+  invariantBanner:
+    'Authorized edits always create a new BOM/product-spec version; in-place mutation is never allowed. Factory-use approval remains locked until Technical signs off.',
+  invariantFlags: 'Invariant flags',
+  loadingLabel: 'Loading authorization policies',
+  minimumApprovers: 'Minimum approvers',
+  minimumAuthorizers: 'Minimum authorizers',
+  minimumAuthorizersHint: 'T-126 validates blockers and segregation of duties on save.',
+  missingSeedBody: 'Required org_authorization_policies rows are absent. Seed these policy codes before editing settings:',
+  missingSeedTitle: 'Authorization policy seed missing',
+  noRoleSelected: 'No role selected',
+  npdDescription: 'Authorizes released product/BOM edit requests after NPD release.',
+  npdTitle: 'NPD post-release edit authorization',
+  pageSubtitle: 'Control who can request released product/BOM edits and technical approval gates.',
+  pageTitle: 'Authorization Policies',
+  policiesSaved: 'Policies saved.',
+  policySaveError: 'Unable to save policies',
+  readOnlyNotice: 'Read-only: settings.authorization.edit is required to change authorization policies.',
+  requestPermission: 'Request permission',
+  requestPermissionHint: 'Fixed permission string used by workflows.',
+  requiresNewVersion: 'Requires new version',
+  savePolicies: 'Save policies',
+  saveSectionLabel: 'Save authorization policies',
+  segregationOfDuties: 'Segregation of duties',
+  technicalDescription: 'Blocks production/factory use until Technical approval is recorded.',
+  technicalTitle: 'Technical product-spec approval gate',
+  version: 'Version',
 };
 
 const defaultRoles: RoleOption[] = [
@@ -113,9 +210,22 @@ const defaultPolicies: Required<AuthorizationPageProps>['policies'] = {
   },
 };
 
-function roleLabels(roleCodes: string[], roles: RoleOption[]) {
+function useAuthorizationCopy(): Copy {
+  const t = useTranslations('settings.authorization');
+  return (key: CopyKey) => {
+    try {
+      const translated = t(key);
+      if (!translated || translated === key || translated === `settings.authorization.${key}`) return fallbackCopy[key];
+      return translated;
+    } catch {
+      return fallbackCopy[key];
+    }
+  };
+}
+
+function roleLabels(roleCodes: string[], roles: RoleOption[], copy: Copy) {
   const labelsByCode = new Map(roles.map((role) => [role.code, role.label]));
-  return roleCodes.map((code) => labelsByCode.get(code) ?? code).join(', ') || 'No role selected';
+  return roleCodes.map((code) => labelsByCode.get(code) ?? code).join(', ') || copy('noRoleSelected');
 }
 
 function badgeTone(status: PolicyStatus) {
@@ -169,11 +279,11 @@ function CodePill({ children }: { children: React.ReactNode }) {
   return <code className="rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-800">{children}</code>;
 }
 
-function BlockerList({ blockers }: { blockers: Blocker[] }) {
+function BlockerList({ blockers, copy }: { blockers: Blocker[]; copy: Copy }) {
   if (blockers.length === 0) return null;
   return (
     <div role="alert" className="m-5 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-      <div className="font-semibold">Typed blockers from T-126 preflight</div>
+      <div className="font-semibold">{copy('blockersTitle')}</div>
       <ul className="list-disc space-y-1 pl-5">
         {blockers.map((blocker) => (
           <li key={`${blocker.policyCode}-${blocker.code}`}>
@@ -185,14 +295,14 @@ function BlockerList({ blockers }: { blockers: Blocker[] }) {
   );
 }
 
-function LoadingState() {
+function LoadingState({ copy = (key: CopyKey) => fallbackCopy[key] }: { copy?: Copy }) {
   return (
     <main className="space-y-5 p-6">
       <section data-region="page-head" className="space-y-1">
-        <h1 className="text-2xl font-semibold text-slate-950">Authorization Policies</h1>
-        <p className="text-sm text-slate-500">Control who can request released product/BOM edits and technical approval gates.</p>
+        <h1 className="text-2xl font-semibold text-slate-950">{copy('pageTitle')}</h1>
+        <p className="text-sm text-slate-500">{copy('pageSubtitle')}</p>
       </section>
-      <div role="status" aria-label="Loading authorization policies" aria-busy="true" className="grid gap-4 lg:grid-cols-2">
+      <div role="status" aria-label={copy('loadingLabel')} aria-busy="true" className="grid gap-4 lg:grid-cols-2">
         {[0, 1].map((item) => (
           <Card key={item} data-testid="authorization-policy-card-skeleton" className="h-64 animate-pulse rounded-xl border bg-slate-100" />
         ))}
@@ -201,13 +311,13 @@ function LoadingState() {
   );
 }
 
-function MissingSeedState({ auditLogHref }: { auditLogHref: string }) {
+function MissingSeedState({ auditLogHref, copy }: { auditLogHref: string; copy: Copy }) {
   return (
     <main className="space-y-5 p-6">
-      <PageHead auditLogHref={auditLogHref} />
+      <PageHead auditLogHref={auditLogHref} copy={copy} />
       <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-950">
-        <h2 className="text-base font-semibold">Authorization policy seed missing</h2>
-        <p className="mt-1">Required org_authorization_policies rows are absent. Seed these policy codes before editing settings:</p>
+        <h2 className="text-base font-semibold">{copy('missingSeedTitle')}</h2>
+        <p className="mt-1">{copy('missingSeedBody')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <CodePill>{NPD_POST_RELEASE_EDIT_POLICY}</CodePill>
           <CodePill>{TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY}</CodePill>
@@ -217,228 +327,226 @@ function MissingSeedState({ auditLogHref }: { auditLogHref: string }) {
   );
 }
 
-function PageHead({ auditLogHref }: { auditLogHref: string }) {
+function PageHead({ auditLogHref, copy }: { auditLogHref: string; copy: Copy }) {
   return (
     <section data-region="page-head" className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-950">Authorization Policies</h1>
-        <p className="text-sm text-slate-500">Control who can request released product/BOM edits and technical approval gates.</p>
+        <h1 className="text-2xl font-semibold text-slate-950">{copy('pageTitle')}</h1>
+        <p className="text-sm text-slate-500">{copy('pageSubtitle')}</p>
       </div>
       <a data-region="audit-link" className="text-sm font-medium text-blue-600" href={auditLogHref}>
-        View audit log →
+        {copy('auditLink')}
       </a>
     </section>
   );
 }
 
-export default class AuthorizationPoliciesPage extends React.Component<AuthorizationPageProps, AuthorizationPageState> {
-  static defaultProps = {
-    screenState: 'ready',
-    canEditAuthorization: false,
-    roles: defaultRoles,
-    policies: defaultPolicies,
-    auditLogHref: '/en/settings/audit?action=authorization_policy_update',
-    updateAuthorizationPolicy: updateAuthorizationPolicyAction as unknown as (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult>,
-  } satisfies Partial<AuthorizationPageProps>;
+export default function AuthorizationPoliciesPage(props: unknown) {
+  const pageProps = props as AuthorizationPageProps;
+  const screenState = pageProps.screenState ?? 'ready';
+  const canEditAuthorization = pageProps.canEditAuthorization ?? false;
+  const roles = pageProps.roles ?? defaultRoles;
+  const policies = pageProps.policies ?? defaultPolicies;
+  const auditLogHref = pageProps.auditLogHref ?? '/en/settings/audit?action=authorization_policy_update';
+  const updateAuthorizationPolicy =
+    pageProps.updateAuthorizationPolicy ??
+    (updateAuthorizationPolicyAction as unknown as (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult>);
+  const copy = useAuthorizationCopy();
+  const [auditReason, setAuditReason] = useState('');
+  const [npdMinApprovers, setNpdMinApprovers] = useState(policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers);
+  const [fieldAlert, setFieldAlert] = useState<string | null>(null);
+  const [serverBlockers, setServerBlockers] = useState<Blocker[]>([]);
+  const [saved, setSaved] = useState(false);
+  const mayEdit = canEditAuthorization && screenState !== 'permission_denied';
 
-  constructor(props: AuthorizationPageProps) {
-    super(props);
-    this.state = {
-      auditReason: '',
-      npdMinApprovers: props.policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers,
-      fieldAlert: null,
-      serverBlockers: [],
-      saved: false,
-    };
-  }
-
-  resetEdits = () => {
-    this.setState({
-      auditReason: '',
-      npdMinApprovers: this.props.policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers,
-      fieldAlert: null,
-      serverBlockers: [],
-      saved: false,
-    });
+  const resetEdits = () => {
+    setAuditReason('');
+    setNpdMinApprovers(policies?.npd?.minApprovers ?? defaultPolicies.npd!.minApprovers);
+    setFieldAlert(null);
+    setServerBlockers([]);
+    setSaved(false);
   };
 
-  savePolicies = async () => {
-    const auditReason = this.state.auditReason.trim();
-    if (!auditReason) {
-      this.setState({ fieldAlert: 'Audit reason is required', serverBlockers: [], saved: false });
+  const savePolicies = async () => {
+    const trimmedReason = auditReason.trim();
+    if (!trimmedReason) {
+      setFieldAlert(copy('auditReasonRequired'));
+      setServerBlockers([]);
+      setSaved(false);
       return;
     }
 
-    const update: (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult> =
-      this.props.updateAuthorizationPolicy ??
-      (updateAuthorizationPolicyAction as unknown as (input: UpdateAuthorizationPolicyInput) => Promise<UpdateAuthorizationPolicyResult>);
-    const result = await update({
+    const result = await updateAuthorizationPolicy({
       policyCode: NPD_POST_RELEASE_EDIT_POLICY,
-      auditReason,
-      patch: { min_approvers: this.state.npdMinApprovers },
+      auditReason: trimmedReason,
+      patch: { min_approvers: npdMinApprovers },
     });
 
     if (result.ok) {
-      this.setState({ fieldAlert: null, serverBlockers: [], saved: true });
+      setFieldAlert(null);
+      setServerBlockers([]);
+      setSaved(true);
       return;
     }
 
     const failedResult = result as Extract<UpdateAuthorizationPolicyResult, { ok: false }>;
-    this.setState({
-      fieldAlert: failedResult.error ?? 'Unable to save policies',
-      serverBlockers: failedResult.blockers ?? [],
-      saved: false,
-    });
+    setFieldAlert(failedResult.error ?? copy('policySaveError'));
+    setServerBlockers(failedResult.blockers ?? []);
+    setSaved(false);
   };
 
-  render() {
-    const screenState = this.props.screenState ?? 'ready';
-    const policies = this.props.policies ?? defaultPolicies;
-    const roles = this.props.roles ?? defaultRoles;
-    const auditLogHref = this.props.auditLogHref ?? '/en/settings/audit?action=authorization_policy_update';
-    const canEditAuthorization = this.props.canEditAuthorization ?? false;
+  if (screenState === 'loading') return <LoadingState copy={copy} />;
+  if (screenState === 'missing_seed' || !policies.npd || !policies.technical) return <MissingSeedState auditLogHref={auditLogHref} copy={copy} />;
 
-    if (screenState === 'loading') return <LoadingState />;
-    if (screenState === 'missing_seed' || !policies.npd || !policies.technical) return <MissingSeedState auditLogHref={auditLogHref} />;
+  return (
+    <main className="space-y-5 p-6">
+      <PageHead auditLogHref={auditLogHref} copy={copy} />
 
-    return (
-      <main className="space-y-5 p-6">
-        <PageHead auditLogHref={auditLogHref} />
-
-        {!canEditAuthorization || screenState === 'permission_denied' ? (
-          <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-            Read-only: settings.authorization.edit is required to change authorization policies.
-          </div>
-        ) : null}
-
-        <div data-region="invariant-banner" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-          Authorized edits always create a new BOM/product-spec version; in-place mutation is never allowed. Factory-use approval remains locked until Technical signs off.
+      {!mayEdit ? (
+        <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          {copy('readOnlyNotice')}
         </div>
+      ) : null}
 
-        {this.state.fieldAlert ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-950">
-            {this.state.fieldAlert}
-            {this.state.serverBlockers.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 font-normal">
-                {this.state.serverBlockers.map((blocker) => (
-                  <li key={`${blocker.policyCode}-${blocker.code}`}>
-                    <CodePill>{blocker.code}</CodePill> {blocker.message}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-        {this.state.saved ? <div role="status" className="text-sm text-green-700">Policies saved.</div> : null}
+      <div data-region="invariant-banner" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        {copy('invariantBanner')}
+      </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Section
-            region="npd-post-release-policy"
-            title="NPD post-release edit authorization"
-            description="Authorizes released product/BOM edit requests after NPD release."
-            status={policies.npd.status}
-          >
-            <SRow label="Request permission" hint="Fixed permission string used by workflows.">
-              <CodePill>{policies.npd.requestPermission}</CodePill>
-            </SRow>
-            <SRow label="Authorize permission" hint="Fixed permission string required to approve a request.">
-              <CodePill>{policies.npd.authorizePermission}</CodePill>
-            </SRow>
-            <SRow label="Authorized roles" hint="Roles selected by T-126 policy data.">
-              {roleLabels(policies.npd.authorizedRoleCodes, roles)}
-            </SRow>
-            <SRow label="Minimum authorizers" hint="T-126 validates blockers and segregation of duties on save.">
-              <Input
-                aria-label="Minimum authorizers"
-                className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
-                min={1}
-                type="number"
-                value={this.state.npdMinApprovers}
-                disabled={!canEditAuthorization}
-                onChange={(event) => this.setState({ npdMinApprovers: Number(event.currentTarget.value) })}
-              />
-            </SRow>
-            <SRow label="Invariant flags">
-              <div className="space-y-1 text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={policies.npd.requiresNewVersion} readOnly disabled />
-                  <span>Requires new version</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={policies.npd.requireSegregationOfDuties} readOnly disabled />
-                  <span>Segregation of duties</span>
-                </label>
-                <div className="text-xs text-slate-500">Version {policies.npd.version}</div>
-              </div>
-            </SRow>
-            <BlockerList blockers={policies.npd.blockers} />
-          </Section>
-
-          <Section
-            region="technical-approval-policy"
-            title="Technical product-spec approval gate"
-            description="Blocks production/factory use until Technical approval is recorded."
-            status={policies.technical.status}
-          >
-            <SRow label="Approval permission" hint="Fixed permission string used by the Technical gate.">
-              <CodePill>{policies.technical.approvalPermission}</CodePill>
-            </SRow>
-            <SRow label="Gate rule code" hint="Immutable rule binding from V-SET-44.">
-              <CodePill>{policies.technical.approvalGateRuleCode}</CodePill>
-            </SRow>
-            <SRow label="Approver roles" hint="Roles selected by the authorization policy row.">
-              {roleLabels(policies.technical.approverRoleCodes, roles)}
-            </SRow>
-            <SRow label="Approval thresholds">
-              <div className="space-y-1">
-                <div>Minimum approvers: {policies.technical.minApprovers}</div>
-                <div>Dual sign-off: {policies.technical.requireDualSignOff ? 'Required' : 'Not required'}</div>
-                <div className="text-xs text-slate-500">Version {policies.technical.version}</div>
-              </div>
-            </SRow>
-            <SRow label="Factory-use lock">
-              <label className="flex items-center gap-2">
-                <input
-                  aria-label="Block factory-use until approved"
-                  type="checkbox"
-                  checked={policies.technical.blockFactoryUseUntilApproved}
-                  readOnly
-                  disabled
-                />
-                <span>Block factory-use until approved</span>
-              </label>
-            </SRow>
-            <BlockerList blockers={policies.technical.blockers} />
-          </Section>
+      {fieldAlert ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-950">
+          {fieldAlert}
+          {serverBlockers.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 font-normal">
+              {serverBlockers.map((blocker) => (
+                <li key={`${blocker.policyCode}-${blocker.code}`}>
+                  <CodePill>{blocker.code}</CodePill> {blocker.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
+      ) : null}
+      {saved ? (
+        <div role="status" className="text-sm text-green-700">
+          {copy('policiesSaved')}
+        </div>
+      ) : null}
 
-        {canEditAuthorization ? (
-          <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label="Save authorization policies">
-            <label className="block text-sm font-medium text-slate-900" htmlFor="authorization-audit-reason">
-              Audit reason
-            </label>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section
+          region="npd-post-release-policy"
+          title={copy('npdTitle')}
+          description={copy('npdDescription')}
+          status={policies.npd.status}
+        >
+          <SRow label={copy('requestPermission')} hint={copy('requestPermissionHint')}>
+            <CodePill>{policies.npd.requestPermission}</CodePill>
+          </SRow>
+          <SRow label={copy('authorizePermission')} hint={copy('authorizePermissionHint')}>
+            <CodePill>{policies.npd.authorizePermission}</CodePill>
+          </SRow>
+          <SRow label={copy('authorizedRoles')} hint={copy('authorizedRolesHint')}>
+            {roleLabels(policies.npd.authorizedRoleCodes, roles, copy)}
+          </SRow>
+          <SRow label={copy('minimumAuthorizers')} hint={copy('minimumAuthorizersHint')}>
             <Input
-              id="authorization-audit-reason"
-              aria-label="Audit reason"
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              value={this.state.auditReason}
-              onChange={(event) => this.setState({ auditReason: event.currentTarget.value })}
-              placeholder="Describe why these authorization settings are changing"
-              type="text"
+              aria-label={copy('minimumAuthorizers')}
+              className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              min={1}
+              type="number"
+              value={npdMinApprovers}
+              disabled={!mayEdit}
+              onChange={(event) => setNpdMinApprovers(Number(event.currentTarget.value))}
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" className="btn-ghost" onClick={this.resetEdits}>
-                Discard
-              </Button>
-              <Button type="button" className="btn-primary" onClick={this.savePolicies}>
-                Save policies
-              </Button>
+          </SRow>
+          <SRow label={copy('invariantFlags')}>
+            <div className="space-y-1 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={policies.npd.requiresNewVersion} readOnly disabled />
+                <span>{copy('requiresNewVersion')}</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={policies.npd.requireSegregationOfDuties} readOnly disabled />
+                <span>{copy('segregationOfDuties')}</span>
+              </label>
+              <div className="text-xs text-slate-500">
+                {copy('version')} {policies.npd.version}
+              </div>
             </div>
-          </section>
-        ) : null}
-      </main>
-    );
-  }
+          </SRow>
+          <BlockerList blockers={policies.npd.blockers} copy={copy} />
+        </Section>
+
+        <Section
+          region="technical-approval-policy"
+          title={copy('technicalTitle')}
+          description={copy('technicalDescription')}
+          status={policies.technical.status}
+        >
+          <SRow label={copy('approvalPermission')} hint={copy('approvalPermissionHint')}>
+            <CodePill>{policies.technical.approvalPermission}</CodePill>
+          </SRow>
+          <SRow label={copy('gateRuleCode')} hint={copy('gateRuleCodeHint')}>
+            <CodePill>{policies.technical.approvalGateRuleCode}</CodePill>
+          </SRow>
+          <SRow label={copy('approverRoles')} hint={copy('approverRolesHint')}>
+            {roleLabels(policies.technical.approverRoleCodes, roles, copy)}
+          </SRow>
+          <SRow label={copy('approvalThresholds')}>
+            <div className="space-y-1">
+              <div>
+                {copy('minimumApprovers')}: {policies.technical.minApprovers}
+              </div>
+              <div>
+                {copy('dualSignOff')}: {policies.technical.requireDualSignOff ? copy('dualSignOffRequired') : copy('dualSignOffNotRequired')}
+              </div>
+              <div className="text-xs text-slate-500">
+                {copy('version')} {policies.technical.version}
+              </div>
+            </div>
+          </SRow>
+          <SRow label={copy('factoryUseLock')}>
+            <label className="flex items-center gap-2">
+              <input
+                aria-label={copy('blockFactoryUseUntilApproved')}
+                type="checkbox"
+                checked={policies.technical.blockFactoryUseUntilApproved}
+                readOnly
+                disabled
+              />
+              <span>{copy('blockFactoryUseUntilApproved')}</span>
+            </label>
+          </SRow>
+          <BlockerList blockers={policies.technical.blockers} copy={copy} />
+        </Section>
+      </div>
+
+      {mayEdit ? (
+        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label={copy('saveSectionLabel')}>
+          <label className="block text-sm font-medium text-slate-900" htmlFor="authorization-audit-reason">
+            {copy('auditReason')}
+          </label>
+          <Input
+            id="authorization-audit-reason"
+            aria-label={copy('auditReason')}
+            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            value={auditReason}
+            onChange={(event) => setAuditReason(event.currentTarget.value)}
+            placeholder={copy('auditReasonPlaceholder')}
+            type="text"
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button type="button" className="btn-ghost" onClick={resetEdits}>
+              {copy('discard')}
+            </Button>
+            <Button type="button" className="btn-primary" onClick={savePolicies}>
+              {copy('savePolicies')}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+    </main>
+  );
 }
 
 export { LoadingState };

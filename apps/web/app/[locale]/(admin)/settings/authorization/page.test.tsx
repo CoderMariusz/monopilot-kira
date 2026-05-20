@@ -66,6 +66,20 @@ type AuthorizationPage = (props: AuthorizationPageProps) => React.ReactNode | Pr
 
 const TECHNICAL_GATE = 'technical_product_spec_approval_gate_v1';
 
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+vi.mock('../../../../../actions/authorization/policy-actions', () => ({
+  updateAuthorizationPolicy: vi.fn().mockResolvedValue({ ok: true, data: { version: 1 } }),
+}));
+
+vi.mock('../../../../../actions/authorization/preflight', () => ({
+  NPD_POST_RELEASE_EDIT_POLICY: 'npd_post_release_edit',
+  TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE: 'technical_product_spec_approval_gate_v1',
+  TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY: 'technical_product_spec_approval',
+}));
+
 const roles: RoleOption[] = [
   { code: 'owner', label: 'Owner' },
   { code: 'admin', label: 'Admin' },
