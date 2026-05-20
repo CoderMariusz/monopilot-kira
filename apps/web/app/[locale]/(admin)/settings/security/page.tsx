@@ -1,492 +1,371 @@
-'use client';
+import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 
-import React from 'react';
-
-import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
+import { upsertSecurityPolicy } from '../../../../../actions/security/upsert-policy';
+import { withOrgContext } from '../../../../../lib/auth/with-org-context';
+import SecurityScreen, {
+  type AuditLogRow,
+  type SecurityScreenData,
+  type SecurityScreenLabels,
+  type SaveSecuritySettings,
+} from './security-screen.client';
 
 export const dynamic = 'force-dynamic';
 
-type AuditLogRow = {
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+type SecurityScreenReadResult =
+  | { state: 'ready'; data: SecurityScreenData; canManageSecurity: boolean }
+  | { state: 'permission-denied'; data: SecurityScreenData; canManageSecurity: false }
+  | { state: 'error'; data: SecurityScreenData; canManageSecurity: false };
+
+type IdpPolicyRow = {
+  provider_type: string | null;
+  enforce_for_non_admins: boolean | null;
+  mfa_required: boolean | null;
+  mfa_required_for_roles: string[] | null;
+  mfa_allowed_methods: string[] | null;
+  password_complexity: string | null;
+  idle_timeout_min: number | string | null;
+  session_max_h: number | string | null;
+};
+
+type IpAllowlistRow = { cidr: string };
+type ScimRow = { active_count: string | number };
+type AuditRow = {
   id: string;
-  occurredAt: string;
-  actorName: string;
+  occurred_at: string | Date;
+  actor_name: string | null;
   action: string;
-  ipAddress: string | null;
-  tableName: string;
+  ip_address: string | null;
+  table_name: string;
 };
 
-type SecurityScreenData = {
-  twoFactor: {
-    enforceAdmins: boolean;
-    enforceAllUsers: boolean;
-    allowedMethods: string[];
-  };
-  sso: {
-    connected: boolean;
-    providerName: string;
-    providerTenant: string;
-    enforceSso: boolean;
-    metadataConfigured: boolean;
-  };
-  scim: { enabled: boolean };
-  passwordPolicy: {
-    minimumLength: number;
-    complexity: 'strong' | 'medium' | 'basic';
-    expires: 'never' | '90' | '180';
-    blockReuseCount: number;
-  };
-  sessionPolicy: {
-    idleTimeout: '15' | '30' | '60' | '4h' | 'never';
-    maximumSessionLength: '4h' | '8h' | '12h' | '24h';
-  };
-  ipAllowlist: string[];
-  auditLog: AuditLogRow[];
-};
+type PermissionCheckRow = { ok: boolean };
 
-type SaveSecuritySettings = (
-  data: SecurityScreenData,
-) => Promise<
-  | { ok: true; data?: SecurityScreenData }
-  | { ok: false; code?: string; fieldErrors?: Record<string, string>; data?: SecurityScreenData }
->;
-
-type SecurityPageProps = {
-  data?: SecurityScreenData;
-  state?: 'ready' | 'loading' | 'empty' | 'error';
-  canManageSecurity?: boolean;
-  saveSecuritySettings?: SaveSecuritySettings;
-};
-
-const securityAuditTables = new Set([
+const SECURITY_AUDIT_TABLES = [
   'org_security_policies',
   'org_sso_config',
   'scim_tokens',
   'admin_ip_allowlist',
-]);
+] as const;
 
-const defaultSecurityData: SecurityScreenData = {
-  twoFactor: {
-    enforceAdmins: true,
-    enforceAllUsers: false,
-    allowedMethods: ['totp', 'sms'],
-  },
-  sso: {
-    connected: true,
-    providerName: 'Microsoft Entra ID',
-    providerTenant: 'apex.onmicrosoft.com',
-    enforceSso: false,
-    metadataConfigured: false,
-  },
-  scim: { enabled: true },
-  passwordPolicy: {
-    minimumLength: 12,
-    complexity: 'strong',
-    expires: 'never',
-    blockReuseCount: 5,
-  },
-  sessionPolicy: {
-    idleTimeout: '60',
-    maximumSessionLength: '8h',
-  },
-  ipAllowlist: [],
-  auditLog: [],
-};
+const SECURITY_VIEW_PERMISSIONS = [
+  'settings.security.view',
+  'settings.security.manage',
+  'settings.security.edit',
+  'settings.ip_allowlist.edit',
+  'org.access.admin',
+  'owner',
+  'admin',
+] as const;
 
-function Section({
-  region,
-  title,
-  sub,
-  action,
-  children,
-}: {
-  region: string;
-  title: string;
-  sub?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section data-region={region} role="region" aria-label={title} className="rounded-xl border bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
-        <div>
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          {sub ? <p className="mt-1 text-sm text-slate-500">{sub}</p> : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      <div className="divide-y divide-slate-100">{children}</div>
-    </section>
+function mapComplexity(value: string | null | undefined): SecurityScreenData['passwordPolicy']['complexity'] {
+  if (value === 'strong') return 'strong';
+  if (value === 'basic') return 'basic';
+  return 'medium';
+}
+
+function mapIdleTimeout(value: number | string | null | undefined): SecurityScreenData['sessionPolicy']['idleTimeout'] {
+  const normalized = String(value ?? '60');
+  if (normalized === '15' || normalized === '30' || normalized === '60') return normalized;
+  if (normalized === '240' || normalized === '4h') return '4h';
+  if (normalized === 'never' || normalized === '0') return 'never';
+  return '60';
+}
+
+function mapMaxSession(value: number | string | null | undefined): SecurityScreenData['sessionPolicy']['maximumSessionLength'] {
+  const normalized = String(value ?? '8');
+  if (normalized === '4' || normalized === '4h') return '4h';
+  if (normalized === '12' || normalized === '12h') return '12h';
+  if (normalized === '24' || normalized === '24h') return '24h';
+  return '8h';
+}
+
+function defaultData(labels: SecurityScreenLabels): SecurityScreenData {
+  return {
+    twoFactor: {
+      enforceAdmins: true,
+      enforceAllUsers: false,
+      allowedMethods: ['totp', 'sms'],
+    },
+    sso: {
+      connected: false,
+      providerName: labels.provider,
+      providerTenant: labels.notConfigured,
+      enforceSso: false,
+      metadataConfigured: false,
+    },
+    scim: { enabled: false },
+    passwordPolicy: {
+      minimumLength: 12,
+      complexity: 'strong',
+      expires: 'never',
+      blockReuseCount: 5,
+    },
+    sessionPolicy: {
+      idleTimeout: '60',
+      maximumSessionLength: '8h',
+    },
+    ipAllowlist: [],
+    auditLog: [],
+  };
+}
+
+function toAuditRow(row: AuditRow, labels: SecurityScreenLabels): AuditLogRow {
+  const occurredAt = row.occurred_at instanceof Date
+    ? row.occurred_at.toISOString().slice(0, 16).replace('T', ' ')
+    : String(row.occurred_at);
+  return {
+    id: String(row.id),
+    occurredAt,
+    actorName: row.actor_name ?? labels.auditSystemActor,
+    action: row.action,
+    ipAddress: row.ip_address,
+    tableName: row.table_name,
+  };
+}
+
+async function hasAnyPermission(client: QueryClient, userId: string, orgId: string) {
+  const { rows } = await client.query<PermissionCheckRow>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = any($3::text[])
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (
+          rp.permission is not null
+          or r.code = any($3::text[])
+          or r.slug = any($3::text[])
+          or coalesce(r.permissions, '[]'::jsonb) ?| $3::text[]
+        )
+      limit 1`,
+    [userId, orgId, SECURITY_VIEW_PERMISSIONS],
   );
+  return rows.length > 0;
 }
 
-function SRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div data-testid="security-setting-row" className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(220px,0.6fr)_1fr] md:items-center">
-      <div>
-        <div data-testid="security-setting-label" className="text-sm font-medium text-slate-900">
-          {label}
-        </div>
-        {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
-      </div>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
-function SwitchControl({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange?: (checked: boolean) => void;
-}) {
-  return (
-    <input
-      aria-label={label}
-      checked={checked}
-      className="h-5 w-9 rounded-full border border-slate-300 accent-slate-900 disabled:opacity-60"
-      disabled={disabled}
-      onChange={(event) => onChange?.(event.currentTarget.checked)}
-      role="switch"
-      type="checkbox"
-    />
-  );
-}
-
-function CheckboxControl({
-  label,
-  checked,
-  disabled,
-  title,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  title?: string;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-slate-900">
-      <input aria-label={label} defaultChecked={checked} disabled={disabled} title={title} type="checkbox" />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function SelectControl<T extends string>({
-  label,
-  value,
-  disabled,
-  options,
-}: {
-  label: string;
-  value: T;
-  disabled?: boolean;
-  options: Array<{ value: T; label: string }>;
-}) {
-  return (
-    <select
-      aria-label={label}
-      className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-      defaultValue={value}
-      disabled={disabled}
-      name={label}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function FieldNumber({ label, value, disabled }: { label: string; value: number; disabled?: boolean }) {
-  return (
-    <Input
-      aria-label={label}
-      className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
-      defaultValue={value}
-      disabled={disabled}
-      name={label}
-      type="number"
-    />
-  );
-}
-
-function StatusView({ kind }: { kind: 'loading' | 'empty' | 'error' | 'permission-denied' }) {
-  const copy = {
-    loading: ['Security', 'Loading security settings…'],
-    empty: ['Security', 'No security settings configured yet.'],
-    error: ['Security', 'Unable to load security settings.'],
-    'permission-denied': ['Security', 'You do not have permission to manage security settings.'],
-  }[kind];
-
-  return (
-    <main className="space-y-4 p-6">
-      <section data-region="page-head" className="space-y-1">
-        <h1 className="text-2xl font-semibold">{copy[0]}</h1>
-        <p role={kind === 'error' ? 'alert' : 'status'} className="text-sm text-slate-500">
-          {copy[1]}
-        </p>
-      </section>
-    </main>
-  );
-}
-
-function AddIpRangeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-
-  return (
-    <div
-      aria-labelledby="sm-ip-allowlist-title"
-      aria-modal="true"
-      className="rounded-xl border bg-white p-4 shadow-lg"
-      data-focus-trap="radix-dialog"
-      data-modal-id="SM-IP-ALLOWLIST"
-      role="dialog"
-    >
-      <div className="flex items-center justify-between gap-4">
-        <h2 id="sm-ip-allowlist-title" className="text-base font-semibold">
-          Add IP range
-        </h2>
-        <Button aria-label="Close" type="button" onClick={onClose}>
-          ×
-        </Button>
-      </div>
-      <p className="mt-2 text-sm text-slate-500">Add a CIDR range for administrator sign-in.</p>
-    </div>
-  );
-}
-
-function sortAuditRows(rows: AuditLogRow[]) {
-  return [...rows]
-    .filter((row) => securityAuditTables.has(row.tableName))
-    .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt))
-    .slice(0, 5);
-}
-
-async function defaultSaveSecuritySettings(nextData: SecurityScreenData) {
-  return { ok: true as const, data: nextData };
-}
-
-export default function SecurityPage({
-  data = defaultSecurityData,
-  state = 'ready',
-  canManageSecurity = false,
-  saveSecuritySettings = defaultSaveSecuritySettings,
-}: SecurityPageProps) {
-  const [screenData, setScreenData] = React.useState(data);
-  const [enforceSso, setEnforceSso] = React.useState(data.sso.enforceSso);
-  const [fieldError, setFieldError] = React.useState<string | null>(null);
-  const [ipDialogOpen, setIpDialogOpen] = React.useState(false);
-  const [isPending, startTransition] = React.useTransition();
-  const auditRows = React.useMemo(() => sortAuditRows(screenData.auditLog), [screenData.auditLog]);
-
-  if (state === 'loading') return <StatusView kind="loading" />;
-  if (state === 'empty') return <StatusView kind="empty" />;
-  if (state === 'error') return <StatusView kind="error" />;
-  if (!canManageSecurity) return <StatusView kind="permission-denied" />;
-
-  function handleSave() {
-    setFieldError(null);
-    const nextData: SecurityScreenData = {
-      ...screenData,
-      sso: { ...screenData.sso, enforceSso },
-    };
-
-    startTransition(async () => {
-      const result = await saveSecuritySettings(nextData);
-      if (result.ok === true) {
-        setScreenData(result.data ?? nextData);
-        return;
+async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<SecurityScreenReadResult> {
+  const fallbackData = defaultData(labels);
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const queryClient = client as QueryClient;
+      const canManageSecurity = await hasAnyPermission(queryClient, userId, orgId);
+      if (!canManageSecurity) {
+        return { state: 'permission-denied' as const, data: fallbackData, canManageSecurity: false as const };
       }
 
-      if (result.ok === false) {
-        setFieldError(result.fieldErrors?.enforceSso ?? result.code ?? 'Unable to save security settings');
-        const rollbackData = result.data ?? { ...nextData, sso: { ...nextData.sso, enforceSso: false } };
-        setScreenData(rollbackData);
-        setEnforceSso(rollbackData.sso.enforceSso);
-      }
+      const [idpResult, scimResult, ipResult, auditResult] = await Promise.all([
+        queryClient.query<IdpPolicyRow>(
+          `select cfg.provider_type,
+                  cfg.enforce_for_non_admins,
+                  cfg.mfa_required,
+                  cfg.mfa_required_for_roles,
+                  cfg.mfa_allowed_methods,
+                  cfg.password_complexity,
+                  cfg.idle_timeout_min,
+                  cfg.session_max_h
+             from public.organizations o
+             left join lateral app.get_my_tenant_idp_config(o.tenant_id) cfg on true
+            where o.id = $1::uuid
+            limit 1`,
+          [orgId],
+        ),
+        queryClient.query<ScimRow>(
+          `select count(*)::int as active_count
+             from public.scim_tokens
+            where org_id = app.current_org_id()
+              and revoked_at is null`,
+        ),
+        queryClient.query<IpAllowlistRow>(
+          `select cidr::text as cidr
+             from public.admin_ip_allowlist
+            where org_id = app.current_org_id()
+            order by created_at desc, id desc`,
+        ),
+        queryClient.query<AuditRow>(
+          `select al.id::text as id,
+                  to_char(al.occurred_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI') as occurred_at,
+                  coalesce(u.name, u.email, initcap(al.actor_type)) as actor_name,
+                  al.action,
+                  null::text as ip_address,
+                  al.resource_type as table_name
+             from public.audit_log al
+             left join public.users u on u.id = al.actor_user_id
+            where al.org_id = app.current_org_id()
+              and al.resource_type = any($1::text[])
+            order by al.occurred_at desc
+            limit 5`,
+          [SECURITY_AUDIT_TABLES],
+        ),
+      ]);
+
+      const idp = idpResult.rows[0];
+      const mfaRoles = idp?.mfa_required_for_roles ?? [];
+      const allowedMethods = idp?.mfa_allowed_methods?.length ? idp.mfa_allowed_methods : fallbackData.twoFactor.allowedMethods;
+      const providerType = idp?.provider_type ?? 'password';
+      const connected = providerType === 'saml' || providerType === 'oidc';
+
+      return {
+        state: 'ready' as const,
+        canManageSecurity: true as const,
+        data: {
+          twoFactor: {
+            enforceAdmins: Boolean(idp?.mfa_required) || mfaRoles.includes('org.access.admin') || mfaRoles.includes('org.schema.admin'),
+            enforceAllUsers: Boolean(idp?.mfa_required) && mfaRoles.length === 0,
+            allowedMethods,
+          },
+          sso: {
+            connected,
+            providerName: connected ? labels.providerHint.replace(/\.$/, '') : labels.provider,
+            providerTenant: labels.notConfigured,
+            enforceSso: Boolean(idp?.enforce_for_non_admins),
+            metadataConfigured: connected,
+          },
+          scim: { enabled: Number(scimResult.rows[0]?.active_count ?? 0) > 0 },
+          passwordPolicy: {
+            minimumLength: fallbackData.passwordPolicy.minimumLength,
+            complexity: mapComplexity(idp?.password_complexity),
+            expires: fallbackData.passwordPolicy.expires,
+            blockReuseCount: fallbackData.passwordPolicy.blockReuseCount,
+          },
+          sessionPolicy: {
+            idleTimeout: mapIdleTimeout(idp?.idle_timeout_min),
+            maximumSessionLength: mapMaxSession(idp?.session_max_h),
+          },
+          ipAllowlist: ipResult.rows.map((row) => row.cidr),
+          auditLog: auditResult.rows.map((row) => toAuditRow(row, labels)),
+        },
+      };
     });
+  } catch {
+    return { state: 'error', data: fallbackData, canManageSecurity: false };
+  }
+}
+
+async function buildLabels(locale: string): Promise<SecurityScreenLabels> {
+  const t = await getTranslations({ locale, namespace: 'settings.security_screen' });
+  return {
+    title: t('title'),
+    subtitle: t('subtitle'),
+    twoFactorTitle: t('two_factor_title'),
+    twoFactorSub: t('two_factor_sub'),
+    enforceAdmins: t('enforce_admins'),
+    enforceAdminsHint: t('enforce_admins_hint'),
+    enforceAllUsers: t('enforce_all_users'),
+    allowedMethods: t('allowed_methods'),
+    methodTotp: t('method_totp'),
+    methodSms: t('method_sms'),
+    methodWebauthn: t('method_webauthn'),
+    webauthnTooltip: t('webauthn_tooltip'),
+    passwordPolicyTitle: t('password_policy_title'),
+    minimumLength: t('minimum_length'),
+    complexity: t('complexity'),
+    complexityStrong: t('complexity_strong'),
+    complexityMedium: t('complexity_medium'),
+    complexityBasic: t('complexity_basic'),
+    passwordExpires: t('password_expires'),
+    passwordExpiresHint: t('password_expires_hint'),
+    expiresNever: t('expires_never'),
+    expires90: t('expires_90'),
+    expires180: t('expires_180'),
+    blockReuse: t('block_reuse'),
+    sessionTitle: t('session_title'),
+    idleTimeout: t('idle_timeout'),
+    idleTimeoutHint: t('idle_timeout_hint'),
+    maximumSessionLength: t('maximum_session_length'),
+    minutes15: t('minutes_15'),
+    minutes30: t('minutes_30'),
+    minutes60: t('minutes_60'),
+    hours4: t('hours_4'),
+    hours8: t('hours_8'),
+    hours12: t('hours_12'),
+    hours24: t('hours_24'),
+    never: t('never'),
+    ssoTitle: t('sso_title'),
+    connected: t('connected'),
+    provider: t('provider'),
+    providerHint: t('provider_hint'),
+    enforceSso: t('enforce_sso'),
+    enforceSsoHint: t('enforce_sso_hint'),
+    scimTitle: t('scim_title'),
+    scimProvisioning: t('scim_provisioning'),
+    ipAllowlistTitle: t('ip_allowlist_title'),
+    ipAllowlistHint: t('ip_allowlist_hint'),
+    notConfigured: t('not_configured'),
+    addRange: t('add_range'),
+    addIpRangeTitle: t('add_ip_range_title'),
+    close: t('close'),
+    addIpRangeHelp: t('add_ip_range_help'),
+    auditLogTitle: t('audit_log_title'),
+    viewFullLog: t('view_full_log'),
+    auditTableLabel: t('audit_table_label'),
+    auditWhen: t('audit_when'),
+    auditWho: t('audit_who'),
+    auditAction: t('audit_action'),
+    auditIp: t('audit_ip'),
+    auditSystemActor: t('audit_system_actor'),
+    save: t('save'),
+    saving: t('saving'),
+    loadSecurity: t('load_security'),
+    loading: t('loading'),
+    empty: t('empty'),
+    error: t('error'),
+    permissionDenied: t('permission_denied'),
+  };
+}
+
+const saveSecuritySettings: SaveSecuritySettings = async (data) => {
+  'use server';
+
+  if (data.sso.enforceSso && !data.sso.metadataConfigured) {
+    return {
+      ok: false,
+      code: 'METADATA_REQUIRED',
+      fieldErrors: { enforceSso: 'METADATA_REQUIRED' },
+      data: { ...data, sso: { ...data.sso, enforceSso: false } },
+    };
   }
 
+  const policyResult = await upsertSecurityPolicy({
+    mfa_requirement: data.twoFactor.enforceAllUsers
+      ? 'required_all'
+      : data.twoFactor.enforceAdmins
+        ? 'required_admins'
+        : 'optional',
+    mfa_allowed_methods: data.twoFactor.allowedMethods,
+    password_min_length: data.passwordPolicy.minimumLength,
+    password_complexity: data.passwordPolicy.complexity === 'strong' ? 'strong' : 'standard',
+  });
+
+  if (!policyResult.ok) {
+    return { ok: false, code: 'error' in policyResult ? policyResult.error : 'persistence_failed', data };
+  }
+
+  revalidatePath('/settings/security');
+  return { ok: true, data };
+};
+
+export default async function SecurityPage({ params }: PageProps) {
+  const { locale } = await params;
+  const labels = await buildLabels(locale);
+  const result = await readSecurityScreenData(labels);
+
   return (
-    <main className="space-y-5 p-6">
-      <section data-region="page-head" className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Security</h1>
-          <p className="text-sm text-slate-500">Authentication, session, and password policy.</p>
-        </div>
-      </section>
-
-      <Section region="twofa" title="Two-factor authentication" sub="Require 2FA for all users.">
-        <SRow label="Enforce 2FA for Admins" hint="Admin accounts must use an authenticator app.">
-          <SwitchControl label="Enforce 2FA for Admins" checked={screenData.twoFactor.enforceAdmins} disabled={isPending} />
-        </SRow>
-        <SRow label="Enforce 2FA for all users">
-          <SwitchControl label="Enforce 2FA for all users" checked={screenData.twoFactor.enforceAllUsers} disabled={isPending} />
-        </SRow>
-        <SRow label="Allowed methods">
-          <div className="flex flex-col gap-1.5">
-            <CheckboxControl label="Authenticator app (TOTP)" checked={screenData.twoFactor.allowedMethods.includes('totp')} disabled={isPending} />
-            <CheckboxControl label="SMS" checked={screenData.twoFactor.allowedMethods.includes('sms')} disabled={isPending} />
-            <CheckboxControl
-              label="Hardware key (WebAuthn)"
-              checked={screenData.twoFactor.allowedMethods.includes('webauthn')}
-              disabled
-              title="Coming Phase 3"
-            />
-          </div>
-        </SRow>
-      </Section>
-
-      <Section region="password-policy" title="Password policy">
-        <SRow label="Minimum length">
-          <FieldNumber label="Minimum length" value={screenData.passwordPolicy.minimumLength} disabled={isPending} />
-        </SRow>
-        <SRow label="Complexity">
-          <SelectControl
-            label="Complexity"
-            value={screenData.passwordPolicy.complexity}
-            disabled={isPending}
-            options={[
-              { value: 'strong', label: 'Strong (upper, lower, number, symbol)' },
-              { value: 'medium', label: 'Medium (upper, lower, number)' },
-              { value: 'basic', label: 'Basic (length only)' },
-            ]}
-          />
-        </SRow>
-        <SRow label="Password expires" hint="Force rotation every N days. Not recommended by NIST.">
-          <SelectControl
-            label="Password expires"
-            value={screenData.passwordPolicy.expires}
-            disabled={isPending}
-            options={[
-              { value: 'never', label: 'Never' },
-              { value: '90', label: '90 days' },
-              { value: '180', label: '180 days' },
-            ]}
-          />
-        </SRow>
-        <SRow label="Block reuse of last N passwords">
-          <FieldNumber label="Block reuse of last N passwords" value={screenData.passwordPolicy.blockReuseCount} disabled={isPending} />
-        </SRow>
-      </Section>
-
-      <Section region="sessions" title="Session">
-        <SRow label="Idle timeout" hint="Log out inactive sessions.">
-          <SelectControl
-            label="Idle timeout"
-            value={screenData.sessionPolicy.idleTimeout}
-            disabled={isPending}
-            options={[
-              { value: '15', label: '15 min' },
-              { value: '30', label: '30 min' },
-              { value: '60', label: '60 min' },
-              { value: '4h', label: '4 h' },
-              { value: 'never', label: 'Never' },
-            ]}
-          />
-        </SRow>
-        <SRow label="Maximum session length">
-          <SelectControl
-            label="Maximum session length"
-            value={screenData.sessionPolicy.maximumSessionLength}
-            disabled={isPending}
-            options={[
-              { value: '4h', label: '4 h' },
-              { value: '8h', label: '8 h' },
-              { value: '12h', label: '12 h' },
-              { value: '24h', label: '24 h' },
-            ]}
-          />
-        </SRow>
-      </Section>
-
-      <Section
-        region="sso"
-        title="Single Sign-On (SSO)"
-        action={screenData.sso.connected ? <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">● Connected</span> : null}
-      >
-        <SRow label="Provider" hint="SAML 2.0 via Microsoft Entra ID.">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#0078d4] text-[11px] font-bold text-white">MS</div>
-            <div>
-              <div className="font-medium">{screenData.sso.providerName}</div>
-              <div className="font-mono text-[11px] text-slate-500">{screenData.sso.providerTenant}</div>
-            </div>
-          </div>
-        </SRow>
-        <SRow label="Enforce SSO" hint="Password login disabled for non-admin users when on.">
-          <div className="space-y-2">
-            <SwitchControl label="Enforce SSO" checked={enforceSso} disabled={isPending} onChange={setEnforceSso} />
-            {fieldError ? <div role="alert" className="text-xs font-medium text-red-700">{fieldError}</div> : null}
-          </div>
-        </SRow>
-      </Section>
-
-      <Section region="scim" title="SCIM">
-        <SRow label="SCIM provisioning">
-          <SwitchControl label="SCIM provisioning" checked={screenData.scim.enabled} disabled={isPending} />
-        </SRow>
-      </Section>
-
-      <Section region="ip-allowlist" title="IP allowlist">
-        <SRow label="IP allowlist" hint="Restrict admin login to specific IPs or ranges.">
-          <div className="font-mono text-xs text-slate-500">
-            {screenData.ipAllowlist.length > 0 ? screenData.ipAllowlist.join(', ') : 'Not configured'}{' '}
-            <Button
-              type="button"
-              className="btn-ghost btn-sm ml-1 text-blue-600"
-              data-modal-target="SM-IP-ALLOWLIST"
-              onClick={(event) => {
-                setIpDialogOpen(true);
-                event.currentTarget.blur();
-              }}
-            >
-              + Add range
-            </Button>
-          </div>
-        </SRow>
-      </Section>
-
-      <Section region="audit-preview" title="Audit log" action={<Button type="button" className="btn-ghost btn-sm">View full log →</Button>}>
-        <div className="overflow-x-auto px-5 py-4">
-          <table aria-label="Security audit log preview" className="w-full border-collapse text-sm">
-            <thead>
-              <tr>
-                <th scope="col" className="p-2 text-left">When</th>
-                <th scope="col" className="p-2 text-left">Who</th>
-                <th scope="col" className="p-2 text-left">Action</th>
-                <th scope="col" className="p-2 text-left">IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditRows.map((row) => (
-                <tr key={row.id} className="border-t" data-table-name={row.tableName}>
-                  <td className="p-2 font-mono">{row.occurredAt}</td>
-                  <td className="p-2">{row.actorName}</td>
-                  <td className="p-2">{row.action}</td>
-                  <td className="p-2 font-mono text-slate-500">{row.ipAddress ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <div className="flex justify-end">
-        <Button type="button" className="btn-primary" disabled={isPending} onClick={handleSave}>
-          {isPending ? 'Saving security settings…' : 'Save security settings'}
-        </Button>
-      </div>
-
-      <AddIpRangeDialog open={ipDialogOpen} onClose={() => setIpDialogOpen(false)} />
-    </main>
+    <SecurityScreen
+      data={result.data}
+      labels={labels}
+      state={result.state === 'permission-denied' ? 'ready' : result.state}
+      canManageSecurity={result.canManageSecurity}
+      saveSecuritySettings={saveSecuritySettings}
+    />
   );
 }

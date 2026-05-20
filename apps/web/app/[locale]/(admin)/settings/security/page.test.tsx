@@ -14,6 +14,8 @@ import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import SecurityScreen, { type SaveSecuritySettings, type SecurityScreenLabels } from './security-screen.client';
+
 type AuditLogRow = {
   id: string;
   occurredAt: string;
@@ -51,16 +53,14 @@ type SecurityScreenData = {
   auditLog: AuditLogRow[];
 };
 
-type SaveSecuritySettings = ReturnType<typeof vi.fn>;
+type TestSaveSecuritySettings = SaveSecuritySettings & ReturnType<typeof vi.fn>;
 
 type SecurityPageProps = {
   data: SecurityScreenData;
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canManageSecurity: boolean;
-  saveSecuritySettings: SaveSecuritySettings;
+  saveSecuritySettings: TestSaveSecuritySettings;
 };
-
-type SecurityPage = (props: SecurityPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
 const securityAuditTables = [
   'org_security_policies',
@@ -146,37 +146,87 @@ const data: SecurityScreenData = {
   ],
 };
 
-async function loadSecurityPage(): Promise<SecurityPage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-012 page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as SecurityPage;
-  } catch (error) {
-    throw error;
-  }
-}
+const labels: SecurityScreenLabels = {
+  title: 'Security',
+  subtitle: 'Authentication, session, and password policy.',
+  twoFactorTitle: 'Two-factor authentication',
+  twoFactorSub: 'Require 2FA for all users.',
+  enforceAdmins: 'Enforce 2FA for Admins',
+  enforceAdminsHint: 'Admin accounts must use an authenticator app.',
+  enforceAllUsers: 'Enforce 2FA for all users',
+  allowedMethods: 'Allowed methods',
+  methodTotp: 'Authenticator app (TOTP)',
+  methodSms: 'SMS',
+  methodWebauthn: 'Hardware key (WebAuthn)',
+  webauthnTooltip: 'Coming Phase 3',
+  passwordPolicyTitle: 'Password policy',
+  minimumLength: 'Minimum length',
+  complexity: 'Complexity',
+  complexityStrong: 'Strong (upper, lower, number, symbol)',
+  complexityMedium: 'Medium (upper, lower, number)',
+  complexityBasic: 'Basic (length only)',
+  passwordExpires: 'Password expires',
+  passwordExpiresHint: 'Force rotation every N days. Not recommended by NIST.',
+  expiresNever: 'Never',
+  expires90: '90 days',
+  expires180: '180 days',
+  blockReuse: 'Block reuse of last N passwords',
+  sessionTitle: 'Session',
+  idleTimeout: 'Idle timeout',
+  idleTimeoutHint: 'Log out inactive sessions.',
+  maximumSessionLength: 'Maximum session length',
+  minutes15: '15 min',
+  minutes30: '30 min',
+  minutes60: '60 min',
+  hours4: '4 h',
+  hours8: '8 h',
+  hours12: '12 h',
+  hours24: '24 h',
+  never: 'Never',
+  ssoTitle: 'Single Sign-On (SSO)',
+  connected: 'Connected',
+  provider: 'Provider',
+  providerHint: 'SAML 2.0 via Microsoft Entra ID.',
+  enforceSso: 'Enforce SSO',
+  enforceSsoHint: 'Password login disabled for non-admin users when on.',
+  scimTitle: 'SCIM',
+  scimProvisioning: 'SCIM provisioning',
+  ipAllowlistTitle: 'IP allowlist',
+  ipAllowlistHint: 'Restrict admin login to specific IPs or ranges.',
+  notConfigured: 'Not configured',
+  addRange: '+ Add range',
+  addIpRangeTitle: 'Add IP range',
+  close: 'Close',
+  addIpRangeHelp: 'Add a CIDR range for administrator sign-in.',
+  auditLogTitle: 'Audit log',
+  viewFullLog: 'View full log →',
+  auditTableLabel: 'Security audit log preview',
+  auditWhen: 'When',
+  auditWho: 'Who',
+  auditAction: 'Action',
+  auditIp: 'IP',
+  auditSystemActor: 'System',
+  save: 'Save security settings',
+  saving: 'Saving security settings…',
+  loadSecurity: 'Security',
+  loading: 'Loading security settings…',
+  empty: 'No security settings configured yet.',
+  error: 'Unable to load security settings.',
+  permissionDenied: 'You do not have permission to manage security settings.',
+};
 
 async function renderSecurity(overrides: Partial<SecurityPageProps> = {}) {
-  const Page = await loadSecurityPage();
   const props: SecurityPageProps = {
     data,
     state: 'ready',
     canManageSecurity: true,
-    saveSecuritySettings: vi.fn().mockResolvedValue({ ok: true, data }),
+    saveSecuritySettings: vi.fn(async (_next: SecurityScreenData) => ({ ok: true as const, data })) as TestSaveSecuritySettings,
     ...overrides,
   };
 
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(props);
-    return { props, ...render(React.createElement(React.Fragment, null, node)) };
-  }
-
   return {
     props,
-    ...render(React.createElement(Page as React.ComponentType<SecurityPageProps>, props)),
+    ...render(React.createElement(SecurityScreen, { ...props, labels })),
   };
 }
 
@@ -339,12 +389,12 @@ describe('SET-012 security screen prototype parity', () => {
 
   it('surfaces METADATA_REQUIRED inline and rolls Enforce SSO back off when SSO is enabled without metadata', async () => {
     const user = userEvent.setup();
-    const saveSecuritySettings = vi.fn().mockResolvedValue({
-      ok: false,
+    const saveSecuritySettings = vi.fn(async (_next: SecurityScreenData) => ({
+      ok: false as const,
       code: 'METADATA_REQUIRED',
       fieldErrors: { enforceSso: 'METADATA_REQUIRED' },
       data: { ...data, sso: { ...data.sso, enforceSso: false } },
-    });
+    })) as TestSaveSecuritySettings;
     await renderSecurity({ saveSecuritySettings });
 
     const ssoSwitch = screen.getByRole('switch', { name: /enforce sso/i });
