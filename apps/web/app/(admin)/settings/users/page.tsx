@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '../../../../../../packages/ui/src/Button';
 import Input from '../../../../../../packages/ui/src/Input';
@@ -217,6 +218,7 @@ function InviteDialog({
 }
 
 export default function UsersPage(props: Partial<UsersPageProps> = {}) {
+  const t = useTranslations('settings.users');
   const {
     users = [],
     roles = [],
@@ -252,7 +254,7 @@ export default function UsersPage(props: Partial<UsersPageProps> = {}) {
     return (
       <main className="p-6">
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-          Users could not be loaded. Try refreshing the settings users page.
+          {t('error_load')}
         </div>
       </main>
     );
@@ -262,7 +264,7 @@ export default function UsersPage(props: Partial<UsersPageProps> = {}) {
     return (
       <main className="p-6">
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Permission denied: settings.users.manage is required to manage users and roles.
+          {t('permission_denied')}
         </div>
       </main>
     );
@@ -292,16 +294,16 @@ export default function UsersPage(props: Partial<UsersPageProps> = {}) {
     <main className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Users &amp; roles</h1>
+          <h1 className="text-2xl font-semibold">{t('heading')}</h1>
           <p className="text-sm text-muted-foreground">{users.length} users · {permissionColumns.length} role categories</p>
         </div>
         {state === 'empty' ? null : (
           <div className="flex gap-2">
             <Button type="button" onClick={() => void exportUsers?.()}>
-              Export
+              {t('export')}
             </Button>
             <Button type="button" onClick={() => setShowInvite(true)}>
-              + Invite user
+              {t('invite_user')}
             </Button>
           </div>
         )}

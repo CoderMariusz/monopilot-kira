@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 type RoleCode =
   | 'owner'
@@ -371,6 +372,7 @@ function AssignRoleDialog({
 }
 
 export default function RolesPage(props: Partial<RolesPageProps> = {}) {
+  const t = useTranslations('settings.roles');
   const roles = props.roles ?? defaultRoles;
   const permissionsByRole = props.permissionsByRole ?? defaultPermissionsByRole;
   const assignableUsers = props.assignableUsers ?? defaultAssignableUsers;
@@ -385,7 +387,7 @@ export default function RolesPage(props: Partial<RolesPageProps> = {}) {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('heading')}</h1>
           <p className="mt-1 text-sm text-slate-600">
             Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
           </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 
 type IndustryCode = 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
@@ -75,6 +76,7 @@ export default function ManufacturingOperationsPage({
   onEditOperation,
   onDeactivateOperation,
 }: ManufacturingOperationsPageProps) {
+  const t = useTranslations('settings.reference_mfg');
   const [selectedIndustry, setSelectedIndustry] = React.useState<IndustryFilter>(industryFilter);
   const [includeInactive, setIncludeInactive] = React.useState(showInactive);
   const [orderedOperations, setOrderedOperations] = React.useState(() => sortBySequence(operations));
@@ -138,7 +140,7 @@ export default function ManufacturingOperationsPage({
 
       <header>
         <p>SET-055 / PRD §8.9.4</p>
-        <h1 id="manufacturing-operations-heading">Manufacturing Operations</h1>
+        <h1 id="manufacturing-operations-heading">{t('heading')}</h1>
         <p>
           Configure tenant-specific operation names, process suffixes, industry seed sets, active state,
           and recipe sequence order.
@@ -147,12 +149,12 @@ export default function ManufacturingOperationsPage({
 
       <section aria-label="Manufacturing operations toolbar">
         <Button type="button" onClick={() => onAddOperation?.()}>
-          Add New Operation
+          {t('add_operation')}
         </Button>
         <Button type="button" onClick={() => resetToSeed?.()}>
-          Reset to seed data
+          {t('reset_seed')}
         </Button>
-        <Button type="button">Delete inactive rows</Button>
+        <Button type="button">{t('delete_inactive')}</Button>
 
         <label>
           Industry

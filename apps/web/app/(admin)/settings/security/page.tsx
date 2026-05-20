@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '../../../../../../packages/ui/src/Button';
 import Input from '../../../../../../packages/ui/src/Input';
@@ -227,6 +228,7 @@ function saveResultHasMetadataError(result: SaveResult): result is { ok: false; 
 }
 
 export default function SecurityPage(props: Partial<SecurityPageProps> = {}) {
+  const t = useTranslations('settings.security');
   const {
     policy = defaultPolicy,
     sso = defaultSso,
@@ -292,7 +294,7 @@ export default function SecurityPage(props: Partial<SecurityPageProps> = {}) {
   return (
     <main className="space-y-5 p-6">
       <header>
-        <h1 className="text-2xl font-semibold">Security</h1>
+        <h1 className="text-2xl font-semibold">{t('heading')}</h1>
         <p className="mt-1 text-sm text-slate-500">Authentication, session, and password policy.</p>
       </header>
 

@@ -14,5 +14,53 @@
   },
   "items": {
     "count": "{count, plural, one {# element} few {# elemente} other {# de elemente}}"
+  },
+  "onboarding": {
+    "wizard_title": "Asistent de configurare",
+    "wizard_subtitle": "Configurare în 6 pași · țintă <15 minute · stare salvată automat (organizations.onboarding_state). {percent}% finalizat.",
+    "step_eyebrow": "SET-001..006",
+    "in_progress_eyebrow": "Configurare",
+    "in_progress_title": "Configurare în curs",
+    "in_progress_body": "Configurarea organizației este încă în curs. Un administrator trebuie să finalizeze configurarea înainte ca acest spațiu de lucru să fie disponibil.",
+    "restart": "Reia",
+    "skip_step": "Sări peste acest pas →",
+    "back": "← Înapoi",
+    "continue": "Continuă →",
+    "saving": "Se salvează…",
+    "loading": "Se încarcă profilul de configurare…",
+    "loading_aria": "Se încarcă profilul de configurare",
+    "error_load": "Profilul de configurare nu a putut fi încărcat. Starea salvată a asistentului rămâne neschimbată.",
+    "permission_denied": "Permisiune refuzată: settings.onboarding.write este necesară pentru a continua configurarea.",
+    "retry": "Reîncearcă",
+    "gs1_required": "Prefixul companiei GS1 este obligatoriu pentru generarea SSCC",
+    "finish": "Finalizează configurarea",
+    "save_failed": "Profilul organizației nu a putut fi salvat."
+  },
+  "settings": {
+    "users": {
+      "heading": "Utilizatori și roluri",
+      "invite_user": "+ Invită utilizator",
+      "export": "Exportă",
+      "error_load": "Utilizatorii nu au putut fi încărcați. Încercați să reîmprospătați pagina de utilizatori din setări.",
+      "permission_denied": "Permisiune refuzată: settings.users.manage este necesară pentru a administra utilizatorii și rolurile."
+    },
+    "invitations": {
+      "heading": "Invitații în așteptare"
+    },
+    "roles": {
+      "heading": "Roluri și permisiuni"
+    },
+    "authorization": {
+      "heading": "Politici de autorizare"
+    },
+    "security": {
+      "heading": "Securitate"
+    },
+    "reference_mfg": {
+      "heading": "Operațiuni de producție",
+      "add_operation": "Adaugă operațiune nouă",
+      "reset_seed": "Resetează la date inițiale",
+      "delete_inactive": "Șterge rândurile inactive"
+    }
   }
 }

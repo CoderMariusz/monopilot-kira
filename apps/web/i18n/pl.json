@@ -14,5 +14,53 @@
   },
   "items": {
     "count": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}"
+  },
+  "onboarding": {
+    "wizard_title": "Kreator wdrożenia",
+    "wizard_subtitle": "Konfiguracja w 6 krokach · cel <15 minut · stan zapisywany automatycznie (organizations.onboarding_state). Ukończono {percent}%.",
+    "step_eyebrow": "SET-001..006",
+    "in_progress_eyebrow": "Wdrożenie",
+    "in_progress_title": "Wdrożenie w toku",
+    "in_progress_body": "Konfiguracja Twojej organizacji jest jeszcze w trakcie. Administrator musi ukończyć wdrożenie, zanim ta przestrzeń robocza będzie dostępna.",
+    "restart": "Zacznij od nowa",
+    "skip_step": "Pomiń ten krok →",
+    "back": "← Wstecz",
+    "continue": "Dalej →",
+    "saving": "Zapisywanie…",
+    "loading": "Ładowanie profilu wdrożenia…",
+    "loading_aria": "Ładowanie profilu wdrożenia",
+    "error_load": "Nie udało się załadować profilu wdrożenia. Zapisany stan kreatora pozostaje bez zmian.",
+    "permission_denied": "Brak uprawnień: wymagane settings.onboarding.write, aby kontynuować wdrożenie.",
+    "retry": "Spróbuj ponownie",
+    "gs1_required": "Prefiks firmy GS1 jest wymagany do generowania SSCC",
+    "finish": "Zakończ wdrożenie",
+    "save_failed": "Nie udało się zapisać profilu organizacji."
+  },
+  "settings": {
+    "users": {
+      "heading": "Użytkownicy i role",
+      "invite_user": "+ Zaproś użytkownika",
+      "export": "Eksportuj",
+      "error_load": "Nie udało się załadować użytkowników. Spróbuj odświeżyć stronę użytkowników w ustawieniach.",
+      "permission_denied": "Brak uprawnień: wymagane settings.users.manage, aby zarządzać użytkownikami i rolami."
+    },
+    "invitations": {
+      "heading": "Oczekujące zaproszenia"
+    },
+    "roles": {
+      "heading": "Role i uprawnienia"
+    },
+    "authorization": {
+      "heading": "Zasady autoryzacji"
+    },
+    "security": {
+      "heading": "Bezpieczeństwo"
+    },
+    "reference_mfg": {
+      "heading": "Operacje produkcyjne",
+      "add_operation": "Dodaj nową operację",
+      "reset_seed": "Przywróć dane początkowe",
+      "delete_inactive": "Usuń nieaktywne wiersze"
+    }
   }
 }

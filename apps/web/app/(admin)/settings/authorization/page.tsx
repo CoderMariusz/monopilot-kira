@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@monopilot/ui/Button";
 import Textarea from "@monopilot/ui/Textarea";
 import { updateAuthorizationPolicy } from "../../../../actions/authorization/policy-actions";
@@ -210,6 +211,7 @@ export default function AuthorizationPoliciesPage({
   auditLogHref = "/settings/audit?entity=org_authorization_policies",
   onSave,
 }: AuthorizationPoliciesPageProps) {
+  const t = useTranslations('settings.authorization');
   const [savedPolicies, setSavedPolicies] = useState<PolicySummary[]>(policies.map(enforcePolicyInvariants));
   const [draftPolicies, setDraftPolicies] = useState<PolicySummary[]>(policies.map(enforcePolicyInvariants));
   const [auditReason, setAuditReason] = useState("");
@@ -313,7 +315,7 @@ export default function AuthorizationPoliciesPage({
     <main aria-labelledby="authorization-policies-heading" className="space-y-5 p-6">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Settings / Authorization</p>
-        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">Authorization Policies</h1>
+        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">{t('heading')}</h1>
         <p className="max-w-3xl text-sm text-slate-500">
           Manage org_authorization_policies for NPD post-release edits and Technical approval gates.
           These summaries expose policy state while server-side T-126 blockers remain authoritative.

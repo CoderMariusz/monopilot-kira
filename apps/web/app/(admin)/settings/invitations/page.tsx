@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '../../../../../../packages/ui/src/Button';
 
@@ -172,6 +173,7 @@ function RevokeDialog({
 }
 
 export default function InvitationsPage(props: Partial<InvitationsPageProps> = {}) {
+  const t = useTranslations('settings.invitations');
   const isControlled = 'invitations' in props || 'permissions' in props || 'state' in props;
   const [runtimeInvitations, setRuntimeInvitations] = useState<PendingInvitation[]>([]);
   const [runtimePermissions, setRuntimePermissions] = useState<string[]>([]);
@@ -293,7 +295,7 @@ export default function InvitationsPage(props: Partial<InvitationsPageProps> = {
     <main className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Pending Invitations</h1>
+          <h1 className="text-2xl font-semibold">{t('heading')}</h1>
           <p className="text-sm text-muted-foreground">
             View and manage outstanding user invitations for this organisation.
           </p>
