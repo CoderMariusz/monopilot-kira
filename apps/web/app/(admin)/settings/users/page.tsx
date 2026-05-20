@@ -3,8 +3,8 @@
 import React, { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Button } from '../../../../../../packages/ui/src/Button';
-import Input from '../../../../../../packages/ui/src/Input';
+import { Button } from '@monopilot/ui/Button';
+import Input from '@monopilot/ui/Input';
 
 type UserRoleCode =
   | 'org_admin'

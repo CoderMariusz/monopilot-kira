@@ -3,7 +3,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Button } from '../../../../../../packages/ui/src/Button';
+import { Button } from '@monopilot/ui/Button';
 
 type InvitationStatus = 'pending' | 'expired' | 'accepted';
 

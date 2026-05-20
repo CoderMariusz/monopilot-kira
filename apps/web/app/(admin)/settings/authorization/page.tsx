@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useTranslations } from "next-intl";
 import { Button } from "@monopilot/ui/Button";
 import Textarea from "@monopilot/ui/Textarea";
 import { updateAuthorizationPolicy } from "../../../../actions/authorization/policy-actions";
@@ -48,30 +47,6 @@ type AuthorizationPoliciesPageProps = {
   auditLogHref?: string;
   onSave?: (input: SaveAuthorizationPoliciesInput) => Promise<SaveAuthorizationPoliciesResult> | SaveAuthorizationPoliciesResult;
 };
-
-const defaultPolicies: PolicySummary[] = [
-  {
-    policyCode: "npd_post_release_edit",
-    title: "NPD post-release edit authorization",
-    status: "enabled",
-    version: 1,
-    requiredPermission: "npd.post_release_edit.authorize",
-    requestPermissions: ["npd.post_release_edit.request"],
-    authorizerRoles: ["NPD Manager", "QA Manager"],
-    requiresNewVersion: true,
-  },
-  {
-    policyCode: "technical_product_spec_approval",
-    title: "Technical product-spec approval gate",
-    status: "enabled",
-    version: 1,
-    requiredPermission: "technical.product_spec.approve",
-    authorizerRoles: ["Technical Approver"],
-    minApprovers: 1,
-    approvalGateRuleCode: "technical_product_spec_approval_gate_v1",
-    factoryUseBlockingLocked: true,
-  },
-];
 
 function statusLabel(status: PolicyStatus) {
   if (status === "missing_seed") return "Missing seed";
@@ -207,17 +182,35 @@ function policyInvariants(policy: PolicySummary) {
 
 export default function AuthorizationPoliciesPage({
   canEdit = false,
-  policies = defaultPolicies,
+  policies,
   auditLogHref = "/settings/audit?entity=org_authorization_policies",
   onSave,
 }: AuthorizationPoliciesPageProps) {
-  const t = useTranslations('settings.authorization');
-  const [savedPolicies, setSavedPolicies] = useState<PolicySummary[]>(policies.map(enforcePolicyInvariants));
-  const [draftPolicies, setDraftPolicies] = useState<PolicySummary[]>(policies.map(enforcePolicyInvariants));
+  const policiesNotWired = policies === undefined;
+  const initialPolicies = policiesNotWired ? [] : policies.map(enforcePolicyInvariants);
+  const [savedPolicies, setSavedPolicies] = useState<PolicySummary[]>(initialPolicies);
+  const [draftPolicies, setDraftPolicies] = useState<PolicySummary[]>(initialPolicies);
   const [auditReason, setAuditReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const saveBlocked = hasBlockers(draftPolicies);
+
+  if (policiesNotWired) {
+    return (
+      <main aria-labelledby="authorization-policies-heading" className="space-y-5 p-6">
+        <header className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Settings / Authorization</p>
+          <h1 id="authorization-policies-heading" className="text-2xl font-semibold">Authorization Policies</h1>
+        </header>
+        <div role="alert" data-testid="settings-authorization-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Authorization policies are not available.</strong>
+          <p className="mt-1">
+            The org_authorization_policies server loader has not been wired in this environment. No default policies are shown.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   async function handleSave() {
     if (saveBlocked || isSaving) return;
@@ -315,7 +308,7 @@ export default function AuthorizationPoliciesPage({
     <main aria-labelledby="authorization-policies-heading" className="space-y-5 p-6">
       <header className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Settings / Authorization</p>
-        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">{t('heading')}</h1>
+        <h1 id="authorization-policies-heading" className="text-2xl font-semibold">Authorization Policies</h1>
         <p className="max-w-3xl text-sm text-slate-500">
           Manage org_authorization_policies for NPD post-release edits and Technical approval gates.
           These summaries expose policy state while server-side T-126 blockers remain authoritative.

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useId, useMemo, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import React, { useId, useState } from 'react';
 
 type RoleCode =
   | 'owner'
@@ -49,78 +48,11 @@ type RolesPageProps = {
   assignRole: AssignRole;
 };
 
-const defaultRoles: SystemRole[] = [
-  { code: 'owner', name: 'Owner', usersAssigned: 1, scope: 'Full system' },
-  { code: 'admin', name: 'Admin', usersAssigned: 2, scope: 'Full system' },
-  { code: 'npd_manager', name: 'NPD Manager', usersAssigned: 3, scope: 'Workflow-scoped' },
-  { code: 'module_admin', name: 'Module Admin', usersAssigned: 4, scope: 'Module-scoped' },
-  { code: 'planner', name: 'Planner', usersAssigned: 5, scope: 'Module-scoped' },
-  { code: 'production_lead', name: 'Production Lead', usersAssigned: 6, scope: 'Module-scoped' },
-  { code: 'quality_lead', name: 'Quality Lead', usersAssigned: 7, scope: 'Module-scoped' },
-  { code: 'warehouse_operator', name: 'Warehouse Operator', usersAssigned: 8, scope: 'Module-scoped' },
-  { code: 'auditor', name: 'Auditor', usersAssigned: 9, scope: 'Read-only' },
-  { code: 'viewer', name: 'Viewer', usersAssigned: 10, scope: 'Read-only' },
-];
-
-const defaultNpdPermissions: RolePermission[] = [
-  {
-    group: 'Settings',
-    name: 'settings.roles.view',
-    directlyGrantedBySeed: true,
-    status: 'enabled',
-    policySummary: 'System default grant from role seed.',
-  },
-  {
-    group: 'Settings',
-    name: 'settings.roles.assign',
-    directlyGrantedBySeed: false,
-    status: 'disabled_by_org_policy',
-    policySummary: 'Role assignment is disabled by org authorization policy.',
-  },
-  {
-    group: 'NPD workflow authorization',
-    name: 'npd.released_product_edit.request',
-    directlyGrantedBySeed: true,
-    status: 'enabled',
-    policySummary: 'Request workflow remains enabled by org policy.',
-  },
-  {
-    group: 'NPD workflow authorization',
-    name: 'npd.released_product_edit.authorize',
-    directlyGrantedBySeed: true,
-    status: 'disabled_by_org_policy',
-    policySummary: 'Authorization policy is disabled for released-product edits.',
-  },
-  {
-    group: 'Technical approval',
-    name: 'technical.product_spec.approve',
-    directlyGrantedBySeed: true,
-    status: 'misconfigured_policy',
-    policySummary: 'Technical approval policy is misconfigured: approver role seed is missing.',
-  },
-];
-
-const defaultPermissionsByRole = defaultRoles.reduce<Record<RoleCode, RolePermission[]>>((acc, role) => {
-  acc[role.code] = role.code === 'npd_manager'
-    ? defaultNpdPermissions
-    : [
-        {
-          group: 'Settings',
-          name: 'settings.roles.view',
-          directlyGrantedBySeed: true,
-          status: 'enabled',
-          policySummary: 'System default grant from role seed.',
-        },
-      ];
-  return acc;
-}, {} as Record<RoleCode, RolePermission[]>);
-
-const defaultAssignableUsers: AssignableUser[] = [
-  { id: 'user-nora', name: 'Nora NPD', email: 'nora.npd@example.test', currentRoleCode: 'viewer' },
-  { id: 'user-ada', name: 'Ada Admin', email: 'ada.admin@example.test', currentRoleCode: 'admin' },
-];
-
 const permissionGroups: RolePermission['group'][] = ['Settings', 'NPD workflow authorization', 'Technical approval'];
+
+function assignRoleNotWired(): Promise<never> {
+  return Promise.reject(new Error('settings.roles.assign action is not wired'));
+}
 
 function statusLabel(status: PermissionStatus) {
   if (status === 'disabled_by_org_policy') return 'Org policy block';
@@ -372,22 +304,39 @@ function AssignRoleDialog({
 }
 
 export default function RolesPage(props: Partial<RolesPageProps> = {}) {
-  const t = useTranslations('settings.roles');
-  const roles = props.roles ?? defaultRoles;
-  const permissionsByRole = props.permissionsByRole ?? defaultPermissionsByRole;
-  const assignableUsers = props.assignableUsers ?? defaultAssignableUsers;
-  const canManageRoles = props.canManageRoles ?? true;
-  const assignRole = props.assignRole ?? (() => ({ ok: true }));
   const [permissionRole, setPermissionRole] = useState<SystemRole | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
-  const totalUsers = useMemo(() => roles.reduce((total, role) => total + role.usersAssigned, 0), [roles]);
+
+  if (props.roles === undefined || props.permissionsByRole === undefined || props.assignableUsers === undefined) {
+    return (
+      <main className="space-y-6 p-6" aria-labelledby="settings-roles-unavailable-heading">
+        <header>
+          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
+          <h1 id="settings-roles-unavailable-heading" className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
+        </header>
+        <div role="alert" data-testid="settings-roles-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Roles data is not available.</strong>
+          <p className="mt-1">
+            The settings.roles.view server data loader has not been wired in this environment. No seeded fixtures are shown.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const roles = props.roles;
+  const permissionsByRole = props.permissionsByRole;
+  const assignableUsers = props.assignableUsers;
+  const canManageRoles = props.canManageRoles ?? false;
+  const assignRole = props.assignRole ?? assignRoleNotWired;
+  const totalUsers = roles.reduce((total, role) => total + role.usersAssigned, 0);
 
   return (
     <main className="space-y-6 p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 className="text-3xl font-bold tracking-tight">{t('heading')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
           <p className="mt-1 text-sm text-slate-600">
             Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
           </p>

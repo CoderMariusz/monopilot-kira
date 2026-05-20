@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
 import { Button } from '@monopilot/ui/Button';
 
 type IndustryCode = 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
@@ -37,8 +36,6 @@ const industryOptions: Array<{ value: IndustryFilter; label: string }> = [
   { value: 'custom', label: 'Custom' },
 ];
 
-const defaultOperations: ManufacturingOperation[] = [];
-
 function sortBySequence(operations: ManufacturingOperation[]) {
   return [...operations].sort((a, b) => a.operation_seq - b.operation_seq || a.operation_name.localeCompare(b.operation_name));
 }
@@ -67,7 +64,7 @@ function reorderBefore(
 }
 
 export default function ManufacturingOperationsPage({
-  operations = defaultOperations,
+  operations,
   industryFilter = 'all',
   showInactive = false,
   reorderOperations,
@@ -76,19 +73,35 @@ export default function ManufacturingOperationsPage({
   onEditOperation,
   onDeactivateOperation,
 }: ManufacturingOperationsPageProps) {
-  const t = useTranslations('settings.reference_mfg');
+  const operationsUnavailable = operations === undefined;
+  const operationsList = operations ?? [];
   const [selectedIndustry, setSelectedIndustry] = React.useState<IndustryFilter>(industryFilter);
   const [includeInactive, setIncludeInactive] = React.useState(showInactive);
-  const [orderedOperations, setOrderedOperations] = React.useState(() => sortBySequence(operations));
+  const [orderedOperations, setOrderedOperations] = React.useState(() => sortBySequence(operationsList));
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
-  const previousOperations = React.useRef(operations);
+  const previousOperations = React.useRef(operationsList);
 
   React.useEffect(() => {
-    if (previousOperations.current !== operations) {
-      previousOperations.current = operations;
-      setOrderedOperations(sortBySequence(operations));
+    if (previousOperations.current !== operationsList) {
+      previousOperations.current = operationsList;
+      setOrderedOperations(sortBySequence(operationsList));
     }
-  }, [operations]);
+  }, [operationsList]);
+
+  if (operationsUnavailable) {
+    return (
+      <main aria-labelledby="manufacturing-operations-heading" className="settings-reference-page p-6">
+        <header>
+          <p>SET-055 / PRD §8.9.4</p>
+          <h1 id="manufacturing-operations-heading">Manufacturing Operations</h1>
+        </header>
+        <div role="alert" data-testid="settings-manufacturing-operations-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Manufacturing operations are not available.</strong>
+          <p>The manufacturing_operations server loader has not been wired in this environment. No seed data is shown.</p>
+        </div>
+      </main>
+    );
+  }
 
   const visibleOperations = orderedOperations.filter((operation) => {
     const industryMatches = selectedIndustry === 'all' || operation.industry_code === selectedIndustry;
@@ -140,7 +153,7 @@ export default function ManufacturingOperationsPage({
 
       <header>
         <p>SET-055 / PRD §8.9.4</p>
-        <h1 id="manufacturing-operations-heading">{t('heading')}</h1>
+        <h1 id="manufacturing-operations-heading">Manufacturing Operations</h1>
         <p>
           Configure tenant-specific operation names, process suffixes, industry seed sets, active state,
           and recipe sequence order.
@@ -149,12 +162,12 @@ export default function ManufacturingOperationsPage({
 
       <section aria-label="Manufacturing operations toolbar">
         <Button type="button" onClick={() => onAddOperation?.()}>
-          {t('add_operation')}
+          Add New Operation
         </Button>
         <Button type="button" onClick={() => resetToSeed?.()}>
-          {t('reset_seed')}
+          Reset to seed data
         </Button>
-        <Button type="button">{t('delete_inactive')}</Button>
+        <Button type="button">Delete inactive rows</Button>
 
         <label>
           Industry
