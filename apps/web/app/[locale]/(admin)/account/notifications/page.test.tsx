@@ -11,8 +11,7 @@
 
 import React from 'react';
 import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -50,8 +49,7 @@ type MyNotificationsPageProps = {
 
 type MyNotificationsPage = (props: MyNotificationsPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pagePath = resolve(__dirname, 'page.tsx');
+const pagePath = resolve(process.cwd(), 'app/[locale]/(admin)/account/notifications/page.tsx');
 
 const basePreferences: NotificationPreferences = {
   notification_badges: true,
@@ -156,7 +154,7 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
 
     expect(screen.getByRole('heading', { name: /^My notifications$/i })).toBeInTheDocument();
     expect(screen.getByText(/choose which alerts reach you, and where/i)).toBeInTheDocument();
-    expect(orderedRegions()).toEqual(['page-head', 'per-event-prefs', 'browser-push', 'quiet-hours']);
+    expect(orderedRegions()).toEqual(['page-head', 'browser-push', 'per-event-prefs', 'quiet-hours']);
 
     const perEvent = screen.getByRole('region', { name: /^Email preferences$/i });
     expect(within(perEvent).getByRole('switch', { name: /^Work order assigned to me$/i })).toBeChecked();
@@ -185,18 +183,18 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
     }
 
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Work order assigned to me$/i })).toHaveFocus();
+    expect(screen.getByRole('switch', { name: /^Show notification badges$/i })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Approval requested$/i })).toHaveFocus();
+    expect(screen.getByRole('switch', { name: /^Desktop notifications$/i })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Daily plant summary$/i })).toHaveFocus();
+    expect(screen.getByRole('switch', { name: /^Sound on alert$/i })).toHaveFocus();
 
     expect(notificationSummary()).toMatchInlineSnapshot(`
       {
         "headings": [
           "My notifications",
-          "Email preferences",
           "In-app",
+          "Email preferences",
           "Quiet hours",
         ],
         "quietHourInputs": [
@@ -205,11 +203,26 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
         ],
         "regions": [
           "page-head",
-          "per-event-prefs",
           "browser-push",
+          "per-event-prefs",
           "quiet-hours",
         ],
         "switches": [
+          {
+            "checked": "true",
+            "name": "Show notification badges",
+            "slot": "switch",
+          },
+          {
+            "checked": "true",
+            "name": "Desktop notifications",
+            "slot": "switch",
+          },
+          {
+            "checked": "false",
+            "name": "Sound on alert",
+            "slot": "switch",
+          },
           {
             "checked": "true",
             "name": "Work order assigned to me",
@@ -233,21 +246,6 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
           {
             "checked": "false",
             "name": "Product updates & tips",
-            "slot": "switch",
-          },
-          {
-            "checked": "true",
-            "name": "Show notification badges",
-            "slot": "switch",
-          },
-          {
-            "checked": "true",
-            "name": "Desktop notifications",
-            "slot": "switch",
-          },
-          {
-            "checked": "false",
-            "name": "Sound on alert",
             "slot": "switch",
           },
           {

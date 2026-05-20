@@ -241,8 +241,8 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
       h(PageHead),
       h(
         Section,
-        { id: 'per-event-prefs', title: 'Email preferences' },
-        perEventRows.map((row) =>
+        { id: 'browser-push', title: 'In-app' },
+        browserPushRows.map((row) =>
           h(
             SettingRow,
             { key: row.key, label: row.label, hint: row.hint },
@@ -252,8 +252,8 @@ export default class MyNotificationsPage extends React.Component<MyNotifications
       ),
       h(
         Section,
-        { id: 'browser-push', title: 'In-app' },
-        browserPushRows.map((row) =>
+        { id: 'per-event-prefs', title: 'Email preferences' },
+        perEventRows.map((row) =>
           h(
             SettingRow,
             { key: row.key, label: row.label, hint: row.hint },
