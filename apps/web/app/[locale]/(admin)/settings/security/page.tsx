@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
@@ -148,7 +150,6 @@ function SwitchControl({
       aria-label={label}
       checked={checked}
       className="h-5 w-9 rounded-full border border-slate-300 accent-slate-900 disabled:opacity-60"
-      data-slot="switch"
       disabled={disabled}
       onChange={(event) => onChange?.(event.currentTarget.checked)}
       role="switch"
@@ -157,10 +158,20 @@ function SwitchControl({
   );
 }
 
-function CheckboxControl({ label, checked, disabled }: { label: string; checked: boolean; disabled?: boolean }) {
+function CheckboxControl({
+  label,
+  checked,
+  disabled,
+  title,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  title?: string;
+}) {
   return (
     <label className="flex items-center gap-2 text-sm text-slate-900">
-      <input aria-label={label} defaultChecked={checked} data-slot="checkbox" disabled={disabled} type="checkbox" />
+      <input aria-label={label} defaultChecked={checked} disabled={disabled} title={title} type="checkbox" />
       <span>{label}</span>
     </label>
   );
@@ -181,7 +192,6 @@ function SelectControl<T extends string>({
     <select
       aria-label={label}
       className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-      data-slot="select"
       defaultValue={value}
       disabled={disabled}
       name={label}
@@ -267,7 +277,7 @@ async function defaultSaveSecuritySettings(nextData: SecurityScreenData) {
 export default function SecurityPage({
   data = defaultSecurityData,
   state = 'ready',
-  canManageSecurity = true,
+  canManageSecurity = false,
   saveSecuritySettings = defaultSaveSecuritySettings,
 }: SecurityPageProps) {
   const [screenData, setScreenData] = React.useState(data);
@@ -291,15 +301,17 @@ export default function SecurityPage({
 
     startTransition(async () => {
       const result = await saveSecuritySettings(nextData);
-      if (result.ok) {
+      if (result.ok === true) {
         setScreenData(result.data ?? nextData);
         return;
       }
 
-      setFieldError(result.fieldErrors?.enforceSso ?? result.code ?? 'Unable to save security settings');
-      const rollbackData = result.data ?? { ...nextData, sso: { ...nextData.sso, enforceSso: false } };
-      setScreenData(rollbackData);
-      setEnforceSso(rollbackData.sso.enforceSso);
+      if (result.ok === false) {
+        setFieldError(result.fieldErrors?.enforceSso ?? result.code ?? 'Unable to save security settings');
+        const rollbackData = result.data ?? { ...nextData, sso: { ...nextData.sso, enforceSso: false } };
+        setScreenData(rollbackData);
+        setEnforceSso(rollbackData.sso.enforceSso);
+      }
     });
   }
 
@@ -323,7 +335,12 @@ export default function SecurityPage({
           <div className="flex flex-col gap-1.5">
             <CheckboxControl label="Authenticator app (TOTP)" checked={screenData.twoFactor.allowedMethods.includes('totp')} disabled={isPending} />
             <CheckboxControl label="SMS" checked={screenData.twoFactor.allowedMethods.includes('sms')} disabled={isPending} />
-            <CheckboxControl label="Hardware key (WebAuthn)" checked={screenData.twoFactor.allowedMethods.includes('webauthn')} disabled={isPending} />
+            <CheckboxControl
+              label="Hardware key (WebAuthn)"
+              checked={screenData.twoFactor.allowedMethods.includes('webauthn')}
+              disabled
+              title="Coming Phase 3"
+            />
           </div>
         </SRow>
       </Section>
@@ -440,7 +457,7 @@ export default function SecurityPage({
 
       <Section region="audit-preview" title="Audit log" action={<Button type="button" className="btn-ghost btn-sm">View full log →</Button>}>
         <div className="overflow-x-auto px-5 py-4">
-          <table aria-label="Security audit log preview" className="w-full border-collapse text-sm" data-slot="table">
+          <table aria-label="Security audit log preview" className="w-full border-collapse text-sm">
             <thead>
               <tr>
                 <th scope="col" className="p-2 text-left">When</th>

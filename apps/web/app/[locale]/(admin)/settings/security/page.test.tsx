@@ -10,7 +10,7 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -154,10 +154,8 @@ async function loadSecurityPage(): Promise<SecurityPage> {
       expect.any(Function),
     );
     return mod.default as SecurityPage;
-  } catch {
-    return function MissingSecurityPage() {
-      return React.createElement('main', { 'data-testid': 'missing-security-page' });
-    };
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -249,7 +247,10 @@ describe('SET-012 security screen prototype parity', () => {
     expect(within(twoFactor).getByRole('switch', { name: /enforce 2fa for all users/i })).not.toBeChecked();
     expect(within(twoFactor).getByRole('checkbox', { name: /authenticator app \(totp\)/i })).toBeChecked();
     expect(within(twoFactor).getByRole('checkbox', { name: /sms/i })).toBeChecked();
-    expect(within(twoFactor).getByRole('checkbox', { name: /hardware key \(webauthn\)/i })).not.toBeChecked();
+    const webAuthn = within(twoFactor).getByRole('checkbox', { name: /hardware key \(webauthn\)/i });
+    expect(webAuthn).not.toBeChecked();
+    expect(webAuthn).toBeDisabled();
+    expect(webAuthn).toHaveAttribute('title', 'Coming Phase 3');
 
     const passwordPolicy = screen.getByRole('region', { name: /password policy/i });
     expect(within(passwordPolicy).getByRole('spinbutton', { name: /minimum length/i })).toHaveValue(12);
@@ -274,15 +275,14 @@ describe('SET-012 security screen prototype parity', () => {
     expect(within(ipAllowlist).getByText(/not configured/i)).toBeInTheDocument();
     const addRange = within(ipAllowlist).getByRole('button', { name: /add range/i });
     expect(addRange).toHaveAttribute('data-modal-target', 'SM-IP-ALLOWLIST');
-    await user.click(addRange);
+    await act(async () => {
+      await user.click(addRange);
+    });
     expect(screen.getByRole('dialog', { name: /add ip range/i })).toHaveAttribute('data-modal-id', 'SM-IP-ALLOWLIST');
 
-    expect(container.querySelectorAll('[data-slot="switch"]').length).toBeGreaterThanOrEqual(4);
-    expect(container.querySelectorAll('[data-slot="checkbox"]').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('input[data-slot="switch"], input[data-slot="checkbox"], select[data-slot], table[data-slot]').length).toBe(0);
     expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(2);
-    expect(container.querySelectorAll('[data-slot="select-trigger"], [data-slot="select"]').length).toBeGreaterThanOrEqual(4);
-    expect(container.querySelectorAll('[data-slot="table"]').length).toBe(1);
-    expect(container.querySelector('button[data-slot="button"]')).toBeInTheDocument();
+    expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(2);
 
     await user.tab();
     expect(screen.getByRole('switch', { name: /enforce 2fa for admins/i })).toHaveFocus();
@@ -350,9 +350,13 @@ describe('SET-012 security screen prototype parity', () => {
     const ssoSwitch = screen.getByRole('switch', { name: /enforce sso/i });
     expect(ssoSwitch).not.toBeChecked();
 
-    await user.click(ssoSwitch);
+    await act(async () => {
+      await user.click(ssoSwitch);
+    });
     expect(ssoSwitch).toBeChecked();
-    await user.click(screen.getByRole('button', { name: /save security settings/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save security settings/i }));
+    });
 
     expect(saveSecuritySettings).toHaveBeenCalledWith(
       expect.objectContaining({
