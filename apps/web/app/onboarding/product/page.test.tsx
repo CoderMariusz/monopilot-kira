@@ -15,8 +15,18 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+const { getTranslationsMock } = vi.hoisted(() => ({
+  getTranslationsMock: vi.fn(async () => (key: string) => `__i18n__:${key}`),
+}));
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: getTranslationsMock,
+}));
+
 import OnboardingProductPage from './page';
 
+const repoRoot = path.resolve(__dirname, '../../../../..');
 const pageSourcePath = path.join(__dirname, 'page.tsx');
 const parityReportPath = path.resolve(
   __dirname,
@@ -125,6 +135,32 @@ function renderProductionRouteEntry() {
   return render(React.createElement(OnboardingProductPage, {} as OnboardingProductPageProps));
 }
 
+async function resolveProductionRouteEntry() {
+  const route = OnboardingProductPage as unknown as (props?: unknown) => React.ReactNode | Promise<React.ReactNode>;
+  return Promise.resolve(route({ params: { locale: 'pl' } }));
+}
+
+async function renderResolvedProductionRouteEntry() {
+  const element = await resolveProductionRouteEntry();
+  return render(<>{element}</>);
+}
+
+function collectStrings(value: unknown, seen = new Set<unknown>()): string[] {
+  if (typeof value === 'string') return [value];
+  if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'number') return [];
+  if (typeof value === 'function' || typeof value === 'symbol') return [];
+  if (typeof value !== 'object') return [];
+  if (seen.has(value)) return [];
+  seen.add(value);
+
+  if (Array.isArray(value)) return value.flatMap((entry) => collectStrings(entry, seen));
+  return Object.values(value as Record<string, unknown>).flatMap((entry) => collectStrings(entry, seen));
+}
+
+function resolveArtifactPath(artifactPath: string) {
+  return path.isAbsolute(artifactPath) ? artifactPath : path.resolve(repoRoot, artifactPath);
+}
+
 function stepperLabels() {
   return screen.getAllByRole('button', { name: /SET-00[1-6]/ }).map((button) => button.textContent);
 }
@@ -146,6 +182,28 @@ afterEach(() => {
 });
 
 describe('SET-004 onboarding first-product redirect-card prototype parity', () => {
+  it('resolves the production route as a Server Component without executing client hooks in page.tsx', async () => {
+    await expect(resolveProductionRouteEntry()).resolves.toBeTruthy();
+    expect(getTranslationsMock).toHaveBeenCalled();
+  });
+
+  it('renders next-intl supplied copy from the production route instead of hardcoded English fallback text', async () => {
+    await renderResolvedProductionRouteEntry();
+
+    expect(getTranslationsMock).toHaveBeenCalled();
+    expect(document.body).toHaveTextContent(/__i18n__:/);
+    expect(document.body).not.toHaveTextContent(/Onboarding wizard|Create your first product|Open product editor|Skip this step|Soft redirect into the Technical module/i);
+  });
+
+  it('passes translated strings from getTranslations through the server route into the rendered client props', async () => {
+    const routeElement = await resolveProductionRouteEntry();
+    const strings = collectStrings(routeElement);
+
+    expect(getTranslationsMock).toHaveBeenCalled();
+    expect(strings.some((entry) => entry.startsWith('__i18n__:')), 'server route must materialize translated strings, not pass a voided getTranslations import').toBe(true);
+    expect(strings.join('\n')).not.toMatch(/Create your first product|Open product editor|Permission denied|Couldn't load onboarding progress/i);
+  });
+
   it('keeps page.tsx as a Server Component boundary that gets translated copy server-side', () => {
     const pageSource = readFileSync(pageSourcePath, 'utf8');
     const normalizedSource = pageSource.trimStart();
@@ -227,8 +285,21 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
           expect.objectContaining({ viewport, region, prototype: expect.any(String), target: expect.any(String) }),
         ]),
       );
+
+      const pair = report.screenshot_pairs?.find((entry) => entry.viewport === viewport && entry.region === region);
+      for (const kind of ['prototype', 'target'] as const) {
+        const artifactPath = pair?.[kind];
+        expect(artifactPath, `Missing ${kind} screenshot path for ${viewport}/${region}`).toEqual(expect.stringMatching(/\.png$/));
+        expect(
+          existsSync(resolveArtifactPath(artifactPath!)),
+          `Missing ${kind} screenshot PNG for ${viewport}/${region}: ${artifactPath}`,
+        ).toBe(true);
+      }
     }
-    expect(report.dom_diff_json).toEqual(expect.anything());
+    expect(report.dom_diff_json, 'dom_diff_json must point to a real DOM diff JSON artifact, not an inline stub marker').toEqual(
+      expect.stringMatching(/\.json$/),
+    );
+    expect(existsSync(resolveArtifactPath(report.dom_diff_json as string)), `Missing DOM diff JSON: ${String(report.dom_diff_json)}`).toBe(true);
   });
 
   it('renders SET-004 from the production route boundary without test-injected props or client-only fallback', async () => {
