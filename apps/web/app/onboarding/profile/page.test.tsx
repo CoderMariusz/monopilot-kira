@@ -11,7 +11,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const routerPush = vi.fn();
@@ -65,7 +65,7 @@ type OrgProfileResult =
   | { ok: false; error: 'VALIDATION_FAILED' | 'PERSISTENCE_FAILED'; field?: keyof OrgProfileInput; message?: string };
 
 type OnboardingProfilePageProps = {
-  organization: {
+  organization?: {
     id: string;
     name: string;
     timezone: string;
@@ -74,14 +74,14 @@ type OnboardingProfilePageProps = {
     gs1Prefix: string;
     onboardingCompletedAt: string | null;
   };
-  onboardingState: {
+  onboardingState?: {
     currentStep: 'org_profile';
     completedSteps: OnboardingStepKey[];
     skippedSteps: OnboardingStepKey[];
     savedAt: string;
   };
   state?: 'ready' | 'loading' | 'error' | 'permission_denied';
-  saveOrgProfile: ReturnType<typeof vi.fn>;
+  saveOrgProfile?: ReturnType<typeof vi.fn>;
   retryLoad?: ReturnType<typeof vi.fn>;
 };
 
@@ -125,18 +125,12 @@ const baseProps: OnboardingProfilePageProps = {
 };
 
 async function loadOnboardingProfilePage(): Promise<OnboardingProfilePage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-001 profile page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as OnboardingProfilePage;
-  } catch {
-    return function MissingOnboardingProfilePage() {
-      return React.createElement('main', { 'data-testid': 'missing-onboarding-profile-page' });
-    };
-  }
+  const pageModulePath = './page';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  expect(mod.default, 'SET-001 profile page must default-export a renderable React component').toEqual(
+    expect.any(Function),
+  );
+  return mod.default as OnboardingProfilePage;
 }
 
 async function renderProfile(overrides: Partial<OnboardingProfilePageProps> = {}) {
@@ -144,8 +138,8 @@ async function renderProfile(overrides: Partial<OnboardingProfilePageProps> = {}
   const props: OnboardingProfilePageProps = {
     ...baseProps,
     ...overrides,
-    organization: { ...baseProps.organization, ...overrides.organization },
-    onboardingState: { ...baseProps.onboardingState, ...overrides.onboardingState },
+    organization: { ...baseProps.organization!, ...(overrides.organization ?? {}) } as NonNullable<OnboardingProfilePageProps['organization']>,
+    onboardingState: { ...baseProps.onboardingState!, ...(overrides.onboardingState ?? {}) } as NonNullable<OnboardingProfilePageProps['onboardingState']>,
     saveOrgProfile: overrides.saveOrgProfile ?? vi.fn().mockResolvedValue(validResult),
     retryLoad: overrides.retryLoad ?? vi.fn(),
   };
@@ -159,6 +153,17 @@ async function renderProfile(overrides: Partial<OnboardingProfilePageProps> = {}
     props,
     ...render(React.createElement(Page as React.ComponentType<OnboardingProfilePageProps>, props)),
   };
+}
+
+async function renderProfileWithRuntimeDefaults() {
+  const Page = await loadOnboardingProfilePage();
+
+  if (Page.constructor.name === 'AsyncFunction') {
+    const node = await Page({});
+    return render(React.createElement(React.Fragment, null, node));
+  }
+
+  return render(React.createElement(Page as React.ComponentType<OnboardingProfilePageProps>));
 }
 
 function stepperLabels() {
@@ -285,5 +290,20 @@ describe('SET-001 onboarding organization-profile prototype parity', () => {
       'step',
     );
     expect(routerPush).toHaveBeenCalledWith('/onboarding/warehouse');
+  });
+
+  it('uses the page-owned Server Action path without injected test props when Next saves a valid org profile', async () => {
+    const user = userEvent.setup();
+    await renderProfileWithRuntimeDefaults();
+
+    await user.type(screen.getByLabelText(/Organization name/i), 'Apex Foods Sp. z o.o.');
+    await user.type(screen.getByLabelText(/GS1 Company Prefix/i), '5012345');
+    await user.click(screen.getByRole('button', { name: /Continue →|Next/i }));
+
+    await waitFor(() => {
+      expect(routerPush).toHaveBeenCalledWith('/onboarding/warehouse');
+    });
+    expect(screen.getByText(/onboarding_state\.current_step = 2/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Organization profile could not be saved/i)).not.toBeInTheDocument();
   });
 });
