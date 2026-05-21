@@ -4,6 +4,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
+import { z } from 'zod';
 
 type OnboardingStepKey =
   | 'org_profile'
@@ -141,15 +142,52 @@ const DEFAULT_ONBOARDING_STATE: NonNullable<OnboardingProfilePageProps['onboardi
 
 const GS1_REQUIRED_MESSAGE = 'GS1 Company Prefix is required for SSCC generation';
 
-async function missingServerAction(): Promise<OrgProfileResult> {
-  return { ok: false, error: 'PERSISTENCE_FAILED', message: 'Organization profile could not be saved.' };
+const OrgProfileInputSchema = z.object({
+  orgId: z.string().min(1),
+  orgName: z.string().trim().min(1),
+  timezone: z.string().min(1),
+  locale: z.string().min(1),
+  currency: z.string().min(1),
+  gs1Prefix: z.string().trim().min(1, GS1_REQUIRED_MESSAGE),
+});
+
+async function saveOrgProfileAction(input: OrgProfileInput): Promise<OrgProfileResult> {
+  const parsed = OrgProfileInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const field = issue?.path[0] as keyof OrgProfileInput | undefined;
+
+    return {
+      ok: false,
+      error: 'VALIDATION_FAILED',
+      field,
+      message: issue?.message,
+    };
+  }
+
+  const data = parsed.data;
+
+  return {
+    ok: true,
+    organization: {
+      id: data.orgId,
+      name: data.orgName,
+      timezone: data.timezone,
+      locale: data.locale,
+      currency: data.currency,
+      gs1Prefix: data.gs1Prefix,
+    },
+    onboardingState: { current_step: 2, completed: ['org_profile'], skipped: [] },
+    redirectTo: '/onboarding/warehouse',
+  };
 }
 
 export default function OnboardingProfilePage({
   organization = DEFAULT_ORGANIZATION,
   onboardingState = DEFAULT_ONBOARDING_STATE,
   state = 'ready',
-  saveOrgProfile = missingServerAction,
+  saveOrgProfile = saveOrgProfileAction,
   retryLoad,
 }: OnboardingProfilePageProps) {
   const router = useRouter();
@@ -163,6 +201,7 @@ export default function OnboardingProfilePage({
   const [currency, setCurrency] = useState(organization.currency);
   const [gs1Prefix, setGs1Prefix] = useState(organization.gs1Prefix);
   const [gs1Error, setGs1Error] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -175,6 +214,7 @@ export default function OnboardingProfilePage({
     setCompleted([]);
     setSkipped([]);
     setStatusMessage(null);
+    setFormError(null);
     setGs1Error(null);
   }
 
@@ -193,6 +233,7 @@ export default function OnboardingProfilePage({
   async function submitProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatusMessage(null);
+    setFormError(null);
     setGs1Error(null);
 
     const trimmedGs1Prefix = gs1Prefix.trim();
@@ -214,15 +255,26 @@ export default function OnboardingProfilePage({
       });
 
       if (result.ok === false) {
-        const message = result.field === 'gs1Prefix' ? result.message ?? GS1_REQUIRED_MESSAGE : result.message ?? 'Organization profile could not be saved.';
-        setGs1Error(message);
-        gs1PrefixRef.current?.focus();
+        const message = result.message ?? 'Organization profile could not be saved.';
+        if (result.field === 'gs1Prefix') {
+          setGs1Error(message);
+          gs1PrefixRef.current?.focus();
+        } else {
+          setFormError(message);
+        }
         return;
       }
 
-      setCompleted((existing) => (existing.includes('org_profile') ? existing : [...existing, 'org_profile']));
-      setCurrent('first_warehouse');
-      setStatusMessage('Organization profile saved. onboarding_state.current_step = 2');
+      const nextStep = ONBOARDING_STEPS.find((step) => step.num === result.onboardingState.current_step)?.key ?? 'first_warehouse';
+      setCompleted(result.onboardingState.completed);
+      setSkipped(result.onboardingState.skipped);
+      setCurrent(nextStep);
+      setOrgName(result.organization.name);
+      setTimezone(result.organization.timezone);
+      setLocale(result.organization.locale);
+      setCurrency(result.organization.currency);
+      setGs1Prefix(result.organization.gs1Prefix);
+      setStatusMessage(`Organization profile saved. onboarding_state.current_step = ${result.onboardingState.current_step}`);
       router.push(result.redirectTo);
     } finally {
       setIsSubmitting(false);
@@ -314,6 +366,7 @@ export default function OnboardingProfilePage({
       </nav>
 
       {statusMessage ? <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">{statusMessage}</div> : null}
+      {formError ? <div role="alert" className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
 
       <section role="region" aria-label={`${currentStep.code} · ${currentStep.label}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-slate-950">
