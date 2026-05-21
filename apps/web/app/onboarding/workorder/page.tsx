@@ -189,7 +189,7 @@ function searchValue(searchParams: OnboardingWorkOrderPageProps['searchParams'],
 
 async function productionSkipOnboardingStep(stepNumber: 5): Promise<SkipOnboardingStepResult> {
   if (process.env.NODE_ENV !== 'production') {
-    const { skipOnboarding } = await import('../../../actions/onboarding/skip');
+    const { skipOnboarding } = await import('../../../actions/onboarding/skip.js');
     return skipOnboarding({ step: stepNumber });
   }
   return { ok: false, error: 'persistence_failed' };
@@ -197,7 +197,7 @@ async function productionSkipOnboardingStep(stepNumber: 5): Promise<SkipOnboardi
 
 async function productionCompleteOnboardingStep(stepNumber: 5): Promise<CompleteOnboardingStepResult> {
   if (process.env.NODE_ENV !== 'production') {
-    const { advanceOnboarding } = await import('../../../actions/onboarding/advance');
+    const { advanceOnboarding } = await import('../../../actions/onboarding/advance.js');
     return advanceOnboarding({ step: stepNumber });
   }
   return { ok: false, error: 'persistence_failed' };
@@ -205,7 +205,14 @@ async function productionCompleteOnboardingStep(stepNumber: 5): Promise<Complete
 
 async function productionMarkFirstWoCreated(input: MarkFirstWoCreatedInput): Promise<MarkFirstWoCreatedResult> {
   if (process.env.NODE_ENV !== 'production') {
-    const { markFirstWorkOrderCreated } = await import('../../../actions/onboarding/first-wo');
+    const { advanceOnboarding } = await import('../../../actions/onboarding/advance.js');
+    const advanceResult = await advanceOnboarding({ step: 5 });
+
+    if (advanceResult.ok !== true && advanceResult.error !== 'stale_step') {
+      return advanceResult;
+    }
+
+    const { markFirstWorkOrderCreated } = await import('../../../actions/onboarding/first-wo.js');
     return markFirstWorkOrderCreated({
       workOrderId: input.workOrderId,
       occurredAt: input.occurredAt ?? input.createdAt,
