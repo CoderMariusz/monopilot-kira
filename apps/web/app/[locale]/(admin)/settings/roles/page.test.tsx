@@ -12,6 +12,21 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getTranslations } from 'next-intl/server';
+
+import { withOrgContext } from '../../../../../lib/auth/with-org-context';
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn().mockResolvedValue((key: string) => key),
+}));
+
+vi.mock('../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(async (callback: (ctx: { userId: string; orgId: string; client: { query: ReturnType<typeof vi.fn> } }) => unknown) => callback({
+    userId: '00000000-0000-0000-0000-000000000001',
+    orgId: '00000000-0000-0000-0000-000000000002',
+    client: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
+  })),
+}));
 
 type RoleCode =
   | 'owner'
@@ -55,6 +70,7 @@ type RolesPageProps = {
   assignableUsers: AssignableUser[];
   canManageRoles: boolean;
   assignRole: ReturnType<typeof vi.fn>;
+  state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission-denied';
 };
 
 type RolesPage = (props: RolesPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -197,6 +213,47 @@ describe('SET-011 Roles & Permissions layout', () => {
     }
 
     expect(screen.getByRole('button', { name: /assign role to user/i })).toBeEnabled();
+  });
+});
+
+describe('SET-011 server route wiring', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('uses the localized App Router server path with next-intl and withOrgContext before delegating to the client screen', async () => {
+    const Page = await loadRolesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) } as unknown as RolesPageProps);
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(getTranslations).toHaveBeenCalledWith({ locale: 'en', namespace: 'settings.users_screen' });
+    expect(withOrgContext).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /roles & permissions/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/settings\.roles\.assign is required/i);
+  });
+});
+
+describe('SET-011 required UI states', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders loading, empty, error, and permission-denied state shells without losing the page heading', async () => {
+    const stateExpectations: Array<[NonNullable<RolesPageProps['state']>, RegExp, 'status' | 'alert']> = [
+      ['loading', /loading roles and permissions/i, 'status'],
+      ['empty', /no system roles are configured/i, 'status'],
+      ['error', /could not be loaded/i, 'alert'],
+      ['permission-denied', /settings\.roles\.assign is required/i, 'status'],
+    ];
+
+    for (const [state, body, role] of stateExpectations) {
+      cleanup();
+      await renderRolesPage({ state });
+      expect(screen.getByRole('heading', { name: /roles & permissions/i })).toBeInTheDocument();
+      expect(screen.getByRole(role)).toHaveTextContent(body);
+    }
   });
 });
 
