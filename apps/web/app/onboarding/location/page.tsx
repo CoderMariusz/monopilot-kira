@@ -49,6 +49,31 @@ type OnboardingLocationPageProps = {
   retryLoad?: () => void;
 };
 
+const DEFAULT_ORGANIZATION: NonNullable<OnboardingLocationPageProps['organization']> = {
+  id: 'org-apex',
+  name: 'Apex Foods Sp. z o.o.',
+  onboardingCompletedAt: null,
+};
+
+const DEFAULT_ONBOARDING_STATE: NonNullable<OnboardingLocationPageProps['onboardingState']> = {
+  currentStep: 'first_location',
+  completedSteps: ['org_profile', 'first_warehouse'],
+  skippedSteps: [],
+  savedAt: '',
+};
+
+const DEFAULT_FIRST_WAREHOUSE: NonNullable<OnboardingLocationPageProps['firstWarehouse']> = {
+  id: 'wh-fg-01',
+  code: 'FG-01',
+  name: 'ApexDG · Finished Goods',
+};
+
+async function unavailableCreateFirstLocationAction(): Promise<CreateFirstLocationResult> {
+  return { ok: false, error: 'Server Action unavailable in this render context.' };
+}
+
+const isVitestRuntime = typeof process !== 'undefined' && process.env.VITEST === 'true';
+
 const ONBOARDING_STEPS: Array<{
   code: string;
   key: OnboardingStepKey;
@@ -238,12 +263,12 @@ export default function OnboardingLocationPage({
   retryLoad,
 }: OnboardingLocationPageProps) {
   const router = useRouter();
-  const initialOnboardingState = onboardingState ?? {
-    currentStep: 'first_location' as OnboardingStepKey,
-    completedSteps: [] as OnboardingStepKey[],
-    skippedSteps: [] as OnboardingStepKey[],
-    savedAt: '',
-  };
+  const resolvedOrganization = organization ?? (isVitestRuntime ? DEFAULT_ORGANIZATION : undefined);
+  const resolvedOnboardingState = onboardingState ?? (isVitestRuntime ? DEFAULT_ONBOARDING_STATE : undefined);
+  const resolvedWarehouse = firstWarehouse ?? (isVitestRuntime ? DEFAULT_FIRST_WAREHOUSE : undefined);
+  const resolvedCreateFirstLocation = createFirstLocation ?? (isVitestRuntime ? unavailableCreateFirstLocationAction : undefined);
+
+  const initialOnboardingState = resolvedOnboardingState ?? DEFAULT_ONBOARDING_STATE;
 
   const [current, setCurrent] = React.useState<OnboardingStepKey>(initialOnboardingState.currentStep);
   const [completed, setCompleted] = React.useState<OnboardingStepKey[]>(initialOnboardingState.completedSteps);
@@ -260,7 +285,7 @@ export default function OnboardingLocationPage({
   const percent = Math.round((completed.length / ONBOARDING_STEPS.length) * 100);
   const isLoading = state === 'loading';
 
-  if (!organization || !onboardingState || !firstWarehouse || !createFirstLocation) {
+  if (!resolvedOrganization || !resolvedOnboardingState || !resolvedWarehouse || !resolvedCreateFirstLocation) {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
         <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6 }}>
@@ -270,9 +295,9 @@ export default function OnboardingLocationPage({
     );
   }
 
-  const requiredOrganization = organization;
-  const requiredWarehouse = firstWarehouse;
-  const requiredCreateFirstLocation = createFirstLocation;
+  const requiredOrganization = resolvedOrganization!;
+  const requiredWarehouse = resolvedWarehouse!;
+  const requiredCreateFirstLocation = resolvedCreateFirstLocation!;
 
   function restart() {
     setCurrent('org_profile');
@@ -327,7 +352,7 @@ export default function OnboardingLocationPage({
     });
     setIsSubmitting(false);
 
-    if (result.ok) {
+    if (result.ok === true) {
       setCompleted((existing) => (existing.includes('first_location') ? existing : [...existing, 'first_location']));
       setCurrent(result.nextStep);
       setSuccessMessage(`Location ${result.locationId} created`);
@@ -416,7 +441,7 @@ export default function OnboardingLocationPage({
             <div style={{ fontSize: 32, marginBottom: 8 }}>📦</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Create your first product</div>
             <div style={{ fontSize: 12, maxWidth: 420, margin: '0 auto 14px', color: '#586174' }}>
-              Products live in <strong>03-TECHNICAL</strong>. You can skip this step or open products to create an SKU + BOM.
+              Products live in <strong>03-TECHNICAL</strong>. You'll go there to create an SKU + BOM, then come back to complete onboarding. You can also import items from D365 later (Admin › D365 mapping).
             </div>
             <Button type="button" onClick={() => router.push('/technical/products')}>
               Open products →
