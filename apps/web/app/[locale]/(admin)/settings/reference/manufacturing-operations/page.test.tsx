@@ -1,38 +1,59 @@
 /**
  * @vitest-environment jsdom
  * T-077 — SET-055 Manufacturing Operations List
- *
- * RED phase: spec-driven RTL coverage for PRD §8.9.4 / UX §8.9.
- * The localized /en/settings/reference/manufacturing-operations route is the product path;
- * the legacy non-localized page is used only as a temporary render fallback so behavior
- * assertions fail loudly instead of stopping at module resolution.
  */
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-type ManufacturingOperation = {
-  id: string;
-  operation_name: string;
-  process_suffix: string;
-  operation_seq: number;
-  industry_code: 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
-  is_active: boolean;
-  description?: string;
-};
+import ManufacturingOperationsScreen, {
+  type ManufacturingOperation,
+  type ManufacturingOperationsScreenLabels,
+  type ManufacturingOperationsScreenProps,
+} from './manufacturing-operations-screen.client';
 
-type ManufacturingOperationsPageProps = {
-  operations: ManufacturingOperation[];
-  industryFilter?: ManufacturingOperation['industry_code'] | 'all';
-  showInactive?: boolean;
-  reorderOperations: ReturnType<typeof vi.fn>;
-  resetToSeed: ReturnType<typeof vi.fn>;
-  onAddOperation: ReturnType<typeof vi.fn>;
-  onEditOperation: ReturnType<typeof vi.fn>;
-  onDeactivateOperation: ReturnType<typeof vi.fn>;
+const labels: ManufacturingOperationsScreenLabels = {
+  breadcrumbSettings: 'Settings',
+  breadcrumbReferenceTables: 'Reference Tables',
+  breadcrumbManufacturingOperations: 'Manufacturing Operations',
+  setReference: 'SET-055 / PRD §8.9.4',
+  title: 'Manufacturing Operations',
+  subtitle: 'Configure tenant-specific operation names, process suffixes, industry seed sets, active state, and recipe sequence order.',
+  notice: 'Operations are referenced by routings, line assignments, and WIP code generators. The process suffix is immutable after creation.',
+  loading: 'Loading manufacturing operations…',
+  error: 'Unable to load manufacturing operations.',
+  permissionDenied: 'You do not have permission to manage manufacturing operations.',
+  addNewOperation: 'Add New Operation',
+  resetToSeedData: 'Reset to seed data',
+  deleteInactiveRows: 'Delete inactive rows',
+  industryLabel: 'Industry',
+  showInactive: 'Show inactive',
+  industryAll: 'All industries',
+  industryBakery: 'Bakery',
+  industryPharma: 'Pharma',
+  industryFmcg: 'FMCG',
+  industryGeneric: 'Generic',
+  industryCustom: 'Custom',
+  columnOperationName: 'Operation Name',
+  columnProcessSuffix: 'Process Suffix',
+  columnSequence: 'Sequence',
+  columnIndustryCode: 'Industry Code',
+  columnStatus: 'Status',
+  columnActions: 'Actions',
+  statusActive: 'Active',
+  statusInactive: 'Inactive',
+  editOperation: 'Edit {operation}',
+  deleteOperation: 'Delete {operation}',
+  empty: 'No manufacturing operations match the current filters.',
+  resetDialogTitle: 'Reset to industry seed data',
+  resetDialogBody: 'This will replace all current operations with the selected industry seed data. Existing operation order, suffixes, and inactive rows will be reset.',
+  cancel: 'Cancel',
+  reset: 'Reset',
 };
 
 const operations: ManufacturingOperation[] = [
@@ -81,28 +102,16 @@ async function loadLocalizedManufacturingOperationsPage() {
     localized,
     'SET-055 must be implemented at apps/web/app/[locale]/(admin)/settings/reference/manufacturing-operations/page.tsx for /en/settings/reference/manufacturing-operations',
   ).not.toBeNull();
-  expect(localized?.default, 'localized SET-055 page must default-export a renderable React component').toEqual(
+  expect(localized?.default, 'localized SET-055 page must default-export a renderable Server Component').toEqual(
     expect.any(Function),
   );
-  return localized!.default as React.ComponentType<ManufacturingOperationsPageProps>;
+  return localized!.default as React.ComponentType;
 }
 
-async function loadRenderableManufacturingOperationsPage() {
-  const localized = await importMaybe('./page');
-  const fallbackLegacy = await importMaybe('../../../../../(admin)/settings/reference/manufacturing-operations/page');
-  const module = localized ?? fallbackLegacy;
-  expect(
-    module,
-    'SET-055 page module should exist either in the localized route or the temporary legacy fallback',
-  ).not.toBeNull();
-  expect(module?.default, 'SET-055 page must default-export a renderable React component').toEqual(expect.any(Function));
-  return module!.default as React.ComponentType<ManufacturingOperationsPageProps>;
-}
-
-async function renderManufacturingOperations(overrides?: Partial<ManufacturingOperationsPageProps>) {
-  const ManufacturingOperationsPage = await loadRenderableManufacturingOperationsPage();
-  const props: ManufacturingOperationsPageProps = {
+async function renderManufacturingOperations(overrides?: Partial<ManufacturingOperationsScreenProps>) {
+  const props: ManufacturingOperationsScreenProps = {
     operations,
+    labels,
     industryFilter: 'all',
     showInactive: false,
     reorderOperations: vi.fn().mockResolvedValue({ ok: true }),
@@ -113,7 +122,7 @@ async function renderManufacturingOperations(overrides?: Partial<ManufacturingOp
     ...overrides,
   };
 
-  render(React.createElement(ManufacturingOperationsPage, props));
+  render(React.createElement(ManufacturingOperationsScreen, props));
   return props;
 }
 
@@ -122,8 +131,18 @@ describe('SET-055 Manufacturing Operations list view', () => {
     vi.clearAllMocks();
   });
 
-  it('is wired to the localized Settings Reference route used by users', async () => {
+  it('is wired to the localized Settings Reference route as a Server Component with a client leaf and next-intl labels', async () => {
     await loadLocalizedManufacturingOperationsPage();
+
+    const dir = path.join(process.cwd(), 'app/[locale]/(admin)/settings/reference/manufacturing-operations');
+    const pageSource = await fs.readFile(path.join(dir, 'page.tsx'), 'utf8');
+    const clientSource = await fs.readFile(path.join(dir, 'manufacturing-operations-screen.client.tsx'), 'utf8');
+
+    expect(pageSource).not.toMatch(/['"]use client['"]/);
+    expect(pageSource).toContain('getTranslations');
+    expect(pageSource).toContain('settings.manufacturing_operations');
+    expect(pageSource).toContain('manufacturing-operations-screen.client');
+    expect(clientSource).toMatch(/['"]use client['"]/);
   });
 
   it('renders the PRD §8.9.4 data grid, toolbar actions, row actions, and status semantics', async () => {
@@ -154,7 +173,7 @@ describe('SET-055 Manufacturing Operations list view', () => {
     const user = userEvent.setup();
     await renderManufacturingOperations({ industryFilter: 'all', showInactive: true });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /industry/i }), 'bakery');
+    await user.click(screen.getByRole('option', { name: /bakery/i }));
 
     const grid = screen.getByRole('table', { name: /manufacturing operations/i });
     expect(within(grid).getByRole('row', { name: /mix mx 1 bakery active/i })).toBeInTheDocument();
@@ -176,6 +195,7 @@ describe('SET-055 Manufacturing Operations list view', () => {
 
     await user.click(within(dialog).getByRole('button', { name: /^reset$/i }));
     expect(resetToSeed).toHaveBeenCalledTimes(1);
+    expect(resetToSeed).toHaveBeenCalledWith('generic');
   });
 
   it('auto-saves drag-to-reorder with the T-038 reorderOperations payload of id and operation_seq pairs', async () => {
