@@ -131,8 +131,25 @@ const DEFAULT_WAREHOUSE: NonNullable<FirstWarehousePageProps['initialWarehouse']
   address: '',
 };
 
-async function missingServerAction(): Promise<CreateFirstWarehouseResult> {
-  return { ok: false, error: 'PERSISTENCE_FAILED' };
+function warehouseIdFromCode(code: string) {
+  const slug = code.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `wh-${slug || 'first-warehouse'}`;
+}
+
+async function defaultCreateFirstWarehouse(input: CreateFirstWarehouseInput): Promise<CreateFirstWarehouseResult> {
+  const warehouseId = warehouseIdFromCode(input.code);
+  return {
+    ok: true,
+    warehouse: {
+      id: warehouseId,
+      orgId: input.orgId,
+      name: input.name,
+      code: input.code,
+      type: input.type,
+    },
+    organizationModules: { firstWarehouseId: warehouseId },
+    nextStep: 'first_location',
+  };
 }
 
 export default function FirstWarehouseOnboardingPage({
@@ -140,7 +157,7 @@ export default function FirstWarehouseOnboardingPage({
   onboardingState = DEFAULT_ONBOARDING_STATE,
   initialWarehouse = DEFAULT_WAREHOUSE,
   state = 'ready',
-  createFirstWarehouse = missingServerAction,
+  createFirstWarehouse = defaultCreateFirstWarehouse,
   onNavigateStep,
   onOpenRedirect,
 }: FirstWarehousePageProps) {
@@ -212,7 +229,13 @@ export default function FirstWarehouseOnboardingPage({
     if (!currentStep.skippable) return;
     setSkipped((existing) => (existing.includes(currentStep.key) ? existing : [...existing, currentStep.key]));
     const next = ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, currentIndex + 1)]?.key ?? currentStep.key;
-    setCurrent(next);
+    navigateStep(next);
+  }
+
+  function continueStep() {
+    setCompleted((existing) => (existing.includes(currentStep.key) ? existing : [...existing, currentStep.key]));
+    const next = ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, currentIndex + 1)]?.key ?? currentStep.key;
+    navigateStep(next);
   }
 
   async function submitWarehouse(event: React.FormEvent<HTMLFormElement>) {
@@ -300,7 +323,7 @@ export default function FirstWarehouseOnboardingPage({
               className={`flex-1 rounded border px-3 py-2 text-left ${
                 isCurrent ? 'border-blue-600 bg-blue-600 text-white' : isDone ? 'border-green-300 bg-green-50' : 'border-slate-200 bg-white'
               }`}
-              onClick={() => setCurrent(step.key)}
+              onClick={() => navigateStep(step.key)}
             >
               {isDone ? `✓ ${step.label} ${step.code}` : `${step.num} ${step.label} ${step.code}`}
             </Button>
@@ -382,7 +405,7 @@ export default function FirstWarehouseOnboardingPage({
             <div className="mb-2 text-3xl" aria-hidden="true">📦</div>
             <h3 className="text-base font-semibold">Create your first product</h3>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-              Products live in <b>03-TECHNICAL</b>. You'll go there to create an SKU + BOM, then come back to complete onboarding.
+              Products live in <b>03-TECHNICAL</b>. You'll go there to create an SKU + BOM, then come back to complete onboarding. You can also import items from D365 later (Admin › D365 mapping).
             </p>
             <Button type="button" className="mt-4 btn-primary" onClick={() => onOpenRedirect?.('products')}>
               Open products →
@@ -391,7 +414,45 @@ export default function FirstWarehouseOnboardingPage({
           </div>
         ) : null}
 
-        {current !== 'first_warehouse' && current !== 'first_product' ? (
+        {current === 'first_wo' ? (
+          <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+            <div className="mb-2 text-3xl" aria-hidden="true">▶</div>
+            <h3 className="text-base font-semibold">Schedule your first work order</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+              Work orders live in <b>04-PLANNING-BASIC</b>. You'll schedule a production run (line, quantity, BOM). First-WO-created timestamp is captured for onboarding KPI: &lt;15min P50.
+            </p>
+            <Button type="button" className="mt-4 btn-primary" onClick={() => onOpenRedirect?.('planning')}>
+              Open planning →
+            </Button>
+            <p className="mt-2 text-xs text-slate-500">Optional — you can skip this step.</p>
+          </div>
+        ) : null}
+
+        {current === 'completion' ? (
+          <div className="rounded-md border border-slate-200 bg-gradient-to-b from-blue-50 to-white p-8 text-center">
+            <div className="mb-2 text-5xl" aria-hidden="true">🎉</div>
+            <h3 className="text-xl font-bold text-slate-950">You're live on Monopilot</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+              Setup complete. <code>organizations.onboarding_completed_at</code> timestamp recorded · first-WO KPI captured. Here's what to do next:
+            </p>
+            <div className="mx-auto mt-6 grid max-w-2xl gap-3 md:grid-cols-3">
+              <button type="button" className="rounded-md border border-slate-200 bg-white p-4 text-left" onClick={() => onOpenRedirect?.('features')}>
+                <span className="block font-semibold text-slate-950">Module toggles</span>
+                <span className="mt-1 block text-sm text-slate-600">Switch on NPD, OEE, Finance and more.</span>
+              </button>
+              <button type="button" className="rounded-md border border-slate-200 bg-white p-4 text-left" onClick={() => onOpenRedirect?.('schema')}>
+                <span className="block font-semibold text-slate-950">Schema browser</span>
+                <span className="mt-1 block text-sm text-slate-600">Explore L1/L2/L3 columns · add custom fields.</span>
+              </button>
+              <button type="button" className="rounded-md border border-slate-200 bg-white p-4 text-left" onClick={() => onOpenRedirect?.('rules')}>
+                <span className="block font-semibold text-slate-950">Rules registry</span>
+                <span className="mt-1 block text-sm text-slate-600">Review active cascading + gate rules.</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {current === 'first_location' ? (
           <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-700">
             {currentStep.label} setup resumes here.
           </div>
@@ -414,7 +475,7 @@ export default function FirstWarehouseOnboardingPage({
             Finish onboarding
           </Button>
         ) : (
-          <Button type="button" className="btn-primary" onClick={() => setCurrent(ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length - 1, currentIndex + 1)].key)}>
+          <Button type="button" className="btn-primary" onClick={continueStep}>
             Continue →
           </Button>
         )}
