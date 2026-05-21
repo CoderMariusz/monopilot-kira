@@ -220,14 +220,15 @@ afterEach(() => {
 });
 
 describe('SET-003 onboarding first-location prototype parity', () => {
-  it('renders the production route entry with server-loaded onboarding data and action wiring', async () => {
+  it('fails closed when server onboarding data or the create action is missing', async () => {
     await renderProductionRouteEntry();
 
-    expect(screen.queryByText(/Server onboarding data or the create location action is unavailable/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /SET-003 · First location/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Location path \(ltree\)/i)).toHaveValue('FG › Zone A › Rack 1 › Bin 1');
-    expect(screen.getByRole('button', { name: /Continue →/i })).toBeEnabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /Server onboarding data or the create location action is unavailable/i,
+    );
+    expect(screen.queryByRole('heading', { name: /onboarding wizard/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /SET-003 · First location/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continue →/i })).not.toBeInTheDocument();
   });
 
   it('preserves the prototype skippable redirect card after the location step advances', async () => {
