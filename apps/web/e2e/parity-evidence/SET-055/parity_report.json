@@ -1,0 +1,88 @@
+{
+  "task": "TASK-000545/T-077 SET-055",
+  "generated_at": "2026-05-21T16:07:59.325Z",
+  "base_url": "http://127.0.0.1:3105",
+  "target_route": "/en/settings/reference/manufacturing-operations",
+  "server_identity": "Next dev server started in TASK-000545-a1 with PORT=3105; target curl returned 307 location /login?reason=idle",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx",
+  "prototype_route": "list-with-modal-edit",
+  "prototype_line_range": "54-270",
+  "viewports": [
+    {
+      "label": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "label": "tablet",
+      "width": 768,
+      "height": 1024
+    }
+  ],
+  "region_selectors": {
+    "main": "main",
+    "page_head": "[data-region='page-head'], main h1, main h2"
+  },
+  "parity_matrix": {
+    "status": "blocked",
+    "blocker": "target route redirects to /login?reason=idle without authenticated browser session; real SET-055 surface not reachable in this worker",
+    "fallback_evidence": "RTL behavior tests in page.test.tsx cover route wiring, grid, bakery filter, reset dialog focus/Escape, and reorder action payload",
+    "trace": "apps/web/e2e/parity-evidence/SET-055/trace-target-redirect.zip"
+  },
+  "results": [
+    {
+      "viewport": {
+        "label": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3105/en/login?reason=idle",
+      "targetReached": false,
+      "screenshot": "apps/web/e2e/parity-evidence/SET-055/target-desktop.png",
+      "consoleMessages": [
+        {
+          "type": "info",
+          "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached"
+        },
+        {
+          "type": "error",
+          "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached"
+        }
+      ],
+      "axe": "apps/web/e2e/parity-evidence/SET-055/axe-desktop.json",
+      "dom": {
+        "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached",
+        "main": true,
+        "page_head": true
+      }
+    },
+    {
+      "viewport": {
+        "label": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "status": 200,
+      "finalUrl": "http://127.0.0.1:3105/en/login?reason=idle",
+      "targetReached": false,
+      "screenshot": "apps/web/e2e/parity-evidence/SET-055/target-tablet.png",
+      "consoleMessages": [
+        {
+          "type": "info",
+          "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached"
+        },
+        {
+          "type": "error",
+          "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached"
+        }
+      ],
+      "axe": "apps/web/e2e/parity-evidence/SET-055/axe-tablet.json",
+      "dom": {
+        "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached",
+        "main": true,
+        "page_head": true
+      }
+    }
+  ]
+}

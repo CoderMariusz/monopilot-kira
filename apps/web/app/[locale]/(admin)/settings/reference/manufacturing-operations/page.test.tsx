@@ -5,11 +5,62 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@monopilot/ui/Modal', async () => {
+  const ReactModule = await import('react');
+
+  function Modal({
+    children,
+    modalId,
+    onOpenChange,
+    open,
+  }: {
+    children: React.ReactNode;
+    modalId?: string;
+    onOpenChange: (open: boolean) => void;
+    open: boolean;
+  }) {
+    ReactModule.useEffect(() => {
+      if (!open) {
+        return undefined;
+      }
+      const closeOnEscape = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          onOpenChange(false);
+        }
+      };
+      document.addEventListener('keydown', closeOnEscape);
+      return () => document.removeEventListener('keydown', closeOnEscape);
+    }, [onOpenChange, open]);
+
+    if (!open) {
+      return null;
+    }
+
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reset-seed-title"
+        data-focus-trap="radix-dialog"
+        data-modal-id={modalId}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  Modal.Header = ({ title }: { title: string }) => <h2 id="reset-seed-title">{title}</h2>;
+  Modal.Body = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  Modal.Footer = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+
+  return { default: Modal };
+});
 
 import ManufacturingOperationsScreen, {
   type ManufacturingOperation,
@@ -143,6 +194,8 @@ describe('SET-055 Manufacturing Operations list view', () => {
     expect(pageSource).toContain('settings.manufacturing_operations');
     expect(pageSource).toContain('manufacturing-operations-screen.client');
     expect(clientSource).toMatch(/['"]use client['"]/);
+    expect(clientSource).toContain("@monopilot/ui/Modal");
+    expect(clientSource).not.toContain('role="dialog"');
   });
 
   it('renders the PRD §8.9.4 data grid, toolbar actions, row actions, and status semantics', async () => {
@@ -191,9 +244,17 @@ describe('SET-055 Manufacturing Operations list view', () => {
 
     expect(resetToSeed).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog', { name: /reset to industry seed data/i });
+    expect(dialog).toHaveAttribute('data-focus-trap', 'radix-dialog');
+    expect(dialog).toHaveAttribute('data-modal-id', 'SET-055-reset-seed');
     expect(within(dialog).getByText(/replace all current operations/i)).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: /^reset$/i }));
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /reset to industry seed data/i })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /reset to seed data/i }));
+    await user.click(within(screen.getByRole('dialog', { name: /reset to industry seed data/i })).getByRole('button', { name: /^reset$/i }));
     expect(resetToSeed).toHaveBeenCalledTimes(1);
     expect(resetToSeed).toHaveBeenCalledWith('generic');
   });

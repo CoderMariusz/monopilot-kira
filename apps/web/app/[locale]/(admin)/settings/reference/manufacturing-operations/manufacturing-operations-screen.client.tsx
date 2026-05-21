@@ -3,6 +3,7 @@
 import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
+import Modal from '@monopilot/ui/Modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Switch } from '@monopilot/ui/Switch';
 
@@ -325,20 +326,20 @@ export default function ManufacturingOperationsScreen({
         </tbody>
       </table>
 
-      {resetDialogOpen ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="reset-seed-title">
-          <h2 id="reset-seed-title">{labels.resetDialogTitle}</h2>
+      <Modal open={resetDialogOpen} onOpenChange={setResetDialogOpen} size="md" modalId="SET-055-reset-seed">
+        <Modal.Header title={labels.resetDialogTitle} />
+        <Modal.Body>
           <p>{labels.resetDialogBody}</p>
-          <div>
-            <Button type="button" onClick={() => setResetDialogOpen(false)}>
-              {labels.cancel}
-            </Button>
-            <Button type="button" onClick={confirmResetToSeed}>
-              {labels.reset}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" onClick={() => setResetDialogOpen(false)}>
+            {labels.cancel}
+          </Button>
+          <Button type="button" onClick={confirmResetToSeed}>
+            {labels.reset}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </main>
   );
 }

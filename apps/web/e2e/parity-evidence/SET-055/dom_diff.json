@@ -1,0 +1,26 @@
+{
+  "status": "blocked",
+  "reason": "target route redirects to /login?reason=idle without authenticated browser session; real SET-055 surface not reachable in this worker",
+  "target_observations": [
+    {
+      "viewport": "desktop",
+      "finalUrl": "http://127.0.0.1:3105/en/login?reason=idle",
+      "targetReached": false,
+      "dom": {
+        "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached",
+        "main": true,
+        "page_head": true
+      }
+    },
+    {
+      "viewport": "tablet",
+      "finalUrl": "http://127.0.0.1:3105/en/login?reason=idle",
+      "targetReached": false,
+      "dom": {
+        "text": "login redirect page: Welcome back / Sign in to your MES workspace; SET-055 target not reached",
+        "main": true,
+        "page_head": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "status": "not_run",
+  "reason": "target route redirected to login; axe on SET-055 would be misleading without authenticated session"
+}
