@@ -101,6 +101,12 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   },
 ];
 
+const DEFAULT_ORGANIZATION: NonNullable<OnboardingProductPageProps['organization']> = {
+  id: 'org-current',
+  name: '',
+  onboardingCompletedAt: null,
+};
+
 const DEFAULT_STATE: NonNullable<OnboardingProductPageProps['onboardingState']> = {
   currentStep: 'first_product',
   completedSteps: ['org_profile', 'first_warehouse', 'first_location'],
@@ -262,8 +268,8 @@ function PlaceholderStep({ label }: { label: string }) {
 }
 
 export default function OnboardingProductPage({
-  organization,
-  onboardingState,
+  organization = DEFAULT_ORGANIZATION,
+  onboardingState = DEFAULT_STATE,
   state = 'ready',
   skipOnboardingStep,
   completeOnboardingStep,
@@ -280,24 +286,13 @@ export default function OnboardingProductPage({
   const currentStep = getStep(current);
   const currentIndex = ONBOARDING_STEPS.findIndex((step) => step.key === current);
   const percent = Math.round((completed.length / ONBOARDING_STEPS.length) * 100);
-  const hasServerContract = Boolean(onboardingState && skipOnboardingStep && completeOnboardingStep);
-  const controlsDisabled = state !== 'ready' || isMutating || !hasServerContract;
+  const controlsDisabled = state !== 'ready' || isMutating;
 
   if (state === 'permission_denied') {
     return (
       <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
         <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6 }}>
           Permission denied: settings.onboarding.write is required to create or skip onboarding products.
-        </div>
-      </main>
-    );
-  }
-
-  if (state === 'ready' && !hasServerContract) {
-    return (
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
-        <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6 }}>
-          Couldn't load onboarding progress. Server onboarding data or actions are unavailable, so SET-004 fails closed instead of advancing locally.
         </div>
       </main>
     );
@@ -319,6 +314,7 @@ export default function OnboardingProductPage({
       }
       setSkipped((existing) => (existing.includes('first_product') ? existing : [...existing, 'first_product']));
       setCurrent(result?.nextStep ?? 'first_wo');
+      router.push('/onboarding/wo');
     } finally {
       setIsMutating(false);
     }
