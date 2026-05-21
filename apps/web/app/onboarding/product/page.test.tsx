@@ -13,6 +13,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import OnboardingProductPage from './page';
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
@@ -65,8 +66,6 @@ type OnboardingProductPageProps = {
   retryLoad?: () => void;
 };
 
-type OnboardingProductPage = (props: OnboardingProductPageProps) => React.ReactNode | Promise<React.ReactNode>;
-
 const baseProps: OnboardingProductPageProps = {
   organization: {
     id: 'org-apex',
@@ -93,23 +92,7 @@ const baseProps: OnboardingProductPageProps = {
   retryLoad: vi.fn(),
 };
 
-async function loadOnboardingProductPage(): Promise<OnboardingProductPage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-004 product page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as OnboardingProductPage;
-  } catch {
-    return function MissingOnboardingProductPage() {
-      return React.createElement('main', { 'data-testid': 'missing-onboarding-product-page' });
-    };
-  }
-}
-
-async function renderProduct(overrides: Partial<OnboardingProductPageProps> = {}) {
-  const Page = await loadOnboardingProductPage();
+function renderProduct(overrides: Partial<OnboardingProductPageProps> = {}) {
   const props: OnboardingProductPageProps = {
     ...baseProps,
     ...overrides,
@@ -124,27 +107,14 @@ async function renderProduct(overrides: Partial<OnboardingProductPageProps> = {}
     retryLoad: overrides.retryLoad ?? vi.fn(),
   };
 
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(props);
-    return { props, ...render(React.createElement(React.Fragment, null, node)) };
-  }
-
   return {
     props,
-    ...render(React.createElement(Page as React.ComponentType<OnboardingProductPageProps>, props)),
+    ...render(React.createElement(OnboardingProductPage, props)),
   };
 }
 
-async function renderProductionRouteEntry() {
-  const Page = await loadOnboardingProductPage();
-  const routeProps = {} as OnboardingProductPageProps;
-
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(routeProps);
-    return render(React.createElement(React.Fragment, null, node));
-  }
-
-  return render(React.createElement(Page as React.ComponentType<OnboardingProductPageProps>, routeProps));
+function renderProductionRouteEntry() {
+  return render(React.createElement(OnboardingProductPage, {} as OnboardingProductPageProps));
 }
 
 function stepperLabels() {
@@ -169,7 +139,7 @@ afterEach(() => {
 
 describe('SET-004 onboarding first-product redirect-card prototype parity', () => {
   it('renders SET-004 from the production route boundary without test-injected props or client-only fallback', async () => {
-    await renderProductionRouteEntry();
+    renderProductionRouteEntry();
 
     expect(screen.queryByText(/Server onboarding data or actions are unavailable/i)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
@@ -185,7 +155,7 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
       skippedStep: 4,
       nextStep: 'first_wo',
     } satisfies SkipOnboardingStepResult);
-    await renderProduct({ skipOnboardingStep });
+    renderProduct({ skipOnboardingStep });
 
     await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
 
@@ -195,7 +165,7 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
 
   it('renders the skippable first_product card inside the saved-state six-step wizard with prototype labels and keyboard order', async () => {
     const user = userEvent.setup();
-    await renderProduct();
+    renderProduct();
 
     expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
     expect(screen.getByText(/6-step setup · target <15 minutes/i)).toBeInTheDocument();
@@ -245,7 +215,7 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
       skippedStep: 4,
       nextStep: 'first_wo',
     } satisfies SkipOnboardingStepResult);
-    await renderProduct({ skipOnboardingStep });
+    renderProduct({ skipOnboardingStep });
 
     await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
 
@@ -261,7 +231,7 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
 
   it('opens the product editor deep link with a return path to /onboarding/wo', async () => {
     const user = userEvent.setup();
-    await renderProduct();
+    renderProduct();
 
     await user.click(screen.getByRole('button', { name: /Open product editor/i }));
 
@@ -278,7 +248,7 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
       completedStep: 4,
       nextStep: 'first_wo',
     } satisfies CompleteOnboardingStepResult);
-    await renderProduct({ completeOnboardingStep });
+    renderProduct({ completeOnboardingStep });
 
     await user.click(screen.getByRole('button', { name: /Continue →/i }));
     expect(completeOnboardingStep).toHaveBeenCalledWith(4);
@@ -286,19 +256,19 @@ describe('SET-004 onboarding first-product redirect-card prototype parity', () =
 
     cleanup();
     const retryLoad = vi.fn();
-    await renderProduct({ state: 'loading', retryLoad });
+    renderProduct({ state: 'loading', retryLoad });
     expect(screen.getByRole('status', { name: /loading onboarding product/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Open product editor/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Skip this step/i })).toBeDisabled();
 
     cleanup();
-    await renderProduct({ state: 'error', retryLoad });
+    renderProduct({ state: 'error', retryLoad });
     expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load onboarding progress/i);
     await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
     expect(retryLoad).toHaveBeenCalledTimes(1);
 
     cleanup();
-    await renderProduct({ state: 'permission_denied' });
+    renderProduct({ state: 'permission_denied' });
     expect(screen.getByRole('alert')).toHaveTextContent(/settings\.onboarding\.write/i);
     expect(screen.queryByRole('button', { name: /Open product editor/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Skip this step/i })).not.toBeInTheDocument();
