@@ -11,8 +11,13 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+const actionMocks = vi.hoisted(() => ({
+  skipOnboarding: vi.fn(),
+  markFirstWorkOrderCreated: vi.fn(),
+}));
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
@@ -29,6 +34,14 @@ vi.mock('next/navigation', () => ({
     forward: vi.fn(),
     prefetch: vi.fn(),
   }),
+}));
+
+vi.mock('../../../actions/onboarding/skip', () => ({
+  skipOnboarding: actionMocks.skipOnboarding,
+}));
+
+vi.mock('../../../actions/onboarding/first-wo', () => ({
+  markFirstWorkOrderCreated: actionMocks.markFirstWorkOrderCreated,
 }));
 
 type OnboardingStepKey =
@@ -182,10 +195,21 @@ async function renderWorkOrder(overrides: Partial<OnboardingWorkOrderPageProps> 
   };
 }
 
+async function renderProductionWorkOrderPage(rawProps: Record<string, unknown> = {}) {
+  const Page = await loadOnboardingWorkOrderPage();
+
+  if (Page.constructor.name === 'AsyncFunction') {
+    const node = await Page(rawProps as unknown as OnboardingWorkOrderPageProps);
+    return render(React.createElement(React.Fragment, null, node));
+  }
+
+  return render(React.createElement(Page as React.ComponentType<Record<string, unknown>>, rawProps));
+}
+
 function stepperLabels() {
   return screen
     .getAllByRole('button', { name: /SET-00[1-6]/ })
-    .map((button: HTMLButtonElement) => button.textContent);
+    .map((button) => button.textContent);
 }
 
 function lastPushedHref() {
@@ -205,6 +229,67 @@ afterEach(() => {
 });
 
 describe('SET-005 onboarding first work order redirect-card prototype parity', () => {
+  it('wires the production page boundary to real onboarding Server Actions without injected test callbacks', async () => {
+    const user = userEvent.setup();
+    actionMocks.skipOnboarding.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        state: {
+          current_step: 6,
+          completed_steps: [1, 2, 3, 4],
+          skipped_steps: [5],
+          first_wo_at: null,
+          started_at: '2026-05-19T21:00:00.000Z',
+          last_activity_at: '2026-05-19T21:12:00.000Z',
+        },
+      },
+    });
+
+    await renderProductionWorkOrderPage();
+
+    expect(screen.queryByText(/Server onboarding data or actions are unavailable/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open planning/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Skip this step →/i })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
+
+    expect(actionMocks.skipOnboarding).toHaveBeenCalledTimes(1);
+    expect(actionMocks.skipOnboarding).toHaveBeenCalledWith({ step: 5 });
+    expect(await screen.findByText(/skipped_steps includes 5/i)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
+  });
+
+  it('consumes Planning callback search params at the production page boundary and persists first_wo_at KPI evidence', async () => {
+    actionMocks.markFirstWorkOrderCreated.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        state: {
+          current_step: 6,
+          completed_steps: [1, 2, 3, 4, 5],
+          skipped_steps: [],
+          first_wo_at: '2026-05-19T21:11:00.000Z',
+          time_to_first_wo_ms: 660000,
+          started_at: '2026-05-19T21:00:00.000Z',
+          last_activity_at: '2026-05-19T21:11:00.000Z',
+        },
+      },
+    });
+
+    await renderProductionWorkOrderPage({
+      searchParams: { workOrderId: 'wo-1001', createdAt: '2026-05-19T21:11:00.000Z' },
+    });
+
+    await waitFor(() => {
+      expect(actionMocks.markFirstWorkOrderCreated).toHaveBeenCalledWith({
+        workOrderId: 'wo-1001',
+        occurredAt: '2026-05-19T21:11:00.000Z',
+      });
+    });
+    expect(await screen.findByText(/onboarding_state\.first_wo_at = 2026-05-19T21:11:00.000Z/i)).toBeInTheDocument();
+    expect(screen.getByText(/time_to_first_wo = 11 min/i)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
+  });
+
   it('renders the skippable first_wo card inside the saved-state six-step wizard with prototype labels and keyboard order', async () => {
     const user = userEvent.setup();
     await renderWorkOrder();
