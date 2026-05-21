@@ -287,4 +287,41 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
     await user.click(screen.getByRole('button', { name: /open products/i }));
     expect(onOpenRedirect).toHaveBeenCalledWith('products');
   });
+
+  it('uses the production route wiring without test-injected callbacks to persist SET-002 and advance to SET-003', async () => {
+    const user = userEvent.setup();
+    const Page = await loadFirstWarehousePage();
+
+    render(React.createElement(Page as React.ComponentType<Partial<FirstWarehousePageProps>>, {}));
+
+    await user.type(screen.getByLabelText(/warehouse name/i), 'Apex Cold Store');
+    await user.type(screen.getByLabelText(/warehouse code/i), 'COLD-01');
+    await user.selectOptions(screen.getByRole('combobox', { name: /warehouse type/i }), 'finished');
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+
+    expect(await screen.findByRole('region', { name: /SET-003 · First location/i })).toBeInTheDocument();
+    expect(screen.queryByText(/PERSISTENCE_FAILED/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/organization_modules\.first_warehouse_id/i)).toBeInTheDocument();
+  });
+
+  it('renders every prototype skippable redirect card and the completion next-step cards from the onboarding flow', async () => {
+    const user = userEvent.setup();
+    const onOpenRedirect = vi.fn<[string], void>();
+
+    await renderFirstWarehouse({ onOpenRedirect });
+
+    await user.click(screen.getByRole('button', { name: /5 first work order set-005/i }));
+    expect(screen.getByRole('button', { name: /skip this step/i })).toBeInTheDocument();
+    expect(screen.getByText(/Schedule your first work order/i)).toBeInTheDocument();
+    expect(screen.getByText(/first-WO-created timestamp is captured/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /open planning/i }));
+    expect(onOpenRedirect).toHaveBeenCalledWith('planning');
+
+    await user.click(screen.getByRole('button', { name: /6 completion set-006/i }));
+    expect(screen.getByText(/You're live on Monopilot/i)).toBeInTheDocument();
+    expect(screen.getByText(/organizations\.onboarding_completed_at/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /module toggles/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /schema browser/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /rules registry/i })).toBeInTheDocument();
+  });
 });
