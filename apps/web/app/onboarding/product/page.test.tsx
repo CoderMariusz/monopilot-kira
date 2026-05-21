@@ -10,10 +10,18 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OnboardingProductPage from './page';
+
+const pageSourcePath = path.join(__dirname, 'page.tsx');
+const parityReportPath = path.resolve(
+  __dirname,
+  '../../../../../artifacts/ui-parity/TASK-000468/onboarding-product/parity_report.json',
+);
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
@@ -138,6 +146,91 @@ afterEach(() => {
 });
 
 describe('SET-004 onboarding first-product redirect-card prototype parity', () => {
+  it('keeps page.tsx as a Server Component boundary that gets translated copy server-side', () => {
+    const pageSource = readFileSync(pageSourcePath, 'utf8');
+    const normalizedSource = pageSource.trimStart();
+
+    expect(normalizedSource.startsWith("'use client'"), 'app/**/page.tsx must not be a Client Component').toBe(
+      false,
+    );
+    expect(normalizedSource.startsWith('"use client"'), 'app/**/page.tsx must not be a Client Component').toBe(
+      false,
+    );
+    expect(pageSource, 'Server Component page must fetch next-intl messages before passing props to its client island').toMatch(
+      /from ['"]next-intl\/server['"]/,
+    );
+  });
+
+  it('does not hardcode SET-004 user-visible English copy in production JSX', () => {
+    const pageSource = readFileSync(pageSourcePath, 'utf8');
+    const forbiddenVisibleCopy = [
+      'Create your first product',
+      'Open product editor',
+      'Skip this step →',
+      'Onboarding wizard',
+      'Soft redirect into the Technical module',
+      'Products live in',
+      'Optional — you can skip this step.',
+      "Couldn't load onboarding progress.",
+      'Permission denied:',
+    ];
+
+    for (const literal of forbiddenVisibleCopy) {
+      expect(pageSource, `Visible copy must come from next-intl, not a hardcoded literal: ${literal}`).not.toContain(
+        literal,
+      );
+    }
+  });
+
+  it('publishes fail-closed UI parity artifacts for both declared viewports and regions', () => {
+    expect(
+      existsSync(parityReportPath),
+      `Missing parity_report.json at ${parityReportPath}; SET-004 closeout requires screenshot pairs and DOM diff JSON`,
+    ).toBe(true);
+
+    const report = JSON.parse(readFileSync(parityReportPath, 'utf8')) as {
+      prototype_path?: string;
+      prototype_route?: string;
+      target_route?: string;
+      viewports?: Array<{ label?: string; width?: number; height?: number }>;
+      region_selectors?: Record<string, string>;
+      parity_matrix?: unknown;
+      screenshot_pairs?: Array<{ viewport?: string; region?: string; prototype?: string; target?: string }>;
+      dom_diff_json?: unknown;
+    };
+
+    expect(report).toEqual(
+      expect.objectContaining({
+        prototype_path: expect.stringContaining('prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx'),
+        prototype_route: 'multi-step-wizard',
+        target_route: '/en/onboarding/product',
+        region_selectors: expect.objectContaining({ main: 'main', page_head: expect.any(String) }),
+        parity_matrix: expect.anything(),
+      }),
+    );
+    expect(report.viewports).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'desktop', width: 1440, height: 900 }),
+        expect.objectContaining({ label: 'tablet', width: 768, height: 1024 }),
+      ]),
+    );
+
+    const requiredArtifactPairs = [
+      ['desktop', 'main'],
+      ['desktop', 'page_head'],
+      ['tablet', 'main'],
+      ['tablet', 'page_head'],
+    ] as const;
+    for (const [viewport, region] of requiredArtifactPairs) {
+      expect(report.screenshot_pairs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ viewport, region, prototype: expect.any(String), target: expect.any(String) }),
+        ]),
+      );
+    }
+    expect(report.dom_diff_json).toEqual(expect.anything());
+  });
+
   it('renders SET-004 from the production route boundary without test-injected props or client-only fallback', async () => {
     renderProductionRouteEntry();
 
