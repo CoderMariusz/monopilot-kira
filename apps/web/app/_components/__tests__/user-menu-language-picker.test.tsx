@@ -150,7 +150,7 @@ describe('SET-100 user menu language picker options and active state', () => {
     expect(romanian).toHaveTextContent(/phase 2|unavailable/i);
   });
 
-  it('persists a supported PL/EN user override and hot-switches next-intl without a full page reload', async () => {
+  it('persists a supported PL/EN user override with current user/org context and hot-switches next-intl without a full page reload', async () => {
     const user = userEvent.setup();
     const onSelectLanguage = vi.fn().mockResolvedValue({
       ok: true,
@@ -163,12 +163,16 @@ describe('SET-100 user menu language picker options and active state', () => {
 
     await renderLanguagePicker({ onSelectLanguage, switchNextIntlLocale });
     await user.click(within(languageMenu()).getByRole('menuitemradio', { name: /english/i }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/language updated|next-intl/i);
 
     expect(onSelectLanguage).toHaveBeenCalledTimes(1);
-    expect(onSelectLanguage).toHaveBeenCalledWith('en');
+    expect(onSelectLanguage).toHaveBeenCalledWith({
+      userId: 'user-current',
+      orgId: 'org-apex',
+      locale: 'en',
+    });
     expect(switchNextIntlLocale).toHaveBeenCalledWith('en');
     expect(window.location.href).toBe(startingHref);
-    expect(await screen.findByRole('status')).toHaveTextContent(/language updated|next-intl/i);
   });
 
   it('surfaces a typed persistence/permission error for PL/EN and does not hot-switch on failure', async () => {
