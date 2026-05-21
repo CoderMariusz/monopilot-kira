@@ -49,30 +49,12 @@ type OnboardingLocationPageProps = {
   retryLoad?: () => void;
 };
 
-const DEFAULT_ORGANIZATION: NonNullable<OnboardingLocationPageProps['organization']> = {
-  id: 'org-apex',
-  name: 'Apex Foods Sp. z o.o.',
-  onboardingCompletedAt: null,
-};
-
 const DEFAULT_ONBOARDING_STATE: NonNullable<OnboardingLocationPageProps['onboardingState']> = {
   currentStep: 'first_location',
   completedSteps: ['org_profile', 'first_warehouse'],
   skippedSteps: [],
   savedAt: '',
 };
-
-const DEFAULT_FIRST_WAREHOUSE: NonNullable<OnboardingLocationPageProps['firstWarehouse']> = {
-  id: 'wh-fg-01',
-  code: 'FG-01',
-  name: 'ApexDG · Finished Goods',
-};
-
-async function unavailableCreateFirstLocationAction(): Promise<CreateFirstLocationResult> {
-  return { ok: false, error: 'Server Action unavailable in this render context.' };
-}
-
-const isVitestRuntime = typeof process !== 'undefined' && process.env.VITEST === 'true';
 
 const ONBOARDING_STEPS: Array<{
   code: string;
@@ -263,10 +245,10 @@ export default function OnboardingLocationPage({
   retryLoad,
 }: OnboardingLocationPageProps) {
   const router = useRouter();
-  const resolvedOrganization = organization ?? (isVitestRuntime ? DEFAULT_ORGANIZATION : undefined);
-  const resolvedOnboardingState = onboardingState ?? (isVitestRuntime ? DEFAULT_ONBOARDING_STATE : undefined);
-  const resolvedWarehouse = firstWarehouse ?? (isVitestRuntime ? DEFAULT_FIRST_WAREHOUSE : undefined);
-  const resolvedCreateFirstLocation = createFirstLocation ?? (isVitestRuntime ? unavailableCreateFirstLocationAction : undefined);
+  const resolvedOrganization = organization;
+  const resolvedOnboardingState = onboardingState;
+  const resolvedWarehouse = firstWarehouse;
+  const resolvedCreateFirstLocation = createFirstLocation;
 
   const initialOnboardingState = resolvedOnboardingState ?? DEFAULT_ONBOARDING_STATE;
 
