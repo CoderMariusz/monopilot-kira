@@ -3,6 +3,51 @@
     "signin": {
       "title": "Zaloguj się",
       "email": "Adres e-mail"
+    },
+    "login": {
+      "title": "Witaj ponownie",
+      "subtitle": "Zaloguj się do obszaru roboczego MES",
+      "emailLabel": "E-mail służbowy",
+      "passwordLabel": "Hasło",
+      "emailPlaceholder": "ty@firma.pl",
+      "passwordPlaceholder": "••••••••",
+      "remember": "Zapamiętaj mnie przez 30 dni",
+      "forgotPassword": "Nie pamiętasz hasła?",
+      "submit": "Zaloguj się",
+      "submitting": "Logowanie...",
+      "divider": "lub",
+      "ssoComingSoon": "Logowanie SSO wkrótce",
+      "noAccount": "Nie masz konta?",
+      "contactAdmin": "Skontaktuj się z administratorem",
+      "privacy": "Prywatność",
+      "terms": "Warunki",
+      "status": "Status",
+      "error": {
+        "invalidCredentials": "Nieprawidłowe dane logowania"
+      },
+      "forgot": {
+        "backToSignIn": "← Wróć do logowania",
+        "title": "Zresetuj hasło",
+        "subtitle": "Podaj e-mail, a wyślemy link do resetu.",
+        "emailLabel": "E-mail służbowy",
+        "emailPlaceholder": "ty@firma.pl",
+        "info": "Link wygaśnie po 30 minutach. Sprawdź spam, jeśli nie dotrze w ciągu 2 minut.",
+        "submit": "Wyślij link resetujący",
+        "submitting": "Wysyłanie...",
+        "successTitle": "Sprawdź skrzynkę",
+        "successBody": "Wysłaliśmy link resetujący na podany e-mail służbowy. Otwórz go, aby ustawić nowe hasło.",
+        "successBack": "Wróć do logowania",
+        "successRetryPrefix": "Nie dotarł?",
+        "successRetry": "Spróbuj z innym adresem"
+      },
+      "mfa": {
+        "title": "Uwierzytelnianie dwuskładnikowe",
+        "subtitle": "Wpisz sześciocyfrowy kod TOTP z aplikacji uwierzytelniającej.",
+        "codeLabel": "Kod weryfikacyjny",
+        "submit": "Zweryfikuj",
+        "submitting": "Weryfikacja...",
+        "recoveryCode": "Użyj kodu odzyskiwania"
+      }
     }
   },
   "common": {

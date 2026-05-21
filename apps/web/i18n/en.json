@@ -3,6 +3,51 @@
     "signin": {
       "title": "Sign in",
       "email": "Email address"
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your MES workspace",
+      "emailLabel": "Work email",
+      "passwordLabel": "Password",
+      "emailPlaceholder": "you@company.com",
+      "passwordPlaceholder": "••••••••",
+      "remember": "Remember me for 30 days",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign in",
+      "submitting": "Signing in...",
+      "divider": "or",
+      "ssoComingSoon": "SSO sign-in coming soon",
+      "noAccount": "Do not have an account?",
+      "contactAdmin": "Contact your admin",
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "status": "Status",
+      "error": {
+        "invalidCredentials": "Invalid login credentials"
+      },
+      "forgot": {
+        "backToSignIn": "← Back to sign in",
+        "title": "Reset your password",
+        "subtitle": "Enter your email and we will send you a reset link.",
+        "emailLabel": "Work email",
+        "emailPlaceholder": "you@company.com",
+        "info": "The link expires in 30 minutes. Check your spam folder if it does not arrive within 2 minutes.",
+        "submit": "Send reset link",
+        "submitting": "Sending...",
+        "successTitle": "Check your inbox",
+        "successBody": "We sent a reset link to the work email you provided. Follow the link to set a new password.",
+        "successBack": "Back to sign in",
+        "successRetryPrefix": "Did not get it?",
+        "successRetry": "Try a different email"
+      },
+      "mfa": {
+        "title": "Two-factor authentication",
+        "subtitle": "Enter the six-digit TOTP code from your authenticator app.",
+        "codeLabel": "Verification code",
+        "submit": "Verify",
+        "submitting": "Verifying...",
+        "recoveryCode": "Use recovery code"
+      }
     }
   },
   "common": {
