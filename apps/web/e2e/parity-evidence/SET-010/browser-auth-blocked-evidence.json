@@ -1,0 +1,34 @@
+{
+  "base_url": "http://127.0.0.1:4310",
+  "server_identity": "dev server from TASK-000538-a1 pid 1056 on 127.0.0.1:4310",
+  "target_route": "/en/settings/company",
+  "captured_at": "2026-05-21T16:10:56.129Z",
+  "results": [
+    {
+      "viewport": {
+        "label": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "finalUrl": "http://127.0.0.1:4310/en/login?reason=idle",
+      "status": 200,
+      "screenshot": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000538-a1/apps/web/e2e/parity-evidence/SET-010/target-auth-blocked-desktop.png",
+      "trace": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000538-a1/apps/web/e2e/parity-evidence/SET-010/trace-auth-blocked-desktop.zip",
+      "title": "Monopilot Kira",
+      "errors": []
+    },
+    {
+      "viewport": {
+        "label": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "finalUrl": "http://127.0.0.1:4310/en/login?reason=idle",
+      "status": 200,
+      "screenshot": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000538-a1/apps/web/e2e/parity-evidence/SET-010/target-auth-blocked-tablet.png",
+      "trace": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000538-a1/apps/web/e2e/parity-evidence/SET-010/trace-auth-blocked-tablet.zip",
+      "title": "Monopilot Kira",
+      "errors": []
+    }
+  ]
+}

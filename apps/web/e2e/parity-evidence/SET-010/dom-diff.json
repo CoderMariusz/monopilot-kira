@@ -1,0 +1,54 @@
+{
+  "task": "T-058",
+  "screen": "SET-010 company_profile_screen",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/org-screens.jsx:4-100",
+  "target_route": "/en/settings/company",
+  "evidence_mode": "rtl_snapshot_plus_auth_blocked_browser",
+  "captured_at": "2026-05-21T16:09:30Z",
+  "regions": {
+    "page_head": {
+      "prototype": ["Company profile", "Your company details, used across labels, invoices, and exports."],
+      "implementation": ["Company profile", "Your company details, used across labels, invoices, and exports."],
+      "match": true,
+      "evidence": "apps/web/app/[locale]/(admin)/settings/company/page.test.tsx inline snapshot and heading assertions"
+    },
+    "main": {
+      "prototype_sections": ["Identity", "Registered address", "Contact", "Locale"],
+      "implementation_sections": ["Identity", "Registered address", "Contact", "Locale"],
+      "match": true,
+      "controls": [
+        "Trading name",
+        "Legal name",
+        "VAT / NIP",
+        "REGON",
+        "Street",
+        "City",
+        "ZIP",
+        "Email",
+        "Phone",
+        "Website",
+        "Region",
+        "Industry",
+        "Country",
+        "Default currency",
+        "Timezone",
+        "Date format"
+      ],
+      "evidence": "RTL test asserts shadcn input/select slots, no raw select elements, action order, disabled save, region tooltip, and focus order."
+    }
+  },
+  "unmapped_prototype_regions": [],
+  "unmapped_target_regions": [],
+  "browser_blocker": {
+    "status": "auth_redirect",
+    "base_url": "http://127.0.0.1:4310",
+    "observed": "HTTP 307 to /login?reason=idle without an authenticated session",
+    "artifacts": [
+      "apps/web/e2e/parity-evidence/SET-010/browser-auth-blocked-evidence.json",
+      "apps/web/e2e/parity-evidence/SET-010/target-auth-blocked-desktop.png",
+      "apps/web/e2e/parity-evidence/SET-010/target-auth-blocked-tablet.png",
+      "apps/web/e2e/parity-evidence/SET-010/trace-auth-blocked-desktop.zip",
+      "apps/web/e2e/parity-evidence/SET-010/trace-auth-blocked-tablet.zip"
+    ]
+  }
+}

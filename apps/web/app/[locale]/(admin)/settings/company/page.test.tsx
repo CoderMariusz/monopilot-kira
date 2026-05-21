@@ -7,10 +7,54 @@
  */
 
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const messages: Record<string, string> = {
+  title: 'Company profile',
+  subtitle: 'Your company details, used across labels, invoices, and exports.',
+  loading: 'Loading company profile…',
+  empty: 'No organization profile is available for the current org.',
+  load_error: 'Company profile could not be loaded.',
+  save_error: 'Company profile could not be saved.',
+  read_only_label: 'Read-only',
+  read_only_notice: 'You need settings.org.update to save company profile changes.',
+  section_identity: 'Identity',
+  section_registered_address: 'Registered address',
+  section_contact: 'Contact',
+  section_locale: 'Locale',
+  field_trading_name: 'Trading name',
+  field_legal_name: 'Legal name',
+  field_logo: 'Logo',
+  field_vat: 'VAT / NIP',
+  field_regon: 'REGON',
+  field_industry: 'Industry',
+  field_street: 'Street',
+  field_city_zip: 'City / ZIP',
+  field_city: 'City',
+  field_zip: 'ZIP',
+  field_country: 'Country',
+  field_email: 'Email',
+  field_phone: 'Phone',
+  field_website: 'Website',
+  field_default_currency: 'Default currency',
+  field_timezone: 'Timezone',
+  field_date_format: 'Date format',
+  field_region: 'Region',
+  hint_upload: 'PNG or SVG · max 2MB · 400×400px recommended',
+  region_tooltip: 'Region change requires support ticket',
+  action_upload_new: 'Upload new',
+  action_cancel: 'Cancel',
+  action_save_changes: 'Save changes',
+};
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => messages[key] ?? key,
+}));
 
 type CompanyProfile = {
   id: string;
@@ -68,7 +112,7 @@ const organization: CompanyProfile = {
 
 async function loadCompanyProfilePage(): Promise<CompanyProfilePage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './company-profile-screen.client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-010 page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -116,6 +160,20 @@ function labelledControlNames() {
     ...screen.queryAllByRole('combobox'),
   ].map((element) => element.getAttribute('aria-label') || element.getAttribute('name') || element.id);
 }
+
+describe('SET-010 company profile Server Component boundary and i18n', () => {
+  it('keeps page.tsx server-rendered and delegates translations/interactivity to the client leaf', () => {
+    const sourceDir = join(process.cwd(), 'app/[locale]/(admin)/settings/company');
+    const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
+    const clientSource = readFileSync(join(sourceDir, 'company-profile-screen.client.tsx'), 'utf8');
+
+    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.company_profile' })");
+    expect(pageSource).toContain("from './company-profile-screen.client'");
+    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toContain("useTranslations('settings.company_profile')");
+  });
+});
 
 describe('SET-010 company profile prototype parity', () => {
   beforeEach(() => {
