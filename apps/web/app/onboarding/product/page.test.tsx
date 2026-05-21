@@ -135,6 +135,18 @@ async function renderProduct(overrides: Partial<OnboardingProductPageProps> = {}
   };
 }
 
+async function renderProductionRouteEntry() {
+  const Page = await loadOnboardingProductPage();
+  const routeProps = {} as OnboardingProductPageProps;
+
+  if (Page.constructor.name === 'AsyncFunction') {
+    const node = await Page(routeProps);
+    return render(React.createElement(React.Fragment, null, node));
+  }
+
+  return render(React.createElement(Page as React.ComponentType<OnboardingProductPageProps>, routeProps));
+}
+
 function stepperLabels() {
   return screen.getAllByRole('button', { name: /SET-00[1-6]/ }).map((button) => button.textContent);
 }
@@ -156,6 +168,31 @@ afterEach(() => {
 });
 
 describe('SET-004 onboarding first-product redirect-card prototype parity', () => {
+  it('renders SET-004 from the production route boundary without test-injected props or client-only fallback', async () => {
+    await renderProductionRouteEntry();
+
+    expect(screen.queryByText(/Server onboarding data or actions are unavailable/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /SET-004 · First product/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open product editor/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Skip this step →/i })).toBeEnabled();
+  });
+
+  it('routes to the canonical step-5 URL after successful Skip instead of only changing local state', async () => {
+    const user = userEvent.setup();
+    const skipOnboardingStep = vi.fn().mockResolvedValue({
+      ok: true,
+      skippedStep: 4,
+      nextStep: 'first_wo',
+    } satisfies SkipOnboardingStepResult);
+    await renderProduct({ skipOnboardingStep });
+
+    await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
+
+    expect(skipOnboardingStep).toHaveBeenCalledWith(4);
+    expect(routerPush).toHaveBeenCalledWith('/onboarding/wo');
+  });
+
   it('renders the skippable first_product card inside the saved-state six-step wizard with prototype labels and keyboard order', async () => {
     const user = userEvent.setup();
     await renderProduct();
