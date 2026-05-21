@@ -129,6 +129,17 @@ async function renderCompletion(overrides: Partial<OnboardingCompletionPageProps
   };
 }
 
+async function renderProductionRouteEntry() {
+  const Page = await loadOnboardingCompletionPage();
+
+  if (Page.constructor.name === 'AsyncFunction') {
+    const node = await Page({} as OnboardingCompletionPageProps);
+    return render(React.createElement(React.Fragment, null, node));
+  }
+
+  return render(React.createElement(Page as React.ComponentType<OnboardingCompletionPageProps>, {} as OnboardingCompletionPageProps));
+}
+
 function stepperLabels() {
   return screen.getAllByRole('button', { name: /SET-00[1-6]/ }).map((button) => button.textContent);
 }
@@ -139,6 +150,21 @@ afterEach(() => {
 });
 
 describe('SET-006 onboarding completion prototype parity', () => {
+  it('renders the production route boundary with real data/action wiring instead of test-injected completion props', async () => {
+    const user = userEvent.setup();
+    await renderProductionRouteEntry();
+
+    expect(screen.queryByTestId('missing-onboarding-completion-page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Finish onboarding/i }));
+
+    expect(await screen.findByText(/onboarding completed/i)).toBeInTheDocument();
+    expect(routerPush).toHaveBeenCalledWith('/admin');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('renders the completion celebration inside the six-step wizard with saved-state/resume progress and keyboard order', async () => {
     const user = userEvent.setup();
     await renderCompletion();
