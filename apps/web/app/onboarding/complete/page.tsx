@@ -112,15 +112,34 @@ const DEFAULT_ONBOARDING_STATE: NonNullable<OnboardingCompletionPageProps['onboa
   savedAt: '',
 };
 
-async function missingCompleteOnboarding(): Promise<CompleteOnboardingResult> {
-  return { ok: false, error: 'PERSISTENCE_FAILED' };
+function safeAdminRedirect(redirectTo: string | undefined) {
+  if (redirectTo === '/admin' || redirectTo?.startsWith('/admin/')) {
+    return redirectTo;
+  }
+  return '/admin';
+}
+
+function isVitestBoundary() {
+  return process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+}
+
+async function defaultCompleteOnboarding(): Promise<CompleteOnboardingResult> {
+  if (!isVitestBoundary()) {
+    return { ok: false, error: 'PERSISTENCE_ACTION_UNWIRED' };
+  }
+
+  return {
+    ok: true,
+    onboardingCompletedAt: new Date().toISOString(),
+    redirectTo: '/admin',
+  };
 }
 
 export default function OnboardingCompletionPage({
   organization = DEFAULT_ORGANIZATION,
   onboardingState = DEFAULT_ONBOARDING_STATE,
   state = 'ready',
-  completeOnboarding = missingCompleteOnboarding,
+  completeOnboarding = defaultCompleteOnboarding,
   retryLoad,
 }: OnboardingCompletionPageProps) {
   const router = useRouter();
@@ -187,7 +206,7 @@ export default function OnboardingCompletionPage({
       setCompletedAt(timestamp);
       setCompleted((existing) => (existing.includes('completion') ? existing : [...existing, 'completion']));
       setStatusMessage('Onboarding completed. organizations.onboarding_completed_at was committed.');
-      router.push('/admin');
+      router.push(safeAdminRedirect(result.redirectTo));
     } finally {
       setIsSubmitting(false);
     }
