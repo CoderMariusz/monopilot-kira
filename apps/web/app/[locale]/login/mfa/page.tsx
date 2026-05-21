@@ -1,14 +1,8 @@
 import { getTranslations } from 'next-intl/server';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import { MfaFormClient, type MfaLabels } from '../login-card.client';
 
-const formPrimitiveImportPath = '@monopilot/ui/Field';
 // Prototype reference copy rendered through auth.login.mfa i18n: Two-factor authentication; Verify; Use recovery code.
-void Button;
-void Input;
-void formPrimitiveImportPath;
 
 type MfaPageProps = {
   params: Promise<{ locale: string }>;
@@ -45,12 +39,14 @@ export default async function MfaPage({ params }: MfaPageProps) {
 
   return (
     <main data-region="main" className="w-full max-w-[480px]">
-      <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
-        <CardContent className="p-0">
-          <BrandLockup />
-          <MfaFormClient locale={locale} labels={labels} />
-        </CardContent>
-      </Card>
+      <section aria-label={labels.title} style={{ borderRadius: 12 }}>
+        <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
+          <CardContent className="p-0">
+            <BrandLockup />
+            <MfaFormClient locale={locale} labels={labels} />
+          </CardContent>
+        </Card>
+      </section>
     </main>
   );
 }

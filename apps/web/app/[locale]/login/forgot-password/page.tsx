@@ -1,14 +1,8 @@
 import { getTranslations } from 'next-intl/server';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import { ForgotPasswordFormClient, type ForgotPasswordLabels } from '../login-card.client';
 
-const formPrimitiveImportPath = '@monopilot/ui/Field';
 // Prototype reference copy rendered through auth.login.forgot i18n: Reset your password; Send reset link; Check your inbox; The link expires in 30 minutes; Try a different email.
-void Button;
-void Input;
-void formPrimitiveImportPath;
 
 type ForgotPasswordPageProps = {
   params: Promise<{ locale: string }>;
@@ -52,12 +46,14 @@ export default async function ForgotPasswordPage({ params }: ForgotPasswordPageP
 
   return (
     <main data-region="main" className="w-full max-w-[480px]">
-      <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
-        <CardContent className="p-0">
-          <BrandLockup />
-          <ForgotPasswordFormClient locale={locale} labels={labels} />
-        </CardContent>
-      </Card>
+      <section aria-label={labels.title} style={{ borderRadius: 12 }}>
+        <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
+          <CardContent className="p-0">
+            <BrandLockup />
+            <ForgotPasswordFormClient locale={locale} labels={labels} />
+          </CardContent>
+        </Card>
+      </section>
     </main>
   );
 }

@@ -1,14 +1,17 @@
 import { getTranslations } from 'next-intl/server';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
+import type { ButtonProps } from '@monopilot/ui/Button';
+import type { InputProps } from '@monopilot/ui/Input';
 import { LoginFormClient, type LoginLabels } from './login-card.client';
 
-const formPrimitiveImportPath = '@monopilot/ui/Field';
 // Prototype reference copy rendered through auth.login i18n: Welcome back; Sign in to your MES workspace; Work email; you@company.com; Remember me for 30 days; Sign in; SSO; Contact your admin; Privacy; Terms; Status.
-void Button;
-void Input;
-void formPrimitiveImportPath;
+
+export type LoginPrimitiveContract = {
+  disabledSubmit: ButtonProps['disabled'];
+  emailType: Extract<InputProps['type'], 'email'>;
+  fieldPrimitive: '@monopilot/ui/Field';
+  passwordFieldName: 'password';
+};
 
 type LoginPageProps = {
   params: Promise<{ locale: string }>;
@@ -57,12 +60,14 @@ export default async function LoginPage({ params }: LoginPageProps) {
   return (
     <>
       <main data-region="main" className="w-full max-w-[480px]">
-        <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
-          <CardContent className="p-0">
-            <BrandLockup />
-            <LoginFormClient locale={locale} labels={labels} />
-          </CardContent>
-        </Card>
+        <section aria-label={labels.title} style={{ borderRadius: 12 }}>
+          <Card className="w-full rounded-[12px] border border-[#d8e0ea] bg-white px-[36px] pb-7 pt-[36px] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_36px_rgba(15,23,42,0.08)]">
+            <CardContent className="p-0">
+              <BrandLockup />
+              <LoginFormClient locale={locale} labels={labels} />
+            </CardContent>
+          </Card>
+        </section>
       </main>
 
       <footer className="px-5 py-5 text-center text-[11px] text-slate-500">
