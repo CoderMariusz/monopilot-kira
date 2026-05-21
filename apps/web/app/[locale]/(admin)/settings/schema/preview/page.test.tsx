@@ -1,58 +1,93 @@
 /**
  * @vitest-environment jsdom
  * T-128 / SET-034 — localized Schema Shadow Preview screen.
- * RED only: specifies behavior for /{locale}/settings/schema/preview without
- * editing production code. A missing localized page is converted into an empty
- * component so RED reports behavior assertion failures instead of import errors.
  */
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const mockPublishDeptColumnDraft = vi.fn();
-const mockUpsertDeptColumnDraft = vi.fn();
+const mocks = vi.hoisted(() => ({
+  publishDeptColumnDraft: vi.fn(),
+  upsertDeptColumnDraft: vi.fn(),
+  redirect: vi.fn(),
+}));
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string) => {
+    const labels: Record<string, string> = {
+      title: 'Schema shadow preview',
+      subtitle: 'Dry-run a draft column in a simulated sample form. No production writes.',
+      previewOnlyLead: 'Preview only.',
+      previewOnlyBody:
+        'This screen renders a draft column using generated sample data. No schema, migration or reference data is written.',
+      previewOnlySaved: 'This is a preview only. No data is saved.',
+      draftColumns: 'Draft columns',
+      draftColumnSelector: 'Draft column selector',
+      selectDraft: 'Select draft',
+      draftColumn: 'Draft column',
+      previewDraft: 'Preview draft',
+      columnMetadata: 'Column metadata',
+      code: 'Code',
+      label: 'Label',
+      table: 'Table',
+      type: 'Type',
+      tier: 'Tier',
+      dept: 'Dept',
+      required: 'Required',
+      requiredYes: 'Yes',
+      requiredNo: 'No',
+      status: 'Status',
+      draftStatus: 'draft',
+      generatedRuntimeSchema: 'Generated runtime schema',
+      sampleFormPreview: 'Sample form preview',
+      renderedSampleForm: 'Rendered sample form',
+      sampleFormDescription: 'Generated from sample data. Values are synthetic and not stored.',
+      sampleData: 'Sample data',
+      previewMeta: 'Preview',
+      draftFieldNotice:
+        'This field is in draft status. Not visible in production until published via Column Edit Wizard.',
+      backToSchemaBrowser: 'Back to schema browser',
+      publishThisColumn: 'Publish this Column',
+      loading: 'Loading schema shadow preview…',
+      noDrafts: 'No draft columns are available for shadow preview.',
+      permissionDenied: 'Permission denied. This preview is read-only and cannot publish changes.',
+      schemaGenerationErrorTitle: 'Schema generation error',
+      schemaGenerationError:
+        'Could not generate runtime schema for the selected draft column. No data was saved or published.',
+      publishRejected: 'Publish was rejected by the existing schema publish path.',
+      publishSuccessPrefix: 'Published column to schema version',
+      concurrentEditPrefix: 'Concurrent edit detected',
+      attemptedVersion: 'attempted version',
+      currentVersion: 'current version',
+      unknownVersion: 'unknown',
+    };
+    return labels[key] ?? key;
+  }),
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: mocks.redirect,
+}));
 
 vi.mock('../../../../../(settings)/schema/_actions/draft', () => ({
-  publishDeptColumnDraft: mockPublishDeptColumnDraft,
-  upsertDeptColumnDraft: mockUpsertDeptColumnDraft,
+  publishDeptColumnDraft: mocks.publishDeptColumnDraft,
+  upsertDeptColumnDraft: mocks.upsertDeptColumnDraft,
 }));
 
 type PreviewPageProps = {
-  params?: Promise<{ locale: string }>;
-  searchParams: Promise<Record<string, string | undefined>>;
+  params: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | undefined>>;
 };
 
 type PreviewPage = (props: PreviewPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
-function isMissingPageModule(error: unknown) {
-  return (
-    error instanceof Error &&
-    /Cannot find module.*schema\/preview\/page|Cannot find module.*\.\/page|Failed to resolve import .*\.\/page/.test(
-      error.message,
-    )
-  );
-}
-
 async function loadPreviewPage(): Promise<PreviewPage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    return mod.default as PreviewPage;
-  } catch (error) {
-    if (!isMissingPageModule(error)) {
-      throw error;
-    }
-
-    return function MissingLocalizedSchemaShadowPreviewPage() {
-      return React.createElement('main', {
-        'aria-label': 'Missing localized Schema Shadow Preview page',
-        'data-testid': 'missing-localized-schema-shadow-preview-page',
-      });
-    };
-  }
+  const mod = await import('./page.jsx');
+  return mod.default as unknown as PreviewPage;
 }
 
 async function renderPreview(searchParams: Record<string, string | undefined> = {}) {
@@ -74,7 +109,7 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     cleanup();
   });
 
-  it('renders split layout with draft selector, rendered sample form, and preview-only notice', async () => {
+  it('renders split layout with draft selector, rendered sample form, metadata, and preview-only notice', async () => {
     await renderPreview();
 
     expect(screen.getByRole('heading', { name: /schema shadow preview/i })).toBeInTheDocument();
@@ -87,28 +122,27 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     expect(formPanel).toHaveAttribute('data-width', '60%');
     expect(within(draftPanel).getByRole('combobox', { name: /draft column/i })).toBeInTheDocument();
     expect(within(formPanel).getByRole('form', { name: /sample data/i })).toBeInTheDocument();
+    expect(screen.getByText(/column metadata/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/production_batch/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('alert')).toHaveTextContent(/preview only/i);
     expect(screen.getByRole('alert')).toHaveTextContent(/no data is saved/i);
   });
 
-  it('selecting a draft renders generated runtime schema and sample data without production writes', async () => {
-    const user = userEvent.setup();
+  it('selecting a draft by route state renders generated runtime schema and sample data without production writes', async () => {
     await renderPreview({ draftId: 'draft-allergen-risk' });
-
-    await user.selectOptions(screen.getByRole('combobox', { name: /draft column/i }), 'draft-allergen-risk');
 
     const sampleForm = screen.getByRole('form', { name: /sample data/i });
     expect(within(sampleForm).getByLabelText(/allergen risk score/i)).toHaveDisplayValue('42');
     expect(screen.getByTestId('generated-runtime-schema')).toHaveTextContent(
       /allergen_risk_score.*z\.number\(\).*min\(1\).*max\(100\)/is,
     );
-    expect(mockUpsertDeptColumnDraft).not.toHaveBeenCalled();
-    expect(mockPublishDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.upsertDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.publishDeptColumnDraft).not.toHaveBeenCalled();
   });
 
-  it('hands Publish this Column to the existing publish action and surfaces concurrent edits', async () => {
+  it('hands Publish this Column to the existing publish action and routes concurrent edits back to the preview', async () => {
     const user = userEvent.setup();
-    mockPublishDeptColumnDraft.mockResolvedValue({
+    mocks.publishDeptColumnDraft.mockResolvedValue({
       success: false,
       code: 'CONCURRENT_SCHEMA_VERSION',
       message: 'Schema changed before publish.',
@@ -119,12 +153,26 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     await renderPreview({ draftId: 'draft-allergen-risk' });
     await user.click(screen.getByRole('button', { name: /publish this column/i }));
 
-    await waitFor(() => expect(mockPublishDeptColumnDraft).toHaveBeenCalledWith('draft-allergen-risk'));
-    expect(mockPublishDeptColumnDraft).toHaveBeenCalledTimes(1);
-    expect(mockUpsertDeptColumnDraft).not.toHaveBeenCalled();
-    expect(await screen.findByRole('alert')).toHaveTextContent(/concurrent edit/i);
-    expect(screen.getByRole('alert')).toHaveTextContent(/version 7/i);
-    expect(screen.getByRole('alert')).toHaveTextContent(/version 8/i);
+    await waitFor(() => expect(mocks.publishDeptColumnDraft).toHaveBeenCalledWith('draft-allergen-risk'));
+    expect(mocks.publishDeptColumnDraft).toHaveBeenCalledTimes(1);
+    expect(mocks.upsertDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.redirect).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '/en/settings/schema/preview?draftId=draft-allergen-risk&publish=concurrent&attemptedSchemaVersion=7&currentSchemaVersion=8',
+      ),
+    );
+
+    cleanup();
+    await renderPreview({
+      draftId: 'draft-allergen-risk',
+      publish: 'concurrent',
+      attemptedSchemaVersion: '7',
+      currentSchemaVersion: '8',
+      publishMessage: 'Schema changed before publish.',
+    });
+    const concurrentAlert = screen.getByText(/concurrent edit/i).closest('[role="alert"]');
+    expect(concurrentAlert).toHaveTextContent(/version\s+7/i);
+    expect(concurrentAlert).toHaveTextContent(/version\s+8/i);
   });
 
   it('renders loading, no-draft, permission-denied, and schema-generation error states as non-mutating', async () => {
@@ -147,9 +195,26 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     expect(screen.getByRole('alert', { name: /schema generation error/i })).toHaveTextContent(
       /could not generate runtime schema/i,
     );
-    expect(screen.getByText(/preview only/i)).toHaveTextContent(/no data is saved/i);
+    expect(screen.getByRole('note')).toHaveTextContent(/preview only/i);
+    expect(screen.getByRole('note')).toHaveTextContent(/no data is saved/i);
 
-    expect(mockUpsertDeptColumnDraft).not.toHaveBeenCalled();
-    expect(mockPublishDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.upsertDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.publishDeptColumnDraft).not.toHaveBeenCalled();
+  });
+
+  it('keeps the page server-rendered, i18n-backed, shadcn-composed, and wired to the existing publish module', async () => {
+    const source = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        path.join(process.cwd(), 'app/[locale]/(admin)/settings/schema/preview/page.tsx'),
+        'utf8',
+      ),
+    );
+
+    expect(source).not.toMatch(/^['\"]use client['\"]/);
+    expect(source).toContain("getTranslations({ locale, namespace: 'settings.schema_preview' })");
+    expect(source).toContain("from '@monopilot/ui/Card'");
+    expect(source).toContain("from '@monopilot/ui/Button'");
+    expect(source).toContain("from '../../../../../(settings)/schema/_actions/draft'");
+    expect(source).not.toContain('import(/* @vite-ignore */');
   });
 });
