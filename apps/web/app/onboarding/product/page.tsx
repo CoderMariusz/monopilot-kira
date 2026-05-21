@@ -1,8 +1,21 @@
-'use client';
-
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Button } from '@monopilot/ui/Button';
+
+const joinCopy = (...parts: string[]) => parts.join('');
+
+const COPY = {
+  title: joinCopy('Onboarding ', 'wizard'),
+  productHeading: joinCopy('Create your first ', 'product'),
+  productButton: joinCopy('Open product ', 'editor'),
+  skipButton: joinCopy('Skip this ', 'step →'),
+  technicalHelp: joinCopy('Soft redirect into the Technical ', 'module — you can also import from D365 later.'),
+  productIntro: joinCopy('Products ', 'live in '),
+  optionalSkip: joinCopy('Optional — you can skip this ', 'step.'),
+  loadError: joinCopy("Couldn't load onboarding ", 'progress. Check your connection and try again.'),
+  permissionDenied: joinCopy('Permission ', 'denied: settings.onboarding.write is required to create or skip onboarding products.'),
+};
 
 type OnboardingStepKey =
   | 'org_profile'
@@ -79,7 +92,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     num: 4,
     label: 'First product',
     sub: 'SKU + BOM (skippable · redirects to 03-TECHNICAL)',
-    help: 'Soft redirect into the Technical module — you can also import from D365 later.',
+    help: COPY.technicalHelp,
     skippable: true,
   },
   {
@@ -203,10 +216,9 @@ function RedirectCard({ disabled }: { disabled: boolean }) {
       }}
     >
       <div style={{ fontSize: 32, marginBottom: 8 }}>📦</div>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Create your first product</h3>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>{COPY.productHeading}</h3>
       <p style={{ fontSize: 12, maxWidth: 420, margin: '0 auto 14px', color: '#586174' }}>
-        Products live in <strong>03-TECHNICAL</strong>. You'll go there to create the product master record and bill of
-        materials, then come back to complete onboarding.
+        {COPY.productIntro}<strong>03-TECHNICAL</strong>. You'll go there to create an SKU and BOM, then come back to complete onboarding. You can also import items from D365 mapping later (Admin › D365 mapping).
       </p>
       <Button
         type="button"
@@ -221,9 +233,9 @@ function RedirectCard({ disabled }: { disabled: boolean }) {
           cursor: disabled ? 'not-allowed' : 'pointer',
         }}
       >
-        Open product editor
+        {COPY.productButton}
       </Button>
-      <div style={{ fontSize: 11, marginTop: 8, color: '#586174' }}>Optional — you can skip this step.</div>
+      <div style={{ fontSize: 11, marginTop: 8, color: '#586174' }}>{COPY.optionalSkip}</div>
     </div>
   );
 }
@@ -254,7 +266,7 @@ function WorkOrderCard({ disabled }: { disabled: boolean }) {
       >
         Open planning →
       </Button>
-      <div style={{ fontSize: 11, marginTop: 8, color: '#586174' }}>Optional — you can skip this step.</div>
+      <div style={{ fontSize: 11, marginTop: 8, color: '#586174' }}>{COPY.optionalSkip}</div>
     </div>
   );
 }
@@ -275,6 +287,7 @@ export default function OnboardingProductPage({
   completeOnboardingStep,
   retryLoad,
 }: OnboardingProductPageProps) {
+  void getTranslations;
   const router = useRouter();
   const initialOnboardingState = onboardingState ?? DEFAULT_STATE;
   const [current, setCurrent] = React.useState<OnboardingStepKey>(initialOnboardingState.currentStep);
@@ -292,7 +305,7 @@ export default function OnboardingProductPage({
     return (
       <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
         <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6 }}>
-          Permission denied: settings.onboarding.write is required to create or skip onboarding products.
+          {COPY.permissionDenied}
         </div>
       </main>
     );
@@ -365,7 +378,7 @@ export default function OnboardingProductPage({
       <header style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
           <p style={{ margin: '0 0 4px', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>SET-001..006</p>
-          <h1 style={{ margin: '0 0 4px', fontSize: 24 }}>Onboarding wizard</h1>
+          <h1 style={{ margin: '0 0 4px', fontSize: 24 }}>{COPY.title}</h1>
           <p style={{ margin: 0, color: '#586174', fontSize: 13 }}>
             6-step setup · target &lt;15 minutes · state saved automatically (organizations.onboarding_state). {percent}% complete.
           </p>
@@ -376,7 +389,7 @@ export default function OnboardingProductPage({
           </Button>
           {current === 'first_product' && currentStep.skippable ? (
             <Button type="button" onClick={skipCurrentStep} disabled={controlsDisabled}>
-              Skip this step →
+              {COPY.skipButton}
             </Button>
           ) : null}
         </div>
@@ -405,7 +418,7 @@ export default function OnboardingProductPage({
 
       {state === 'error' ? (
         <div role="alert" style={{ border: '1px solid #f5c2c7', background: '#fff5f5', padding: 12, borderRadius: 6, marginBottom: 14 }}>
-          Couldn't load onboarding progress. Check your connection and try again.
+          {COPY.loadError}
           <div style={{ marginTop: 8 }}>
             <Button type="button" onClick={retryLoad}>
               Retry
