@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 type OnboardingStepKey =
   | 'org_profile'
@@ -115,6 +116,13 @@ const ONBOARDING_STEPS: StepMeta[] = [
     sub: "You're live · next-step cards",
     help: 'Confetti moment + card grid linking to Module Toggles, Schema Browser, and Rules Registry.',
   },
+];
+
+const WAREHOUSE_TYPE_OPTIONS: Array<{ value: WarehouseType; label: string }> = [
+  { value: 'finished', label: 'Finished goods' },
+  { value: 'raw', label: 'Raw materials' },
+  { value: 'wip', label: 'Work in progress' },
+  { value: 'quarantine', label: 'Quarantine / QA hold' },
 ];
 
 const DEFAULT_ONBOARDING_STATE: NonNullable<FirstWarehousePageProps['onboardingState']> = {
@@ -374,19 +382,39 @@ export default function FirstWarehouseOnboardingPage({
                 </span>
               ) : null}
             </label>
-            <label className="grid gap-1 text-sm font-medium text-slate-800">
+            <label className="grid gap-1 text-sm font-medium text-slate-800" htmlFor="warehouse-type">
               Warehouse type
-              <select
-                value={type}
-                onChange={(event) => setType(event.currentTarget.value as WarehouseType)}
-                className="rounded border border-slate-300 px-3 py-2"
-                required
-              >
-                <option value="finished">Finished goods</option>
-                <option value="raw">Raw materials</option>
-                <option value="wip">Work in progress</option>
-                <option value="quarantine">Quarantine / QA hold</option>
-              </select>
+              {React.createElement(
+                Select as React.ComponentType<any>,
+                {
+                  value: type,
+                  onValueChange: (value: string) => setType(value as WarehouseType),
+                  options: WAREHOUSE_TYPE_OPTIONS,
+                  name: 'Warehouse type',
+                },
+                React.createElement(
+                  SelectTrigger as React.ComponentType<any>,
+                  {
+                    id: 'warehouse-type',
+                    name: 'Warehouse type',
+                    value: type,
+                    'aria-label': 'Warehouse type',
+                    className: 'rounded border border-slate-300 px-3 py-2',
+                  },
+                  React.createElement(SelectValue as React.ComponentType<any>, { placeholder: 'Warehouse type' }),
+                ),
+                React.createElement(
+                  SelectContent as React.ComponentType<any>,
+                  null,
+                  WAREHOUSE_TYPE_OPTIONS.map((option) =>
+                    React.createElement(
+                      SelectItem as React.ComponentType<any>,
+                      { key: option.value, value: option.value },
+                      option.label,
+                    ),
+                  ),
+                ),
+              )}
             </label>
             <label className="grid gap-1 text-sm font-medium text-slate-800">
               Address
