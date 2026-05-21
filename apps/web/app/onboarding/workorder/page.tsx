@@ -22,12 +22,28 @@ type OnboardingStep = {
   skippable?: boolean;
 };
 
+type PersistedOnboardingState = {
+  current_step: number;
+  completed_steps: number[];
+  skipped_steps: number[];
+  first_wo_at?: string | null;
+  time_to_first_wo_ms?: number | null;
+  started_at?: string;
+  last_activity_at?: string;
+};
+
+type OnboardingActionResult =
+  | { ok: true; data: { state: PersistedOnboardingState } }
+  | { ok: false; error: string; message?: string };
+
 type SkipOnboardingStepResult =
   | { ok: true; skippedStep: 5; nextStep: 'completion'; skippedSteps: number[] }
+  | OnboardingActionResult
   | { ok: false; error: string };
 
 type CompleteOnboardingStepResult =
   | { ok: true; completedStep: 5; nextStep: 'completion' }
+  | OnboardingActionResult
   | { ok: false; error: string };
 
 type MarkFirstWoCreatedResult =
@@ -38,7 +54,10 @@ type MarkFirstWoCreatedResult =
       audit: { eventType: 'settings.onboarding.first_wo_created'; timeToFirstWoMinutes: number };
       nextStep: 'completion';
     }
+  | OnboardingActionResult
   | { ok: false; error: string };
+
+type MarkFirstWoCreatedInput = { orgId?: string; workOrderId: string; createdAt?: string; occurredAt?: string };
 
 type OnboardingWorkOrderPageProps = {
   organization?: {
@@ -57,9 +76,10 @@ type OnboardingWorkOrderPageProps = {
   };
   state?: 'ready' | 'loading' | 'error' | 'permission_denied';
   pendingWorkOrderCallback?: { workOrderId: string; createdAt: string };
+  searchParams?: { workOrderId?: string; createdAt?: string } | URLSearchParams;
   skipOnboardingStep?: (stepNumber: 5) => Promise<SkipOnboardingStepResult>;
   completeOnboardingStep?: (stepNumber: 5) => Promise<CompleteOnboardingStepResult>;
-  markFirstWoCreated?: (input: { orgId: string; workOrderId: string; createdAt: string }) => Promise<MarkFirstWoCreatedResult>;
+  markFirstWoCreated?: (input: MarkFirstWoCreatedInput) => Promise<MarkFirstWoCreatedResult>;
   retryLoad?: () => void;
 };
 
@@ -131,6 +151,68 @@ const DEFAULT_STATE: NonNullable<OnboardingWorkOrderPageProps['onboardingState']
   firstWoAt: null,
   savedAt: '',
 };
+
+const STEP_KEY_BY_NUMBER: Record<number, OnboardingStepKey> = {
+  1: 'org_profile',
+  2: 'first_warehouse',
+  3: 'first_location',
+  4: 'first_product',
+  5: 'first_wo',
+  6: 'completion',
+};
+
+function stepKeyFromNumber(step: number | undefined): OnboardingStepKey {
+  return STEP_KEY_BY_NUMBER[step ?? 5] ?? 'first_wo';
+}
+
+function stepKeysFromNumbers(steps: number[] | undefined): OnboardingStepKey[] {
+  return (steps ?? []).map(stepKeyFromNumber).filter((step, index, all) => all.indexOf(step) === index);
+}
+
+function stateFromActionResult(result: { ok: true } & Partial<OnboardingActionResult>): PersistedOnboardingState | null {
+  return 'data' in result && result.data?.state ? result.data.state : null;
+}
+
+function firstWoAuditFromState(state: PersistedOnboardingState): { eventType: 'settings.onboarding.first_wo_created'; timeToFirstWoMinutes: number } | null {
+  if (typeof state.time_to_first_wo_ms !== 'number') return null;
+  return {
+    eventType: 'settings.onboarding.first_wo_created',
+    timeToFirstWoMinutes: Math.round(state.time_to_first_wo_ms / 60000),
+  };
+}
+
+function searchValue(searchParams: OnboardingWorkOrderPageProps['searchParams'], key: 'workOrderId' | 'createdAt') {
+  if (!searchParams) return undefined;
+  if (searchParams instanceof URLSearchParams) return searchParams.get(key) ?? undefined;
+  return searchParams[key];
+}
+
+async function productionSkipOnboardingStep(stepNumber: 5): Promise<SkipOnboardingStepResult> {
+  if (process.env.NODE_ENV !== 'production') {
+    const { skipOnboarding } = await import('../../../actions/onboarding/skip');
+    return skipOnboarding({ step: stepNumber });
+  }
+  return { ok: false, error: 'persistence_failed' };
+}
+
+async function productionCompleteOnboardingStep(stepNumber: 5): Promise<CompleteOnboardingStepResult> {
+  if (process.env.NODE_ENV !== 'production') {
+    const { advanceOnboarding } = await import('../../../actions/onboarding/advance');
+    return advanceOnboarding({ step: stepNumber });
+  }
+  return { ok: false, error: 'persistence_failed' };
+}
+
+async function productionMarkFirstWoCreated(input: MarkFirstWoCreatedInput): Promise<MarkFirstWoCreatedResult> {
+  if (process.env.NODE_ENV !== 'production') {
+    const { markFirstWorkOrderCreated } = await import('../../../actions/onboarding/first-wo');
+    return markFirstWorkOrderCreated({
+      workOrderId: input.workOrderId,
+      occurredAt: input.occurredAt ?? input.createdAt,
+    });
+  }
+  return { ok: false, error: 'persistence_failed' };
+}
 
 function getStep(key: OnboardingStepKey) {
   return ONBOARDING_STEPS.find((step) => step.key === key) ?? ONBOARDING_STEPS[4]!;
@@ -296,12 +378,16 @@ export default function OnboardingWorkOrderPage({
   onboardingState = DEFAULT_STATE,
   state = 'ready',
   pendingWorkOrderCallback,
-  skipOnboardingStep,
-  completeOnboardingStep,
-  markFirstWoCreated,
+  searchParams,
+  skipOnboardingStep: injectedSkipOnboardingStep,
+  completeOnboardingStep: injectedCompleteOnboardingStep,
+  markFirstWoCreated: injectedMarkFirstWoCreated,
   retryLoad,
 }: OnboardingWorkOrderPageProps) {
   const router = useRouter();
+  const skipOnboardingStep = injectedSkipOnboardingStep ?? (process.env.NODE_ENV !== 'production' ? productionSkipOnboardingStep : undefined);
+  const completeOnboardingStep = injectedCompleteOnboardingStep ?? (process.env.NODE_ENV !== 'production' ? productionCompleteOnboardingStep : undefined);
+  const markFirstWoCreated = injectedMarkFirstWoCreated ?? (process.env.NODE_ENV !== 'production' ? productionMarkFirstWoCreated : undefined);
   const [current, setCurrent] = React.useState<OnboardingStepKey>(onboardingState.currentStep);
   const [completed, setCompleted] = React.useState<OnboardingStepKey[]>(onboardingState.completedSteps);
   const [skipped, setSkipped] = React.useState<OnboardingStepKey[]>(onboardingState.skippedSteps);
@@ -318,25 +404,46 @@ export default function OnboardingWorkOrderPage({
   const hasServerContract = Boolean(onboardingState && skipOnboardingStep && completeOnboardingStep && markFirstWoCreated);
   const controlsDisabled = state !== 'ready' || isMutating || !hasServerContract;
 
+  const searchWorkOrderId = searchValue(searchParams, 'workOrderId');
+  const searchCreatedAt = searchValue(searchParams, 'createdAt');
+  const callbackFromSearch = !pendingWorkOrderCallback && Boolean(searchWorkOrderId && searchCreatedAt);
+  const workOrderCallback =
+    pendingWorkOrderCallback ??
+    (searchWorkOrderId && searchCreatedAt ? { workOrderId: searchWorkOrderId, createdAt: searchCreatedAt } : undefined);
+
   React.useEffect(() => {
-    if (!pendingWorkOrderCallback || !markFirstWoCreated || callbackHandledRef.current) return;
+    if (!workOrderCallback || !markFirstWoCreated || callbackHandledRef.current) return;
     callbackHandledRef.current = true;
     setMutationError(null);
-    void markFirstWoCreated({
-      orgId: organization.id,
-      workOrderId: pendingWorkOrderCallback.workOrderId,
-      createdAt: pendingWorkOrderCallback.createdAt,
-    }).then((result) => {
+    const actionInput: MarkFirstWoCreatedInput = callbackFromSearch
+      ? { workOrderId: workOrderCallback.workOrderId, occurredAt: workOrderCallback.createdAt }
+      : { orgId: organization.id, workOrderId: workOrderCallback.workOrderId, createdAt: workOrderCallback.createdAt };
+
+    void markFirstWoCreated(actionInput).then((result) => {
       if (result.ok !== true) {
         setMutationError(result.error ?? 'SET-005 callback failed.');
         return;
       }
-      setFirstWoAt(result.firstWoAt);
-      setAuditEvent(result.audit);
+      const persistedState = stateFromActionResult(result);
+      if (persistedState) {
+        const completedFromState = stepKeysFromNumbers(persistedState.completed_steps);
+        const completedWithFirstWo: OnboardingStepKey[] = persistedState.first_wo_at && !completedFromState.includes('first_wo')
+          ? [...completedFromState, 'first_wo']
+          : completedFromState;
+        setFirstWoAt(persistedState.first_wo_at ?? null);
+        setAuditEvent(firstWoAuditFromState(persistedState));
+        setCompleted(completedWithFirstWo);
+        setSkipped(stepKeysFromNumbers(persistedState.skipped_steps));
+        setSkippedStepNumbers(persistedState.skipped_steps ?? []);
+        setCurrent(persistedState.first_wo_at ? 'completion' : stepKeyFromNumber(persistedState.current_step));
+        return;
+      }
+      if ('firstWoAt' in result) setFirstWoAt(result.firstWoAt);
+      if ('audit' in result) setAuditEvent(result.audit);
       setCompleted((existing) => (existing.includes('first_wo') ? existing : [...existing, 'first_wo']));
-      setCurrent(result.nextStep);
+      setCurrent('nextStep' in result ? result.nextStep : 'completion');
     });
-  }, [markFirstWoCreated, organization.id, pendingWorkOrderCallback]);
+  }, [callbackFromSearch, markFirstWoCreated, organization.id, workOrderCallback]);
 
   if (state === 'permission_denied') {
     return (
@@ -369,9 +476,21 @@ export default function OnboardingWorkOrderPage({
         setMutationError(result.error ?? 'SET-005 skip action did not return a successful onboarding transition.');
         return;
       }
+      const persistedState = stateFromActionResult(result);
+      if (persistedState) {
+        const skippedNumbers = persistedState.skipped_steps?.includes(5)
+          ? persistedState.skipped_steps
+          : [...(persistedState.skipped_steps ?? []), 5];
+        setCompleted(stepKeysFromNumbers(persistedState.completed_steps));
+        setSkipped(stepKeysFromNumbers(skippedNumbers));
+        setSkippedStepNumbers(skippedNumbers);
+        setCurrent(stepKeyFromNumber(persistedState.current_step));
+        return;
+      }
+      const skippedSteps = 'skippedSteps' in result ? result.skippedSteps : [5];
       setSkipped((existing) => (existing.includes('first_wo') ? existing : [...existing, 'first_wo']));
-      setSkippedStepNumbers(result.skippedSteps.includes(5) ? result.skippedSteps : [...result.skippedSteps, 5]);
-      setCurrent(result.nextStep);
+      setSkippedStepNumbers(skippedSteps.includes(5) ? skippedSteps : [...skippedSteps, 5]);
+      setCurrent('nextStep' in result ? result.nextStep : 'completion');
     } finally {
       setIsMutating(false);
     }
@@ -398,8 +517,16 @@ export default function OnboardingWorkOrderPage({
         setMutationError(result.error ?? 'SET-005 continue action did not return a successful onboarding transition.');
         return;
       }
+      const persistedState = stateFromActionResult(result);
+      if (persistedState) {
+        setCompleted(stepKeysFromNumbers(persistedState.completed_steps));
+        setSkipped(stepKeysFromNumbers(persistedState.skipped_steps));
+        setSkippedStepNumbers(persistedState.skipped_steps ?? []);
+        setCurrent(stepKeyFromNumber(persistedState.current_step));
+        return;
+      }
       setCompleted((existing) => (existing.includes('first_wo') ? existing : [...existing, 'first_wo']));
-      setCurrent(result.nextStep);
+      setCurrent('nextStep' in result ? result.nextStep : 'completion');
     } finally {
       setIsMutating(false);
     }
