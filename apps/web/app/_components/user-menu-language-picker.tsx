@@ -71,6 +71,12 @@ export const SET100_LANGUAGE_PICKER_PARITY_CONTRACT = {
   ],
 } as const;
 
+export type SelectUserLanguageInput = {
+  userId: string;
+  orgId: string;
+  locale: UserLanguage;
+};
+
 export type UserMenuLanguagePickerProps = {
   userId: string;
   orgId: string;
@@ -79,7 +85,7 @@ export type UserMenuLanguagePickerProps = {
   organizationLanguage: PhaseOneLanguage;
   supportedLocales?: PhaseOneLanguage[];
   phase2Locales?: PhaseTwoLanguage[];
-  onSelectLanguage: (locale: UserLanguage) => Promise<LanguageChangeResult>;
+  onSelectLanguage: (input: SelectUserLanguageInput) => Promise<LanguageChangeResult>;
   switchNextIntlLocale: (locale: PhaseOneLanguage) => void;
 };
 
@@ -109,6 +115,8 @@ function errorMessageFor(result: Extract<LanguageChangeResult, { ok: false }>) {
 }
 
 export default function UserMenuLanguagePicker({
+  userId,
+  orgId,
   userLanguage,
   effectiveLanguage,
   organizationLanguage,
@@ -136,7 +144,7 @@ export default function UserMenuLanguagePicker({
     setError(null);
 
     try {
-      const result = await onSelectLanguage(locale);
+      const result = await onSelectLanguage({ userId, orgId, locale });
 
       if (result.ok === true) {
         setActiveLocale(result.language);

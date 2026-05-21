@@ -26,7 +26,7 @@ type UserMenuLanguagePickerProps = {
   organizationLanguage: 'pl' | 'en';
   supportedLocales: Array<'pl' | 'en'>;
   phase2Locales: Array<'uk' | 'ro'>;
-  onSelectLanguage: (locale: UserLanguage) => Promise<LanguageChangeResult>;
+  onSelectLanguage: (input: { userId: string; orgId: string; locale: UserLanguage }) => Promise<LanguageChangeResult>;
   switchNextIntlLocale: (locale: 'pl' | 'en') => void;
 };
 
@@ -187,7 +187,11 @@ describe('SET-100 user menu language picker options and active state', () => {
     await renderLanguagePicker({ onSelectLanguage, switchNextIntlLocale });
     await user.click(within(languageMenu()).getByRole('menuitemradio', { name: /english/i }));
 
-    expect(onSelectLanguage).toHaveBeenCalledWith('en');
+    expect(onSelectLanguage).toHaveBeenCalledWith({
+      userId: 'user-current',
+      orgId: 'org-apex',
+      locale: 'en',
+    });
     expect(switchNextIntlLocale).not.toHaveBeenCalled();
     expect(await screen.findByRole('alert')).toHaveTextContent(/permission_denied|permission denied|users\.language/i);
   });
