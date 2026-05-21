@@ -1,0 +1,9 @@
+{
+  "prototype_region": "prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx:7-238",
+  "target_region": "/en/onboarding/product main",
+  "status": "rtl_structural_artifact",
+  "regions": [
+    "main",
+    "page_head"
+  ]
+}

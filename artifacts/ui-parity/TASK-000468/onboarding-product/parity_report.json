@@ -1,10 +1,18 @@
 {
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000534-a1/prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-000547-a2/prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx",
   "prototype_route": "multi-step-wizard",
   "target_route": "/en/onboarding/product",
   "viewports": [
-    { "label": "desktop", "width": 1440, "height": 900 },
-    { "label": "tablet", "width": 768, "height": 1024 }
+    {
+      "label": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "label": "tablet",
+      "width": 768,
+      "height": 1024
+    }
   ],
   "region_selectors": {
     "main": "main",
@@ -16,8 +24,15 @@
       "structural": "prototype:prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx:7-238",
       "interaction": "Same form behavior"
     },
-    "regions": ["page_head", "main"],
-    "dimensions": ["structural", "visual", "interaction"]
+    "regions": [
+      "page_head",
+      "main"
+    ],
+    "dimensions": [
+      "structural",
+      "visual",
+      "interaction"
+    ]
   },
   "screenshot_pairs": [
     {
@@ -45,10 +60,5 @@
       "target": "artifacts/ui-parity/TASK-000468/onboarding-product/tablet-page_head-target.png"
     }
   ],
-  "dom_diff_json": {
-    "prototype_region": "prototypes/design/Monopilot Design System/settings/onboarding-screens.jsx:7-238",
-    "target_region": "/en/onboarding/product main",
-    "status": "rtl_structural_artifact",
-    "summary": "RED parity contract artifact marker; browser screenshot generation not available in this GREEN worktree run."
-  }
+  "dom_diff_json": "artifacts/ui-parity/TASK-000468/onboarding-product/dom_diff.json"
 }
