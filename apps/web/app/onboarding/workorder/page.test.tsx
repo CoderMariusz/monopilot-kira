@@ -10,13 +10,13 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const actionMocks = vi.hoisted(() => ({
-  skipOnboarding: vi.fn(),
-  markFirstWorkOrderCreated: vi.fn(),
+const serverActionHarness = vi.hoisted(() => ({
+  withOrgContextRunner: vi.fn(),
+  revalidatePath: vi.fn(),
 }));
 
 const routerPush = vi.fn();
@@ -36,13 +36,19 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('../../../actions/onboarding/skip', () => ({
-  skipOnboarding: actionMocks.skipOnboarding,
+vi.mock('../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) =>
+    serverActionHarness.withOrgContextRunner(action),
+  ),
 }));
 
-vi.mock('../../../actions/onboarding/first-wo', () => ({
-  markFirstWorkOrderCreated: actionMocks.markFirstWorkOrderCreated,
+vi.mock('next/cache', () => ({
+  revalidatePath: serverActionHarness.revalidatePath,
 }));
+
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '22222222-2222-4222-8222-222222222222';
+const STARTED_AT = '2026-05-19T21:00:00.000Z';
 
 type OnboardingStepKey =
   | 'org_profile'
@@ -98,6 +104,25 @@ type OnboardingWorkOrderPageProps = {
 };
 
 type OnboardingWorkOrderPage = (props: OnboardingWorkOrderPageProps) => React.ReactNode | Promise<React.ReactNode>;
+
+type PersistedOnboardingStateFixture = {
+  current_step: number;
+  completed_steps: number[];
+  skipped_steps: number[];
+  started_at?: string;
+  last_activity_at?: string;
+  first_wo_at?: string | null;
+  time_to_first_wo_ms?: number | null;
+};
+
+type FakeQueryClient = {
+  state: PersistedOnboardingStateFixture;
+  auditLog: string[];
+  outboxEvents: string[];
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
+};
+
+let currentClient: FakeQueryClient;
 
 const baseProps: OnboardingWorkOrderPageProps = {
   organization: {
@@ -223,27 +248,70 @@ function lastPushedHref() {
   return String(target ?? '');
 }
 
+function makeClient(state: PersistedOnboardingStateFixture): FakeQueryClient {
+  const client: FakeQueryClient = {
+    state: structuredClone(state),
+    auditLog: [],
+    outboxEvents: [],
+    async query(sql: string, params: unknown[] = []) {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.includes('from public.user_roles') || normalized.includes('from public.roles')) {
+        return { rows: [{ ok: true, permission: 'settings.onboarding.complete' }], rowCount: 1 };
+      }
+      if (normalized.includes('from public.organizations')) {
+        return { rows: [{ onboarding_state: structuredClone(client.state) }], rowCount: 1 };
+      }
+      if (normalized.includes('update public.organizations')) {
+        const stateParam = params.find((param) => typeof param === 'string' && param.includes('current_step'));
+        if (typeof stateParam !== 'string') throw new Error('onboarding_state update must pass JSON state');
+        client.state = JSON.parse(stateParam) as PersistedOnboardingStateFixture;
+        return { rows: [{ onboarding_state: structuredClone(client.state) }], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.audit_log')) {
+        client.auditLog.push(JSON.stringify(params));
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.includes('insert into public.outbox_events')) {
+        client.outboxEvents.push(JSON.stringify(params));
+        return { rows: [], rowCount: 1 };
+      }
+      throw new Error(`Unexpected onboarding query in SET-005 page test: ${normalized}`);
+    },
+  };
+  return client;
+}
+
+function resetServerActionClient(state: PersistedOnboardingStateFixture = {
+  current_step: 5,
+  completed_steps: [1, 2, 3, 4],
+  skipped_steps: [],
+  started_at: STARTED_AT,
+  last_activity_at: STARTED_AT,
+  first_wo_at: null,
+}) {
+  currentClient = makeClient(state);
+  serverActionHarness.withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+    action({ userId: USER_ID, orgId: ORG_ID, client: currentClient }),
+  );
+}
+
+beforeEach(() => {
+  resetServerActionClient();
+});
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe('SET-005 onboarding first work order redirect-card prototype parity', () => {
-  it('wires the production page boundary to real onboarding Server Actions without injected test callbacks', async () => {
+  it('wires the production page boundary through the real skipOnboarding Server Action module', async () => {
     const user = userEvent.setup();
-    actionMocks.skipOnboarding.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        state: {
-          current_step: 6,
-          completed_steps: [1, 2, 3, 4],
-          skipped_steps: [5],
-          first_wo_at: null,
-          started_at: '2026-05-19T21:00:00.000Z',
-          last_activity_at: '2026-05-19T21:12:00.000Z',
-        },
-      },
-    });
+    const skipModule = await import('../../../actions/onboarding/skip');
+    expect(skipModule.skipOnboarding, 'skip action mock must be backed by the real on-disk Server Action module').toEqual(
+      expect.any(Function),
+    );
 
     await renderProductionWorkOrderPage();
 
@@ -253,38 +321,32 @@ describe('SET-005 onboarding first work order redirect-card prototype parity', (
 
     await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
 
-    expect(actionMocks.skipOnboarding).toHaveBeenCalledTimes(1);
-    expect(actionMocks.skipOnboarding).toHaveBeenCalledWith({ step: 5 });
+    await waitFor(() => expect(currentClient.state.current_step).toBe(6));
+    expect(currentClient.state.skipped_steps).toContain(5);
+    expect(currentClient.state.completed_steps).not.toContain(5);
+    expect(currentClient.auditLog.some((entry) => entry.includes('onboarding.skip'))).toBe(true);
+    expect(currentClient.outboxEvents.some((entry) => entry.includes('onboarding.step.skip'))).toBe(true);
     expect(await screen.findByText(/skipped_steps includes 5/i)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
   });
 
-  it('consumes Planning callback search params at the production page boundary and persists first_wo_at KPI evidence', async () => {
-    actionMocks.markFirstWorkOrderCreated.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        state: {
-          current_step: 6,
-          completed_steps: [1, 2, 3, 4, 5],
-          skipped_steps: [],
-          first_wo_at: '2026-05-19T21:11:00.000Z',
-          time_to_first_wo_ms: 660000,
-          started_at: '2026-05-19T21:00:00.000Z',
-          last_activity_at: '2026-05-19T21:11:00.000Z',
-        },
-      },
-    });
+  it('consumes Planning callback search params through the real first-wo Server Action and persists resume-state KPI evidence', async () => {
+    const firstWoModule = await import('../../../actions/onboarding/first-wo');
+    expect(
+      firstWoModule.markFirstWorkOrderCreated,
+      'first_wo callback mock must be backed by the real on-disk Server Action module',
+    ).toEqual(expect.any(Function));
 
     await renderProductionWorkOrderPage({
       searchParams: { workOrderId: 'wo-1001', createdAt: '2026-05-19T21:11:00.000Z' },
     });
 
-    await waitFor(() => {
-      expect(actionMocks.markFirstWorkOrderCreated).toHaveBeenCalledWith({
-        workOrderId: 'wo-1001',
-        occurredAt: '2026-05-19T21:11:00.000Z',
-      });
-    });
+    await waitFor(() => expect(currentClient.state.first_wo_at).toBe('2026-05-19T21:11:00.000Z'));
+    expect(currentClient.state.time_to_first_wo_ms).toBe(660000);
+    expect(currentClient.state.current_step).toBe(6);
+    expect(currentClient.state.completed_steps).toContain(5);
+    expect(currentClient.auditLog.some((entry) => entry.includes('onboarding.first_wo'))).toBe(true);
+    expect(currentClient.outboxEvents.some((entry) => entry.includes('onboarding.first_wo_recorded'))).toBe(true);
     expect(await screen.findByText(/onboarding_state\.first_wo_at = 2026-05-19T21:11:00.000Z/i)).toBeInTheDocument();
     expect(screen.getByText(/time_to_first_wo = 11 min/i)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
