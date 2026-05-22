@@ -19731,5 +19731,69 @@
     "known_bugs": [],
     "estimated_translation_time_min": 80,
     "module": "technical"
+  },
+  {
+    "label": "foundation_shell_tokens",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "1-105",
+    "component_type": "design-token-contract",
+    "ui_pattern": "desktop-shell-token-extraction",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_navigation_manifest",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "3-59",
+    "component_type": "navigation-manifest",
+    "ui_pattern": "primary-sidebar-and-settings-subnav",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_app_sidebar",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "3-21",
+    "component_type": "sidebar",
+    "ui_pattern": "persistent-app-navigation",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_app_topbar",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "23-33",
+    "component_type": "topbar",
+    "ui_pattern": "global-search-role-avatar-bar",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_app_shell_layout",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "1-105",
+    "component_type": "app-shell-layout",
+    "ui_pattern": "desktop-sidebar-topbar-main-grid",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_page_header_settings_nav",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "35-69",
+    "component_type": "page-header-settings-subnav",
+    "ui_pattern": "secondary-settings-nav-with-page-header",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_scanner_frame",
+    "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+    "lines": "9-66",
+    "component_type": "scanner-frame",
+    "ui_pattern": "mobile-device-chrome-isolated-from-desktop-shell",
+    "module": "foundation"
+  },
+  {
+    "label": "foundation_module_route_contract",
+    "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "lines": "1-105",
+    "component_type": "module-route-contract",
+    "ui_pattern": "localized-app-auth-scanner-route-groups",
+    "module": "foundation"
   }
 ]
