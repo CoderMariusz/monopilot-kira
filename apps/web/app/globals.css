@@ -7,6 +7,19 @@
   --color-background: #f8fafc;
   --color-foreground: #0f172a;
   --font-sans: "Inter", Arial, "Segoe UI", system-ui;
+
+  --spacing-sidebar: var(--shell-sidebar-w);
+  --spacing-subnav: var(--shell-subnav-w);
+  --spacing-topbar: var(--shell-topbar-h);
+  --spacing-scanner-h: var(--shell-scanner-h);
+
+  --color-shell-bg: var(--shell-bg);
+  --color-shell-fg: var(--shell-fg);
+  --color-shell-border: var(--shell-border);
+  --color-shell-muted: var(--shell-muted);
+  --color-shell-active: var(--shell-active);
+  --color-shell-active-fg: var(--shell-active-fg);
+  --color-shell-badge-blue: var(--shell-badge-blue);
 }
 
 :root {
@@ -25,6 +38,69 @@
   --info-050a: rgba(219, 234, 254, 0.72);
   --blue-050: #dbeafe;
   --blue-700: #1d4ed8;
+
+  --shell-sidebar-w: 280px;
+  --shell-subnav-w: 240px;
+  --shell-topbar-h: 56px;
+  --shell-scanner-w: 390px;
+  --shell-scanner-h: 844px;
+  --shell-bg: #f8fafc;
+  --shell-fg: #1e293b;
+  --shell-border: #e2e8f0;
+  --shell-muted: #64748b;
+  --shell-active: #dbeafe;
+  --shell-active-fg: #1e40af;
+  --shell-badge-blue: #dbeafe;
+}
+
+@layer utilities {
+  .w-sidebar {
+    width: var(--shell-sidebar-w);
+  }
+
+  .w-subnav {
+    width: var(--shell-subnav-w);
+  }
+
+  .h-topbar {
+    height: var(--shell-topbar-h);
+  }
+
+  .w-scanner {
+    width: var(--shell-scanner-w);
+  }
+
+  .h-scanner {
+    height: var(--shell-scanner-h);
+  }
+
+  .bg-shell-bg {
+    background-color: var(--shell-bg);
+  }
+
+  .text-shell-fg {
+    color: var(--shell-fg);
+  }
+
+  .text-shell-muted {
+    color: var(--shell-muted);
+  }
+
+  .border-shell-border {
+    border-color: var(--shell-border);
+  }
+
+  .bg-shell-active {
+    background-color: var(--shell-active);
+  }
+
+  .text-shell-active-fg {
+    color: var(--shell-active-fg);
+  }
+
+  .bg-shell-badge-blue {
+    background-color: var(--shell-badge-blue);
+  }
 }
 
 html,
