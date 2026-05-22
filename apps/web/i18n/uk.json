@@ -3,6 +3,51 @@
     "signin": {
       "title": "Увійти",
       "email": "Адреса електронної пошти"
+    },
+    "login": {
+      "title": "З поверненням",
+      "subtitle": "Увійдіть у робочий простір MES",
+      "emailLabel": "Робочий email",
+      "passwordLabel": "Пароль",
+      "emailPlaceholder": "you@company.com",
+      "passwordPlaceholder": "••••••••",
+      "remember": "Запамʼятати мене на 30 днів",
+      "forgotPassword": "Забули пароль?",
+      "submit": "Увійти",
+      "submitting": "Вхід...",
+      "divider": "або",
+      "ssoComingSoon": "SSO-вхід незабаром",
+      "noAccount": "Немає акаунта?",
+      "contactAdmin": "Зверніться до адміністратора",
+      "privacy": "Конфіденційність",
+      "terms": "Умови",
+      "status": "Статус",
+      "error": {
+        "invalidCredentials": "Неправильні облікові дані"
+      },
+      "forgot": {
+        "backToSignIn": "← Назад до входу",
+        "title": "Скиньте пароль",
+        "subtitle": "Введіть email, і ми надішлемо посилання для скидання.",
+        "emailLabel": "Робочий email",
+        "emailPlaceholder": "you@company.com",
+        "info": "Посилання діє 30 хвилин. Перевірте спам, якщо воно не надійде за 2 хвилини.",
+        "submit": "Надіслати посилання",
+        "submitting": "Надсилання...",
+        "successTitle": "Перевірте пошту",
+        "successBody": "Ми надіслали посилання для скидання на вказаний робочий email. Перейдіть за ним, щоб установити новий пароль.",
+        "successBack": "Назад до входу",
+        "successRetryPrefix": "Не отримали?",
+        "successRetry": "Спробуйте інший email"
+      },
+      "mfa": {
+        "title": "Двофакторна автентифікація",
+        "subtitle": "Введіть шестизначний TOTP-код із застосунку автентифікації.",
+        "codeLabel": "Код підтвердження",
+        "submit": "Підтвердити",
+        "submitting": "Перевірка...",
+        "recoveryCode": "Використати код відновлення"
+      }
     }
   },
   "common": {
@@ -294,6 +339,89 @@
       "action_upload_new": "Upload new",
       "action_cancel": "Cancel",
       "action_save_changes": "Save changes"
+    }
+  },
+  "navigation": {
+    "app": {
+      "groups": {
+        "core": "Основне",
+        "operations": "Операції",
+        "qaShipping": "Якість і відвантаження",
+        "premium": "Premium",
+        "analyticsNetwork": "Аналітика та мережа"
+      },
+      "items": {
+        "dashboard": "Панель",
+        "settings": "Налаштування",
+        "technical": "Технічний модуль",
+        "planning": "Планування",
+        "scheduler": "Планувальник",
+        "production": "Виробництво",
+        "warehouse": "Склад",
+        "quality": "Якість",
+        "shipping": "Відвантаження",
+        "npd": "NPD",
+        "finance": "Фінанси",
+        "oee": "OEE",
+        "maintenance": "Обслуговування",
+        "reporting": "Звіти",
+        "multiSite": "Кілька майданчиків"
+      },
+      "modules": {
+        "foundation": "Платформа",
+        "scanner": "Сканер"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Організація",
+        "data": "Дані",
+        "access": "Доступ",
+        "operations": "Операції",
+        "integrations": "Інтеграції",
+        "documentTemplates": "Шаблони документів",
+        "onboarding": "Онбординг",
+        "admin": "Адмін",
+        "myAccount": "Мій акаунт"
+      },
+      "items": {
+        "profile": "Профіль компанії",
+        "sites": "Майданчики та лінії",
+        "warehouses": "Склади",
+        "shifts": "Зміни та календар",
+        "products": "Продукти та SKU",
+        "boms": "BOM-и та рецепти",
+        "processes": "Процеси",
+        "manufacturing_ops": "Виробничі операції",
+        "partners": "Постачальники та клієнти",
+        "units": "Одиниці та конверсії",
+        "import_export": "Імпорт / Експорт",
+        "users": "Користувачі та ролі",
+        "security": "Безпека",
+        "audit_logs": "Журнали аудиту",
+        "devices": "Пристрої сканера",
+        "notifications": "Сповіщення",
+        "features": "Прапорці функцій",
+        "integrations": "Інтеграції",
+        "labels": "Шаблони етикеток",
+        "onboarding": "Майстер онбордингу",
+        "d365_conn": "Підключення D365",
+        "d365_mapping": "Мапінг полів D365",
+        "d365_dlq": "D365 DLQ (відвантаження)",
+        "rules": "Реєстр правил",
+        "flags": "Прапорці функцій (L)",
+        "schema": "Браузер схеми",
+        "schema_wizard": "  └ Майстер колонок",
+        "schema_migrations": "  └ Черга міграцій",
+        "tenant": "Варіації tenant",
+        "reference": "Довідкові дані",
+        "email_config": "Шаблони email",
+        "email_vars": "Змінні email",
+        "ship_override_reasons": "Причини override відвантаження",
+        "gallery": "Галерея модалів",
+        "my_profile": "Мій профіль",
+        "my_notifications": "Сповіщення"
+      }
     }
   }
 }

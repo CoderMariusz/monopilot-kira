@@ -3,6 +3,51 @@
     "signin": {
       "title": "Autentificare",
       "email": "Adresă de e-mail"
+    },
+    "login": {
+      "title": "Bine ai revenit",
+      "subtitle": "Autentifică-te în spațiul MES",
+      "emailLabel": "E-mail de serviciu",
+      "passwordLabel": "Parolă",
+      "emailPlaceholder": "tu@companie.com",
+      "passwordPlaceholder": "••••••••",
+      "remember": "Ține-mă minte 30 de zile",
+      "forgotPassword": "Ai uitat parola?",
+      "submit": "Autentificare",
+      "submitting": "Se autentifică...",
+      "divider": "sau",
+      "ssoComingSoon": "Autentificarea SSO va fi disponibilă curând",
+      "noAccount": "Nu ai cont?",
+      "contactAdmin": "Contactează administratorul",
+      "privacy": "Confidențialitate",
+      "terms": "Termeni",
+      "status": "Status",
+      "error": {
+        "invalidCredentials": "Date de autentificare invalide"
+      },
+      "forgot": {
+        "backToSignIn": "← Înapoi la autentificare",
+        "title": "Resetează parola",
+        "subtitle": "Introdu adresa de e-mail și îți trimitem un link de resetare.",
+        "emailLabel": "E-mail de serviciu",
+        "emailPlaceholder": "tu@companie.com",
+        "info": "Linkul expiră în 30 de minute. Verifică spamul dacă nu ajunge în 2 minute.",
+        "submit": "Trimite linkul de resetare",
+        "submitting": "Se trimite...",
+        "successTitle": "Verifică inboxul",
+        "successBody": "Am trimis un link de resetare la adresa de serviciu furnizată. Urmează linkul pentru a seta o parolă nouă.",
+        "successBack": "Înapoi la autentificare",
+        "successRetryPrefix": "Nu l-ai primit?",
+        "successRetry": "Încearcă alt e-mail"
+      },
+      "mfa": {
+        "title": "Autentificare cu doi factori",
+        "subtitle": "Introdu codul TOTP de șase cifre din aplicația de autentificare.",
+        "codeLabel": "Cod de verificare",
+        "submit": "Verifică",
+        "submitting": "Se verifică...",
+        "recoveryCode": "Folosește codul de recuperare"
+      }
     }
   },
   "common": {
@@ -294,6 +339,89 @@
       "action_upload_new": "Upload new",
       "action_cancel": "Cancel",
       "action_save_changes": "Save changes"
+    }
+  },
+  "navigation": {
+    "app": {
+      "groups": {
+        "core": "Core",
+        "operations": "Operațiuni",
+        "qaShipping": "Calitate și expediere",
+        "premium": "Premium",
+        "analyticsNetwork": "Analitică și rețea"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "settings": "Setări",
+        "technical": "Tehnic",
+        "planning": "Planificare",
+        "scheduler": "Scheduler",
+        "production": "Producție",
+        "warehouse": "Depozit",
+        "quality": "Calitate",
+        "shipping": "Expediere",
+        "npd": "NPD",
+        "finance": "Finanțe",
+        "oee": "OEE",
+        "maintenance": "Mentenanță",
+        "reporting": "Raportare",
+        "multiSite": "Multi-site"
+      },
+      "modules": {
+        "foundation": "Fundație",
+        "scanner": "Scanner"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Organizație",
+        "data": "Date",
+        "access": "Acces",
+        "operations": "Operațiuni",
+        "integrations": "Integrări",
+        "documentTemplates": "Șabloane documente",
+        "onboarding": "Onboarding",
+        "admin": "Admin",
+        "myAccount": "Contul meu"
+      },
+      "items": {
+        "profile": "Profil companie",
+        "sites": "Site-uri și linii",
+        "warehouses": "Depozite",
+        "shifts": "Schimburi și calendar",
+        "products": "Produse și SKU-uri",
+        "boms": "BOM-uri și rețete",
+        "processes": "Procese",
+        "manufacturing_ops": "Operațiuni de fabricație",
+        "partners": "Furnizori și clienți",
+        "units": "Unități și conversii",
+        "import_export": "Import / Export",
+        "users": "Utilizatori și roluri",
+        "security": "Securitate",
+        "audit_logs": "Jurnale audit",
+        "devices": "Dispozitive scanner",
+        "notifications": "Notificări",
+        "features": "Feature flags",
+        "integrations": "Integrări",
+        "labels": "Șabloane etichete",
+        "onboarding": "Expert onboarding",
+        "d365_conn": "Conexiune D365",
+        "d365_mapping": "Mapare câmpuri D365",
+        "d365_dlq": "D365 DLQ (expediere)",
+        "rules": "Registru reguli",
+        "flags": "Feature flags (L)",
+        "schema": "Browser schemă",
+        "schema_wizard": "  └ Expert coloane",
+        "schema_migrations": "  └ Coadă migrări",
+        "tenant": "Variații tenant",
+        "reference": "Date de referință",
+        "email_config": "Șabloane email",
+        "email_vars": "Variabile email",
+        "ship_override_reasons": "Motive override expediere",
+        "gallery": "Galerie modale",
+        "my_profile": "Profilul meu",
+        "my_notifications": "Notificări"
+      }
     }
   }
 }
