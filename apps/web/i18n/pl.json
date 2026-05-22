@@ -423,5 +423,88 @@
         "my_notifications": "Powiadomienia"
       }
     }
+  },
+  "Navigation": {
+    "app": {
+      "groups": {
+        "core": "Główne",
+        "operations": "Operacje",
+        "qaShipping": "Jakość i wysyłka",
+        "premium": "Premium",
+        "analyticsNetwork": "Analityka i sieć"
+      },
+      "items": {
+        "dashboard": "Pulpit",
+        "settings": "Ustawienia",
+        "technical": "Techniczne",
+        "planning": "Planowanie",
+        "scheduler": "Harmonogram",
+        "production": "Produkcja",
+        "warehouse": "Magazyn",
+        "quality": "Jakość",
+        "shipping": "Wysyłka",
+        "npd": "NPD",
+        "finance": "Finanse",
+        "oee": "OEE",
+        "maintenance": "Utrzymanie ruchu",
+        "reporting": "Raportowanie",
+        "multiSite": "Wiele zakładów"
+      },
+      "modules": {
+        "foundation": "Fundament",
+        "scanner": "Skaner"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Organizacja",
+        "data": "Dane",
+        "access": "Dostęp",
+        "operations": "Operacje",
+        "integrations": "Integracje",
+        "documentTemplates": "Szablony dokumentów",
+        "onboarding": "Wdrożenie",
+        "admin": "Administracja",
+        "myAccount": "Moje konto"
+      },
+      "items": {
+        "profile": "Profil firmy",
+        "sites": "Zakłady i linie",
+        "warehouses": "Magazyny",
+        "shifts": "Zmiany i kalendarz",
+        "products": "Produkty i SKU",
+        "boms": "BOM-y i receptury",
+        "processes": "Procesy",
+        "manufacturing_ops": "Operacje produkcyjne",
+        "partners": "Dostawcy i klienci",
+        "units": "Jednostki i konwersje",
+        "import_export": "Import / Eksport",
+        "users": "Użytkownicy i role",
+        "security": "Bezpieczeństwo",
+        "audit_logs": "Dzienniki audytu",
+        "devices": "Urządzenia skanerów",
+        "notifications": "Powiadomienia",
+        "features": "Flagi funkcji",
+        "integrations": "Integracje",
+        "labels": "Szablony etykiet",
+        "onboarding": "Kreator wdrożenia",
+        "d365_conn": "Połączenie D365",
+        "d365_mapping": "Mapowanie pól D365",
+        "d365_dlq": "DLQ D365 (wysyłka)",
+        "rules": "Rejestr reguł",
+        "flags": "Flagi funkcji (L)",
+        "schema": "Przeglądarka schematu",
+        "schema_wizard": "  └ Kreator kolumn",
+        "schema_migrations": "  └ Kolejka migracji",
+        "tenant": "Warianty tenantów",
+        "reference": "Dane referencyjne",
+        "email_config": "Szablony e-mail",
+        "email_vars": "Zmienne e-mail",
+        "ship_override_reasons": "Powody nadpisania wysyłki",
+        "gallery": "Galeria modali",
+        "my_profile": "Mój profil",
+        "my_notifications": "Powiadomienia"
+      }
+    }
   }
 }

@@ -16,11 +16,11 @@ export type AppModuleId =
   | "multi-site"
   | "oee";
 
-export type AppModuleKind = "platform" | "business";
+export type AppModuleKind = "platform" | "desktop" | "scanner";
 
-export type AppShellKind = "desktop" | "scanner" | "platform";
+export type AppShellKind = "none" | "app" | "scanner";
 
-export type AppNavExposure = "desktop_sidebar" | "scanner_shell" | "platform_only";
+export type AppNavExposure = "sidebar" | "excluded" | "merged";
 
 export type NavGroupId = "core" | "operations" | "qa-shipping" | "premium" | "analytics-network";
 
@@ -34,32 +34,37 @@ export interface RbacDeferredMetadata {
   rbac_todo: string;
 }
 
-export interface AppModuleDefinition extends RbacDeferredMetadata {
+export interface AppModule extends RbacDeferredMetadata {
   id: AppModuleId;
   label: string;
   i18n_key: string;
   route: string | null;
-  icon: string;
+  icon_token: string;
   module_kind: AppModuleKind;
   shell_kind: AppShellKind;
   nav_exposure: AppNavExposure;
+  merged_into: AppModuleId | null;
   nav_group: NavGroupId | null;
 }
 
-export interface AppSidebarNavItem extends RbacDeferredMetadata {
+export type AppModuleDefinition = AppModule;
+
+export interface AppNavItem extends RbacDeferredMetadata {
   key: string;
   label: string;
   i18n_key: string;
   route: string;
-  icon: string;
+  icon_token: string;
   module_id: AppModuleId | null;
 }
+
+export type AppSidebarNavItem = AppNavItem;
 
 export interface AppNavGroup {
   id: NavGroupId;
   label: string;
   i18n_key: string;
-  items: AppSidebarNavItem[];
+  items: AppNavItem[];
 }
 
 export interface SettingsNavItem extends RbacDeferredMetadata {
@@ -67,7 +72,7 @@ export interface SettingsNavItem extends RbacDeferredMetadata {
   label: string;
   i18n_key: string;
   route: string;
-  icon: string;
+  icon_token: string;
   highlight?: boolean;
 }
 

@@ -423,5 +423,88 @@
         "my_notifications": "Сповіщення"
       }
     }
+  },
+  "Navigation": {
+    "app": {
+      "groups": {
+        "core": "Основне",
+        "operations": "Операції",
+        "qaShipping": "Якість і відвантаження",
+        "premium": "Premium",
+        "analyticsNetwork": "Аналітика та мережа"
+      },
+      "items": {
+        "dashboard": "Панель",
+        "settings": "Налаштування",
+        "technical": "Технічний модуль",
+        "planning": "Планування",
+        "scheduler": "Планувальник",
+        "production": "Виробництво",
+        "warehouse": "Склад",
+        "quality": "Якість",
+        "shipping": "Відвантаження",
+        "npd": "NPD",
+        "finance": "Фінанси",
+        "oee": "OEE",
+        "maintenance": "Обслуговування",
+        "reporting": "Звіти",
+        "multiSite": "Кілька майданчиків"
+      },
+      "modules": {
+        "foundation": "Платформа",
+        "scanner": "Сканер"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Організація",
+        "data": "Дані",
+        "access": "Доступ",
+        "operations": "Операції",
+        "integrations": "Інтеграції",
+        "documentTemplates": "Шаблони документів",
+        "onboarding": "Онбординг",
+        "admin": "Адмін",
+        "myAccount": "Мій акаунт"
+      },
+      "items": {
+        "profile": "Профіль компанії",
+        "sites": "Майданчики та лінії",
+        "warehouses": "Склади",
+        "shifts": "Зміни та календар",
+        "products": "Продукти та SKU",
+        "boms": "BOM-и та рецепти",
+        "processes": "Процеси",
+        "manufacturing_ops": "Виробничі операції",
+        "partners": "Постачальники та клієнти",
+        "units": "Одиниці та конверсії",
+        "import_export": "Імпорт / Експорт",
+        "users": "Користувачі та ролі",
+        "security": "Безпека",
+        "audit_logs": "Журнали аудиту",
+        "devices": "Пристрої сканера",
+        "notifications": "Сповіщення",
+        "features": "Прапорці функцій",
+        "integrations": "Інтеграції",
+        "labels": "Шаблони етикеток",
+        "onboarding": "Майстер онбордингу",
+        "d365_conn": "Підключення D365",
+        "d365_mapping": "Мапінг полів D365",
+        "d365_dlq": "D365 DLQ (відвантаження)",
+        "rules": "Реєстр правил",
+        "flags": "Прапорці функцій (L)",
+        "schema": "Браузер схеми",
+        "schema_wizard": "  └ Майстер колонок",
+        "schema_migrations": "  └ Черга міграцій",
+        "tenant": "Варіації tenant",
+        "reference": "Довідкові дані",
+        "email_config": "Шаблони email",
+        "email_vars": "Змінні email",
+        "ship_override_reasons": "Причини override відвантаження",
+        "gallery": "Галерея модалів",
+        "my_profile": "Мій профіль",
+        "my_notifications": "Сповіщення"
+      }
+    }
   }
 }

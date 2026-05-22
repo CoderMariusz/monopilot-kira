@@ -5,9 +5,9 @@ const RBAC_TODO = "UI-128 keeps settings navigation ungated; wire permission_key
 const item = (key: string, label: string, icon: string, highlight = false): SettingsNavItem => ({
   key,
   label,
-  i18n_key: `navigation.settings.items.${key.replaceAll("-", "_")}`,
+  i18n_key: `Navigation.settings.items.${key.replaceAll("-", "_")}`,
   route: `/settings/${key}`,
-  icon,
+  icon_token: icon,
   ...(highlight ? { highlight: true } : {}),
   count_slot: null,
   permission_key: null,
@@ -17,7 +17,7 @@ const item = (key: string, label: string, icon: string, highlight = false): Sett
 const group = (id: string, label: string, admin: boolean, items: SettingsNavItem[]): SettingsNavGroup => ({
   id,
   label,
-  i18n_key: `navigation.settings.groups.${id}`,
+  i18n_key: `Navigation.settings.groups.${id}`,
   admin,
   items,
 });

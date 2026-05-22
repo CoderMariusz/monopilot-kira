@@ -423,5 +423,88 @@
         "my_notifications": "Notificări"
       }
     }
+  },
+  "Navigation": {
+    "app": {
+      "groups": {
+        "core": "Core",
+        "operations": "Operațiuni",
+        "qaShipping": "Calitate și expediere",
+        "premium": "Premium",
+        "analyticsNetwork": "Analitică și rețea"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "settings": "Setări",
+        "technical": "Tehnic",
+        "planning": "Planificare",
+        "scheduler": "Scheduler",
+        "production": "Producție",
+        "warehouse": "Depozit",
+        "quality": "Calitate",
+        "shipping": "Expediere",
+        "npd": "NPD",
+        "finance": "Finanțe",
+        "oee": "OEE",
+        "maintenance": "Mentenanță",
+        "reporting": "Raportare",
+        "multiSite": "Multi-site"
+      },
+      "modules": {
+        "foundation": "Fundație",
+        "scanner": "Scanner"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Organizație",
+        "data": "Date",
+        "access": "Acces",
+        "operations": "Operațiuni",
+        "integrations": "Integrări",
+        "documentTemplates": "Șabloane documente",
+        "onboarding": "Onboarding",
+        "admin": "Admin",
+        "myAccount": "Contul meu"
+      },
+      "items": {
+        "profile": "Profil companie",
+        "sites": "Site-uri și linii",
+        "warehouses": "Depozite",
+        "shifts": "Schimburi și calendar",
+        "products": "Produse și SKU-uri",
+        "boms": "BOM-uri și rețete",
+        "processes": "Procese",
+        "manufacturing_ops": "Operațiuni de fabricație",
+        "partners": "Furnizori și clienți",
+        "units": "Unități și conversii",
+        "import_export": "Import / Export",
+        "users": "Utilizatori și roluri",
+        "security": "Securitate",
+        "audit_logs": "Jurnale audit",
+        "devices": "Dispozitive scanner",
+        "notifications": "Notificări",
+        "features": "Feature flags",
+        "integrations": "Integrări",
+        "labels": "Șabloane etichete",
+        "onboarding": "Expert onboarding",
+        "d365_conn": "Conexiune D365",
+        "d365_mapping": "Mapare câmpuri D365",
+        "d365_dlq": "D365 DLQ (expediere)",
+        "rules": "Registru reguli",
+        "flags": "Feature flags (L)",
+        "schema": "Browser schemă",
+        "schema_wizard": "  └ Expert coloane",
+        "schema_migrations": "  └ Coadă migrări",
+        "tenant": "Variații tenant",
+        "reference": "Date de referință",
+        "email_config": "Șabloane email",
+        "email_vars": "Variabile email",
+        "ship_override_reasons": "Motive override expediere",
+        "gallery": "Galerie modale",
+        "my_profile": "Profilul meu",
+        "my_notifications": "Notificări"
+      }
+    }
   }
 }

@@ -30,8 +30,7 @@ const EXPECTED_NAV_GROUPS = [
     label: "Core",
     items: [
       { label: "Dashboard", module_id: null, route: "/dashboard" },
-      { label: "Settings", module_id: "settings", route: "/settings/profile" },
-      { label: "Technical", module_id: "technical", route: "/technical" },
+      { label: "Settings", module_id: "settings", route: "/settings" },
     ],
   },
   {
@@ -53,6 +52,7 @@ const EXPECTED_NAV_GROUPS = [
   {
     label: "Premium",
     items: [
+      { label: "Technical", module_id: "technical", route: "/technical" },
       { label: "NPD", module_id: "npd", route: "/npd" },
       { label: "Finance", module_id: "finance", route: "/finance" },
       { label: "OEE", module_id: "oee", route: "/oee" },
@@ -148,14 +148,10 @@ describe("UI-128 APP_MODULES", () => {
     }
 
     const byId = Object.fromEntries((APP_MODULES ?? []).map((module) => [module.id, module]));
-    expect(byId.foundation).toMatchObject({ module_kind: "platform" });
-    expect(byId.foundation?.nav_exposure, "foundation is platform-only and excluded from desktop sidebar").not.toBe(
-      "desktop_sidebar",
-    );
-    expect(byId.scanner).toMatchObject({ shell_kind: "scanner" });
-    expect(byId.scanner?.nav_exposure, "scanner uses scanner shell and is excluded from desktop sidebar").not.toBe(
-      "desktop_sidebar",
-    );
+    expect(byId.foundation).toMatchObject({ module_kind: "platform", shell_kind: "none", nav_exposure: "excluded", route: null });
+    expect(byId.settings).toMatchObject({ module_kind: "desktop", shell_kind: "app", nav_exposure: "sidebar", route: "/settings" });
+    expect(byId.technical).toMatchObject({ nav_group: "premium" });
+    expect(byId.scanner).toMatchObject({ module_kind: "scanner", shell_kind: "scanner", nav_exposure: "excluded", route: null });
   });
 
   it("keeps count and permission gates unset while preserving future-RBAC todos", async () => {

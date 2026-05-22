@@ -423,5 +423,88 @@
         "my_notifications": "Notifications"
       }
     }
+  },
+  "Navigation": {
+    "app": {
+      "groups": {
+        "core": "Core",
+        "operations": "Operations",
+        "qaShipping": "QA & Shipping",
+        "premium": "Premium",
+        "analyticsNetwork": "Analytics & Network"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "settings": "Settings",
+        "technical": "Technical",
+        "planning": "Planning",
+        "scheduler": "Scheduler",
+        "production": "Production",
+        "warehouse": "Warehouse",
+        "quality": "Quality",
+        "shipping": "Shipping",
+        "npd": "NPD",
+        "finance": "Finance",
+        "oee": "OEE",
+        "maintenance": "Maintenance",
+        "reporting": "Reporting",
+        "multiSite": "Multi-Site"
+      },
+      "modules": {
+        "foundation": "Foundation",
+        "scanner": "Scanner"
+      }
+    },
+    "settings": {
+      "groups": {
+        "organization": "Organization",
+        "data": "Data",
+        "access": "Access",
+        "operations": "Operations",
+        "integrations": "Integrations",
+        "documentTemplates": "Document templates",
+        "onboarding": "Onboarding",
+        "admin": "Admin",
+        "myAccount": "My account"
+      },
+      "items": {
+        "profile": "Company profile",
+        "sites": "Sites & lines",
+        "warehouses": "Warehouses",
+        "shifts": "Shifts & calendar",
+        "products": "Products & SKUs",
+        "boms": "BOMs & recipes",
+        "processes": "Processes",
+        "manufacturing_ops": "Manufacturing operations",
+        "partners": "Suppliers & customers",
+        "units": "Units & conversions",
+        "import_export": "Import / Export",
+        "users": "Users & roles",
+        "security": "Security",
+        "audit_logs": "Audit logs",
+        "devices": "Scanner devices",
+        "notifications": "Notifications",
+        "features": "Feature flags",
+        "integrations": "Integrations",
+        "labels": "Label templates",
+        "onboarding": "Onboarding wizard",
+        "d365_conn": "D365 connection",
+        "d365_mapping": "D365 field mapping",
+        "d365_dlq": "D365 DLQ (shipping)",
+        "rules": "Rules registry",
+        "flags": "Feature flags (L)",
+        "schema": "Schema browser",
+        "schema_wizard": "  └ Column wizard",
+        "schema_migrations": "  └ Migrations queue",
+        "tenant": "Tenant variations",
+        "reference": "Reference data",
+        "email_config": "Email templates",
+        "email_vars": "Email variables",
+        "ship_override_reasons": "Shipping override reasons",
+        "gallery": "Modal gallery",
+        "my_profile": "My profile",
+        "my_notifications": "Notifications"
+      }
+    }
   }
 }

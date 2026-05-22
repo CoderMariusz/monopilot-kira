@@ -6,9 +6,9 @@ const RBAC_TODO = "UI-128 keeps navigation ungated; wire permission_key in the f
 const DASHBOARD_ITEM: AppSidebarNavItem = {
   key: "dashboard",
   label: "Dashboard",
-  i18n_key: "navigation.app.items.dashboard",
+  i18n_key: "Navigation.app.items.dashboard",
   route: "/dashboard",
-  icon: "◆",
+  icon_token: "◆",
   module_id: null,
   count_slot: null,
   permission_key: null,
@@ -16,17 +16,17 @@ const DASHBOARD_ITEM: AppSidebarNavItem = {
 };
 
 const GROUP_LABELS: Record<NavGroupId, { label: string; i18n_key: string }> = {
-  core: { label: "Core", i18n_key: "navigation.app.groups.core" },
-  operations: { label: "Operations", i18n_key: "navigation.app.groups.operations" },
-  "qa-shipping": { label: "QA & Shipping", i18n_key: "navigation.app.groups.qaShipping" },
-  premium: { label: "Premium", i18n_key: "navigation.app.groups.premium" },
-  "analytics-network": { label: "Analytics & Network", i18n_key: "navigation.app.groups.analyticsNetwork" },
+  core: { label: "Core", i18n_key: "Navigation.app.groups.core" },
+  operations: { label: "Operations", i18n_key: "Navigation.app.groups.operations" },
+  "qa-shipping": { label: "QA & Shipping", i18n_key: "Navigation.app.groups.qaShipping" },
+  premium: { label: "Premium", i18n_key: "Navigation.app.groups.premium" },
+  "analytics-network": { label: "Analytics & Network", i18n_key: "Navigation.app.groups.analyticsNetwork" },
 };
 
 function sidebarItem(moduleId: AppModuleId): AppSidebarNavItem {
   const module = getAppModule(moduleId);
 
-  if (module.nav_exposure !== "desktop_sidebar" || !module.route) {
+  if (module.nav_exposure !== "sidebar" || !module.route) {
     throw new Error(`${module.id} is not exposed in the desktop sidebar`);
   }
 
@@ -35,7 +35,7 @@ function sidebarItem(moduleId: AppModuleId): AppSidebarNavItem {
     label: module.label,
     i18n_key: module.i18n_key,
     route: module.route,
-    icon: module.icon,
+    icon_token: module.icon_token,
     module_id: module.id,
     count_slot: module.count_slot,
     permission_key: module.permission_key,
@@ -53,7 +53,7 @@ function group(id: NavGroupId, items: AppSidebarNavItem[]): AppNavGroup {
 }
 
 export const APP_NAV_GROUPS = [
-  group("core", [DASHBOARD_ITEM, sidebarItem("settings"), sidebarItem("technical")]),
+  group("core", [DASHBOARD_ITEM, sidebarItem("settings")]),
   group("operations", [
     sidebarItem("planning-basic"),
     sidebarItem("planning-ext"),
@@ -61,6 +61,12 @@ export const APP_NAV_GROUPS = [
     sidebarItem("warehouse"),
   ]),
   group("qa-shipping", [sidebarItem("quality"), sidebarItem("shipping")]),
-  group("premium", [sidebarItem("npd"), sidebarItem("finance"), sidebarItem("oee"), sidebarItem("maintenance")]),
+  group("premium", [
+    sidebarItem("technical"),
+    sidebarItem("npd"),
+    sidebarItem("finance"),
+    sidebarItem("oee"),
+    sidebarItem("maintenance"),
+  ]),
   group("analytics-network", [sidebarItem("reporting"), sidebarItem("multi-site")]),
 ] as const satisfies readonly AppNavGroup[];
