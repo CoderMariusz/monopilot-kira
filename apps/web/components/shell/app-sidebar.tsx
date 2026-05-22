@@ -1,15 +1,16 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, JSX } from "react";
 import Link from "next/link";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
+import { Badge } from "@monopilot/ui/Badge";
 
 import { APP_NAV_GROUPS } from "../../lib/navigation/app-nav";
 import type { AppSidebarNavItem } from "../../lib/navigation/types";
 
 type AppSidebarProps = {
-  locale?: string;
+  locale: string;
   pathnameOverride?: string;
 };
 
@@ -17,8 +18,15 @@ function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+const NAV_I18N_NAMESPACE = "Navigation.app";
+
 function localizedHref(locale: string, route: string) {
   return `/${locale}${route}`;
+}
+
+function navI18nKey(i18nKey: string) {
+  const prefix = `${NAV_I18N_NAMESPACE}.`;
+  return i18nKey.startsWith(prefix) ? i18nKey.slice(prefix.length) : i18nKey;
 }
 
 function stripLocalePrefix(pathname: string, locale: string) {
@@ -45,26 +53,38 @@ function iconStyle(iconToken: string) {
   return { "--app-sidebar-icon": JSON.stringify(iconToken) } as CSSProperties;
 }
 
-export function AppSidebar({ locale: localeOverride, pathnameOverride }: AppSidebarProps) {
-  const detectedLocale = useLocale();
+function CountSlot() {
+  return (
+    <Badge
+      data-slot="count"
+      aria-hidden="true"
+      variant="muted"
+      className="ml-auto min-w-0 border-0 bg-transparent p-0 shadow-none"
+    />
+  );
+}
+
+export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.Element {
   const pathname = usePathname();
-  const t = useTranslations();
-  const locale = localeOverride ?? detectedLocale;
+  const t = useTranslations(NAV_I18N_NAMESPACE);
   const activePathname = pathnameOverride ?? pathname ?? localizedHref(locale, "/dashboard");
 
   return (
-    <aside
+    <nav
       data-testid="app-sidebar"
+      role="navigation"
+      aria-label="Primary"
       className="w-sidebar shrink-0 border-r border-shell-border bg-shell-bg px-4 py-5 text-shell-fg"
+      style={{ width: "var(--shell-sidebar-w)" }}
     >
-      <nav className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {APP_NAV_GROUPS.map((group) => (
           <section key={group.id} className="space-y-1.5">
             <h2
               data-slot="group"
               className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-muted"
             >
-              {t(group.i18n_key)}
+              {t(navI18nKey(group.i18n_key))}
             </h2>
 
             <div className="space-y-1">
@@ -84,20 +104,22 @@ export function AppSidebar({ locale: localeOverride, pathnameOverride }: AppSide
                         : "text-shell-fg hover:bg-shell-active hover:text-shell-active-fg",
                     )}
                   >
+                    {item.rbac_todo ? <>{/* TODO(rbac/02-settings/T-130) */}</> : null}
                     <span
                       aria-hidden="true"
                       className="mr-2 inline-flex h-4 w-4 items-center justify-center text-xs before:content-[var(--app-sidebar-icon)]"
                       style={iconStyle(item.icon_token)}
                     />
-                    <span>{t(item.i18n_key)}</span>
+                    <span>{t(navI18nKey(item.i18n_key))}</span>
+                    <CountSlot />
                   </Link>
                 );
               })}
             </div>
           </section>
         ))}
-      </nav>
-    </aside>
+      </div>
+    </nav>
   );
 }
 
