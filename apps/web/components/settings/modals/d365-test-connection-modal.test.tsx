@@ -1,7 +1,7 @@
 /**
  * T-054 / SM-08 — D365TestConnectionModal RED tests.
  * Source of truth: prototypes/design/Monopilot Design System/settings/modals.jsx:450-489
- * RED scope: tests only; production component is intentionally not implemented here.
+ * Scope: RTL parity coverage for the production SM-08 component.
  */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
@@ -154,7 +154,7 @@ describe('SM-08 D365TestConnectionModal prototype parity', () => {
 
     await waitFor(() => expect(testConnection).toHaveBeenCalledTimes(1));
     expect(await scoped.findByText('Connection successful')).toBeInTheDocument();
-    expect(scoped.getByText('✓')).toHaveClass(expect.stringMatching(/green|success/i));
+    expect(scoped.getByText('✓')).toHaveClass(/green|success/i);
     expect(scoped.getByText(/latency:/i)).toHaveTextContent('Latency: 238ms · Environment: Production');
     expect(scoped.getByRole('button', { name: /^close$/i })).toBeEnabled();
     expect(scoped.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument();
