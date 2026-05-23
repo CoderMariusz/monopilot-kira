@@ -135,7 +135,7 @@ describe('SM-01 RuleDryRunModal prototype parity', () => {
     expect(dialog).toHaveAttribute('data-modal-id', 'SM-01');
     expect(scoped.getByText(/preview the rule evaluation against sample input without persisting/i)).toBeInTheDocument();
     expect(sampleInputField.closest('[data-slot="textarea"]')).toBeTruthy();
-    expect(sampleInputField).toHaveClass(expect.stringMatching(/font-mono|mono/));
+    expect(sampleInputField).toHaveClass(/font-mono|mono/);
     expect(resultRegion).toHaveTextContent(/run the rule to see the result/i);
     expect(closeButton.closest('[data-slot="button"]')).toBeTruthy();
     expect(runButton.closest('[data-slot="button"]')).toBeTruthy();
@@ -194,7 +194,7 @@ describe('SM-01 RuleDryRunModal prototype parity', () => {
     const runButton = scoped.getByRole('button', { name: /^run dry-run$/i });
 
     await user.clear(sampleInputField);
-    await user.type(sampleInputField, '{"wo_id":');
+    await user.type(sampleInputField, '{{"wo_id":');
 
     expect(sampleInputField).toHaveAttribute('aria-invalid', 'true');
     expect(scoped.getByRole('alert')).toHaveTextContent('Invalid JSON');
@@ -233,7 +233,7 @@ describe('SM-01 RuleDryRunModal prototype parity', () => {
 
     const resultJson = parseResultJson(dialog);
     expect(resultJson).toEqual(passingResult);
-    expect(scoped.getByText('PASS')).toHaveClass(expect.stringMatching(/badge|green|success/i));
+    expect(scoped.getByText('PASS')).toHaveClass(/badge|green|success/i);
     expect(scoped.getByTestId('rule-dry-run-result-json')).toHaveTextContent('warnings');
   });
 
@@ -258,6 +258,6 @@ describe('SM-01 RuleDryRunModal prototype parity', () => {
       () => expect(within(dialog).getByTestId('rule-dry-run-result-json')).toHaveTextContent('reservation is not green'),
       { timeout: 5000 },
     );
-    expect(within(dialog).getByText('FAIL')).toHaveClass(expect.stringMatching(/badge|red|destructive/i));
+    expect(within(dialog).getByText('FAIL')).toHaveClass(/badge|red|destructive/i);
   });
 });
