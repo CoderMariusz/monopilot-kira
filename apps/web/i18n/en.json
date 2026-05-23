@@ -506,5 +506,12 @@
         "my_notifications": "Notifications"
       }
     }
+  },
+  "Topbar": {
+    "brand": "MonoPilot MES",
+    "searchPlaceholder": "Search settings…",
+    "userMenu": "User menu",
+    "signOut": "Sign out",
+    "siteCrumbLabel": "Current organization"
   }
 }

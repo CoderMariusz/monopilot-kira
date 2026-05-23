@@ -506,5 +506,12 @@
         "my_notifications": "Notificări"
       }
     }
+  },
+  "Topbar": {
+    "brand": "MonoPilot MES",
+    "searchPlaceholder": "Caută în setări…",
+    "userMenu": "Meniu utilizator",
+    "signOut": "Deconectare",
+    "siteCrumbLabel": "Organizația curentă"
   }
 }
