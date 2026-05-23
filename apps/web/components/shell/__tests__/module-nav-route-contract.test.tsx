@@ -98,7 +98,7 @@ async function loadAppSidebar(): Promise<AppSidebarComponent> {
   const AppSidebar = (mod as { AppSidebar?: AppSidebarComponent; default?: AppSidebarComponent }).AppSidebar ??
     (mod as { default?: AppSidebarComponent }).default;
   expect(typeof AppSidebar, 'app-sidebar module must export AppSidebar or a default component').toBe('function');
-  return AppSidebar;
+  return AppSidebar!;
 }
 
 async function renderSidebar(pathnameOverride: string) {
