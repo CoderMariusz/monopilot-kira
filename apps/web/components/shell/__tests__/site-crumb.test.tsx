@@ -7,7 +7,7 @@ import '@testing-library/jest-dom/vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 type SiteCrumbProps = {
   orgName: string;
@@ -16,6 +16,10 @@ type SiteCrumbProps = {
 type SiteCrumbComponent = React.ComponentType<SiteCrumbProps>;
 
 const siteCrumbPath = path.resolve(process.cwd(), 'components/shell/site-crumb.tsx');
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => (key === 'siteCrumbLabel' ? 'Current organization' : key),
+}));
 
 async function loadSiteCrumb(): Promise<SiteCrumbComponent> {
   expect(

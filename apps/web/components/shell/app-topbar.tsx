@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { getTranslations } from "next-intl/server";
 
 import { SiteCrumb } from "./site-crumb";
 import { UserMenu } from "./user-menu";
@@ -36,6 +37,10 @@ export async function AppTopbar({
   onSelectLanguage,
   switchNextIntlLocale,
 }: AppTopbarProps): Promise<JSX.Element> {
+  const t = await getTranslations({ locale, namespace: "Topbar" });
+  const brand = t("brand");
+  const searchPlaceholder = t("searchPlaceholder");
+
   return (
     <header
       data-testid="app-topbar"
@@ -43,8 +48,8 @@ export async function AppTopbar({
       className="flex shrink-0 items-center gap-4 border-b border-shell-border bg-shell-surface px-6 text-shell-fg"
       style={{ height: "var(--shell-topbar-h)" }}
     >
-      <div className="text-base font-semibold tracking-tight" aria-label="MonoPilot MES">
-        MonoPilot <span className="text-shell-muted">MES</span>
+      <div className="text-base font-semibold tracking-tight" aria-label={brand}>
+        {brand}
       </div>
 
       <div className="min-w-0 flex-1 max-w-md">
@@ -52,8 +57,8 @@ export async function AppTopbar({
           data-testid="app-topbar-search"
           type="search"
           readOnly
-          aria-label="Search"
-          placeholder="Search settings…"
+          aria-label={searchPlaceholder}
+          placeholder={searchPlaceholder}
           className="h-10 w-full rounded-full border border-shell-border bg-shell-bg px-4 text-sm text-shell-fg placeholder:text-shell-muted focus:outline-none"
         />
       </div>

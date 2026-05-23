@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 
-import UserMenuLanguagePicker from "../app/_components/user-menu-language-picker";
+import UserMenuLanguagePicker from "../../app/_components/user-menu-language-picker";
 import type { UserMenuLanguagePickerProps } from "../../app/_components/user-menu-language-picker";
 
 type ShellUser = {
@@ -39,6 +40,7 @@ export function UserMenu({
   switchNextIntlLocale,
   signOutAction,
 }: UserMenuProps) {
+  const t = useTranslations("Topbar");
   const [open, setOpen] = React.useState(false);
   const LanguagePicker = UserMenuLanguagePicker as React.ComponentType<UserMenuLanguagePickerProps>;
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -80,7 +82,7 @@ export function UserMenu({
         data-testid="app-topbar-user-trigger"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Open user menu for ${user.name}`}
+        aria-label={t("openUserMenu", { name: user.name })}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={toggleFromKeyboard}
         className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-shell-border bg-shell-active text-sm font-semibold text-shell-active-fg shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-active-fg focus-visible:ring-offset-2 focus-visible:ring-offset-shell-bg"
@@ -117,7 +119,7 @@ export function UserMenu({
               data-testid="app-topbar-sign-out"
               className="w-full rounded-lg px-3 py-2 text-left font-medium text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
-              Sign out
+              {t("signOut")}
             </button>
           </form>
         </div>

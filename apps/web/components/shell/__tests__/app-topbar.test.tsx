@@ -27,6 +27,27 @@ type AppTopbarComponent = (props: AppTopbarProps) => React.ReactNode | Promise<R
 const appTopbarPath = path.resolve(process.cwd(), 'components/shell/app-topbar.tsx');
 const localeFiles = ['en', 'pl', 'uk', 'ro'] as const;
 
+const topbarMessages: Record<string, string> = {
+  brand: 'MonoPilot MES',
+  searchPlaceholder: 'Search settings…',
+  userMenu: 'User menu',
+  openUserMenu: 'Open user menu for {name}',
+  signOut: 'Sign out',
+  siteCrumbLabel: 'Current organization',
+};
+
+function translateTopbar(key: string, values?: Record<string, string>) {
+  return (topbarMessages[key] ?? key).replace(/\{(\w+)\}/g, (_match, valueKey: string) => values?.[valueKey] ?? '');
+}
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => translateTopbar),
+}));
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => translateTopbar,
+}));
+
 async function loadAppTopbar(): Promise<AppTopbarComponent> {
   expect(
     existsSync(appTopbarPath),
@@ -158,6 +179,7 @@ describe('UI-130 Topbar i18n messages', () => {
           brand: expect.any(String),
           searchPlaceholder: expect.any(String),
           userMenu: expect.any(String),
+          openUserMenu: expect.any(String),
           signOut: expect.any(String),
           siteCrumbLabel: expect.any(String),
         }),

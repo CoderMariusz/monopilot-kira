@@ -33,6 +33,15 @@ const userMenuPath = path.resolve(process.cwd(), 'components/shell/user-menu.tsx
 const signOutPath = path.resolve(process.cwd(), 'app/[locale]/(app)/_actions/sign-out.ts');
 const pickerCalls: ExistingLanguagePickerProps[] = [];
 
+const topbarMessages: Record<string, string> = {
+  openUserMenu: 'Open user menu for {name}',
+  signOut: 'Sign out',
+};
+
+function translateTopbar(key: string, values?: Record<string, string>) {
+  return (topbarMessages[key] ?? key).replace(/\{(\w+)\}/g, (_match, valueKey: string) => values?.[valueKey] ?? '');
+}
+
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn((url: string): never => {
     throw new Error(`NEXT_REDIRECT:${url}`);
@@ -52,7 +61,11 @@ vi.mock('../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
 }));
 
-vi.mock('../../app/_components/user-menu-language-picker', () => ({
+vi.mock('next-intl', () => ({
+  useTranslations: () => translateTopbar,
+}));
+
+vi.mock('../../../app/_components/user-menu-language-picker', () => ({
   default: (props: ExistingLanguagePickerProps) => {
     pickerCalls.push(props);
     return (

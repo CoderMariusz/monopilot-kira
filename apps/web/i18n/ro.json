@@ -511,6 +511,7 @@
     "brand": "MonoPilot MES",
     "searchPlaceholder": "Caută în setări…",
     "userMenu": "Meniu utilizator",
+    "openUserMenu": "Deschide meniul utilizatorului pentru {name}",
     "signOut": "Deconectare",
     "siteCrumbLabel": "Organizația curentă"
   }

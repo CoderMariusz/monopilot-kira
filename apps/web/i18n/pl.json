@@ -511,6 +511,7 @@
     "brand": "MonoPilot MES",
     "searchPlaceholder": "Szukaj w ustawieniach…",
     "userMenu": "Menu użytkownika",
+    "openUserMenu": "Otwórz menu użytkownika dla {name}",
     "signOut": "Wyloguj",
     "siteCrumbLabel": "Bieżąca organizacja"
   }
