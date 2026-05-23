@@ -1,7 +1,10 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import http, { type Server } from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 
-import type { Page, Response } from '@playwright/test';
+import type { BrowserContext, Page, Response } from '@playwright/test';
 
 export const FOLLOWUP_NOTE = 'NOT auto-created; review this finding before creating ACP follow-up tasks.';
 
@@ -92,6 +95,10 @@ export function resolveWebRoot(): string {
   return path.join(cwd, 'apps/web');
 }
 
+export function resolveRepoRoot(): string {
+  return path.resolve(resolveWebRoot(), '../..');
+}
+
 export function evidenceDir(): string {
   return path.join(resolveWebRoot(), 'e2e/parity-evidence/shell');
 }
@@ -112,6 +119,217 @@ export function resolveAuthStorageState(): string | undefined {
   ].filter((value): value is string => Boolean(value));
 
   return candidates.find((candidate) => existsSync(candidate));
+}
+
+export type ShellParityHarness = {
+  baseURL: string;
+  appPort: number;
+  supabaseUrl: string;
+  server_identity: string;
+  installAuthCookie(context: BrowserContext): Promise<void>;
+  close(): Promise<void>;
+};
+
+const HARNESS_ACCESS_TOKEN = 'shell-parity-access-token';
+const HARNESS_USER = {
+  id: 'shell-parity-user',
+  aud: 'authenticated',
+  role: 'authenticated',
+  email: 'shell.parity@monopilot.local',
+  app_metadata: { provider: 'email', providers: ['email'] },
+  user_metadata: {
+    name: 'Shell Parity',
+    full_name: 'Shell Parity',
+    org_id: 'org-shell-parity',
+    org_name: 'MonoPilot MES',
+    language: 'en',
+    locale: 'en',
+  },
+  created_at: '2026-05-20T00:00:00.000Z',
+  updated_at: '2026-05-20T00:00:00.000Z',
+};
+
+async function findOpenPort(preferred: number): Promise<number> {
+  for (let port = preferred; port < preferred + 100; port += 1) {
+    const available = await new Promise<boolean>((resolve) => {
+      const server = net.createServer();
+      server.once('error', () => resolve(false));
+      server.once('listening', () => server.close(() => resolve(true)));
+      server.listen(port, '127.0.0.1');
+    });
+    if (available) return port;
+  }
+  throw new Error(`No open port found near ${preferred}`);
+}
+
+function listen(server: Server, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve());
+  });
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve) => server.close(() => resolve()));
+}
+
+function createFakeSupabaseAuthServer(): Server {
+  return http.createServer((req, res) => {
+    const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+    if (requestUrl.pathname === '/auth/v1/user') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(HARNESS_USER));
+      return;
+    }
+    if (requestUrl.pathname === '/auth/v1/token') {
+      const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        access_token: HARNESS_ACCESS_TOKEN,
+        refresh_token: 'shell-parity-refresh-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        expires_at: expiresAt,
+        user: HARNESS_USER,
+      }));
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not_found', path: requestUrl.pathname }));
+  });
+}
+
+async function waitForHealthy(url: string, child: ChildProcessWithoutNullStreams, output: string[]): Promise<void> {
+  const deadline = Date.now() + 120_000;
+  let lastError = '';
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`Shell parity Next server exited early (${child.exitCode}): ${output.join('').slice(-2000)}`);
+    }
+    try {
+      const response = await fetch(url, { redirect: 'manual' });
+      if (response.status < 500) return;
+      lastError = `HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Timed out waiting for ${url}; last error=${lastError}; output=${output.join('').slice(-2000)}`);
+}
+
+function killProcess(child: ChildProcessWithoutNullStreams): Promise<void> {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+      return;
+    }
+    child.once('exit', () => resolve());
+    child.kill('SIGTERM');
+    setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    }, 5_000).unref();
+  });
+}
+
+async function clearNextDevServerLock(): Promise<void> {
+  const lockPath = path.join(resolveWebRoot(), '.next/dev/lock');
+  if (!existsSync(lockPath)) return;
+
+  try {
+    const parsed = JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: unknown };
+    if (typeof parsed.pid === 'number') {
+      try {
+        process.kill(parsed.pid, 'SIGTERM');
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      } catch {
+        // Stale lock; removing it below is sufficient.
+      }
+    }
+  } catch {
+    // Malformed lock; removing it below is sufficient.
+  }
+
+  try {
+    unlinkSync(lockPath);
+  } catch {
+    // If Next already removed it, proceed.
+  }
+}
+
+function authCookieName(supabaseUrl: string): string {
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+  return `sb-${projectRef}-auth-token`;
+}
+
+function authCookieValue(): string {
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  const session = {
+    access_token: HARNESS_ACCESS_TOKEN,
+    refresh_token: 'shell-parity-refresh-token',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: expiresAt,
+    user: HARNESS_USER,
+  };
+  return `base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
+}
+
+export async function startLocalShellParityHarness(): Promise<ShellParityHarness> {
+  const configuredPort = Number(process.env.PORT ?? 3014);
+  const supabasePort = await findOpenPort(configuredPort + 200);
+  const appPort = await findOpenPort(configuredPort + 300);
+  const supabaseUrl = `http://127.0.0.1:${supabasePort}`;
+  const baseURL = `http://127.0.0.1:${appPort}`;
+
+  const supabaseServer = createFakeSupabaseAuthServer();
+  await listen(supabaseServer, supabasePort);
+  await clearNextDevServerLock();
+
+  const output: string[] = [];
+  const child = spawn('pnpm', ['--filter', 'web', 'dev'], {
+    cwd: resolveRepoRoot(),
+    env: {
+      ...process.env,
+      PORT: String(appPort),
+      DEV_AUTH_BYPASS: 'true',
+      NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'shell-parity-anon-key',
+    },
+  });
+  child.stdout.on('data', (chunk) => output.push(String(chunk)));
+  child.stderr.on('data', (chunk) => output.push(String(chunk)));
+
+  try {
+    await waitForHealthy(`${baseURL}/en/login`, child, output);
+  } catch (error) {
+    await killProcess(child);
+    await closeServer(supabaseServer);
+    throw error;
+  }
+
+  return {
+    baseURL,
+    appPort,
+    supabaseUrl,
+    server_identity: `Next dev server cwd=${resolveRepoRoot()} baseURL=${baseURL} fakeSupabase=${supabaseUrl}`,
+    async installAuthCookie(context: BrowserContext) {
+      await context.addCookies([
+        {
+          name: authCookieName(supabaseUrl),
+          value: authCookieValue(),
+          url: baseURL,
+          httpOnly: false,
+          sameSite: 'Lax',
+          expires: Math.floor(Date.now() / 1000) + 3600,
+        },
+      ]);
+    },
+    async close() {
+      await killProcess(child);
+      await closeServer(supabaseServer);
+    },
+  };
 }
 
 export function assertInsideShellEvidenceDir(candidate: string): string {
@@ -139,6 +357,9 @@ export function installBrowserErrorSpies(page: Page): BrowserEventRecorder {
 
   page.on('pageerror', (error) => push({ category: 'pageerror', message: error.message }));
   page.on('console', (message) => {
+    if (message.type() === 'error' && /WebSocket connection to .*\/_next\/webpack-hmr/.test(message.text())) {
+      return;
+    }
     if (message.type() === 'error') {
       push({ category: 'console.error', message: message.text() });
     } else if (message.type() === 'warning' && HYDRATION_WARNING.test(message.text())) {

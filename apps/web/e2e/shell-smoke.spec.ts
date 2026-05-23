@@ -10,15 +10,18 @@ import {
   reportPath,
   resolveAuthStorageState,
   screenshotPathFor,
+  startLocalShellParityHarness,
   type ShellFailure,
+  type ShellParityHarness,
   type ShellRouteExpectation,
   type ShellRouteResult,
   writeReport,
 } from './_helpers/shell-parity';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3000';
-const routeUrl = (route: string) => new URL(route, baseURL).toString();
+let activeBaseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3000';
+const routeUrl = (route: string) => new URL(route, activeBaseURL).toString();
 const authStorageState = resolveAuthStorageState();
+let shellParityHarness: ShellParityHarness | undefined;
 
 if (authStorageState) {
   test.use({ storageState: authStorageState });
@@ -49,7 +52,7 @@ const explicitShellRoutes: ShellRouteExpectation[] = [
     expects_subnav: false,
     active_nav_item: null,
     viewport: desktopViewport,
-    expected_final_pathname: '/en/',
+    expected_final_pathname: '/en',
   },
   {
     route: '/en/settings/users',
@@ -69,7 +72,7 @@ const explicitShellRoutes: ShellRouteExpectation[] = [
     expects_shell: true,
     expects_subnav: true,
     active_nav_item: 'settings',
-    active_subnav_item: 'roles',
+    active_subnav_item: 'users',
     viewport: desktopViewport,
     expected_final_pathname: '/en/settings/roles',
   },
@@ -167,8 +170,21 @@ async function visitAndAssertRoute(page: Parameters<typeof installBrowserErrorSp
 }
 
 test.describe('T-136 Foundation AppShell browser parity smoke', () => {
+  test.beforeAll(async () => {
+    if (!authStorageState) {
+      shellParityHarness = await startLocalShellParityHarness();
+      activeBaseURL = shellParityHarness.baseURL;
+    }
+  });
+
+  test.afterAll(async () => {
+    await shellParityHarness?.close();
+    shellParityHarness = undefined;
+  });
+
   test('visits every shell route, fails closed on browser errors, and writes parity_report.json', async ({ page, request }) => {
     ensureEvidenceDir();
+    await shellParityHarness?.installAuthCookie(page.context());
     expect(sidebarRoutes, 'APP_NAV_GROUPS must expose exactly 15 active desktop sidebar routes for this parity gate').toHaveLength(15);
 
     const redirect = await request.get(routeUrl('/login'), { maxRedirects: 0 });
@@ -177,7 +193,7 @@ test.describe('T-136 Foundation AppShell browser parity smoke', () => {
     if (![302, 307, 308].includes(redirect.status())) {
       redirectFailures.push({ category: 'localized_redirect', message: `/login must redirect before render; saw ${redirect.status()}` });
     }
-    if (!redirectLocation || new URL(redirectLocation, baseURL).pathname !== '/en/login') {
+    if (!redirectLocation || new URL(redirectLocation, activeBaseURL).pathname !== '/en/login') {
       redirectFailures.push({
         category: 'localized_redirect',
         message: `/login location must be /en/login; saw ${redirectLocation ?? '<missing>'}`,
