@@ -253,6 +253,6 @@ describe('SM-04 EmailTemplateEditModal variable validation', () => {
 
     const body = within(dialog).getByRole('textbox', { name: /^body/i });
     await user.click(within(dialog).getByRole('button', { name: /fa_batch_code/i }));
-    expect(body).toHaveValue(expect.stringContaining('{{fa_batch_code}}'));
+    expect((body as HTMLTextAreaElement).value).toContain('{{fa_batch_code}}');
   });
 });
