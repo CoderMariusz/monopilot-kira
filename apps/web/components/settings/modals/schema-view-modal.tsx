@@ -146,8 +146,7 @@ function useModalFocusLifecycle(open: boolean, dialogRef: React.RefObject<HTMLEl
     afterGuard.setAttribute('data-radix-focus-guard', '');
     document.body.prepend(beforeGuard);
     document.body.append(afterGuard);
-    const slotAttribute = ['data', 'slot'].join('-');
-    dialogRef.current?.setAttribute(slotAttribute, 'dialog-content');
+    dialogRef.current?.setAttribute('data-slot', 'dialog-content');
     document.getElementById('schema-view-modal-close')?.focus();
 
     return () => {
