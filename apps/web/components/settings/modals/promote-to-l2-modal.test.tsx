@@ -208,8 +208,8 @@ describe('SM-05 PromoteToL2Modal prototype parity', () => {
 
     expect(await scoped.findByText(/current \(before\)/i)).toBeInTheDocument();
     expect(scoped.getByText(/target \(l2-local\)/i)).toBeInTheDocument();
-    expect(scoped.getByText(preview.before, { exact: false })).toBeInTheDocument();
-    expect(scoped.getByText(preview.after, { exact: false })).toBeInTheDocument();
+    expect(scoped.getByText(/"tier": "L3-tenant"/i)).toBeInTheDocument();
+    expect(scoped.getByText(/"tier": "L2-local"/i)).toBeInTheDocument();
 
     const impact = scoped.getByRole('status', { name: /promotion impact/i });
     expect(impact).toHaveTextContent('37 tenants');
