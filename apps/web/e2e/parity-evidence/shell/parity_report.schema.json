@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://monopilot.local/schemas/app-shell-parity-report.schema.json",
+  "title": "MonoPilot AppShell browser parity report",
+  "type": "object",
+  "required": ["task_id", "generated_at", "status", "summary", "routes", "recommended_followups"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": { "const": "T-136" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["PASS", "FAIL"] },
+    "summary": {
+      "type": "object",
+      "required": ["pass", "fail", "routes_visited", "screenshots_written"],
+      "additionalProperties": false,
+      "properties": {
+        "pass": { "type": "integer", "minimum": 0 },
+        "fail": { "type": "integer", "minimum": 0 },
+        "routes_visited": { "type": "integer", "minimum": 0 },
+        "screenshots_written": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/route_result" }
+    },
+    "recommended_followups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/followup" }
+    }
+  },
+  "$defs": {
+    "route_result": {
+      "type": "object",
+      "required": ["route", "label", "auth_state", "expects_shell", "status", "final_pathname", "screenshot", "failures"],
+      "additionalProperties": false,
+      "properties": {
+        "route": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "auth_state": { "enum": ["auth", "public"] },
+        "expects_shell": { "type": "boolean" },
+        "expects_subnav": { "type": "boolean" },
+        "active_nav_item": { "type": ["string", "null"] },
+        "active_subnav_item": { "type": ["string", "null"] },
+        "status": { "enum": ["PASS", "FAIL"] },
+        "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+        "final_pathname": { "type": "string" },
+        "screenshot": { "type": "string", "minLength": 1 },
+        "failures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure" }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "required": ["category", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "pageerror",
+            "console.error",
+            "console.warning.hydration",
+            "requestfailed",
+            "http_status",
+            "region",
+            "active_nav",
+            "localized_redirect",
+            "screenshot",
+            "unexpected_exception"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "followup": {
+      "type": "object",
+      "required": ["route", "category", "message", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "route": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "note": { "const": "NOT auto-created; review this finding before creating ACP follow-up tasks." }
+      }
+    }
+  }
+}
