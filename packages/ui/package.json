@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
+    "./PageHeader": "./src/PageHeader.tsx",
     "./Modal": "./src/Modal.tsx",
     "./Summary": "./src/Summary.tsx",
     "./Field": "./src/Field.tsx",
