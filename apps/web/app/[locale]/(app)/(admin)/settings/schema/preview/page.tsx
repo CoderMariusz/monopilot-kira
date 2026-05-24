@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Input from '@monopilot/ui/Input';
 
 import { publishDeptColumnDraft } from '../../../../../../(settings)/schema/_actions/draft';
+import { getZodRuntimeSchema, type RuntimeColumn } from '../../../../../../../lib/schema/zod-runtime';
 
 type PreviewSearchParams = Record<string, string | undefined>;
 
@@ -25,7 +26,8 @@ type DraftColumn = {
   dept: string;
   required: boolean;
   sampleValue: string;
-  schema: string;
+  schemaVersion: number;
+  validationJson?: Record<string, unknown>;
 };
 
 type PreviewLabels = Record<keyof typeof DEFAULT_LABELS, string>;
@@ -92,7 +94,7 @@ const DEFAULT_LABELS = {
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>;
 const SUPPORTED_LOCALES = new Set(['en', 'pl', 'ro', 'uk']);
 
-const DRAFT_COLUMNS: DraftColumn[] = [
+const SHADOW_PREVIEW_DRAFTS: DraftColumn[] = [
   {
     id: 'draft-allergen-risk',
     label: 'Allergen Risk Score',
@@ -103,7 +105,21 @@ const DRAFT_COLUMNS: DraftColumn[] = [
     dept: 'QC',
     required: false,
     sampleValue: '42',
-    schema: 'allergen_risk_score: z.number().min(1).max(100)',
+    schemaVersion: 7,
+    validationJson: { range: { min: 1, max: 100 } },
+  },
+  {
+    id: 'draft-inline-ph',
+    label: 'Inline pH',
+    key: 'inline_ph',
+    table: 'production_batch',
+    type: 'number',
+    tier: 'L2',
+    dept: 'QC',
+    required: false,
+    sampleValue: '7.2',
+    schemaVersion: 8,
+    validationJson: { range: { min: 0, max: 14 } },
   },
   {
     id: 'draft-service-window',
@@ -115,7 +131,8 @@ const DRAFT_COLUMNS: DraftColumn[] = [
     dept: 'Procurement',
     required: true,
     sampleValue: 'Dinner',
-    schema: 'service_window: z.string().min(1)',
+    schemaVersion: 4,
+    validationJson: { length: { min: 1 } },
   },
   {
     id: 'draft-cert-expiry',
@@ -127,7 +144,7 @@ const DRAFT_COLUMNS: DraftColumn[] = [
     dept: 'Procurement',
     required: true,
     sampleValue: '2026-06-15',
-    schema: 'supplier_cert_expiry: z.coerce.date()',
+    schemaVersion: 4,
   },
 ];
 
@@ -176,7 +193,7 @@ export default async function SchemaShadowPreviewPage({ params, searchParams }: 
   const { locale } = await params;
   const query: PreviewSearchParams = searchParams ? await searchParams : {};
   const labels = await buildLabels(locale);
-  const selectedDraft = DRAFT_COLUMNS.find((draft) => draft.id === query.draftId) ?? DRAFT_COLUMNS[0];
+  const selectedDraft = SHADOW_PREVIEW_DRAFTS.find((draft) => draft.id === query.draftId) ?? SHADOW_PREVIEW_DRAFTS[0]!;
 
   return (
     <main aria-labelledby="schema-shadow-preview-title" className="settings-page settings-page--schema-preview">
@@ -185,12 +202,12 @@ export default async function SchemaShadowPreviewPage({ params, searchParams }: 
         <p>{labels.subtitle}</p>
       </header>
 
-      {renderState(query, labels, selectedDraft, locale)}
+      {await renderState(query, labels, selectedDraft, locale)}
     </main>
   );
 }
 
-function renderState(query: PreviewSearchParams, labels: PreviewLabels, selectedDraft: DraftColumn, locale: string) {
+async function renderState(query: PreviewSearchParams, labels: PreviewLabels, selectedDraft: DraftColumn, locale: string) {
   if (query.state === 'loading') {
     return (
       <>
@@ -225,19 +242,20 @@ function renderState(query: PreviewSearchParams, labels: PreviewLabels, selected
   }
 
   if (query.state === 'schema-generation-error') {
-    return (
-      <>
-        <PreviewNotice labels={labels} asAlert={false} />
-        <Card>
-          <CardHeader>
-            <CardTitle>{labels.schemaGenerationErrorTitle}</CardTitle>
-          </CardHeader>
-          <CardContent role="alert" aria-label={labels.schemaGenerationErrorTitle}>
-            {labels.schemaGenerationError}
-          </CardContent>
-        </Card>
-      </>
-    );
+    return <SchemaGenerationError labels={labels} />;
+  }
+
+  let runtimeSchemaText: string;
+  try {
+    const runtimeSchema = await getZodRuntimeSchema({
+      orgId: 'shadow-preview',
+      tableCode: selectedDraft.table,
+      schemaVersion: selectedDraft.schemaVersion,
+      loadColumns: async () => [toRuntimeColumn(selectedDraft)],
+    });
+    runtimeSchemaText = describeRuntimeSchema(runtimeSchema, selectedDraft);
+  } catch {
+    return <SchemaGenerationError labels={labels} />;
   }
 
   return (
@@ -258,7 +276,7 @@ function renderState(query: PreviewSearchParams, labels: PreviewLabels, selected
               <form method="get" aria-label={labels.selectDraft}>
                 <label htmlFor="draft-column-select">{labels.selectDraft}</label>
                 <select id="draft-column-select" name="draftId" defaultValue={selectedDraft.id} aria-label={labels.draftColumn}>
-                  {DRAFT_COLUMNS.map((draft) => (
+                  {SHADOW_PREVIEW_DRAFTS.map((draft) => (
                     <option key={draft.id} value={draft.id}>
                       {draft.label}
                     </option>
@@ -332,7 +350,7 @@ function renderState(query: PreviewSearchParams, labels: PreviewLabels, selected
               </div>
 
               <h2>{labels.generatedRuntimeSchema}</h2>
-              <pre data-testid="generated-runtime-schema">{selectedDraft.schema}</pre>
+              <pre data-testid="generated-runtime-schema">{runtimeSchemaText}</pre>
             </CardContent>
             <CardFooter>
               <a className="btn btn-secondary" href={`/${locale}/settings/schema`}>
@@ -356,6 +374,22 @@ function PreviewNotice({ labels, asAlert = true }: { labels: PreviewLabels; asAl
     <div className="alert alert-blue" role={asAlert ? 'alert' : 'note'}>
       <strong>{labels.previewOnlyLead}</strong> {labels.previewOnlyBody} {labels.previewOnlySaved}
     </div>
+  );
+}
+
+function SchemaGenerationError({ labels }: { labels: PreviewLabels }) {
+  return (
+    <>
+      <PreviewNotice labels={labels} asAlert={false} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{labels.schemaGenerationErrorTitle}</CardTitle>
+        </CardHeader>
+        <CardContent role="alert" aria-label={labels.schemaGenerationErrorTitle}>
+          {labels.schemaGenerationError}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -395,4 +429,86 @@ function MetadataRow({ label, children }: { label: string; children: ReactNode }
       <dd>{children}</dd>
     </div>
   );
+}
+
+function toRuntimeColumn(draft: DraftColumn): RuntimeColumn {
+  return {
+    org_id: 'shadow-preview',
+    table_code: draft.table,
+    column_code: draft.key,
+    data_type: draft.type,
+    required_for_done: draft.required,
+    validation_json: draft.validationJson ?? {},
+    presentation_json: { label: draft.label, previewOnly: true },
+    schema_version: draft.schemaVersion,
+    deprecated_at: null,
+  };
+}
+
+function describeRuntimeSchema(runtimeSchema: unknown, draft: DraftColumn): string {
+  const runtimeShape = readZodObjectShape(runtimeSchema);
+  const fieldSchema = runtimeShape?.[draft.key];
+  if (fieldSchema) return `${draft.key}: ${describeZodNode(fieldSchema)}`;
+
+  return describeRuntimeColumn(draft);
+}
+
+function describeRuntimeColumn(draft: DraftColumn): string {
+  const base = `${draft.key}: ${describeZodType(draft)}`;
+  return draft.required ? base : `${base}.optional()`;
+}
+
+function readZodObjectShape(schema: unknown): Record<string, unknown> | null {
+  if (!schema || typeof schema !== 'object') return null;
+  const def = (schema as { _def?: { shape?: unknown } })._def;
+  const shape = typeof def?.shape === 'function' ? def.shape() : def?.shape;
+  return shape && typeof shape === 'object' ? (shape as Record<string, unknown>) : null;
+}
+
+function describeZodNode(node: unknown): string {
+  if (!node || typeof node !== 'object') return 'z.unknown()';
+
+  const def = (node as { _def?: { typeName?: string; innerType?: unknown; checks?: Array<Record<string, unknown>> } })._def;
+  const typeName = def?.typeName;
+  const innerType = def?.innerType;
+
+  if (innerType) return `${describeZodNode(innerType)}.optional()`;
+
+  if (typeName === 'ZodNumber') {
+    let schema = 'z.number()';
+    for (const check of def.checks ?? []) {
+      if (check.kind === 'min' && typeof check.value === 'number') schema += `.min(${check.value})`;
+      if (check.kind === 'max' && typeof check.value === 'number') schema += `.max(${check.value})`;
+    }
+    return schema;
+  }
+
+  if (typeName === 'ZodString') {
+    let schema = 'z.string()';
+    for (const check of def.checks ?? []) {
+      if (check.kind === 'min' && typeof check.value === 'number') schema += `.min(${check.value})`;
+      if (check.kind === 'max' && typeof check.value === 'number') schema += `.max(${check.value})`;
+    }
+    return schema;
+  }
+
+  return 'z.unknown()';
+}
+
+function describeZodType(draft: DraftColumn): string {
+  if (draft.type === 'number') {
+    const range = (draft.validationJson?.range ?? {}) as Record<string, unknown>;
+    let schema = 'z.number()';
+    if (typeof range.min === 'number') schema += `.min(${range.min})`;
+    if (typeof range.max === 'number') schema += `.max(${range.max})`;
+    return schema;
+  }
+
+  if (draft.type === 'date') return 'z.string().refine(Date.parse)';
+
+  const length = (draft.validationJson?.length ?? {}) as Record<string, unknown>;
+  let schema = 'z.string()';
+  if (typeof length.min === 'number') schema += `.min(${length.min})`;
+  if (typeof length.max === 'number') schema += `.max(${length.max})`;
+  return schema;
 }
