@@ -106,7 +106,7 @@ function translateMachineLabel(t: (key: string) => string, key: keyof MachinesLa
 
 async function buildLabels(locale: string): Promise<MachinesLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.infra_machines' });
+    const t = await getTranslations({ locale, namespace: 'settings.infra.machines' });
     return LABEL_KEYS.reduce((labels, key) => {
       labels[key] = translateMachineLabel(t, key);
       return labels;
