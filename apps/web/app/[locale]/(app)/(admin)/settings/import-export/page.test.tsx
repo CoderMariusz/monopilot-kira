@@ -419,6 +419,25 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
     expect(within(hub()).getByText(/dry-run passed.*T-122-DRY-RUN-1/i)).toBeInTheDocument();
   });
 
+  it('fail-closes the default authorization-policy preflight control when no reviewed importer backend is wired', async () => {
+    const user = userEvent.setup();
+    await renderImportExportPage({ preflightAuthorizationPolicyImport: undefined });
+
+    selectEntity('authorization_policies');
+    await user.upload(within(hub()).getByLabelText(/csv file/i), new File(['policy,enabled\nnpd,true'], 'auth-policies.csv', { type: 'text/csv' }));
+    await user.type(within(hub()).getByLabelText(/audit reason/i), 'Preflight policy migration for V-SET-43/V-SET-44 validation');
+
+    const dryRun = within(hub()).getByRole('button', { name: /run t-122 dry-run/i });
+    expect(
+      dryRun,
+      'Default authorization policy import preflight must be disabled unless a reviewed RBAC/org-scoped backend is wired; a preflight_unavailable action must not be a normal reachable control.',
+    ).toBeDisabled();
+    expect(within(hub()).getByRole('alert')).toHaveTextContent(/preflight.*not configured|preflight.*coming soon|preflight.*unavailable/i);
+
+    await user.click(dryRun);
+    expect(within(hub()).queryByText(/dry-run passed/i)).not.toBeInTheDocument();
+  });
+
   it('calls the global export action for the selected Settings entity and format and surfaces the download link', async () => {
     const user = userEvent.setup();
     const exportSettingsEntity = vi.fn(async () => ({ ok: true as const, downloadHref: '/api/settings/import-export/downloads/roles.xlsx' }));

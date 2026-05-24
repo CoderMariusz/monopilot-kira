@@ -414,6 +414,22 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     expect(await screen.findByText('Probe sent — message_id msg_probe_456')).toHaveAttribute('role', 'status');
   });
 
+  it('fail-closes the default Test send control when no reviewed mail backend action is wired', async () => {
+    const user = userEvent.setup();
+    await renderEmailTemplatesPage({ testSend: undefined });
+
+    const trigger = screen.getByRole('button', { name: /test send/i });
+    expect(
+      trigger,
+      'Default production email test-send must be disabled unless a reviewed provider backend is wired; ok:true with message_id=not_configured must never surface as success.',
+    ).toBeDisabled();
+    expect(screenRoot()).toHaveTextContent(/not configured|coming soon|email test send unavailable/i);
+
+    await user.click(trigger);
+    expect(screen.queryByText(/probe sent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not_configured/i)).not.toBeInTheDocument();
+  });
+
   it('renders loading, empty, and error states loudly for email template data', async () => {
     await renderEmailTemplatesPage({ state: 'loading', templates: [] });
     expect(screen.getByRole('status', { name: /loading email templates/i })).toBeInTheDocument();

@@ -30,6 +30,12 @@ vi.mock('next-intl/server', () => ({
   }),
 }));
 
+const withOrgContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: withOrgContextMock,
+}));
+
 type D365SyncStatus = 'ok' | 'partial' | 'failed';
 type D365SyncDirection = 'pull' | 'push';
 
@@ -281,5 +287,29 @@ describe('T-112 D365 sync audit behavior', () => {
     expect(trigger).toHaveAttribute('aria-label', expect.stringMatching(/owner role required|insufficient permissions/i));
     expect(trigger).toHaveAttribute('aria-disabled', 'true');
     expect(runSyncNow).not.toHaveBeenCalled();
+  });
+
+  it('fail-closes the default D365 manual sync control when no reviewed backend trigger is wired', async () => {
+    const user = userEvent.setup();
+    withOrgContextMock.mockImplementation(async (callback: (ctx: unknown) => unknown) => callback({
+      userId: '00000000-0000-4000-8000-000000000001',
+      orgId: '00000000-0000-4000-8000-000000000002',
+      client: {
+        query: vi.fn(async () => ({ rows: [{ is_owner: true }] })),
+      },
+    }));
+
+    await renderD365AuditPage({ callerRole: 'owner', runSyncNow: undefined });
+
+    const trigger = screen.getByRole('button', { name: /run sync now/i });
+    expect(
+      trigger,
+      'Default production D365 sync must be disabled unless a reviewed, side-effecting backend trigger is wired; a not_available server-action response must not be reachable from the normal UI.',
+    ).toBeDisabled();
+    expect(trigger).toHaveAttribute('aria-disabled', 'true');
+    expect(auditScreen()).toHaveTextContent(/not configured|coming soon|sync trigger unavailable/i);
+
+    await user.click(trigger);
+    expect(withOrgContextMock).not.toHaveBeenCalled();
   });
 });
