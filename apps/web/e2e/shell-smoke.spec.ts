@@ -99,6 +99,17 @@ const explicitShellRoutes: ShellRouteExpectation[] = [
     expected_final_pathname: '/en/settings/flags',
   },
   {
+    route: '/en/settings/reference/manufacturing-operations',
+    label: 'settings manufacturing operations shell and i18n',
+    auth_state: 'auth',
+    expects_shell: true,
+    expects_subnav: true,
+    active_nav_item: 'settings',
+    active_subnav_item: 'reference',
+    viewport: desktopViewport,
+    expected_final_pathname: '/en/settings/reference/manufacturing-operations',
+  },
+  {
     route: '/pl/settings/rules',
     label: 'polish settings rules registry shell and i18n',
     auth_state: 'auth',
@@ -178,6 +189,11 @@ const settingsI18nRouteExpectations: Record<string, { rawKeyPrefix: string; expe
     rawKeyPrefix: 'settings.flags_admin.',
     expectedHeading: 'Feature flags',
     screenSelector: '[data-testid="settings-flags-admin-screen"]',
+  },
+  '/en/settings/reference/manufacturing-operations': {
+    rawKeyPrefix: 'settings.manufacturing_operations.',
+    expectedHeading: 'Manufacturing operations',
+    screenSelector: 'main[aria-labelledby="manufacturing-operations-heading"]',
   },
   '/pl/settings/rules': {
     rawKeyPrefix: 'settings.rules_registry.',
