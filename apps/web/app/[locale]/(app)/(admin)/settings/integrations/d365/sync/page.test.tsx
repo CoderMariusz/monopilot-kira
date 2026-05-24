@@ -67,12 +67,12 @@ const syncConfig: D365SyncConfig = {
 };
 
 async function loadD365SyncPage(): Promise<D365SyncPage> {
-  const routePath = join(
-    process.cwd(),
-    'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/sync/page.tsx',
-  );
+  const candidates = [
+    join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/sync/page.tsx'),
+    join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/sync/page.tsx'),
+  ];
 
-  if (!existsSync(routePath)) {
+  if (!candidates.some((c) => existsSync(c))) {
     return function MissingD365SyncPage() {
       return React.createElement('main', { 'data-testid': 'missing-d365-sync-page' });
     };
