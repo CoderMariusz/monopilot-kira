@@ -11,10 +11,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const routerPush = vi.fn();
 
+const referenceTranslationLabels = vi.hoisted((): Record<string, string> => ({
+  'settings.reference.import.title': 'CSV Import Wizard translated',
+  'settings.reference.import.subtitle': 'Guided 3-step CSV import translated',
+  'settings.reference.import.dropzone': 'Drop your CSV file here or click to browse translated',
+  'settings.reference.import.downloadTemplate': 'Download Template CSV translated',
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush }),
   redirect: vi.fn(),
   notFound: vi.fn(),
+}));
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async (namespaceInput?: string | { namespace?: string }) => (key: string) => {
+    const namespace = typeof namespaceInput === 'string' ? namespaceInput : namespaceInput?.namespace;
+    const fullKey = namespace ? `${namespace}.${key}` : key;
+    return referenceTranslationLabels[fullKey] ?? referenceTranslationLabels[key] ?? fullKey;
+  }),
 }));
 
 type ReferenceColumn = {
@@ -189,6 +204,17 @@ describe('SET-053 reference CSV import wizard UX contract', () => {
     );
     expect(within(uploadStep).getByRole('link', { name: /download template csv/i })).toHaveAttribute('href', expect.stringContaining('template'));
     expect(within(uploadStep).getByLabelText(/csv file/i)).toHaveAttribute('accept', expect.stringContaining('.csv'));
+  });
+
+  it('renders the reference import heading, help copy, and template action from next-intl labels instead of raw English literals', async () => {
+    await renderReferenceImport();
+
+    const root = wizardRoot();
+    expect(screen.getByRole('heading', { name: /csv import wizard translated/i })).toBeInTheDocument();
+    expect(within(root).getByText(/guided 3-step csv import translated/i)).toBeInTheDocument();
+    expect(within(root).getByText(/drop your csv file here or click to browse translated/i)).toBeInTheDocument();
+    expect(within(root).getByRole('link', { name: /download template csv translated/i })).toBeInTheDocument();
+    expect(root).not.toHaveTextContent('Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.');
   });
 
   it('shows the preview summary and fails closed when the uploaded CSV header does not match the reference schema', async () => {

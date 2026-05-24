@@ -18,15 +18,38 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next-intl/server', () => ({
-  getTranslations: vi.fn(async () => (key: string, values?: Record<string, string | number>) => {
+  getTranslations: vi.fn(async (namespaceInput?: string | { namespace?: string }) => (key: string, values?: Record<string, string | number>) => {
+    const namespace = typeof namespaceInput === 'string' ? namespaceInput : namespaceInput?.namespace;
+    const fullKey = namespace ? `${namespace}.${key}` : key;
     const labels: Record<string, string> = {
       'settings.integrations.d365.sync.title': 'D365 sync config',
       'settings.integrations.d365.sync.subtitle': 'Pull schedule, push queue, retry policy, and dead-letter queue access.',
       'settings.integrations.d365.sync.save': 'Save sync config',
       'settings.integrations.d365.sync.saved': 'D365 sync config saved',
       'settings.integrations.d365.sync.forbiddenTitle': '403 — Owner access required',
+      'settings.integrations.d365.sync.sections.polling': 'Polling & sync translated',
+      'settings.integrations.d365.sync.sections.retry': 'Retry policy translated',
+      'settings.integrations.d365.sync.sections.dlq': 'Dead-letter queue translated',
+      'settings.integrations.d365.sync.fields.pullCron': 'Pull schedule cron translated',
+      'settings.integrations.d365.sync.fields.batchSize': 'Batch size translated',
+      'settings.integrations.d365.sync.fields.pushQueue': 'Push queue translated',
+      'settings.integrations.d365.sync.fields.maxAttempts': 'Max attempts translated',
+      'settings.integrations.d365.sync.fields.retryBackoff': 'Retry backoff translated',
+      'settings.d365.sync.title': 'D365 sync config',
+      'settings.d365.sync.subtitle': 'Pull schedule, push queue, retry policy, and dead-letter queue access.',
+      'settings.d365.sync.save': 'Save sync config',
+      'settings.d365.sync.saved': 'D365 sync config saved',
+      'settings.d365.sync.forbiddenTitle': '403 — Owner access required',
+      'settings.d365.sync.sections.polling': 'Polling & sync translated',
+      'settings.d365.sync.sections.retry': 'Retry policy translated',
+      'settings.d365.sync.sections.dlq': 'Dead-letter queue translated',
+      'settings.d365.sync.fields.pullCron': 'Pull schedule cron translated',
+      'settings.d365.sync.fields.batchSize': 'Batch size translated',
+      'settings.d365.sync.fields.pushQueue': 'Push queue translated',
+      'settings.d365.sync.fields.maxAttempts': 'Max attempts translated',
+      'settings.d365.sync.fields.retryBackoff': 'Retry backoff translated',
     };
-    return (labels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+    return (labels[fullKey] ?? labels[key] ?? fullKey).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
   }),
 }));
 
@@ -64,6 +87,38 @@ const syncConfig: D365SyncConfig = {
   dlq_href: '/en/settings/integrations/d365/dead-letter',
   last_applied_at: '2026-05-20T14:30:00.000Z',
   applied_by_user: 'Marta Owner',
+};
+
+const requiredAddedI18nKeys = [
+  'reference.import.title',
+  'reference.import.subtitle',
+  'reference.import.dropzone',
+  'reference.import.downloadTemplate',
+  'd365.sync.sections.polling',
+  'd365.sync.fields.pullCron',
+  'd365.sync.fields.batchSize',
+  'd365.connection.sections.endpoint',
+  'd365.connection.fields.baseUrl',
+  'd365.connection.dialog.testTitle',
+] as const;
+
+function getMessage(tree: unknown, dottedKey: string): unknown {
+  return dottedKey.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, tree);
+}
+
+const connectionConfig = {
+  baseUrl: 'https://apex.operations.dynamics.com',
+  environment: 'Sandbox' as const,
+  tenantId: '12345678-1234-1234-1234-123456789012',
+  clientId: 'client-12345',
+  clientSecretSet: true,
+  serviceAccountEmail: 'svc-d365@example.test',
+  pollCron: '0 2 * * *',
+  enabled: true,
+  lastTest: { ok: true as const, at: '2026-05-20T14:30:00.000Z', latencyMs: 120, environment: 'Sandbox' },
 };
 
 const routeDirCandidates = [
@@ -163,6 +218,20 @@ describe('T-111 D365 sync localized AppShell route contract', () => {
   });
 });
 
+describe('R-W10W11-005 settings i18n message coverage', () => {
+  it('defines added reference import and D365 sync/connection keys with exact EN/PL structural parity', () => {
+    const catalogs = {
+      en: JSON.parse(readFileSync(join(process.cwd(), 'apps/web/messages/en/02-settings.json'), 'utf8')),
+      pl: JSON.parse(readFileSync(join(process.cwd(), 'apps/web/messages/pl/02-settings.json'), 'utf8')),
+    } as const;
+
+    for (const key of requiredAddedI18nKeys) {
+      expect(getMessage(catalogs.en, key), `EN 02-settings.json is missing ${key}`).toEqual(expect.any(String));
+      expect(getMessage(catalogs.pl, key), `PL 02-settings.json is missing ${key}`).toEqual(expect.any(String));
+    }
+  });
+});
+
 describe('T-111 D365 sync config behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -193,6 +262,55 @@ describe('T-111 D365 sync config behavior', () => {
     expect(screen.getByRole('switch', { name: /push queue/i })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText(/next run/i)).toHaveTextContent(/next run/i);
     expect(screen.getByRole('link', { name: /dead-letter queue/i })).toHaveAttribute('href', syncConfig.dlq_href);
+  });
+
+  it('renders D365 sync critical section and field labels from the translated label map passed into the client form', async () => {
+    await renderD365SyncPage();
+
+    const root = syncScreen();
+    expect(within(root).getByText(/polling & sync translated/i)).toBeInTheDocument();
+    expect(within(root).getByRole('textbox', { name: /pull schedule cron translated/i })).toHaveValue('15 */2 * * *');
+    expect(within(root).getByRole('spinbutton', { name: /batch size translated/i })).toHaveValue(25);
+    expect(within(root).getByRole('switch', { name: /push queue translated/i })).toHaveAttribute('aria-checked', 'true');
+    expect(root).not.toHaveTextContent('Standard 5-field cron. Example: \'0 * * * *\' = hourly.');
+  });
+
+  it('renders D365 connection critical section, field, and dialog labels from injected i18n labels', async () => {
+    const user = userEvent.setup();
+    const connectionModulePath: string = '../d365-connection-form.client.tsx';
+    const mod = await import(/* @vite-ignore */ connectionModulePath);
+    const ConnectionForm = mod.default;
+    const labels = {
+      title: 'D365 connection',
+      subtitle: 'Configure export-only D365 integration settings.',
+      testConnection: 'Test connection translated',
+      save: 'Save configuration',
+      rotateSecret: 'Rotate secret',
+      secretRotated: 'D365 client secret rotated',
+      urlInvalid: 'URL_INVALID',
+      loading: 'Loading D365 connection…',
+      empty: 'D365 connection is not configured.',
+      error: 'Unable to load D365 connection.',
+      sections: { endpoint: 'Endpoint translated' },
+      fields: { baseUrl: 'Base URL translated' },
+      dialog: { testTitle: 'Test D365 connection translated', close: 'Close translated' },
+    };
+
+    render(
+      React.createElement(ConnectionForm, {
+        state: 'ready',
+        config: connectionConfig,
+        labels: labels as never,
+        testD365Connection: vi.fn(async () => ({ ok: true as const })),
+      }),
+    );
+
+    const root = screen.getByTestId('settings-d365-connection-screen');
+    expect(within(root).getByText(/endpoint translated/i)).toBeInTheDocument();
+    expect(within(root).getByRole('textbox', { name: /base url translated/i })).toHaveValue(connectionConfig.baseUrl);
+    await user.click(within(root).getByRole('button', { name: /test connection translated/i }));
+    expect(await screen.findByRole('dialog', { name: /test d365 connection translated/i })).toBeVisible();
+    expect(root).not.toHaveTextContent('Running endpoint, Azure AD, and polling pre-flight checks.');
   });
 
   it("surfaces inline Zod-style cron validation and disables Submit for invalid cron '*/x * * * *'", async () => {
