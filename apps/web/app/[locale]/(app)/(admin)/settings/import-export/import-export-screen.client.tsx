@@ -284,7 +284,10 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
     const preflightAuthorizationPolicyImport = props.preflightAuthorizationPolicyImport;
     if (typeof preflightAuthorizationPolicyImport !== 'function') return;
     const result = await preflightAuthorizationPolicyImport({ fileName, auditReason: auditReason.trim() });
-    if (result.ok === true) {
+    if (result.ok === true && result.dryRunId === 'preflight_unavailable') {
+      setDryRunId('');
+      setDryRunError(labels.importCard.preflightUnavailable);
+    } else if (result.ok === true) {
       setDryRunError('');
       setDryRunId(result.dryRunId);
     } else {

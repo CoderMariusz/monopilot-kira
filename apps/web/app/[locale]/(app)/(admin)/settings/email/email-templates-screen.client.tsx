@@ -113,7 +113,9 @@ export default function EmailTemplatesScreen({
   async function sendProbe() {
     if (state === 'permission_denied' || typeof testSend !== 'function') return;
     const result = await testSend({ provider, fromEmail, fromName });
-    if (result.ok) {
+    if (result.ok && result.message_id === 'not_configured') {
+      setToast({ tone: 'error', text: labels.testSendError });
+    } else if (result.ok) {
       setToast({ tone: 'success', text: interpolate(labels.sent, { messageId: result.message_id }) });
     } else {
       const errorText = 'error' in result ? result.error : labels.testSendError;
