@@ -34,9 +34,48 @@ FUTURE_T002_PERMISSION_MARKERS = [
     "settings.onboarding.complete",
 ]
 
+R_W10W11_007_PRODUCTION_SETTINGS_PAGES = [
+    "apps/web/app/[locale]/(app)/(admin)/settings/email/page.tsx",
+    "apps/web/app/[locale]/(app)/(admin)/settings/audit/page.tsx",
+    "apps/web/app/[locale]/(app)/(admin)/settings/integrations/page.tsx",
+    "apps/web/app/[locale]/(app)/(admin)/settings/modules/page.tsx",
+]
+
+R_W10W11_007_FORBIDDEN_LITERAL_DEFAULTS = {
+    "Apex Foods": "tenant/org display name must come from context/loader or be explicitly unavailable",
+    "no-reply@monopilot.apex.pl": "email sender identity must come from context/loader or be explicitly unavailable",
+    "org-apex": "org id must come from context/loader, not a hardcoded sample tenant",
+}
+
+R_W10W11_007_FORBIDDEN_DEFAULT_PATTERNS = {
+    re.compile(r"totalLast24h\s*:\s*1248"): "integration 24h sync KPI must not fall back to fabricated 1248 total",
+    re.compile(r"activeSessionCount\s*:\s*[^\n,]*\?\?\s*28"): "modules active-session KPI must not fall back to fabricated 28 sessions",
+}
+
 
 def _settings_permission_literals(source: str) -> list[str]:
     return re.findall(r"'((?:settings)\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*)'", source)
+
+
+def test_r_w10w11_007_production_settings_pages_do_not_embed_fake_org_identity_or_kpis():
+    """Production settings pages must fail closed instead of rendering Opus-audited fake tenant/KPI defaults."""
+    failures: list[str] = []
+
+    for relative_path in R_W10W11_007_PRODUCTION_SETTINGS_PAGES:
+        source_path = REPO_ROOT / relative_path
+        assert source_path.exists(), f"R-W10W11-007 coverage target is missing: {relative_path}"
+        source = source_path.read_text()
+
+        for literal, reason in R_W10W11_007_FORBIDDEN_LITERAL_DEFAULTS.items():
+            if literal in source:
+                failures.append(f"{relative_path}: hardcoded {literal!r}; {reason}")
+
+        for pattern, reason in R_W10W11_007_FORBIDDEN_DEFAULT_PATTERNS.items():
+            match = pattern.search(source)
+            if match:
+                failures.append(f"{relative_path}: hardcoded default {match.group(0)!r}; {reason}")
+
+    assert failures == [], "\n".join(failures)
 
 
 def test_t001_settings_permission_contract_is_core_only_until_t002():
