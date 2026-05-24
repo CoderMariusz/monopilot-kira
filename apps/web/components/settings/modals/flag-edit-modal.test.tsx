@@ -4,12 +4,49 @@
  * RED scope: tests only; production component is intentionally not implemented here.
  */
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { assertModalA11y } from '../../../../../packages/ui/test/assertModalA11y';
+
+vi.mock('@monopilot/ui/Modal', async () => {
+  type ModalShimProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    size?: string;
+    modalId?: string;
+    children: React.ReactNode;
+  };
+
+  function ModalShim({ open, size = 'md', modalId, children }: ModalShimProps) {
+    if (!open) return null;
+    return (
+      <>
+        <span data-radix-focus-guard="" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="flag-edit-modal-title"
+          data-focus-trap="radix-dialog"
+          data-size={size}
+          data-modal-id={modalId}
+        >
+          {children}
+        </div>
+        <span data-radix-focus-guard="" />
+      </>
+    );
+  }
+
+  ModalShim.Header = ({ title }: { title: string }) => <h2 id="flag-edit-modal-title">{title}</h2>;
+  ModalShim.Body = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-body">{children}</div>;
+  ModalShim.Footer = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-footer">{children}</div>;
+
+  return { default: ModalShim };
+});
 
 type SettingsFlag = {
   id: string;
@@ -115,10 +152,11 @@ function modalOutline(dialog: HTMLElement) {
   const rollout = scoped.getByRole('slider', { name: /rollout %/i });
   const reason = scoped.getByRole('textbox', { name: /audit reason/i });
   const save = scoped.getByRole('button', { name: /^save change$/i });
+  const root = screen.getByTestId('flag-edit-modal');
 
   return {
     modalId: dialog.getAttribute('data-modal-id'),
-    testId: dialog.getAttribute('data-testid'),
+    rootTestId: root.getAttribute('data-testid'),
     size: dialog.getAttribute('data-size'),
     title: scoped.getByRole('heading', { name: /edit flag — MRP_LIVE_REPLAN/i }).textContent,
     subtitle: scoped.getByText(l2Flag.desc).textContent,
@@ -127,10 +165,11 @@ function modalOutline(dialog: HTMLElement) {
     fieldRoles: ['switch', 'slider[min=0,max=100]', 'textbox[textarea]'],
     footerButtons: visibleFooterButtonNames(dialog),
     primitiveSlots: {
-      dialog: dialog.getAttribute('data-slot'),
+      modalFocusTrap: dialog.getAttribute('data-focus-trap'),
       switch: statusSwitch.closest('[data-slot="switch"]')?.getAttribute('data-slot'),
       range: rollout.getAttribute('type') ?? rollout.getAttribute('role'),
-      reason: reason.closest('[data-slot="reason-input"],[data-slot="textarea"]')?.getAttribute('data-slot'),
+      reason: reason.closest('[data-slot="textarea"]')?.getAttribute('data-slot'),
+      reasonCounter: Boolean(scoped.getByTestId('reason-input-counter')),
       cancel: scoped.getByRole('button', { name: /^cancel$/i }).closest('[data-slot="button"]')?.getAttribute('data-slot'),
       save: save.closest('[data-slot="button"]')?.getAttribute('data-slot'),
       rawSelectCount: dialog.querySelectorAll('select').length,
@@ -179,13 +218,15 @@ describe('SM-02 FlagEditModal prototype parity', () => {
         "modalId": "SM-02",
         "primitiveSlots": {
           "cancel": "button",
-          "dialog": "dialog-content",
+          "modalFocusTrap": "radix-dialog",
           "range": "range",
           "rawSelectCount": 0,
-          "reason": "reason-input",
+          "reason": "textarea",
+          "reasonCounter": true,
           "save": "button",
           "switch": "switch",
         },
+        "rootTestId": "flag-edit-modal",
         "sectionOrder": [
           "status",
           "rollout",
@@ -194,10 +235,16 @@ describe('SM-02 FlagEditModal prototype parity', () => {
         ],
         "size": "default",
         "subtitle": "Allow planners to apply live MRP reschedule suggestions.",
-        "testId": "flag-edit-modal",
         "title": "Edit flag — MRP_LIVE_REPLAN",
       }
     `);
+
+    const source = readFileSync(`${process.cwd()}/components/settings/modals/flag-edit-modal.tsx`, 'utf8');
+    expect(source).toContain("import Modal from '@monopilot/ui/Modal'");
+    expect(source).toContain("import ReasonInput from '@monopilot/ui/ReasonInput'");
+    expect(source).not.toContain('role="dialog"');
+    expect(source).not.toContain('data-radix-focus-guard');
+    expect(source).not.toContain("setAttribute('data-slot'");
 
     const scoped = within(dialog);
     const statusSwitch = scoped.getByRole('switch', { name: /status/i });

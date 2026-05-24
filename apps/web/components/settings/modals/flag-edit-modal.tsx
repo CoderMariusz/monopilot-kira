@@ -4,8 +4,9 @@ import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
+import Modal from '@monopilot/ui/Modal';
+import ReasonInput from '@monopilot/ui/ReasonInput';
 import { Switch } from '@monopilot/ui/Switch';
-import Textarea from '@monopilot/ui/Textarea';
 
 export type SettingsFlag = {
   id: string;
@@ -41,35 +42,6 @@ export type FlagEditModalProps = {
   }) => void;
 };
 
-type ModalFieldProps = {
-  id: string;
-  label: string;
-  required?: boolean;
-  help?: string;
-  error?: string | null;
-  children: React.ReactNode;
-};
-
-function ModalField({ id, label, required = false, help, error, children }: ModalFieldProps) {
-  const errorId = `${id}-error`;
-
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <label htmlFor={id} style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-        {label} {required ? <span aria-hidden="true">*</span> : null}
-      </label>
-      {children}
-      {error ? (
-        <div id={errorId} role="alert" style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>
-          {error}
-        </div>
-      ) : help ? (
-        <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>{help}</div>
-      ) : null}
-    </div>
-  );
-}
-
 export function FlagEditModal({
   open,
   flag,
@@ -79,16 +51,13 @@ export function FlagEditModal({
   saveFlagChange,
   onPromoteToL2,
 }: FlagEditModalProps) {
-  const titleId = 'sm-02-flag-edit-title';
-  const subtitleId = 'sm-02-flag-edit-subtitle';
   const statusId = 'sm-02-flag-status';
   const statusHelpId = 'sm-02-flag-status-help';
   const rolloutId = 'sm-02-flag-rollout';
   const rolloutHelpId = 'sm-02-flag-rollout-help';
-  const reasonId = 'sm-02-flag-audit-reason';
   const reasonErrorId = 'sm-02-flag-audit-reason-error';
+  const reasonFieldRef = React.useRef<HTMLLabelElement | null>(null);
 
-  const dialogRef = React.useRef<HTMLDivElement | null>(null);
   const [enabled, setEnabled] = React.useState(Boolean(flag?.on));
   const [rollout, setRollout] = React.useState(flag?.rollout ?? 0);
   const [reason, setReason] = React.useState('');
@@ -96,7 +65,7 @@ export function FlagEditModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     if (!open) return;
 
     setEnabled(Boolean(flag?.on));
@@ -107,26 +76,25 @@ export function FlagEditModal({
     setSubmitting(false);
   }, [flag, open]);
 
-  React.useLayoutEffect(() => {
-    if (!open) return undefined;
+  React.useEffect(() => {
+    if (!open) return;
 
-    const dialog = dialogRef.current;
-    dialog?.setAttribute('data-slot', 'dialog-content');
-    dialog?.querySelector('[data-slot="textarea"]')?.setAttribute('data-slot', 'reason-input');
-    dialog?.querySelector<HTMLElement>('[data-slot="switch"]')?.focus();
-
-    const beforeGuard = document.createElement('span');
-    const afterGuard = document.createElement('span');
-    beforeGuard.setAttribute('data-radix-focus-guard', '');
-    afterGuard.setAttribute('data-radix-focus-guard', '');
-    document.body.prepend(beforeGuard);
-    document.body.append(afterGuard);
-
-    return () => {
-      beforeGuard.remove();
-      afterGuard.remove();
-    };
+    document.getElementById(statusId)?.focus();
   }, [open]);
+
+  React.useEffect(() => {
+    const textarea = reasonFieldRef.current?.querySelector('textarea');
+    if (!textarea) return;
+
+    if (reasonError) {
+      textarea.setAttribute('aria-invalid', 'true');
+      textarea.setAttribute('aria-describedby', reasonErrorId);
+      return;
+    }
+
+    textarea.removeAttribute('aria-invalid');
+    textarea.removeAttribute('aria-describedby');
+  }, [reasonError]);
 
   if (!open) return null;
 
@@ -162,7 +130,8 @@ export function FlagEditModal({
         closeModal();
         return;
       }
-      setActionError(result.error || 'FLAG_SAVE_FAILED');
+      const failedResult = result as Extract<FlagEditResult, { ok: false }>;
+      setActionError(failedResult.error || 'FLAG_SAVE_FAILED');
     } catch {
       setActionError('FLAG_SAVE_FAILED');
     } finally {
@@ -172,6 +141,15 @@ export function FlagEditModal({
 
   function handleSaveClick() {
     void submitChange();
+  }
+
+  function handleReasonChange(event: React.FormEvent<HTMLLabelElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLTextAreaElement)) return;
+
+    setReason(target.value);
+    if (reasonError) setReasonError(null);
+    if (actionError) setActionError(null);
   }
 
   function handleCancelKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
@@ -186,121 +164,111 @@ export function FlagEditModal({
   }
 
   return (
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={subtitleId}
-      data-focus-trap="radix-dialog"
-      data-modal-id="SM-02"
-      data-size="default"
-      data-testid="flag-edit-modal"
-      style={{ maxWidth: 'var(--modal-size-default-width)' }}
-    >
-      <div data-testid="modal-header">
-        <h2 id={titleId} style={{ margin: 0 }}>
-          {title}
-        </h2>
-        <p id={subtitleId} style={{ color: 'var(--muted)', fontSize: 12, margin: '4px 0 12px' }}>
+    <div data-testid="flag-edit-modal">
+      <Modal open={open} onOpenChange={onOpenChange} size="default" modalId="SM-02">
+        <Modal.Header title={title} />
+        <p id="sm-02-flag-edit-subtitle" className="muted">
           {subtitle}
         </p>
-      </div>
 
-      <div data-testid="modal-body">
-        {loading ? (
-          <div role="status" aria-label="Loading feature flag" style={{ padding: 20, textAlign: 'center' }}>
-            ⟳ Loading feature flag…
-          </div>
-        ) : error ? (
-          <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>
-            {error}
-          </div>
-        ) : !flag ? (
-          <div role="alert" style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>
-            No feature flag selected
-          </div>
-        ) : (
-          <>
-            {flag.tenant === 'L1-core' ? (
-              <div role="alert" className="alert alert-amber" style={{ marginBottom: 10, fontSize: 12 }}>
-                <b>L1-core flag.</b> Changes are routed through the promotion workflow. Raise an L1 promotion request instead of editing directly.
+        <Modal.Body>
+          {loading ? (
+            <div role="status" aria-label="Loading feature flag">
+              ⟳ Loading feature flag…
+            </div>
+          ) : error ? (
+            <div role="alert" className="text-danger">
+              {error}
+            </div>
+          ) : !flag ? (
+            <div role="alert" className="muted">
+              No feature flag selected
+            </div>
+          ) : (
+            <>
+              {flag.tenant === 'L1-core' ? (
+                <div role="alert" className="alert alert-amber">
+                  <b>L1-core flag.</b> Changes are routed through the promotion workflow. Raise an L1 promotion request
+                  instead of editing directly.
+                </div>
+              ) : null}
+
+              <div className="field">
+                <label htmlFor={statusId}>
+                  Status <span aria-hidden="true">*</span>
+                </label>
+                <div className="flag-edit-modal__status-row">
+                  <Switch
+                    id={statusId}
+                    checked={enabled}
+                    onCheckedChange={setEnabled}
+                    aria-label="Status"
+                    aria-describedby={statusHelpId}
+                  />
+                  <span id={statusHelpId} className="muted">
+                    {enabled ? 'ON — flag is live for matching users' : 'OFF — flag is disabled'}
+                  </span>
+                </div>
               </div>
-            ) : null}
 
-            <ModalField id={statusId} label="Status" required>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Switch
-                  id={statusId}
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                  aria-label="Status"
-                  aria-describedby={statusHelpId}
+              <div className="field">
+                <label htmlFor={rolloutId}>Rollout %</label>
+                <Input
+                  id={rolloutId}
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={rollout}
+                  onChange={(event) => setRollout(Number(event.target.value))}
+                  aria-label="Rollout %"
+                  aria-describedby={rolloutHelpId}
                 />
-                <span id={statusHelpId} className="muted" style={{ fontSize: 12 }}>
-                  {enabled ? 'ON — flag is live for matching users' : 'OFF — flag is disabled'}
+                <span id={rolloutHelpId} className="muted">
+                  Percentage of users that see the ON state.
                 </span>
+                <div className="mono">{rollout}%</div>
               </div>
-            </ModalField>
 
-            <ModalField id={rolloutId} label="Rollout %" help="Percentage of users that see the ON state.">
-              <Input
-                id={rolloutId}
-                type="range"
-                min={0}
-                max={100}
-                value={rollout}
-                onChange={(event) => setRollout(Number(event.target.value))}
-                aria-label="Rollout %"
-                aria-describedby={rolloutHelpId}
-                style={{ width: '100%' }}
-              />
-              <div id={rolloutHelpId} className="mono" style={{ fontSize: 11, marginTop: 4 }}>
-                {rollout}%
-              </div>
-            </ModalField>
+              <label ref={reasonFieldRef} className="field" onChange={handleReasonChange}>
+                Audit reason <span aria-hidden="true">*</span>
+                <ReasonInput
+                  key={flag.id}
+                  name="auditReason"
+                  minLength={10}
+                  placeholder="Why is this flag changing? (audit-logged)"
+                />
+              </label>
 
-            <ModalField id={reasonId} label="Audit reason" required error={reasonError}>
-              <Textarea
-                id={reasonId}
-                value={reason}
-                minLength={10}
-                placeholder="Why is this flag changing? (audit-logged)"
-                aria-label="Audit reason"
-                aria-invalid={reasonError ? 'true' : undefined}
-                aria-describedby={reasonError ? reasonErrorId : undefined}
-                onChange={(event) => {
-                  setReason(event.target.value);
-                  if (reasonError) setReasonError(null);
-                  if (actionError) setActionError(null);
-                }}
-                style={{ minHeight: 72, width: '100%' }}
-              />
-            </ModalField>
+              {reasonError ? (
+                <div id={reasonErrorId} role="alert" className="text-danger">
+                  {reasonError}
+                </div>
+              ) : null}
 
-            {actionError ? (
-              <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>
-                {actionError}
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
+              {actionError ? (
+                <div role="alert" className="text-danger">
+                  {actionError}
+                </div>
+              ) : null}
+            </>
+          )}
+        </Modal.Body>
 
-      <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-        <Button type="button" className="btn-secondary btn-sm" onClick={closeModal} onKeyDown={handleCancelKeyDown}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          className="btn-primary btn-sm"
-          disabled={saveDisabled}
-          aria-disabled={saveDisabled ? 'true' : undefined}
-          onClick={handleSaveClick}
-        >
-          Save change
-        </Button>
-      </div>
+        <Modal.Footer>
+          <Button type="button" className="btn-secondary btn-sm" onClick={closeModal} onKeyDown={handleCancelKeyDown}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="btn-primary btn-sm"
+            disabled={saveDisabled}
+            aria-disabled={saveDisabled ? 'true' : undefined}
+            onClick={handleSaveClick}
+          >
+            {submitting ? 'Saving…' : 'Save change'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
