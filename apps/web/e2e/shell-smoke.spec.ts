@@ -76,6 +76,50 @@ const explicitShellRoutes: ShellRouteExpectation[] = [
     viewport: desktopViewport,
     expected_final_pathname: '/en/settings/roles',
   },
+  {
+    route: '/en/settings/rules',
+    label: 'settings rules registry shell and i18n',
+    auth_state: 'auth',
+    expects_shell: true,
+    expects_subnav: true,
+    active_nav_item: 'settings',
+    active_subnav_item: 'rules',
+    viewport: desktopViewport,
+    expected_final_pathname: '/en/settings/rules',
+  },
+  {
+    route: '/en/settings/flags',
+    label: 'settings flags admin shell and i18n',
+    auth_state: 'auth',
+    expects_shell: true,
+    expects_subnav: true,
+    active_nav_item: 'settings',
+    active_subnav_item: 'flags',
+    viewport: desktopViewport,
+    expected_final_pathname: '/en/settings/flags',
+  },
+  {
+    route: '/pl/settings/rules',
+    label: 'polish settings rules registry shell and i18n',
+    auth_state: 'auth',
+    expects_shell: true,
+    expects_subnav: true,
+    active_nav_item: 'settings',
+    active_subnav_item: 'rules',
+    viewport: desktopViewport,
+    expected_final_pathname: '/pl/settings/rules',
+  },
+  {
+    route: '/pl/settings/flags',
+    label: 'polish settings flags admin shell and i18n',
+    auth_state: 'auth',
+    expects_shell: true,
+    expects_subnav: true,
+    active_nav_item: 'settings',
+    active_subnav_item: 'flags',
+    viewport: desktopViewport,
+    expected_final_pathname: '/pl/settings/flags',
+  },
 ];
 
 const isolationRoutes: ShellRouteExpectation[] = [
@@ -124,6 +168,59 @@ const routeMatrix: ShellRouteExpectation[] = [
   ...isolationRoutes,
 ];
 
+const settingsI18nRouteExpectations: Record<string, { rawKeyPrefix: string; expectedHeading: string; screenSelector: string }> = {
+  '/en/settings/rules': {
+    rawKeyPrefix: 'settings.rules_registry.',
+    expectedHeading: 'Rules registry',
+    screenSelector: '[data-testid="settings-rules-registry-screen"]',
+  },
+  '/en/settings/flags': {
+    rawKeyPrefix: 'settings.flags_admin.',
+    expectedHeading: 'Feature flags',
+    screenSelector: '[data-testid="settings-flags-admin-screen"]',
+  },
+  '/pl/settings/rules': {
+    rawKeyPrefix: 'settings.rules_registry.',
+    expectedHeading: 'Rejestr reguł',
+    screenSelector: '[data-testid="settings-rules-registry-screen"]',
+  },
+  '/pl/settings/flags': {
+    rawKeyPrefix: 'settings.flags_admin.',
+    expectedHeading: 'Flagi funkcji',
+    screenSelector: '[data-testid="settings-flags-admin-screen"]',
+  },
+};
+
+async function assertSettingsI18n(page: Parameters<typeof installBrowserErrorSpies>[0], route: string): Promise<ShellFailure[]> {
+  const assertion = settingsI18nRouteExpectations[route];
+  if (!assertion) return [];
+
+  const failures: ShellFailure[] = [];
+  const screen = page.locator(assertion.screenSelector);
+  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const headingText = await screen.locator('h1').first().innerText().catch(() => '');
+
+  if ((await screen.count()) !== 1) {
+    failures.push({ category: 'region', message: `${route} must render ${assertion.screenSelector} inside the real AppShell` });
+  }
+
+  if (!headingText.includes(assertion.expectedHeading)) {
+    failures.push({
+      category: 'region',
+      message: `${route} h1 must resolve localized Settings copy "${assertion.expectedHeading}" from next-intl; saw "${headingText || '<missing>'}"`,
+    });
+  }
+
+  if (bodyText.includes(assertion.rawKeyPrefix)) {
+    failures.push({
+      category: 'region',
+      message: `${route} must not expose raw next-intl keys with prefix ${assertion.rawKeyPrefix}`,
+    });
+  }
+
+  return failures;
+}
+
 async function visitAndAssertRoute(page: Parameters<typeof installBrowserErrorSpies>[0], expected: ShellRouteExpectation, spy: ReturnType<typeof installBrowserErrorSpies>): Promise<ShellRouteResult> {
   const failures: ShellFailure[] = [];
   let httpStatus: number | null = null;
@@ -148,6 +245,7 @@ async function visitAndAssertRoute(page: Parameters<typeof installBrowserErrorSp
 
     failures.push(...(await assertShellRegions(page, expected)));
     failures.push(...(await assertActiveNavigation(page, expected)));
+    failures.push(...(await assertSettingsI18n(page, expected.route)));
   } catch (error) {
     failures.push({
       category: 'unexpected_exception',
