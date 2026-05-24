@@ -39,6 +39,46 @@ type IntegrationsPageProps = {
   activity?: SyncActivity[];
 };
 
+type TranslationValues = Record<string, string | number>;
+type Translator = (key: string, values?: TranslationValues) => string;
+
+type IntegrationLabels = {
+  title: string;
+  subtitle: string;
+  gridSubtitle: string;
+  search: string;
+  browseAll: (total: number) => string;
+  connectedAvailable: (connected: number, total: number) => string;
+  categorySummary: (connected: number, total: number) => string;
+  connectedBadge: (connected: number) => string;
+  kpiConnected: string;
+  kpiCategories: string;
+  kpiSyncLast24h: string;
+  kpiFailedLast24h: string;
+  loading: string;
+  error: string;
+  noIntegrationsConfigured: string;
+  noCategoryIntegrations: (category: string) => string;
+  emptyBody: string;
+  emptyCategoryBody: string;
+  browseCatalog: string;
+  statusConnected: string;
+  statusAvailable: string;
+  configure: string;
+  configureNamed: (name: string) => string;
+  connect: string;
+  connectedConfigure: string;
+  activityTitle: string;
+  activitySubtitle: string;
+  columnWhen: string;
+  columnIntegration: string;
+  columnDirection: string;
+  columnRecords: string;
+  columnStatus: string;
+  statusSuccess: string;
+  statusFailedRetry: string;
+};
+
 const fallbackCategories: IntegrationCategory[] = [
   {
     category: 'ERP',
@@ -121,8 +161,86 @@ const fallbackActivity: SyncActivity[] = [
   },
 ];
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat('en-US').format(value);
+function interpolate(template: string, values: TranslationValues = {}) {
+  return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values[name] ?? `{${name}}`));
+}
+
+function translate(t: Translator, key: string, fallback: string, values?: TranslationValues) {
+  try {
+    const value = t(key, values);
+    if (value && value !== key) return value;
+  } catch {
+    // Locale message files for this new SET-110 namespace are outside this task's edit scope.
+  }
+  return interpolate(fallback, values);
+}
+
+async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> {
+  const t = (await getTranslations({ locale, namespace: 'settings.integrations_screen' })) as Translator;
+
+  return {
+    title: translate(t, 'title', 'Integrations'),
+    subtitle: translate(
+      t,
+      'subtitle',
+      'D365 (Dynamics 365), Peppol e-invoicing and Developer API keys. Scope per 02-SETTINGS PRD §4 + §11.',
+    ),
+    gridSubtitle: translate(t, 'gridSubtitle', 'Connect Monopilot to your ERP, accounting, BI, and shipping tools.'),
+    search: translate(t, 'search', 'Search integrations'),
+    browseAll: (total) => translate(t, 'browseAll', 'Browse all ({total})', { total }),
+    connectedAvailable: (connected, total) =>
+      translate(t, 'connectedAvailable', '{connected} connected · {total} available', { connected, total }),
+    categorySummary: (connected, total) =>
+      translate(t, 'categorySummary', '{connected} connected · {total} available', { connected, total }),
+    connectedBadge: (connected) => translate(t, 'connectedBadge', '{connected} connected', { connected }),
+    kpiConnected: translate(t, 'kpi.connected', 'Connected'),
+    kpiCategories: translate(t, 'kpi.categories', 'Categories'),
+    kpiSyncLast24h: translate(t, 'kpi.syncLast24h', 'Sync last 24h'),
+    kpiFailedLast24h: translate(t, 'kpi.failedLast24h', 'Failed syncs last 24h'),
+    loading: translate(t, 'states.loading', 'Loading integrations…'),
+    error: translate(t, 'states.error', 'Unable to load integrations. Try refreshing or contact your administrator.'),
+    noIntegrationsConfigured: translate(t, 'states.emptyTitle', 'No integrations configured'),
+    noCategoryIntegrations: (category) =>
+      translate(t, 'states.emptyCategoryTitle', 'No {category} integrations yet', { category: category.toLowerCase() }),
+    emptyBody: translate(
+      t,
+      'states.emptyBody',
+      'Browse the catalog to connect Monopilot to your ERP, accounting, BI, and shipping tools.',
+    ),
+    emptyCategoryBody: translate(
+      t,
+      'states.emptyCategoryBody',
+      'Request a connector from the Monopilot team or browse the catalog for alternatives.',
+    ),
+    browseCatalog: translate(t, 'actions.browseCatalog', 'Browse catalog'),
+    statusConnected: translate(t, 'status.connected', '● Connected'),
+    statusAvailable: translate(t, 'status.available', '— Available'),
+    configure: translate(t, 'actions.configure', 'Configure'),
+    configureNamed: (name) => translate(t, 'actions.configureNamed', 'Configure {name}', { name }),
+    connect: translate(t, 'actions.connect', 'Connect'),
+    connectedConfigure: translate(t, 'actions.connectedConfigure', '✓ Connected · Configure'),
+    activityTitle: translate(t, 'activity.title', 'Recent sync activity'),
+    activitySubtitle: translate(
+      t,
+      'activity.subtitle',
+      'D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).',
+    ),
+    columnWhen: translate(t, 'activity.columns.when', 'When'),
+    columnIntegration: translate(t, 'activity.columns.integration', 'Integration'),
+    columnDirection: translate(t, 'activity.columns.direction', 'Direction'),
+    columnRecords: translate(t, 'activity.columns.records', 'Records'),
+    columnStatus: translate(t, 'activity.columns.status', 'Status'),
+    statusSuccess: translate(t, 'status.success', '✓ Success'),
+    statusFailedRetry: translate(t, 'status.failedRetry', '✗ Failed · Retry backoff'),
+  };
+}
+
+function formatNumber(value: number, locale: string) {
+  try {
+    return new Intl.NumberFormat(locale).format(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function integrationLogo(item: IntegrationItem) {
@@ -141,11 +259,22 @@ function kpiTestId(label: string) {
   return `settings-integrations-kpi-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }
 
-function KpiCard({ label, value, emphasis = false }: { label: string; value: string | number; emphasis?: boolean }) {
+function KpiCard({
+  label,
+  value,
+  emphasis = false,
+  prototypeDeviation,
+}: {
+  label: string;
+  value: string | number;
+  emphasis?: boolean;
+  prototypeDeviation?: string;
+}) {
   return (
     <Card
       data-testid="settings-integrations-kpi"
       data-kpi={label}
+      data-prototype-deviation={prototypeDeviation}
       id={kpiTestId(label)}
       className={emphasis ? 'border-b-4 border-red-500' : undefined}
       style={{ margin: 0 }}
@@ -158,41 +287,37 @@ function KpiCard({ label, value, emphasis = false }: { label: string; value: str
   );
 }
 
-function PageHead({ total }: { total: number }) {
+function PageHead({ total, labels }: { total: number; labels: IntegrationLabels }) {
   return (
     <header data-region="page-head" className="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold">Integrations</h1>
-        <p className="text-sm text-muted-foreground">
-          D365 (Dynamics 365), Peppol e-invoicing and Developer API keys. Scope per 02-SETTINGS PRD §4 + §11.
-        </p>
+        <h1 className="text-2xl font-semibold">{labels.title}</h1>
+        <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
       <Button type="button" className="btn-secondary">
-        Browse all ({total})
+        {labels.browseAll(total)}
       </Button>
     </header>
   );
 }
 
-function GridHead({ connected, total }: { connected: number; total: number }) {
+function GridHead({ connected, total, labels }: { connected: number; total: number; labels: IntegrationLabels }) {
   return (
     <header data-region="page-head" className="mb-4">
-      <h1 className="text-2xl font-semibold">Integrations</h1>
-      <p className="text-sm text-muted-foreground">Connect Monopilot to your ERP, accounting, BI, and shipping tools.</p>
+      <h1 className="text-2xl font-semibold">{labels.title}</h1>
+      <p className="text-sm text-muted-foreground">{labels.gridSubtitle}</p>
       <div className="mt-3 flex items-center justify-between gap-4">
-        <div className="text-sm font-semibold">
-          {connected} connected · {total} available
-        </div>
+        <div className="text-sm font-semibold">{labels.connectedAvailable(connected, total)}</div>
         <label className="w-[220px] text-xs text-muted-foreground">
-          <span className="sr-only">Search integrations</span>
-          <Input data-slot="input" aria-label="Search integrations" placeholder="Search integrations…" type="text" />
+          <span className="sr-only">{labels.search}</span>
+          <Input aria-label={labels.search} placeholder={`${labels.search}…`} type="text" />
         </label>
       </div>
     </header>
   );
 }
 
-function CategorySection({ category }: { category: IntegrationCategory }) {
+function CategorySection({ category, labels }: { category: IntegrationCategory; labels: IntegrationLabels }) {
   const connected = category.items.filter((item) => item.status === 'connected').length;
   const headingId = `settings-integrations-${category.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
@@ -207,12 +332,10 @@ function CategorySection({ category }: { category: IntegrationCategory }) {
           <h2 id={headingId} className="sg-section-title text-base font-semibold">
             {category.category}
           </h2>
-          <div className="sg-section-sub text-xs text-muted-foreground">
-            {connected} connected · {category.items.length} available
-          </div>
+          <div className="sg-section-sub text-xs text-muted-foreground">{labels.categorySummary(connected, category.items.length)}</div>
         </div>
         <div className="flex items-center gap-2">
-          {connected > 0 ? <Badge variant="success">{connected} connected</Badge> : null}
+          {connected > 0 ? <Badge variant="success">{labels.connectedBadge(connected)}</Badge> : null}
           <span className="text-sm text-muted-foreground">▾</span>
         </div>
       </div>
@@ -220,9 +343,9 @@ function CategorySection({ category }: { category: IntegrationCategory }) {
         <div className="px-4 py-3">
           <EmptyState
             icon="🔌"
-            title={`No ${category.category.toLowerCase()} integrations yet`}
-            body="Request a connector from the Monopilot team or browse the catalog for alternatives."
-            action={<Button type="button">Browse catalog</Button>}
+            title={labels.noCategoryIntegrations(category.category)}
+            body={labels.emptyCategoryBody}
+            action={<Button type="button">{labels.browseCatalog}</Button>}
           />
         </div>
       ) : (
@@ -235,18 +358,18 @@ function CategorySection({ category }: { category: IntegrationCategory }) {
             </div>
             <div>
               {item.status === 'connected' ? (
-                <Badge variant="success">● Connected</Badge>
+                <Badge variant="success">{labels.statusConnected}</Badge>
               ) : (
-                <Badge variant="muted">— Available</Badge>
+                <Badge variant="muted">{labels.statusAvailable}</Badge>
               )}
             </div>
             {item.status === 'connected' ? (
               <Button type="button" className="btn-secondary btn-sm">
-                Configure
+                {labels.configure}
               </Button>
             ) : (
               <Button type="button" className="btn-primary btn-sm">
-                Connect
+                {labels.connect}
               </Button>
             )}
           </div>
@@ -256,7 +379,7 @@ function CategorySection({ category }: { category: IntegrationCategory }) {
   );
 }
 
-function GridCatalog({ categories }: { categories: IntegrationCategory[] }) {
+function GridCatalog({ categories, labels }: { categories: IntegrationCategory[]; labels: IntegrationLabels }) {
   const all = categories.flatMap((category) => category.items.map((item) => ({ ...item, category: category.category })));
 
   return (
@@ -270,9 +393,9 @@ function GridCatalog({ categories }: { categories: IntegrationCategory[] }) {
         {all.length === 0 ? (
           <EmptyState
             icon="🔌"
-            title="No integrations configured"
-            body="Browse the catalog to connect Monopilot to your ERP, accounting, BI, and shipping tools."
-            action={<Button type="button">Browse catalog</Button>}
+            title={labels.noIntegrationsConfigured}
+            body={labels.emptyBody}
+            action={<Button type="button">{labels.browseCatalog}</Button>}
           />
         ) : (
           all.map((item) => (
@@ -287,11 +410,11 @@ function GridCatalog({ categories }: { categories: IntegrationCategory[] }) {
               <p className="mb-3 min-h-8 text-xs text-muted-foreground">{item.description}</p>
               {item.status === 'connected' ? (
                 <Button type="button" className="btn-secondary btn-sm w-full">
-                  ✓ Connected · Configure
+                  {labels.connectedConfigure}
                 </Button>
               ) : (
                 <Button type="button" className="btn-primary btn-sm w-full">
-                  Connect
+                  {labels.connect}
                 </Button>
               )}
             </Card>
@@ -302,26 +425,24 @@ function GridCatalog({ categories }: { categories: IntegrationCategory[] }) {
   );
 }
 
-function ActivityTable({ activity }: { activity: SyncActivity[] }) {
+function ActivityTable({ activity, labels, locale }: { activity: SyncActivity[]; labels: IntegrationLabels; locale: string }) {
   return (
     <section aria-labelledby="settings-integrations-activity-heading" className="sg-section mt-4 rounded-md border bg-white">
       <div className="sg-section-head border-b px-4 py-3">
         <h2 id="settings-integrations-activity-heading" className="sg-section-title text-base font-semibold">
-          Recent sync activity
+          {labels.activityTitle}
         </h2>
-        <p className="sg-section-sub text-xs text-muted-foreground">
-          D365 outbox events (shipment.confirmed, wo.confirmation_pushed, cost.posted) + pull (items.imported, bom.imported).
-        </p>
+        <p className="sg-section-sub text-xs text-muted-foreground">{labels.activitySubtitle}</p>
       </div>
       <div className="sg-section-body overflow-x-auto p-3">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead scope="col">When</TableHead>
-              <TableHead scope="col">Integration</TableHead>
-              <TableHead scope="col">Direction</TableHead>
-              <TableHead scope="col">Records</TableHead>
-              <TableHead scope="col">Status</TableHead>
+              <TableHead scope="col">{labels.columnWhen}</TableHead>
+              <TableHead scope="col">{labels.columnIntegration}</TableHead>
+              <TableHead scope="col">{labels.columnDirection}</TableHead>
+              <TableHead scope="col">{labels.columnRecords}</TableHead>
+              <TableHead scope="col">{labels.columnStatus}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -330,12 +451,12 @@ function ActivityTable({ activity }: { activity: SyncActivity[] }) {
                 <TableCell className="mono">{row.when}</TableCell>
                 <TableCell>{row.integration}</TableCell>
                 <TableCell>{row.direction}</TableCell>
-                <TableCell className="mono num">{row.records}</TableCell>
+                <TableCell className="mono num">{formatNumber(row.records, locale)}</TableCell>
                 <TableCell>
                   {row.status === 'success' ? (
-                    <Badge variant="success">✓ Success</Badge>
+                    <Badge variant="success">{labels.statusSuccess}</Badge>
                   ) : (
-                    <Badge variant="danger">✗ Failed · Retry backoff</Badge>
+                    <Badge variant="danger">{labels.statusFailedRetry}</Badge>
                   )}
                 </TableCell>
               </TableRow>
@@ -347,36 +468,12 @@ function ActivityTable({ activity }: { activity: SyncActivity[] }) {
   );
 }
 
-function HiddenDialogProbe() {
-  return (
-    <>
-      <button
-        aria-label="Configure D365"
-        disabled
-        style={{ clip: 'rect(0 0 0 0)', clipPath: 'inset(50%)', height: 1, overflow: 'hidden', position: 'absolute', whiteSpace: 'nowrap', width: 1 }}
-        type="button"
-      />
-      <div
-        aria-labelledby="settings-integrations-configure-d365-title"
-        aria-modal="true"
-        data-modal-id="SM-08"
-        data-slot="dialog-content"
-        role="dialog"
-      >
-        <h2 id="settings-integrations-configure-d365-title">Configure D365</h2>
-        <p>Connection settings, sync cadence, and retry policy for D365.</p>
-        <Button type="button" className="btn-secondary">
-          Cancel
-        </Button>
-      </div>
-    </>
-  );
-}
-
 export const dynamic = 'force-dynamic';
 
-export default async function IntegrationsPage({ searchParams, state = 'ready', categories, syncSummary, activity }: IntegrationsPageProps) {
-  await getTranslations();
+export default async function IntegrationsPage({ params, searchParams, state = 'ready', categories, syncSummary, activity }: IntegrationsPageProps) {
+  const resolvedParams = await params;
+  const locale = resolvedParams?.locale ?? 'en';
+  const labels = await getIntegrationLabels(locale);
   const resolvedSearchParams = await searchParams;
   const view = resolvedSearchParams?.view === 'grid' ? 'grid' : 'list';
   const resolvedCategories = categories ?? fallbackCategories;
@@ -394,7 +491,7 @@ export default async function IntegrationsPage({ searchParams, state = 'ready', 
         data-testid="settings-integrations-screen"
       >
         <div data-testid="settings-integrations-loading" aria-busy="true">
-          Loading integrations…
+          {labels.loading}
         </div>
       </main>
     );
@@ -408,7 +505,7 @@ export default async function IntegrationsPage({ searchParams, state = 'ready', 
         data-screen="integrations_screen"
         data-testid="settings-integrations-screen"
       >
-        <div role="alert">Unable to load integrations. Try refreshing or contact your administrator.</div>
+        <div role="alert">{labels.error}</div>
       </main>
     );
   }
@@ -421,47 +518,50 @@ export default async function IntegrationsPage({ searchParams, state = 'ready', 
         data-screen="integrations_screen"
         data-testid="settings-integrations-screen"
       >
-        <h2>No integrations configured</h2>
+        <h2>{labels.noIntegrationsConfigured}</h2>
         <EmptyState
           icon="🔌"
-          title="No integrations configured"
-          body="Browse the catalog to connect Monopilot to your ERP, accounting, BI, and shipping tools."
-          action={<Button type="button">Browse catalog</Button>}
+          title={labels.noIntegrationsConfigured}
+          body={labels.emptyBody}
+          action={<Button type="button">{labels.browseCatalog}</Button>}
         />
       </main>
     );
   }
 
   return (
-    <>
-      <main
-        data-prototype-source="prototypes/design/Monopilot Design System/settings/integrations.jsx:7-107"
-        data-route="/settings/integrations"
-        data-screen="integrations_screen"
-        data-testid="settings-integrations-screen"
-        data-view={view}
-        className="space-y-4"
-      >
-        {view === 'grid' ? <GridHead connected={connected} total={all.length} /> : <PageHead total={all.length} />}
+    <main
+      data-dialog-primitive="unavailable-in-ui-package"
+      data-prototype-source="prototypes/design/Monopilot Design System/settings/integrations.jsx:7-107"
+      data-route="/settings/integrations"
+      data-screen="integrations_screen"
+      data-testid="settings-integrations-screen"
+      data-view={view}
+      className="space-y-4"
+    >
+      {view === 'grid' ? <GridHead connected={connected} total={all.length} labels={labels} /> : <PageHead total={all.length} labels={labels} />}
 
-        {view === 'grid' ? (
-          <GridCatalog categories={resolvedCategories} />
-        ) : (
-          <>
-            <div className="mb-4 grid gap-3 md:grid-cols-4">
-              <KpiCard label="Connected" value={connected} />
-              <KpiCard label="Categories" value={resolvedCategories.length} />
-              <KpiCard label="Sync last 24h" value={formatNumber(summary.totalLast24h)} />
-              <KpiCard label="Failed syncs last 24h" value={summary.failedLast24h} emphasis />
-            </div>
-            {resolvedCategories.map((category) => (
-              <CategorySection key={category.category} category={category} />
-            ))}
-            <ActivityTable activity={resolvedActivity} />
-          </>
-        )}
-      </main>
-      <HiddenDialogProbe />
-    </>
+      {view === 'grid' ? (
+        <GridCatalog categories={resolvedCategories} labels={labels} />
+      ) : (
+        <>
+          <div className="mb-4 grid gap-3 md:grid-cols-4">
+            <KpiCard label={labels.kpiConnected} value={connected} />
+            <KpiCard label={labels.kpiCategories} value={resolvedCategories.length} />
+            <KpiCard label={labels.kpiSyncLast24h} value={formatNumber(summary.totalLast24h, locale)} />
+            <KpiCard
+              label={labels.kpiFailedLast24h}
+              value={formatNumber(summary.failedLast24h, locale)}
+              emphasis
+              prototypeDeviation="Prototype KPI 'D365 DLQ (shipping)' is replaced by the production aggregate 'Failed syncs last 24h' required by SET-110 acceptance criteria."
+            />
+          </div>
+          {resolvedCategories.map((category) => (
+            <CategorySection key={category.category} category={category} labels={labels} />
+          ))}
+          <ActivityTable activity={resolvedActivity} labels={labels} locale={locale} />
+        </>
+      )}
+    </main>
   );
 }
