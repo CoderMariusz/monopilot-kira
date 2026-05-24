@@ -298,6 +298,8 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
     }
     expect(within(main).getByText(/Page 1 of 2 · 50 rows per page/i)).toBeInTheDocument();
+    expect(within(table).getAllByText('org_security_policies').length).toBeGreaterThan(0);
+    expect(within(table).getByText('rec-50')).toBeInTheDocument();
     expect(within(main).getByRole('button', { name: /prev/i })).toBeDisabled();
     expect(within(main).getByRole('button', { name: /next/i })).toBeEnabled();
     expect(container.querySelector('[data-testid="missing-audit-log-viewer-page"]')).toBeNull();
@@ -401,6 +403,8 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
         "Last 30d",
         "Last 90d",
         "Custom",
+        "All users⌄",
+        "All actions⌄",
         "Reset",
         "Activity (50 entries)",
         "Timestamp",
@@ -410,6 +414,32 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
         "Record ID",
         "Changed fields",
         "IP",
+        "▸",
+        "2026-05-24 10:49",
+        "Bogdan Ionescubogdan@example.test",
+        "rule_deploy",
+        "rule_deploy",
+        "org_security_policies",
+        "rec-50",
+        "enabledupdated_by",
+        "enabled",
+        "updated_by",
+        "—",
+        "▸",
+        "2026-05-24 10:42",
+        "Alicja Nowakalicja@example.test",
+        "delete",
+        "delete",
+        "role_permissions",
+        "rec-43",
+        "enabledupdated_by",
+        "enabled",
+        "updated_by",
+        "—",
+        "▸",
+        "2026-05-24 10:35",
+        "Bogdan Ionescubogdan@example.test",
+        "insert",
       ]
     `);
   });
