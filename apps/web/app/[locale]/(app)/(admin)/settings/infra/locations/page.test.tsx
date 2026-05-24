@@ -1,14 +1,10 @@
 /**
  * @vitest-environment jsdom
  * T-105 / SET-014 — Location Tree screen.
- *
- * RED phase: page-level RTL tests for PRD §12.2 and V-SET-60. A missing
- * production page renders an empty placeholder so RED fails on behavior
- * assertions, not module-resolution noise.
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -70,6 +66,7 @@ type CreateLocationInput = {
 
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string };
   warehouses: Warehouse[];
   locations: LocationRow[];
   selectedWarehouseId?: string;
@@ -79,6 +76,14 @@ type LocationTreePageProps = {
 };
 
 type LocationTreePage = (props: LocationTreePageProps) => React.ReactNode | Promise<React.ReactNode>;
+type LocationTreeModule = {
+  default: LocationTreePage;
+  importLocationCsvText: (
+    text: string,
+    createLocation: (input: CreateLocationInput) => Promise<{ ok: boolean; error?: Record<string, unknown> }> | { ok: boolean; error?: Record<string, unknown> },
+    labels: { importError: string; importSuccess: string },
+  ) => Promise<{ ok: boolean; message: string; rows: CreateLocationInput[] }>;
+};
 
 const warehouses: Warehouse[] = [
   { id: 'wh-apex', code: 'APEX', name: 'Apex Dairy Warehouse' },
@@ -97,19 +102,13 @@ const locations: LocationRow[] = [
   { id: 'bin-a10-01', warehouseId: 'wh-apex', parentId: 'zone-a10', name: 'A10 Bin 01', level: 3, path: 'apex.z10.b01' },
 ];
 
-async function loadLocationTreePage(): Promise<LocationTreePage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-014 Location Tree page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as LocationTreePage;
-  } catch {
-    return function MissingLocationTreePage() {
-      return React.createElement('main', { 'data-testid': 'missing-location-tree-page' });
-    };
-  }
+async function loadLocationTreeModule(): Promise<LocationTreeModule> {
+  const pageModulePath = './page';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  expect(mod.default, 'SET-014 Location Tree page must default-export a renderable React component').toEqual(
+    expect.any(Function),
+  );
+  return mod as LocationTreeModule;
 }
 
 function defaultCreateLocation() {
@@ -131,7 +130,7 @@ function defaultCreateLocation() {
 }
 
 async function renderLocationTree(overrides: Partial<LocationTreePageProps> = {}) {
-  const Page = await loadLocationTreePage();
+  const Page = (await loadLocationTreeModule()).default;
   const props: LocationTreePageProps = {
     params: Promise.resolve({ locale: 'en' }),
     warehouses,
@@ -153,55 +152,59 @@ describe('SET-014 Location Tree screen', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the localized AppShell location tree expandable by ltree path order with warehouse filtering', async () => {
+  it('renders page content inside the real AppShell route without fake shell wrappers and orders the expandable tree by ltree path', async () => {
     const user = userEvent.setup();
     await renderLocationTree();
 
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('app-topbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('app-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('app-topbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-location-tree-screen')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /location tree/i })).toBeInTheDocument();
 
     const warehouseFilter = screen.getByRole('combobox', { name: /warehouse/i });
     expect(warehouseFilter).toHaveTextContent(/all warehouses/i);
 
     const tree = screen.getByRole('tree', { name: /location tree/i });
-    const apexRoot = within(tree).getByRole('treeitem', { name: /apex dairy warehouse/i });
+    const apexRoot = within(tree).getByText('Apex Dairy Warehouse').closest('[role="treeitem"]');
     expect(apexRoot).toHaveAttribute('aria-level', '1');
-    expect(apexRoot).toHaveAttribute('aria-expanded', 'false');
-    await user.click(within(apexRoot).getByRole('button', { name: /expand/i }));
+    expect(apexRoot).toHaveAttribute('data-location-id', 'root-apex');
 
-    const zoneItems = within(tree).getAllByRole('treeitem', { name: /zone/i });
-    expect(zoneItems.map((item) => item.textContent)).toEqual([
+    await user.click(within(apexRoot as HTMLElement).getByLabelText(/expand apex dairy warehouse/i));
+    const zoneItems = within(tree).getAllByText(/zone/i).map((text) => text.closest('[role="treeitem"]'));
+    expect(zoneItems.map((item) => item?.textContent)).toEqual([
       expect.stringContaining('A02 Chilled Zone'),
       expect.stringContaining('A10 Ambient Zone'),
     ]);
-    expect(zoneItems.map((item) => item.getAttribute('aria-level'))).toEqual(['2', '2']);
+    expect(zoneItems.map((item) => item?.getAttribute('aria-level'))).toEqual(['2', '2']);
 
-    await user.click(within(zoneItems[0]).getByRole('button', { name: /expand/i }));
-    await user.click(within(zoneItems[1]).getByRole('button', { name: /expand/i }));
-    const visibleItems = within(tree).getAllByRole('treeitem').map((item) => item.textContent);
-    expect(visibleItems).toEqual([
-      expect.stringContaining('Apex Dairy Warehouse'),
-      expect.stringContaining('A02 Chilled Zone'),
-      expect.stringContaining('A02 Bin 01'),
-      expect.stringContaining('A02 Bin 02'),
-      expect.stringContaining('A10 Ambient Zone'),
-      expect.stringContaining('A10 Bin 01'),
-      expect.stringContaining('A10 Bin 02'),
-      expect.stringContaining('North Warehouse'),
+    await user.click(within(zoneItems[0] as HTMLElement).getByLabelText(/expand a02 chilled zone/i));
+    await user.click(within(zoneItems[1] as HTMLElement).getByLabelText(/expand a10 ambient zone/i));
+    const renderedOrder = within(tree).getAllByRole('treeitem').map((item) => item.getAttribute('data-location-id'));
+    expect(renderedOrder).toEqual([
+      'root-apex',
+      'zone-a02',
+      'bin-a02-01',
+      'bin-a02-02',
+      'zone-a10',
+      'bin-a10-01',
+      'bin-a10-02',
+      'root-north',
     ]);
-
-    await user.click(screen.getByRole('option', { name: 'Apex Dairy Warehouse' }));
-    expect(screen.queryByRole('treeitem', { name: /north warehouse/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: /apex dairy warehouse/i })).toBeInTheDocument();
   });
 
-  it('imports five CSV rows via T-029 createLocation and aggregates the V-SET-60 LEVEL_GAP row error in a toast', async () => {
-    const user = userEvent.setup();
-    const createLocation = defaultCreateLocation();
-    await renderLocationTree({ createLocation });
+  it('server-renders the selected warehouse filter so rerendered trees only expose that warehouse', async () => {
+    await renderLocationTree({ selectedWarehouseId: 'wh-apex' });
 
+    const tree = screen.getByRole('tree', { name: /location tree/i });
+    expect(screen.getByRole('combobox', { name: /warehouse/i })).toHaveTextContent('Apex Dairy Warehouse');
+    expect(within(tree).queryByText('North Warehouse')).not.toBeInTheDocument();
+    expect(within(tree).getByText('Apex Dairy Warehouse')).toBeInTheDocument();
+  });
+
+  it('imports five CSV rows through the T-029 dispatcher helper and exposes browser toast wiring for V-SET-60 row errors', async () => {
+    const { importLocationCsvText } = await loadLocationTreeModule();
+    const createLocation = defaultCreateLocation();
     const csv = [
       'name,warehouseId,parentPath,level,path',
       'CSV Root,wh-apex,,1,apex.csv-root',
@@ -210,12 +213,13 @@ describe('SET-014 Location Tree screen', () => {
       'CSV Zone B,wh-apex,apex.csv-root,2,apex.csv-root.zone-b',
       'CSV Bin B1,wh-apex,apex.csv-root.zone-b,3,apex.csv-root.zone-b.bin-b1',
     ].join('\n');
-    const file = new File([csv], 'locations.csv', { type: 'text/csv' });
 
-    await user.upload(screen.getByLabelText(/csv file/i), file);
-    await user.click(screen.getByRole('button', { name: /import csv/i }));
+    const result = await importLocationCsvText(csv, createLocation, {
+      importError: 'Row {row}: {code} ({validation}) {message}',
+      importSuccess: 'Imported {count} location rows.',
+    });
 
-    await waitFor(() => expect(createLocation).toHaveBeenCalledTimes(5));
+    expect(createLocation).toHaveBeenCalledTimes(5);
     expect(createLocation).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
@@ -225,7 +229,18 @@ describe('SET-014 Location Tree screen', () => {
         path: 'apex.csv-root.bad-bin',
       }),
     );
-    const toast = await screen.findByRole('alert');
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/row 3/i);
+    expect(result.message).toContain('LEVEL_GAP');
+    expect(result.message).toContain('V-SET-60');
+
+    await renderLocationTree({
+      createLocation,
+      searchParams: { importStatus: 'error', importMessage: result.message },
+    });
+    expect(screen.getByLabelText(/csv file/i)).toHaveAttribute('type', 'file');
+    expect(screen.getByRole('button', { name: /import csv/i })).toHaveAttribute('type', 'submit');
+    const toast = screen.getByRole('alert');
     expect(toast).toHaveTextContent(/row 3/i);
     expect(toast).toHaveTextContent(/LEVEL_GAP/i);
     expect(toast).toHaveTextContent(/V-SET-60/i);

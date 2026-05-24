@@ -1,10 +1,10 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
+import { redirect } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 
 type Warehouse = { id: string; code: string; name: string };
 type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string };
@@ -14,6 +14,7 @@ type CreateLocationResult =
   | { ok: false; error?: { code?: string; rowNumber?: number; validation?: string; message?: string } };
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string };
   warehouses?: Warehouse[];
   locations?: LocationRow[];
   selectedWarehouseId?: string;
@@ -45,6 +46,8 @@ type LocationTreeLabels = {
   importSuccess: string;
   importError: string;
 };
+
+type TreeNode = LocationRow & { children: TreeNode[] };
 
 const DEFAULT_LABELS: LocationTreeLabels = {
   title: 'title',
@@ -94,10 +97,6 @@ function formatLabel(template: string, values: Record<string, string | number>) 
 
 function sortByPath(rows: LocationRow[]) {
   return [...rows].sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
-}
-
-function hasChildren(row: LocationRow, rows: LocationRow[]) {
-  return rows.some((candidate) => candidate.parentId === row.id);
 }
 
 function parseCsv(text: string): CreateLocationInput[] {
@@ -150,22 +149,88 @@ async function postLocationImport(input: CreateLocationInput): Promise<CreateLoc
   return { ok: true, data: payload?.data ?? payload };
 }
 
+function buildTree(rows: LocationRow[]): TreeNode[] {
+  const nodes = new Map<string, TreeNode>();
+  for (const row of rows) nodes.set(row.id, { ...row, children: [] });
+
+  const roots: TreeNode[] = [];
+  for (const row of rows) {
+    const node = nodes.get(row.id)!;
+    if (row.parentId && nodes.has(row.parentId)) nodes.get(row.parentId)!.children.push(node);
+    else roots.push(node);
+  }
+  return roots;
+}
+
+function optionHref(value: string) {
+  return value === 'all' ? '?' : `?warehouseId=${encodeURIComponent(value)}`;
+}
+
+function importResultHref(selectedWarehouseId: string, ok: boolean, message: string) {
+  const params = new URLSearchParams();
+  if (selectedWarehouseId !== 'all') params.set('warehouseId', selectedWarehouseId);
+  params.set('importStatus', ok ? 'success' : 'error');
+  params.set('importMessage', message);
+  const query = params.toString();
+  return query ? `?${query}` : '?';
+}
+
+export async function importLocationCsvText(
+  text: string,
+  createLocation: (input: CreateLocationInput) => Promise<CreateLocationResult> | CreateLocationResult,
+  labels: Pick<LocationTreeLabels, 'importError' | 'importSuccess'> = DEFAULT_LABELS,
+) {
+  const rows = parseCsv(text);
+  const errors: string[] = [];
+  for (const row of rows) {
+    const result = await createLocation(row);
+    if (!result.ok) {
+      const error = 'error' in result ? (result.error ?? {}) : {};
+      errors.push(formatLabel(labels.importError, {
+        row: error.rowNumber ?? row.csvRowNumber,
+        code: error.code ?? 'IMPORT_ERROR',
+        validation: error.validation ?? 'V-SET-60',
+        message: error.message ?? '',
+      }).trim());
+    }
+  }
+  return errors.length > 0
+    ? { ok: false as const, message: errors.join('; '), rows }
+    : { ok: true as const, message: formatLabel(labels.importSuccess, { count: rows.length }), rows };
+}
+
 export default async function LocationTreePage(propsInput: unknown) {
   const props = (propsInput ?? {}) as LocationTreePageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
+  const searchParams = props.searchParams ? await props.searchParams : {};
   const labels = await buildLabels(locale);
   const locations = sortByPath(props.locations ?? []);
+  const selectedWarehouseId = props.selectedWarehouseId ?? searchParams?.warehouseId ?? 'all';
   const state = props.state ?? (locations.length === 0 ? 'empty' : 'ready');
+  const createLocation = props.createLocation ?? postLocationImport;
+  const importToast = searchParams?.importMessage
+    ? { role: searchParams.importStatus === 'error' ? 'alert' as const : 'status' as const, message: searchParams.importMessage }
+    : null;
+
+  async function importCsvAction(formData: FormData): Promise<void> {
+    'use server';
+    if (!(props.canImport ?? false)) return;
+    const file = formData.get('csvFile');
+    if (!(file instanceof File)) return;
+    const result = await importLocationCsvText(await readFileText(file), createLocation, labels);
+    redirect(importResultHref(selectedWarehouseId, result.ok, result.message));
+  }
 
   return (
     <LocationTreeScreen
       labels={labels}
       warehouses={props.warehouses ?? []}
       locations={locations}
-      selectedWarehouseId={props.selectedWarehouseId ?? 'all'}
+      selectedWarehouseId={selectedWarehouseId}
       canImport={props.canImport ?? false}
-      createLocation={props.createLocation ?? postLocationImport}
       state={state}
+      importCsvAction={importCsvAction}
+      importToast={importToast}
     />
   );
 }
@@ -174,199 +239,175 @@ function LocationTreeScreen({
   labels,
   warehouses,
   locations,
-  selectedWarehouseId: initialWarehouseId,
+  selectedWarehouseId,
   canImport,
-  createLocation,
   state,
+  importCsvAction,
+  importToast,
 }: {
   labels: LocationTreeLabels;
   warehouses: Warehouse[];
   locations: LocationRow[];
   selectedWarehouseId: string;
   canImport: boolean;
-  createLocation: (input: CreateLocationInput) => Promise<CreateLocationResult> | CreateLocationResult;
   state: NonNullable<LocationTreePageProps['state']>;
+  importCsvAction: (formData: FormData) => Promise<void>;
+  importToast: { role: 'status' | 'alert'; message: string } | null;
 }) {
-  const [selectedWarehouseId, setSelectedWarehouseId] = React.useState(initialWarehouseId);
-  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set());
-  const [csvFile, setCsvFile] = React.useState<File | null>(null);
-  const [toast, setToast] = React.useState<{ role: 'status' | 'alert'; message: string }>({ role: 'status', message: '' });
-  const [pendingImport, setPendingImport] = React.useState(false);
-
-  React.useEffect(() => {
-    setSelectedWarehouseId(initialWarehouseId);
-    setExpandedIds(new Set());
-    setToast({ role: 'status', message: '' });
-  }, [initialWarehouseId, locations]);
-
-  const toggleExpanded = (rowId: string) => {
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      if (next.has(rowId)) next.delete(rowId);
-      else next.add(rowId);
-      return next;
-    });
-  };
-
-  const importCsv = async () => {
-    if (!canImport || !csvFile) return;
-    setPendingImport(true);
-    const rows = parseCsv(await readFileText(csvFile));
-    const errors: string[] = [];
-
-    for (const row of rows) {
-      const result = await createLocation(row);
-      if (!result.ok) {
-        const error = 'error' in result ? (result.error ?? {}) : {};
-        errors.push(formatLabel(labels.importError, {
-          row: error.rowNumber ?? row.csvRowNumber,
-          code: error.code ?? 'IMPORT_ERROR',
-          validation: error.validation ?? 'V-SET-60',
-          message: error.message ?? '',
-        }).trim());
-      }
-    }
-
-    setToast(
-      errors.length > 0
-        ? { role: 'alert', message: errors.join('; ') }
-        : { role: 'status', message: formatLabel(labels.importSuccess, { count: rows.length }) },
-    );
-    setPendingImport(false);
-  };
-
-  const renderState = () => {
-    if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">{labels.loading}</section>;
-    if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
-    if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
-    if (state === 'empty') return <section role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">{labels.empty}</section>;
-    return null;
-  };
-
   const visibleRows = locations.filter((location) => selectedWarehouseId === 'all' || location.warehouseId === selectedWarehouseId);
+  const tree = buildTree(visibleRows);
+  const warehouseOptions = [
+    { value: 'all', label: labels.allWarehouses },
+    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+  ];
 
   return (
-    <main data-testid="app-shell" className="min-h-screen bg-slate-50 text-slate-950">
-      <aside data-testid="app-sidebar" aria-label={labels.settingsNavigation} className="border-b border-slate-200 bg-white px-6 py-3 text-sm text-slate-600">
-        {labels.sidebarLabel}
-      </aside>
-      <header data-testid="app-topbar" className="border-b border-slate-200 bg-white px-6 py-4">
+    <main data-testid="settings-location-tree-screen" data-screen="settings-location-tree" className="min-h-screen bg-slate-50 text-slate-950">
+      <header data-region="page-head" className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SET-014</div>
         <h1 className="text-2xl font-semibold">{labels.title}</h1>
         <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
       </header>
 
       <section className="mx-auto max-w-6xl space-y-4 p-6" aria-label={labels.workspace}>
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <form action={importCsvAction} data-location-import-form="true" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-base font-semibold">{labels.sectionTitle} ({visibleRows.length})</div>
               <p className="mt-1 text-xs text-slate-500">{labels.provenance}</p>
             </div>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="grid gap-1 text-sm font-medium" htmlFor="warehouse-filter">
-                {labels.warehouse}
-                <Select
-                  id="warehouse-filter"
-                  aria-label={labels.warehouse}
-                  className="min-w-64"
-                  value={selectedWarehouseId}
-                  options={[
-                    { value: 'all', label: labels.allWarehouses },
-                    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
-                  ]}
-                  onValueChange={setSelectedWarehouseId}
-                >
-                  <SelectTrigger aria-label={labels.warehouse}>
-                    <SelectValue placeholder={labels.allWarehouses} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{labels.allWarehouses}</SelectItem>
-                    {warehouses.map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>
+              <div className="grid gap-1 text-sm font-medium">
+                <span id="warehouse-filter-label">{labels.warehouse}</span>
+                <details className="min-w-64 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+                  <summary role="combobox" aria-label={labels.warehouse} aria-haspopup="listbox" aria-expanded="false" className="cursor-pointer list-none">
+                    {warehouseOptions.find((option) => option.value === selectedWarehouseId)?.label ?? labels.allWarehouses}
+                  </summary>
+                  <div role="listbox" className="mt-2 grid gap-1">
+                    {warehouseOptions.map((option) => (
+                      <a
+                        key={option.value}
+                        role="option"
+                        aria-selected={option.value === selectedWarehouseId}
+                        href={optionHref(option.value)}
+                        className="rounded px-2 py-1 text-slate-700 hover:bg-slate-100"
+                      >
+                        {option.label}
+                      </a>
                     ))}
-                  </SelectContent>
-                </Select>
-              </label>
+                  </div>
+                </details>
+              </div>
 
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-csv-file">
                 {labels.csvFile}
                 <Input
                   id="location-csv-file"
+                  name="csvFile"
                   aria-label={labels.csvFile}
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                   type="file"
                   accept=".csv,text/csv"
-                  disabled={!canImport || pendingImport}
-                  onChange={(event) => setCsvFile(event.currentTarget.files?.[0] ?? null)}
+                  disabled={!canImport}
                 />
               </label>
 
               <Button
-                type="button"
+                type="submit"
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-                disabled={!canImport || pendingImport}
+                disabled={!canImport}
                 aria-label={!canImport ? labels.insufficientPermissions : labels.importCsv}
-                onClick={() => void importCsv()}
               >
                 {labels.importCsv}
               </Button>
             </div>
           </div>
-        </section>
+        </form>
 
         {state === 'ready' ? (
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div role="tree" aria-label={labels.title} className="space-y-2">
-              {visibleRows.map((location) => {
-                const expandable = hasChildren(location, locations);
-                const parentCollapsed = location.parentId !== null && !expandedIds.has(location.parentId);
-                const expanded = expandable ? expandedIds.has(location.id) : undefined;
-
-                if (parentCollapsed) return null;
-
-                return (
-                  <div
-                    key={location.id}
-                    role="treeitem"
-                    aria-level={location.level}
-                    aria-expanded={expanded}
-                    data-location-id={location.id}
-                    data-parent-id={location.parentId ?? undefined}
-                    data-warehouse-id={location.warehouseId}
-                    className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
-                    style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandable ? (
-                        <Button
-                          type="button"
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700"
-                          aria-label={formatLabel(labels.expand, { name: location.name })}
-                          onClick={() => toggleExpanded(location.id)}
-                        >
-                          {labels.expand.replace(' {name}', '')}
-                        </Button>
-                      ) : (
-                        <span aria-hidden="true" className="w-14 text-center text-xs text-slate-400">•</span>
-                      )}
-                      <span className="font-medium">{location.name}</span>
-                      <Badge variant="outline" className="font-mono text-xs">{location.path}</Badge>
-                      <Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>
-                    </div>
-                  </div>
-                );
-              })}
+              {tree.map((location) => renderLocationNode(location, labels))}
             </div>
           </section>
-        ) : renderState()}
+        ) : renderState(state, labels)}
 
-        {toast.message ? (
-          <div id="location-import-toast" role={toast.role} aria-live={toast.role === 'alert' ? 'assertive' : 'polite'} className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800">
-            {toast.message}
+        {importToast ? (
+          <div
+            id="location-import-toast"
+            role={importToast.role}
+            aria-live={importToast.role === 'alert' ? 'assertive' : 'polite'}
+            className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800"
+          >
+            {importToast.message}
           </div>
-        ) : null}
+        ) : (
+          <div
+            id="location-import-toast"
+            role="status"
+            aria-live="polite"
+            className="hidden rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800"
+          />
+        )}
       </section>
     </main>
   );
+}
+
+function renderLocationNode(location: TreeNode, labels: LocationTreeLabels): React.ReactNode {
+  const content = (
+    <div className="flex items-center gap-2">
+      <span aria-hidden="true" className="w-14 text-center text-xs font-medium text-slate-500">
+        {location.children.length > 0 ? '▸' : '•'}
+      </span>
+      <span className="font-medium">{location.name}</span>
+      <Badge variant="outline" className="font-mono text-xs">{location.path}</Badge>
+      <Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>
+    </div>
+  );
+
+  if (location.children.length === 0) {
+    return (
+      <div
+        key={location.id}
+        role="treeitem"
+        aria-level={location.level}
+        data-location-id={location.id}
+        data-parent-id={location.parentId ?? undefined}
+        data-warehouse-id={location.warehouseId}
+        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+        style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <details
+      key={location.id}
+      role="treeitem"
+      aria-level={location.level}
+      data-location-id={location.id}
+      data-parent-id={location.parentId ?? undefined}
+      data-warehouse-id={location.warehouseId}
+      className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+      style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}
+    >
+      <summary aria-label={formatLabel(labels.expand, { name: location.name })} className="cursor-pointer list-none">
+        {content}
+      </summary>
+      <div role="group" className="mt-2 space-y-2">
+        {location.children.map((child) => renderLocationNode(child, labels))}
+      </div>
+    </details>
+  );
+}
+
+function renderState(state: NonNullable<LocationTreePageProps['state']>, labels: LocationTreeLabels) {
+  if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">{labels.loading}</section>;
+  if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
+  if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
+  if (state === 'empty') return <section role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">{labels.empty}</section>;
+  return null;
 }
