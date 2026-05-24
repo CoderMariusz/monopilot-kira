@@ -328,6 +328,41 @@ describe('SET-018 line list behavior', () => {
     );
   });
 
+  it('returns V-SET-62 NO_MACHINE only for the explicit no-machine validation branch', async () => {
+    const query = vi.fn(async (sql: string) => {
+      const normalized = sql.toLowerCase();
+      if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (normalized.includes('from public.production_lines pl')) {
+        return {
+          rows: [
+            {
+              id: line0.id,
+              code: line0.code,
+              name: line0.name,
+              machine_ids: [],
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected SQL in no-machine test: ${sql}`);
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const { activateProductionLine } = await loadLinesPageModule();
+    const result = await activateProductionLine({ lineId: line0.id });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'NO_MACHINE',
+      validation: 'V-SET-62',
+      lineId: line0.id,
+      message: expect.stringMatching(/assign at least one machine/i),
+    });
+    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/update public\.production_lines/i), expect.anything());
+  });
+
   it('returns a distinct permission error from the server action instead of masquerading as V-SET-62', async () => {
     const query = vi.fn(async (sql: string) => {
       expect(sql).toMatch(/from public\.user_roles/i);
@@ -347,5 +382,51 @@ describe('SET-018 line list behavior', () => {
       message: expect.stringMatching(/settings\.infra\.update/i),
     });
     expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
+  });
+
+  it('returns a generic activation error when withOrgContext throws without leaking raw failure details', async () => {
+    orgContextMock.withOrgContext.mockRejectedValue(
+      new Error('db connection failed: raw-runtime-detail credential-marker deadlock detected'),
+    );
+
+    const { activateProductionLine } = await loadLinesPageModule();
+    const result = await activateProductionLine({ lineId: line4.id });
+    const serialized = JSON.stringify(result);
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'ACTIVATION_FAILED',
+      lineId: line4.id,
+      message: expect.stringMatching(/unable to activate production line/i),
+    });
+    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
+    expect(serialized).not.toMatch(/V-SET-62|NO_MACHINE|raw-runtime-detail|credential-marker|deadlock detected/i);
+  });
+
+  it('returns a generic activation error when the activation query throws without leaking raw failure details', async () => {
+    const query = vi.fn(async (sql: string) => {
+      const normalized = sql.toLowerCase();
+      if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (normalized.includes('from public.production_lines pl')) {
+        throw new Error('select failed for public.production_lines using raw-query-detail credential-marker');
+      }
+      throw new Error(`Unexpected SQL in activation failure test: ${sql}`);
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const { activateProductionLine } = await loadLinesPageModule();
+    const result = await activateProductionLine({ lineId: line4.id });
+    const serialized = JSON.stringify(result);
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'ACTIVATION_FAILED',
+      lineId: line4.id,
+      message: expect.stringMatching(/unable to activate production line/i),
+    });
+    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
+    expect(serialized).not.toMatch(/V-SET-62|NO_MACHINE|public\.production_lines|raw-query-detail|credential-marker/i);
   });
 });
