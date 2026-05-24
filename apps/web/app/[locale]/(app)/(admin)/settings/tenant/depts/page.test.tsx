@@ -7,6 +7,8 @@
  * on behavior assertions, not module-resolution noise.
  */
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -81,6 +83,9 @@ const sourceColumns: SourceColumn[] = [
   { code: 'tech.food_safety_owner', label: 'Food safety owner', departmentCode: 'technical' },
 ];
 
+const pagePath = join(__dirname, 'page.tsx');
+const clientPath = join(__dirname, 'dept-taxonomy-screen.client.tsx');
+
 async function loadDeptTaxonomyPage(): Promise<DeptTaxonomyPage> {
   try {
     const pageModulePath = './page';
@@ -123,6 +128,17 @@ describe('SET-061 dept taxonomy editor UX route and structure', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it('keeps the App Router page server-rendered and moves stateful wizard behavior into the client boundary', () => {
+    const pageSource = readFileSync(pagePath, 'utf8');
+    const clientSource = readFileSync(clientPath, 'utf8');
+
+    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toContain('React.useState');
+    expect(pageSource).toContain("from './dept-taxonomy-screen.client'");
+    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toContain('React.useState');
   });
 
   it('renders the UX-spec Department Taxonomy screen at the AppShell route, not a PromoteToL2 modal surrogate', async () => {
