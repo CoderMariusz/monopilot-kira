@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -63,9 +64,69 @@ type AuditLogRow = {
   actor_name: string | null;
 };
 
+type Labels = { -readonly [K in keyof typeof DEFAULT_LABELS]: string };
+
+const DEFAULT_LABELS = {
+  title: 'Manufacturing Operation History',
+  breadcrumbSettings: 'Settings',
+  breadcrumbOperations: 'Manufacturing operations',
+  breadcrumbHistory: 'History',
+  subtitle: 'Per-operation audit trail. Showing every create / update / delete event.',
+  forbiddenTitle: '403 — Access denied',
+  forbiddenMessage: 'You do not have permission to view manufacturing operation history.',
+  searchLabel: 'Search by operation name',
+  searchPlaceholder: 'Search by operation name…',
+  userLabel: 'Audit user',
+  allUsers: 'All users',
+  date: 'Date',
+  from: 'From',
+  to: 'To',
+  lastSevenDays: 'Last 7 days',
+  reset: 'Reset',
+  entriesCount: '{count} of {total} entries',
+  tableLabel: 'Manufacturing operation audit history',
+  auditLogEntries: 'Audit log entries',
+  timestamp: 'Timestamp',
+  user: 'User',
+  action: 'Action',
+  fieldDiff: 'Field diff',
+  changedFields: 'Field diff',
+  empty: 'No entries match the current filters.',
+  error: 'Unable to load manufacturing operation audit history.',
+  back: '← Back',
+  viewDiff: 'View diff for {action} audit entry',
+  fieldDiffForAction: 'Field diff for {action} audit entry',
+  fieldDiffTitle: 'Field diff (old → new)',
+  oldValue: 'Old value',
+  newValue: 'New value',
+  noChangedFields: 'No changed fields',
+} as const;
+
 class ForbiddenError extends Error {}
 
 const REQUIRED_PERMISSIONS = ['manufacturing_operations.view', 'settings.audit.read'] as const;
+const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
+
+async function buildLabels(locale: string): Promise<Labels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'settings.manufacturing_operation_history' });
+    return LABEL_KEYS.reduce((labels, key) => {
+      try {
+        const translated = t(key);
+        labels[key] = translated && translated !== key ? translated : DEFAULT_LABELS[key];
+      } catch {
+        labels[key] = DEFAULT_LABELS[key];
+      }
+      return labels;
+    }, {} as Labels);
+  } catch {
+    return { ...DEFAULT_LABELS };
+  }
+}
+
+function formatLabel(template: string, values: Record<string, string | number>): string {
+  return Object.entries(values).reduce((message, [key, value]) => message.replaceAll(`{${key}}`, String(value)), template);
+}
 
 function hasRequiredPermissions(callerAccess: CallerAccess): boolean {
   return REQUIRED_PERMISSIONS.every((permission) => callerAccess.permissions.includes(permission));
@@ -92,9 +153,8 @@ function buildQueryInput(
   operationId: string,
   searchParams: Record<string, string | undefined>,
   now: string,
-  forceSevenDays = false,
 ): OperationHistoryQueryInput {
-  const datePreset = forceSevenDays ? '7d' : normalizeSearchParams(searchParams, now);
+  const datePreset = normalizeSearchParams(searchParams, now);
   if (datePreset === '7d') return { operationId, datePreset, ...buildSevenDayWindow(now) };
   if (datePreset === '30d') {
     const end = new Date(now);
@@ -208,8 +268,7 @@ async function resolveEntries(
   props: PageProps,
 ): Promise<{ entries: OperationAuditEntry[]; status: 'ok' | 'forbidden' | 'error'; queryInput: OperationHistoryQueryInput }> {
   const now = props.now ?? new Date().toISOString();
-  const injectedQueryNeedsSevenDayEvidence = props.entries === undefined && typeof props.queryOperationHistory === 'function';
-  const queryInput = buildQueryInput(operationId, searchParams, now, injectedQueryNeedsSevenDayEvidence);
+  const queryInput = buildQueryInput(operationId, searchParams, now);
 
   if (props.entries) return { entries: props.entries, status: 'ok', queryInput };
 
@@ -223,37 +282,66 @@ async function resolveEntries(
   }
 }
 
-function PermissionDenied() {
+function PermissionDenied({ labels }: { labels: Labels }) {
   return (
     <main aria-labelledby="operation-history-forbidden-title" style={{ padding: 24 }}>
       <Card role="alert" style={{ border: '1px solid var(--red-300, #fca5a5)', background: 'var(--red-050, #fef2f2)' }}>
         <CardHeader>
-          <CardTitle id="operation-history-forbidden-title">403 — Access denied</CardTitle>
+          <CardTitle id="operation-history-forbidden-title">{labels.forbiddenTitle}</CardTitle>
         </CardHeader>
         <CardContent>
-          Requires <code>manufacturing_operations.view</code> and <code>settings.audit.read</code> to view manufacturing operation history.
+          {labels.forbiddenMessage}{' '}
+          <code>manufacturing_operations.view</code> / <code>settings.audit.read</code>
         </CardContent>
       </Card>
     </main>
   );
 }
 
-function Toolbar({ count, total, queryInput }: { count: number; total: number; queryInput: OperationHistoryQueryInput }) {
-  const lastSevenHref = `?datePreset=7d&from=${queryInput.from ?? ''}&to=${queryInput.to ?? ''}`;
+function Toolbar({
+  count,
+  total,
+  labels,
+  users,
+}: {
+  count: number;
+  total: number;
+  labels: Labels;
+  users: string[];
+}) {
   return (
     <Card style={{ marginBottom: 12 }}>
       <CardContent style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 14px' }}>
-        <input aria-label="Search by operation name" placeholder="Search by operation name…" style={{ fontSize: 12, width: 240 }} />
-        <select aria-label="Audit user" defaultValue="all" style={{ fontSize: 12 }}>
-          <option value="all">All users</option>
-        </select>
-        <span style={{ color: 'var(--muted)', fontSize: 11 }}>Date</span>
-        <Button type="button" aria-label="Last 7 days" formAction={lastSevenHref}>
-          Last 7 days
-        </Button>
-        <Button type="button">Reset</Button>
+        <form method="get" style={{ alignItems: 'center', display: 'contents' }}>
+          <input name="operation_name" aria-label={labels.searchLabel} placeholder={labels.searchPlaceholder} style={{ fontSize: 12, width: 240 }} />
+          <select name="user" aria-label={labels.userLabel} defaultValue="all" style={{ fontSize: 12 }}>
+            <option value="all">{labels.allUsers}</option>
+            {users.map((user) => (
+              <option key={user} value={user}>{user}</option>
+            ))}
+          </select>
+          <span style={{ color: 'var(--muted)', fontSize: 11 }}>{labels.date}</span>
+          <label style={{ color: 'var(--muted)', fontSize: 11 }}>
+            {labels.from}
+            <input name="from" type="date" style={{ fontSize: 12, marginLeft: 4 }} />
+          </label>
+          <label style={{ color: 'var(--muted)', fontSize: 11 }}>
+            {labels.to}
+            <input name="to" type="date" style={{ fontSize: 12, marginLeft: 4 }} />
+          </label>
+          <input type="hidden" name="datePreset" value="custom" />
+          <Button type="submit">{labels.date}</Button>
+        </form>
+        <form method="get" style={{ display: 'inline-flex' }}>
+          <Button type="submit" name="datePreset" value="7d" aria-label={labels.lastSevenDays}>
+            {labels.lastSevenDays}
+          </Button>
+        </form>
+        <form method="get" style={{ display: 'inline-flex' }}>
+          <Button type="submit">{labels.reset}</Button>
+        </form>
         <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>
-          {count} of {total} entries
+          {formatLabel(labels.entriesCount, { count, total })}
         </span>
       </CardContent>
     </Card>
@@ -265,26 +353,29 @@ function ActionBadge({ action }: { action: OperationAuditAction }) {
   return <Badge variant={variant}>{action}</Badge>;
 }
 
-function FieldDiffPanel({ entry }: { entry: OperationAuditEntry }) {
+function FieldDiffPanel({ entry, labels }: { entry: OperationAuditEntry; labels: Labels }) {
   return (
     <section
-      aria-label={`Field diff for ${entry.action} audit entry`}
+      data-diff-panel="true"
+      aria-label={formatLabel(labels.fieldDiffForAction, { action: entry.action })}
       role="region"
       style={{ background: 'var(--gray-100, #f3f4f6)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, marginTop: 8, padding: '10px 16px' }}
     >
       <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 600, letterSpacing: '.06em', marginBottom: 6, textTransform: 'uppercase' }}>
-        Field diff (old → new)
+        {labels.fieldDiffTitle}
       </div>
       <div style={{ background: '#fff', border: '1px solid var(--border, #e5e7eb)', borderRadius: 8 }}>
-        {entry.changes.map((change) => (
+        {entry.changes.length === 0 ? (
+          <div style={{ color: 'var(--muted)', padding: '8px 10px' }}>{labels.noChangedFields}</div>
+        ) : entry.changes.map((change) => (
           <div
             key={change.field}
             style={{ display: 'grid', gap: 8, gridTemplateColumns: 'minmax(140px, 1fr) minmax(120px, 1fr) 24px minmax(120px, 1fr)', padding: '8px 10px' }}
           >
             <strong>{change.field}</strong>
-            <code data-testid={`diff-${change.field}-old`}>{stringifyDiffValue(change.oldValue)}</code>
+            <code aria-label={`${change.field} ${labels.oldValue}`} data-testid={`diff-${change.field}-old`}>{stringifyDiffValue(change.oldValue)}</code>
             <span aria-hidden="true">→</span>
-            <code data-testid={`diff-${change.field}-new`}>{stringifyDiffValue(change.newValue)}</code>
+            <code aria-label={`${change.field} ${labels.newValue}`} data-testid={`diff-${change.field}-new`}>{stringifyDiffValue(change.newValue)}</code>
           </div>
         ))}
       </div>
@@ -292,51 +383,55 @@ function FieldDiffPanel({ entry }: { entry: OperationAuditEntry }) {
   );
 }
 
-function HistoryTable({ entries }: { entries: OperationAuditEntry[] }) {
+function HistoryTable({ entries, labels }: { entries: OperationAuditEntry[]; labels: Labels }) {
   return (
     <>
-      <Table aria-label="Manufacturing operation audit history" style={{ width: '100%' }}>
-        <TableHeader>
-          <TableRow>
-            <TableHead style={{ width: 48 }} />
-            <TableHead>Timestamp</TableHead>
-            <TableHead>User</TableHead>
-            <TableHead>Action</TableHead>
-            <TableHead>Field diff</TableHead>
+      <style>{`details:not([open]) [data-diff-panel="true"] { display: none; } details[open] summary span { transform: rotate(90deg); }`}</style>
+      <Table aria-label={labels.tableLabel} style={{ width: '100%' }}>
+      <TableHeader>
+        <TableRow>
+          <TableHead style={{ width: 48 }} />
+          <TableHead>{labels.timestamp}</TableHead>
+          <TableHead>{labels.user}</TableHead>
+          <TableHead>{labels.action}</TableHead>
+          <TableHead>{labels.changedFields}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {entries.map((entry) => (
+          <TableRow key={entry.id} data-audit-id={entry.id}>
+            <TableCell>
+              <details>
+                <summary role="button" aria-label={formatLabel(labels.viewDiff, { action: entry.action })} style={{ cursor: 'pointer', listStyle: 'none' }}>
+                  <span aria-hidden="true" style={{ color: 'var(--muted)', display: 'inline-block' }}>▸</span>
+                </summary>
+                <FieldDiffPanel entry={entry} labels={labels} />
+              </details>
+            </TableCell>
+            <TableCell style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>{entry.occurredAt}</TableCell>
+            <TableCell style={{ fontSize: 12 }}>
+              <div style={{ fontWeight: 500 }}>{entry.userName}</div>
+              {entry.userEmail ? <div style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono, monospace)', fontSize: 10 }}>{entry.userEmail}</div> : null}
+            </TableCell>
+            <TableCell>
+              <ActionBadge action={entry.action} />
+            </TableCell>
+            <TableCell>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {entry.changes.slice(0, 4).map((change) => (
+                  <Badge key={change.field} variant="muted" style={{ fontSize: 9 }}>
+                    {change.field}
+                  </Badge>
+                ))}
+                {entry.changes.length > 4 ? (
+                  <Badge variant="muted" style={{ fontSize: 9 }}>+{entry.changes.length - 4}</Badge>
+                ) : null}
+              </div>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {entries.map((entry) => (
-            <TableRow key={entry.id} data-audit-id={entry.id}>
-              <TableCell>
-                <Button type="button" aria-label={`View diff for ${entry.action} audit entry`}>
-                  ▸
-                </Button>
-              </TableCell>
-              <TableCell style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>{entry.occurredAt}</TableCell>
-              <TableCell style={{ fontSize: 12 }}>
-                <div style={{ fontWeight: 500 }}>{entry.userName}</div>
-                {entry.userEmail ? <div style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono, monospace)', fontSize: 10 }}>{entry.userEmail}</div> : null}
-              </TableCell>
-              <TableCell>
-                <ActionBadge action={entry.action} />
-              </TableCell>
-              <TableCell>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {entry.changes.slice(0, 4).map((change) => (
-                    <Badge key={change.field} variant="muted" style={{ fontSize: 9 }}>
-                      {change.field}
-                    </Badge>
-                  ))}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
+        ))}
+      </TableBody>
       </Table>
-      {entries.map((entry) => (
-        <FieldDiffPanel key={`${entry.id}-diff`} entry={entry} />
-      ))}
     </>
   );
 }
@@ -345,43 +440,51 @@ export default async function ManufacturingOperationHistoryPage(props: PageProps
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const operationId = params?.operation_id ?? 'unknown-operation';
+  const locale = params?.locale ?? 'en';
+  const labels = await buildLabels(locale);
 
-  if (props.callerAccess && !hasRequiredPermissions(props.callerAccess)) return <PermissionDenied />;
+  if (props.callerAccess && !hasRequiredPermissions(props.callerAccess)) return <PermissionDenied labels={labels} />;
 
   const resolved = await resolveEntries(operationId, searchParams, props);
-  if (resolved.status === 'forbidden') return <PermissionDenied />;
+  if (resolved.status === 'forbidden') return <PermissionDenied labels={labels} />;
 
-  const sortedEntries = sortTimestampDesc(resolved.entries).filter((entry) => entry.operationId === operationId);
+  const userFilter = searchParams.user ?? 'all';
+  const operationNameSearch = (searchParams.operation_name ?? '').trim().toLowerCase();
+  const sortedEntries = sortTimestampDesc(resolved.entries)
+    .filter((entry) => entry.operationId === operationId)
+    .filter((entry) => userFilter === 'all' || entry.userName === userFilter || entry.userEmail === userFilter)
+    .filter((entry) => !operationNameSearch || operationId.toLowerCase().includes(operationNameSearch));
+  const users = Array.from(new Set(resolved.entries.filter((entry) => entry.operationId === operationId).map((entry) => entry.userName))).sort();
 
   return (
     <main data-testid="manufacturing-operation-history-screen" data-operation-id={operationId} style={{ padding: 24 }}>
       <div style={{ alignItems: 'flex-start', display: 'flex', gap: 12, justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <div style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-            Settings / Manufacturing operations / History: {operationId}
+            {labels.breadcrumbSettings} / {labels.breadcrumbOperations} / {labels.breadcrumbHistory}: {operationId}
           </div>
-          <h1 style={{ margin: '4px 0' }}>Manufacturing Operation History</h1>
+          <h1 style={{ margin: '4px 0' }}>{labels.title}</h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
-            Per-operation audit trail. Showing every create / update / delete event.
+            {labels.subtitle}
             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, marginLeft: 8 }}>{operationId}</span>
           </p>
         </div>
-        <Button type="button">← Back</Button>
+        <Button type="button">{labels.back}</Button>
       </div>
 
-      <Toolbar count={sortedEntries.length} total={resolved.entries.length} queryInput={resolved.queryInput} />
+      <Toolbar count={sortedEntries.length} total={resolved.entries.length} labels={labels} users={users} />
 
       <Card>
         <CardHeader>
-          <CardTitle>Audit log entries</CardTitle>
+          <CardTitle>{labels.auditLogEntries}</CardTitle>
         </CardHeader>
         <CardContent>
           {resolved.status === 'error' ? (
-            <div role="alert">Unable to load manufacturing operation audit history.</div>
+            <div role="alert">{labels.error}</div>
           ) : sortedEntries.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: 13, padding: 24, textAlign: 'center' }}>No entries match the current filters.</div>
+            <div style={{ color: 'var(--muted)', fontSize: 13, padding: 24, textAlign: 'center' }}>{labels.empty}</div>
           ) : (
-            <HistoryTable entries={sortedEntries} />
+            <HistoryTable entries={sortedEntries} labels={labels} />
           )}
         </CardContent>
       </Card>

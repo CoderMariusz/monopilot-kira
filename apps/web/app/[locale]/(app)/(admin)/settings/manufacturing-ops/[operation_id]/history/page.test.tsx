@@ -175,6 +175,8 @@ describe('SET-057 manufacturing operation audit trail screen', () => {
     const user = userEvent.setup();
     await renderOperationHistory();
 
+    expect(screen.queryByRole('region', { name: /field diff.*update/i })).not.toBeInTheDocument();
+
     const updateRow = within(historyTable()).getByRole('row', { name: /bogdan ionescu.*update/i });
     await user.click(within(updateRow).getByRole('button', { name: /view diff|expand/i }));
 
@@ -188,7 +190,6 @@ describe('SET-057 manufacturing operation audit trail screen', () => {
   });
 
   it("filters by date range 'last 7 days' and removes entries outside that window", async () => {
-    const user = userEvent.setup();
     const queryOperationHistory = vi.fn(async (input: OperationHistoryQueryInput) => {
       expect(input).toEqual(
         expect.objectContaining({
@@ -201,10 +202,14 @@ describe('SET-057 manufacturing operation audit trail screen', () => {
       return seededEntries.filter((entry) => entry.occurredAt >= '2026-05-17T00:00:00.000Z');
     });
 
-    await renderOperationHistory({ entries: undefined, queryOperationHistory });
-    await user.click(screen.getByRole('button', { name: /last 7 days|last 7d/i }));
+    await renderOperationHistory({
+      entries: undefined,
+      queryOperationHistory,
+      searchParams: Promise.resolve({ datePreset: '7d' }),
+    });
 
-    expect(queryOperationHistory, 'page must query/filter the operation-scoped audit log, not render fixed prototype rows').toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /last 7 days|last 7d/i })).toHaveAttribute('name', 'datePreset');
+    expect(queryOperationHistory, 'page must query/filter the operation-scoped audit log from real search params, not injected test-only hacks').toHaveBeenCalledTimes(1);
     const rows = within(historyTable()).getAllByRole('row').slice(1);
     expect(rows.map((row) => row.getAttribute('data-audit-id'))).toEqual(['audit-update', 'audit-create']);
     expect(screen.queryByText(/carlos vega/i)).not.toBeInTheDocument();
