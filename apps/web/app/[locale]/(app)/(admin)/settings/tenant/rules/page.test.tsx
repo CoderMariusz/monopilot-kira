@@ -8,6 +8,7 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type RuleVariant = {
@@ -29,14 +30,14 @@ type RuleVariantRow = {
 
 type SaveVariantOverrides = (input: {
   ruleVariantOverrides: Record<string, string>;
-}) => Promise<{ ok: true } | { ok: false; code: 'VARIANT_NOT_FOUND'; message: string }>;
+}) => Promise<{ ok: true } | { ok: false; code: 'VARIANT_NOT_FOUND' | 'FORBIDDEN' | string; message: string }>;
 
 type RuleVariantSelectorProps = {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | undefined>>;
   rules?: RuleVariantRow[];
   saveRuleVariantOverrides?: SaveVariantOverrides;
-  state?: 'ready' | 'loading' | 'empty' | 'error';
+  state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 };
 
 type RuleVariantSelectorPage = (
@@ -95,7 +96,7 @@ async function renderRuleVariantSelectorPage(overrides: Partial<RuleVariantSelec
     searchParams: Promise.resolve({}),
     rules: variantRows,
     state: 'ready',
-    saveRuleVariantOverrides: vi.fn(async () => ({ ok: true })),
+    saveRuleVariantOverrides: vi.fn(async () => ({ ok: true as const })) as SaveVariantOverrides,
     ...overrides,
   };
 
@@ -117,6 +118,18 @@ function rowFor(ruleCode: string) {
     .find((row) => within(row).queryByText(ruleCode));
 }
 
+function forbidRuleVariantDomIdLookup() {
+  const originalGetElementById = document.getElementById.bind(document);
+  return vi.spyOn(document, 'getElementById').mockImplementation((id: string) => originalGetElementById(id));
+}
+
+function expectNoRuleVariantDomIdLookup(domLookup: ReturnType<typeof forbidRuleVariantDomIdLookup>) {
+  expect(
+    domLookup,
+    'Tenant rules feedback must be rendered from React state/action results, not document.getElementById().',
+  ).not.toHaveBeenCalledWith(expect.stringMatching(/^rule-variant-selector-/));
+}
+
 describe('SET-062 rule variant selector UX contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -125,6 +138,16 @@ describe('SET-062 rule variant selector UX contract', () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps the server component/action source free of browser globals used for feedback', () => {
+    const source = readFileSync('app/[locale]/(app)/(admin)/settings/tenant/rules/page.tsx', 'utf8');
+
+    expect(
+      source,
+      'Server Components and Server Actions must not branch on or access browser globals; feedback belongs in a client state/useActionState island.',
+    ).not.toMatch(/\b(?:typeof\s+)?(?:document|window)\b/);
   });
 
   it('renders the spec-driven AppShell page regions, blue advisory, variant table, and read-only technical approval gate link', async () => {
@@ -176,8 +199,10 @@ describe('SET-062 rule variant selector UX contract', () => {
     await user.click(screen.getByRole('radio', { name: /wo_release_gate v2/i }));
     expect(saveRuleVariantOverrides).not.toHaveBeenCalled();
 
+    const domLookup = forbidRuleVariantDomIdLookup();
     await user.click(screen.getByRole('button', { name: /Save All Selections/i }));
     await waitFor(() => expect(saveRuleVariantOverrides).toHaveBeenCalledTimes(1));
+    expectNoRuleVariantDomIdLookup(domLookup);
     expect(saveRuleVariantOverrides).toHaveBeenCalledWith({
       ruleVariantOverrides: {
         wo_release_gate: 'v2',
@@ -199,8 +224,10 @@ describe('SET-062 rule variant selector UX contract', () => {
       saveRuleVariantOverrides,
     });
 
+    const domLookup = forbidRuleVariantDomIdLookup();
     await user.click(screen.getByRole('button', { name: /Save All Selections/i }));
     await waitFor(() => expect(saveRuleVariantOverrides).toHaveBeenCalledTimes(1));
+    expectNoRuleVariantDomIdLookup(domLookup);
     expect(saveRuleVariantOverrides).toHaveBeenCalledWith({
       ruleVariantOverrides: {
         wo_release_gate: 'v999',
@@ -208,5 +235,29 @@ describe('SET-062 rule variant selector UX contract', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/V-SET-31/i);
     expect(screen.getByRole('alert')).toHaveTextContent(/variant must reference an existing rule_definitions\.version/i);
+  });
+
+  it('surfaces permission failures from the save action without imperative DOM feedback mutation', async () => {
+    const user = userEvent.setup();
+    const saveRuleVariantOverrides = vi.fn(async () => ({
+      ok: false as const,
+      code: 'FORBIDDEN',
+      message: 'settings.org.update permission is required to change rule variants',
+    }));
+
+    await renderRuleVariantSelectorPage({ saveRuleVariantOverrides });
+    await user.click(screen.getByRole('radio', { name: /wo_release_gate v2/i }));
+
+    const domLookup = forbidRuleVariantDomIdLookup();
+    await user.click(screen.getByRole('button', { name: /Save All Selections/i }));
+    await waitFor(() => expect(saveRuleVariantOverrides).toHaveBeenCalledTimes(1));
+    expectNoRuleVariantDomIdLookup(domLookup);
+    expect(saveRuleVariantOverrides).toHaveBeenCalledWith({
+      ruleVariantOverrides: {
+        wo_release_gate: 'v2',
+      },
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(/FORBIDDEN/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/settings\.org\.update permission is required/i);
   });
 });
