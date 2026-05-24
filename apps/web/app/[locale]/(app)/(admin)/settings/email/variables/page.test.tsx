@@ -88,6 +88,10 @@ type EmailVariablesPageProps = {
 
 type EmailVariablesPage = (props: EmailVariablesPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
+function repoRoot() {
+  return process.cwd().endsWith('/apps/web') ? join(process.cwd(), '..', '..') : process.cwd();
+}
+
 const emailVariableGroups: EmailTemplateVariableGroup[] = [
   {
     group: 'Purchase order',
@@ -111,7 +115,7 @@ const emailVariableGroups: EmailTemplateVariableGroup[] = [
 ];
 
 async function loadEmailVariablesPage(): Promise<EmailVariablesPage> {
-  const routePath = join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/email/variables/page.tsx');
+  const routePath = join(repoRoot(), 'apps/web/app/[locale]/(app)/(admin)/settings/email/variables/page.tsx');
 
   if (!existsSync(routePath)) {
     return function MissingEmailVariablesPage() {
@@ -175,8 +179,8 @@ function structuralSnapshot() {
 
 describe('T-069 email variables localized AppShell route contract', () => {
   it('defines the user-visible /en/settings/email/variables route under the AppShell route group', () => {
-    const canonicalRoute = join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/email/variables/page.tsx');
-    const legacyRoute = join(process.cwd(), 'apps/web/app/[locale]/(admin)/settings/email/variables/page.tsx');
+    const canonicalRoute = join(repoRoot(), 'apps/web/app/[locale]/(app)/(admin)/settings/email/variables/page.tsx');
+    const legacyRoute = join(repoRoot(), 'apps/web/app/[locale]/(admin)/settings/email/variables/page.tsx');
 
     expect(
       existsSync(canonicalRoute),
