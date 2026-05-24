@@ -5,7 +5,7 @@
  * RED scope: tests only; production page is intentionally not implemented here.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -66,6 +66,17 @@ const syncConfig: D365SyncConfig = {
   applied_by_user: 'Marta Owner',
 };
 
+const routeDirCandidates = [
+  join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/sync'),
+  join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/sync'),
+];
+
+function existingRoutePath(fileName: string) {
+  const path = routeDirCandidates.map((dir) => join(dir, fileName)).find((candidate) => existsSync(candidate));
+  expect(path, `Expected ${fileName} to exist in the localized D365 sync AppShell route`).toBeDefined();
+  return path!;
+}
+
 async function loadD365SyncPage(): Promise<D365SyncPage> {
   const candidates = [
     join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/sync/page.tsx'),
@@ -123,6 +134,32 @@ describe('T-111 D365 sync localized AppShell route contract', () => {
       legacyRouteCandidates.some((candidate) => existsSync(candidate)),
       'Legacy body-only settings route must not be the only implementation',
     ).toBe(false);
+  });
+
+  it('keeps page.tsx as the async Server Component wrapper with no hooks, browser handlers, or children:any', () => {
+    const pageSource = readFileSync(existingRoutePath('page.tsx'), 'utf8');
+
+    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).toContain("import { getTranslations } from 'next-intl/server'");
+    expect(pageSource).toMatch(/export\s+default\s+async\s+function\s+D365SyncPage/);
+    expect(pageSource).toContain("from './d365-sync-config-form.client'");
+    expect(pageSource).not.toMatch(/React\.use(State|Reducer|Effect|Memo|Callback|Transition)|\buse(State|Reducer|Effect|Memo|Callback|Transition)\s*\(/);
+    expect(pageSource).not.toMatch(/\bon(Submit|Change|Blur|Click|CheckedChange)=/);
+    expect(pageSource).not.toMatch(/children\s*:\s*any\b/);
+  });
+
+  it('places the interactive D365 sync form behind an explicit use-client leaf component', async () => {
+    const clientPath = existingRoutePath('d365-sync-config-form.client.tsx');
+    const clientSource = readFileSync(clientPath, 'utf8').trimStart();
+
+    expect(clientSource).toMatch(/^['\"]use client['\"]/);
+    expect(clientSource).toContain('D365SyncConfigForm');
+    expect(clientSource).toMatch(/React\.useState|\buseState\s*\(/);
+
+    const clientModulePath = './d365-sync-config-form.client.tsx';
+    const mod = await import(/* @vite-ignore */ `${clientModulePath}`);
+    const exportedForm = mod.D365SyncConfigForm ?? mod.default;
+    expect(exportedForm, 'client boundary must export a renderable D365SyncConfigForm component').toEqual(expect.any(Function));
   });
 });
 
@@ -198,6 +235,36 @@ describe('T-111 D365 sync config behavior', () => {
       );
     });
     expect(screen.getByRole('status')).toHaveTextContent(/d365 sync config saved|saved/i);
+  });
+
+  it('shows pending submit state while the owner save mutation is in flight', async () => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: { ok: true }) => void;
+    const updateD365SyncConfig = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    await renderD365SyncPage({ updateD365SyncConfig });
+
+    await user.click(screen.getByRole('button', { name: /save sync config/i }));
+
+    const submit = await screen.findByRole('button', { name: /saving/i });
+    expect(submit).toBeDisabled();
+    resolveSave({ ok: true });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/d365 sync config saved|saved/i));
+  });
+
+  it('surfaces server-action save errors in an alert without rendering a false success state', async () => {
+    const user = userEvent.setup();
+    const updateD365SyncConfig = vi.fn(async () => ({ ok: false as const, message: 'D365 capability is disabled for this org' }));
+    await renderD365SyncPage({ updateD365SyncConfig });
+
+    await user.click(screen.getByRole('button', { name: /save sync config/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/capability is disabled/i);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('renders a 403 page and no mutation controls for non-owner callers', async () => {
