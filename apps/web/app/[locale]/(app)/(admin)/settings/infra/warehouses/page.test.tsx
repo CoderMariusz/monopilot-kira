@@ -7,12 +7,29 @@
  * behavior assertion failures instead of module-resolution noise.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+
+const { withOrgContextMock, deactivateWarehouseActionMock } = vi.hoisted(() => ({
+  withOrgContextMock: vi.fn(),
+  deactivateWarehouseActionMock: vi.fn(async (input: DeactivateWarehouseInput) => ({
+    ok: true as const,
+    data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
+  })),
+}));
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: withOrgContextMock,
+}));
+
+vi.mock('../../../../../../../actions/infra/warehouse', () => ({
+  deactivateWarehouse: deactivateWarehouseActionMock,
+}));
 
 const labels: Record<string, string> = {
   title: 'Warehouses',
@@ -94,18 +111,12 @@ const warehouses: Warehouse[] = Array.from({ length: 25 }, (_, index) => {
 });
 
 async function loadWarehousesPage(): Promise<WarehousesPage> {
-  try {
-    const pageModulePath = './page';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-012 warehouse page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as WarehousesPage;
-  } catch {
-    return function MissingWarehousesPage() {
-      return React.createElement('main', { 'data-testid': 'missing-warehouses-page' });
-    };
-  }
+  const pageModulePath = './page.tsx';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  expect(mod.default, 'SET-012 warehouse page must default-export a renderable React component').toEqual(
+    expect.any(Function),
+  );
+  return mod.default as WarehousesPage;
 }
 
 async function renderWarehousesPage(overrides: Partial<WarehousePageProps> = {}) {
@@ -155,12 +166,73 @@ describe('SET-012 warehouse AppShell route contract', () => {
     ).toBe(true);
     expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
   });
+
+  it('keeps the page server-rendered, isolates hooks in a client leaf, and resolves real production imports', async () => {
+    const sourceDir = join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/infra/warehouses');
+    const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
+    const clientSource = readFileSync(join(sourceDir, 'warehouse-list-screen.client.tsx'), 'utf8');
+    const actionModule = await vi.importActual<Record<string, unknown>>('../../../../../../../actions/infra/warehouse');
+    const orgContextModule = await vi.importActual<Record<string, unknown>>('../../../../../../../lib/auth/with-org-context');
+
+    expect(pageSource).not.toMatch(/^['"]use client['"]/m);
+    expect(pageSource).toContain("from './warehouse-list-screen.client'");
+    expect(clientSource).toMatch(/^['"]use client['"]/m);
+    expect(existsSync(join(process.cwd(), 'actions/infra/warehouse.ts'))).toBe(true);
+    expect(existsSync(join(process.cwd(), 'lib/auth/with-org-context.ts'))).toBe(true);
+    expect(actionModule.deactivateWarehouse).toEqual(expect.any(Function));
+    expect(orgContextModule.withOrgContext).toEqual(expect.any(Function));
+    expect(pageSource).not.toMatch(/w\.deactivated_at/);
+    expect(pageSource).toContain("w.address->>'deactivated_at'");
+    expect(pageSource).toContain("to_regclass('public.work_orders')");
+  });
+
+  it('uses the withOrgContext-scoped loader when warehouses props are not injected', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (sql.includes("to_regclass('public.work_orders')")) return { rows: [{ ok: false }] };
+      if (sql.includes('from public.warehouses')) {
+        return {
+          rows: [
+            {
+              id: warehouses[0].id,
+              code: warehouses[0].code,
+              name: warehouses[0].name,
+              address_label: 'Dock 1, Warsaw, PL',
+              deactivated_at: null,
+              active_wo_count: 0,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    withOrgContextMock.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+      action({
+        userId: '00000000-0000-4000-8000-000000000999',
+        orgId: '00000000-0000-4000-8000-000000000998',
+        client: { query },
+      }),
+    );
+
+    const Page = await loadWarehousesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('from public.warehouses'), []);
+    expect(query).not.toHaveBeenCalledWith(expect.stringContaining('public.work_orders wo'), expect.anything());
+    expect(screen.getByRole('row', { name: /apex chilled wh-01 active/i })).toBeInTheDocument();
+  });
 });
 
 describe('SET-012 warehouse list behavior', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    deactivateWarehouseActionMock.mockImplementation(async (input: DeactivateWarehouseInput) => ({
+      ok: true as const,
+      data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
+    }));
   });
 
   it('renders 25 mixed-status rows with status badges and filters to active-only warehouses', async () => {
