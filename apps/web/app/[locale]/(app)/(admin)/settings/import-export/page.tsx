@@ -311,8 +311,15 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
   const hasInjectedEntities = Object.prototype.hasOwnProperty.call(propsInput, 'entities');
   const { locale } = (await propsInput.params) ?? { locale: 'en' };
   const labels = await buildLabels(locale);
+  const labelsWithPreflightFailClosedCopy: ImportExportLabels = {
+    ...labels,
+    alerts: {
+      ...labels.alerts,
+      authorizationPolicy: `${labels.alerts.authorizationPolicy} ${labels.importCard.preflightUnavailable}`,
+    },
+  };
   const screenLabels = hasInjectedEntities
-    ? labels
+    ? labelsWithPreflightFailClosedCopy
     : {
         ...labels,
         permissionDenied: 'Live loader not configured; import/export placeholder unavailable.',
@@ -322,6 +329,16 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
     propsInput.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []
   );
   const hasReviewedAuthorizationPreflight = typeof propsInput.preflightAuthorizationPolicyImport === 'function';
+  const reviewedAuthorizationPreflight = propsInput.preflightAuthorizationPolicyImport;
+  const failClosedAuthorizationPreflight = hasReviewedAuthorizationPreflight && reviewedAuthorizationPreflight
+    ? async (input: { fileName: string; auditReason: string }) => {
+        const result = await reviewedAuthorizationPreflight(input);
+        if (result.ok && result.dryRunId === 'preflight_unavailable') {
+          return { ok: false as const, blockers: ['preflight_unavailable'] };
+        }
+        return result;
+      }
+    : undefined;
 
   if (hasInjectedEntities && !hasReviewedAuthorizationPreflight) {
     return <DisabledAuthorizationPolicyPreflight entities={entities} labels={labels} />;
@@ -334,7 +351,7 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
       recentJobs={propsInput.recentJobs ?? []}
       state={propsInput.state ?? (hasInjectedEntities ? 'ready' : 'empty')}
       exportSettingsEntity={propsInput.exportSettingsEntity ?? defaultExportSettingsEntity}
-      preflightAuthorizationPolicyImport={propsInput.preflightAuthorizationPolicyImport ?? defaultPreflightAuthorizationPolicyImport}
+      preflightAuthorizationPolicyImport={failClosedAuthorizationPreflight ?? defaultPreflightAuthorizationPolicyImport}
       labels={screenLabels}
     />
   );

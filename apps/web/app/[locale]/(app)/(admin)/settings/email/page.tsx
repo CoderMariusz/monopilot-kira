@@ -90,6 +90,16 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   const providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
   const templates = props.templates ?? DEFAULT_TEMPLATES;
   const hasReviewedTestSend = typeof props.testSend === 'function';
+  const reviewedTestSend = props.testSend;
+  const failClosedTestSend = hasReviewedTestSend && reviewedTestSend
+    ? async (input: TestSendInput): Promise<TestSendResult> => {
+        const result = await reviewedTestSend(input);
+        if (result.ok && result.message_id === 'not_configured') {
+          return { ok: false, error: labels.testSendError };
+        }
+        return result;
+      }
+    : undefined;
   const state: PageState = hasReviewedTestSend ? (props.state ?? (templates.length === 0 ? 'empty' : 'ready')) : 'permission_denied';
   const screenLabels = hasReviewedTestSend
     ? labels
@@ -105,7 +115,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
       providerSettings={providerSettings}
       templates={templates}
       state={state}
-      testSend={props.testSend ?? defaultTestSend}
+      testSend={failClosedTestSend ?? defaultTestSend}
     />
   );
 }
