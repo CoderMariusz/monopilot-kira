@@ -81,7 +81,7 @@ async function defaultTestSend(input: TestSendInput): Promise<TestSendResult> {
   'use server';
 
   void input;
-  return { ok: true, message_id: 'not_configured' };
+  return { ok: false, error: DEFAULT_LABELS.testSendError };
 }
 
 export default async function EmailTemplatesPage(propsInput: unknown = {}) {
@@ -89,11 +89,19 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   const labels = buildLabelsFromTranslations(await getTranslations('settings.email_templates'));
   const providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
   const templates = props.templates ?? DEFAULT_TEMPLATES;
-  const state: PageState = props.state ?? (templates.length === 0 ? 'empty' : 'ready');
+  const hasReviewedTestSend = typeof props.testSend === 'function';
+  const state: PageState = hasReviewedTestSend ? (props.state ?? (templates.length === 0 ? 'empty' : 'ready')) : 'permission_denied';
+  const screenLabels = hasReviewedTestSend
+    ? labels
+    : {
+        ...labels,
+        permissionDenied: 'Email test send unavailable: provider backend is not configured yet.',
+        subtitle: `${labels.subtitle} Email test send unavailable: provider backend is not configured yet.`,
+      };
 
   return (
     <EmailTemplatesScreen
-      labels={labels}
+      labels={screenLabels}
       providerSettings={providerSettings}
       templates={templates}
       state={state}

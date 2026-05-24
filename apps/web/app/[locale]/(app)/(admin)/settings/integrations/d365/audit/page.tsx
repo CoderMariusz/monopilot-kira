@@ -133,30 +133,6 @@ async function readAuditData(): Promise<ReadResult> {
   });
 }
 
-async function triggerD365SyncAction(): Promise<{ ok: true } | { ok: false; message: string }> {
-  'use server';
-  return withOrgContext(async ({ userId, orgId, client }) => {
-    const queryClient = client as QueryClient;
-    const roleResult = await queryClient.query<{ is_owner: boolean }>(
-      `select exists (
-          select 1
-            from public.user_roles ur
-            join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
-           where ur.user_id = $1::uuid
-             and ur.org_id = $2::uuid
-             and lower(r.code) = 'owner'
-        ) as is_owner`,
-      [userId, orgId],
-    );
-
-    if (!roleResult.rows[0]?.is_owner) {
-      return { ok: false, message: DEFAULT_LABELS.ownerRequired };
-    }
-
-    return { ok: false, message: 'T-030 triggerD365Sync action is not available in this worktree.' };
-  });
-}
-
 export default async function D365AuditPage(propsInput: D365AuditPageProps = {}) {
   const params = propsInput.params ? await propsInput.params : { locale: 'en' };
   const labels = await buildLabels(params.locale ?? 'en');
@@ -176,11 +152,19 @@ export default async function D365AuditPage(propsInput: D365AuditPageProps = {})
   }
 
   const searchParams = propsInput.searchParams ? await propsInput.searchParams : {};
+  const hasReviewedSyncTrigger = typeof propsInput.runSyncNow === 'function';
+  const screenLabels = hasReviewedSyncTrigger
+    ? labels
+    : {
+        ...labels,
+        subtitle: `${labels.subtitle} Sync trigger unavailable: D365 manual sync backend is not configured yet.`,
+        ownerRequired: 'Sync trigger unavailable: D365 manual sync backend is not configured yet.',
+      };
   return (
     <D365AuditScreen
-      callerRole={callerRole}
-      labels={labels}
-      runSyncNow={propsInput.runSyncNow ?? triggerD365SyncAction}
+      callerRole={hasReviewedSyncTrigger ? callerRole : 'viewer'}
+      labels={screenLabels}
+      runSyncNow={hasReviewedSyncTrigger ? propsInput.runSyncNow : undefined}
       runs={runs}
       state={state}
       initialSearchParams={searchParams}

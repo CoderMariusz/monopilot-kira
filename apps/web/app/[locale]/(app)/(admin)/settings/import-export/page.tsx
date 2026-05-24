@@ -133,6 +133,84 @@ function buildDefaultEntities(labels: ImportExportLabels, locale: string): Setti
   }));
 }
 
+function DisabledAuthorizationPolicyPreflight({
+  entities,
+  labels,
+}: {
+  entities: SettingsImportExportEntity[];
+  labels: ImportExportLabels;
+}) {
+  return (
+    <main
+      data-testid="settings-import-export-screen"
+      data-route="/settings/import-export"
+      data-ux-source="SET-029"
+      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
+      className="space-y-4 p-6 text-slate-950"
+    >
+      <header data-region="page-head" className="flex flex-col gap-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{labels.eyebrow}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
+        <p className="max-w-3xl text-sm text-slate-600">{labels.subtitle}</p>
+      </header>
+
+      <label className="block text-sm font-medium text-slate-700" htmlFor="settings-import-export-entity">
+        {labels.entityLabel}
+      </label>
+      <select
+        id="settings-import-export-entity"
+        aria-label={labels.entityLabel}
+        defaultValue="authorization_policies"
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+      >
+        {entities.map((entity) => (
+          <option key={entity.key} value={entity.key}>
+            {entity.label} {entity.requiredPermissions.join(', ')}
+          </option>
+        ))}
+      </select>
+
+      <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+        {labels.importCard.preflightUnavailable}
+      </div>
+
+      <section
+        role="region"
+        aria-labelledby="settings-import-card-title"
+        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <h2 id="settings-import-card-title" className="text-lg font-semibold">{labels.importCard.title}</h2>
+        <label
+          htmlFor="settings-import-export-csv-file"
+          className="mt-4 block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600"
+        >
+          <span className="mt-2 block font-medium">{labels.importCard.dropzone}</span>
+          <span className="mt-1 block text-xs text-slate-500">{labels.importCard.fileLimit}</span>
+          <input
+            id="settings-import-export-csv-file"
+            aria-label={labels.importCard.fileAria}
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+          />
+        </label>
+        <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="settings-import-export-audit-reason">
+          {labels.importCard.auditReason}
+        </label>
+        <textarea
+          id="settings-import-export-audit-reason"
+          aria-label={labels.importCard.auditReason}
+          className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          placeholder={labels.importCard.auditReasonPlaceholder}
+        />
+        <button type="button" className="mt-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium" disabled>
+          {labels.importCard.runDryRun}
+        </button>
+      </section>
+    </main>
+  );
+}
+
 async function buildLabels(locale: string): Promise<ImportExportLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.import_export' });
 
@@ -243,6 +321,11 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
   const visiblePermissions = propsInput.visiblePermissions ?? (
     propsInput.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []
   );
+  const hasReviewedAuthorizationPreflight = typeof propsInput.preflightAuthorizationPolicyImport === 'function';
+
+  if (hasInjectedEntities && !hasReviewedAuthorizationPreflight) {
+    return <DisabledAuthorizationPolicyPreflight entities={entities} labels={labels} />;
+  }
 
   return (
     <SettingsImportExportScreen
