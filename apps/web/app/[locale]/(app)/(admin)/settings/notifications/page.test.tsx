@@ -12,6 +12,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type pg from 'pg';
 
 const routerPush = vi.fn();
 
@@ -270,6 +271,54 @@ describe('T-071 notifications localized AppShell route contract', () => {
       legacyRouteCandidates.some((candidate) => existsSync(candidate)),
       'Legacy body-only settings route must not be the only implementation',
     ).toBe(false);
+  });
+});
+
+describe('T-071 AC-rls-force notification preference runtime invariant', () => {
+  it('proves public.notification_preferences FORCE RLS and app.current_org_id() policy from live pg_catalog', async () => {
+    const verificationCommand = `psql "$DATABASE_URL" -Atc "select c.relrowsecurity, c.relforcerowsecurity, count(p.policyname), count(*) filter (where coalesce(p.qual,'') || coalesce(p.with_check,'') like '%app.current_org_id()%') from pg_class c join pg_namespace n on n.oid = c.relnamespace left join pg_policies p on p.schemaname = n.nspname and p.tablename = c.relname where n.nspname = 'public' and c.relname = 'notification_preferences' group by c.relrowsecurity, c.relforcerowsecurity;"`;
+    const databaseUrl = process.env.DATABASE_URL ?? process.env.DATABASE_URL_OWNER;
+    expect(
+      databaseUrl,
+      `AC-rls-force requires live DB evidence, not static migration grep. Set DATABASE_URL or DATABASE_URL_OWNER and run: ${verificationCommand}`,
+    ).toBeTruthy();
+
+    const pgModule = await import('pg');
+    const Pool = (pgModule.default?.Pool ?? pgModule.Pool) as typeof pg.Pool;
+    const pool = new Pool({ connectionString: databaseUrl });
+
+    try {
+      const result = await pool.query<{
+        relrowsecurity: boolean;
+        relforcerowsecurity: boolean;
+        policy_count: string;
+        current_org_policy_count: string;
+      }>(
+        `select c.relrowsecurity,
+                c.relforcerowsecurity,
+                count(p.policyname)::text as policy_count,
+                count(*) filter (
+                  where (coalesce(p.qual, '') || ' ' || coalesce(p.with_check, '')) like '%app.current_org_id()%'
+                )::text as current_org_policy_count
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           left join pg_policies p on p.schemaname = n.nspname and p.tablename = c.relname
+          where n.nspname = 'public'
+            and c.relname = 'notification_preferences'
+          group by c.relrowsecurity, c.relforcerowsecurity`,
+      );
+
+      expect(result.rows, 'public.notification_preferences must exist in the migrated live DB').toHaveLength(1);
+      expect(result.rows[0]?.relrowsecurity, 'RLS must be enabled on notification_preferences').toBe(true);
+      expect(result.rows[0]?.relforcerowsecurity, 'FORCE ROW LEVEL SECURITY must be enabled').toBe(true);
+      expect(Number(result.rows[0]?.policy_count ?? 0), 'at least one RLS policy must be installed').toBeGreaterThanOrEqual(1);
+      expect(
+        Number(result.rows[0]?.current_org_policy_count ?? 0),
+        'notification_preferences policy must be scoped by app.current_org_id()',
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      await pool.end();
+    }
   });
 });
 
