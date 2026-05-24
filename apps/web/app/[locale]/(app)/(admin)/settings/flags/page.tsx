@@ -88,16 +88,68 @@ const DEFAULT_PREFLIGHT: FlagAuthorizationPreflight = {
   configureHref: '/settings/authorization',
 };
 
-async function buildLabels(locale: string): Promise<FlagsAdminLabels> {
-  const messages = locale === 'pl'
-    ? (await import('../../../../../../messages/pl/02-settings.json')).default
-    : (await import('../../../../../../messages/en/02-settings.json')).default;
-  const source = messages.flags_admin as Partial<Record<keyof FlagsAdminLabels, unknown>>;
+type FlagsTranslator = (key: keyof FlagsAdminLabels, values?: Record<string, string | number>) => string;
+
+type SettingsMessages = {
+  flags_admin?: Partial<Record<keyof FlagsAdminLabels, unknown>>;
+};
+
+const SETTINGS_MESSAGE_LOCALES = new Set(['en', 'pl', 'ro', 'uk']);
+
+function normalizeMessageLocale(locale: string) {
+  return SETTINGS_MESSAGE_LOCALES.has(locale) ? locale : 'en';
+}
+
+function labelsFromSource(source: Partial<Record<keyof FlagsAdminLabels, unknown>>): FlagsAdminLabels {
   return LABEL_KEYS.reduce((labels, key) => {
     const value = source[key];
     labels[key] = typeof value === 'string' ? value : DEFAULT_LABELS[key];
     return labels;
   }, {} as FlagsAdminLabels);
+}
+
+function translationValues(key: keyof FlagsAdminLabels): Record<string, string> | undefined {
+  return key === 'coreTab' || key === 'localTab' || key === 'tenantTab' ? { count: '{count}' } : undefined;
+}
+
+function isResolvedLabel(key: keyof FlagsAdminLabels, value: string) {
+  return value.trim() !== '' && value !== key && value !== `flags_admin.${key}` && value !== `settings.flags_admin.${key}`;
+}
+
+function labelsFromTranslator(t: FlagsTranslator): { labels: FlagsAdminLabels; complete: boolean } {
+  let complete = true;
+  const labels = LABEL_KEYS.reduce((translated, key) => {
+    try {
+      const value = t(key, translationValues(key));
+      translated[key] = isResolvedLabel(key, value) ? value : DEFAULT_LABELS[key];
+      complete &&= translated[key] === value;
+    } catch {
+      translated[key] = DEFAULT_LABELS[key];
+      complete = false;
+    }
+    return translated;
+  }, {} as FlagsAdminLabels);
+
+  return { labels, complete };
+}
+
+async function loadFlagsAdminMessages(locale: string) {
+  const messages = (await import(`../../../../../../messages/${normalizeMessageLocale(locale)}/02-settings.json`)).default as SettingsMessages;
+  return labelsFromSource(messages.flags_admin ?? {});
+}
+
+async function buildLabels(locale: string): Promise<FlagsAdminLabels> {
+  try {
+    const { getTranslations } = await import('next-intl/server');
+    const t = await getTranslations({ locale, namespace: 'settings.flags_admin' });
+    const { labels, complete } = labelsFromTranslator(t as FlagsTranslator);
+    if (complete) return labels;
+  } catch {
+    // Fall through to the locale catalog below; this avoids raw key leakage if the
+    // runtime bundle has not yet folded 02-settings into the root next-intl file.
+  }
+
+  return loadFlagsAdminMessages(locale);
 }
 
 export default async function SettingsFlagsPage(propsInput: unknown) {
