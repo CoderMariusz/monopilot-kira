@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
@@ -252,8 +253,8 @@ function UnitsSection({ category, units, labels }: { category: UnitCategory; uni
                 <TableCell className="font-medium">{unit.name}</TableCell>
                 <TableCell className="font-mono text-sm tabular-nums">{formatFactor(unit.factorToBase)}</TableCell>
                 {unit.isBase ? (
-                  <TableCell data-slot="badge" className="badge badge--info" data-variant="info" data-tone="info">
-                    {labels.base}
+                  <TableCell>
+                    <Badge variant="info">{labels.base}</Badge>
                   </TableCell>
                 ) : (
                   <TableCell>

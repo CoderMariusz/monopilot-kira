@@ -249,6 +249,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
     expect(main, 'ready-state snapshot must cover the units screen root').not.toBeNull();
     expect(
       Array.from(main!.querySelectorAll('h1,h2,button,a,th,td,[data-slot="badge"]'))
+        .filter((node) => !(node instanceof HTMLElement && node.matches('td') && node.querySelector('[data-slot="badge"]')))
         .map((node) => node.textContent?.replace(/\s+/g, ' ').trim())
         .filter(Boolean),
     ).toMatchInlineSnapshot(`
