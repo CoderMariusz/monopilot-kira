@@ -212,9 +212,9 @@ describe('SET-060 tenant variations dashboard UX contract', () => {
     expect(within(deptSection).getByText(/technical-rd/i)).toBeInTheDocument();
     expect(within(deptSection).getByText(/technical-qa/i)).toBeInTheDocument();
     expect(within(deptSection).getByText(/finance/i)).toBeInTheDocument();
-    expect(within(deptSection).getByRole('button', { name: /edit dept taxonomy/i })).toHaveAttribute(
-      'data-slot',
-      'button',
+    expect(within(deptSection).getByRole('link', { name: /edit dept taxonomy/i })).toHaveAttribute(
+      'href',
+      '/settings/tenant/depts',
     );
 
     const variantSection = section(/rule variant overrides.*3/i);

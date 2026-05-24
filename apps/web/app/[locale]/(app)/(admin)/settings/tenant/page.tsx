@@ -1,6 +1,5 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
-import { useRouter } from 'next/navigation';
 
 import { getTenantVariations } from '../../../../../../actions/tenant/get';
 import {
@@ -12,7 +11,6 @@ import {
 } from '../../../../../../actions/authorization/preflight';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -472,20 +470,7 @@ function PolicyStatusBadge({ status }: { status: AuthorizationPolicySummary['sta
 }
 
 function NavigationButton({ label, href }: { label: string; href: string }) {
-  if (isVitestRuntime()) {
-    const router = useRouter();
-    return (
-      <Button type="button" className="btn-secondary btn-sm" onClick={() => router.push(href)}>
-        {label} →
-      </Button>
-    );
-  }
-
   return <a className="btn btn-secondary btn-sm" href={href}>{label} →</a>;
-}
-
-function isVitestRuntime() {
-  return typeof process !== 'undefined' && Boolean(process.env.VITEST_WORKER_ID);
 }
 
 function StatusShell({ labels, message, tone }: { labels: Labels; message: string; tone: 'info' | 'danger' | 'warning' | 'muted' }) {
