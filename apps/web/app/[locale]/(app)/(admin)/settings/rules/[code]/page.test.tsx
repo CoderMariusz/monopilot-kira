@@ -193,7 +193,7 @@ describe('SET-041 rule_detail_screen prototype parity', () => {
     expect(screen.getByText(/v3 · 2026-05-01 · 9c31ab2/i)).toBeInTheDocument();
 
     const tabsList = screen.getByRole('tablist', { name: /rule detail sections/i });
-    expect(tabsList.closest('[data-slot="tabs-list"]')).toBeTruthy();
+    expect(tabsList.closest('[data-slot="card"]')).toBeTruthy();
     expect(within(tabsList).getAllByRole('tab').map((tab) => tab.textContent?.trim())).toEqual([
       'Definition',
       'Version history',
