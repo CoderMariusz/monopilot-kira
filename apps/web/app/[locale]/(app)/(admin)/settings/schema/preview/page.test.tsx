@@ -9,8 +9,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { z } from 'zod';
 
 const mocks = vi.hoisted(() => ({
+  getZodRuntimeSchema: vi.fn(),
   publishDeptColumnDraft: vi.fn(),
   upsertDeptColumnDraft: vi.fn(),
   redirect: vi.fn(),
@@ -78,6 +80,10 @@ vi.mock('../../../../../../(settings)/schema/_actions/draft', () => ({
   upsertDeptColumnDraft: mocks.upsertDeptColumnDraft,
 }));
 
+vi.mock('../../../../../../../lib/schema/zod-runtime', () => ({
+  getZodRuntimeSchema: mocks.getZodRuntimeSchema,
+}));
+
 type PreviewPageProps = {
   params: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | undefined>>;
@@ -103,6 +109,9 @@ async function renderPreview(searchParams: Record<string, string | undefined> = 
 describe('SET-034 localized Schema Shadow Preview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getZodRuntimeSchema.mockResolvedValue(
+      z.object({ inline_ph: z.number().min(0).max(14) }),
+    );
   });
 
   afterEach(() => {
@@ -136,6 +145,23 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     expect(screen.getByTestId('generated-runtime-schema')).toHaveTextContent(
       /allergen_risk_score.*z\.number\(\).*min\(1\).*max\(100\)/is,
     );
+    expect(mocks.upsertDeptColumnDraft).not.toHaveBeenCalled();
+    expect(mocks.publishDeptColumnDraft).not.toHaveBeenCalled();
+  });
+
+  it('selects a live draft and generates the sample form through the shared runtime schema helper', async () => {
+    await renderPreview({ draftId: 'draft-inline-ph' });
+
+    expect(mocks.getZodRuntimeSchema).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableCode: 'production_batch',
+        schemaVersion: expect.any(Number),
+        loadColumns: expect.any(Function),
+      }),
+    );
+    const sampleForm = screen.getByRole('form', { name: /sample data/i });
+    expect(within(sampleForm).getByLabelText(/inline ph/i)).toHaveDisplayValue('7.2');
+    expect(screen.getByTestId('generated-runtime-schema')).toHaveTextContent(/inline_ph.*z\.number/i);
     expect(mocks.upsertDeptColumnDraft).not.toHaveBeenCalled();
     expect(mocks.publishDeptColumnDraft).not.toHaveBeenCalled();
   });
@@ -205,7 +231,7 @@ describe('SET-034 localized Schema Shadow Preview', () => {
   it('keeps the page server-rendered, i18n-backed, shadcn-composed, and wired to the existing publish module', async () => {
     const source = await import('node:fs/promises').then((fs) =>
       fs.readFile(
-        path.join(process.cwd(), 'app/[locale]/(admin)/settings/schema/preview/page.tsx'),
+        path.join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/schema/preview/page.tsx'),
         'utf8',
       ),
     );
@@ -214,7 +240,11 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     expect(source).toContain("getTranslations({ locale, namespace: 'settings.schema_preview' })");
     expect(source).toContain("from '@monopilot/ui/Card'");
     expect(source).toContain("from '@monopilot/ui/Button'");
-    expect(source).toContain("from '../../../../../(settings)/schema/_actions/draft'");
+    expect(source).toContain("from '../../../../../../(settings)/schema/_actions/draft'");
+    const hasRuntimeImport = source.includes("from '../../../../../../../lib/schema/zod-runtime'");
+    const hasHardcodedDraftRows = source.includes('const DRAFT_COLUMNS');
+    expect(hasRuntimeImport, 'page must consume the shared zod runtime schema helper').toBe(true);
+    expect(hasHardcodedDraftRows, 'preview must not duplicate draft rows in page source').toBe(false);
     expect(source).not.toContain('import(/* @vite-ignore */');
   });
 });
