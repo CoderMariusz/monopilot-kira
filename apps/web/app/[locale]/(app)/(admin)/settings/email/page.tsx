@@ -77,13 +77,6 @@ function buildLabelsFromTranslations(t: (key: string) => string): Labels {
   }, {} as Labels);
 }
 
-async function defaultTestSend(input: TestSendInput): Promise<TestSendResult> {
-  'use server';
-
-  void input;
-  return { ok: false, error: DEFAULT_LABELS.testSendError };
-}
-
 export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as EmailTemplatesPageProps;
   const labels = buildLabelsFromTranslations(await getTranslations('settings.email_templates'));
@@ -115,7 +108,7 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
       providerSettings={providerSettings}
       templates={templates}
       state={state}
-      testSend={failClosedTestSend ?? defaultTestSend}
+      testSend={failClosedTestSend}
     />
   );
 }

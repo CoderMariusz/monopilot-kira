@@ -12,11 +12,6 @@ import SettingsImportExportScreen, {
   type EntityKey,
 } from './import-export-screen.client';
 
-type EntityDefinition = Omit<SettingsImportExportEntity, 'label' | 'referenceHandoffHref'> & {
-  labelKey: keyof ImportExportLabels['entities'];
-  referenceHandoffPath?: string;
-};
-
 type ImportExportPageProps = {
   params?: Promise<{ locale: string }>;
   entities?: SettingsImportExportEntity[];
@@ -26,80 +21,6 @@ type ImportExportPageProps = {
   exportSettingsEntity?: ExportSettingsEntity;
   preflightAuthorizationPolicyImport?: PreflightAuthorizationPolicyImport;
 };
-
-const DEFAULT_ENTITY_DEFINITIONS: EntityDefinition[] = [
-  {
-    key: 'users',
-    labelKey: 'users',
-    importSupported: true,
-    exportSupported: true,
-    requiredPermissions: ['settings.users.invite'],
-    templateAvailable: true,
-    processingMode: 'sync',
-    auditRequired: true,
-  },
-  {
-    key: 'roles',
-    labelKey: 'roles',
-    importSupported: true,
-    exportSupported: true,
-    requiredPermissions: ['settings.roles.assign'],
-    templateAvailable: true,
-    processingMode: 'sync',
-    auditRequired: true,
-  },
-  {
-    key: 'invitations',
-    labelKey: 'invitations',
-    importSupported: false,
-    exportSupported: true,
-    requiredPermissions: ['settings.users.invite'],
-    templateAvailable: false,
-    processingMode: 'sync',
-    auditRequired: true,
-  },
-  {
-    key: 'reference_tables',
-    labelKey: 'referenceTables',
-    importSupported: true,
-    exportSupported: true,
-    requiredPermissions: ['settings.reference.edit'],
-    templateAvailable: true,
-    processingMode: 'sync',
-    auditRequired: true,
-    referenceHandoffPath: '/settings/reference/allergens_reference/import',
-  },
-  {
-    key: 'infrastructure',
-    labelKey: 'infrastructure',
-    importSupported: false,
-    exportSupported: true,
-    requiredPermissions: ['settings.infrastructure.manage'],
-    templateAvailable: false,
-    processingMode: 'async',
-    auditRequired: true,
-  },
-  {
-    key: 'feature_flags',
-    labelKey: 'featureFlags',
-    importSupported: true,
-    exportSupported: true,
-    requiredPermissions: ['settings.flags.edit'],
-    templateAvailable: true,
-    processingMode: 'async',
-    auditRequired: true,
-  },
-  {
-    key: 'authorization_policies',
-    labelKey: 'authorizationPolicies',
-    importSupported: true,
-    exportSupported: true,
-    requiredPermissions: ['settings.authorization.edit'],
-    templateAvailable: true,
-    processingMode: 'async',
-    auditRequired: true,
-  },
-];
 
 async function defaultExportSettingsEntity(input: { entity: EntityKey; format: ExportFormat }) {
   'use server';
@@ -112,103 +33,6 @@ async function defaultExportSettingsEntity(input: { entity: EntityKey; format: E
     ok: true as const,
     downloadHref: result.data.job.download?.url ?? `/api/settings/import-export/jobs/${result.data.job.id}`,
   };
-}
-
-async function defaultPreflightAuthorizationPolicyImport() {
-  'use server';
-
-  return { ok: false as const, blockers: ['preflight_unavailable'] };
-}
-
-function withLocale(locale: string, path: string) {
-  const normalizedLocale = locale || 'en';
-  return `/${normalizedLocale}${path}`;
-}
-
-function buildDefaultEntities(labels: ImportExportLabels, locale: string): SettingsImportExportEntity[] {
-  return DEFAULT_ENTITY_DEFINITIONS.map(({ labelKey, referenceHandoffPath, ...definition }) => ({
-    ...definition,
-    label: labels.entities[labelKey],
-    referenceHandoffHref: referenceHandoffPath ? withLocale(locale, referenceHandoffPath) : undefined,
-  }));
-}
-
-function DisabledAuthorizationPolicyPreflight({
-  entities,
-  labels,
-}: {
-  entities: SettingsImportExportEntity[];
-  labels: ImportExportLabels;
-}) {
-  return (
-    <main
-      data-testid="settings-import-export-screen"
-      data-route="/settings/import-export"
-      data-ux-source="SET-029"
-      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
-      className="space-y-4 p-6 text-slate-950"
-    >
-      <header data-region="page-head" className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{labels.eyebrow}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
-        <p className="max-w-3xl text-sm text-slate-600">{labels.subtitle}</p>
-      </header>
-
-      <label className="block text-sm font-medium text-slate-700" htmlFor="settings-import-export-entity">
-        {labels.entityLabel}
-      </label>
-      <select
-        id="settings-import-export-entity"
-        aria-label={labels.entityLabel}
-        defaultValue="authorization_policies"
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-      >
-        {entities.map((entity) => (
-          <option key={entity.key} value={entity.key}>
-            {entity.label} {entity.requiredPermissions.join(', ')}
-          </option>
-        ))}
-      </select>
-
-      <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-        {labels.importCard.preflightUnavailable}
-      </div>
-
-      <section
-        role="region"
-        aria-labelledby="settings-import-card-title"
-        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-      >
-        <h2 id="settings-import-card-title" className="text-lg font-semibold">{labels.importCard.title}</h2>
-        <label
-          htmlFor="settings-import-export-csv-file"
-          className="mt-4 block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600"
-        >
-          <span className="mt-2 block font-medium">{labels.importCard.dropzone}</span>
-          <span className="mt-1 block text-xs text-slate-500">{labels.importCard.fileLimit}</span>
-          <input
-            id="settings-import-export-csv-file"
-            aria-label={labels.importCard.fileAria}
-            type="file"
-            accept=".csv,text/csv"
-            className="sr-only"
-          />
-        </label>
-        <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="settings-import-export-audit-reason">
-          {labels.importCard.auditReason}
-        </label>
-        <textarea
-          id="settings-import-export-audit-reason"
-          aria-label={labels.importCard.auditReason}
-          className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          placeholder={labels.importCard.auditReasonPlaceholder}
-        />
-        <button type="button" className="mt-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium" disabled>
-          {labels.importCard.runDryRun}
-        </button>
-      </section>
-    </main>
-  );
 }
 
 async function buildLabels(locale: string): Promise<ImportExportLabels> {
@@ -340,10 +164,6 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
       }
     : undefined;
 
-  if (hasInjectedEntities && !hasReviewedAuthorizationPreflight) {
-    return <DisabledAuthorizationPolicyPreflight entities={entities} labels={labels} />;
-  }
-
   return (
     <SettingsImportExportScreen
       entities={entities}
@@ -351,7 +171,7 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
       recentJobs={propsInput.recentJobs ?? []}
       state={propsInput.state ?? (hasInjectedEntities ? 'ready' : 'empty')}
       exportSettingsEntity={propsInput.exportSettingsEntity ?? defaultExportSettingsEntity}
-      preflightAuthorizationPolicyImport={failClosedAuthorizationPreflight ?? defaultPreflightAuthorizationPolicyImport}
+      preflightAuthorizationPolicyImport={failClosedAuthorizationPreflight}
       labels={screenLabels}
     />
   );
