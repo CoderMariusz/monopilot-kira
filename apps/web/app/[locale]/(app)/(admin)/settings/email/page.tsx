@@ -1,14 +1,15 @@
+'use client';
+
 import React from 'react';
-import { getTranslations } from 'next-intl/server';
+import { useTranslations } from 'next-intl';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
+import Modal from '@monopilot/ui/Modal';
 import { Select, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
-export const dynamic = 'force-dynamic';
 
 type EmailProvider = 'Resend' | 'Postmark' | 'SES';
 
@@ -151,21 +152,16 @@ function interpolate(label: string, values: Record<string, string | number>) {
   return label.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
 }
 
-async function buildLabels(locale: string): Promise<Labels> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'settings.email_templates' });
-    return LABEL_KEYS.reduce((labels, key) => {
-      try {
-        const translated = t(key);
-        labels[key] = translated && translated !== key ? translated : DEFAULT_LABELS[key];
-      } catch {
-        labels[key] = DEFAULT_LABELS[key];
-      }
-      return labels;
-    }, {} as Labels);
-  } catch {
-    return { ...DEFAULT_LABELS };
-  }
+function buildLabelsFromTranslations(t: (key: string) => string): Labels {
+  return LABEL_KEYS.reduce((labels, key) => {
+    try {
+      const translated = t(key);
+      labels[key] = translated && translated !== key ? translated : DEFAULT_LABELS[key];
+    } catch {
+      labels[key] = DEFAULT_LABELS[key];
+    }
+    return labels;
+  }, {} as Labels);
 }
 
 async function defaultTestSend(input: TestSendInput): Promise<TestSendResult> {
@@ -173,10 +169,9 @@ async function defaultTestSend(input: TestSendInput): Promise<TestSendResult> {
   return { ok: true, message_id: 'not_configured' };
 }
 
-export default async function EmailTemplatesPage(propsInput: unknown = {}) {
+export default function EmailTemplatesPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as EmailTemplatesPageProps;
-  const { locale } = props.params ? await props.params : { locale: 'en' };
-  const labels = await buildLabels(locale);
+  const labels = buildLabelsFromTranslations(useTranslations('settings.email_templates'));
   const providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
   const templates = props.templates ?? DEFAULT_TEMPLATES;
   const state: PageState = props.state ?? (templates.length === 0 ? 'empty' : 'ready');
@@ -223,7 +218,8 @@ function EmailTemplatesScreen({
     if (result.ok) {
       setToast({ tone: 'success', text: interpolate(labels.sent, { messageId: result.message_id }) });
     } else {
-      setToast({ tone: 'error', text: result.error || labels.testSendError });
+      const errorText = 'error' in result ? result.error : labels.testSendError;
+      setToast({ tone: 'error', text: errorText || labels.testSendError });
     }
   }
 
@@ -460,29 +456,24 @@ function TemplatesTable({
 function TemplateDialog({ labels, template, onClose }: { labels: Labels; template: EmailTemplate | null; onClose: () => void }) {
   const title = template ? interpolate(labels.editEmailTemplate, { code: template.code }) : labels.newEmailTemplate;
   return (
-    <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-email-template-dialog-title"
-        data-modal-id="SM-04"
-        data-slot="dialog-content"
-        className="w-[520px] rounded-lg bg-white shadow-2xl"
-      >
+    <Modal open onOpenChange={(open) => { if (!open) onClose(); }} size="md" modalId="SM-04">
+      <div className="w-[520px] rounded-lg bg-white shadow-2xl">
         <div className="border-b border-slate-200 px-5 py-4">
-          <h2 id="settings-email-template-dialog-title" className="text-base font-semibold text-slate-950">
-            {title}
-          </h2>
+          <Modal.Header title={title} />
         </div>
-        <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
-          <p>{template ? template.name : labels.emptyBody}</p>
-        </div>
-        <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
-          <Button type="button" className="btn-secondary" onClick={onClose}>
-            {labels.close}
-          </Button>
-        </div>
+        <Modal.Body>
+          <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
+            <p>{template ? template.name : labels.emptyBody}</p>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
+            <Button type="button" className="btn-secondary" onClick={onClose}>
+              {labels.close}
+            </Button>
+          </div>
+        </Modal.Footer>
       </div>
-    </div>
+    </Modal>
   );
 }

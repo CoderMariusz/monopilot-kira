@@ -12,6 +12,51 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@monopilot/ui/Modal', async () => {
+  const ReactModule = await import('react');
+
+  function Modal({
+    children,
+    modalId,
+    onOpenChange,
+    open,
+  }: {
+    children: React.ReactNode;
+    modalId?: string;
+    onOpenChange: (open: boolean) => void;
+    open: boolean;
+  }) {
+    ReactModule.useEffect(() => {
+      if (!open) return undefined;
+      const closeOnEscape = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') onOpenChange(false);
+      };
+      document.addEventListener('keydown', closeOnEscape);
+      return () => document.removeEventListener('keydown', closeOnEscape);
+    }, [onOpenChange, open]);
+
+    if (!open) return null;
+
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-email-template-dialog-title"
+        data-focus-trap="radix-dialog"
+        data-modal-id={modalId}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  Modal.Header = ({ title }: { title: string }) => <h2 id="settings-email-template-dialog-title">{title}</h2>;
+  Modal.Body = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  Modal.Footer = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+
+  return { default: Modal };
+});
+
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
@@ -24,38 +69,51 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
+const emailTemplateLabels: Record<string, string> = {
+  title: 'Email templates',
+  subtitle: 'Trigger-driven transactional templates consumed by Planning, Shipping, QA.',
+  testSend: 'Test send…',
+  newTemplate: '+ New template',
+  providerTitle: 'Provider',
+  providerSubtitle: 'SMTP / API provider used to send all Monopilot transactional mail.',
+  provider: 'Provider',
+  apiKey: 'API key',
+  rotate: 'Rotate',
+  fromEmail: 'From email',
+  fromName: 'From name',
+  templatesTitle: 'Templates ({count})',
+  triggerCode: 'Trigger code',
+  name: 'Name',
+  consumer: 'Consumer',
+  subjectPreview: 'Subject preview',
+  active: 'Active',
+  edit: 'Edit →',
+  emptyTitle: 'No email templates yet',
+  emptyBody:
+    'Create a template to customize the emails Monopilot sends for POs, approvals, overdue reminders, and more.',
+  variablesReference:
+    'Variables reference: open Email variables in the left nav for the full merge-field picker used inside each template body.',
+  loading: 'Loading email templates…',
+  error: 'Unable to load email template settings.',
+  permissionDenied: 'You do not have permission to manage email templates.',
+  sent: 'Probe sent — message_id {messageId}',
+  testSendError: 'Unable to send probe email.',
+  newEmailTemplate: 'New email template',
+  editEmailTemplate: 'Edit template {code}',
+  createEmailTemplate: 'Create email template',
+  close: 'Close',
+};
+
+function tEmailTemplate(key: string, values?: Record<string, string | number>) {
+  return (emailTemplateLabels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+}
+
 vi.mock('next-intl/server', () => ({
-  getTranslations: vi.fn(async () => (key: string, values?: Record<string, string | number>) => {
-    const labels: Record<string, string> = {
-      title: 'Email templates',
-      subtitle: 'Trigger-driven transactional templates consumed by Planning, Shipping, QA.',
-      testSend: 'Test send…',
-      newTemplate: '+ New template',
-      providerTitle: 'Provider',
-      providerSubtitle: 'SMTP / API provider used to send all Monopilot transactional mail.',
-      provider: 'Provider',
-      apiKey: 'API key',
-      rotate: 'Rotate',
-      fromEmail: 'From email',
-      fromName: 'From name',
-      templatesTitle: 'Templates ({count})',
-      triggerCode: 'Trigger code',
-      name: 'Name',
-      consumer: 'Consumer',
-      subjectPreview: 'Subject preview',
-      active: 'Active',
-      edit: 'Edit →',
-      emptyTitle: 'No email templates yet',
-      emptyBody:
-        'Create a template to customize the emails Monopilot sends for POs, approvals, overdue reminders, and more.',
-      variablesReference:
-        'Variables reference: open Email variables in the left nav for the full merge-field picker used inside each template body.',
-      loading: 'Loading email templates…',
-      error: 'Unable to load email template settings.',
-      sent: 'Probe sent — message_id {messageId}',
-    };
-    return (labels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
-  }),
+  getTranslations: vi.fn(async () => tEmailTemplate),
+}));
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => tEmailTemplate,
 }));
 
 type EmailProviderSettings = {
@@ -313,7 +371,7 @@ describe('SET-090 email_templates_screen prototype parity', () => {
 
     const newDialog = await screen.findByRole('dialog', { name: /new email template/i });
     expect(newDialog).toHaveAttribute('data-modal-id', 'SM-04');
-    expect(newDialog).toHaveAttribute('data-slot', 'dialog-content');
+    expect(newDialog).toHaveAttribute('data-focus-trap', 'radix-dialog');
     assertModalA11y(newDialog, /new email template/i);
 
     await user.click(within(newDialog).getByRole('button', { name: /close|cancel/i }));
