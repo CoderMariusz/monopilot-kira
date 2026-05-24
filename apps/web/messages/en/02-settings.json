@@ -181,7 +181,18 @@
     "disable_flag": "Disable flag",
     "sync_from_provider": "Sync from provider",
     "provider_unavailable": "Feature flag provider is unavailable.",
-    "cache_window": "Provider values are cached for 60 seconds."
+    "cache_window": "Provider values are cached for 60 seconds.",
+    "quality": {
+      "require_grn_qc_inspection": {
+        "title": "Require GRN QC inspection",
+        "description": "Inbound GRNs must pass Quality inspection before stock is released.",
+        "coming_banner": "Quality module enforcement is coming soon; this flag only records the setting.",
+        "on_label": "Inspection required",
+        "off_label": "Inspection not required",
+        "read_only": "You need settings.flags.edit to change this flag.",
+        "save_success": "Quality flag saved and audit log recorded."
+      }
+    }
   },
   "d365": {
     "connection_title": "D365 connection",

@@ -181,7 +181,18 @@
     "disable_flag": "Wyłącz flagę",
     "sync_from_provider": "Synchronizuj z dostawcy",
     "provider_unavailable": "Dostawca flag funkcji jest niedostępny.",
-    "cache_window": "Wartości dostawcy są buforowane przez 60 sekund."
+    "cache_window": "Wartości dostawcy są buforowane przez 60 sekund.",
+    "quality": {
+      "require_grn_qc_inspection": {
+        "title": "Wymagaj kontroli jakości GRN",
+        "description": "Przychodzące GRN muszą przejść kontrolę jakości przed zwolnieniem zapasu.",
+        "coming_banner": "Egzekwowanie w module Jakość jest w przygotowaniu; ta flaga tylko zapisuje ustawienie.",
+        "on_label": "Kontrola wymagana",
+        "off_label": "Kontrola niewymagana",
+        "read_only": "Do zmiany tej flagi potrzebujesz settings.flags.edit.",
+        "save_success": "Flaga jakości zapisana, a dziennik audytu zarejestrowany."
+      }
+    }
   },
   "d365": {
     "connection_title": "Połączenie D365",
