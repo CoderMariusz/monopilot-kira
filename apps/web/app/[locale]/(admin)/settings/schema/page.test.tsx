@@ -12,6 +12,8 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-intl/server', () => ({
@@ -56,6 +58,137 @@ vi.mock('next-intl/server', () => ({
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }));
+
+vi.mock('@monopilot/ui/Button', async () => {
+  const React = await import('react');
+  return {
+    Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
+      React.createElement('button', { type: 'button', 'data-ui-primitive': 'Button', ...props }, children),
+  };
+});
+
+vi.mock('@monopilot/ui/Badge', async () => {
+  const React = await import('react');
+  return {
+    Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement> & { variant?: string; tone?: string }) =>
+      React.createElement('span', { 'data-ui-primitive': 'Badge', ...props }, children),
+  };
+});
+
+vi.mock('@monopilot/ui/Input', async () => {
+  const React = await import('react');
+  return {
+    Input: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>((props, ref) =>
+      React.createElement('input', { 'data-ui-primitive': 'Input', ...props, ref }),
+    ),
+  };
+});
+
+vi.mock('@monopilot/ui/Card', async () => {
+  const React = await import('react');
+  const div = (name: string) => ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement('div', { 'data-ui-primitive': name, ...props }, children);
+  return {
+    Card: div('Card'),
+    CardHeader: div('CardHeader'),
+    CardContent: div('CardContent'),
+    CardDescription: div('CardDescription'),
+    CardFooter: div('CardFooter'),
+    CardTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) =>
+      React.createElement('h3', { 'data-ui-primitive': 'CardTitle', ...props }, children),
+  };
+});
+
+vi.mock('@monopilot/ui/Table', async () => {
+  const React = await import('react');
+  return {
+    Table: ({ children, ...props }: React.TableHTMLAttributes<HTMLTableElement>) =>
+      React.createElement('table', { 'data-ui-primitive': 'Table', ...props }, children),
+    TableHeader: ({ children, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) =>
+      React.createElement('thead', { 'data-ui-primitive': 'TableHeader', ...props }, children),
+    TableBody: ({ children, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) =>
+      React.createElement('tbody', { 'data-ui-primitive': 'TableBody', ...props }, children),
+    TableRow: ({ children, ...props }: React.HTMLAttributes<HTMLTableRowElement>) =>
+      React.createElement('tr', { 'data-ui-primitive': 'TableRow', ...props }, children),
+    TableHead: ({ children, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) =>
+      React.createElement('th', { 'data-ui-primitive': 'TableHead', ...props }, children),
+    TableCell: ({ children, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) =>
+      React.createElement('td', { 'data-ui-primitive': 'TableCell', ...props }, children),
+  };
+});
+
+vi.mock('@monopilot/ui/Select', async () => {
+  const React = await import('react');
+  type SelectOption = { value: string; label: string; disabled?: boolean };
+  type SelectCtx = { value: string; setValue: (value: string) => void; options: SelectOption[]; disabled: boolean };
+  const Ctx = React.createContext<SelectCtx | null>(null);
+
+  function Select({
+    value,
+    defaultValue,
+    onValueChange,
+    options = [],
+    disabled = false,
+    children,
+    ...props
+  }: {
+    value?: string;
+    defaultValue?: string;
+    onValueChange?: (value: string) => void;
+    options?: SelectOption[];
+    disabled?: boolean;
+    children?: React.ReactNode;
+  } & React.HTMLAttributes<HTMLDivElement>) {
+    const [internal, setInternal] = React.useState(defaultValue ?? value ?? '');
+    const current = value ?? internal;
+    const setValue = (next: string) => {
+      setInternal(next);
+      onValueChange?.(next);
+    };
+    return React.createElement(
+      Ctx.Provider,
+      { value: { value: current, setValue, options, disabled } },
+      React.createElement('div', { 'data-ui-primitive': 'Select', ...props }, children),
+    );
+  }
+
+  function SelectTrigger({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+    const ctx = React.useContext(Ctx);
+    return React.createElement(
+      'button',
+      { type: 'button', role: 'combobox', 'aria-expanded': 'false', disabled: ctx?.disabled, 'data-ui-primitive': 'SelectTrigger', ...props },
+      children,
+    );
+  }
+
+  function SelectValue({ placeholder }: { placeholder?: string }) {
+    const ctx = React.useContext(Ctx);
+    const label = ctx?.options.find((option) => option.value === ctx.value)?.label ?? ctx?.value ?? placeholder ?? '';
+    return React.createElement('span', { 'data-ui-primitive': 'SelectValue' }, label);
+  }
+
+  function SelectContent({ children }: { children?: React.ReactNode }) {
+    return React.createElement('div', { role: 'listbox', 'data-ui-primitive': 'SelectContent' }, children);
+  }
+
+  function SelectItem({ value, disabled, children }: { value: string; disabled?: boolean; children?: React.ReactNode }) {
+    const ctx = React.useContext(Ctx);
+    return React.createElement(
+      'div',
+      {
+        role: 'option',
+        tabIndex: disabled ? -1 : 0,
+        'aria-disabled': disabled || undefined,
+        'aria-selected': ctx?.value === value,
+        'data-ui-primitive': 'SelectItem',
+        onClick: () => !disabled && ctx?.setValue(value),
+      },
+      children,
+    );
+  }
+
+  return { Select, SelectTrigger, SelectValue, SelectContent, SelectItem };
+});
 
 type SchemaColumnTier = 'L1' | 'L2' | 'L3' | 'L4';
 type UserRole = 'Admin' | 'Operator' | 'Viewer';
@@ -209,6 +342,17 @@ function assertModalA11y(dialog: HTMLElement) {
   expect(dialog).toHaveAttribute('aria-modal', 'true');
   expect(dialog).toHaveAccessibleName(/column/i);
   expect(within(dialog).getByRole('button', { name: /close/i })).toBeInTheDocument();
+}
+
+function repoPath(...segments: string[]) {
+  const cwd = process.cwd();
+  const repoRoot = cwd.endsWith(`${path.sep}apps${path.sep}web`) ? path.resolve(cwd, '../..') : cwd;
+  return path.join(repoRoot, ...segments);
+}
+
+function readRequiredJson(filePath: string) {
+  expect(existsSync(filePath), `${filePath} must exist as SET-030 UI parity evidence`).toBe(true);
+  return JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 }
 
 describe('SET-030 schema browser prototype parity', () => {
@@ -399,5 +543,62 @@ describe('SET-030 schema browser prototype parity', () => {
     expect(screen.getByText('1 columns')).toBeInTheDocument();
     expect(bodyRows()).toHaveLength(1);
     expect(screen.getByText('pack_weight_kg')).toBeInTheDocument();
+  });
+
+  it('uses real @monopilot/ui primitives rather than data-slot HTML fakes for SET-030 controls and table chrome', async () => {
+    await renderSchemaPage();
+
+    const requiredPrimitives = ['Button', 'Badge', 'Card', 'CardHeader', 'CardContent', 'Table', 'TableHeader', 'TableBody', 'TableRow', 'TableHead', 'TableCell', 'Select', 'SelectTrigger', 'SelectContent', 'SelectItem', 'Input'];
+    for (const primitive of requiredPrimitives) {
+      expect(
+        document.querySelector(`[data-ui-primitive="${primitive}"]`),
+        `SET-030 must render @monopilot/ui/${primitive}; data-slot-only HTML fakes are not sufficient`,
+      ).toBeInTheDocument();
+    }
+  });
+
+  it('keeps the interactive schema browser client island as TSX/JSX, not a .ts createElement workaround', () => {
+    const clientDir = repoPath('apps/web/app/[locale]/(app)/(admin)/settings/schema');
+    const tsxClient = path.join(clientDir, 'schema-browser-screen.client.tsx');
+    const tsClient = path.join(clientDir, 'schema-browser-screen.client.ts');
+
+    expect(existsSync(tsxClient), 'Schema browser client island must be a .tsx file so production UI can use JSX like sibling settings pages').toBe(true);
+    expect(existsSync(tsClient), 'Do not keep the .ts createElement client workaround once the TSX dynamic-import infra is fixed').toBe(false);
+
+    const source = readFileSync(tsxClient, 'utf8');
+    expect(source).not.toMatch(/createElement\s+as\s+h|React\.createElement\(/);
+  });
+
+  it('publishes fail-closed UI parity artifacts for the real /en/settings/schema route', () => {
+    const evidenceDir = repoPath('apps/web/e2e/parity-evidence/SET-030');
+    const parityReport = readRequiredJson(path.join(evidenceDir, 'parity_report.json'));
+    const domDiff = readRequiredJson(path.join(evidenceDir, 'dom_diff.json'));
+
+    expect(parityReport).toMatchObject({
+      prototype_route: 'prototype-index-settings:schema_browser_screen',
+      target_route: '/en/settings/schema',
+      status: 'pass',
+    });
+    expect(parityReport.viewports).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'desktop-1440', width: 1440, height: 900 }),
+        expect.objectContaining({ name: 'desktop-1280', width: 1280, height: 800 }),
+      ]),
+    );
+    expect(parityReport.region_selectors).toEqual(
+      expect.objectContaining({
+        root: "[data-testid='settings-schema-browser-screen']",
+        app_shell: "[data-testid='app-shell']",
+        app_topbar: "[data-testid='app-topbar']",
+        app_sidebar: "[data-testid='app-sidebar']",
+      }),
+    );
+    expect(parityReport.screenshot_pairs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ viewport: 'desktop-1440', region: 'root' }),
+        expect.objectContaining({ viewport: 'desktop-1280', region: 'root' }),
+      ]),
+    );
+    expect(domDiff).toEqual(expect.objectContaining({ target_route: '/en/settings/schema', status: 'pass' }));
   });
 });
