@@ -8,6 +8,8 @@
  * behavior assertions instead of module-resolution noise.
  */
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -252,12 +254,36 @@ describe('SET-016 machine list behavior', () => {
     vi.clearAllMocks();
   });
 
-  it('renders 5 machine rows inside AppShell with status indicators and 4-segment ltree breadcrumbs', async () => {
+  it('uses a server page for i18n/data and a real client island for interactive controls', () => {
+    const pageSource = readFileSync(
+      path.join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/infra/machines/page.tsx'),
+      'utf8',
+    );
+    const clientSource = readFileSync(
+      path.join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/infra/machines/machines-list-screen.client.tsx'),
+      'utf8',
+    );
+
+    expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.infra_machines' })");
+    expect(pageSource).toContain("from './machines-list-screen.client'");
+    expect(pageSource).toContain('withOrgContext');
+    expect(pageSource).not.toContain('React.useState');
+    expect(pageSource).not.toContain('document.querySelector');
+    expect(pageSource).not.toContain('data-testid=\"app-shell\"');
+    expect(pageSource).not.toContain("data-testid': 'app-shell'");
+
+    expect(clientSource).toContain("'use client';");
+    expect(clientSource).toContain("from '@monopilot/ui/Badge'");
+    expect(clientSource).toContain("from '@monopilot/ui/Table'");
+    expect(clientSource).toContain("from '@monopilot/ui/Select'");
+    expect(clientSource).toContain("from '@monopilot/ui/Button'");
+    expect(clientSource).toContain("from '@monopilot/ui/Checkbox'");
+    expect(clientSource).not.toContain('document.querySelector');
+  });
+
+  it('renders 5 machine rows with status indicators and 4-segment ltree breadcrumbs', async () => {
     await renderMachinesPage();
 
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('app-topbar')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^machines$/i })).toBeInTheDocument();
     expect(machineRows()).toHaveLength(5);
 
