@@ -31,6 +31,18 @@ export type D365SyncLabels = {
   save: string;
   saved: string;
   forbiddenTitle: string;
+  sections: {
+    polling: string;
+    retry: string;
+    dlq: string;
+  };
+  fields: {
+    pullCron: string;
+    batchSize: string;
+    pushQueue: string;
+    maxAttempts: string;
+    retryBackoff: string;
+  };
 };
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-107';
@@ -212,9 +224,9 @@ export function D365SyncConfigForm({
     if (!next.success) return;
     setPending(true);
     try {
-      const result = await updateD365SyncConfig?.(next.data);
+      const result = await updateD365SyncConfig?.(next.data as UpdateD365SyncConfigInput);
       if (!result || result.ok) setStatus(labels.saved);
-      else setActionError(result.message);
+      else if (result.ok === false) setActionError(result.message);
     } finally {
       setPending(false);
     }
@@ -250,19 +262,19 @@ export function D365SyncConfigForm({
       </div>
 
       <form id="d365-sync-config-form" onSubmit={onSubmit} className="space-y-4">
-        <Section title="Polling & sync">
+        <Section title={labels.sections.polling}>
           <Field
             field="pull_cron"
-            label="Pull schedule (cron)"
-            hint="Standard 5-field cron. Example: '0 * * * *' = hourly."
+            label={labels.fields.pullCron}
+            hint="Use a valid 5-field cron expression."
             error={cronError}
           >
             <label className="sr-only" htmlFor="d365-pull-cron">
-              Pull schedule cron
+              {labels.fields.pullCron}
             </label>
             <Input
               id="d365-pull-cron"
-              aria-label="Pull schedule cron"
+              aria-label={labels.fields.pullCron}
               className="font-mono"
               value={pullCron}
               onChange={(event) => setPullCron(event.currentTarget.value)}
@@ -273,10 +285,10 @@ export function D365SyncConfigForm({
               {nextRunPreview(pullCron, locale)}
             </p>
           </Field>
-          <Field field="batch_size" label="Batch size" hint="Records pulled or pushed per worker batch.">
+          <Field field="batch_size" label={labels.fields.batchSize} hint="Records pulled or pushed per worker batch.">
             <Input
               id="d365-batch-size"
-              aria-label="Batch size"
+              aria-label={labels.fields.batchSize}
               type="number"
               min={1}
               max={1000}
@@ -285,19 +297,19 @@ export function D365SyncConfigForm({
               style={{ width: 120 }}
             />
           </Field>
-          <Field field="push_queue_enabled" label="Push queue" hint="Enqueues outbound MES changes for D365 export-only sync.">
+          <Field field="push_queue_enabled" label={labels.fields.pushQueue} hint="Enqueues outbound MES changes for D365 export-only sync.">
             <div className="flex items-center gap-3">
-              <Switch aria-label="Push queue" checked={pushQueueEnabled} onCheckedChange={setPushQueueEnabled} />
+              <Switch aria-label={labels.fields.pushQueue} checked={pushQueueEnabled} onCheckedChange={setPushQueueEnabled} />
               <Badge variant={pushQueueEnabled ? 'success' : 'muted'}>{pushQueueEnabled ? 'Enabled' : 'Disabled'}</Badge>
             </div>
           </Field>
         </Section>
 
-        <Section title="Retry policy">
-          <Field field="max_attempts" label="Max attempts" hint="Worker retries before moving the item to the dead-letter queue.">
+        <Section title={labels.sections.retry}>
+          <Field field="max_attempts" label={labels.fields.maxAttempts} hint="Worker retries before moving the item to the dead-letter queue.">
             <Input
               id="d365-max-attempts"
-              aria-label="Max attempts"
+              aria-label={labels.fields.maxAttempts}
               type="number"
               min={1}
               max={20}
@@ -306,10 +318,10 @@ export function D365SyncConfigForm({
               style={{ width: 120 }}
             />
           </Field>
-          <Field field="retry_backoff_minutes" label="Retry backoff" hint="Minutes between retry attempts.">
+          <Field field="retry_backoff_minutes" label={labels.fields.retryBackoff} hint="Minutes between retry attempts.">
             <Input
               id="d365-retry-backoff"
-              aria-label="Retry backoff"
+              aria-label={labels.fields.retryBackoff}
               type="number"
               min={1}
               max={1440}
@@ -320,7 +332,7 @@ export function D365SyncConfigForm({
           </Field>
         </Section>
 
-        <Section title="Dead-letter queue">
+        <Section title={labels.sections.dlq}>
           <div className="py-4 text-sm text-slate-700">
             Items that exceed the retry policy are visible in the worker-owned DLQ tooling.{' '}
             <a className="font-medium text-blue-700 underline" href={config.dlq_href}>

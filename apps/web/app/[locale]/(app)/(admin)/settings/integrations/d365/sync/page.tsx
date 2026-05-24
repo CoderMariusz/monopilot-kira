@@ -55,21 +55,33 @@ export default async function D365SyncPage({
 }: D365SyncPageProps) {
   const resolvedParams = await params;
   const locale = resolvedParams?.locale ?? 'en';
-  const t = await getTranslations();
+  const t = await getTranslations('settings');
   const labels: D365SyncLabels = {
-    title: label('settings.integrations.d365.sync.title', t('settings.integrations.d365.sync.title'), 'D365 sync config'),
+    title: label('d365.sync.title', t('d365.sync.title'), 'D365 sync config'),
     subtitle: label(
-      'settings.integrations.d365.sync.subtitle',
-      t('settings.integrations.d365.sync.subtitle'),
+      'd365.sync.subtitle',
+      t('d365.sync.subtitle'),
       'Pull schedule, push queue, retry policy, and dead-letter queue access.',
     ),
-    save: label('settings.integrations.d365.sync.save', t('settings.integrations.d365.sync.save'), 'Save sync config'),
-    saved: label('settings.integrations.d365.sync.saved', t('settings.integrations.d365.sync.saved'), 'D365 sync config saved'),
+    save: label('d365.sync.save', t('d365.sync.save'), 'Save sync config'),
+    saved: label('d365.sync.saved', t('d365.sync.saved'), 'D365 sync config saved'),
     forbiddenTitle: label(
-      'settings.integrations.d365.sync.forbiddenTitle',
-      t('settings.integrations.d365.sync.forbiddenTitle'),
+      'd365.sync.forbiddenTitle',
+      t('d365.sync.forbiddenTitle'),
       '403 — Owner access required',
     ),
+    sections: {
+      polling: label('d365.sync.sections.polling', t('d365.sync.sections.polling'), 'Polling & sync'),
+      retry: label('d365.sync.sections.retry', t('d365.sync.sections.retry'), 'Retry policy'),
+      dlq: label('d365.sync.sections.dlq', t('d365.sync.sections.dlq'), 'Dead-letter queue'),
+    },
+    fields: {
+      pullCron: label('d365.sync.fields.pullCron', t('d365.sync.fields.pullCron'), 'Pull schedule cron'),
+      batchSize: label('d365.sync.fields.batchSize', t('d365.sync.fields.batchSize'), 'Batch size'),
+      pushQueue: label('d365.sync.fields.pushQueue', t('d365.sync.fields.pushQueue'), 'Push queue'),
+      maxAttempts: label('d365.sync.fields.maxAttempts', t('d365.sync.fields.maxAttempts'), 'Max attempts'),
+      retryBackoff: label('d365.sync.fields.retryBackoff', t('d365.sync.fields.retryBackoff'), 'Retry backoff'),
+    },
   };
 
   if (callerRole !== 'owner') return <Forbidden labels={labels} />;

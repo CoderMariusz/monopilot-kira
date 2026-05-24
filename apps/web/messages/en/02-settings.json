@@ -197,7 +197,13 @@
     "view_history": "View history",
     "diff_previous": "Diff against previous version",
     "delete_confirm": "Type the reference code to confirm deletion.",
-    "formula_safe_export": "CSV export is protected against spreadsheet formula injection."
+    "formula_safe_export": "CSV export is protected against spreadsheet formula injection.",
+    "import": {
+      "title": "CSV Import Wizard",
+      "subtitle": "Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.",
+      "dropzone": "Drop your CSV file here or click to browse.",
+      "downloadTemplate": "Download Template CSV"
+    }
   },
   "tenant": {
     "variations_title": "Tenant variations",
@@ -350,7 +356,37 @@
     "manual_retry": "Manual retry",
     "connection_succeeded": "Connection test succeeded.",
     "connection_failed": "Connection test failed.",
-    "export_only_notice": "D365 is export-only for MES data."
+    "export_only_notice": "D365 is export-only for MES data.",
+    "sync": {
+      "title": "D365 sync config",
+      "subtitle": "Pull schedule, push queue, retry policy, and dead-letter queue access.",
+      "save": "Save sync config",
+      "saved": "D365 sync config saved",
+      "forbiddenTitle": "403 — Owner access required",
+      "sections": {
+        "polling": "Polling & sync",
+        "retry": "Retry policy",
+        "dlq": "Dead-letter queue"
+      },
+      "fields": {
+        "pullCron": "Pull schedule cron",
+        "batchSize": "Batch size",
+        "pushQueue": "Push queue",
+        "maxAttempts": "Max attempts",
+        "retryBackoff": "Retry backoff"
+      }
+    },
+    "connection": {
+      "sections": {
+        "endpoint": "Endpoint"
+      },
+      "fields": {
+        "baseUrl": "Base URL"
+      },
+      "dialog": {
+        "testTitle": "Test D365 connection"
+      }
+    }
   },
   "email": {
     "templates_title": "Email templates",

@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,13 @@ type ReferenceImportOverrides = {
   initialStep?: 'upload' | 'preview' | 'commit';
 };
 
+type ReferenceImportLabels = {
+  title: string;
+  subtitle: string;
+  dropzone: string;
+  downloadTemplate: string;
+};
+
 type QueryClient = {
   query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
@@ -75,6 +83,10 @@ const FALLBACK_TABLES: Record<string, Omit<ReferenceTable, 'parentHref'>> = {
     ],
   },
 };
+
+function translatedLabel(fullKey: string, translated: string, fallback: string) {
+  return translated && translated !== fullKey ? translated : fallback;
+}
 
 function humanize(value: string) {
   return value
@@ -167,7 +179,7 @@ function Stepper({ activeStep }: { activeStep: 'upload' | 'preview' | 'commit' }
   );
 }
 
-function UploadStep({ table }: { table: ReferenceTable }) {
+function UploadStep({ table, labels }: { table: ReferenceTable; labels: ReferenceImportLabels }) {
   const expectedHeaders = expectedImportHeaders(table.columns).join(', ');
   return h(
     'section',
@@ -177,7 +189,7 @@ function UploadStep({ table }: { table: ReferenceTable }) {
       'div',
       { className: 'rounded-lg border-2 border-dashed bg-slate-50 p-8 text-center' },
       h('div', { className: 'mb-2 text-2xl', 'aria-hidden': 'true' }, '📄'),
-      h('p', { className: 'font-medium' }, 'Drop your CSV file here or click to browse.'),
+      h('p', { className: 'font-medium' }, labels.dropzone),
       h('p', { className: 'text-sm text-slate-600' }, 'Accepted: .csv only · Max 5MB'),
       h('label', { htmlFor: 'reference-csv-file', className: 'sr-only' }, 'CSV file'),
       h('input', { id: 'reference-csv-file', name: 'reference-csv-file', 'aria-label': 'CSV file', type: 'file', accept: '.csv,text/csv', className: 'mt-4' }),
@@ -186,7 +198,7 @@ function UploadStep({ table }: { table: ReferenceTable }) {
     h(
       'div',
       { className: 'flex flex-wrap items-center justify-between gap-3' },
-      h('a', { className: 'btn btn-secondary', href: `${table.parentHref}/import/template.csv` }, 'Download Template CSV'),
+      h('a', { className: 'btn btn-secondary', href: `${table.parentHref}/import/template.csv` }, labels.downloadTemplate),
       h('a', { className: 'btn', href: `${table.parentHref}/import?step=preview` }, 'Preview CSV'),
     ),
   );
@@ -314,6 +326,25 @@ export default async function ReferenceCsvImportPage(props: PageProps) {
   const commitResult = props.commitResult as CommitResult | undefined;
   const resolvedParams = await (props.params ?? Promise.resolve({ locale: 'en', code: referenceTable?.code ?? 'allergens_reference' }));
   const table: ReferenceTable = referenceTable ?? await readReferenceTable(resolvedParams.code, resolvedParams.locale);
+  const t = await getTranslations('settings');
+  const labels: ReferenceImportLabels = {
+    title: translatedLabel('reference.import.title', t('reference.import.title'), 'CSV Import Wizard'),
+    subtitle: translatedLabel(
+      'reference.import.subtitle',
+      t('reference.import.subtitle'),
+      'Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.',
+    ),
+    dropzone: translatedLabel(
+      'reference.import.dropzone',
+      t('reference.import.dropzone'),
+      'Drop your CSV file here or click to browse.',
+    ),
+    downloadTemplate: translatedLabel(
+      'reference.import.downloadTemplate',
+      t('reference.import.downloadTemplate'),
+      'Download Template CSV',
+    ),
+  };
 
   return h(
     'main',
@@ -329,14 +360,14 @@ export default async function ReferenceCsvImportPage(props: PageProps) {
       'header',
       { 'data-region': 'page-head', className: 'space-y-2' },
       h('p', { className: 'text-sm text-slate-500' }, `Settings / Reference tables / ${table.name}`),
-      h('h1', { id: 'reference-csv-import-heading' }, 'CSV Import Wizard'),
-      h('p', { className: 'text-sm text-slate-600' }, 'Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.'),
+      h('h1', { id: 'reference-csv-import-heading' }, labels.title),
+      h('p', { className: 'text-sm text-slate-600' }, labels.subtitle),
     ),
     h(Stepper, { activeStep: initialStep }),
     h(
       'div',
       { className: 'card rounded-lg border bg-white p-4' },
-      initialStep === 'upload' ? h(UploadStep, { table }) : null,
+      initialStep === 'upload' ? h(UploadStep, { table, labels }) : null,
       initialStep === 'preview' ? h(PreviewStep, { preview, columns: table.columns }) : null,
       initialStep === 'commit' ? h(CommitStep, { table, commitResult }) : null,
     ),

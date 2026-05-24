@@ -52,6 +52,16 @@ export type D365Labels = {
   loading: string;
   empty: string;
   error: string;
+  sections?: {
+    endpoint?: string;
+  };
+  fields?: {
+    baseUrl?: string;
+  };
+  dialog?: {
+    testTitle?: string;
+    close?: string;
+  };
 };
 
 type D365ConnectionFormProps = D365ConnectionActions & {
@@ -195,10 +205,12 @@ function TestConnectionDialog({
   open,
   onOpenChange,
   testD365Connection,
+  labels,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   testD365Connection?: D365ConnectionActions['testD365Connection'];
+  labels: D365Labels;
 }) {
   const titleId = 'd365-test-dialog-title';
   React.useEffect(() => {
@@ -233,12 +245,12 @@ function TestConnectionDialog({
       }}
     >
       <h2 id={titleId} className="text-base font-semibold">
-        Test D365 connection
+        {labels.dialog?.testTitle ?? 'Test D365 connection'}
       </h2>
-      <p className="mt-2 text-sm text-slate-700">Running endpoint, Azure AD, and polling pre-flight checks.</p>
+      <p className="mt-2 text-sm text-slate-700">Pre-flight checks are running for the configured endpoint and service account.</p>
       <div className="mt-4 flex justify-end">
         <Button type="button" className="btn-secondary btn-sm" onClick={() => onOpenChange(false)}>
-          Close
+          {labels.dialog?.close ?? 'Close'}
         </Button>
       </div>
     </div>
@@ -302,11 +314,12 @@ function ReadyD365ConnectionForm({
       </div>
 
       <form id="d365-connection-form" onSubmit={onSubmit} className="space-y-4">
-        <Section title="Endpoint">
-          <Field field="baseUrl" label="Base URL" htmlFor="d365-base-url" hint="e.g. https://apex.operations.dynamics.com" error={urlInvalid}>
+        <Section title={labels.sections?.endpoint ?? 'Endpoint'}>
+          <Field field="baseUrl" label={labels.fields?.baseUrl ?? 'Base URL'} htmlFor="d365-base-url" hint="e.g. https://apex.operations.dynamics.com" error={urlInvalid}>
             <Input
               id="d365-base-url"
               type="url"
+              aria-label={labels.fields?.baseUrl ?? 'Base URL'}
               data-slot="input"
               value={baseUrl}
               onChange={(event) => setBaseUrl(event.currentTarget.value)}
@@ -402,7 +415,7 @@ function ReadyD365ConnectionForm({
         </Section>
       </form>
 
-      <TestConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} testD365Connection={testD365Connection} />
+      <TestConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} testD365Connection={testD365Connection} labels={labels} />
       {toast ? (
         <p role="status" aria-live="polite" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           {toast}

@@ -197,7 +197,13 @@
     "view_history": "Zobacz historię",
     "diff_previous": "Porównaj z poprzednią wersją",
     "delete_confirm": "Wpisz kod referencji, aby potwierdzić usunięcie.",
-    "formula_safe_export": "Eksport CSV jest chroniony przed formułami arkuszy kalkulacyjnych."
+    "formula_safe_export": "Eksport CSV jest chroniony przed formułami arkuszy kalkulacyjnych.",
+    "import": {
+      "title": "Kreator importu CSV",
+      "subtitle": "Trzystopniowy import CSV z walidacją nagłówków, podglądem wierszy i audytowanym podsumowaniem zapisu.",
+      "dropzone": "Upuść plik CSV tutaj albo kliknij, aby wybrać.",
+      "downloadTemplate": "Pobierz szablon CSV"
+    }
   },
   "tenant": {
     "variations_title": "Warianty tenantowe",
@@ -350,7 +356,37 @@
     "manual_retry": "Ponów ręcznie",
     "connection_succeeded": "Test połączenia zakończony powodzeniem.",
     "connection_failed": "Test połączenia nie powiódł się.",
-    "export_only_notice": "D365 jest tylko eksportem dla danych MES."
+    "export_only_notice": "D365 jest tylko eksportem dla danych MES.",
+    "sync": {
+      "title": "Konfiguracja synchronizacji D365",
+      "subtitle": "Harmonogram pobierania, kolejka wysyłki, polityka ponowień i dostęp do dead-letter queue.",
+      "save": "Zapisz konfigurację synchronizacji",
+      "saved": "Konfiguracja synchronizacji D365 zapisana",
+      "forbiddenTitle": "403 — wymagany dostęp właściciela",
+      "sections": {
+        "polling": "Pobieranie i synchronizacja",
+        "retry": "Polityka ponowień",
+        "dlq": "Dead-letter queue"
+      },
+      "fields": {
+        "pullCron": "Cron harmonogramu pobierania",
+        "batchSize": "Rozmiar partii",
+        "pushQueue": "Kolejka wysyłki",
+        "maxAttempts": "Maksymalna liczba prób",
+        "retryBackoff": "Odstęp ponowień"
+      }
+    },
+    "connection": {
+      "sections": {
+        "endpoint": "Endpoint"
+      },
+      "fields": {
+        "baseUrl": "Bazowy URL"
+      },
+      "dialog": {
+        "testTitle": "Test połączenia D365"
+      }
+    }
   },
   "email": {
     "templates_title": "Szablony e-mail",
