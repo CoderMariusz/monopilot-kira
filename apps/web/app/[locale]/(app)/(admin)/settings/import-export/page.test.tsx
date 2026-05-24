@@ -13,6 +13,23 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const capturedImportExportScreenProps = vi.hoisted(() => ({
+  last: undefined as undefined | { preflightAuthorizationPolicyImport?: unknown; state?: unknown },
+}));
+
+vi.mock('./import-export-screen.client', async (importOriginal) => {
+  const ReactModule = await import('react');
+  const actual = await importOriginal() as { default: React.ComponentType<Record<string, unknown>> };
+
+  return {
+    ...actual,
+    default: (props: Record<string, unknown>) => {
+      capturedImportExportScreenProps.last = props;
+      return ReactModule.createElement(actual.default, props);
+    },
+  };
+});
+
 const routerPush = vi.fn();
 
 const messages = {
@@ -415,12 +432,28 @@ describe('T-121 import/export AppShell route contract', () => {
     expect(within(hub()).queryByRole('combobox', { name: /settings entity/i })).not.toBeInTheDocument();
     expect(within(hub()).getByRole('status')).toHaveTextContent(/live loader|not configured|unavailable|placeholder/i);
   });
+
+  it('does not pass a default authorization-policy preflight server action into the client leaf without live loader data', async () => {
+    capturedImportExportScreenProps.last = undefined;
+
+    await renderImportExportPageWithoutInjectedData();
+
+    const capturedProps = capturedImportExportScreenProps.last as
+      | { preflightAuthorizationPolicyImport?: unknown; state?: unknown }
+      | undefined;
+    expect(capturedProps, 'Import/export page must render through the real client leaf during this wiring check').toBeTruthy();
+    expect(
+      capturedProps?.preflightAuthorizationPolicyImport,
+      'Unavailable authorization-policy preflight must not be passed as a default server action; it needs a reviewed RBAC/org-scoped backend or a disabled UI path.',
+    ).toBeUndefined();
+  });
 });
 
 describe('T-121 SET-029 Global Import / Export hub', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    capturedImportExportScreenProps.last = undefined;
     window.history.replaceState(null, '', '/en/settings/import-export');
   });
 
@@ -550,7 +583,18 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
 
   it('fail-closes the client authorization-policy preflight control when the action prop is absent', async () => {
     const user = userEvent.setup();
-    const { default: SettingsImportExportScreen } = await import('./import-export-screen.client');
+    const clientModulePath = './import-export-screen.client';
+    const { default: SettingsImportExportScreen } = (await import(/* @vite-ignore */ clientModulePath)) as {
+      default: React.ComponentType<{
+        entities: SettingsImportExportEntity[];
+        visiblePermissions: string[];
+        recentJobs: RecentJob[];
+        state: 'ready' | 'loading' | 'empty' | 'error';
+        labels: typeof clientLabels;
+        exportSettingsEntity: (input: { entity: EntityKey; format: ExportFormat }) => Promise<{ ok: true; downloadHref: string } | { ok: false; message: string }>;
+        preflightAuthorizationPolicyImport?: never;
+      }>;
+    };
 
     render(
       <SettingsImportExportScreen

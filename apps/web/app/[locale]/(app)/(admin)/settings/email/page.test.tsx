@@ -12,6 +12,23 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const capturedEmailScreenProps = vi.hoisted(() => ({
+  last: undefined as undefined | { state?: unknown; testSend?: unknown },
+}));
+
+vi.mock('./email-templates-screen.client', async (importOriginal) => {
+  const ReactModule = await import('react');
+  const actual = await importOriginal() as { default: React.ComponentType<Record<string, unknown>> };
+
+  return {
+    ...actual,
+    default: (props: Record<string, unknown>) => {
+      capturedEmailScreenProps.last = props;
+      return ReactModule.createElement(actual.default, props);
+    },
+  };
+});
+
 vi.mock('@monopilot/ui/Modal', async () => {
   const ReactModule = await import('react');
 
@@ -271,6 +288,7 @@ describe('SET-090 email templates localized AppShell route contract', () => {
 describe('SET-090 email_templates_screen prototype parity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedEmailScreenProps.last = undefined;
     window.history.replaceState(null, '', '/en/settings/email');
   });
 
@@ -445,8 +463,27 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     expect(screen.queryByText(/not_configured/i)).not.toBeInTheDocument();
   });
 
+  it('does not pass a default Test send server action into the client leaf when no reviewed mail backend is wired', async () => {
+    await renderEmailTemplatesPage({ testSend: undefined });
+
+    expect(capturedEmailScreenProps.last, 'Email page must render through the real client leaf during this wiring check').toBeTruthy();
+    expect(
+      capturedEmailScreenProps.last?.testSend,
+      'An unavailable Test send backend must be disabled before the client leaf; passing a default server action keeps a stub reachable instead of proving RBAC/org-scoped implementation.',
+    ).toBeUndefined();
+  });
+
   it('fail-closes the client Test send control when the action prop is absent', async () => {
-    const { default: EmailTemplatesScreen } = await import('./email-templates-screen.client');
+    const clientModulePath = './email-templates-screen.client';
+    const { default: EmailTemplatesScreen } = (await import(/* @vite-ignore */ clientModulePath)) as {
+      default: React.ComponentType<{
+        labels: typeof emailTemplateLabels;
+        providerSettings: EmailProviderSettings;
+        templates: EmailTemplate[];
+        state: 'ready' | 'loading' | 'empty' | 'error';
+        testSend?: never;
+      }>;
+    };
 
     render(
       <EmailTemplatesScreen
