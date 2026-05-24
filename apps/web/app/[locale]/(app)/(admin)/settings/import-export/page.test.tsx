@@ -6,7 +6,7 @@
  * so failures are behavior/route assertions rather than module-resolution noise.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -15,10 +15,113 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const routerPush = vi.fn();
 
+const messages = {
+  eyebrow: 'Settings · SET-029',
+  title: 'Import / Export',
+  subtitle: 'Bulk import and export for Settings entities. Imports are audited, permission-gated, and fail closed for unsupported entities.',
+  permission_denied: 'You do not have permission to view Settings import/export entities.',
+  entity_label: 'Settings entity',
+  states: {
+    loading: 'Loading import/export jobs and entity configuration…',
+    empty: 'No import or export jobs yet.',
+    error: 'Unable to load import/export configuration.',
+    no_rows: 'No job rows to display.',
+  },
+  entities: {
+    users: 'Users',
+    roles: 'Roles',
+    invitations: 'Invitations',
+    reference_tables: 'Reference tables',
+    infrastructure: 'Infrastructure',
+    feature_flags: 'Feature flags',
+    authorization_policies: 'Authorization policies',
+  },
+  capabilities: {
+    import_export: 'Import + export',
+    export_only: 'Export only',
+    import_supported: 'Import supported',
+    export_supported: 'Export supported',
+    template: 'Template',
+    no_template: 'No template',
+    sync: 'Sync',
+    async: 'Async',
+    reference_handoff: 'T-096/T-022 handoff',
+    audit_dry_run_required: 'Audit + dry-run required',
+  },
+  alerts: {
+    unsupported_import: '{entity} is export-only; import is unsupported for this Settings entity. Use export for audit-safe reads.',
+    authorization_policy: 'Authorization policies import requires settings.authorization.edit, audit reason, and successful T-122 dry-run. V-SET-43/V-SET-44 cannot be bypassed by CSV import.',
+  },
+  import_card: {
+    title: 'Import Settings entities',
+    description: 'Upload CSV files, download templates, and route specialized imports through their owned preview flows.',
+    required_permission: 'Required permission',
+    processing: 'Processing',
+    audit: 'Audit',
+    template: 'Template',
+    async_job: 'Async job — you will be notified',
+    synchronous: 'Synchronous',
+    audit_required: 'Audit event required',
+    no_audit_mutation: 'No audit mutation',
+    template_available: 'Template available',
+    no_template: 'No template',
+    download_template: 'Download CSV template',
+    dropzone: 'Drag and drop CSV or click to browse',
+    file_limit: 'Max 10 MB · UTF-8 CSV only',
+    file_aria: 'CSV file',
+    audit_reason: 'Audit reason',
+    audit_reason_placeholder: 'Explain why authorization policy CSV changes are being validated.',
+    run_dry_run: 'Run T-122 dry-run',
+    continue_reference: 'Continue to reference preview',
+    start_import: 'Start import',
+    csv_required: 'CSV file is required before T-122 dry-run.',
+    audit_reason_required: 'Audit reason is required before authorization policy import.',
+    dry_run_passed: 'Dry-run passed — {dryRunId}',
+    dedicated_flow_required: 'This Settings entity requires its dedicated preview/commit flow before import can proceed.',
+    preflight_unavailable: 'T-122 preflight service is not configured for this environment.',
+  },
+  export_card: {
+    title: 'Export Settings entities',
+    description: 'Read-only exports use the selected global Settings entity and requested output format.',
+    format: 'Export format',
+    export_now: 'Export now',
+    exporting: 'Exporting…',
+    download_export: 'Download {entity} export',
+  },
+  jobs: {
+    title: 'Recent jobs',
+    description: 'Last 30 days. Statuses link every import/export action to audit evidence.',
+    table_label: 'Recent import and export jobs',
+    id: 'Job ID',
+    entity: 'Entity',
+    type: 'Type',
+    status: 'Status',
+    rows: 'Rows',
+    audit_reason: 'Audit reason',
+    import_type: 'import',
+    export_type: 'export',
+    queued: 'queued',
+    running: 'running',
+    completed: 'completed',
+    failed: 'failed',
+  },
+};
+
+function messageFor(key: string) {
+  return key.split('.').reduce<unknown>((node, part) => {
+    if (node && typeof node === 'object' && part in node) return (node as Record<string, unknown>)[part];
+    return key;
+  }, messages) as string;
+}
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
   notFound: vi.fn(),
+}));
+
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string) => messageFor(key)),
 }));
 
 type EntityKey = 'users' | 'roles' | 'invitations' | 'reference_tables' | 'infrastructure' | 'feature_flags' | 'authorization_policies';
@@ -193,6 +296,18 @@ describe('T-121 import/export AppShell route contract', () => {
       'T-121 must implement /en/settings/import-export under app/[locale]/(app)/(admin) so AppShell/AppSidebar/AppTopbar wrap the page',
     ).toBe(true);
     expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
+  });
+
+  it('keeps page.tsx server-rendered and delegates interactivity to an i18n-backed client leaf', () => {
+    const pageSource = readFileSync(join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx'), 'utf8');
+    const clientSource = readFileSync(join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/import-export-screen.client.tsx'), 'utf8');
+
+    expect(pageSource.startsWith("'use client'")).toBe(false);
+    expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.import_export' })");
+    expect(pageSource).toContain("from './import-export-screen.client'");
+    expect(clientSource.startsWith("'use client'")).toBe(true);
+    expect(pageSource).not.toContain("referenceHandoffHref: '/en/");
+    expect(pageSource).not.toContain('IMP-0042');
   });
 });
 

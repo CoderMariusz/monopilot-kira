@@ -1,50 +1,21 @@
-'use client';
-
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 
 import { startExportJob } from '../../../../../../actions/import-export/export';
+import SettingsImportExportScreen, {
+  type ExportFormat,
+  type ExportSettingsEntity,
+  type ImportExportLabels,
+  type PageState,
+  type PreflightAuthorizationPolicyImport,
+  type RecentJob,
+  type SettingsImportExportEntity,
+  type EntityKey,
+} from './import-export-screen.client';
 
-type EntityKey =
-  | 'users'
-  | 'roles'
-  | 'invitations'
-  | 'reference_tables'
-  | 'infrastructure'
-  | 'feature_flags'
-  | 'authorization_policies';
-
-type ExportFormat = 'csv' | 'xlsx';
-type PageState = 'ready' | 'loading' | 'empty' | 'error';
-
-type SettingsImportExportEntity = {
-  key: EntityKey;
-  label: string;
-  importSupported: boolean;
-  exportSupported: boolean;
-  requiredPermissions: string[];
-  templateAvailable: boolean;
-  processingMode: 'sync' | 'async';
-  auditRequired: boolean;
-  referenceHandoffHref?: string;
+type EntityDefinition = Omit<SettingsImportExportEntity, 'label' | 'referenceHandoffHref'> & {
+  labelKey: keyof ImportExportLabels['entities'];
+  referenceHandoffPath?: string;
 };
-
-type RecentJob = {
-  id: string;
-  entity: string;
-  type: 'import' | 'export';
-  status: 'queued' | 'running' | 'completed' | 'failed';
-  rows: number | null;
-  auditReason?: string;
-};
-
-type ExportSettingsEntity = (
-  input: { entity: EntityKey; format: ExportFormat },
-) => Promise<{ ok: true; downloadHref: string } | { ok: false; message: string }>;
-
-type PreflightAuthorizationPolicyImport = (
-  input: { fileName: string; auditReason: string },
-) => Promise<{ ok: true; dryRunId: string } | { ok: false; blockers: string[] }>;
 
 type ImportExportPageProps = {
   params?: Promise<{ locale: string }>;
@@ -56,12 +27,10 @@ type ImportExportPageProps = {
   preflightAuthorizationPolicyImport?: PreflightAuthorizationPolicyImport;
 };
 
-// Explicit fallback provenance: Settings entity capabilities from SET-029 and PO amendment 2026-05-03.
-// Runtime callers can replace these rows with permission-filtered live/API configuration as backend actions mature.
-const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
+const DEFAULT_ENTITY_DEFINITIONS: EntityDefinition[] = [
   {
     key: 'users',
-    label: 'Users',
+    labelKey: 'users',
     importSupported: true,
     exportSupported: true,
     requiredPermissions: ['settings.users.invite'],
@@ -71,7 +40,7 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
   {
     key: 'roles',
-    label: 'Roles',
+    labelKey: 'roles',
     importSupported: true,
     exportSupported: true,
     requiredPermissions: ['settings.roles.assign'],
@@ -81,7 +50,7 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
   {
     key: 'invitations',
-    label: 'Invitations',
+    labelKey: 'invitations',
     importSupported: false,
     exportSupported: true,
     requiredPermissions: ['settings.users.invite'],
@@ -91,18 +60,18 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
   {
     key: 'reference_tables',
-    label: 'Reference tables',
+    labelKey: 'referenceTables',
     importSupported: true,
     exportSupported: true,
     requiredPermissions: ['settings.reference.edit'],
     templateAvailable: true,
     processingMode: 'sync',
     auditRequired: true,
-    referenceHandoffHref: '/en/settings/reference/allergens_reference/import',
+    referenceHandoffPath: '/settings/reference/allergens_reference/import',
   },
   {
     key: 'infrastructure',
-    label: 'Infrastructure',
+    labelKey: 'infrastructure',
     importSupported: false,
     exportSupported: true,
     requiredPermissions: ['settings.infrastructure.manage'],
@@ -112,7 +81,7 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
   {
     key: 'feature_flags',
-    label: 'Feature flags',
+    labelKey: 'featureFlags',
     importSupported: true,
     exportSupported: true,
     requiredPermissions: ['settings.flags.edit'],
@@ -122,7 +91,7 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
   {
     key: 'authorization_policies',
-    label: 'Authorization policies',
+    labelKey: 'authorizationPolicies',
     importSupported: true,
     exportSupported: true,
     requiredPermissions: ['settings.authorization.edit'],
@@ -132,13 +101,9 @@ const DEFAULT_ENTITIES: SettingsImportExportEntity[] = [
   },
 ];
 
-const DEFAULT_JOBS: RecentJob[] = [
-  { id: 'IMP-0042', entity: 'Reference tables', type: 'import', status: 'completed', rows: 48, auditReason: 'quarterly reference refresh' },
-  { id: 'EXP-0041', entity: 'Users', type: 'export', status: 'completed', rows: 10 },
-  { id: 'IMP-0040', entity: 'Authorization policies', type: 'import', status: 'failed', rows: null, auditReason: 'segregation-of-duties validation' },
-];
-
 async function defaultExportSettingsEntity(input: { entity: EntityKey; format: ExportFormat }) {
+  'use server';
+
   const result = await startExportJob({ target: input.entity, filters: { format: input.format } });
   if (result.ok === false) {
     return { ok: false as const, message: result.error };
@@ -150,397 +115,137 @@ async function defaultExportSettingsEntity(input: { entity: EntityKey; format: E
 }
 
 async function defaultPreflightAuthorizationPolicyImport() {
-  return { ok: false as const, blockers: ['T-122 preflight service is not configured for this environment.'] };
+  'use server';
+
+  return { ok: false as const, blockers: ['preflight_unavailable'] };
 }
 
-function hasRequiredPermission(entity: SettingsImportExportEntity, visiblePermissions: string[]) {
-  if (visiblePermissions.length === 0) return false;
-  return entity.requiredPermissions.every((permission) => visiblePermissions.includes(permission));
+function withLocale(locale: string, path: string) {
+  const normalizedLocale = locale || 'en';
+  return `/${normalizedLocale}${path}`;
 }
 
-function optionText(entity: SettingsImportExportEntity) {
-  const capability = entity.importSupported ? 'Import + export' : 'Export only';
-  const template = entity.templateAvailable ? 'Template' : 'No template';
-  const processing = entity.processingMode === 'async' ? 'Async' : 'Sync';
-  const suffix = entity.key === 'reference_tables'
-    ? ' T-096/T-022 handoff'
-    : entity.key === 'authorization_policies'
-      ? ' Audit + dry-run required'
-      : '';
-  return `${entity.label} ${capability} ${entity.requiredPermissions.join(', ')} ${processing} ${template}${suffix}`;
+function buildDefaultEntities(labels: ImportExportLabels, locale: string): SettingsImportExportEntity[] {
+  return DEFAULT_ENTITY_DEFINITIONS.map(({ labelKey, referenceHandoffPath, ...definition }) => ({
+    ...definition,
+    label: labels.entities[labelKey],
+    referenceHandoffHref: referenceHandoffPath ? withLocale(locale, referenceHandoffPath) : undefined,
+  }));
 }
 
-function statusText(state: PageState) {
-  if (state === 'loading') return 'Loading import/export jobs and entity configuration…';
-  if (state === 'empty') return 'No import or export jobs yet.';
-  if (state === 'error') return 'Unable to load import/export configuration.';
-  return null;
+async function buildLabels(locale: string): Promise<ImportExportLabels> {
+  const t = await getTranslations({ locale, namespace: 'settings.import_export' });
+
+  return {
+    eyebrow: t('eyebrow'),
+    title: t('title'),
+    subtitle: t('subtitle'),
+    permissionDenied: t('permission_denied'),
+    entityLabel: t('entity_label'),
+    states: {
+      loading: t('states.loading'),
+      empty: t('states.empty'),
+      error: t('states.error'),
+      noRows: t('states.no_rows'),
+    },
+    entities: {
+      users: t('entities.users'),
+      roles: t('entities.roles'),
+      invitations: t('entities.invitations'),
+      referenceTables: t('entities.reference_tables'),
+      infrastructure: t('entities.infrastructure'),
+      featureFlags: t('entities.feature_flags'),
+      authorizationPolicies: t('entities.authorization_policies'),
+    },
+    capabilities: {
+      importExport: t('capabilities.import_export'),
+      exportOnly: t('capabilities.export_only'),
+      importSupported: t('capabilities.import_supported'),
+      exportSupported: t('capabilities.export_supported'),
+      template: t('capabilities.template'),
+      noTemplate: t('capabilities.no_template'),
+      sync: t('capabilities.sync'),
+      async: t('capabilities.async'),
+      referenceHandoff: t('capabilities.reference_handoff'),
+      auditDryRunRequired: t('capabilities.audit_dry_run_required'),
+    },
+    alerts: {
+      unsupportedImport: t('alerts.unsupported_import'),
+      authorizationPolicy: t('alerts.authorization_policy'),
+    },
+    importCard: {
+      title: t('import_card.title'),
+      description: t('import_card.description'),
+      requiredPermission: t('import_card.required_permission'),
+      processing: t('import_card.processing'),
+      audit: t('import_card.audit'),
+      template: t('import_card.template'),
+      asyncJob: t('import_card.async_job'),
+      synchronous: t('import_card.synchronous'),
+      auditRequired: t('import_card.audit_required'),
+      noAuditMutation: t('import_card.no_audit_mutation'),
+      templateAvailable: t('import_card.template_available'),
+      noTemplate: t('import_card.no_template'),
+      downloadTemplate: t('import_card.download_template'),
+      dropzone: t('import_card.dropzone'),
+      fileLimit: t('import_card.file_limit'),
+      fileAria: t('import_card.file_aria'),
+      auditReason: t('import_card.audit_reason'),
+      auditReasonPlaceholder: t('import_card.audit_reason_placeholder'),
+      runDryRun: t('import_card.run_dry_run'),
+      continueReference: t('import_card.continue_reference'),
+      startImport: t('import_card.start_import'),
+      csvRequired: t('import_card.csv_required'),
+      auditReasonRequired: t('import_card.audit_reason_required'),
+      dryRunPassed: t('import_card.dry_run_passed'),
+      dedicatedFlowRequired: t('import_card.dedicated_flow_required'),
+      preflightUnavailable: t('import_card.preflight_unavailable'),
+    },
+    exportCard: {
+      title: t('export_card.title'),
+      description: t('export_card.description'),
+      format: t('export_card.format'),
+      exportNow: t('export_card.export_now'),
+      exporting: t('export_card.exporting'),
+      downloadExport: t('export_card.download_export'),
+    },
+    jobs: {
+      title: t('jobs.title'),
+      description: t('jobs.description'),
+      tableLabel: t('jobs.table_label'),
+      id: t('jobs.id'),
+      entity: t('jobs.entity'),
+      type: t('jobs.type'),
+      status: t('jobs.status'),
+      rows: t('jobs.rows'),
+      auditReason: t('jobs.audit_reason'),
+      importType: t('jobs.import_type'),
+      exportType: t('jobs.export_type'),
+      queued: t('jobs.queued'),
+      running: t('jobs.running'),
+      completed: t('jobs.completed'),
+      failed: t('jobs.failed'),
+    },
+  };
 }
 
-function jobStatusClass(status: RecentJob['status']) {
-  if (status === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
-  if (status === 'failed') return 'border-red-200 bg-red-50 text-red-800';
-  if (status === 'running') return 'border-blue-200 bg-blue-50 text-blue-800';
-  return 'border-amber-200 bg-amber-50 text-amber-800';
-}
-
-function exportLinkLabel(entity: SettingsImportExportEntity) {
-  return `Download ${entity.label.toLowerCase()} export`;
-}
-
-export default function SettingsImportExportPage(propsInput: unknown = {}) {
-  const props = (propsInput ?? {}) as ImportExportPageProps;
-  return <SettingsImportExportScreen {...props} />;
-}
-
-function SettingsImportExportScreen(props: ImportExportPageProps) {
-  const router = useRouter();
-  const entities = props.entities ?? DEFAULT_ENTITIES;
-  const visiblePermissions = props.visiblePermissions ?? (props.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []);
-  const visibleEntities = entities.filter((entity) => hasRequiredPermission(entity, visiblePermissions));
-  const initialEntityKey = visibleEntities[0]?.key ?? entities[0]?.key ?? 'users';
-  const [selectedEntityKey, setSelectedEntityKey] = React.useState<EntityKey>(initialEntityKey);
-  const [fileName, setFileName] = React.useState<string>('');
-  const [format, setFormat] = React.useState<ExportFormat>('csv');
-  const [auditReason, setAuditReason] = React.useState('');
-  const [dryRunId, setDryRunId] = React.useState('');
-  const [dryRunError, setDryRunError] = React.useState('');
-  const [exportHref, setExportHref] = React.useState('');
-  const [exportError, setExportError] = React.useState('');
-  const [isExporting, setIsExporting] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!visibleEntities.some((entity) => entity.key === selectedEntityKey) && visibleEntities[0]) {
-      setSelectedEntityKey(visibleEntities[0].key);
-    }
-  }, [selectedEntityKey, visibleEntities]);
-
-  const selectedEntity = entities.find((entity) => entity.key === selectedEntityKey) ?? visibleEntities[0] ?? entities[0] ?? DEFAULT_ENTITIES[0];
-  const state = props.state ?? 'ready';
-  const jobs = props.recentJobs ?? DEFAULT_JOBS;
-  const stateMessage = statusText(state);
-  const isAuthorizationPolicy = selectedEntity.key === 'authorization_policies';
-  const canUpload = selectedEntity.importSupported;
-  const canStartImport = canUpload && Boolean(fileName) && (!isAuthorizationPolicy || Boolean(dryRunId));
-
-  if (visibleEntities.length === 0) {
-    return (
-      <main
-        data-testid="settings-import-export-screen"
-        data-route="/settings/import-export"
-        data-ux-source="SET-029"
-        data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
-        className="space-y-4 p-6 text-slate-950"
-      >
-        <header data-region="page-head" className="flex flex-col gap-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Settings · SET-029</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Import / Export</h1>
-          <p className="max-w-3xl text-sm text-slate-600">
-            Bulk import and export for Settings entities. Imports are audited, permission-gated, and fail closed for unsupported entities.
-          </p>
-        </header>
-        <section role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          You do not have permission to view Settings import/export entities.
-        </section>
-      </main>
-    );
-  }
-
-  function updateEntity(nextKey: EntityKey) {
-    setSelectedEntityKey(nextKey);
-    setFileName('');
-    setAuditReason('');
-    setDryRunId('');
-    setDryRunError('');
-    setExportHref('');
-    setExportError('');
-  }
-
-  async function runAuthorizationPreflight() {
-    if (!fileName) {
-      setDryRunError('CSV file is required before T-122 dry-run.');
-      return;
-    }
-    if (!auditReason.trim()) {
-      setDryRunError('Audit reason is required before authorization policy import.');
-      return;
-    }
-
-    const preflight: PreflightAuthorizationPolicyImport = props.preflightAuthorizationPolicyImport ?? defaultPreflightAuthorizationPolicyImport;
-    const result = await preflight({ fileName, auditReason: auditReason.trim() });
-    if (result.ok === true) {
-      setDryRunError('');
-      setDryRunId(result.dryRunId);
-    } else {
-      setDryRunId('');
-      setDryRunError(result.blockers.join(' '));
-    }
-  }
-
-  async function exportEntity() {
-    setIsExporting(true);
-    setExportHref('');
-    setExportError('');
-    const exportAction: ExportSettingsEntity = props.exportSettingsEntity ?? defaultExportSettingsEntity;
-    const result = await exportAction({ entity: selectedEntity.key, format });
-    setIsExporting(false);
-    if (result.ok === true) {
-      setExportHref(result.downloadHref);
-    } else {
-      setExportError(result.message);
-    }
-  }
-
-  function continueImport() {
-    if (selectedEntity.referenceHandoffHref) {
-      router.push(selectedEntity.referenceHandoffHref);
-      return;
-    }
-    if (canStartImport) {
-      setDryRunError('This Settings entity requires its dedicated preview/commit flow before import can proceed.');
-    }
-  }
-
-  return (
-    <main
-      data-testid="settings-import-export-screen"
-      data-route="/settings/import-export"
-      data-ux-source="SET-029"
-      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
-      className="space-y-4 p-6 text-slate-950"
-      aria-busy={state === 'loading'}
-    >
-      <header data-region="page-head" className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Settings · SET-029</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Import / Export</h1>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Bulk import and export for Settings entities. Imports are audited, permission-gated, and fail closed for unsupported entities.
-        </p>
-      </header>
-
-      {stateMessage ? (
-        <section role="status" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-          {stateMessage}
-        </section>
-      ) : null}
-
-      <label className="block text-sm font-medium text-slate-700" htmlFor="settings-import-export-entity">
-        Settings entity
-      </label>
-      <select
-        id="settings-import-export-entity"
-        aria-label="Settings entity"
-        value={selectedEntity.key}
-        onChange={(event) => updateEntity(event.currentTarget.value as EntityKey)}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-      >
-        {visibleEntities.map((entity) => (
-          <option key={entity.key} value={entity.key}>
-            {optionText(entity)}
-          </option>
-        ))}
-      </select>
-
-      {!selectedEntity.importSupported ? (
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          {selectedEntity.label} is export-only; import is unsupported for this Settings entity. Use export for audit-safe reads.
-        </div>
-      ) : isAuthorizationPolicy ? (
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          Authorization policies import requires settings.authorization.edit, audit reason, and successful T-122 dry-run. V-SET-43/V-SET-44 cannot be bypassed by CSV import.
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section
-          role="region"
-          aria-labelledby="settings-import-card-title"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 id="settings-import-card-title" className="text-lg font-semibold">Import Settings entities</h2>
-              <p className="mt-1 text-sm text-slate-600">Upload CSV files, download templates, and route specialized imports through their owned preview flows.</p>
-            </div>
-            <CapabilityBadge entity={selectedEntity} mode="import" />
-          </div>
-
-          <dl className="mb-4 grid gap-3 text-sm sm:grid-cols-2">
-            <Detail label="Required permission" value={selectedEntity.requiredPermissions.join(', ')} />
-            <Detail label="Processing" value={selectedEntity.processingMode === 'async' ? 'Async job — you will be notified' : 'Synchronous'} />
-            <Detail label="Audit" value={selectedEntity.auditRequired ? 'Audit event required' : 'No audit mutation'} />
-            <Detail label="Template" value={selectedEntity.templateAvailable ? 'Template available' : 'No template'} />
-          </dl>
-
-          {selectedEntity.templateAvailable ? (
-            <a
-              href={`/api/settings/import-export/templates/${selectedEntity.key}.csv`}
-              className="mb-4 inline-flex rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Download CSV template
-            </a>
-          ) : null}
-
-          {canUpload ? (
-            <label
-              htmlFor="settings-import-export-csv-file"
-              className={`block cursor-pointer rounded-lg border-2 border-dashed p-8 text-center text-sm ${fileName ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-slate-300 bg-slate-50 text-slate-600'}`}
-            >
-              <span className="block text-2xl" aria-hidden="true">{fileName ? '✓' : '📄'}</span>
-              <span className="mt-2 block font-medium">{fileName || 'Drag and drop CSV or click to browse'}</span>
-              <span className="mt-1 block text-xs text-slate-500">Max 10 MB · UTF-8 CSV only</span>
-              <input
-                id="settings-import-export-csv-file"
-                aria-label="CSV file"
-                type="file"
-                accept=".csv,text/csv"
-                className="sr-only"
-                onChange={(event) => {
-                  setFileName(event.currentTarget.files?.[0]?.name ?? '');
-                  setDryRunId('');
-                  setDryRunError('');
-                }}
-              />
-            </label>
-          ) : null}
-
-          {isAuthorizationPolicy ? (
-            <div className="mt-4 space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="settings-import-export-audit-reason">
-                Audit reason
-              </label>
-              <textarea
-                id="settings-import-export-audit-reason"
-                aria-label="Audit reason"
-                value={auditReason}
-                onChange={(event) => setAuditReason(event.currentTarget.value)}
-                className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                placeholder="Explain why authorization policy CSV changes are being validated."
-              />
-              <button type="button" className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium" onClick={() => void runAuthorizationPreflight()}>
-                Run T-122 dry-run
-              </button>
-              {dryRunError ? <p className="text-sm text-red-700">{dryRunError}</p> : null}
-              {dryRunId ? <p className="text-sm font-medium text-emerald-700">Dry-run passed — {dryRunId}</p> : null}
-            </div>
-          ) : null}
-
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!canStartImport && !selectedEntity.referenceHandoffHref}
-              onClick={continueImport}
-            >
-              {selectedEntity.referenceHandoffHref ? 'Continue to reference preview' : 'Start import'}
-            </button>
-          </div>
-        </section>
-
-        <section
-          role="region"
-          aria-labelledby="settings-export-card-title"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 id="settings-export-card-title" className="text-lg font-semibold">Export Settings entities</h2>
-              <p className="mt-1 text-sm text-slate-600">Read-only exports use the selected global Settings entity and requested output format.</p>
-            </div>
-            <CapabilityBadge entity={selectedEntity} mode="export" />
-          </div>
-
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-slate-700">Export format</legend>
-            <label className="mr-4 inline-flex items-center gap-2 text-sm">
-              <input type="radio" name="settings-export-format" checked={format === 'csv'} onChange={() => setFormat('csv')} />
-              CSV
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input type="radio" name="settings-export-format" checked={format === 'xlsx'} onChange={() => setFormat('xlsx')} />
-              XLSX
-            </label>
-          </fieldset>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              type="button"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!selectedEntity.exportSupported || isExporting}
-              onClick={() => void exportEntity()}
-            >
-              {isExporting ? 'Exporting…' : 'Export now'}
-            </button>
-            {exportHref ? (
-              <a href={exportHref} className="text-sm font-medium text-blue-700 underline">
-                {exportLinkLabel(selectedEntity)}
-              </a>
-            ) : null}
-            {exportError ? <p className="text-sm text-red-700">{exportError}</p> : null}
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3">
-          <h2 className="text-lg font-semibold">Recent jobs</h2>
-          <p className="text-sm text-slate-600">Last 30 days. Statuses link every import/export action to audit evidence.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table aria-label="Recent import and export jobs" className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th scope="col" className="px-3 py-2">Job ID</th>
-                <th scope="col" className="px-3 py-2">Entity</th>
-                <th scope="col" className="px-3 py-2">Type</th>
-                <th scope="col" className="px-3 py-2">Status</th>
-                <th scope="col" className="px-3 py-2">Rows</th>
-                <th scope="col" className="px-3 py-2">Audit reason</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td className="px-3 py-2 font-mono font-semibold">{job.id}</td>
-                  <td className="px-3 py-2">{job.entity}</td>
-                  <td className="px-3 py-2 capitalize">{job.type}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${jobStatusClass(job.status)}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-mono">{job.rows ?? '—'}</td>
-                  <td className="px-3 py-2 text-slate-600">{job.auditReason ?? '—'}</td>
-                </tr>
-              ))}
-              {jobs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No job rows to display.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
+export default async function SettingsImportExportPage(propsInput: ImportExportPageProps = {}) {
+  const { locale } = (await propsInput.params) ?? { locale: 'en' };
+  const labels = await buildLabels(locale);
+  const entities = propsInput.entities ?? buildDefaultEntities(labels, locale);
+  const visiblePermissions = propsInput.visiblePermissions ?? (
+    propsInput.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []
   );
-}
 
-function CapabilityBadge({ entity, mode }: { entity: SettingsImportExportEntity; mode: 'import' | 'export' }) {
-  const supported = mode === 'import' ? entity.importSupported : entity.exportSupported;
-  const text = supported ? (mode === 'import' ? 'Import supported' : 'Export supported') : 'Export only';
   return (
-    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${supported ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-      {text}
-    </span>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 font-mono text-xs text-slate-800">{value}</dd>
-    </div>
+    <SettingsImportExportScreen
+      entities={entities}
+      visiblePermissions={visiblePermissions}
+      recentJobs={propsInput.recentJobs ?? []}
+      state={propsInput.state ?? 'ready'}
+      exportSettingsEntity={propsInput.exportSettingsEntity ?? defaultExportSettingsEntity}
+      preflightAuthorizationPolicyImport={propsInput.preflightAuthorizationPolicyImport ?? defaultPreflightAuthorizationPolicyImport}
+      labels={labels}
+    />
   );
 }
