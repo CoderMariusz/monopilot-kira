@@ -83,6 +83,8 @@ type Labels = {
   loading: string;
   empty: string;
   error: string;
+  readOnlyNotice: string;
+  deliveryRuns: string;
 };
 
 const DEFAULT_LABELS: Labels = {
@@ -106,6 +108,8 @@ const DEFAULT_LABELS: Labels = {
   loading: 'Loading email delivery log…',
   empty: 'No email delivery runs found.',
   error: 'Unable to load email delivery log.',
+  readOnlyNotice: 'This log is read-only. Retry and resend actions are owned by the outbox/DLQ worker.',
+  deliveryRuns: 'Delivery runs',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
@@ -303,7 +307,7 @@ function EmailDeliveryLogScreen({
       </header>
 
       <section className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-        SET-093 is read-only; retry and resend actions remain owned by the outbox/DLQ worker.
+        {labels.readOnlyNotice}
       </section>
 
       <section aria-label={labels.filters} className="flex flex-wrap items-end gap-3">
@@ -344,7 +348,7 @@ function EmailDeliveryLogScreen({
       ) : (
         <Card role="region" aria-label={labels.lastRuns} className="overflow-hidden rounded-xl border bg-white shadow-sm">
           <CardHeader className="border-b px-6 py-4">
-            <h2 className="text-lg font-semibold">Delivery runs</h2>
+            <h2 className="text-lg font-semibold">{labels.deliveryRuns}</h2>
           </CardHeader>
           <CardContent className="p-0">
             <Table aria-label={labels.lastRuns}>
