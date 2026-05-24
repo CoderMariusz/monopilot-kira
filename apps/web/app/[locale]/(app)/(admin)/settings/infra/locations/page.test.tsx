@@ -12,6 +12,38 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async () => (key: string, values?: Record<string, string | number>) => {
+    const labels: Record<string, string> = {
+      title: 'Location Tree',
+      subtitle: 'Hierarchical warehouse zones and bins ordered by ltree path. Drag-drop reorder is deferred to Phase 2.',
+      workspace: 'Location Tree workspace',
+      settingsNavigation: 'Settings navigation',
+      sidebarLabel: 'Settings / Infrastructure',
+      sectionTitle: 'Location hierarchy',
+      warehouse: 'Warehouse',
+      allWarehouses: 'All warehouses',
+      importCsv: 'Import CSV',
+      csvFile: 'CSV file',
+      insufficientPermissions: 'Insufficient permissions: settings.infra.update is required to import CSV.',
+      loading: 'Loading location tree…',
+      empty: 'No locations are available for the selected warehouse.',
+      error: 'Unable to load the location tree. Try again after the backend is available.',
+      forbidden: 'You do not have permission to view location infrastructure settings.',
+      provenance: 'Data source: live loader props; empty fallback is used only when the runtime loader has no rows.',
+      expand: 'Expand {name}',
+      leaf: 'Leaf location',
+      level: 'Level {level}',
+      importSuccess: 'Imported {count} location rows.',
+      importError: 'Row {row}: {code} ({validation}) {message}',
+    };
+    return Object.entries(values ?? {}).reduce(
+      (label, [name, value]) => label.replace(`{${name}}`, String(value)),
+      labels[key] ?? key,
+    );
+  }),
+}));
+
 type Warehouse = {
   id: string;
   code: string;
@@ -131,7 +163,7 @@ describe('SET-014 Location Tree screen', () => {
     expect(screen.getByRole('heading', { name: /location tree/i })).toBeInTheDocument();
 
     const warehouseFilter = screen.getByRole('combobox', { name: /warehouse/i });
-    expect(warehouseFilter).toHaveValue('all');
+    expect(warehouseFilter).toHaveTextContent(/all warehouses/i);
 
     const tree = screen.getByRole('tree', { name: /location tree/i });
     const apexRoot = within(tree).getByRole('treeitem', { name: /apex dairy warehouse/i });
@@ -160,7 +192,7 @@ describe('SET-014 Location Tree screen', () => {
       expect.stringContaining('North Warehouse'),
     ]);
 
-    await user.selectOptions(warehouseFilter, 'wh-apex');
+    await user.click(screen.getByRole('option', { name: 'Apex Dairy Warehouse' }));
     expect(screen.queryByRole('treeitem', { name: /north warehouse/i })).not.toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: /apex dairy warehouse/i })).toBeInTheDocument();
   });
