@@ -52,43 +52,9 @@ const DEFAULT_LABELS: ModulesLabels = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof ModulesLabels>;
 
-// Explicit fallback provenance: project-shaped module rows from the MonoPilot PRD module glossary.
-// Runtime overrides can supply live Drizzle/API rows through the Server Component props while the T-103 loader matures.
-const DEFAULT_MODULES: ModuleToggle[] = [
-  {
-    key: '01-npd',
-    label: 'NPD',
-    desc: 'Product development, specs, and allergen workflow.',
-    enabled: true,
-    premium: true,
-    enabledDependents: [],
-  },
-  {
-    key: '05-warehouse',
-    label: 'Warehouse',
-    desc: 'License plates, GRN, transfers, and stock movements.',
-    enabled: true,
-    premium: true,
-    enabledDependents: ['11-shipping'],
-  },
-  {
-    key: '11-shipping',
-    label: 'Shipping',
-    desc: 'Sales orders, allocation, pick/pack, BOL, and POD.',
-    enabled: true,
-    beta: true,
-    enabledDependents: [],
-  },
-  {
-    key: '15-oee',
-    label: 'OEE',
-    desc: 'Availability, performance, quality, and read-only snapshots.',
-    enabled: false,
-    premium: true,
-    beta: true,
-    enabledDependents: [],
-  },
-];
+// No production fallback rows: until a live Settings modules loader is injected,
+// render the explicit empty/provenance state instead of PRD/demo module toggles.
+const NO_LIVE_MODULES: ModuleToggle[] = [];
 
 async function buildLabels(locale: string): Promise<ModulesLabels> {
   try {
@@ -132,13 +98,15 @@ export default async function SettingsModulesPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as ModulesPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const labels = await buildLabels(locale);
+  const modules = props.modules ?? NO_LIVE_MODULES;
+  const state: PageState = props.state ?? (modules.length === 0 ? 'empty' : 'ready');
 
   return React.createElement(SettingsModulesScreen, {
     labels,
-    modules: props.modules ?? DEFAULT_MODULES,
-    state: props.state ?? 'ready',
-    planName: props.planName ?? 'Premium plan',
-    activeSessionCount: props.activeSessionCount ?? 28,
+    modules,
+    state,
+    planName: props.planName ?? 'live data unavailable',
+    activeSessionCount: props.activeSessionCount ?? 0,
     toggleModule: props.toggleModule ?? defaultToggleModule,
   });
 }

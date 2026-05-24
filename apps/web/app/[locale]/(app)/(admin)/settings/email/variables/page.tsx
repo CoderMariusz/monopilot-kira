@@ -35,29 +35,9 @@ const DEFAULT_LABELS: Labels = {
   permissionDenied: 'You do not have permission to view email variables.',
 };
 
-// Explicit fallback provenance: these groups are production-shaped placeholder values used only when a caller/test does not
-// provide live DB/API email-variable rows; prototype mock data remains illustrative and is not treated as production truth.
-const DEFAULT_GROUPS: EmailTemplateVariableGroup[] = [
-  {
-    group: 'Purchase order',
-    vars: [
-      { name: '{{order.number}}', desc: 'Purchase order number', example: 'PO-2026-00042' },
-      { name: '{{order.total}}', desc: 'Gross order value', example: '€4,218.00' },
-      { name: '{{supplier.name}}', desc: 'Purchase order supplier name', example: 'Apex Dairy Co.' },
-    ],
-  },
-  {
-    group: 'Quality',
-    vars: [
-      { name: '{{qa.release_status}}', desc: 'QA release status for the lot', example: 'Released' },
-      { name: '{{lot.expiry_date}}', desc: 'Best-before date', example: '2026-09-30' },
-    ],
-  },
-  {
-    group: 'Shipping',
-    vars: [{ name: '{{shipment.sscc}}', desc: 'SSCC-18 label number', example: '059012345678901234' }],
-  },
-];
+// No production fallback variable examples: without a live variable loader,
+// render the explicit empty state instead of tenant-flavored sample values.
+const DEFAULT_GROUPS: EmailTemplateVariableGroup[] = [];
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
 

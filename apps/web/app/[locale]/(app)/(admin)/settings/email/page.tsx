@@ -52,30 +52,16 @@ const DEFAULT_LABELS: Labels = {
   close: 'Close',
 };
 
-// Explicit fallback provenance: project-shaped Settings email template rows, used until SET-090 Drizzle loaders are wired.
+// No production fallback provider/template rows: until SET-090 live loader data is injected,
+// render an explicit empty/provenance state instead of tenant-flavored sample settings.
 const DEFAULT_PROVIDER_SETTINGS: EmailProviderSettings = {
   provider: 'Resend',
   apiKeyDisplay: '',
-  fromEmail: 'no-reply@monopilot.apex.pl',
-  fromName: 'Apex Foods · Monopilot',
+  fromEmail: '',
+  fromName: '',
 };
 
-const DEFAULT_TEMPLATES: EmailTemplate[] = [
-  {
-    code: 'po_to_supplier',
-    name: 'Purchase order → supplier',
-    consumer: 'Planning',
-    subject: 'PO {{po_number}} for {{supplier_email}}',
-    active: true,
-  },
-  {
-    code: 'qa_hold_created',
-    name: 'Quality hold created',
-    consumer: 'QA',
-    subject: 'Hold {{hold_code}} requires QA review',
-    active: false,
-  },
-];
+const DEFAULT_TEMPLATES: EmailTemplate[] = [];
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
 

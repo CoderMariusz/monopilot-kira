@@ -230,9 +230,16 @@ async function buildLabels(locale: string): Promise<ImportExportLabels> {
 }
 
 export default async function SettingsImportExportPage(propsInput: ImportExportPageProps = {}) {
+  const hasInjectedEntities = Object.prototype.hasOwnProperty.call(propsInput, 'entities');
   const { locale } = (await propsInput.params) ?? { locale: 'en' };
   const labels = await buildLabels(locale);
-  const entities = propsInput.entities ?? buildDefaultEntities(labels, locale);
+  const screenLabels = hasInjectedEntities
+    ? labels
+    : {
+        ...labels,
+        permissionDenied: 'Live loader not configured; import/export placeholder unavailable.',
+      };
+  const entities = hasInjectedEntities ? (propsInput.entities ?? []) : [];
   const visiblePermissions = propsInput.visiblePermissions ?? (
     propsInput.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []
   );
@@ -242,10 +249,10 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
       entities={entities}
       visiblePermissions={visiblePermissions}
       recentJobs={propsInput.recentJobs ?? []}
-      state={propsInput.state ?? 'ready'}
+      state={propsInput.state ?? (hasInjectedEntities ? 'ready' : 'empty')}
       exportSettingsEntity={propsInput.exportSettingsEntity ?? defaultExportSettingsEntity}
       preflightAuthorizationPolicyImport={propsInput.preflightAuthorizationPolicyImport ?? defaultPreflightAuthorizationPolicyImport}
-      labels={labels}
+      labels={screenLabels}
     />
   );
 }

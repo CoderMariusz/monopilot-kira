@@ -51,37 +51,9 @@ export type D365MappingLabels = {
   close: string;
 };
 
-const fallbackRows: D365FieldMapping[] = [
-  {
-    d365_field: 'InventTable.ItemId',
-    direction: 'incoming',
-    monopilot_field: 'products.sku',
-    type: 'text',
-    transform: 'none',
-  },
-  {
-    d365_field: 'VendTable.CurrencyCode',
-    direction: 'incoming',
-    monopilot_field: 'partners.currency',
-    type: 'enum',
-    transform: 'upper',
-  },
-  {
-    d365_field: 'SalesTable.SalesId',
-    direction: 'outgoing',
-    monopilot_field: 'planning.d365_so_ref',
-    type: 'text',
-    transform: 'prefix:SO-',
-  },
-  {
-    d365_field: 'Item.allergens[]',
-    direction: 'outgoing',
-    monopilot_field: 'products.allergens',
-    type: 'json',
-    transform: 'unmapped',
-    unmapped: true,
-  },
-];
+// No production fallback mapping rows: without live/CI-owned D365 mapping data,
+// the page renders an explicit empty state instead of sample field mappings.
+const EMPTY_MAPPING_ROWS: D365FieldMapping[] = [];
 
 function label(fullKey: string, translated: string, fallback: string) {
   return translated && translated !== fullKey ? translated : fallback;
@@ -147,7 +119,7 @@ export async function exportD365MappingCsv(input: { dir?: D365Filter; rows?: D36
   'use server';
 
   const dir = input.dir ?? 'all';
-  const rows = filteredRows(input.rows ?? fallbackRows, dir);
+  const rows = filteredRows(input.rows ?? EMPTY_MAPPING_ROWS, dir);
   const header = ['d365_field', 'direction', 'monopilot_field', 'type', 'transform'];
   const lines = [
     header.join(','),
@@ -170,7 +142,7 @@ export default async function D365MappingPage(propsInput: unknown) {
     params,
     searchParams,
     state = 'ready',
-    rows = fallbackRows,
+    rows = EMPTY_MAPPING_ROWS,
     exportD365MappingCsv: exportAction = exportD365MappingCsv,
   } = (propsInput ?? {}) as D365MappingPageProps;
   const labels = await labelsFor();

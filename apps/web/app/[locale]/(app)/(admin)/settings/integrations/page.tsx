@@ -79,87 +79,10 @@ type IntegrationLabels = {
   statusFailedRetry: string;
 };
 
-const fallbackCategories: IntegrationCategory[] = [
-  {
-    category: 'ERP',
-    items: [
-      {
-        id: 'd365',
-        name: 'D365',
-        description: 'Dynamics 365 finance, inventory, items, BOMs, and WO journals.',
-        status: 'connected',
-        logo: 'D',
-        color: '#1d4ed8',
-      },
-      {
-        id: 'sap-b1',
-        name: 'SAP Business One',
-        description: 'Optional ERP connector for smaller factories.',
-        status: 'available',
-        logo: 'S',
-        color: '#0f766e',
-      },
-    ],
-  },
-  {
-    category: 'Accounting',
-    items: [
-      {
-        id: 'xero',
-        name: 'Xero',
-        description: 'Accounting sync for invoices and journals.',
-        status: 'connected',
-        logo: 'X',
-        color: '#0284c7',
-      },
-    ],
-  },
-  {
-    category: 'BI',
-    items: [
-      {
-        id: 'power-bi',
-        name: 'Power BI',
-        description: 'Warehouse and production dashboards.',
-        status: 'available',
-        logo: 'P',
-        color: '#ca8a04',
-      },
-    ],
-  },
-  {
-    category: 'Shipping',
-    items: [
-      {
-        id: 'shipstation',
-        name: 'ShipStation',
-        description: 'Carrier labels and shipment status.',
-        status: 'available',
-        logo: '🚚',
-        color: '#7c3aed',
-      },
-    ],
-  },
-];
-
-const fallbackActivity: SyncActivity[] = [
-  {
-    id: 'a1',
-    when: '14:02',
-    integration: 'D365 · ItemEntity',
-    direction: 'Inbound · Items (nightly refresh)',
-    records: 142,
-    status: 'success',
-  },
-  {
-    id: 'a2',
-    when: '11:15',
-    integration: 'D365 · SalesOrderEntity',
-    direction: 'Outbound · Shipment confirmed',
-    records: 1,
-    status: 'failed',
-  },
-];
+// No production fallback catalog/activity rows. The default route renders the
+// explicit empty state unless a live loader/test injects connector data.
+const EMPTY_CATEGORIES: IntegrationCategory[] = [];
+const EMPTY_ACTIVITY: SyncActivity[] = [];
 
 function interpolate(template: string, values: TranslationValues = {}) {
   return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values[name] ?? `{${name}}`));
@@ -470,19 +393,20 @@ function ActivityTable({ activity, labels, locale }: { activity: SyncActivity[];
 
 export const dynamic = 'force-dynamic';
 
-export default async function IntegrationsPage({ params, searchParams, state = 'ready', categories, syncSummary, activity }: IntegrationsPageProps) {
+export default async function IntegrationsPage({ params, searchParams, state, categories, syncSummary, activity }: IntegrationsPageProps) {
   const resolvedParams = await params;
   const locale = resolvedParams?.locale ?? 'en';
   const labels = await getIntegrationLabels(locale);
   const resolvedSearchParams = await searchParams;
   const view = resolvedSearchParams?.view === 'grid' ? 'grid' : 'list';
-  const resolvedCategories = categories ?? fallbackCategories;
-  const resolvedActivity = activity ?? fallbackActivity;
+  const resolvedCategories = categories ?? EMPTY_CATEGORIES;
+  const resolvedActivity = activity ?? EMPTY_ACTIVITY;
+  const resolvedState = state ?? (resolvedCategories.length === 0 ? 'empty' : 'ready');
   const all = resolvedCategories.flatMap((category) => category.items);
   const connected = all.filter((item) => item.status === 'connected').length;
-  const summary = syncSummary ?? { totalLast24h: 1248, failedLast24h: resolvedActivity.filter((row) => row.status === 'failed').length };
+  const summary = syncSummary ?? { totalLast24h: 0, failedLast24h: resolvedActivity.filter((row) => row.status === 'failed').length };
 
-  if (state === 'loading') {
+  if (resolvedState === 'loading') {
     return (
       <main
         data-prototype-source="prototypes/design/Monopilot Design System/settings/integrations.jsx:7-107"
@@ -497,7 +421,7 @@ export default async function IntegrationsPage({ params, searchParams, state = '
     );
   }
 
-  if (state === 'error') {
+  if (resolvedState === 'error') {
     return (
       <main
         data-prototype-source="prototypes/design/Monopilot Design System/settings/integrations.jsx:7-107"
@@ -510,7 +434,7 @@ export default async function IntegrationsPage({ params, searchParams, state = '
     );
   }
 
-  if (state === 'empty') {
+  if (resolvedState === 'empty') {
     return (
       <main
         data-prototype-source="prototypes/design/Monopilot Design System/settings/integrations.jsx:7-107"

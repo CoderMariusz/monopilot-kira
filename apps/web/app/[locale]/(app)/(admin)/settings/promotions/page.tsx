@@ -38,8 +38,8 @@ const DEFAULT_LABEL_KEYS: Labels = {
 };
 
 const DEFAULT_CALLER_ACCESS: CallerAccess = {
-  roleCodes: ['Admin'],
-  permissions: ['settings.promotions.read', 'settings.promotions.approve'],
+  roleCodes: [],
+  permissions: [],
 };
 
 const DEFAULT_STAGES: PromotionStage[] = [
