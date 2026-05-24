@@ -1,4 +1,5 @@
 import React from 'react';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { getTenantVariations } from '../../../../../../../actions/tenant/get';
@@ -14,6 +15,11 @@ type PageProps = {
 };
 
 type DeptOption = { code: string; label: string; provenance: 'baseline' | 'tenant_variations.dept_overrides' };
+type DeptLoadState =
+  | { status: 'loaded'; options: DeptOption[] }
+  | { status: 'empty'; options: DeptOption[] }
+  | { status: 'error'; options: DeptOption[]; message: string }
+  | { status: 'forbidden'; options: DeptOption[]; message: string };
 type WizardLabels = Record<keyof typeof DEFAULT_LABELS, string>;
 type WizardState = {
   table: string;
@@ -34,7 +40,7 @@ type ConflictState = { body: string; diff?: ConflictDiff } | null;
 
 type ActionResult =
   | { ok: true; data?: Record<string, unknown> }
-  | { ok: false; error?: string; data?: { diff?: ConflictDiff } & Record<string, unknown> };
+  | { ok: false; error?: string; data?: { diff?: ConflictDiff; currentSchemaVersion?: number } & Record<string, unknown> };
 
 const DEFAULT_LABELS = {
   title: 'Column Edit Wizard',
@@ -117,13 +123,39 @@ async function buildLabels(locale: string): Promise<WizardLabels> {
   }
 }
 
-async function loadDeptOptions(): Promise<DeptOption[]> {
+async function loadDeptOptions(): Promise<DeptLoadState> {
   try {
     const result = await getTenantVariations();
-    if (!result?.ok) return BASELINE_DEPTS;
-    return mergeTenantDeptOverrides(BASELINE_DEPTS, result.data?.deptOverrides);
+    if (!result) {
+      return {
+        status: 'error',
+        options: BASELINE_DEPTS,
+        message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+      };
+    }
+    if (!result.ok) {
+      const error = 'error' in result ? result.error : undefined;
+      if (error === 'forbidden') {
+        return {
+          status: 'forbidden',
+          options: BASELINE_DEPTS,
+          message: 'You do not have permission to load tenant department overrides. Baseline Apex departments are shown read-only.',
+        };
+      }
+      return {
+        status: 'error',
+        options: BASELINE_DEPTS,
+        message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+      };
+    }
+    const options = mergeTenantDeptOverrides(BASELINE_DEPTS, result.data?.deptOverrides);
+    return options.length > 0 ? { status: 'loaded', options } : { status: 'empty', options: BASELINE_DEPTS };
   } catch {
-    return BASELINE_DEPTS;
+    return {
+      status: 'error',
+      options: BASELINE_DEPTS,
+      message: 'Could not load tenant department overrides. Baseline Apex departments are shown as a fallback.',
+    };
   }
 }
 
@@ -160,237 +192,378 @@ function titleizeCode(code: string): string {
     .join(' ');
 }
 
+function wizardStateFromParams(searchParams: PageSearchParams): WizardState {
+  return {
+    table: one(searchParams.tableCode) ?? one(searchParams.table) ?? '',
+    dept: one(searchParams.departmentCode) ?? one(searchParams.dept) ?? '',
+    type: one(searchParams.dataType) ?? one(searchParams.type) ?? 'text',
+    validation: [],
+    blocking: one(searchParams.blockingRule) ?? one(searchParams.blocking) ?? 'none',
+    doneRequired: one(searchParams.requiredForDone) === 'on' || one(searchParams.doneRequired) === 'true',
+    presentationSection: one(searchParams.presentationSection) ?? 'Packaging Details',
+    presentationOrder: numberParam(searchParams.presentationOrder) ?? 10,
+    scope: one(searchParams.scope) === 'universal' ? 'universal' : 'org',
+    columnCode: one(searchParams.columnCode) ?? one(searchParams.column) ?? 'pack_finish',
+    expectedSchemaVersion: numberParam(searchParams.expectedSchemaVersion),
+    mode: one(searchParams.mode) === 'edit' ? 'edit' : 'add',
+  };
+}
+
+function stepFromParams(searchParams: PageSearchParams, wizard: WizardState): number {
+  const requested = Math.min(Math.max(numberParam(searchParams.step) ?? 1, 1), 8);
+  if (requested === 2 && wizard.table && wizard.table !== 'main_table') return 3;
+  return requested;
+}
+
+function conflictFromParams(searchParams: PageSearchParams, labels: WizardLabels): ConflictState {
+  if (one(searchParams.conflict) !== 'CONCURRENT_EDIT') return null;
+  return {
+    body: labels.concurrentEditBody,
+    diff: {
+      field: one(searchParams.diffField) ?? 'schema',
+      before: one(searchParams.diffBefore) ?? 'draft',
+      after: one(searchParams.diffAfter) ?? 'latest',
+    },
+  };
+}
+
+function urlForStep(locale: string, step: number, wizard: WizardState, extra: Record<string, string | number | undefined> = {}) {
+  const params = new URLSearchParams();
+  params.set('step', String(step));
+  params.set('mode', wizard.mode);
+  params.set('table', wizard.table || 'main_table');
+  params.set('column', wizard.columnCode || 'new_column');
+  if (wizard.dept) params.set('dept', wizard.dept);
+  if (wizard.expectedSchemaVersion !== undefined) params.set('expectedSchemaVersion', String(wizard.expectedSchemaVersion));
+  for (const [key, value] of Object.entries(extra)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  return `/${locale}/settings/schema/new?${params.toString()}`;
+}
+
+function actionInput(formData: FormData) {
+  const presentationSection = stringFromForm(formData, 'presentationSection') || 'Packaging Details';
+  const presentationOrder = Number(stringFromForm(formData, 'presentationOrder') || 10);
+  return {
+    tableCode: stringFromForm(formData, 'tableCode') || 'main_table',
+    columnCode: stringFromForm(formData, 'columnCode') || 'new_column',
+    departmentCode: stringFromForm(formData, 'departmentCode') || undefined,
+    dataType: stringFromForm(formData, 'dataType') || 'text',
+    validation: [],
+    blockingRule: stringFromForm(formData, 'blockingRule') || 'none',
+    requiredForDone: stringFromForm(formData, 'requiredForDone') === 'on',
+    presentation: { section: presentationSection, order: Number.isFinite(presentationOrder) ? presentationOrder : 10 },
+    scope: stringFromForm(formData, 'scope') === 'universal' ? 'universal' : 'org',
+    expectedSchemaVersion: Number(stringFromForm(formData, 'expectedSchemaVersion')),
+    mode: stringFromForm(formData, 'mode') === 'edit' ? 'edit' : 'add',
+    locale: stringFromForm(formData, 'locale') || 'en',
+  };
+}
+
+function stringFromForm(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value : '';
+}
+
+function toActionPayload(input: ReturnType<typeof actionInput>) {
+  if (input.mode === 'edit') {
+    return {
+      tableCode: input.tableCode,
+      columnCode: input.columnCode,
+      expectedSchemaVersion: input.expectedSchemaVersion,
+      patch: {
+        dataType: input.dataType,
+        validationJson: { rules: input.validation, blockingRule: input.blockingRule, requiredForDone: input.requiredForDone },
+        presentationJson: input.presentation,
+      },
+    };
+  }
+  return {
+    tableCode: input.tableCode,
+    columnCode: input.columnCode,
+    scope: input.scope === 'universal' ? 'universal' : 'variation',
+    dataType: input.dataType,
+    validationJson: { rules: input.validation, blockingRule: input.blockingRule, requiredForDone: input.requiredForDone },
+    presentationJson: input.presentation,
+    expectedSchemaVersion: Number.isFinite(input.expectedSchemaVersion) ? input.expectedSchemaVersion : undefined,
+  };
+}
+
+async function publishColumnAction(formData: FormData) {
+  'use server';
+  const input = actionInput(formData);
+  const result = (input.mode === 'edit' ? await editColumn(toActionPayload(input)) : await addColumn(toActionPayload(input))) as ActionResult;
+  const base = {
+    mode: input.mode,
+    table: input.tableCode,
+    column: input.columnCode,
+    expectedSchemaVersion: Number.isFinite(input.expectedSchemaVersion) ? input.expectedSchemaVersion : undefined,
+  };
+  if (result.ok === false && result.error === 'CONCURRENT_EDIT') {
+    const diff = result.data?.diff ?? {};
+    redirect(urlForStep(input.locale, 8, {
+      table: input.tableCode,
+      dept: input.departmentCode ?? '',
+      type: input.dataType,
+      validation: input.validation,
+      blocking: input.blockingRule,
+      doneRequired: input.requiredForDone,
+      presentationSection: input.presentation.section,
+      presentationOrder: input.presentation.order,
+      scope: input.scope as WizardState['scope'],
+      columnCode: input.columnCode,
+      expectedSchemaVersion: input.expectedSchemaVersion,
+      mode: input.mode as WizardState['mode'],
+    }, {
+      ...base,
+      conflict: 'CONCURRENT_EDIT',
+      diffField: String(diff.field ?? 'schema'),
+      diffBefore: String(diff.before ?? 'draft'),
+      diffAfter: String(diff.after ?? 'latest'),
+    }));
+  }
+  if (result.ok === false) {
+    redirect(urlForStep(input.locale, 8, {
+      table: input.tableCode,
+      dept: input.departmentCode ?? '',
+      type: input.dataType,
+      validation: input.validation,
+      blocking: input.blockingRule,
+      doneRequired: input.requiredForDone,
+      presentationSection: input.presentation.section,
+      presentationOrder: input.presentation.order,
+      scope: input.scope as WizardState['scope'],
+      columnCode: input.columnCode,
+      expectedSchemaVersion: input.expectedSchemaVersion,
+      mode: input.mode as WizardState['mode'],
+    }, { ...base, actionError: result.error ?? 'PERSISTENCE_FAILED' }));
+  }
+  redirect(urlForStep(input.locale, 8, {
+    table: input.tableCode,
+    dept: input.departmentCode ?? '',
+    type: input.dataType,
+    validation: input.validation,
+    blocking: input.blockingRule,
+    doneRequired: input.requiredForDone,
+    presentationSection: input.presentation.section,
+    presentationOrder: input.presentation.order,
+    scope: input.scope as WizardState['scope'],
+    columnCode: input.columnCode,
+    expectedSchemaVersion: input.expectedSchemaVersion,
+    mode: input.mode as WizardState['mode'],
+  }, { ...base, published: '1' }));
+}
+
 export default async function SchemaColumnWizardPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as PageProps;
   const { locale = 'en' } = props.params ? await props.params : { locale: 'en' };
   const searchParams = props.searchParams ? await props.searchParams : {};
   const labels = await buildLabels(locale);
-  const deptOptions = await loadDeptOptions();
-  const initialStep = Math.min(Math.max(numberParam(searchParams.step) ?? 1, 1), 8);
-  const initialState: WizardState = {
-    table: one(searchParams.table) ?? '',
-    dept: '',
-    type: 'text',
-    validation: [],
-    blocking: 'none',
-    doneRequired: false,
-    presentationSection: 'Packaging Details',
-    presentationOrder: 10,
-    scope: 'org',
-    columnCode: one(searchParams.column) ?? 'pack_finish',
-    expectedSchemaVersion: numberParam(searchParams.expectedSchemaVersion),
-    mode: one(searchParams.mode) === 'edit' ? 'edit' : 'add',
-  };
+  const deptState = await loadDeptOptions();
+  const wizard = wizardStateFromParams(searchParams);
+  const step = stepFromParams(searchParams, wizard);
+  const conflict = conflictFromParams(searchParams, labels);
+  const viewState = one(searchParams.state);
 
   return (
-    <div data-testid="app-shell" className="app-shell schema-column-wizard-shell">
-      <aside data-testid="app-sidebar" aria-label="App sidebar" className="app-sidebar">
-        Settings
-      </aside>
-      <div className="app-shell__body">
-        <header data-testid="app-topbar" className="app-topbar">
-          Schema Admin
-        </header>
-        <main aria-labelledby="schema-column-wizard-title" className="settings-page settings-page--schema-column-wizard">
-          <SchemaColumnWizard labels={labels} deptOptions={deptOptions} initialStep={initialStep} initialState={initialState} />
-        </main>
+    <section data-testid="schema-column-wizard" data-screen="schema-column-wizard" className="settings-page settings-page--schema-column-wizard" aria-describedby="schema-column-wizard-subtitle">
+      <header data-region="page-head" className="schema-column-wizard__header">
+        <div className="muted mono">Settings / Schema browser / Column wizard</div>
+        <h1 id="schema-column-wizard-title">{labels.title}</h1>
+        <p id="schema-column-wizard-subtitle">{labels.subtitle}</p>
+        <form method="get" action={`/${locale}/settings/schema/new`}>
+          <HiddenWizardFields locale={locale} wizard={wizard} step={step} />
+          <input type="hidden" name="draft" value="1" />
+          <button type="submit" className="btn btn-secondary">{labels.saveDraft}</button>
+        </form>
+      </header>
+
+      <StateBanners labels={labels} deptState={deptState} conflict={conflict} actionError={one(searchParams.actionError)} published={one(searchParams.published) === '1'} />
+
+      <div className="schema-column-wizard__grid" style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 680px)', gap: 24 }}>
+        <nav aria-label="Wizard step list" className="sg-section schema-column-wizard__rail">
+          <ol aria-label="Schema column wizard steps">
+            {STEPS.map((key, index) => (
+              <li key={key} aria-current={step === index + 1 ? 'step' : undefined}>
+                <span aria-hidden="true">{step > index + 1 ? '✓' : index + 1}</span> {labels[key]}
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        <section className="sg-section schema-column-wizard__card" aria-busy={viewState === 'loading' ? 'true' : undefined}>
+          <div className="schema-column-wizard__progress" aria-hidden="true">
+            {STEPS.map((key, index) => <span key={key} className={step === index + 1 ? 'is-current' : ''}>{index + 1}</span>)}
+          </div>
+          {viewState === 'loading' ? <LoadingStepCard /> : <WizardStep locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />}
+          <WizardFooter locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />
+        </section>
       </div>
-    </div>
+      <ConflictDialog labels={labels} locale={locale} wizard={wizard} conflict={conflict} />
+    </section>
   );
 }
 
-class SchemaColumnWizard extends React.Component<
-  { labels: WizardLabels; deptOptions: DeptOption[]; initialStep: number; initialState: WizardState },
-  { step: number; wizard: WizardState; errors: Record<string, string>; conflict: ConflictState; toast: string | null; pending: boolean }
-> {
-  constructor(props: { labels: WizardLabels; deptOptions: DeptOption[]; initialStep: number; initialState: WizardState }) {
-    super(props);
-    this.state = { step: props.initialStep, wizard: props.initialState, errors: {}, conflict: null, toast: null, pending: false };
+function StateBanners({ labels, deptState, conflict, actionError, published }: { labels: WizardLabels; deptState: DeptLoadState; conflict: ConflictState; actionError?: string; published: boolean }) {
+  return (
+    <>
+      {deptState.status === 'error' ? <div className="alert alert-red" role="alert">{deptState.message}</div> : null}
+      {deptState.status === 'forbidden' ? <div className="alert alert-amber" role="alert">{deptState.message}</div> : null}
+      {deptState.status === 'empty' ? <div className="alert alert-blue" role="status">No tenant department overrides found; showing the seven-dept Apex baseline.</div> : null}
+      {published ? <div className="alert alert-blue" role="status">Column published. Zod schema regenerating…</div> : null}
+      {actionError ? <div className="alert alert-red" role="alert">Could not publish column: {actionError}</div> : null}
+      {conflict ? <div className="alert alert-amber" role="alert"><strong>{labels.concurrentEditTitle}.</strong> {conflict.body}</div> : null}
+    </>
+  );
+}
+
+function LoadingStepCard() {
+  return (
+    <section role="region" aria-label="Loading step data" className="sg-section-body schema-column-wizard__step">
+      <div className="spinner" aria-hidden="true" />
+      <p role="status">Loading step data…</p>
+    </section>
+  );
+}
+
+function WizardStep({ locale, labels, deptState, step, wizard }: { locale: string; labels: WizardLabels; deptState: DeptLoadState; step: number; wizard: WizardState }) {
+  switch (step) {
+    case 2:
+      return <DeptStep locale={locale} labels={labels} deptState={deptState} wizard={wizard} />;
+    case 3:
+      return <WizardRegion title={labels.step3} question={labels.dataTypeQuestion}>{['text', 'number', 'date', 'enum', 'formula', 'relation'].map((type) => <label key={type}><input type="radio" name="dataType" defaultChecked={wizard.type === type} value={type} /> {type}</label>)}</WizardRegion>;
+    case 4:
+      return <WizardRegion title={labels.step4} question={labels.validationQuestion}><label><input type="checkbox" name="validationRequired" /> Required</label><label><input type="checkbox" name="validationUnique" /> Unique per org</label><label>Regex pattern <input type="text" name="regexPattern" aria-label="Regex pattern" /></label></WizardRegion>;
+    case 5:
+      return <WizardRegion title={labels.step5} question={labels.blockingQuestion}>{['none', 'core_done', 'pack_size_filled', 'line_filled', 'core_production_done'].map((rule) => <label key={rule}><input type="radio" name="blockingRule" defaultChecked={wizard.blocking === rule} value={rule} /> {rule}</label>)}</WizardRegion>;
+    case 6:
+      return <WizardRegion title={labels.step6} question={labels.doneQuestion}><label><input type="checkbox" name="requiredForDone" defaultChecked={wizard.doneRequired} /> When ON, this field appears in the Done checklist and blocks completion if empty.</label></WizardRegion>;
+    case 7:
+      return <WizardRegion title={labels.step7} question={labels.presentationQuestion}><label>Section label in form <input name="presentationSection" defaultValue={wizard.presentationSection} /></label><label>Order within section <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} /></label></WizardRegion>;
+    case 8:
+      return <PreviewStep labels={labels} wizard={wizard} />;
+    default:
+      return <TableStep locale={locale} labels={labels} wizard={wizard} />;
   }
+}
 
-  setWizard(patch: Partial<WizardState>) {
-    this.setState((state) => ({ wizard: { ...state.wizard, ...patch } }));
-  }
-
-  next = () => {
-    const errors: Record<string, string> = {};
-    if (this.state.step === 1 && !this.state.wizard.table) errors.table = 'Pick a table to continue.';
-    if (this.state.step === 2 && this.state.wizard.table === 'main_table' && !this.state.wizard.dept) {
-      errors.dept = 'Pick the owning department.';
-    }
-    if (Object.keys(errors).length) {
-      this.setState({ errors });
-      return;
-    }
-    const nextStep = this.state.step === 1 && this.state.wizard.table !== 'main_table' ? 3 : Math.min(8, this.state.step + 1);
-    this.setState({ step: nextStep, errors: {} });
-  };
-
-  back = () => this.setState((state) => ({ step: Math.max(1, state.step - 1) }));
-
-  publish = async () => {
-    const input = this.actionInput();
-    this.setState({ pending: true, conflict: null });
-    const result = (this.state.wizard.mode === 'edit' ? await editColumn(input) : await addColumn(input)) as ActionResult;
-    if (result.ok === false && result.error === 'CONCURRENT_EDIT') {
-      this.setState({
-        pending: false,
-        conflict: { body: this.props.labels.concurrentEditBody, diff: result.data?.diff },
-      });
-      return;
-    }
-    this.setState({ pending: false, toast: 'Column published. Zod schema regenerating…' });
-  };
-
-  actionInput() {
-    const { wizard } = this.state;
-    return {
-      tableCode: wizard.table || 'main_table',
-      columnCode: wizard.columnCode || 'new_column',
-      departmentCode: wizard.dept || undefined,
-      dataType: wizard.type,
-      validation: wizard.validation,
-      blockingRule: wizard.blocking,
-      requiredForDone: wizard.doneRequired,
-      presentation: { section: wizard.presentationSection, order: wizard.presentationOrder },
-      scope: wizard.scope,
-      expectedSchemaVersion: wizard.expectedSchemaVersion,
-    };
-  }
-
-  render() {
-    const { labels } = this.props;
-    return (
-      <section data-testid="schema-column-wizard" className="schema-column-wizard" aria-describedby="schema-column-wizard-subtitle">
-        <header data-region="page-head" className="schema-column-wizard__header">
-          <div className="muted mono">Settings / Schema browser / Column wizard</div>
-          <h1 id="schema-column-wizard-title">{labels.title}</h1>
-          <p id="schema-column-wizard-subtitle">{labels.subtitle}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => this.setState({ toast: 'Saved as draft. No runtime effect.' })}>
-            {labels.saveDraft}
-          </button>
-        </header>
-
-        {this.state.toast ? <div className="alert alert-blue" role="status">{this.state.toast}</div> : null}
-
-        <div className="schema-column-wizard__grid" style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 680px)', gap: 24 }}>
-          <nav aria-label="Wizard step list" className="sg-section schema-column-wizard__rail">
-            <ol aria-label="Schema column wizard steps">
-              {STEPS.map((key, index) => (
-                <li key={key} aria-current={this.state.step === index + 1 ? 'step' : undefined}>
-                  <span aria-hidden="true">{this.state.step > index + 1 ? '✓' : index + 1}</span> {labels[key]}
-                </li>
-              ))}
-            </ol>
-          </nav>
-
-          <section className="sg-section schema-column-wizard__card">
-            <div className="schema-column-wizard__progress" aria-hidden="true">
-              {STEPS.map((key, index) => <span key={key} className={this.state.step === index + 1 ? 'is-current' : ''}>{index + 1}</span>)}
-            </div>
-            {this.renderStep()}
-            <footer className="sg-section-foot" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <button type="button" className="btn btn-ghost" onClick={this.back} disabled={this.state.step === 1}>{labels.back}</button>
-              {this.state.step < 8 ? (
-                <button type="button" className="btn btn-primary" onClick={this.next}>{labels.next}</button>
-              ) : this.state.wizard.scope === 'universal' ? (
-                <button type="button" className="btn btn-amber">{labels.requestL1Promotion}</button>
-              ) : (
-                <button type="button" className="btn btn-primary" onClick={this.publish} disabled={this.state.pending}>
-                  {labels.publishColumn}
-                </button>
-              )}
-            </footer>
-          </section>
-        </div>
-        {this.renderConflictDialog()}
-      </section>
-    );
-  }
-
-  renderStep() {
-    const stepLabels = this.props.labels;
-    switch (this.state.step) {
-      case 2:
-        return this.renderDeptStep();
-      case 3:
-        return <WizardRegion title={stepLabels.step3} question={stepLabels.dataTypeQuestion}>{['text', 'number', 'date', 'enum', 'formula', 'relation'].map((type) => <label key={type}><input type="radio" name="data-type" checked={this.state.wizard.type === type} onChange={() => this.setWizard({ type })} /> {type}</label>)}</WizardRegion>;
-      case 4:
-        return <WizardRegion title={stepLabels.step4} question={stepLabels.validationQuestion}><label><input type="checkbox" /> Required</label><label><input type="checkbox" /> Unique per org</label><label>Regex pattern <input type="text" aria-label="Regex pattern" /></label></WizardRegion>;
-      case 5:
-        return <WizardRegion title={stepLabels.step5} question={stepLabels.blockingQuestion}>{['none', 'core_done', 'pack_size_filled', 'line_filled', 'core_production_done'].map((rule) => <label key={rule}><input type="radio" name="blocking" checked={this.state.wizard.blocking === rule} onChange={() => this.setWizard({ blocking: rule })} /> {rule}</label>)}</WizardRegion>;
-      case 6:
-        return <WizardRegion title={stepLabels.step6} question={stepLabels.doneQuestion}><label><input type="checkbox" checked={this.state.wizard.doneRequired} onChange={(event) => this.setWizard({ doneRequired: event.currentTarget.checked })} /> When ON, this field appears in the Done checklist and blocks completion if empty.</label></WizardRegion>;
-      case 7:
-        return <WizardRegion title={stepLabels.step7} question={stepLabels.presentationQuestion}><label>Section label in form <input value={this.state.wizard.presentationSection} onChange={(event) => this.setWizard({ presentationSection: event.currentTarget.value })} /></label><label>Order within section <input type="number" value={this.state.wizard.presentationOrder} onChange={(event) => this.setWizard({ presentationOrder: Number(event.currentTarget.value) })} /></label></WizardRegion>;
-      case 8:
-        return <WizardRegion title={stepLabels.reviewQuestion} question={stepLabels.reviewQuestion}><div role="status" className="badge badge-green">L2</div><dl><dt>Table</dt><dd>{this.state.wizard.table || 'main_table'}</dd><dt>Column</dt><dd>{this.state.wizard.columnCode}</dd><dt>Department</dt><dd>{this.state.wizard.dept || 'Packaging'}</dd></dl></WizardRegion>;
-      default:
-        return this.renderTableStep();
-    }
-  }
-
-  renderTableStep() {
-    const { labels } = this.props;
-    return (
+function TableStep({ locale, labels, wizard }: { locale: string; labels: WizardLabels; wizard: WizardState }) {
+  return (
+    <form id="schema-column-wizard-step-form" method="get" action={`/${locale}/settings/schema/new`}>
       <WizardRegion title={labels.step1} question={labels.tableQuestion}>
+        <HiddenWizardFields locale={locale} wizard={wizard} step={2} omit={['table']} />
         <label htmlFor="schema-column-table" className="field-label">{labels.tableQuestion}</label>
-        <select
-          id="schema-column-table"
-          name="tableCode"
-          value={this.state.wizard.table}
-          onChange={(event) => this.setWizard({ table: event.currentTarget.value })}
-        >
+        <select id="schema-column-table" name="table" defaultValue={wizard.table} required>
           <option value="">Select table…</option>
           {TABLE_OPTIONS.map((table) => <option key={table} value={table}>{table}</option>)}
         </select>
-        {this.state.errors.table ? <p role="alert">{this.state.errors.table}</p> : null}
       </WizardRegion>
-    );
-  }
+    </form>
+  );
+}
 
-  renderDeptStep() {
-    const { labels, deptOptions } = this.props;
-    return (
+function DeptStep({ locale, labels, deptState, wizard }: { locale: string; labels: WizardLabels; deptState: DeptLoadState; wizard: WizardState }) {
+  return (
+    <form id="schema-column-wizard-step-form" method="get" action={`/${locale}/settings/schema/new`}>
       <WizardRegion title={labels.step2} question={labels.deptQuestion}>
+        <HiddenWizardFields locale={locale} wizard={wizard} step={3} omit={['dept']} />
         <div className="schema-column-wizard__dept-grid">
-          {deptOptions.map((dept) => (
+          {deptState.options.map((dept) => (
             <label key={dept.code} className="schema-column-wizard__dept-card">
-              <input
-                type="radio"
-                name="departmentCode"
-                value={dept.code}
-                checked={this.state.wizard.dept === dept.code}
-                onChange={() => this.setWizard({ dept: dept.code })}
-              />
+              <input type="radio" name="dept" value={dept.code} defaultChecked={wizard.dept === dept.code} required={wizard.table === 'main_table'} />
               {dept.label}
             </label>
           ))}
         </div>
         <p className="muted">{labels.provenance}</p>
-        {this.state.errors.dept ? <p role="alert">{this.state.errors.dept}</p> : null}
       </WizardRegion>
-    );
-  }
+    </form>
+  );
+}
 
-  renderConflictDialog() {
-    const conflict = this.state.conflict;
-    if (!conflict) return null;
-    const titleId = 'schema-column-conflict-title';
-    const diff = conflict.diff ?? {};
-    return (
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="schema-column-wizard__dialog">
-        <h2 id={titleId}>{this.props.labels.concurrentEditTitle}</h2>
-        <p>{conflict.body}</p>
-        <dl>
-          <dt>Field</dt><dd>{String(diff.field ?? 'schema')}</dd>
-          <dt>Yours</dt><dd>{String(diff.before ?? 'draft')}</dd>
-          <dt>Latest published</dt><dd>{String(diff.after ?? 'latest')}</dd>
-        </dl>
-        <button type="button" className="btn btn-primary" onClick={() => this.setState({ conflict: null })}>{this.props.labels.reloadLatest}</button>
+function PreviewStep({ labels, wizard }: { labels: WizardLabels; wizard: WizardState }) {
+  return (
+    <WizardRegion title={labels.reviewQuestion} question={labels.reviewQuestion}>
+      <div role="status" className="badge badge-green">{wizard.scope === 'universal' ? 'L1' : 'L2'}</div>
+      <div className="schema-column-wizard__sample-field">
+        <label>{wizard.presentationSection}<input readOnly value="Sample value" /></label>
       </div>
-    );
-  }
+      <dl>
+        <dt>Table</dt><dd>{wizard.table || 'main_table'}</dd>
+        <dt>Column</dt><dd>{wizard.columnCode}</dd>
+        <dt>Department</dt><dd>{wizard.dept || 'Packaging'}</dd>
+        <dt>Blocking</dt><dd>{wizard.blocking}</dd>
+      </dl>
+    </WizardRegion>
+  );
+}
+
+function WizardFooter({ locale, labels, deptState, step, wizard }: { locale: string; labels: WizardLabels; deptState: DeptLoadState; step: number; wizard: WizardState }) {
+  const backStep = Math.max(1, step - 1);
+  const publishDisabled = deptState.status === 'forbidden';
+  return (
+    <footer className="sg-section-foot" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+      <a className="btn btn-ghost" aria-disabled={step === 1 ? 'true' : undefined} href={urlForStep(locale, backStep, wizard)}>{labels.back}</a>
+      {step < 8 ? (
+        <button type="submit" form="schema-column-wizard-step-form" className="btn btn-primary">{labels.next}</button>
+      ) : wizard.scope === 'universal' ? (
+        <button type="button" className="btn btn-amber">{labels.requestL1Promotion}</button>
+      ) : (
+        <form action={publishColumnAction}>
+          <HiddenWizardFields locale={locale} wizard={wizard} step={8} />
+          <button type="submit" className="btn btn-primary" disabled={publishDisabled}>{labels.publishColumn}</button>
+        </form>
+      )}
+    </footer>
+  );
+}
+
+function ConflictDialog({ labels, locale, wizard, conflict }: { labels: WizardLabels; locale: string; wizard: WizardState; conflict: ConflictState }) {
+  if (!conflict) return null;
+  const titleId = 'schema-column-conflict-title';
+  const diff = conflict.diff ?? {};
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="schema-column-wizard__dialog">
+      <h2 id={titleId}>{labels.concurrentEditTitle}</h2>
+      <p>{conflict.body}</p>
+      <dl>
+        <dt>Field</dt><dd>{String(diff.field ?? 'schema')}</dd>
+        <dt>Yours</dt><dd>{String(diff.before ?? 'draft')}</dd>
+        <dt>Latest published</dt><dd>{String(diff.after ?? 'latest')}</dd>
+      </dl>
+      <a className="btn btn-primary" href={urlForStep(locale, 8, wizard)}>{labels.reloadLatest}</a>
+    </div>
+  );
+}
+
+function HiddenWizardFields({ locale, wizard, step, omit = [] }: { locale: string; wizard: WizardState; step: number; omit?: string[] }) {
+  const omitSet = new Set(omit);
+  const hidden: Record<string, string | number | undefined> = {
+    locale,
+    step,
+    mode: wizard.mode,
+    table: wizard.table,
+    tableCode: wizard.table,
+    dept: wizard.dept,
+    departmentCode: wizard.dept,
+    dataType: wizard.type,
+    blockingRule: wizard.blocking,
+    presentationSection: wizard.presentationSection,
+    presentationOrder: wizard.presentationOrder,
+    scope: wizard.scope,
+    column: wizard.columnCode,
+    columnCode: wizard.columnCode,
+    expectedSchemaVersion: wizard.expectedSchemaVersion,
+  };
+  return (
+    <>
+      {Object.entries(hidden).flatMap(([name, value]) => {
+        if (omitSet.has(name) || value === undefined || value === '') return [];
+        return <input key={name} type="hidden" name={name} value={value} />;
+      })}
+      {wizard.doneRequired ? <input type="hidden" name="requiredForDone" value="on" /> : null}
+    </>
+  );
 }
 
 function WizardRegion({ title, question, children }: { title: string; question: string; children: React.ReactNode }) {

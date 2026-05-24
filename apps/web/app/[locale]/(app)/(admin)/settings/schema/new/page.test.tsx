@@ -8,9 +8,9 @@
  * than module-resolution noise.
  */
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -51,6 +51,12 @@ vi.mock('next-intl/server', () => ({
       provenance: 'tenant_variations.dept_overrides',
     };
     return labels[key] ?? key;
+  }),
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((url: string) => {
+    throw new Error(`NEXT_REDIRECT:${url}`);
   }),
 }));
 
@@ -131,14 +137,19 @@ describe('SET-031 Schema Column Edit Wizard localized AppShell route', () => {
     mocks.editColumn.mockResolvedValue({ ok: true, data: { tableCode: 'main_table', columnCode: 'pack_finish', schemaVersion: 8 } });
   });
 
-  it('renders the SET-031 eight-step wizard at /en/settings/schema/new inside AppShell, not a promotion modal surrogate', async () => {
+  it('renders the SET-031 eight-step wizard body and relies on the real (app) AppShell layout instead of hardcoded shell stubs', async () => {
     const { container } = await renderColumnWizard();
 
     expect(screen.getByRole('heading', { name: /column edit wizard/i })).toBeInTheDocument();
     expect(screen.getByTestId('schema-column-wizard')).toBeInTheDocument();
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('app-topbar')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+    expect(container.querySelector('[data-testid="app-sidebar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="app-topbar"]')).toBeNull();
+
+    const layoutSource = readFileSync(`${process.cwd()}/app/[locale]/(app)/layout.tsx`, 'utf8');
+    expect(layoutSource).toContain('data-testid="app-shell"');
+    expect(layoutSource).toContain('<AppSidebar');
+    expect(layoutSource).toContain('AppTopbar');
 
     const stepper = screen.getByRole('list', { name: /schema column wizard steps/i });
     for (const stepName of [
@@ -162,12 +173,8 @@ describe('SET-031 Schema Column Edit Wizard localized AppShell route', () => {
     expect(screen.queryByRole('dialog', { name: /promote to l2|request l1 schema promotion/i })).not.toBeInTheDocument();
   });
 
-  it("uses tenant_variations.dept_overrides plus the seven-dept Apex baseline when table='main_table' advances to step 2", async () => {
-    const user = userEvent.setup();
-    await renderColumnWizard();
-
-    await user.selectOptions(screen.getByRole('combobox', { name: /which table does this column belong to/i }), 'main_table');
-    await user.click(screen.getByRole('button', { name: /next/i }));
+  it("uses tenant_variations.dept_overrides plus the seven-dept Apex baseline when table='main_table' renders step 2", async () => {
+    await renderColumnWizard({ table: 'main_table', step: '2' });
 
     const deptStep = screen.getByRole('region', { name: /pick department/i });
     expect(within(deptStep).getByText(/which department owns this column/i)).toBeInTheDocument();
@@ -178,36 +185,51 @@ describe('SET-031 Schema Column Edit Wizard localized AppShell route', () => {
     expect(mocks.getTenantVariations).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a diff modal with Reload latest when Step 8 publish receives CONCURRENT_EDIT', async () => {
-    const user = userEvent.setup();
-    mocks.editColumn.mockResolvedValueOnce({
-      ok: false,
-      error: 'CONCURRENT_EDIT',
-      data: {
-        currentSchemaVersion: 8,
-        diff: {
-          field: 'presentation.section',
-          before: 'Packaging Details',
-          after: 'Quality Lab Details',
-        },
-      },
+  it('shows a diff modal with Reload latest after the publish action redirects with CONCURRENT_EDIT details', async () => {
+    await renderColumnWizard({
+      mode: 'edit',
+      table: 'main_table',
+      column: 'pack_finish',
+      step: '8',
+      expectedSchemaVersion: '7',
+      conflict: 'CONCURRENT_EDIT',
+      diffField: 'presentation.section',
+      diffBefore: 'Packaging Details',
+      diffAfter: 'Quality Lab Details',
     });
-
-    await renderColumnWizard({ mode: 'edit', table: 'main_table', column: 'pack_finish', step: '8', expectedSchemaVersion: '7' });
     expect(screen.getByRole('heading', { name: /review your column definition/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /publish column/i }));
-
-    await waitFor(() => expect(mocks.editColumn).toHaveBeenCalledWith(expect.objectContaining({
-      tableCode: 'main_table',
-      columnCode: 'pack_finish',
-      expectedSchemaVersion: 7,
-    })));
     const conflictDialog = await screen.findByRole('dialog', { name: /concurrent edit detected/i });
     expect(conflictDialog).toHaveTextContent(/another admin published a newer version/i);
     expect(conflictDialog).toHaveTextContent(/presentation\.section/i);
     expect(conflictDialog).toHaveTextContent(/Packaging Details/i);
     expect(conflictDialog).toHaveTextContent(/Quality Lab Details/i);
-    expect(within(conflictDialog).getByRole('button', { name: /reload latest/i })).toBeInTheDocument();
+    expect(within(conflictDialog).getByRole('link', { name: /reload latest/i })).toBeInTheDocument();
+  });
+
+  it('surfaces loading, failed-load, and forbidden states instead of silently swallowing tenant variation failures', async () => {
+    await renderColumnWizard({ state: 'loading' });
+    expect(screen.getByRole('status', { name: '' })).toHaveTextContent(/loading step data/i);
+    cleanup();
+
+    mocks.getTenantVariations.mockResolvedValueOnce({ ok: false, error: 'persistence_failed' });
+    await renderColumnWizard({ table: 'main_table', step: '2' });
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not load tenant department overrides/i);
+    expect(screen.getByRole('radio', { name: /packaging/i })).toBeInTheDocument();
+    cleanup();
+
+    mocks.getTenantVariations.mockResolvedValueOnce({ ok: false, error: 'forbidden' });
+    await renderColumnWizard({ table: 'main_table', step: '8' });
+    expect(screen.getByRole('alert')).toHaveTextContent(/do not have permission/i);
+    expect(screen.getByRole('button', { name: /publish column/i })).toBeDisabled();
+  });
+
+  it('keeps the page as a Server Component: no page-level use client, React stateful class, or browser event handlers in page.tsx', () => {
+    const source = readFileSync(`${process.cwd()}/app/[locale]/(app)/(admin)/settings/schema/new/page.tsx`, 'utf8');
+    expect(source.slice(0, 100)).not.toMatch(/['"]use client['"]/);
+    expect(source).not.toMatch(/class\s+SchemaColumnWizard\s+extends\s+React\.Component/);
+    expect(source).not.toMatch(/\buseState\b|\bsetState\b|onClick=|onChange=/);
+    expect(source).toMatch(/async function publishColumnAction/);
+    expect(source).toMatch(/CONCURRENT_EDIT/);
   });
 });
