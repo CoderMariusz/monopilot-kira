@@ -1,4 +1,3 @@
-import { jsx } from 'react/jsx-runtime';
 import { getTranslations } from 'next-intl/server';
 
 import { toggleModule as toggleModuleAction } from '../../../../../../actions/modules/toggle';
@@ -232,17 +231,18 @@ async function defaultToggleFeature(input: ToggleFeatureInput): Promise<ToggleFe
   throw new Error('toggle_feature_failed');
 }
 
-export default async function SettingsFeaturesPage(propsInput: unknown) {
-  const props = (propsInput ?? {}) as FeaturesPageProps;
+export default async function SettingsFeaturesPage(props: FeaturesPageProps = {}) {
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const [labels, loaded] = await Promise.all([buildLabels(locale), props.features ? Promise.resolve(null) : readFeaturesData()]);
 
-  return jsx(FeaturesScreenClient, {
-    labels,
-    features: props.features ?? loaded?.features ?? DEFAULT_FEATURES,
-    state: props.state ?? 'ready',
-    planName: props.planName ?? loaded?.planName ?? 'Premium plan',
-    activeSessionCount: props.activeSessionCount ?? loaded?.activeSessionCount ?? 28,
-    toggleFeature: props.toggleFeature ?? defaultToggleFeature,
-  });
+  return (
+    <FeaturesScreenClient
+      labels={labels}
+      features={props.features ?? loaded?.features ?? DEFAULT_FEATURES}
+      state={props.state ?? 'ready'}
+      planName={props.planName ?? loaded?.planName ?? 'Premium plan'}
+      activeSessionCount={props.activeSessionCount ?? loaded?.activeSessionCount ?? 28}
+      toggleFeature={props.toggleFeature ?? defaultToggleFeature}
+    />
+  );
 }

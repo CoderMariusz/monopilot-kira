@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { jsx, jsxs } from 'react/jsx-runtime';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -68,62 +67,6 @@ export type FeaturesScreenClientProps = {
   toggleFeature: (input: ToggleFeatureInput) => Promise<ToggleFeatureResult>;
 };
 
-type JsxType = Parameters<typeof jsx>[0] | string;
-type JsxProps = Record<string, unknown>;
-
-function h(type: JsxType, props: JsxProps | null, ...children: React.ReactNode[]) {
-  const nextProps = { ...(props ?? {}) } as JsxProps & { children?: React.ReactNode; key?: React.Key };
-  const key = nextProps.key;
-  delete nextProps.key;
-  if (children.length === 1) nextProps.children = children[0];
-  if (children.length > 1) nextProps.children = children;
-
-  if (type === Button) return normalizeHostElement(Button(nextProps as React.ComponentProps<typeof Button>), key);
-  if (type === Badge) return normalizeHostElement(Badge(nextProps as React.ComponentProps<typeof Badge>), key);
-  if (type === Switch) return renderSwitchCompat(nextProps as React.ComponentProps<typeof Switch>, key);
-
-  return children.length > 1
-    ? jsxs(type as Parameters<typeof jsxs>[0], nextProps as Parameters<typeof jsxs>[1], key)
-    : jsx(type as Parameters<typeof jsx>[0], nextProps as Parameters<typeof jsx>[1], key);
-}
-
-function normalizeHostElement(element: React.ReactElement, key?: React.Key) {
-  return jsx(element.type as Parameters<typeof jsx>[0], { ...(element.props as Record<string, unknown>) }, key);
-}
-
-function renderSwitchCompat({ checked, defaultChecked, disabled, onCheckedChange, id, name, className, ...aria }: React.ComponentProps<typeof Switch>, key?: React.Key) {
-  const value = checked ?? defaultChecked ?? false;
-  const toggle = () => {
-    if (!disabled) onCheckedChange?.(!value);
-  };
-  return jsx(
-    'button',
-    {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': value,
-      'aria-disabled': disabled || undefined,
-      'data-slot': 'switch',
-      'data-state': value ? 'checked' : 'unchecked',
-      'data-disabled': disabled || undefined,
-      id,
-      name,
-      disabled,
-      onClick: toggle,
-      onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
-        if (event.key === ' ' || event.key === 'Enter') {
-          event.preventDefault();
-          toggle();
-        }
-      },
-      className: ['switch', className].filter(Boolean).join(' '),
-      children: jsx('span', { 'data-slot': 'switch-thumb', className: 'switch__thumb', 'aria-hidden': true }),
-      ...aria,
-    },
-    key,
-  );
-}
-
 function formatTemplate(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce((value, [key, replacement]) => {
     return value.replaceAll(`{${key}}`, String(replacement));
@@ -153,25 +96,25 @@ export default function FeaturesScreenClient({
   }, [features]);
 
   if (state === 'loading') {
-    return h(
-      'main',
-      { 'data-testid': 'settings-features-screen', className: 'space-y-4 p-6', 'aria-busy': true },
-      h(
-        'section',
-        {
-          'data-testid': 'settings-features-loading-state',
-          className: 'rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600',
-        },
-        labels.loading,
-      ),
+    return (
+      <main data-testid="settings-features-screen" className="space-y-4 p-6" aria-busy="true">
+        <section
+          data-testid="settings-features-loading-state"
+          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
+        >
+          {labels.loading}
+        </section>
+      </main>
     );
   }
 
   if (state === 'error') {
-    return h(
-      'main',
-      { 'data-testid': 'settings-features-screen', className: 'space-y-4 p-6' },
-      h('div', { role: 'alert', className: 'rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900' }, labels.error),
+    return (
+      <main data-testid="settings-features-screen" className="space-y-4 p-6">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          {labels.error}
+        </div>
+      </main>
     );
   }
 
@@ -202,148 +145,177 @@ export default function FeaturesScreenClient({
     void requestToggle(feature, nextEnabled, true);
   };
 
-  return h(
-    'main',
-    { 'data-testid': 'settings-features-screen', className: 'space-y-4 p-6' },
-    h(
-      'header',
-      { 'data-region': 'page-head', className: 'flex items-start justify-between gap-4' },
-      h('div', null, h('h1', { className: 'text-2xl font-semibold tracking-tight text-slate-950' }, labels.title), h('p', { className: 'mt-1 text-sm text-slate-600' }, labels.subtitle)),
-      h(Button, { variant: 'dry-run', type: 'button', title: labels.dryRunTitle, onClick: () => setDryRunOpen(true) }, labels.dryRunActivation),
-    ),
-    h('div', { 'data-region': 'plan-notice', role: 'alert', className: 'rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950' }, planNotice),
-    h(
-      FeatureSection,
-      { title: labels.modulesTitle, region: 'modules-section' },
-      state === 'empty' || features.length === 0
-        ? h('p', { className: 'rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600' }, labels.empty)
-        : h(
-            'div',
-            { className: 'divide-y divide-slate-100' },
-            features.map((feature) => {
+  return (
+    <main data-testid="settings-features-screen" className="space-y-4 p-6">
+      <header data-region="page-head" className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
+          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+        </div>
+        <Button variant="dry-run" type="button" title={labels.dryRunTitle} onClick={() => setDryRunOpen(true)}>
+          {labels.dryRunActivation}
+        </Button>
+      </header>
+
+      <div
+        data-region="plan-notice"
+        role="alert"
+        className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
+      >
+        {planNotice}
+      </div>
+
+      <FeatureSection title={labels.modulesTitle} region="modules-section">
+        {state === 'empty' || features.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600">{labels.empty}</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {features.map((feature) => {
               const checked = Boolean(enabledByKey[feature.key]);
               const disabled = Boolean(feature.premium && freePlan);
-              return h(
-                'div',
-                { key: feature.key, 'data-testid': 'settings-feature-row', className: 'grid grid-cols-[1fr_auto] items-center gap-4 py-3' },
-                h(
-                  'div',
-                  null,
-                  h(
-                    'div',
-                    { className: 'flex items-center gap-2' },
-                    h('div', { 'data-testid': 'settings-feature-label', className: 'text-sm font-medium text-slate-950' }, feature.label),
-                    feature.premium ? h(Badge, { 'data-testid': 'settings-feature-badge', variant: 'info', className: 'bg-violet-50 text-violet-800' }, labels.premium) : null,
-                    feature.beta ? h(Badge, { 'data-testid': 'settings-feature-badge', variant: 'warning', className: 'bg-amber-50 text-amber-800' }, labels.beta) : null,
-                  ),
-                  h('div', { 'data-testid': 'settings-feature-description', className: 'mt-1 text-xs text-slate-500' }, feature.desc),
-                  disabled ? h('div', { className: 'mt-1 text-xs text-violet-700' }, labels.upgradePlanTooltip) : null,
-                ),
-                h(
-                  'div',
-                  { className: 'flex items-center' },
-                  h(Switch, {
-                    'aria-label': feature.label,
-                    checked,
-                    disabled,
-                    onCheckedChange: (next: boolean) => void requestToggle(feature, next, false),
-                  }),
-                ),
+              return (
+                <div
+                  key={feature.key}
+                  data-testid="settings-feature-row"
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 py-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div data-testid="settings-feature-label" className="text-sm font-medium text-slate-950">
+                        {feature.label}
+                      </div>
+                      {feature.premium ? (
+                        <Badge data-testid="settings-feature-badge" variant="info" className="bg-violet-50 text-violet-800">
+                          {labels.premium}
+                        </Badge>
+                      ) : null}
+                      {feature.beta ? (
+                        <Badge data-testid="settings-feature-badge" variant="warning" className="bg-amber-50 text-amber-800">
+                          {labels.beta}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div data-testid="settings-feature-description" className="mt-1 text-xs text-slate-500">
+                      {feature.desc}
+                    </div>
+                    {disabled ? <div className="mt-1 text-xs text-violet-700">{labels.upgradePlanTooltip}</div> : null}
+                  </div>
+                  <div className="flex items-center">
+                    <Switch
+                      aria-label={feature.label}
+                      checked={checked}
+                      disabled={disabled}
+                      onCheckedChange={(next) => void requestToggle(feature, next, false)}
+                    />
+                  </div>
+                </div>
               );
-            }),
-          ),
-    ),
-    h(
-      FeatureSection,
-      { title: labels.earlyAccessTitle, region: 'early-access-section' },
-      h(
-        'p',
-        { className: 'text-sm text-slate-500' },
-        labels.earlyAccessCopy,
-        ' ',
-        h('a', { href: '#early-access-preview-program', className: 'font-medium text-blue-600 underline-offset-2 hover:underline' }, labels.joinPreviewProgram),
-      ),
-    ),
-    dryRunOpen
-      ? h(
-          'div',
-          { role: 'presentation', className: 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40' },
-          h(
-            'div',
-            {
-              role: 'dialog',
-              'aria-modal': 'true',
-              'aria-labelledby': 'settings-features-dry-run-title',
-              className: 'w-[520px] rounded-lg bg-white shadow-2xl',
-            },
-            h('div', { className: 'border-b border-slate-200 px-5 py-4' }, h('h2', { id: 'settings-features-dry-run-title', className: 'text-base font-semibold text-slate-950' }, labels.dryRunDialogTitle)),
-            h(
-              'div',
-              { className: 'space-y-3 px-5 py-4 text-sm text-slate-700' },
-              h('p', null, formatTemplate(labels.dryRunAffects, { modules: affectedCount, sessions: activeSessionCount })),
-              h(
-                'div',
-                { className: 'rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950' },
-                h('strong', null, formatTemplate(labels.dryRunFlagsOn, { enabled: enabledCount, total: features.length })),
-                ' ',
-                labels.dryRunApplyOnLoad,
-              ),
-              h('div', { className: 'text-xs font-semibold uppercase tracking-wide text-slate-500' }, labels.affectedModulesLabel),
-              h(
-                'div',
-                { className: 'flex flex-wrap gap-2' },
-                enabledFeatures.map((feature) => h(Badge, { key: feature.key, 'data-testid': 'settings-dry-run-module-badge', variant: 'info' }, feature.label)),
-              ),
-            ),
-            h(
-              'div',
-              { className: 'flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4' },
-              h(Button, { type: 'button', className: 'btn-secondary', onClick: () => setDryRunOpen(false) }, labels.close),
-              h(Button, { type: 'button', className: 'btn-primary', onClick: () => setDryRunOpen(false) }, labels.saveChanges),
-            ),
-          ),
-        )
-      : null,
-    pendingDependency
-      ? h(
-          'div',
-          { role: 'presentation', className: 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40' },
-          h(
-            'div',
-            {
-              role: 'dialog',
-              'aria-modal': 'true',
-              'aria-labelledby': 'settings-features-dependency-title',
-              className: 'w-[440px] rounded-lg bg-white shadow-2xl',
-            },
-            h('div', { className: 'border-b border-slate-200 px-5 py-4' }, h('h2', { id: 'settings-features-dependency-title', className: 'text-base font-semibold text-slate-950' }, labels.dependencyRejectedTitle)),
-            h(
-              'div',
-              { className: 'space-y-3 px-5 py-4 text-sm text-slate-700' },
-              h('p', null, labels.dependencyRejectedBody),
-              h('div', { className: 'flex flex-wrap gap-2' }, pendingDependency.dependentModules.map((module) => h(Badge, { key: module, variant: 'warning' }, module))),
-            ),
-            h(
-              'div',
-              { className: 'flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4' },
-              h(Button, { type: 'button', className: 'btn-secondary', 'aria-label': labels.dismissDependencyDialog, onClick: () => setPendingDependency(null) }, labels.cancel),
-              h(Button, { type: 'button', className: 'btn-primary', onClick: forceDisable }, labels.forceDisable),
-            ),
-          ),
-        )
-      : null,
+            })}
+          </div>
+        )}
+      </FeatureSection>
+
+      <FeatureSection title={labels.earlyAccessTitle} region="early-access-section">
+        <p className="text-sm text-slate-500">
+          {labels.earlyAccessCopy}{' '}
+          <a href="#early-access-preview-program" className="font-medium text-blue-600 underline-offset-2 hover:underline">
+            {labels.joinPreviewProgram}
+          </a>
+        </p>
+      </FeatureSection>
+
+      {dryRunOpen ? (
+        <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-features-dry-run-title"
+            className="w-[520px] rounded-lg bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-200 px-5 py-4">
+              <h2 id="settings-features-dry-run-title" className="text-base font-semibold text-slate-950">
+                {labels.dryRunDialogTitle}
+              </h2>
+            </div>
+            <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
+              <p>{formatTemplate(labels.dryRunAffects, { modules: affectedCount, sessions: activeSessionCount })}</p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                <strong>{formatTemplate(labels.dryRunFlagsOn, { enabled: enabledCount, total: features.length })}</strong>{' '}
+                {labels.dryRunApplyOnLoad}
+              </div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.affectedModulesLabel}</div>
+              <div className="flex flex-wrap gap-2">
+                {enabledFeatures.map((feature) => (
+                  <Badge key={feature.key} data-testid="settings-dry-run-module-badge" variant="info">
+                    {feature.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
+              <Button type="button" className="btn-secondary" onClick={() => setDryRunOpen(false)}>
+                {labels.close}
+              </Button>
+              <Button type="button" className="btn-primary" onClick={() => setDryRunOpen(false)}>
+                {labels.saveChanges}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingDependency ? (
+        <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-features-dependency-title"
+            className="w-[440px] rounded-lg bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-200 px-5 py-4">
+              <h2 id="settings-features-dependency-title" className="text-base font-semibold text-slate-950">
+                {labels.dependencyRejectedTitle}
+              </h2>
+            </div>
+            <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
+              <p>{labels.dependencyRejectedBody}</p>
+              <div className="flex flex-wrap gap-2">
+                {pendingDependency.dependentModules.map((module) => (
+                  <Badge key={module} variant="warning">
+                    {module}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
+              <Button
+                type="button"
+                className="btn-secondary"
+                aria-label={labels.dismissDependencyDialog}
+                onClick={() => setPendingDependency(null)}
+              >
+                {labels.cancel}
+              </Button>
+              <Button type="button" className="btn-primary" onClick={forceDisable}>
+                {labels.forceDisable}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
   );
 }
 
 function FeatureSection({ title, region, children }: { title: string; region: string; children?: React.ReactNode }) {
-  return h(
-    'section',
-    {
-      'data-testid': 'settings-feature-section',
-      'data-region': region,
-      className: 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm',
-    },
-    h('h2', { className: 'mb-3 text-lg font-semibold text-slate-950' }, title),
-    children,
+  return (
+    <section
+      data-testid="settings-feature-section"
+      data-region={region}
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+    >
+      <h2 className="mb-3 text-lg font-semibold text-slate-950">{title}</h2>
+      {children}
+    </section>
   );
 }
