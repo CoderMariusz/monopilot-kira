@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Input from '@monopilot/ui/Input';
 
 import { publishDeptColumnDraft } from '../../../../../../(settings)/schema/_actions/draft';
+import { withOrgContext, type OrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getZodRuntimeSchema, type RuntimeColumn } from '../../../../../../../lib/schema/zod-runtime';
 
 type PreviewSearchParams = Record<string, string | undefined>;
@@ -93,6 +94,7 @@ const DEFAULT_LABELS = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>;
 const SUPPORTED_LOCALES = new Set(['en', 'pl', 'ro', 'uk']);
+const SCHEMA_SHADOW_PUBLISH_PERMISSION = 'org.schema.admin';
 
 const SHADOW_PREVIEW_DRAFTS: DraftColumn[] = [
   {
@@ -170,8 +172,21 @@ async function publishShadowDraft(formData: FormData) {
   const draftId = String(formData.get('draftId') ?? '');
   const requestedLocale = String(formData.get('locale') ?? 'en');
   const locale = SUPPORTED_LOCALES.has(requestedLocale) ? requestedLocale : 'en';
-  const result = (await publishDeptColumnDraft(draftId)) as PublishResult;
   const target = new URLSearchParams({ draftId });
+
+  let mayPublish = false;
+  try {
+    mayPublish = await withOrgContext(async (ctx) => hasSchemaShadowPublishPermission(ctx));
+  } catch {
+    mayPublish = false;
+  }
+
+  if (!mayPublish) {
+    target.set('state', 'permission-denied');
+    return redirect(`/${locale}/settings/schema/preview?${target.toString()}`);
+  }
+
+  const result = (await publishDeptColumnDraft(draftId)) as PublishResult;
 
   if (result.success) {
     target.set('publish', 'success');
@@ -186,7 +201,26 @@ async function publishShadowDraft(formData: FormData) {
     if (result.message) target.set('publishMessage', result.message);
   }
 
-  redirect(`/${locale}/settings/schema/preview?${target.toString()}`);
+  return redirect(`/${locale}/settings/schema/preview?${target.toString()}`);
+}
+
+async function hasSchemaShadowPublishPermission({ client, orgId, userId }: OrgContext): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (
+          rp.permission is not null
+          or r.permissions ? $3
+        )
+      limit 1`,
+    [userId, orgId, SCHEMA_SHADOW_PUBLISH_PERMISSION],
+  );
+
+  return rows.length > 0;
 }
 
 export default async function SchemaShadowPreviewPage({ params, searchParams }: PreviewPageProps) {
@@ -471,12 +505,13 @@ function describeZodNode(node: unknown): string {
   const def = (node as { _def?: { typeName?: string; innerType?: unknown; checks?: Array<Record<string, unknown>> } })._def;
   const typeName = def?.typeName;
   const innerType = def?.innerType;
+  const checks = def?.checks ?? [];
 
   if (innerType) return `${describeZodNode(innerType)}.optional()`;
 
   if (typeName === 'ZodNumber') {
     let schema = 'z.number()';
-    for (const check of def.checks ?? []) {
+    for (const check of checks) {
       if (check.kind === 'min' && typeof check.value === 'number') schema += `.min(${check.value})`;
       if (check.kind === 'max' && typeof check.value === 'number') schema += `.max(${check.value})`;
     }
@@ -485,7 +520,7 @@ function describeZodNode(node: unknown): string {
 
   if (typeName === 'ZodString') {
     let schema = 'z.string()';
-    for (const check of def.checks ?? []) {
+    for (const check of checks) {
       if (check.kind === 'min' && typeof check.value === 'number') schema += `.min(${check.value})`;
       if (check.kind === 'max' && typeof check.value === 'number') schema += `.max(${check.value})`;
     }
