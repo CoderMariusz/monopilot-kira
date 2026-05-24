@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { existsSync } from 'node:fs';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -42,6 +43,9 @@ vi.mock('next-intl/server', () => ({
       empty: 'No D365 field mappings found.',
       error: 'Unable to load D365 field mapping.',
       exportReady: 'CSV export ready',
+      testConnectionDialogTitle: 'Translated D365 connection diagnostics',
+      testConnectionDialogBody: 'Translated endpoint, Azure AD, and mapping export checks are read-only on SET-081.',
+      close: 'Translated close',
     };
     return (labels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
   }),
@@ -104,11 +108,27 @@ const mappingRows: D365FieldMapping[] = [
   },
 ];
 
-async function loadD365MappingPage(): Promise<D365MappingPage> {
-  const routePath = join(
-    process.cwd(),
-    'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/mapping/page.tsx',
+const repoRoot = process.cwd().endsWith('/apps/web') ? join(process.cwd(), '../..') : process.cwd();
+const routeDir = join(
+  repoRoot,
+  'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/mapping',
+);
+const routeFilePath = join(routeDir, 'page.tsx');
+
+async function routeClientLeafSources() {
+  if (!existsSync(routeDir)) return [];
+  const entries = await readdir(routeDir);
+  const clientFiles = entries.filter((entry) => entry.endsWith('.client.tsx'));
+  return Promise.all(
+    clientFiles.map(async (entry) => ({
+      entry,
+      source: await readFile(join(routeDir, entry), 'utf8'),
+    })),
   );
+}
+
+async function loadD365MappingPage(): Promise<D365MappingPage> {
+  const routePath = routeFilePath;
 
   if (!existsSync(routePath)) {
     return function MissingD365MappingPage() {
@@ -126,10 +146,7 @@ async function loadD365MappingPage(): Promise<D365MappingPage> {
 }
 
 async function loadExportAction(): Promise<ExportD365MappingCsv> {
-  const routePath = join(
-    process.cwd(),
-    'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/mapping/page.tsx',
-  );
+  const routePath = routeFilePath;
 
   if (!existsSync(routePath)) {
     return async () => new Response('', { status: 501 });
@@ -201,12 +218,9 @@ function structuralSnapshot() {
 
 describe('T-062 D365 mapping localized AppShell route contract', () => {
   it('defines the user-visible /en/settings/integrations/d365/mapping route under the AppShell route group', () => {
-    const canonicalRoute = join(
-      process.cwd(),
-      'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/mapping/page.tsx',
-    );
+    const canonicalRoute = routeFilePath;
     const legacyRoute = join(
-      process.cwd(),
+      repoRoot,
       'apps/web/app/[locale]/(admin)/settings/integrations/d365/mapping/page.tsx',
     );
 
@@ -215,6 +229,29 @@ describe('T-062 D365 mapping localized AppShell route contract', () => {
       'T-062 must implement /en/settings/integrations/d365/mapping under app/[locale]/(app)/(admin) so AppShell/AppSidebar/AppTopbar wrap the page',
     ).toBe(true);
     expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
+  });
+
+  it('keeps the Server Component hook-free and delegates browser interactions to a use-client leaf', async () => {
+    expect(existsSync(routeFilePath), 'D365 mapping page.tsx must exist at the localized AppShell route').toBe(true);
+    const pageSource = await readFile(routeFilePath, 'utf8');
+    const clientLeaves = await routeClientLeafSources();
+    const clientSource = clientLeaves.map((leaf) => leaf.source).join('\n---client-leaf---\n');
+
+    expect(
+      pageSource,
+      'page.tsx is a Server Component boundary: move useState/useEffect/browser event handlers into a .client.tsx leaf with a top-level use client directive',
+    ).not.toMatch(/\bReact\.use(?:State|Effect|LayoutEffect|Reducer|Ref)\b|\buse(?:State|Effect|LayoutEffect|Reducer|Ref)\s*\(/);
+    expect(pageSource, 'page.tsx must not attach client-side onClick handlers directly').not.toMatch(/\bonClick\s*=/);
+    expect(
+      clientLeaves.some((leaf) => /^['"]use client['"];?/m.test(leaf.source)),
+      'interactive MappingScreen/TestConnectionDialog/DirectionFilters must live in a .client.tsx file with a top-level use client directive',
+    ).toBe(true);
+    expect(clientSource, 'client leaf must use the shared UI Modal/Radix wrapper instead of a hand-rolled role=dialog div').toContain(
+      "@monopilot/ui/Modal",
+    );
+    expect(clientSource, 'client leaf must not fake shadcn/Radix dialog data-slot attributes on raw divs').not.toContain(
+      'data-slot="dialog-content"',
+    );
   });
 });
 
@@ -296,8 +333,25 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
     await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
     const dialog = await screen.findByRole('dialog', { name: /d365 test connection|test connection/i });
     expect(dialog).toHaveAttribute('data-modal-id', 'SM-08');
-    expect(dialog).toHaveAttribute('data-slot', 'dialog-content');
+    expect(dialog).toHaveAttribute('data-focus-trap', 'radix-dialog');
+    expect(dialog, 'SM-08 must be rendered by the shared UI Modal/Radix primitive, not by a raw div faking data-slot').not.toHaveAttribute(
+      'data-slot',
+      'dialog-content',
+    );
     assertModalA11y(dialog, /d365 test connection|test connection/i);
+  });
+
+  it('renders SM-08 dialog copy from next-intl labels instead of hardcoded English fallback strings', async () => {
+    const user = userEvent.setup();
+    await renderD365MappingPage();
+
+    await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /translated d365 connection diagnostics/i });
+    expect(within(dialog).getByText(/translated endpoint, azure ad, and mapping export checks/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^Translated close$/i })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/^D365 test connection$/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /^Close$/ })).not.toBeInTheDocument();
   });
 
   it('applies ?dir=outgoing server-side and lists only outgoing Monopilot to D365 rows', async () => {
