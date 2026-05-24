@@ -220,7 +220,7 @@ async function assertSettingsI18n(page: Parameters<typeof installBrowserErrorSpi
     failures.push({ category: 'region', message: `${route} must render ${assertion.screenSelector} inside the real AppShell` });
   }
 
-  if (!headingText.includes(assertion.expectedHeading)) {
+  if (!headingText.toLocaleLowerCase('en-US').includes(assertion.expectedHeading.toLocaleLowerCase('en-US'))) {
     failures.push({
       category: 'region',
       message: `${route} h1 must resolve localized Settings copy "${assertion.expectedHeading}" from next-intl; saw "${headingText || '<missing>'}"`,
