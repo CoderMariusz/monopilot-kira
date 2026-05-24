@@ -93,7 +93,7 @@ export default function EmailTemplatesScreen({
   providerSettings: EmailProviderSettings;
   templates: EmailTemplate[];
   state: PageState;
-  testSend: (input: TestSendInput) => Promise<TestSendResult>;
+  testSend?: (input: TestSendInput) => Promise<TestSendResult>;
 }) {
   const [provider, setProvider] = React.useState<EmailProvider>(providerSettings.provider);
   const [fromEmail, setFromEmail] = React.useState(providerSettings.fromEmail);
@@ -107,8 +107,11 @@ export default function EmailTemplatesScreen({
     setFromName(providerSettings.fromName);
   }, [providerSettings.provider, providerSettings.fromEmail, providerSettings.fromName]);
 
+  const hasReviewedTestSend = typeof testSend === 'function';
+  const testSendUnavailableText = `${labels.testSend} unavailable: ${labels.testSendError}`;
+
   async function sendProbe() {
-    if (state === 'permission_denied') return;
+    if (state === 'permission_denied' || typeof testSend !== 'function') return;
     const result = await testSend({ provider, fromEmail, fromName });
     if (result.ok) {
       setToast({ tone: 'success', text: interpolate(labels.sent, { messageId: result.message_id }) });
@@ -133,7 +136,12 @@ export default function EmailTemplatesScreen({
           <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" className="btn-secondary" onClick={() => void sendProbe()} disabled={state === 'loading' || state === 'error' || state === 'permission_denied'}>
+          <Button
+            type="button"
+            className="btn-secondary"
+            onClick={() => void sendProbe()}
+            disabled={state === 'loading' || state === 'error' || state === 'permission_denied' || !hasReviewedTestSend}
+          >
             {labels.testSend}
           </Button>
           <Button
@@ -160,6 +168,11 @@ export default function EmailTemplatesScreen({
         </section>
       ) : (
         <>
+          {!hasReviewedTestSend ? (
+            <section role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {testSendUnavailableText}
+            </section>
+          ) : null}
           <SettingsSection
             title={labels.providerTitle}
             subtitle={labels.providerSubtitle}

@@ -143,7 +143,7 @@ export type ImportExportScreenProps = {
   state: PageState;
   labels: ImportExportLabels;
   exportSettingsEntity: ExportSettingsEntity;
-  preflightAuthorizationPolicyImport: PreflightAuthorizationPolicyImport;
+  preflightAuthorizationPolicyImport?: PreflightAuthorizationPolicyImport;
 };
 
 function hasRequiredPermission(entity: SettingsImportExportEntity, visiblePermissions: string[]) {
@@ -252,6 +252,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   }
 
   const isAuthorizationPolicy = selectedEntity.key === 'authorization_policies';
+  const hasReviewedAuthorizationPreflight = typeof props.preflightAuthorizationPolicyImport === 'function';
   const canUpload = selectedEntity.importSupported;
   const canStartImport = canUpload && Boolean(fileName) && (!isAuthorizationPolicy || Boolean(dryRunId));
 
@@ -275,7 +276,14 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
       return;
     }
 
-    const result = await props.preflightAuthorizationPolicyImport({ fileName, auditReason: auditReason.trim() });
+    if (!hasReviewedAuthorizationPreflight) {
+      setDryRunError(labels.importCard.preflightUnavailable);
+      return;
+    }
+
+    const preflightAuthorizationPolicyImport = props.preflightAuthorizationPolicyImport;
+    if (typeof preflightAuthorizationPolicyImport !== 'function') return;
+    const result = await preflightAuthorizationPolicyImport({ fileName, auditReason: auditReason.trim() });
     if (result.ok === true) {
       setDryRunError('');
       setDryRunId(result.dryRunId);
@@ -354,7 +362,9 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
         </div>
       ) : isAuthorizationPolicy ? (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          {labels.alerts.authorizationPolicy}
+          {hasReviewedAuthorizationPreflight
+            ? labels.alerts.authorizationPolicy
+            : labels.importCard.preflightUnavailable}
         </div>
       ) : null}
 
@@ -424,7 +434,12 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
                 className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 placeholder={labels.importCard.auditReasonPlaceholder}
               />
-              <button type="button" className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium" onClick={() => void runAuthorizationPreflight()}>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void runAuthorizationPreflight()}
+                disabled={!hasReviewedAuthorizationPreflight}
+              >
                 {labels.importCard.runDryRun}
               </button>
               {dryRunError ? <p className="text-sm text-red-700">{dryRunError}</p> : null}
