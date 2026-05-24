@@ -34,6 +34,8 @@ export type D365MappingLabels = {
   all: string;
   incoming: string;
   outgoing: string;
+  directionFilterLabel: string;
+  fieldLevelMap: string;
   d365Field: string;
   direction: string;
   monopilotField: string;
@@ -109,6 +111,8 @@ async function labelsFor(): Promise<D365MappingLabels> {
     all: safeLabel(t, 'all', 'All ({count})'),
     incoming: safeLabel(t, 'incoming', 'D365 → Monopilot ({count})'),
     outgoing: safeLabel(t, 'outgoing', 'Monopilot → D365 ({count})'),
+    directionFilterLabel: safeLabel(t, 'directionFilterLabel', 'D365 mapping direction'),
+    fieldLevelMap: safeLabel(t, 'fieldLevelMap', 'Field-level map'),
     d365Field: safeLabel(t, 'd365Field', 'D365 field'),
     direction: safeLabel(t, 'direction', 'Direction'),
     monopilotField: safeLabel(t, 'monopilotField', 'Monopilot field'),

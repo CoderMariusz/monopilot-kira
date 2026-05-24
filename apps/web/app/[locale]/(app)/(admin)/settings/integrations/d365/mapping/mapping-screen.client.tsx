@@ -132,7 +132,7 @@ function DirectionFilters({
   }
 
   return (
-    <nav data-region="direction-filter" aria-label="D365 mapping direction" className="mb-2 flex flex-wrap gap-2">
+    <nav data-region="direction-filter" aria-label={labels.directionFilterLabel} className="mb-2 flex flex-wrap gap-2">
       {items.map((item) => (
         <Button
           key={item.key}
@@ -147,8 +147,6 @@ function DirectionFilters({
     </nav>
   );
 }
-
-const sharedModalPrimitive = Modal;
 
 function TestConnectionDialog({
   labels,
@@ -186,28 +184,10 @@ function TestConnectionDialog({
     </>
   );
 
-  const isTestRuntime = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom');
-
-  if (!isTestRuntime) {
-    return (
-      <Modal open={open} onOpenChange={onOpenChange} size="sm" modalId="SM-08">
-        {body}
-      </Modal>
-    );
-  }
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={accessibleName}
-      data-modal-id="SM-08"
-      data-focus-trap="radix-dialog"
-      data-primitive={`@monopilot/ui/${sharedModalPrimitive.name}`}
-      className="modal modal--sm rounded-md border bg-white p-4 shadow-lg"
-    >
+    <Modal open={open} onOpenChange={onOpenChange} size="sm" modalId="SM-08">
       {body}
-    </div>
+    </Modal>
   );
 }
 
@@ -261,11 +241,11 @@ export default function D365MappingScreen({
         <Card className="sg-section bg-white">
           <CardHeader className="border-b px-4 py-3">
             <CardTitle id="settings-d365-field-level-map-title" className="text-base font-semibold">
-              Field-level map
+              {labels.fieldLevelMap}
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 py-0">
-            <Table aria-label="Field-level map">
+            <Table aria-label={labels.fieldLevelMap}>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">{labels.d365Field}</TableHead>
