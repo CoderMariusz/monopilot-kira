@@ -78,6 +78,16 @@ type LinesPageProps = {
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
+type LinesPageModule = { default: LinesPage; activateProductionLine: (input: ActivateLineInput) => Promise<unknown> };
+
+async function loadLinesPageModule(): Promise<LinesPageModule> {
+  const pageModulePath = './page.tsx';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  expect(mod.default, 'SET-018 Line List page must default-export a renderable React component').toEqual(
+    expect.any(Function),
+  );
+  return mod as LinesPageModule;
+}
 
 const line0: ProductionLine = {
   id: '00000000-0000-4000-8000-000000000100',
@@ -121,12 +131,7 @@ const lines = [line0, line4, line8];
 
 async function loadLinesPage(): Promise<LinesPage> {
   try {
-    const pageModulePath = './page.tsx';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-018 Line List page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as LinesPage;
+    return (await loadLinesPageModule()).default;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const missingPage = /failed to load url .*\/page|cannot find module .*\/page|cannot find module.*\.\/page|failed to resolve import.*\.\/page/i.test(
@@ -321,5 +326,26 @@ describe('SET-018 line list behavior', () => {
       'aria-label',
       expect.stringMatching(/insufficient permissions.*settings\.infra\.update/i),
     );
+  });
+
+  it('returns a distinct permission error from the server action instead of masquerading as V-SET-62', async () => {
+    const query = vi.fn(async (sql: string) => {
+      expect(sql).toMatch(/from public\.user_roles/i);
+      return { rows: [] };
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const { activateProductionLine } = await loadLinesPageModule();
+    const result = await activateProductionLine({ lineId: line0.id });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'PERMISSION_DENIED',
+      lineId: line0.id,
+      message: expect.stringMatching(/settings\.infra\.update/i),
+    });
+    expect(result).not.toMatchObject({ code: 'NO_MACHINE', validation: 'V-SET-62' });
   });
 });

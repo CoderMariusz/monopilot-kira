@@ -77,6 +77,13 @@ type LineActivationRow = {
   machine_ids: string[] | null;
 };
 
+type PermissionDeniedActivationResult = {
+  ok: false;
+  code: 'PERMISSION_DENIED';
+  lineId: string;
+  message: string;
+};
+
 type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
@@ -204,17 +211,16 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
   }
 }
 
-export async function activateProductionLine(input: ActivateLineInput): Promise<ActivateLineResult> {
+export async function activateProductionLine(input: ActivateLineInput): Promise<ActivateLineResult | PermissionDeniedActivationResult> {
   'use server';
 
   try {
-    return await withOrgContext(async (ctx): Promise<ActivateLineResult> => {
+    return await withOrgContext(async (ctx): Promise<ActivateLineResult | PermissionDeniedActivationResult> => {
       const context = ctx as OrgContextLike;
       if (!(await hasPermission(context, UPDATE_PERMISSION))) {
         return {
           ok: false,
-          code: 'NO_MACHINE',
-          validation: 'V-SET-62',
+          code: 'PERMISSION_DENIED',
           lineId: input.lineId,
           message: DEFAULT_LABELS.insufficientPermission,
         };
@@ -278,11 +284,14 @@ export default async function LinesPage(propsInput: unknown = {}) {
       }
     : await loadLines();
 
+  const activateLineForClient: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult =
+    props.activateLine ?? ((input: ActivateLineInput) => activateProductionLine(input) as Promise<ActivateLineResult>);
+
   return React.createElement(LinesScreen, {
     labels,
     lines: runtime.lines,
     canUpdateInfra: runtime.canUpdateInfra,
-    activateLine: props.activateLine ?? activateProductionLine,
+    activateLine: activateLineForClient,
     state: runtime.state,
   });
 }
