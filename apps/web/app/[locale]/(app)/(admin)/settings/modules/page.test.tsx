@@ -20,7 +20,7 @@ const labels: Record<string, string> = {
   subtitle: 'Turn modules and features on for your workspace.',
   dryRunActivation: 'Dry-run activation',
   dryRunTitle: 'Preview affected modules + active sessions before saving flag changes',
-  planNotice: "You're on the Premium plan. All premium features are included. Beta features are released incrementally.",
+  planNotice: "You're on the {planName}. All premium features are included. Beta features are released incrementally.",
   modulesTitle: 'Modules',
   earlyAccessTitle: 'Early access',
   earlyAccessCopy: 'Want to try a feature early?',
@@ -38,8 +38,22 @@ const labels: Record<string, string> = {
   close: 'Close',
   saveChanges: 'Save changes',
   dryRunDialogTitle: 'Dry-run — feature flag activation',
+  dryRunAffects: 'Activating this flag set affects {modules} modules across {sessions} active sessions.',
+  dryRunFlagsOn: '{enabled} of {total}',
+  dryRunApplyOnLoad: 'flags currently on. Changes apply on next page load for each user.',
   affectedModulesLabel: 'Affected modules',
 };
+
+vi.mock('../../../../../../actions/modules/toggle', () => ({
+  toggleModule: vi.fn(async (input: { moduleCode: string; enabled: boolean }) => ({
+    ok: true as const,
+    data: { moduleCode: input.moduleCode, enabled: input.enabled },
+  })),
+}));
+
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+}));
 
 vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async () => (key: string, values?: Record<string, number>) => {
@@ -124,18 +138,12 @@ const modules: ModuleToggle[] = [
 ];
 
 async function loadModulesPage(): Promise<ModulesPage> {
-  try {
-    const pageModulePath = './page.tsx';
-    const mod = await import(/* @vite-ignore */ pageModulePath);
-    expect(mod.default, 'SET-070 modules page must default-export a renderable React component').toEqual(
-      expect.any(Function),
-    );
-    return mod.default as ModulesPage;
-  } catch {
-    return function MissingModulesPage() {
-      return React.createElement('main', { 'data-testid': 'missing-modules-page' });
-    };
-  }
+  const pageModulePath = './page.tsx';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  expect(mod.default, 'SET-070 modules page must default-export a renderable React component').toEqual(
+    expect.any(Function),
+  );
+  return mod.default as ModulesPage;
 }
 
 async function renderModulesPage(overrides: Partial<ModulesPageProps> = {}) {
@@ -189,14 +197,23 @@ function assertModalA11y(dialog: HTMLElement, name: RegExp) {
 
 describe('SET-070 modules AppShell route contract', () => {
   it('defines the user-visible localized AppShell route instead of only a legacy settings route', () => {
-    const canonicalRoute = join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/modules/page.tsx');
-    const legacyRoute = join(process.cwd(), 'app/[locale]/(admin)/settings/modules/page.tsx');
+    const canonicalRouteCandidates = [
+      join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/modules/page.tsx'),
+      join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/modules/page.tsx'),
+    ];
+    const legacyRouteCandidates = [
+      join(process.cwd(), 'apps/web/app/[locale]/(admin)/settings/modules/page.tsx'),
+      join(process.cwd(), 'app/[locale]/(admin)/settings/modules/page.tsx'),
+    ];
 
     expect(
-      existsSync(canonicalRoute),
+      canonicalRouteCandidates.some((candidate) => existsSync(candidate)),
       'T-103 must implement /en/settings/modules under app/[locale]/(app)/(admin) so AppShell/AppSidebar/AppTopbar wrap the page',
     ).toBe(true);
-    expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
+    expect(
+      legacyRouteCandidates.some((candidate) => existsSync(candidate)),
+      'Legacy body-only settings route must not be the only implementation',
+    ).toBe(false);
   });
 });
 
