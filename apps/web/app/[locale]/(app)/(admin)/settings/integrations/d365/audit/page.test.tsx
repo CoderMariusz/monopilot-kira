@@ -116,12 +116,12 @@ const syncRuns: D365SyncRun[] = [
 ];
 
 async function loadD365AuditPage(): Promise<D365AuditPage> {
-  const routePath = join(
-    process.cwd(),
-    'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/audit/page.tsx',
-  );
+  const routeCandidates = [
+    join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/audit/page.tsx'),
+    join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/audit/page.tsx'),
+  ];
 
-  if (!existsSync(routePath)) {
+  if (!routeCandidates.some((candidate) => existsSync(candidate))) {
     return function MissingD365AuditPage() {
       return React.createElement('main', { 'data-testid': 'missing-d365-audit-page' });
     };
@@ -246,7 +246,7 @@ describe('T-112 D365 sync audit behavior', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     const rawJson = within(dialog).getByTestId('d365-sync-errors-json');
     expect(rawJson).toHaveAttribute('aria-readonly', 'true');
-    expect(rawJson).toHaveTextContent(JSON.stringify(syncRuns[1].errors, null, 2));
+    expect(rawJson.textContent).toBe(JSON.stringify(syncRuns[1].errors, null, 2));
     expect(rawJson).toHaveTextContent('D365_DIMENSION_MISSING');
     expect(rawJson).toHaveTextContent('HTTP_429');
     expect(within(dialog).queryByText(/category|categorized|summary/i)).not.toBeInTheDocument();
