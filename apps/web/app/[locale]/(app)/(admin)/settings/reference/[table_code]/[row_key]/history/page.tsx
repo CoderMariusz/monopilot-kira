@@ -2,7 +2,6 @@ import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -252,30 +251,20 @@ function HeaderStrip({ tableCode, rowKey, snapshot, labels }: { tableCode: strin
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="success">{labels.active}</Badge>
-            <Button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              aria-controls={snapshotId}
-              aria-expanded="false"
-              data-snapshot-json={snapshotJson}
-              onClick={(event) => {
-                const button = event.currentTarget;
-                const expanded = button.getAttribute('aria-expanded') === 'true';
-                button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-                const panel = document.getElementById(snapshotId);
-                panel?.toggleAttribute('hidden', expanded);
-                const pre = panel?.querySelector('pre');
-                if (pre) pre.textContent = expanded ? '' : button.getAttribute('data-snapshot-json') ?? 'null';
-              }}
-            >
-              {labels.currentSnapshotJson}
-            </Button>
           </div>
         </CardHeader>
       </Card>
-      <section id={snapshotId} role="region" aria-label={labels.currentSnapshotJson} hidden className="rounded-lg bg-slate-950 p-4 text-slate-50">
-        <pre className="mono overflow-auto text-xs leading-6" />
-      </section>
+      <details className="rounded-lg border border-slate-200 bg-white p-0">
+        <summary
+          aria-controls={snapshotId}
+          className="cursor-pointer select-none rounded-lg px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {labels.currentSnapshotJson}
+        </summary>
+        <section id={snapshotId} role="region" aria-label={labels.currentSnapshotJson} className="rounded-b-lg bg-slate-950 p-4 text-slate-50">
+          <pre className="mono overflow-auto text-xs leading-6">{snapshotJson}</pre>
+        </section>
+      </details>
     </>
   );
 }
@@ -287,7 +276,6 @@ function DiffPanel({ entry, labels }: { entry: ReferenceAuditEntry; labels: Labe
       id={`diff-panel-${entry.id}`}
       role="region"
       aria-label={`Field diff ${entry.id}`}
-      hidden
       className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <h2 className="mb-3 text-sm font-semibold">Field diff</h2>
@@ -315,55 +303,50 @@ function DiffPanel({ entry, labels }: { entry: ReferenceAuditEntry; labels: Labe
 
 function HistoryTable({ rows, labels }: { rows: ReferenceAuditEntry[]; labels: Labels }) {
   return (
-    <>
-      <Card className="rounded-xl border border-slate-200 bg-white">
-        <CardContent className="p-0">
-          <Table aria-label={labels.historyTable} className="w-full text-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">{labels.createdAt}</TableHead>
-                <TableHead scope="col">{labels.actor}</TableHead>
-                <TableHead scope="col">{labels.action}</TableHead>
-                <TableHead scope="col">{labels.changes}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => {
-                const hasDiff = diffFields(row.oldValue, row.newValue).length > 0;
-                return (
-                  <TableRow key={row.id} data-audit-id={row.id}>
-                    <TableCell className="font-mono text-xs text-slate-600">{toIso(row.createdAt)}</TableCell>
-                    <TableCell>
-                      <div className="font-medium text-slate-900">{row.actorName}</div>
-                      {row.actorEmail ? <div className="text-xs text-slate-500">{row.actorEmail}</div> : null}
-                    </TableCell>
-                    <TableCell><Badge variant={actionVariant(row.action)}>{row.action}</Badge></TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        aria-controls={`diff-panel-${row.id}`}
-                        aria-expanded="false"
-                        disabled={!hasDiff}
-                        onClick={(event) => {
-                          const button = event.currentTarget;
-                          const expanded = button.getAttribute('aria-expanded') === 'true';
-                          button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-                          document.getElementById(`diff-panel-${row.id}`)?.toggleAttribute('hidden', expanded);
-                        }}
-                      >
-                        {labels.viewDiff}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      {rows.slice(0, 1).map((row) => <DiffPanel key={`diff-${row.id}`} entry={row} labels={labels} />)}
-    </>
+    <Card className="rounded-xl border border-slate-200 bg-white">
+      <CardContent className="p-0">
+        <Table aria-label={labels.historyTable} className="w-full text-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{labels.createdAt}</TableHead>
+              <TableHead scope="col">{labels.actor}</TableHead>
+              <TableHead scope="col">{labels.action}</TableHead>
+              <TableHead scope="col">{labels.changes}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const hasDiff = diffFields(row.oldValue, row.newValue).length > 0;
+              return (
+                <TableRow key={row.id} data-audit-id={row.id}>
+                  <TableCell className="font-mono text-xs text-slate-600">{toIso(row.createdAt)}</TableCell>
+                  <TableCell>
+                    <div className="font-medium text-slate-900">{row.actorName}</div>
+                    {row.actorEmail ? <div className="text-xs text-slate-500">{row.actorEmail}</div> : null}
+                  </TableCell>
+                  <TableCell><Badge variant={actionVariant(row.action)}>{row.action}</Badge></TableCell>
+                  <TableCell>
+                    {hasDiff ? (
+                      <details className="group">
+                        <summary
+                          aria-controls={`diff-panel-${row.id}`}
+                          className="inline-flex cursor-pointer select-none items-center rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {labels.viewDiff}
+                        </summary>
+                        <DiffPanel entry={row} labels={labels} />
+                      </details>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -167,15 +167,16 @@ describe('SET-054 reference row audit trail screen', () => {
     expect(root).toHaveAttribute('data-table-code', 'allergens');
     expect(root).toHaveAttribute('data-row-key', 'gluten');
     expect(screen.getByRole('heading', { name: /reference audit trail/i })).toBeInTheDocument();
-    expect(screen.getByText(/allergens/i)).toBeInTheDocument();
-    expect(screen.getByText(/gluten/i)).toBeInTheDocument();
+    const header = screen.getByRole('region', { name: /current reference row|header strip/i });
+    expect(within(header).getByText(/allergens/i)).toBeInTheDocument();
+    expect(within(header).getByText(/gluten/i)).toBeInTheDocument();
 
     const table = historyTable();
     for (const header of ['Created at', 'Actor', 'Action', 'Changes']) {
       expect(within(table).getByRole('columnheader', { name: new RegExp(header, 'i') })).toBeInTheDocument();
     }
 
-    const rows = within(table).getAllByRole('row').slice(1);
+    const rows = Array.from(table.querySelectorAll('tbody > tr[data-audit-id]')) as HTMLElement[];
     expect(rows).toHaveLength(3);
     expect(rows.map((row) => row.getAttribute('data-audit-id'))).toEqual([
       'audit-update-gluten-2',
@@ -199,9 +200,14 @@ describe('SET-054 reference row audit trail screen', () => {
     await renderReferenceHistory();
 
     const updateRow = within(historyTable()).getByRole('row', { name: /carlos vega.*update/i });
-    await user.click(within(updateRow).getByRole('button', { name: /view diff|expand/i }));
+    const diffToggle = within(updateRow).getByText(/view diff|expand/i).closest('summary');
+    expect(diffToggle, 'diff disclosure must use runtime-safe native details/summary, not stripped Server Component handlers').not.toBeNull();
+    const diffDisclosure = diffToggle?.closest('details');
+    expect(diffDisclosure).not.toHaveAttribute('open');
+    await user.click(diffToggle as HTMLElement);
+    expect(diffDisclosure).toHaveAttribute('open');
 
-    const diffPanel = screen.getByRole('region', { name: /diff.*audit-update-gluten-2|field diff/i });
+    const diffPanel = within(updateRow).getByRole('region', { name: /field diff audit-update-gluten-2/i });
     expect(within(diffPanel).getByText('severity')).toBeInTheDocument();
     expect(within(diffPanel).getByTestId('diff-severity-old')).toHaveTextContent('high');
     expect(within(diffPanel).getByTestId('diff-severity-old')).toHaveAttribute('data-change-kind', 'changed');
@@ -226,10 +232,12 @@ describe('SET-054 reference row audit trail screen', () => {
     expect(within(header).getByText(/allergens/i)).toBeInTheDocument();
     expect(within(header).getByText(/gluten/i)).toBeInTheDocument();
 
-    const toggle = within(header).getByRole('button', { name: /current snapshot json|snapshot/i });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const toggle = screen.getByText(/current snapshot json|snapshot/i).closest('summary');
+    expect(toggle, 'snapshot disclosure must use runtime-safe native details/summary, not stripped Server Component handlers').not.toBeNull();
+    const snapshotDisclosure = toggle?.closest('details');
+    expect(snapshotDisclosure).not.toHaveAttribute('open');
+    await user.click(toggle as HTMLElement);
+    expect(snapshotDisclosure).toHaveAttribute('open');
 
     const snapshot = screen.getByRole('region', { name: /current snapshot json/i });
     expect(snapshot).toHaveTextContent('"severity": "critical"');
