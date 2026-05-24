@@ -119,9 +119,12 @@ const features: FeatureFlag[] = [
 ];
 
 async function loadFeaturesPage(): Promise<FeaturesPage> {
-  const routePath = join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/features/page.tsx');
+  const routeCandidates = [
+    join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/features/page.tsx'),
+    join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/features/page.tsx'),
+  ];
 
-  if (!existsSync(routePath)) {
+  if (!routeCandidates.some((routePath) => existsSync(routePath))) {
     return function MissingFeaturesPage() {
       return React.createElement('main', { 'data-testid': 'settings-features-screen-missing' });
     };
