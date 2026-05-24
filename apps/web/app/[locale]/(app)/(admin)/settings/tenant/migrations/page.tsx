@@ -90,6 +90,7 @@ const DEFAULT_LABELS = {
   forbiddenBody: 'Access denied. The settings.audit.read permission is required to view Migration History.',
   provenance: 'Data source: live tenant_migrations rows via withOrgContext; test props may inject deterministic rows for RTL.',
   unknownUser: 'System migration runner',
+  applyFilters: 'Apply filters',
 } as const;
 
 const STATUS_OPTIONS: Array<{ value: 'all' | TenantMigrationStatus; label: string }> = [
@@ -451,7 +452,7 @@ export default async function TenantMigrationHistoryPage(propsInput: unknown) {
               ))}
             </select>
           </label>
-          <button type="submit" className="btn btn-secondary btn-sm rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold">Apply filters</button>
+          <button type="submit" className="btn btn-secondary btn-sm rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold">{labels.applyFilters}</button>
           <span className="text-xs text-slate-500" aria-live="polite">{filteredRows.length} of {allRows.length} {labels.rowCount}</span>
         </form>
       </section>
