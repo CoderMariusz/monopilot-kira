@@ -274,6 +274,12 @@ async function renderImportExportPage(overrides: Partial<ImportExportPageProps> 
   return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
+async function renderImportExportPageWithoutInjectedData() {
+  const Page = await loadImportExportPage();
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+  return render(React.createElement(React.Fragment, null, node));
+}
+
 function hub() {
   return screen.getByTestId('settings-import-export-screen');
 }
@@ -308,6 +314,14 @@ describe('T-121 import/export AppShell route contract', () => {
     expect(clientSource.startsWith("'use client'")).toBe(true);
     expect(pageSource).not.toContain("referenceHandoffHref: '/en/");
     expect(pageSource).not.toContain('IMP-0042');
+  });
+
+  it('renders an explicit no-live-loader placeholder instead of a permission-denied or demo hub when no import/export data is injected', async () => {
+    await renderImportExportPageWithoutInjectedData();
+
+    expect(hub()).not.toHaveTextContent(/IMP-121-001|EXP-121-002|quarterly allergen refresh|segregation-of-duties test/i);
+    expect(within(hub()).queryByRole('combobox', { name: /settings entity/i })).not.toBeInTheDocument();
+    expect(within(hub()).getByRole('status')).toHaveTextContent(/live loader|not configured|unavailable|placeholder/i);
   });
 });
 

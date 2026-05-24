@@ -214,6 +214,12 @@ async function renderEmailTemplatesPage(overrides: Partial<EmailTemplatesPagePro
   return { props, ...render(<>{node}</>) };
 }
 
+async function renderEmailTemplatesPageWithoutInjectedData() {
+  const Page = await loadEmailTemplatesPage();
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+  return render(<>{node}</>);
+}
+
 function screenRoot() {
   return screen.getByTestId('settings-email-templates-screen');
 }
@@ -344,6 +350,17 @@ describe('SET-090 email_templates_screen prototype parity', () => {
         ],
       }
     `);
+  });
+
+  it('does not render Apex/no-reply provider settings or sample templates when no live email loader data is injected', async () => {
+    await renderEmailTemplatesPageWithoutInjectedData();
+
+    expect(document.body).not.toHaveTextContent(/Apex|no-reply@monopilot\.apex\.pl|po_to_supplier|qa_hold_created/i);
+    expect(
+      screen.queryAllByTestId('settings-email-template-row'),
+      'Default production render must be live-loader backed or an explicit placeholder; it must not fabricate email template rows.',
+    ).toHaveLength(0);
+    expect(document.body).toHaveTextContent(/loading|no email templates|not configured|unavailable|placeholder|live data/i);
   });
 
   it('preserves prototype keyboard focus order and opens SM-04 from New/Edit template triggers', async () => {

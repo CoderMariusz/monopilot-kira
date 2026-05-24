@@ -175,6 +175,12 @@ async function renderIntegrationsPage(overrides: Partial<IntegrationsPageProps> 
   return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
+async function renderIntegrationsPageWithoutInjectedData() {
+  const Page = await loadIntegrationsPage();
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+  return render(React.createElement(React.Fragment, null, node));
+}
+
 function screenRoot() {
   return screen.getByTestId('settings-integrations-screen');
 }
@@ -250,6 +256,17 @@ describe('SET-110 integrations prototype parity', () => {
     expect(within(activityRegion).getByRole('columnheader', { name: 'When' })).toBeInTheDocument();
     expect(within(activityRegion).getByText('D365 · ItemEntity')).toBeInTheDocument();
     expect(within(activityRegion).getByText(/Failed · Retry backoff/i)).toBeInTheDocument();
+  });
+
+  it('does not render hardcoded connector catalog, sync activity, or KPI counts when no live integrations loader data is injected', async () => {
+    await renderIntegrationsPageWithoutInjectedData();
+
+    expect(
+      screen.queryAllByTestId('settings-integrations-category-section'),
+      'Default production render must be live-loader backed or an explicit placeholder; it must not fabricate connector status rows.',
+    ).toHaveLength(0);
+    expect(document.body).not.toHaveTextContent(/SAP Business One|Xero|Power BI|ShipStation|D365 · ItemEntity|14:02|11:15|1,248|142/i);
+    expect(document.body).toHaveTextContent(/loading|no integrations|not configured|unavailable|placeholder|live data/i);
   });
 
   it('renders grid layout for view=grid and does not render the category list rows', async () => {

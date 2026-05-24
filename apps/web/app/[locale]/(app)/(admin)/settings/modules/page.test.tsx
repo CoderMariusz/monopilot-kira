@@ -167,6 +167,12 @@ async function renderModulesPage(overrides: Partial<ModulesPageProps> = {}) {
   return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
+async function renderModulesPageWithoutInjectedData() {
+  const Page = await loadModulesPage();
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+  return render(React.createElement(React.Fragment, null, node));
+}
+
 function moduleRows() {
   return screen.getAllByTestId('settings-module-toggle-row');
 }
@@ -309,6 +315,17 @@ describe('SET-070 module toggles prototype parity', () => {
       'Shipping',
     ]);
     expect(within(dialog).getAllByRole('button').map((button) => button.textContent?.trim())).toEqual(['Close', 'Save changes']);
+  });
+
+  it('does not render PRD/demo module rows, plan name, or dry-run counts when no live loader data is injected', async () => {
+    await renderModulesPageWithoutInjectedData();
+
+    expect(
+      screen.queryAllByTestId('settings-module-toggle-row'),
+      'Default production render must be live-loader backed or an explicit placeholder; it must not fabricate enabled module rows.',
+    ).toHaveLength(0);
+    expect(document.body).not.toHaveTextContent(/Premium plan|28 active sessions|NPD|Warehouse|Shipping|OEE/i);
+    expect(document.body).toHaveTextContent(/loading|no modules|not configured|unavailable|placeholder|live data/i);
   });
 
   it('renders loading, empty, and error states without silently skipping parity invariants', async () => {
