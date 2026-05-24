@@ -1,4 +1,3 @@
-import { createElement as h } from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -93,7 +92,7 @@ function one(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function searchParams(raw: PageSearchParams | undefined): Record<string, string | undefined> {
+function normalizeSearchParams(raw: PageSearchParams | undefined): Record<string, string | undefined> {
   return { table: one(raw?.table), tier: one(raw?.tier), search: one(raw?.search) };
 }
 
@@ -183,14 +182,14 @@ async function readSchemaData(): Promise<SchemaReadResult> {
   });
 }
 
-export default async function SchemaBrowserPage(props: PageProps) {
-  const harness = props as HarnessProps;
+export default async function SchemaBrowserPage(propsInput: unknown) {
+  const props = (propsInput ?? {}) as HarnessProps;
   const { locale = 'en' } = props.params ? await props.params : { locale: 'en' };
-  const query = searchParams(props.searchParams ? await props.searchParams : {});
+  const query = normalizeSearchParams(props.searchParams ? await props.searchParams : {});
   const text = await labels(locale);
-  let resolvedState = harness.state ?? 'ready';
-  let resolvedColumns = harness.columns;
-  let resolvedUserRole = harness.userRole;
+  let resolvedState = props.state ?? 'ready';
+  let resolvedColumns = props.columns;
+  let resolvedUserRole = props.userRole;
 
   if (!resolvedColumns && resolvedState === 'ready') {
     try {
@@ -205,13 +204,15 @@ export default async function SchemaBrowserPage(props: PageProps) {
     }
   }
 
-  return h(SchemaBrowserScreen, {
-    labels: text,
-    columns: resolvedColumns ?? [],
-    initialSearchParams: query,
-    state: resolvedState,
-    userRole: resolvedUserRole ?? 'Viewer',
-    openModal: harness.openModal,
-    onEditColumn: harness.onEditColumn,
-  });
+  return (
+    <SchemaBrowserScreen
+      labels={text}
+      columns={resolvedColumns ?? []}
+      initialSearchParams={query}
+      state={resolvedState}
+      userRole={resolvedUserRole ?? 'Viewer'}
+      openModal={props.openModal}
+      onEditColumn={props.onEditColumn}
+    />
+  );
 }

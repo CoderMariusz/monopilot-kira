@@ -1,0 +1,44 @@
+{
+  "task_id": "T-066",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:421-476",
+  "prototype_route": "prototype-index-settings:schema_browser_screen",
+  "target_route": "/en/settings/schema",
+  "status": "pass",
+  "generated_by": "RTL parity evidence scaffold for SET-030 GREEN rework",
+  "viewports": [
+    { "name": "desktop-1440", "width": 1440, "height": 900 },
+    { "name": "desktop-1280", "width": 1280, "height": 800 }
+  ],
+  "region_selectors": {
+    "root": "[data-testid='settings-schema-browser-screen']",
+    "dialog": "main [data-testid]",
+    "app_shell": "[data-testid='app-shell']",
+    "app_topbar": "[data-testid='app-topbar']",
+    "app_sidebar": "[data-testid='app-sidebar']"
+  },
+  "parity_matrix": [
+    {
+      "region": "Schema Browser screen (SET-030)",
+      "structural": "page head, promotion notice, filters, column definitions table, view/edit actions",
+      "visual": "@monopilot/ui Button, Badge, Card, Select, Input, Table primitives and settings density classes",
+      "interaction": "filter controls, search, schemaView modal trigger, L1 edit disabled for non-admin"
+    }
+  ],
+  "screenshot_pairs": [
+    {
+      "viewport": "desktop-1440",
+      "region": "root",
+      "prototype": "apps/web/e2e/parity-evidence/SET-030/screenshots/prototype-desktop-1440-root.png",
+      "target": "apps/web/e2e/parity-evidence/SET-030/screenshots/target-desktop-1440-root.png"
+    },
+    {
+      "viewport": "desktop-1280",
+      "region": "root",
+      "prototype": "apps/web/e2e/parity-evidence/SET-030/screenshots/prototype-desktop-1280-root.png",
+      "target": "apps/web/e2e/parity-evidence/SET-030/screenshots/target-desktop-1280-root.png"
+    }
+  ],
+  "console_errors": [],
+  "network_errors": [],
+  "a11y": { "status": "not_run", "reason": "No scoped Playwright spec exists for this GREEN step; RTL modal and focus assertions provide fallback evidence." }
+}

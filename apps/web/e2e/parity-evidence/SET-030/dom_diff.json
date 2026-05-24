@@ -1,0 +1,28 @@
+{
+  "task_id": "T-066",
+  "prototype_route": "prototype-index-settings:schema_browser_screen",
+  "target_route": "/en/settings/schema",
+  "status": "pass",
+  "regions": [
+    {
+      "region": "root",
+      "prototype_selector": "SchemaBrowserScreen",
+      "target_selector": "[data-testid='settings-schema-browser-screen']",
+      "diffs": []
+    },
+    {
+      "region": "schema-filters",
+      "prototype_selector": "select/select/input filter strip",
+      "target_selector": "[data-region='schema-filters']",
+      "diffs": [
+        "Prototype raw select translated to @monopilot/ui Select per production shadcn contract."
+      ]
+    },
+    {
+      "region": "column-definitions",
+      "prototype_selector": "Section title Column definitions + table",
+      "target_selector": "[data-region='column-definitions']",
+      "diffs": []
+    }
+  ]
+}
