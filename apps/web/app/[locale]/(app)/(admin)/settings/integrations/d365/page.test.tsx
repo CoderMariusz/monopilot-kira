@@ -82,12 +82,12 @@ const d365Config: D365ConnectionConfig = {
 };
 
 async function loadD365ConnectionPage(): Promise<D365ConnectionPage> {
-  const routePath = join(
-    process.cwd(),
-    'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/page.tsx',
-  );
+  const routeCandidates = [
+    join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/integrations/d365/page.tsx'),
+    join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/page.tsx'),
+  ];
 
-  if (!existsSync(routePath)) {
+  if (!routeCandidates.some((routePath) => existsSync(routePath))) {
     return function MissingD365ConnectionPage() {
       return React.createElement('main', { 'data-testid': 'missing-d365-connection-page' });
     };
