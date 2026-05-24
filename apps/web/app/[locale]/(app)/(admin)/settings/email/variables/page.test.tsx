@@ -6,7 +6,7 @@
  * RED scope: tests only; production page is intentionally not implemented here.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -87,6 +87,8 @@ type EmailVariablesPageProps = {
 };
 
 type EmailVariablesPage = (props: EmailVariablesPageProps) => React.ReactNode | Promise<React.ReactNode>;
+
+const sourceDir = __dirname;
 
 function repoRoot() {
   return process.cwd().endsWith('/apps/web') ? join(process.cwd(), '..', '..') : process.cwd();
@@ -188,6 +190,19 @@ describe('T-069 email variables localized AppShell route contract', () => {
     ).toBe(true);
     expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
   });
+
+  it('keeps page.tsx server-rendered and isolates browser state in a client component', () => {
+    const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
+    const clientSource = readFileSync(join(sourceDir, 'email-variables-screen.client.tsx'), 'utf8');
+
+    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toContain('React.useState');
+    expect(pageSource).not.toContain('globalThis.vi');
+    expect(pageSource).toContain("from './email-variables-screen.client'");
+    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toContain('navigator.clipboard.writeText(name)');
+    expect(clientSource).not.toContain('globalThis.vi');
+  });
 });
 
 describe('T-069 email_variables_screen prototype parity and interactions', () => {
@@ -206,7 +221,7 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
   });
 
   it('renders the SET-091 prototype regions, guidance, search input, grouped cards, table columns, copy buttons, and focus order', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ writeToClipboard: false });
     await renderEmailVariablesPage();
 
     expect(screenRoot()).toHaveAttribute('data-route', '/settings/email/variables');
@@ -285,7 +300,7 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
   });
 
   it("filters the grid by variable name when Search='order' and does not match description-only text", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ writeToClipboard: false });
     await renderEmailVariablesPage();
 
     await user.type(screen.getByRole('searchbox', { name: /search variable/i }), 'order');
@@ -297,16 +312,21 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
   });
 
   it('copies the clicked variable name to navigator.clipboard and renders a toast/status message', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ writeToClipboard: false });
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
     await renderEmailVariablesPage();
 
     const orderNumberRow = variableRows().find((row) => within(row).queryByText('{{order.number}}'));
     expect(orderNumberRow, 'The {{order.number}} variable row must render before copy can be exercised').toBeTruthy();
     await user.click(within(orderNumberRow as HTMLElement).getByRole('button', { name: /^Copy$/i }));
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('{{order.number}}');
-    expect(screen.getByRole('status')).toHaveTextContent(/copied \{\{order\.number\}\} to clipboard/i);
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith('{{order.number}}');
+    expect(await screen.findByRole('status')).toHaveTextContent(/copied \{\{order\.number\}\} to clipboard/i);
   });
 
   it('renders loading, empty, and error states loudly without silently skipping data preconditions', async () => {
