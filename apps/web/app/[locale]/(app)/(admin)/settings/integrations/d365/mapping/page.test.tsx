@@ -34,6 +34,8 @@ vi.mock('next-intl/server', () => ({
       all: 'All ({count})',
       incoming: 'D365 → Monopilot ({count})',
       outgoing: 'Monopilot → D365 ({count})',
+      directionFilterLabel: 'Translated D365 mapping direction filter',
+      fieldLevelMap: 'Translated field-level mapping section',
       d365Field: 'D365 field',
       direction: 'Direction',
       monopilotField: 'Monopilot field',
@@ -50,6 +52,38 @@ vi.mock('next-intl/server', () => ({
     return (labels[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
   }),
 }));
+
+vi.mock('@monopilot/ui/Modal', async () => {
+  const React = await import('react');
+
+  return {
+    default: function MockSharedModal({
+      children,
+      open,
+      modalId,
+    }: {
+      children: React.ReactNode;
+      open?: boolean;
+      onOpenChange?: (open: boolean) => void;
+      size?: string;
+      modalId?: string;
+    }) {
+      if (!open) return null;
+      return React.createElement(
+        'div',
+        {
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': 'Translated D365 connection diagnostics — Test connection',
+          'data-testid': 'shared-ui-modal-primitive',
+          'data-modal-id': modalId,
+          'data-focus-trap': 'radix-dialog',
+        },
+        children,
+      );
+    },
+  };
+});
 
 type D365Direction = 'incoming' | 'outgoing' | 'both';
 
@@ -253,6 +287,18 @@ describe('T-062 D365 mapping localized AppShell route contract', () => {
       'data-slot="dialog-content"',
     );
   });
+
+  it('does not branch on jsdom or hand-roll SM-08 dialog markup in the client leaf', async () => {
+    const clientLeaves = await routeClientLeafSources();
+    const clientSource = clientLeaves.map((leaf) => leaf.source).join('\n---client-leaf---\n');
+
+    expect(clientSource, 'SM-08 must use @monopilot/ui/Modal in tests and production; no navigator.userAgent/jsdom test-runtime branch').not.toMatch(
+      /navigator\.userAgent|\bjsdom\b|isTestRuntime/,
+    );
+    expect(clientSource, 'SM-08 must not hand-craft role=dialog markup to satisfy tests').not.toMatch(
+      /role=["']dialog["']/,
+    );
+  });
 });
 
 describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
@@ -339,6 +385,30 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
       'dialog-content',
     );
     assertModalA11y(dialog, /d365 test connection|test connection/i);
+  });
+
+  it('renders SM-08 through the shared Modal primitive even under jsdom', async () => {
+    const user = userEvent.setup();
+    await renderD365MappingPage();
+
+    await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
+
+    const modal = await screen.findByTestId('shared-ui-modal-primitive');
+    expect(modal, 'The dialog must come from @monopilot/ui/Modal; a jsdom-only fake dialog must not satisfy parity tests').toHaveAttribute(
+      'data-modal-id',
+      'SM-08',
+    );
+    expect(modal).toHaveAttribute('data-focus-trap', 'radix-dialog');
+    expect(screen.getByRole('dialog', { name: /translated d365 connection diagnostics|test connection/i })).toBe(modal);
+  });
+
+  it('uses translated labels for the field-level map section and direction-filter accessible name', async () => {
+    await renderD365MappingPage();
+
+    expect(screen.getByRole('heading', { name: /^Translated field-level mapping section$/i })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /^Translated field-level mapping section$/i })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /^Translated D365 mapping direction filter$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^Field-level map$/ })).not.toBeInTheDocument();
   });
 
   it('renders SM-08 dialog copy from next-intl labels instead of hardcoded English fallback strings', async () => {
