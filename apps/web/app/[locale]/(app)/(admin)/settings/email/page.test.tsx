@@ -148,7 +148,7 @@ async function renderEmailTemplatesPage(overrides: Partial<EmailTemplatesPagePro
     state: 'ready',
     providerSettings,
     templates,
-    testSend: vi.fn(async () => ({ ok: true, message_id: 'msg_red_123' })),
+    testSend: vi.fn(async (_input: TestSendInput): Promise<TestSendResult> => ({ ok: true, message_id: 'msg_red_123' })),
     ...overrides,
   };
 
@@ -253,13 +253,13 @@ describe('SET-090 email_templates_screen prototype parity', () => {
 
     expect(structuralSnapshot()).toMatchInlineSnapshot(`
       {
+        "prototypeSource": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:626-673",
         "providerLabels": [
           "Provider",
           "API key",
           "From email",
           "From name",
         ],
-        "prototypeSource": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:626-673",
         "regions": [
           "page-head",
           "provider-section",
