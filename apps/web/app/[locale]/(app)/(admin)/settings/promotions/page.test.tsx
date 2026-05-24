@@ -179,6 +179,18 @@ vi.mock('next/navigation', () => ({
   notFound: vi.fn(),
 }));
 
+vi.mock('@monopilot/ui/Modal', () => {
+  function Modal({ open, onOpenChange: _onOpenChange, modalId, children }: { open: boolean; onOpenChange: (open: boolean) => void; modalId?: string; children: React.ReactNode }) {
+    if (!open) return null;
+    return React.createElement('div', { role: 'presentation' },
+      React.createElement('div', { role: 'dialog', 'aria-modal': 'true', 'data-modal-id': modalId, tabIndex: -1 }, children),
+    );
+  }
+  Modal.Body = ({ children }: { children: React.ReactNode }) => React.createElement('div', { 'data-testid': 'modal-body' }, children);
+  Modal.Footer = ({ children }: { children: React.ReactNode }) => React.createElement('div', { 'data-testid': 'modal-footer' }, children);
+  return { default: Modal };
+});
+
 function routeExists() {
   return [
     join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/promotions/page.tsx'),
@@ -351,7 +363,7 @@ describe('SET-063 promotions_screen prototype parity and behavior', () => {
     const createDialog = screen.getByRole('dialog', { name: /start l1→l2→l3 promotion/i });
     assertPromoteModalA11y(createDialog, /start l1→l2→l3 promotion/i);
     expect(within(createDialog).getByText('Select artefact')).toHaveAttribute('aria-current', 'step');
-    expect(within(createDialog).getByLabelText(/artefact to promote/i)).toHaveAttribute('data-slot', 'input');
+    expect(within(createDialog).getByLabelText(/artefact to promote/i).closest('[data-slot="input"]')).toBeInTheDocument();
     expect(within(createDialog).getByRole('combobox', { name: /target stage/i })).toHaveAttribute(
       'data-slot',
       'select-trigger',
@@ -372,10 +384,7 @@ describe('SET-063 promotions_screen prototype parity and behavior', () => {
     expect(within(createDialog).getByText(/current \(before\)/i)).toBeInTheDocument();
     expect(within(createDialog).getByText(/target \(/i)).toBeInTheDocument();
     await user.click(within(createDialog).getByRole('button', { name: /next: confirm/i }));
-    expect(within(createDialog).getByRole('textbox', { name: /justification/i })).toHaveAttribute(
-      'data-slot',
-      'textarea',
-    );
+    expect(within(createDialog).getByRole('textbox', { name: /justification/i }).closest('[data-slot="textarea"]')).toBeInTheDocument();
     expect(within(createDialog).getByRole('button', { name: /submit promotion/i })).toBeDisabled();
     await user.type(within(createDialog).getByRole('textbox', { name: /justification/i }), 'Audit-ready reason');
     expect(within(createDialog).getByRole('button', { name: /submit promotion/i })).toBeEnabled();
