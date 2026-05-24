@@ -32,6 +32,16 @@ vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async () => (key: string) => labels[key] ?? key),
 }));
 
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => labels[key] ?? key,
+}));
+
+const orgContextMock = vi.hoisted(() => ({
+  withOrgContext: vi.fn(),
+}));
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => orgContextMock);
+
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
@@ -111,7 +121,7 @@ const lines = [line0, line4, line8];
 
 async function loadLinesPage(): Promise<LinesPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './page.tsx';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-018 Line List page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -180,14 +190,72 @@ describe('SET-018 line list behavior', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    orgContextMock.withOrgContext.mockReset();
+  });
+
+  it('loads production_lines through withOrgContext when the real Next.js page receives no injected test props', async () => {
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      const normalized = sql.toLowerCase();
+      if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] };
+      if (normalized.includes('from public.production_lines pl')) {
+        return {
+          rows: [
+            {
+              line_id: line4.id,
+              line_code: line4.code,
+              line_name: line4.name,
+              line_status: line4.status,
+              default_location_id: '00000000-0000-4000-8000-000000000201',
+              location_path: 'WH-01 / ZONE-A / PACK',
+              location_name: 'Packing',
+              warehouse_id: '00000000-0000-4000-8000-000000000301',
+              warehouse_name: 'Raw materials — Kraków',
+              machine_id: line4.machines[0].id,
+              machine_code: line4.machines[0].code,
+              machine_name: line4.machines[0].name,
+              machine_seq: line4.machines[0].seq,
+            },
+            {
+              line_id: line4.id,
+              line_code: line4.code,
+              line_name: line4.name,
+              line_status: line4.status,
+              default_location_id: '00000000-0000-4000-8000-000000000201',
+              location_path: 'WH-01 / ZONE-A / PACK',
+              location_name: 'Packing',
+              warehouse_id: '00000000-0000-4000-8000-000000000301',
+              warehouse_name: 'Raw materials — Kraków',
+              machine_id: line4.machines[1].id,
+              machine_code: line4.machines[1].code,
+              machine_name: line4.machines[1].name,
+              machine_seq: line4.machines[1].seq,
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected SQL: ${sql}; params=${JSON.stringify(params)}`);
+    });
+    orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
+      callback({ userId: '00000000-0000-4000-8000-000000000001', orgId: '00000000-0000-4000-8000-000000000002', client: { query } }),
+    );
+
+    const Page = await loadLinesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(orgContextMock.withOrgContext).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/from public\.production_lines pl/i));
+    expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
+    expect(lineRow(/cheese packing line.*line-4.*WH-01 \/ ZONE-A \/ PACK/i)).toBeInTheDocument();
+    expect(within(machinePreview(lineRow(/cheese packing line.*line-4/i))).getAllByTestId('settings-line-machine-chip')).toHaveLength(2);
   });
 
   it('renders ordered machine sequence preview chips and limits overflow to six chips plus a +N more indicator', async () => {
     await renderLinesPage();
 
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('app-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('app-topbar')).toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('app-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('app-topbar')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
 
     const fourMachinePreview = machinePreview(lineRow(/cheese packing line.*line-4/i));

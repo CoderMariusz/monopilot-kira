@@ -1,63 +1,40 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
-type LineStatus = 'draft' | 'active';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import LinesScreen, {
+  type ActivateLineInput,
+  type ActivateLineResult,
+  type LinesLabels,
+  type LinesPageState,
+  type LineStatus,
+  type ProductionLine,
+} from './lines-screen.client';
 
-type MachinePreview = {
-  id: string;
-  code: string;
-  name: string;
-  seq: number;
-};
+export const dynamic = 'force-dynamic';
 
-type ProductionLine = {
-  id: string;
-  code: string;
-  name: string;
-  status: LineStatus;
-  machines: MachinePreview[];
-};
-
-type ActivateLineInput = { lineId: string };
-
-type ActivateLineResult =
-  | { ok: true; data: { lineId: string; status: 'active' } }
-  | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string };
-
-type LinesPageProps = {
-  params?: Promise<{ locale: string }>;
-  lines?: ProductionLine[];
-  canUpdateInfra?: boolean;
-  activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
-  state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
-};
-
-type LinesLabels = {
-  title: string;
-  subtitle: string;
-  columnLine: string;
-  columnStatus: string;
-  columnMachines: string;
-  bulkActivate: string;
-  insufficientPermission: string;
-  noMachineTitle: string;
-  noMachineCode: string;
-  noMachineBody: string;
-  selectLine: string;
-  loading: string;
-  empty: string;
-  error: string;
-  forbidden: string;
-  provenance: string;
-};
+const READ_PERMISSION = 'settings.infra.read';
+const UPDATE_PERMISSION = 'settings.infra.update';
 
 const DEFAULT_LABELS: LinesLabels = {
   title: 'Production lines',
   subtitle: 'Manage production lines and their assigned machine sequence.',
+  sectionTitle: 'Production lines',
+  sectionSubtitle: 'Live production line rows with ordered machine sequence previews.',
+  columnSelect: 'Select',
   columnLine: 'Line',
+  columnDefaultLocation: 'Default location',
   columnStatus: 'Status',
   columnMachines: 'Machine sequence preview',
+  warehouseFilter: 'Warehouse',
+  allWarehouses: 'All warehouses',
+  statusFilter: 'Status',
+  statusAll: 'All statuses',
+  statusActive: 'Active',
+  statusDraft: 'Draft',
   bulkActivate: 'Bulk Activate',
+  bulkActivatePending: 'Activating…',
+  bulkDeactivate: 'Bulk Deactivate',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   noMachineTitle: 'No machines assigned',
   noMachineCode: 'NO_MACHINE',
@@ -66,18 +43,55 @@ const DEFAULT_LABELS: LinesLabels = {
   loading: 'Loading production lines…',
   empty: 'No production lines are available for this workspace.',
   error: 'Unable to load production lines. Try again after the backend is available.',
-  forbidden: 'You do not have permission to update production line infrastructure settings.',
-  provenance: 'Data source: live loader props; empty fallback is used only when the runtime loader has no rows.',
+  forbidden: 'You do not have permission to view production line infrastructure settings.',
+  provenance: 'Data source: withOrgContext-scoped production_lines query; prototype mock rows are not used in production.',
+  unavailable: '—',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LinesLabels>;
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
+type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
+
+type LineRow = {
+  line_id: string;
+  line_code: string;
+  line_name: string;
+  line_status: LineStatus | string;
+  default_location_id: string | null;
+  location_path: string | null;
+  location_name: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  machine_id: string | null;
+  machine_code: string | null;
+  machine_name: string | null;
+  machine_seq: number | string | null;
+};
+
+type LineActivationRow = {
+  id: string;
+  code: string;
+  name: string;
+  machine_ids: string[] | null;
+};
+
+type LinesPageProps = {
+  params?: Promise<{ locale: string }>;
+  lines?: ProductionLine[];
+  canUpdateInfra?: boolean;
+  activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
+  state?: LinesPageState;
+};
 
 async function buildLabels(locale: string): Promise<LinesLabels> {
   try {
     const t = await getTranslations({ locale, namespace: 'settings.infra.lines' });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
-        labels[key] = t(key);
+        const translated = t(key);
+        labels[key] = translated === key ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
@@ -88,199 +102,187 @@ async function buildLabels(locale: string): Promise<LinesLabels> {
   }
 }
 
-async function unavailableActivateLine(input: ActivateLineInput): Promise<ActivateLineResult> {
-  return {
-    ok: false,
-    code: 'NO_MACHINE',
-    validation: 'V-SET-62',
-    lineId: input.lineId,
-    message: DEFAULT_LABELS.noMachineBody,
-  };
-}
-
-function orderedMachines(line: ProductionLine) {
-  return [...line.machines].sort((left, right) => left.seq - right.seq || left.code.localeCompare(right.code));
-}
-
-function statusClassName(status: LineStatus) {
-  return status === 'active'
-    ? 'inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200'
-    : 'inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200';
-}
-
-function formatSelectLabel(template: string, line: ProductionLine) {
-  return template.includes('{name}') ? template.replace('{name}', line.name) : `Select ${line.name}`;
-}
-
-export default async function LinesPage(propsInput: unknown) {
-  const props = (propsInput ?? {}) as LinesPageProps;
-  const { locale } = props.params ? await props.params : { locale: 'en' };
-  const labels = await buildLabels(locale);
-  const lines = props.lines ?? [];
-  const state = props.state ?? (lines.length === 0 ? 'empty' : 'ready');
-
-  return (
-    <LinesScreen
-      labels={labels}
-      lines={lines}
-      canUpdateInfra={props.canUpdateInfra ?? false}
-      activateLine={props.activateLine ?? unavailableActivateLine}
-      state={state}
-    />
+async function hasPermission({ client, userId, orgId }: OrgContextLike, permission: string): Promise<boolean> {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
+      limit 1`,
+    [userId, orgId, permission],
   );
+  return rows.length > 0;
 }
 
-function LinesScreen({
-  labels,
-  lines,
-  canUpdateInfra,
-  activateLine,
-  state,
-}: {
-  labels: LinesLabels;
-  lines: ProductionLine[];
-  canUpdateInfra: boolean;
-  activateLine: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
-  state: NonNullable<LinesPageProps['state']>;
-}) {
-  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
-  const [statusById, setStatusById] = React.useState<Record<string, LineStatus>>(() =>
-    Object.fromEntries(lines.map((line) => [line.id, line.status])),
-  );
-  const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
-  const [pending, setPending] = React.useState(false);
+function normalizeStatus(value: string): LineStatus {
+  if (value === 'active' || value === 'inactive' || value === 'draft') return value;
+  return 'draft';
+}
 
-  React.useEffect(() => {
-    setStatusById(Object.fromEntries(lines.map((line) => [line.id, line.status])));
-    setSelectedIds([]);
-    setRowErrors({});
-  }, [lines]);
+function toProductionLines(rows: LineRow[]): ProductionLine[] {
+  const byId = new Map<string, ProductionLine>();
 
-  const toggleSelected = (lineId: string, checked: boolean) => {
-    setSelectedIds((current) => (checked ? [...new Set([...current, lineId])] : current.filter((id) => id !== lineId)));
-  };
+  for (const row of rows) {
+    const existing = byId.get(row.line_id);
+    const line = existing ?? {
+      id: row.line_id,
+      code: row.line_code,
+      name: row.line_name,
+      status: normalizeStatus(row.line_status),
+      defaultLocationId: row.default_location_id,
+      defaultLocationBreadcrumb: row.location_path ?? row.location_name,
+      warehouseId: row.warehouse_id,
+      warehouseName: row.warehouse_name,
+      machines: [],
+    } satisfies ProductionLine;
 
-  const bulkActivate = async () => {
-    if (!canUpdateInfra || selectedIds.length === 0) return;
-    setPending(true);
-    const nextErrors: Record<string, string> = {};
-
-    for (const lineId of selectedIds) {
-      const result = await activateLine({ lineId });
-      if ('data' in result) {
-        setStatusById((current) => ({ ...current, [result.data.lineId]: result.data.status }));
-      } else {
-        nextErrors[result.lineId] = `${labels.noMachineCode}: ${result.message || labels.noMachineBody} ${result.validation}`;
-      }
+    if (row.machine_id && row.machine_code && row.machine_name) {
+      line.machines.push({
+        id: row.machine_id,
+        code: row.machine_code,
+        name: row.machine_name,
+        seq: Number(row.machine_seq ?? 0) || 0,
+      });
     }
 
-    setRowErrors(nextErrors);
-    setPending(false);
-  };
+    byId.set(row.line_id, line);
+  }
 
-  const renderState = () => {
-    if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">{labels.loading}</section>;
-    if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
-    if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
-    if (state === 'empty') return <section role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">{labels.empty}</section>;
-    return null;
-  };
+  return Array.from(byId.values()).map((line) => ({
+    ...line,
+    machines: line.machines.sort((left, right) => left.seq - right.seq || left.code.localeCompare(right.code)),
+  }));
+}
 
-  return (
-    <main data-testid="app-shell" className="min-h-screen bg-slate-50 text-slate-950">
-      <aside data-testid="app-sidebar" aria-label="Settings navigation" className="border-b border-slate-200 bg-white px-6 py-3 text-sm text-slate-600">
-        Settings / Infrastructure
-      </aside>
-      <header data-testid="app-topbar" className="border-b border-slate-200 bg-white px-6 py-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SET-018</div>
-        <h1 className="text-2xl font-semibold">{labels.title}</h1>
-        <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
-      </header>
+async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLine[]; canUpdateInfra: boolean }> {
+  try {
+    return await withOrgContext(async (ctx): Promise<{ state: LinesPageState; lines: ProductionLine[]; canUpdateInfra: boolean }> => {
+      const context = ctx as OrgContextLike;
+      const [canRead, canUpdateInfra] = await Promise.all([
+        hasPermission(context, READ_PERMISSION),
+        hasPermission(context, UPDATE_PERMISSION),
+      ]);
+      if (!canRead) return { state: 'permission_denied', lines: [], canUpdateInfra: false };
 
-      <section className="mx-auto max-w-6xl space-y-4 p-6" aria-label="Production line workspace">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-base font-semibold">{labels.title} ({lines.length})</div>
-              <p className="mt-1 text-xs text-slate-500">{labels.provenance}</p>
-            </div>
-            <button
-              type="button"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
-              disabled={!canUpdateInfra || pending || selectedIds.length === 0}
-              aria-label={!canUpdateInfra ? labels.insufficientPermission : labels.bulkActivate}
-              onClick={() => void bulkActivate()}
-            >
-              {labels.bulkActivate}
-            </button>
-          </div>
-        </section>
+      const { rows } = await context.client.query<LineRow>(
+        `select pl.id as line_id,
+                pl.code as line_code,
+                pl.name as line_name,
+                pl.status as line_status,
+                pl.default_location_id,
+                l.path as location_path,
+                l.name as location_name,
+                w.id as warehouse_id,
+                w.name as warehouse_name,
+                m.id as machine_id,
+                m.code as machine_code,
+                m.name as machine_name,
+                lm.sequence as machine_seq
+           from public.production_lines pl
+           left join public.locations l
+             on l.id = pl.default_location_id
+            and l.org_id = app.current_org_id()
+           left join public.warehouses w
+             on w.id = l.warehouse_id
+            and w.org_id = app.current_org_id()
+           left join public.line_machines lm
+             on lm.line_id = pl.id
+           left join public.machines m
+             on m.id = lm.machine_id
+            and m.org_id = app.current_org_id()
+          where pl.org_id = app.current_org_id()
+          order by lower(pl.name), lower(pl.code), lm.sequence nulls last, lower(m.code)`,
+      );
+      const lines = toProductionLines(rows);
+      return { state: lines.length === 0 ? 'empty' : 'ready', lines, canUpdateInfra };
+    });
+  } catch {
+    return { state: 'error', lines: [], canUpdateInfra: false };
+  }
+}
 
-        {state === 'ready' ? (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table aria-label={labels.title} className="w-full border-collapse text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th scope="col" className="w-12 px-4 py-3"><span className="sr-only">Select</span></th>
-                  <th scope="col" className="px-4 py-3">{labels.columnLine}</th>
-                  <th scope="col" className="px-4 py-3">{labels.columnMachines}</th>
-                  <th scope="col" className="px-4 py-3">{labels.columnStatus}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {lines.map((line) => {
-                  const status = statusById[line.id] ?? line.status;
-                  const machines = orderedMachines(line);
-                  const visibleMachines = machines.slice(0, 6);
-                  const overflowCount = Math.max(machines.length - visibleMachines.length, 0);
-                  const rowError = rowErrors[line.id];
+export async function activateProductionLine(input: ActivateLineInput): Promise<ActivateLineResult> {
+  'use server';
 
-                  return (
-                    <tr key={line.id} className="align-top" data-testid="settings-line-row">
-                      <td className="px-4 py-4">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-slate-300"
-                          aria-label={formatSelectLabel(labels.selectLine, line)}
-                          checked={selectedIds.includes(line.id)}
-                          onChange={(event) => toggleSelected(line.id, event.currentTarget.checked)}
-                        />
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium text-slate-950">{line.name}</div>
-                        <div className="mt-1 font-mono text-xs text-slate-500">{line.code}</div>
-                        {rowError ? (
-                          <div role="alert" className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
-                            <span className="font-semibold">{labels.noMachineTitle}</span>: {rowError}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div data-testid="settings-line-machine-preview" className="flex max-w-xl flex-wrap gap-2">
-                          {visibleMachines.length > 0 ? visibleMachines.map((machine) => (
-                            <span
-                              key={machine.id}
-                              data-testid="settings-line-machine-chip"
-                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700"
-                              title={machine.name}
-                            >
-                              <span className="font-semibold text-slate-900">{machine.seq}</span> {machine.code}
-                            </span>
-                          )) : <span className="text-xs text-slate-500">{labels.noMachineTitle}</span>}
-                          {overflowCount > 0 ? <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">+{overflowCount} more</span> : null}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={statusClassName(status)}>{status}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-        ) : renderState()}
-      </section>
-    </main>
-  );
+  try {
+    return await withOrgContext(async (ctx): Promise<ActivateLineResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasPermission(context, UPDATE_PERMISSION))) {
+        return {
+          ok: false,
+          code: 'NO_MACHINE',
+          validation: 'V-SET-62',
+          lineId: input.lineId,
+          message: DEFAULT_LABELS.insufficientPermission,
+        };
+      }
+
+      const { rows } = await context.client.query<LineActivationRow>(
+        `select pl.id,
+                pl.code,
+                pl.name,
+                coalesce(array_agg(lm.machine_id order by lm.sequence) filter (where lm.machine_id is not null), array[]::uuid[]) as machine_ids
+           from public.production_lines pl
+           left join public.line_machines lm on lm.line_id = pl.id
+          where pl.org_id = app.current_org_id()
+            and pl.id = $1::uuid
+          group by pl.id, pl.code, pl.name
+          limit 1`,
+        [input.lineId],
+      );
+      const line = rows[0];
+      if (!line || !line.machine_ids || line.machine_ids.length < 1) {
+        return {
+          ok: false,
+          code: 'NO_MACHINE',
+          validation: 'V-SET-62',
+          lineId: input.lineId,
+          message: DEFAULT_LABELS.noMachineBody,
+        };
+      }
+
+      await context.client.query(
+        `update public.production_lines
+            set status = 'active'
+          where org_id = app.current_org_id()
+            and id = $1::uuid`,
+        [input.lineId],
+      );
+
+      return { ok: true, data: { lineId: input.lineId, status: 'active' } };
+    });
+  } catch {
+    return {
+      ok: false,
+      code: 'NO_MACHINE',
+      validation: 'V-SET-62',
+      lineId: input.lineId,
+      message: DEFAULT_LABELS.noMachineBody,
+    };
+  }
+}
+
+export default async function LinesPage(propsInput: unknown = {}) {
+  const props = propsInput as LinesPageProps;
+  const { locale } = props.params ? await props.params : { locale: 'en' };
+  const labels = await buildLabels(locale);
+  const suppliedLines = Array.isArray(props.lines) ? props.lines : null;
+  const runtime = suppliedLines
+    ? {
+        state: props.state ?? (suppliedLines.length === 0 ? 'empty' : 'ready'),
+        lines: suppliedLines,
+        canUpdateInfra: props.canUpdateInfra ?? false,
+      }
+    : await loadLines();
+
+  return React.createElement(LinesScreen, {
+    labels,
+    lines: runtime.lines,
+    canUpdateInfra: runtime.canUpdateInfra,
+    activateLine: props.activateLine ?? activateProductionLine,
+    state: runtime.state,
+  });
 }
