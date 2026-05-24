@@ -5,7 +5,7 @@
  * RED scope: tests only; production page is intentionally not implemented here.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -181,6 +181,19 @@ describe('T-112 D365 sync audit localized AppShell route contract', () => {
       'Legacy body-only settings route must not be the only implementation',
     ).toBe(false);
   });
+
+  it('keeps page.tsx server-rendered and sources visible copy through next-intl server translations', () => {
+    const routePath = join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/audit/page.tsx');
+    const source = readFileSync(routePath, 'utf8');
+
+    expect(source.startsWith("'use client'"), 'App Router page.tsx must not be a Client Component').toBe(false);
+    expect(source).toContain("import { getTranslations } from 'next-intl/server'");
+    expect(source).toContain('settings.integrations.d365.audit');
+    expect(source).toContain('readAuditData');
+    expect(source).not.toContain('React.useState');
+    expect(source).not.toContain('onClick=');
+    expect(existsSync(join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/integrations/d365/audit/d365-audit-screen.client.tsx'))).toBe(true);
+  });
 });
 
 describe('T-112 D365 sync audit behavior', () => {
@@ -201,6 +214,10 @@ describe('T-112 D365 sync audit behavior', () => {
     expect(root).toHaveAttribute('data-prototype-source', 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-217');
     expect(screen.getByRole('heading', { name: /d365 sync audit/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /run sync now/i })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: /status/i })).toHaveAttribute('data-slot', 'select-trigger');
+    expect(screen.getByRole('combobox', { name: /direction/i })).toHaveAttribute('data-slot', 'select-trigger');
+    expect(screen.getByLabelText(/start date/i)).toHaveAttribute('type', 'date');
+    expect(screen.getByLabelText(/end date/i)).toHaveAttribute('type', 'date');
 
     expect(runRows()).toHaveLength(5);
     expect(runRows().map((row) => row.getAttribute('data-run-id'))).toEqual([
@@ -224,6 +241,8 @@ describe('T-112 D365 sync audit behavior', () => {
     await user.click(screen.getByRole('option', { name: /^failed$/i }));
     await user.click(screen.getByRole('combobox', { name: /direction/i }));
     await user.click(screen.getByRole('option', { name: /^push$/i }));
+    await user.type(screen.getByLabelText(/start date/i), '2026-05-22');
+    await user.type(screen.getByLabelText(/end date/i), '2026-05-22');
 
     expect(runRows()).toHaveLength(1);
     const filteredRow = runRows()[0];
