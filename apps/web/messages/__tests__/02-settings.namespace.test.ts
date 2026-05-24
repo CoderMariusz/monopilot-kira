@@ -28,6 +28,16 @@ const REQUIRED_TOP_LEVEL_GROUPS = [
   'validations',
 ] as const;
 
+const T118_QUALITY_FLAG_KEYS = [
+  'flags.quality.require_grn_qc_inspection.title',
+  'flags.quality.require_grn_qc_inspection.description',
+  'flags.quality.require_grn_qc_inspection.coming_banner',
+  'flags.quality.require_grn_qc_inspection.on_label',
+  'flags.quality.require_grn_qc_inspection.off_label',
+  'flags.quality.require_grn_qc_inspection.read_only',
+  'flags.quality.require_grn_qc_inspection.save_success',
+] as const;
+
 function namespacePath(locale: (typeof LOCALES)[number]): string {
   return path.resolve(__dirname, '..', locale, '02-settings.json');
 }
@@ -101,6 +111,22 @@ describe('02-settings next-intl namespace', () => {
       for (const group of REQUIRED_TOP_LEVEL_GROUPS) {
         expect(namespace, `${locale} bundle is missing top-level group ${group}`).toHaveProperty(group);
       }
+    }
+  });
+
+  it('includes T-118 quality GRN QC flag messages in EN and PL without introducing a settings.quality permission namespace', () => {
+    for (const locale of LOCALES) {
+      const namespace = loadNamespace(locale);
+      for (const key of T118_QUALITY_FLAG_KEYS) {
+        const message = getMessage(namespace, key);
+        expect(message, `${locale} 02-settings namespace is missing ${key}`).toEqual(expect.any(String));
+        expect((message as string).trim(), `${locale} ${key} must not be empty`).not.toBe('');
+      }
+
+      expect(
+        getMessage(namespace, 'flags.quality.require_grn_qc_inspection.permission'),
+        `${locale} copy must not define a settings.quality.* permission label; T-118 uses settings.flags.edit`,
+      ).toBeUndefined();
     }
   });
 
