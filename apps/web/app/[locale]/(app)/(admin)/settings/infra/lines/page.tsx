@@ -261,12 +261,12 @@ export async function activateProductionLine(input: ActivateLineInput): Promise<
       return { ok: true, data: { lineId: input.lineId, status: 'active' } };
     });
   } catch {
+    console.error('[activateProductionLine] activation_failed', { lineId: input.lineId });
     return {
       ok: false,
-      code: 'NO_MACHINE',
-      validation: 'V-SET-62',
+      code: 'ACTIVATION_FAILED',
       lineId: input.lineId,
-      message: DEFAULT_LABELS.noMachineBody,
+      message: 'Unable to activate production line. Try again after the backend is available.',
     };
   }
 }

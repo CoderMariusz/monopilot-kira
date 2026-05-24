@@ -33,7 +33,8 @@ export type ActivateLineInput = { lineId: string };
 
 export type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
-  | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string };
+  | { ok: false; code: 'NO_MACHINE'; validation: 'V-SET-62'; lineId: string; message: string }
+  | { ok: false; code: 'ACTIVATION_FAILED'; lineId: string; message: string };
 
 export type LinesPageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -141,6 +142,13 @@ function statusVariant(status: LineStatus) {
   return status === 'active' ? 'success' : 'secondary';
 }
 
+function formatActivationError(result: Extract<ActivateLineResult, { ok: false }>, labels: LinesLabels) {
+  if (result.code === 'NO_MACHINE') {
+    return `${labels.noMachineCode}: ${result.message || labels.noMachineBody} ${result.validation}`;
+  }
+  return result.message || labels.error;
+}
+
 function SelectField({
   id,
   label,
@@ -227,7 +235,7 @@ export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra,
       if ('data' in result) {
         setStatusById((current) => ({ ...current, [result.data.lineId]: result.data.status }));
       } else {
-        nextErrors[result.lineId] = `${labels.noMachineCode}: ${result.message || labels.noMachineBody} ${result.validation}`;
+        nextErrors[result.lineId] = formatActivationError(result, labels);
       }
     }
 
