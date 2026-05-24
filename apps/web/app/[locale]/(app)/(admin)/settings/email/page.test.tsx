@@ -414,6 +414,21 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     expect(await screen.findByText('Probe sent — message_id msg_probe_456')).toHaveAttribute('role', 'status');
   });
 
+  it('rejects success-shaped not_configured Test send results instead of surfacing fake success', async () => {
+    const user = userEvent.setup();
+    const testSend = vi.fn(async (): Promise<TestSendResult> => ({ ok: true, message_id: 'not_configured' }));
+    await renderEmailTemplatesPage({ testSend });
+
+    await user.click(screen.getByRole('button', { name: /test send/i }));
+
+    expect(testSend).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText(/probe sent.*not_configured/i),
+      'A reviewed mail backend must not encode an unavailable stub as ok:true/message_id=not_configured.',
+    ).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not configured|unavailable|unable to send/i);
+  });
+
   it('fail-closes the default Test send control when no reviewed mail backend action is wired', async () => {
     const user = userEvent.setup();
     await renderEmailTemplatesPage({ testSend: undefined });
