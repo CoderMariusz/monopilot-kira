@@ -2,34 +2,16 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
+import { Card, CardContent } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import {
+  RuleVariantSelectorClient,
+  type RuleVariantRow,
+  type SaveVariantOverrides,
+} from './rule-variant-selector.client';
 
 export const dynamic = 'force-dynamic';
-
-type RuleVariant = {
-  version: 'v1' | 'v2' | `v${number}`;
-  label?: string;
-  requiresNewVersion?: boolean;
-  technicalApprovalRequired?: boolean;
-};
-
-type RuleVariantRow = {
-  code: string;
-  ruleType: 'gate' | 'workflow' | 'validation' | 'calculation' | 'cascading' | 'conditional';
-  availableVariants: RuleVariant[];
-  currentVariant: string;
-  lastChangedAt: string | null;
-  readOnly?: boolean;
-  linkedAuthorizationPolicyHref?: string;
-};
-
-type SaveVariantOverrides = (input: {
-  ruleVariantOverrides: Record<string, string>;
-}) => Promise<{ ok: true } | { ok: false; code?: string; error?: string; message?: string }>;
 
 type RuleVariantSelectorProps = {
   params?: Promise<{ locale: string }>;
@@ -38,7 +20,6 @@ type RuleVariantSelectorProps = {
   saveRuleVariantOverrides?: SaveVariantOverrides;
   state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 };
-
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
@@ -157,7 +138,7 @@ function asOverrides(value: unknown): Record<string, string> {
   ) as Record<string, string>;
 }
 
-async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | 'error'; rows: RuleVariantRow[] }> {
+async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | 'error' | 'permission_denied'; rows: RuleVariantRow[] }> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
       await requirePermission({ client, userId, orgId, permission: 'settings.rules.view' });
@@ -213,7 +194,10 @@ async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | '
 
       return { state: 'ready', rows };
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'forbidden') {
+      return { state: 'permission_denied', rows: FALLBACK_ROWS };
+    }
     return { state: 'error', rows: FALLBACK_ROWS };
   }
 }
@@ -222,42 +206,6 @@ function normalizeRuleType(ruleType: string): RuleVariantRow['ruleType'] {
   if (ruleType === 'gate' || ruleType === 'workflow' || ruleType === 'cascading' || ruleType === 'conditional') return ruleType;
   if (ruleType === 'calculation') return 'calculation';
   return 'validation';
-}
-
-function formatDate(value: string | null, labels: Labels) {
-  if (!value) return labels.neverChanged;
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return value;
-  return new Date(parsed).toISOString().slice(0, 10);
-}
-
-function updateStatus(message: string) {
-  if (typeof document === 'undefined') return;
-  const status = document.getElementById('rule-variant-selector-status');
-  if (status) status.textContent = message;
-}
-
-function updateAlert(message: string, destructive = false) {
-  if (typeof document === 'undefined') return;
-  const alert = document.getElementById('rule-variant-selector-alert');
-  if (alert) {
-    alert.textContent = message;
-    alert.className = destructive
-      ? 'alert alert-red rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900'
-      : 'alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900';
-  }
-}
-
-function collectOverrides(formData: FormData, rows: RuleVariantRow[]) {
-  const overrides: Record<string, string> = {};
-  for (const row of rows) {
-    if (row.readOnly) continue;
-    const selected = formData.get(`variant:${row.code}`);
-    if (typeof selected === 'string' && selected !== row.currentVariant) {
-      overrides[row.code] = selected;
-    }
-  }
-  return overrides;
 }
 
 async function requirePermission({
@@ -353,7 +301,14 @@ async function saveRuleVariantOverridesLive(input: {
       revalidatePath('/settings/tenant/rules');
       revalidatePath('/settings/tenant');
       return { ok: true };
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'forbidden') {
+        return {
+          ok: false,
+          code: 'FORBIDDEN',
+          message: 'settings.org.update permission is required to change rule variants',
+        };
+      }
       return { ok: false, code: 'VARIANT_NOT_FOUND', message: 'V-SET-31: variant must reference an existing rule_definitions.version' };
     }
   });
@@ -410,125 +365,13 @@ export default async function RuleVariantSelectorPage(propsInput: unknown) {
   if (effectiveState === 'permission_denied') return renderStateShell(labels, 'permission_denied');
   if (effectiveState === 'empty' || rows.length === 0) return renderStateShell(labels, 'empty');
 
-  async function submitRuleVariantOverrides(formData: FormData) {
-    'use server';
-
-    const ruleVariantOverrides = collectOverrides(formData, rows);
-    updateStatus(labels.saving);
-    const result = await saveAction({ ruleVariantOverrides });
-    if (result.ok === true) {
-      updateStatus(labels.saved);
-      return;
-    }
-    const code = result.code ?? result.error ?? 'VARIANT_NOT_FOUND';
-    const message = result.message ?? (code === 'VARIANT_NOT_FOUND'
-      ? 'V-SET-31: variant must reference an existing rule_definitions.version'
-      : 'Unable to save rule variant selections.');
-    updateAlert(`${code}: ${message}`, true);
-  }
-
   return (
-    <main
-      data-testid="settings-rule-variant-selector-screen"
-      data-route="/settings/tenant/rules"
-      data-screen="rule-variant-selector"
-      data-ux-source="SET-062"
-      aria-label={labels.title}
-      className="settings-page settings-page--rule-variant-selector space-y-4"
-    >
-      <header data-region="page-head">
-        <PageHeader title={labels.title} subtitle={labels.subtitle} />
-      </header>
-
-      <div
-        id="rule-variant-selector-alert"
-        data-region="variant-advisory"
-        role="alert"
-        className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900"
-      >
-        {labels.advisory}
-      </div>
-
-      <form action={submitRuleVariantOverrides} data-region="variant-selector-form" className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>{labels.tableTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table aria-label={labels.tableTitle}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">{labels.ruleCode}</TableHead>
-                  <TableHead scope="col">{labels.ruleType}</TableHead>
-                  <TableHead scope="col">{labels.availableVariants}</TableHead>
-                  <TableHead scope="col">{labels.currentSelection}</TableHead>
-                  <TableHead scope="col">{labels.lastChanged}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => {
-                  const forcedValue = row.code === forcedRuleCode && forcedVariant ? forcedVariant : undefined;
-                  return (
-                    <TableRow key={row.code}>
-                      <TableCell className="mono font-semibold align-top">
-                        <div>{row.code}</div>
-                        {row.readOnly ? <Badge variant="muted" className="mt-1 text-[10px]">{labels.readOnlyGate}</Badge> : null}
-                        {row.linkedAuthorizationPolicyHref ? (
-                          <div className="mt-1 text-xs">
-                            <a className="text-blue-700 underline" href={row.linkedAuthorizationPolicyHref}>{labels.authorizationPolicies}</a>
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="align-top"><Badge variant={row.ruleType === 'gate' ? 'danger' : 'secondary'}>{row.ruleType}</Badge></TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex flex-wrap gap-1">
-                          {row.availableVariants.map((variant) => (
-                            <Badge key={variant.version} variant={variant.version === row.currentVariant ? 'info' : 'outline'}>
-                              {variant.version}{variant.label && !row.readOnly ? ` · ${variant.label}` : ''}
-                            </Badge>
-                          ))}
-                        </div>
-                        {row.availableVariants.some((variant) => variant.requiresNewVersion) ? (
-                          <div className="mt-1 text-xs text-slate-600">requires_new_version</div>
-                        ) : null}
-                        {row.availableVariants.some((variant) => variant.technicalApprovalRequired) ? (
-                          <div className="mt-1 text-xs text-slate-600">technical approval required</div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="align-top">
-                        {forcedValue ? <input type="hidden" name={`variant:${row.code}`} value={forcedValue} /> : null}
-                        <div className="flex flex-wrap gap-3" role="radiogroup" aria-label={`${row.code} variant selection`}>
-                          {row.availableVariants.map((variant) => (
-                            <label key={variant.version} className="inline-flex items-center gap-1 text-sm">
-                              <input
-                                type="radio"
-                                name={`variant:${row.code}`}
-                                value={variant.version}
-                                defaultChecked={!forcedValue && variant.version === row.currentVariant}
-                                disabled={row.readOnly}
-                                aria-label={`${row.code} ${variant.version}`}
-                              />
-                              <span className="mono">{variant.version}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="mono text-xs text-slate-600 align-top">{formatDate(row.lastChangedAt, labels)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <div className="flex items-center justify-between gap-3">
-          <p id="rule-variant-selector-status" role="status" className="text-sm text-slate-600" aria-live="polite" />
-          <Button type="submit" className="btn-primary">
-            {labels.saveAll}
-          </Button>
-        </div>
-      </form>
-    </main>
+    <RuleVariantSelectorClient
+      labels={labels}
+      rows={rows}
+      forcedRuleCode={forcedRuleCode}
+      forcedVariant={forcedVariant}
+      saveRuleVariantOverrides={saveAction}
+    />
   );
 }
