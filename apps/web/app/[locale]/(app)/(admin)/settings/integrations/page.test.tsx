@@ -179,10 +179,6 @@ function screenRoot() {
   return screen.getByTestId('settings-integrations-screen');
 }
 
-function kpiByName(name: RegExp) {
-  return screen.getByTestId(`settings-integrations-kpi-${name.source.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
-}
-
 describe('SET-110 integrations localized AppShell route contract', () => {
   it('defines the user-visible /en/settings/integrations route under the AppShell route group', () => {
     const canonicalRouteCandidates = [
