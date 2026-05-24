@@ -70,6 +70,9 @@ export type FlagsAdminLabels = {
   vSet43Title: string;
   vSet43Body: string;
   configureAuthorization: string;
+  noConsumers: string;
+  defaultNpdDescription: string;
+  defaultTechnicalDescription: string;
 };
 
 export type FlagsAdminScreenProps = {
@@ -276,7 +279,7 @@ export default function FlagsAdminScreen({
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-[11px] text-slate-500">{flagUpdated(flag)}</TableCell>
-                    <TableCell className="text-[11px] text-slate-500">{flag.consumers?.join(', ') || '—'}</TableCell>
+                    <TableCell className="text-[11px] text-slate-500">{flag.consumers?.join(', ') || labels.noConsumers}</TableCell>
                     <TableCell>
                       <Button type="button" className="btn-secondary btn-sm" onClick={() => handleEdit(flag)}>
                         {labels.edit}

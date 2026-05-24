@@ -1,5 +1,3 @@
-import { getTranslations } from 'next-intl/server';
-
 import FlagsAdminScreen, {
   type FeatureFlagRow,
   type FlagAuthorizationPreflight,
@@ -50,32 +48,37 @@ const DEFAULT_LABELS: FlagsAdminLabels = {
   vSet43Body:
     'NPD post-release edits require a policy that creates a new BOM/product-spec version and has authorizer roles configured.',
   configureAuthorization: 'Configure authorization policy',
+  noConsumers: '—',
+  defaultNpdDescription: 'Allow released NPD product/BOM edits after authorization.',
+  defaultTechnicalDescription: 'Require Technical product-spec approval before factory use.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof FlagsAdminLabels>;
 
-const DEFAULT_FLAGS: FeatureFlagRow[] = [
-  {
-    code: 'npd.post_release_edit.enabled',
-    description: 'Allow released NPD product/BOM edits after authorization.',
-    tier: 'L1',
-    tenant: 'L1-core',
-    enabled: false,
-    rolloutPercent: 0,
-    updatedAt: '—',
-    consumers: ['npd', 'technical'],
-  },
-  {
-    code: 'technical.product_spec_approval.required',
-    description: 'Require Technical product-spec approval before factory use.',
-    tier: 'L1',
-    tenant: 'L1-core',
-    enabled: true,
-    rolloutPercent: 100,
-    updatedAt: '—',
-    consumers: ['technical', 'quality'],
-  },
-];
+function defaultFlags(labels: FlagsAdminLabels): FeatureFlagRow[] {
+  return [
+    {
+      code: 'npd.post_release_edit.enabled',
+      description: labels.defaultNpdDescription,
+      tier: 'L1',
+      tenant: 'L1-core',
+      enabled: false,
+      rolloutPercent: 0,
+      updatedAt: labels.noConsumers,
+      consumers: ['npd', 'technical'],
+    },
+    {
+      code: 'technical.product_spec_approval.required',
+      description: labels.defaultTechnicalDescription,
+      tier: 'L1',
+      tenant: 'L1-core',
+      enabled: true,
+      rolloutPercent: 100,
+      updatedAt: labels.noConsumers,
+      consumers: ['technical', 'quality'],
+    },
+  ];
+}
 
 const DEFAULT_PREFLIGHT: FlagAuthorizationPreflight = {
   flagCode: 'npd.post_release_edit.enabled',
@@ -86,19 +89,15 @@ const DEFAULT_PREFLIGHT: FlagAuthorizationPreflight = {
 };
 
 async function buildLabels(locale: string): Promise<FlagsAdminLabels> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'settings.flags_admin' });
-    return LABEL_KEYS.reduce((labels, key) => {
-      try {
-        labels[key] = t(key);
-      } catch {
-        labels[key] = DEFAULT_LABELS[key];
-      }
-      return labels;
-    }, {} as FlagsAdminLabels);
-  } catch {
-    return { ...DEFAULT_LABELS };
-  }
+  const messages = locale === 'pl'
+    ? (await import('../../../../../../messages/pl/02-settings.json')).default
+    : (await import('../../../../../../messages/en/02-settings.json')).default;
+  const source = messages.flags_admin as Partial<Record<keyof FlagsAdminLabels, unknown>>;
+  return LABEL_KEYS.reduce((labels, key) => {
+    const value = source[key];
+    labels[key] = typeof value === 'string' ? value : DEFAULT_LABELS[key];
+    return labels;
+  }, {} as FlagsAdminLabels);
 }
 
 export default async function SettingsFlagsPage(propsInput: unknown) {
@@ -109,7 +108,7 @@ export default async function SettingsFlagsPage(propsInput: unknown) {
   return (
     <FlagsAdminScreen
       labels={labels}
-      flags={props.flags ?? DEFAULT_FLAGS}
+      flags={props.flags ?? defaultFlags(labels)}
       state={props.state ?? 'ready'}
       posthogUrl={props.posthogUrl ?? process.env.NEXT_PUBLIC_POSTHOG_URL ?? '#'}
       authorizationPreflight={props.authorizationPreflight ?? DEFAULT_PREFLIGHT}

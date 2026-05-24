@@ -1,5 +1,3 @@
-import { getTranslations } from 'next-intl/server';
-
 import { listRules } from '../../../../../../actions/rules/list';
 import RulesRegistryScreen, {
   type RuleRegistryRow,
@@ -64,6 +62,8 @@ const DEFAULT_LABELS: RulesRegistryLabels = {
   error: 'Unable to load deployed rules.',
   dryRunDialogTitle: 'Dry-run all rules',
   close: 'Close',
+  filters: 'Rules filters',
+  rulesCount: '{visible} / {total} rules',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof RulesRegistryLabels>;
@@ -111,19 +111,15 @@ function toRule(row: ListedRule): RuleRegistryRow {
 }
 
 async function buildLabels(locale: string): Promise<RulesRegistryLabels> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'settings.rules_registry' });
-    return LABEL_KEYS.reduce((labels, key) => {
-      try {
-        labels[key] = t(key);
-      } catch {
-        labels[key] = DEFAULT_LABELS[key];
-      }
-      return labels;
-    }, {} as RulesRegistryLabels);
-  } catch {
-    return { ...DEFAULT_LABELS };
-  }
+  const messages = locale === 'pl'
+    ? (await import('../../../../../../messages/pl/02-settings.json')).default
+    : (await import('../../../../../../messages/en/02-settings.json')).default;
+  const source = messages.rules_registry as Partial<Record<keyof RulesRegistryLabels, unknown>>;
+  return LABEL_KEYS.reduce((labels, key) => {
+    const value = source[key];
+    labels[key] = typeof value === 'string' ? value : DEFAULT_LABELS[key];
+    return labels;
+  }, {} as RulesRegistryLabels);
 }
 
 async function readRulesRegistryData(): Promise<{ state: 'ready'; rules: RuleRegistryRow[] } | { state: 'error'; rules: RuleRegistryRow[] }> {

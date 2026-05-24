@@ -61,6 +61,8 @@ export type RulesRegistryLabels = {
   error: string;
   dryRunDialogTitle: string;
   close: string;
+  filters: string;
+  rulesCount: string;
 };
 
 export type RulesRegistryScreenProps = {
@@ -114,6 +116,10 @@ function formatDate(value: string) {
 
 function moduleRefs(labelTemplate: string, count: number) {
   return labelTemplate.includes('{count}') ? labelTemplate.replace('{count}', String(count)) : `${count} ${labelTemplate}`;
+}
+
+function formatRulesCount(labelTemplate: string, visible: number, total: number) {
+  return labelTemplate.replace('{visible}', String(visible)).replace('{total}', String(total));
 }
 
 function FilterOption({
@@ -258,7 +264,7 @@ export default function RulesRegistryScreen({
         {labels.readOnlyNotice}
       </div>
 
-      <section data-region="rules-filters" aria-label="Rules filters" className="flex flex-wrap items-center gap-2">
+      <section data-region="rules-filters" aria-label={labels.filters} className="flex flex-wrap items-center gap-2">
         <Select value={typeFilter} options={typeOptions} onValueChange={(value) => setTypeFilter(value as RuleType | 'all')}>
           <SelectTrigger aria-label={labels.typeFilter} className="min-w-40">
             <SelectValue />
@@ -286,7 +292,7 @@ export default function RulesRegistryScreen({
         </Select>
 
         <span className="muted text-xs" aria-live="polite">
-          {visibleRules.length} / {rules.length} rules
+          {formatRulesCount(labels.rulesCount, visibleRules.length, rules.length)}
         </span>
       </section>
 
@@ -331,7 +337,7 @@ export default function RulesRegistryScreen({
                       <TableCell className="muted text-xs">{moduleRefs(labels.moduleRefs, rule.consumers.length)}</TableCell>
                       <TableCell>
                         <Button type="button" className="btn-secondary btn-sm" onClick={() => openRule(rule.code)} aria-label={`${labels.viewRule} ${rule.code}`}>
-                          View →
+                          {labels.viewRule} →
                         </Button>
                       </TableCell>
                     </TableRow>
