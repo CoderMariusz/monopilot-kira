@@ -337,6 +337,17 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
     expect(screen.getByRole('button', { name: /Last 7d/i })).toHaveFocus();
   });
 
+  it('fails closed with neutral provenance when no live caller access is injected', async () => {
+    const Page = await loadAuditLogViewerPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+    render(<>{node}</>);
+
+    expect(screen.getByRole('heading', { name: /403|forbidden|access denied/i })).toBeInTheDocument();
+    expect(screen.getByText(/settings\.audit\.read/i)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Apex Foods|org-apex/i);
+    expect(screen.queryByTestId('settings-audit-log-viewer-screen')).not.toBeInTheDocument();
+  });
+
   it('returns 403 for cross-org requests without impersonate.tenant and for role-code-only permission spoofing', async () => {
     await renderAuditLogViewer({ callerAccess: crossTenantReaderWithoutImpersonation });
 

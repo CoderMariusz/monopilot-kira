@@ -258,10 +258,10 @@ async function buildLabels(locale: string): Promise<AuditLabels> {
 }
 
 const DEFAULT_CALLER_ACCESS: CallerAccess = {
-  orgId: 'org-apex',
-  requestedOrgId: 'org-apex',
-  orgName: 'Apex Foods Sp. z o.o.',
-  permissions: ['settings.audit.read'],
+  orgId: 'org-context-unavailable',
+  requestedOrgId: 'org-context-unavailable',
+  orgName: 'Organization unavailable',
+  permissions: [],
   roleCodes: [],
 };
 
