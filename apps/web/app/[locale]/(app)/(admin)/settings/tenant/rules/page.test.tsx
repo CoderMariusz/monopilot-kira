@@ -11,6 +11,23 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const withOrgContextHarness = vi.hoisted(() => ({
+  handler: undefined as
+    | undefined
+    | ((callback: (context: unknown) => Promise<unknown> | unknown) => Promise<unknown> | unknown),
+  calls: [] as Array<(context: unknown) => Promise<unknown> | unknown>,
+}));
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: vi.fn((callback: (context: unknown) => Promise<unknown> | unknown) => {
+    withOrgContextHarness.calls.push(callback);
+    if (!withOrgContextHarness.handler) {
+      throw new Error('withOrgContext harness was not configured for this test');
+    }
+    return withOrgContextHarness.handler(callback);
+  }),
+}));
+
 type RuleVariant = {
   version: 'v1' | 'v2' | `v${number}`;
   label?: string;
@@ -123,6 +140,68 @@ function forbidRuleVariantDomIdLookup() {
   return vi.spyOn(document, 'getElementById').mockImplementation((id: string) => originalGetElementById(id));
 }
 
+
+
+type MockQueryCall = {
+  sql: string;
+  params?: readonly unknown[];
+};
+
+const orgContextIds = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  orgId: '22222222-2222-4222-8222-222222222222',
+};
+
+function normalizeSql(sql: string) {
+  return sql.replace(/\s+/g, ' ').trim();
+}
+
+async function renderRuleVariantSelectorPageWithLiveOrgContext({
+  deniedPermissions = [],
+}: {
+  deniedPermissions?: string[];
+} = {}) {
+  const queryCalls: MockQueryCall[] = [];
+  const denied = new Set(deniedPermissions);
+  const query = vi.fn(async (sql: string, params?: readonly unknown[]) => {
+    queryCalls.push({ sql: normalizeSql(sql), params });
+    if (sql.includes('from public.user_roles')) {
+      const permission = params?.[2];
+      return denied.has(String(permission)) ? { rows: [], rowCount: 0 } : { rows: [{ ok: true }], rowCount: 1 };
+    }
+    if (sql.includes('from public.rule_definitions') && sql.includes('order by rule_code')) {
+      return {
+        rows: [
+          { rule_code: 'wo_release_gate', rule_type: 'workflow', version: 1, active_to: null },
+          { rule_code: 'wo_release_gate', rule_type: 'workflow', version: 2, active_to: null },
+        ],
+        rowCount: 2,
+      };
+    }
+    if (sql.includes('from public.tenant_variations') && sql.includes('select rule_variant_overrides')) {
+      return { rows: [{ rule_variant_overrides: { wo_release_gate: 'v1' } }], rowCount: 1 };
+    }
+    if (sql.includes('from public.rule_definitions') && sql.includes('rule_code = $1') && sql.includes('version = $2')) {
+      return { rows: [{ '?column?': 1 }], rowCount: 1 };
+    }
+    if (sql.includes('update public.tenant_variations')) {
+      return { rows: [{ rule_variant_overrides: { wo_release_gate: 'v2' } }], rowCount: 1 };
+    }
+    if (sql.includes('insert into public.audit_log')) {
+      return { rows: [], rowCount: 1 };
+    }
+    throw new Error(`Unexpected query in tenant rules RBAC test: ${normalizeSql(sql)}`);
+  });
+  withOrgContextHarness.calls = [];
+  withOrgContextHarness.handler = async (callback) => callback({ ...orgContextIds, client: { query } });
+
+  const pageModulePath: string = './page.tsx';
+  const mod = await import(/* @vite-ignore */ pageModulePath);
+  const Page = (mod as unknown as { default: RuleVariantSelectorPage }).default;
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+  const rendered = render(React.createElement(React.Fragment, null, node));
+  return { ...rendered, withOrgContextCalls: withOrgContextHarness.calls, query, queryCalls };
+}
 function expectNoRuleVariantDomIdLookup(domLookup: ReturnType<typeof forbidRuleVariantDomIdLookup>) {
   expect(
     domLookup,
@@ -133,6 +212,8 @@ function expectNoRuleVariantDomIdLookup(domLookup: ReturnType<typeof forbidRuleV
 describe('SET-062 rule variant selector UX contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    withOrgContextHarness.handler = undefined;
+    withOrgContextHarness.calls = [];
     window.history.replaceState(null, '', '/en/settings/tenant/rules');
   });
 
@@ -259,5 +340,45 @@ describe('SET-062 rule variant selector UX contract', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/FORBIDDEN/i);
     expect(screen.getByRole('alert')).toHaveTextContent(/settings\.org\.update permission is required/i);
+  });
+
+  it('executes the default save action through withOrgContext and settings.org.update before mutating tenant_variations', async () => {
+    const user = userEvent.setup();
+    const { queryCalls, withOrgContextCalls } = await renderRuleVariantSelectorPageWithLiveOrgContext();
+
+    expect(withOrgContextCalls.length, 'initial Server Component load must enter org context before reading scoped rules').toBe(1);
+    expect(queryCalls.some((call) => call.params?.[2] === 'settings.rules.view')).toBe(true);
+
+    await user.click(screen.getByRole('radio', { name: /wo_release_gate v2/i }));
+    await user.click(screen.getByRole('button', { name: /Save All Selections/i }));
+    await waitFor(() =>
+      expect(queryCalls.some((call) => call.sql.startsWith('update public.tenant_variations'))).toBe(true),
+    );
+
+    expect(withOrgContextCalls.length, 'default Server Action must enter org context again for the write path').toBe(2);
+    const updatePermissionIndex = queryCalls.findIndex((call) => call.params?.[2] === 'settings.org.update');
+    const mutationIndex = queryCalls.findIndex((call) => call.sql.startsWith('update public.tenant_variations'));
+    const auditIndex = queryCalls.findIndex((call) => call.sql.startsWith('insert into public.audit_log'));
+    expect(updatePermissionIndex, 'write path must check settings.org.update, not a role code or client flag').toBeGreaterThan(-1);
+    expect(mutationIndex, 'write path must persist to tenant_variations after authorization').toBeGreaterThan(updatePermissionIndex);
+    expect(auditIndex, 'authorized writes must still emit the audit_log entry after persistence').toBeGreaterThan(mutationIndex);
+    expect(queryCalls[mutationIndex].params?.[0]).toBe(JSON.stringify({ wo_release_gate: 'v2' }));
+  });
+
+  it('renders permission-denied feedback and performs no write when the live save action lacks settings.org.update', async () => {
+    const user = userEvent.setup();
+    const { queryCalls, withOrgContextCalls } = await renderRuleVariantSelectorPageWithLiveOrgContext({
+      deniedPermissions: ['settings.org.update'],
+    });
+
+    await user.click(screen.getByRole('radio', { name: /wo_release_gate v2/i }));
+    await user.click(screen.getByRole('button', { name: /Save All Selections/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/FORBIDDEN/i));
+    expect(screen.getByRole('alert')).toHaveTextContent(/settings\.org\.update permission is required/i);
+    expect(withOrgContextCalls.length, 'read path and denied write path must both use withOrgContext').toBe(2);
+    expect(queryCalls.some((call) => call.params?.[2] === 'settings.org.update')).toBe(true);
+    expect(queryCalls.some((call) => call.sql.startsWith('update public.tenant_variations'))).toBe(false);
+    expect(queryCalls.some((call) => call.sql.startsWith('insert into public.audit_log'))).toBe(false);
   });
 });
