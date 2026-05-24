@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   publishDeptColumnDraft: vi.fn(),
   upsertDeptColumnDraft: vi.fn(),
   redirect: vi.fn(),
+  withOrgContext: vi.fn(),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -80,6 +81,10 @@ vi.mock('../../../../../../(settings)/schema/_actions/draft', () => ({
   upsertDeptColumnDraft: mocks.upsertDeptColumnDraft,
 }));
 
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: mocks.withOrgContext,
+}));
+
 vi.mock('../../../../../../../lib/schema/zod-runtime', () => ({
   getZodRuntimeSchema: mocks.getZodRuntimeSchema,
 }));
@@ -94,6 +99,40 @@ type PreviewPage = (props: PreviewPageProps) => React.ReactNode | Promise<React.
 async function loadPreviewPage(): Promise<PreviewPage> {
   const mod = await import('./page.jsx');
   return mod.default as unknown as PreviewPage;
+}
+
+const SCHEMA_SHADOW_PUBLISH_PERMISSION = 'org.schema.admin';
+
+type PermissionQueryCall = {
+  sql: string;
+  params?: readonly unknown[];
+};
+
+function setupPublishPermissionContext(allowed: boolean) {
+  const permissionQueries: PermissionQueryCall[] = [];
+  const client = {
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      permissionQueries.push({ sql, params });
+      const normalizedSql = sql.replace(/\s+/g, ' ').toLowerCase();
+      const checksRegisteredPermission =
+        normalizedSql.includes('role_permissions') || normalizedSql.includes('permissions ?');
+      const checksSchemaAdminPermission = params?.includes(SCHEMA_SHADOW_PUBLISH_PERMISSION) ?? false;
+      return allowed && checksRegisteredPermission && checksSchemaAdminPermission
+        ? { rows: [{ ok: true }], rowCount: 1 }
+        : { rows: [], rowCount: 0 };
+    }),
+  };
+
+  mocks.withOrgContext.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
+    action({
+      userId: 'user-rbac-subject',
+      orgId: 'org-rbac-subject',
+      sessionToken: 'session-rbac-subject',
+      client,
+    }),
+  );
+
+  return { client, permissionQueries };
 }
 
 async function renderPreview(searchParams: Record<string, string | undefined> = {}) {
@@ -112,6 +151,7 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     mocks.getZodRuntimeSchema.mockResolvedValue(
       z.object({ inline_ph: z.number().min(0).max(14) }),
     );
+    setupPublishPermissionContext(true);
   });
 
   afterEach(() => {
@@ -199,6 +239,44 @@ describe('SET-034 localized Schema Shadow Preview', () => {
     const concurrentAlert = screen.getByText(/concurrent edit/i).closest('[role="alert"]');
     expect(concurrentAlert).toHaveTextContent(/version\s+7/i);
     expect(concurrentAlert).toHaveTextContent(/version\s+8/i);
+  });
+
+  it('denies schema shadow publish before delegating to the mutating publish action when schema admin permission is missing', async () => {
+    const user = userEvent.setup();
+    const { permissionQueries } = setupPublishPermissionContext(false);
+    mocks.publishDeptColumnDraft.mockResolvedValue({ success: true, newSchemaVersion: 99 });
+
+    await renderPreview({ draftId: 'draft-allergen-risk' });
+    await user.click(screen.getByRole('button', { name: /publish this column/i }));
+
+    await waitFor(() => expect(mocks.redirect).toHaveBeenCalled());
+    expect(
+      mocks.publishDeptColumnDraft,
+      'unauthorized caller must be denied before the state-changing publish action is invoked',
+    ).not.toHaveBeenCalled();
+    expect(permissionQueries.length, 'publishShadowDraft must query RBAC in the current org context').toBeGreaterThan(0);
+    expect(permissionQueries.some((query) => query.params?.includes(SCHEMA_SHADOW_PUBLISH_PERMISSION))).toBe(true);
+    expect(mocks.redirect).toHaveBeenCalledWith(
+      expect.stringContaining('/en/settings/schema/preview?draftId=draft-allergen-risk&state=permission-denied'),
+    );
+  });
+
+  it('allows schema shadow publish only after the current org/user has the schema admin permission', async () => {
+    const user = userEvent.setup();
+    const { client, permissionQueries } = setupPublishPermissionContext(true);
+    mocks.publishDeptColumnDraft.mockResolvedValue({ success: true, newSchemaVersion: 9 });
+
+    await renderPreview({ draftId: 'draft-inline-ph' });
+    await user.click(screen.getByRole('button', { name: /publish this column/i }));
+
+    await waitFor(() => expect(mocks.publishDeptColumnDraft).toHaveBeenCalledWith('draft-inline-ph'));
+    expect(permissionQueries.some((query) => query.params?.includes(SCHEMA_SHADOW_PUBLISH_PERMISSION))).toBe(true);
+    expect(client.query.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.publishDeptColumnDraft.mock.invocationCallOrder[0],
+    );
+    expect(mocks.redirect).toHaveBeenCalledWith(
+      expect.stringContaining('/en/settings/schema/preview?draftId=draft-inline-ph&publish=success&schemaVersion=9'),
+    );
   });
 
   it('renders loading, no-draft, permission-denied, and schema-generation error states as non-mutating', async () => {
