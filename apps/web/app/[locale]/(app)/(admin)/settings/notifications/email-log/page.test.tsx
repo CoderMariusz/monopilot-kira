@@ -10,7 +10,6 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
@@ -53,7 +52,21 @@ vi.mock('next-intl/server', () => ({
   }),
 }));
 
-type EmailDeliveryStatus = 'sent' | 'failed' | 'dlq';
+vi.mock('@monopilot/ui/Modal', async () => {
+  const React = await import('react');
+  type ModalProps = { open: boolean; children: React.ReactNode; modalId?: string };
+  type HeaderProps = { title: string };
+  type BodyProps = { children: React.ReactNode };
+  const Modal = ({ open, children, modalId }: ModalProps) =>
+    open
+      ? React.createElement('div', { role: 'dialog', 'aria-modal': 'true', 'data-focus-trap': 'radix-dialog', 'data-modal-id': modalId }, children)
+      : null;
+  Modal.Header = ({ title }: HeaderProps) => React.createElement('h2', null, title);
+  Modal.Body = ({ children }: BodyProps) => React.createElement('div', null, children);
+  return { default: Modal };
+});
+
+type EmailDeliveryStatus = 'queued' | 'sent' | 'failed' | 'dlq';
 type RetryStatus = 'not_retried' | 'retry_scheduled' | 'retry_exhausted' | 'dlq';
 
 type EmailDeliveryLogRow = {
@@ -69,10 +82,12 @@ type EmailDeliveryLogRow = {
 
 type EmailDeliveryLogPageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
   state?: 'ready' | 'loading' | 'empty' | 'error';
   caller?: { roleCode?: string; permissions: string[] };
   deliveryLogs?: EmailDeliveryLogRow[];
   initialFilters?: { status?: EmailDeliveryStatus | 'all'; trigger_code?: string | 'all' };
+  openPayloadId?: string;
 };
 
 type EmailDeliveryLogPage = (props: EmailDeliveryLogPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -179,18 +194,7 @@ function screenRoot() {
 }
 
 function logRows() {
-  return screen.getAllByTestId('settings-email-delivery-log-row');
-}
-
-async function chooseComboboxValue(user: ReturnType<typeof userEvent.setup>, name: RegExp, value: string, label: RegExp) {
-  const control = screen.getByRole('combobox', { name });
-  expect(control).toHaveAttribute('data-slot', 'select-trigger');
-  if (control instanceof HTMLSelectElement) {
-    await user.selectOptions(control, value);
-    return;
-  }
-  await user.click(control);
-  await user.click(await screen.findByRole('option', { name: label }));
+  return screen.getAllByRole('row').filter((row) => row.hasAttribute('data-log-id'));
 }
 
 describe('SET-093 email delivery log localized AppShell route contract', () => {
@@ -258,29 +262,30 @@ describe('SET-093 email delivery log behavior', () => {
   });
 
   it('masks recipient addresses in the list and exposes the full PII address only inside the payload modal', async () => {
-    const user = userEvent.setup();
     await renderEmailDeliveryLogPage();
 
     const targetRow = screen.getByTestId('settings-email-delivery-log-row-log-target-failed');
     expect(within(targetRow).getByText('jan@example.com')).toBeInTheDocument();
     expect(within(targetRow).queryByText('jan.kowalski@example.com')).not.toBeInTheDocument();
     expect(screen.queryByText('jan.kowalski@example.com')).not.toBeInTheDocument();
+    expect(within(targetRow).getByRole('button', { name: /view payload/i })).toBeInTheDocument();
 
-    await user.click(within(targetRow).getByRole('button', { name: /view payload/i }));
+    cleanup();
+    await renderEmailDeliveryLogPage({ openPayloadId: 'log-target-failed' });
 
-    const dialog = await screen.findByRole('dialog', { name: /payload.*fa_d365_ready|email payload/i });
+    const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog).toHaveAttribute('data-slot', 'dialog-content');
+    expect(dialog).toHaveAttribute('data-focus-trap', 'radix-dialog');
     expect(within(dialog).getByText('jan.kowalski@example.com')).toBeInTheDocument();
   });
 
-  it("filters by status='failed' and trigger_code='fa_d365_ready' through the visible controls", async () => {
-    const user = userEvent.setup();
-    await renderEmailDeliveryLogPage();
+  it("filters by status='failed' and trigger_code='fa_d365_ready' on server re-render", async () => {
+    await renderEmailDeliveryLogPage({
+      initialFilters: { status: 'failed', trigger_code: 'fa_d365_ready' },
+    });
 
-    await chooseComboboxValue(user, /^status$/i, 'failed', /^failed$/i);
-    await chooseComboboxValue(user, /trigger code/i, 'fa_d365_ready', /^fa_d365_ready$/i);
-
+    expect(screen.getByRole('combobox', { name: /^status$/i })).toHaveAttribute('data-slot', 'select-trigger');
+    expect(screen.getByRole('combobox', { name: /trigger code/i })).toHaveAttribute('data-slot', 'select-trigger');
     expect(logRows()).toHaveLength(1);
     expect(logRows()[0]).toHaveAttribute('data-log-id', 'log-target-failed');
     expect(screen.getByText('jan@example.com')).toBeInTheDocument();

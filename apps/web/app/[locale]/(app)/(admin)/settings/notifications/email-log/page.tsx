@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@monopilot/ui/Select';
+import Modal from '@monopilot/ui/Modal';
+import { Select, SelectTrigger } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const READ_PERMISSION = 'settings.email.read';
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:152-217';
 
-type EmailDeliveryStatus = 'sent' | 'failed' | 'dlq';
+type EmailDeliveryStatus = 'queued' | 'sent' | 'failed' | 'dlq';
 type RetryStatus = 'not_retried' | 'retry_scheduled' | 'retry_exhausted' | 'dlq';
 type PageState = 'ready' | 'loading' | 'empty' | 'error';
 
@@ -36,10 +37,12 @@ type Caller = {
 
 type EmailDeliveryLogPageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
   state?: PageState;
   caller?: Caller;
   deliveryLogs?: EmailDeliveryLogRow[];
   initialFilters?: { status?: EmailDeliveryStatus | 'all'; trigger_code?: string | 'all' };
+  openPayloadId?: string;
 };
 
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }> };
@@ -158,7 +161,15 @@ function uniqueTriggers(logs: EmailDeliveryLogRow[]) {
 }
 
 function asEmailDeliveryStatus(value: string | null): EmailDeliveryStatus {
-  return value === 'sent' || value === 'failed' || value === 'dlq' ? value : 'failed';
+  return value === 'queued' || value === 'sent' || value === 'failed' || value === 'dlq' ? value : 'failed';
+}
+
+function firstSearchValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeStatusFilter(value: string | undefined): EmailDeliveryStatus | 'all' {
+  return value === 'queued' || value === 'sent' || value === 'failed' || value === 'dlq' ? value : 'all';
 }
 
 function asRetryStatus(value: string | null): RetryStatus {
@@ -215,7 +226,7 @@ async function loadRuntimeLogs(): Promise<RuntimeLoadResult> {
            from public.email_delivery_log
           where org_id = app.current_org_id()
           order by created_at desc
-          limit 50`,
+          limit 100`,
       );
       const logs = result.rows.map(mapDbRow).filter((row): row is EmailDeliveryLogRow => row !== null);
       return { access: 'allowed', state: logs.length ? 'ready' : 'empty', logs };
@@ -256,17 +267,17 @@ function EmailDeliveryLogScreen({
   logs,
   state,
   initialFilters,
+  openPayloadId,
 }: {
   labels: Labels;
   logs: EmailDeliveryLogRow[];
   state: PageState;
   initialFilters: { status: EmailDeliveryStatus | 'all'; trigger_code: string | 'all' };
+  openPayloadId?: string;
 }) {
-  const sortedLogs = useMemo(() => sortLogs(logs).slice(0, 50), [logs]);
-  const [statusFilter, setStatusFilter] = useState<EmailDeliveryStatus | 'all'>(initialFilters.status);
-  const [triggerFilter, setTriggerFilter] = useState<string | 'all'>(initialFilters.trigger_code);
-  const [openPayloadId, setOpenPayloadId] = useState<string | null>(null);
-  const [openFilter, setOpenFilter] = useState<'status' | 'trigger' | null>(null);
+  const sortedLogs = sortLogs(logs).slice(0, 100);
+  const statusFilter = initialFilters.status;
+  const triggerFilter = initialFilters.trigger_code;
 
   const filteredLogs = sortedLogs.filter((log) => {
     return (statusFilter === 'all' || log.status === statusFilter) && (triggerFilter === 'all' || log.trigger_code === triggerFilter);
@@ -298,64 +309,33 @@ function EmailDeliveryLogScreen({
       <section aria-label={labels.filters} className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1 text-xs font-medium text-slate-600">
           <span>{labels.status}</span>
-          <div onClick={() => setOpenFilter('status')}>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => {
-                setStatusFilter(value as EmailDeliveryStatus | 'all');
-                setOpenFilter(null);
-              }}
-              options={[
-                { value: 'all', label: labels.allStatuses },
-                { value: 'sent', label: 'sent' },
-                { value: 'failed', label: 'failed' },
-                { value: 'dlq', label: 'dlq' },
-              ]}
-              className="min-w-[180px]"
-            >
-              <SelectTrigger aria-label={labels.status} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                <span>{statusFilter === 'all' ? labels.allStatuses : `${labels.status}: ${statusFilter}`}</span>
-              </SelectTrigger>
-              {openFilter === 'status' ? (
-                <div onClick={(event) => event.stopPropagation()}>
-                  <SelectContent>
-                    <SelectItem value="all">{labels.allStatuses}</SelectItem>
-                    <SelectItem value="sent">sent</SelectItem>
-                    <SelectItem value="failed">failed</SelectItem>
-                    <SelectItem value="dlq">dlq</SelectItem>
-                  </SelectContent>
-                </div>
-              ) : null}
-            </Select>
-          </div>
+          <Select
+            defaultValue={statusFilter}
+            options={[
+              { value: 'all', label: labels.allStatuses },
+              { value: 'queued', label: 'queued' },
+              { value: 'sent', label: 'sent' },
+              { value: 'failed', label: 'failed' },
+              { value: 'dlq', label: 'dlq' },
+            ]}
+            className="min-w-[180px]"
+          >
+            <SelectTrigger aria-label={labels.status} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+              <span>{statusFilter === 'all' ? labels.allStatuses : `${labels.status}: ${statusFilter}`}</span>
+            </SelectTrigger>
+          </Select>
         </div>
         <div className="grid gap-1 text-xs font-medium text-slate-600">
           <span>{labels.triggerCode}</span>
-          <div onClick={() => setOpenFilter('trigger')}>
-            <Select
-              value={triggerFilter}
-              onValueChange={(value) => {
-                setTriggerFilter(value);
-                setOpenFilter(null);
-              }}
-              options={[{ value: 'all', label: labels.allTriggers }, ...uniqueTriggers(sortedLogs).map((trigger) => ({ value: trigger, label: trigger }))]}
-              className="min-w-[220px]"
-            >
-              <SelectTrigger aria-label={labels.triggerCode} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                <span>{triggerFilter === 'all' ? labels.allTriggers : `${labels.triggerCode}: ${triggerFilter}`}</span>
-              </SelectTrigger>
-              {openFilter === 'trigger' ? (
-                <div onClick={(event) => event.stopPropagation()}>
-                  <SelectContent>
-                    <SelectItem value="all">{labels.allTriggers}</SelectItem>
-                    {uniqueTriggers(sortedLogs).map((trigger) => (
-                      <SelectItem key={trigger} value={trigger}>{trigger}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </div>
-              ) : null}
-            </Select>
-          </div>
+          <Select
+            defaultValue={triggerFilter}
+            options={[{ value: 'all', label: labels.allTriggers }, ...uniqueTriggers(sortedLogs).map((trigger) => ({ value: trigger, label: trigger }))]}
+            className="min-w-[220px]"
+          >
+            <SelectTrigger aria-label={labels.triggerCode} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+              <span>{triggerFilter === 'all' ? labels.allTriggers : `${labels.triggerCode}: ${triggerFilter}`}</span>
+            </SelectTrigger>
+          </Select>
         </div>
       </section>
 
@@ -381,26 +361,26 @@ function EmailDeliveryLogScreen({
               </TableHeader>
               <TableBody>
                 {filteredLogs.map((log) => (
-                  <React.Fragment key={log.id}>
-                    <TableRow data-testid="settings-email-delivery-log-row" data-log-id={log.id} hidden aria-hidden="true">
-                      <TableCell colSpan={7} />
-                    </TableRow>
-                    <TableRow data-testid={`settings-email-delivery-log-row-${log.id}`} data-log-id={log.id}>
-                      <TableCell className="font-mono text-xs text-slate-600">{dateTimeLabel(log.created_at)}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusTone(log.status)}>{log.status}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{log.trigger_code}</TableCell>
-                      <TableCell className="font-mono text-xs">{maskRecipient(log.recipient_email)}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-600">{log.retry_status === 'dlq' ? 'dead letter' : log.retry_status}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-600">{log.provider_message_id ?? '—'}</TableCell>
-                      <TableCell>
-                        <Button type="button" className="btn-sm" onClick={() => setOpenPayloadId(log.id)}>
+                  <TableRow key={log.id} data-testid={`settings-email-delivery-log-row-${log.id}`} data-log-id={log.id}>
+                    <TableCell className="font-mono text-xs text-slate-600">{dateTimeLabel(log.created_at)}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusTone(log.status)}>{log.status}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{log.trigger_code}</TableCell>
+                    <TableCell className="font-mono text-xs">{maskRecipient(log.recipient_email)}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600">{log.retry_status === 'dlq' ? 'dead letter' : log.retry_status}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600">{log.provider_message_id ?? '—'}</TableCell>
+                    <TableCell>
+                      <form method="get">
+                        <input type="hidden" name="status" value={statusFilter} />
+                        <input type="hidden" name="trigger_code" value={triggerFilter} />
+                        <input type="hidden" name="payload" value={log.id} />
+                        <Button type="submit" className="btn-sm">
                           {labels.viewPayload}
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  </React.Fragment>
+                      </form>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -409,23 +389,15 @@ function EmailDeliveryLogScreen({
       )}
 
       {openPayload ? (
-        <dialog
-          open
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${labels.payload} — ${openPayload.trigger_code}`}
-          ref={(node) => node?.setAttribute('data-slot', 'dialog-content')}
-          className="fixed inset-x-0 top-16 z-50 mx-auto max-w-2xl rounded-xl border bg-white p-6 shadow-xl"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold">{labels.payload} — {openPayload.trigger_code}</h2>
-            <Button type="button" onClick={() => setOpenPayloadId(null)}>Close</Button>
-          </div>
-          <p className="mt-3 font-mono text-sm">{openPayload.recipient_email}</p>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
-            {JSON.stringify(openPayload.payload, null, 2)}
-          </pre>
-        </dialog>
+        <Modal open onOpenChange={() => undefined} size="lg" modalId="settings-email-delivery-payload">
+          <Modal.Header title={`${labels.payload} — ${openPayload.trigger_code}`} />
+          <Modal.Body>
+            <p className="mt-3 font-mono text-sm">{openPayload.recipient_email}</p>
+            <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
+              {JSON.stringify(openPayload.payload, null, 2)}
+            </pre>
+          </Modal.Body>
+        </Modal>
       ) : null}
     </main>
   );
@@ -433,11 +405,15 @@ function EmailDeliveryLogScreen({
 
 export default async function EmailDeliveryLogPage(props: EmailDeliveryLogPageProps) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const locale = params?.locale ?? 'en';
   const labels = await buildLabels(locale);
   const runtime = props.deliveryLogs || props.caller ? null : await loadRuntimeLogs();
   const state = props.state ?? (runtime?.access === 'allowed' ? runtime.state : undefined) ?? 'empty';
   const logs = props.deliveryLogs ?? (runtime?.access === 'allowed' ? runtime.logs : undefined) ?? [];
+  const status = props.initialFilters?.status ?? normalizeStatusFilter(firstSearchValue(searchParams?.status));
+  const triggerCode = props.initialFilters?.trigger_code ?? firstSearchValue(searchParams?.trigger_code) ?? 'all';
+  const openPayloadId = props.openPayloadId ?? firstSearchValue(searchParams?.payload) ?? firstSearchValue(searchParams?.payload_id);
 
   if (runtime?.access === 'denied' || (props.caller && !hasReadPermission(props.caller))) {
     return <PermissionDenied labels={labels} />;
@@ -449,9 +425,10 @@ export default async function EmailDeliveryLogPage(props: EmailDeliveryLogPagePr
       logs={logs}
       state={state}
       initialFilters={{
-        status: props.initialFilters?.status ?? 'all',
-        trigger_code: props.initialFilters?.trigger_code ?? 'all',
+        status,
+        trigger_code: triggerCode,
       }}
+      openPayloadId={openPayloadId}
     />
   );
 }
