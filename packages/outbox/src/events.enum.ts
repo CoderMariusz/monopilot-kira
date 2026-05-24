@@ -27,6 +27,9 @@ export enum EventType {
   SETTINGS_REFERENCE_ROW_UPDATED = 'settings.reference.row_updated',
   SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
   SETTINGS_RULE_DEPLOYED = 'settings.rule.deployed',
+  SETTINGS_NOTIFICATION_RULE_UPDATED = 'settings.notification_rule_updated',
+  SETTINGS_NOTIFICATION_CHANNEL_UPDATED = 'settings.notification_channel_updated',
+  SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
   SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
   SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
 }
@@ -42,6 +45,9 @@ export const ALL_SETTINGS_EVENTS = [
   EventType.SETTINGS_REFERENCE_ROW_UPDATED,
   EventType.SETTINGS_SCHEMA_MIGRATION_REQUESTED,
   EventType.SETTINGS_RULE_DEPLOYED,
+  EventType.SETTINGS_NOTIFICATION_RULE_UPDATED,
+  EventType.SETTINGS_NOTIFICATION_CHANNEL_UPDATED,
+  EventType.SETTINGS_NOTIFICATION_DIGEST_UPDATED,
   EventType.SETTINGS_SSO_CONFIG_CHANGED,
   EventType.SETTINGS_SCIM_TOKEN_CREATED,
 ] as const;

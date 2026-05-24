@@ -1,65 +1,29 @@
-'use client';
+import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import SettingsNotificationsScreen, {
+  type ChannelSetting,
+  type DigestSetting,
+  type NotificationChannel,
+  type NotificationRule,
+  type NotificationsLabels,
+  type PageState,
+  type ToggleChannelInput,
+  type ToggleChannelResult,
+  type ToggleDigestInput,
+  type ToggleDigestResult,
+  type ToggleRuleInput,
+  type ToggleRuleResult,
+} from './notifications-screen.client';
 
-import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
-import { Switch } from '@monopilot/ui/Switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
-type NotificationChannel = 'email' | 'in-app' | 'SMS' | 'slack';
-
-type ChannelSetting = {
-  id: NotificationChannel;
-  label: string;
-  hint: string;
-  enabled: boolean;
-  verified?: boolean;
-  usageText?: string;
-};
-
-type NotificationRule = {
-  id: string;
-  on: boolean;
-  trigger: string;
-  audience: string;
-  channel: NotificationChannel[];
-};
-
-type DigestSetting = {
-  id: string;
-  label: string;
-  hint: string;
-  enabled: boolean;
-};
-
-type PageState = 'ready' | 'loading' | 'empty' | 'error';
-
-type ToggleRuleInput = { ruleId: string; enabled: boolean };
-type ToggleRuleResult = {
-  ok: true;
-  ruleId: string;
-  enabled: boolean;
-  outboxEventType: 'settings.notification_rule_updated';
-};
-type ToggleChannelInput = { channelId: NotificationChannel; enabled: boolean };
-type ToggleChannelResult = {
-  ok: true;
-  channelId: NotificationChannel;
-  enabled: boolean;
-  outboxEventType: 'settings.notification_channel_updated';
-};
-type ToggleDigestInput = { digestId: string; enabled: boolean };
-type ToggleDigestResult = {
-  ok: true;
-  digestId: string;
-  enabled: boolean;
-  outboxEventType: 'settings.notification_digest_updated';
-};
+export const dynamic = 'force-dynamic';
 
 type NotificationsPageProps = {
-  params?: Promise<{ locale: string }>;
+  params?: Promise<{ locale: string }> | { locale: string };
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  // Test seam only: production calls load data in this Server Component. These typed overrides keep RTL parity tests
+  // focused without reintroducing the prior unsafe unknown prop bag.
   state?: PageState;
   channels?: ChannelSetting[];
   notificationRules?: NotificationRule[];
@@ -69,32 +33,51 @@ type NotificationsPageProps = {
   toggleDigestEmail?: (input: ToggleDigestInput) => Promise<ToggleDigestResult>;
 };
 
-type NotificationsLabels = {
-  title: string;
-  subtitle: string;
-  channelsTitle: string;
-  channelsSubtitle: string;
-  verified: string;
-  configureSlack: string;
-  rulesTitle: string;
-  rulesSubtitle: string;
-  newRule: string;
-  on: string;
-  trigger: string;
-  audience: string;
-  channels: string;
-  digestTitle: string;
-  loading: string;
-  empty: string;
-  error: string;
+type Translator = (key: string, values?: Record<string, string | number>) => string;
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
 };
 
-const labels: NotificationsLabels = {
+type NotificationPreferenceRow = {
+  category: string;
+  event: string;
+  channel_email: boolean | null;
+  channel_in_app: boolean | null;
+};
+
+type ServerNotificationsLabels = NotificationsLabels & {
+  smsUsage: (count: number) => string;
+};
+
+type NotificationsReadResult = {
+  channels: ChannelSetting[];
+  notificationRules: NotificationRule[];
+  digestEmails: DigestSetting[];
+  smsMessagesThisMonth: number;
+  state: PageState;
+};
+
+const OUTBOX_APP_VERSION = 'settings-notifications-screen';
+const OUTBOX_NOTIFICATION_RULE_EVENT = 'settings.notification_rule_updated';
+const OUTBOX_NOTIFICATION_CHANNEL_EVENT = 'settings.notification_channel_updated';
+const OUTBOX_NOTIFICATION_DIGEST_EVENT = 'settings.notification_digest_updated';
+
+const FALLBACK_LABELS = {
   title: 'Notifications',
   subtitle: 'When and how the system sends alerts.',
   channelsTitle: 'Channels',
   channelsSubtitle: 'Outbound channels the system can use.',
+  email: 'Email',
+  emailHint: 'Sent from no-reply@monopilot.app',
   verified: '✓ Verified',
+  inAppBanners: 'In-app banners',
+  inAppHint: 'Shown at the top of the UI.',
+  sms: 'SMS',
+  smsHint: 'Via Twilio — only used for critical alerts.',
+  smsUsage: '{count} messages sent this month',
+  slack: 'Slack',
+  slackHint: 'Post alerts to a Slack channel.',
   configureSlack: 'Configure →',
   rulesTitle: 'Notification rules',
   rulesSubtitle: 'Which events trigger which notifications.',
@@ -104,433 +87,297 @@ const labels: NotificationsLabels = {
   audience: 'Audience',
   channels: 'Channels',
   digestTitle: 'Digest emails',
+  dailyPlantSummary: 'Daily plant summary',
+  dailyPlantSummaryHint: 'Sent to Managers at 18:00.',
+  weeklyNpdDigest: 'Weekly NPD digest',
+  weeklyNpdDigestHint: 'Sent to NPD managers Monday 09:00.',
+  monthlyComplianceReport: 'Monthly compliance report',
+  monthlyComplianceReportHint: 'Sent to Admins on the 1st of each month.',
   loading: 'Loading notifications…',
   empty: 'No notification rules are configured yet.',
   error: 'Unable to load notification settings.',
-};
+} as const;
 
-// Explicit fallback provenance: project-shaped Settings notification rows matching the PRD/ops prototype shape.
-// Runtime Server Component callers can pass live Drizzle rows through props without treating prototype mock values as truth.
-const defaultChannels: ChannelSetting[] = [
-  {
-    id: 'email',
-    label: 'Email',
-    hint: 'Sent from no-reply@monopilot.app',
-    enabled: true,
-    verified: true,
-  },
-  {
-    id: 'in-app',
-    label: 'In-app banners',
-    hint: 'Shown at the top of the UI.',
-    enabled: true,
-  },
-  {
-    id: 'SMS',
-    label: 'SMS',
-    hint: 'Via Twilio — only used for critical alerts.',
-    enabled: true,
-    usageText: '28 messages sent this month',
-  },
-  {
-    id: 'slack',
-    label: 'Slack',
-    hint: 'Post alerts to a Slack channel.',
-    enabled: false,
-  },
-];
+function interpolate(template: string, values: Record<string, string | number> = {}) {
+  return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values[name] ?? `{${name}}`));
+}
 
-const defaultRules: NotificationRule[] = [
-  {
-    id: 'rule-wo-late',
-    on: true,
-    trigger: 'WO late to start',
-    audience: 'Managers',
-    channel: ['email', 'in-app'],
-  },
-  {
-    id: 'rule-hold-created',
-    on: true,
-    trigger: 'Quality hold created',
-    audience: 'QA + Supervisors',
-    channel: ['email', 'in-app', 'SMS'],
-  },
-  {
-    id: 'rule-d365-failed',
-    on: false,
-    trigger: 'D365 sync failed',
-    audience: 'Admins',
-    channel: ['email'],
-  },
-];
+function translate(t: Translator, key: keyof typeof FALLBACK_LABELS, values?: Record<string, string | number>) {
+  try {
+    const value = t(key, values);
+    if (value && value !== key) return value;
+  } catch {
+    // Locale message files are updated with this screen; fallback protects older preview deploys during rollout.
+  }
+  return interpolate(FALLBACK_LABELS[key], values);
+}
 
-const defaultDigests: DigestSetting[] = [
-  {
-    id: 'daily-plant-summary',
-    label: 'Daily plant summary',
-    hint: 'Sent to Managers at 18:00.',
-    enabled: true,
-  },
-  {
-    id: 'weekly-npd-digest',
-    label: 'Weekly NPD digest',
-    hint: 'Sent to NPD managers Monday 09:00.',
-    enabled: true,
-  },
-  {
-    id: 'monthly-compliance-report',
-    label: 'Monthly compliance report',
-    hint: 'Sent to Admins on the 1st of each month.',
-    enabled: false,
-  },
-];
+async function buildLabels(locale: string): Promise<ServerNotificationsLabels> {
+  const t = (await getTranslations({ locale, namespace: 'settings.notifications' })) as Translator;
+  return {
+    title: translate(t, 'title'),
+    subtitle: translate(t, 'subtitle'),
+    channelsTitle: translate(t, 'channelsTitle'),
+    channelsSubtitle: translate(t, 'channelsSubtitle'),
+    email: translate(t, 'email'),
+    emailHint: translate(t, 'emailHint'),
+    verified: translate(t, 'verified'),
+    inAppBanners: translate(t, 'inAppBanners'),
+    inAppHint: translate(t, 'inAppHint'),
+    sms: translate(t, 'sms'),
+    smsHint: translate(t, 'smsHint'),
+    smsUsage: (count) => translate(t, 'smsUsage', { count }),
+    slack: translate(t, 'slack'),
+    slackHint: translate(t, 'slackHint'),
+    configureSlack: translate(t, 'configureSlack'),
+    rulesTitle: translate(t, 'rulesTitle'),
+    rulesSubtitle: translate(t, 'rulesSubtitle'),
+    newRule: translate(t, 'newRule'),
+    on: translate(t, 'on'),
+    trigger: translate(t, 'trigger'),
+    audience: translate(t, 'audience'),
+    channels: translate(t, 'channels'),
+    digestTitle: translate(t, 'digestTitle'),
+    dailyPlantSummary: translate(t, 'dailyPlantSummary'),
+    dailyPlantSummaryHint: translate(t, 'dailyPlantSummaryHint'),
+    weeklyNpdDigest: translate(t, 'weeklyNpdDigest'),
+    weeklyNpdDigestHint: translate(t, 'weeklyNpdDigestHint'),
+    monthlyComplianceReport: translate(t, 'monthlyComplianceReport'),
+    monthlyComplianceReportHint: translate(t, 'monthlyComplianceReportHint'),
+    loading: translate(t, 'loading'),
+    empty: translate(t, 'empty'),
+    error: translate(t, 'error'),
+  };
+}
+
+function defaultChannels(labels: ServerNotificationsLabels, smsMessagesThisMonth: number): ChannelSetting[] {
+  return [
+    { id: 'email', label: labels.email, hint: labels.emailHint, enabled: true, verified: true },
+    { id: 'in-app', label: labels.inAppBanners, hint: labels.inAppHint, enabled: true },
+    {
+      id: 'SMS',
+      label: labels.sms,
+      hint: labels.smsHint,
+      enabled: true,
+      usageText: labels.smsUsage(smsMessagesThisMonth),
+    },
+    { id: 'slack', label: labels.slack, hint: labels.slackHint, enabled: false },
+  ];
+}
+
+function defaultDigestEmails(labels: NotificationsLabels): DigestSetting[] {
+  return [
+    { id: 'daily-plant-summary', label: labels.dailyPlantSummary, hint: labels.dailyPlantSummaryHint, enabled: true },
+    { id: 'weekly-npd-digest', label: labels.weeklyNpdDigest, hint: labels.weeklyNpdDigestHint, enabled: true },
+    {
+      id: 'monthly-compliance-report',
+      label: labels.monthlyComplianceReport,
+      hint: labels.monthlyComplianceReportHint,
+      enabled: false,
+    },
+  ];
+}
+
+async function readNotificationsData(labels: ServerNotificationsLabels): Promise<NotificationsReadResult> {
+  try {
+    return await withOrgContext(async ({ orgId, userId, client }) => {
+      const queryClient = client as QueryClient;
+      const [preferenceResult, smsResult] = await Promise.all([
+        queryClient.query<NotificationPreferenceRow>(
+          `select category, event, channel_email, channel_in_app
+             from public.notification_preferences
+            where org_id = $1::uuid
+              and user_id = $2::uuid
+            order by category, event`,
+          [orgId, userId],
+        ),
+        queryClient.query<{ sent_count: string | number | null }>(
+          `select count(*) as sent_count
+             from public.outbox_events
+            where org_id = $1::uuid
+              and event_type like 'notification.%'
+              and created_at >= date_trunc('month', now())`,
+          [orgId],
+        ),
+      ]);
+
+      const smsMessagesThisMonth = toNumber(smsResult.rows[0]?.sent_count, 0);
+      const notificationRules = mapPreferenceRowsToRules(preferenceResult.rows);
+      return {
+        channels: defaultChannels(labels, smsMessagesThisMonth),
+        notificationRules,
+        digestEmails: defaultDigestEmails(labels),
+        smsMessagesThisMonth,
+        state: notificationRules.length > 0 ? 'ready' : 'empty',
+      };
+    });
+  } catch {
+    return {
+      channels: defaultChannels(labels, 0),
+      notificationRules: [],
+      digestEmails: defaultDigestEmails(labels),
+      smsMessagesThisMonth: 0,
+      state: 'error',
+    };
+  }
+}
+
+function mapPreferenceRowsToRules(rows: NotificationPreferenceRow[]): NotificationRule[] {
+  return rows
+    .filter((row) => row.category !== 'digest')
+    .map((row) => {
+      const channel: NotificationChannel[] = [];
+      if (row.channel_email) channel.push('email');
+      if (row.channel_in_app) channel.push('in-app');
+      return {
+        id: `${row.category}:${row.event}`,
+        on: channel.length > 0,
+        trigger: humanizeToken(row.event),
+        audience: humanizeToken(row.category),
+        channel,
+      };
+    });
+}
+
+function humanizeToken(value: string) {
+  return value
+    .replace(/[-_.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function toNumber(value: string | number | null | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseRuleId(ruleId: string) {
+  const [category, ...eventParts] = ruleId.split(':');
+  const event = eventParts.join(':');
+  if (!category || !event) throw new Error('invalid_notification_rule_id');
+  return { category, event };
+}
+
+function assertKnownChannel(channelId: NotificationChannel) {
+  if (!['email', 'in-app', 'SMS', 'slack'].includes(channelId)) throw new Error('invalid_notification_channel_id');
+}
+
+function assertKnownDigest(digestId: string) {
+  if (!['daily-plant-summary', 'weekly-npd-digest', 'monthly-compliance-report'].includes(digestId)) {
+    throw new Error('invalid_notification_digest_id');
+  }
+}
+
+async function emitSettingsNotificationOutbox(
+  client: QueryClient,
+  orgId: string,
+  eventType: string,
+  payload: Record<string, unknown>,
+) {
+  await client.query(
+    `insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, 'notification_preferences', $1::uuid, $3::jsonb, $4)`,
+    [orgId, eventType, JSON.stringify(payload), OUTBOX_APP_VERSION],
+  );
+}
 
 async function defaultToggleNotificationRule(input: ToggleRuleInput): Promise<ToggleRuleResult> {
-  return {
-    ok: true,
-    ruleId: input.ruleId,
-    enabled: input.enabled,
-    outboxEventType: 'settings.notification_rule_updated',
-  };
+  'use server';
+
+  const parsed = parseRuleId(input.ruleId);
+  await withOrgContext(async ({ orgId, userId, client }) => {
+    const queryClient = client as QueryClient;
+    await queryClient.query(
+      `insert into public.notification_preferences (user_id, org_id, category, event, channel_email, channel_in_app)
+       values ($1::uuid, $2::uuid, $3, $4, $5, $5)
+       on conflict (user_id, org_id, category, event)
+       do update set channel_email = excluded.channel_email,
+                     channel_in_app = excluded.channel_in_app`,
+      [userId, orgId, parsed.category, parsed.event, input.enabled],
+    );
+    await emitSettingsNotificationOutbox(queryClient, orgId, OUTBOX_NOTIFICATION_RULE_EVENT, {
+      ruleId: input.ruleId,
+      category: parsed.category,
+      event: parsed.event,
+      enabled: input.enabled,
+      actorUserId: userId,
+    });
+  });
+  revalidatePath('/settings/notifications');
+  return { ok: true, ruleId: input.ruleId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_RULE_EVENT };
 }
 
 async function defaultToggleNotificationChannel(input: ToggleChannelInput): Promise<ToggleChannelResult> {
-  return {
-    ok: true,
-    channelId: input.channelId,
-    enabled: input.enabled,
-    outboxEventType: 'settings.notification_channel_updated',
-  };
+  'use server';
+
+  assertKnownChannel(input.channelId);
+  await withOrgContext(async ({ orgId, userId, client }) => {
+    const queryClient = client as QueryClient;
+    if (input.channelId === 'email' || input.channelId === 'in-app') {
+      const column = input.channelId === 'email' ? 'channel_email' : 'channel_in_app';
+      await queryClient.query(
+        `update public.notification_preferences
+            set ${column} = $1
+          where org_id = $2::uuid
+            and user_id = $3::uuid`,
+        [input.enabled, orgId, userId],
+      );
+    }
+    await emitSettingsNotificationOutbox(queryClient, orgId, OUTBOX_NOTIFICATION_CHANNEL_EVENT, {
+      channelId: input.channelId,
+      enabled: input.enabled,
+      actorUserId: userId,
+    });
+  });
+  revalidatePath('/settings/notifications');
+  return { ok: true, channelId: input.channelId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_CHANNEL_EVENT };
 }
 
 async function defaultToggleDigestEmail(input: ToggleDigestInput): Promise<ToggleDigestResult> {
-  return {
-    ok: true,
-    digestId: input.digestId,
-    enabled: input.enabled,
-    outboxEventType: 'settings.notification_digest_updated',
-  };
+  'use server';
+
+  assertKnownDigest(input.digestId);
+  await withOrgContext(async ({ orgId, userId, client }) => {
+    const queryClient = client as QueryClient;
+    await queryClient.query(
+      `insert into public.notification_preferences (user_id, org_id, category, event, channel_email, channel_in_app)
+       values ($1::uuid, $2::uuid, 'digest', $3, $4, false)
+       on conflict (user_id, org_id, category, event)
+       do update set channel_email = excluded.channel_email`,
+      [userId, orgId, input.digestId, input.enabled],
+    );
+    await emitSettingsNotificationOutbox(queryClient, orgId, OUTBOX_NOTIFICATION_DIGEST_EVENT, {
+      digestId: input.digestId,
+      enabled: input.enabled,
+      actorUserId: userId,
+    });
+  });
+  revalidatePath('/settings/notifications');
+  return { ok: true, digestId: input.digestId, enabled: input.enabled, outboxEventType: OUTBOX_NOTIFICATION_DIGEST_EVENT };
 }
 
-const channelBadgeTone: Partial<Record<NotificationChannel, 'info' | 'secondary' | 'warning' | 'muted'>> = {
-  email: 'info',
-  'in-app': 'secondary',
-  SMS: 'warning',
-  slack: 'muted',
-};
+function toClientLabels(labels: ServerNotificationsLabels): NotificationsLabels {
+  const { smsUsage: _smsUsage, ...serializableLabels } = labels;
+  return serializableLabels;
+}
 
-export default function SettingsNotificationsPage(propsInput: unknown) {
-  const props = (propsInput ?? {}) as NotificationsPageProps;
+export default async function SettingsNotificationsPage(props: NotificationsPageProps = {}) {
+  const resolvedParams = props.params ? await props.params : { locale: 'en' };
+  const labels = await buildLabels(resolvedParams.locale ?? 'en');
+  const loaded = props.channels && props.notificationRules && props.digestEmails ? null : await readNotificationsData(labels);
+  const state = props.state ?? loaded?.state ?? 'ready';
 
   return (
     <SettingsNotificationsScreen
-      state={props.state ?? 'ready'}
-      channels={props.channels ?? defaultChannels}
-      notificationRules={props.notificationRules ?? defaultRules}
-      digestEmails={props.digestEmails ?? defaultDigests}
+      labels={toClientLabels(labels)}
+      state={state}
+      channels={props.channels ?? loaded?.channels ?? defaultChannels(labels, 0)}
+      notificationRules={props.notificationRules ?? loaded?.notificationRules ?? []}
+      digestEmails={props.digestEmails ?? loaded?.digestEmails ?? defaultDigestEmails(labels)}
       toggleNotificationChannel={props.toggleNotificationChannel ?? defaultToggleNotificationChannel}
       toggleNotificationRule={props.toggleNotificationRule ?? defaultToggleNotificationRule}
       toggleDigestEmail={props.toggleDigestEmail ?? defaultToggleDigestEmail}
     />
-  );
-}
-
-function SettingsNotificationsScreen({
-  state,
-  channels,
-  notificationRules,
-  digestEmails,
-  toggleNotificationChannel,
-  toggleNotificationRule,
-  toggleDigestEmail,
-}: {
-  state: PageState;
-  channels: ChannelSetting[];
-  notificationRules: NotificationRule[];
-  digestEmails: DigestSetting[];
-  toggleNotificationChannel: (input: ToggleChannelInput) => Promise<ToggleChannelResult>;
-  toggleNotificationRule: (input: ToggleRuleInput) => Promise<ToggleRuleResult>;
-  toggleDigestEmail: (input: ToggleDigestInput) => Promise<ToggleDigestResult>;
-}) {
-  const router = useRouter();
-  const [channelEnabled, setChannelEnabled] = React.useState<Record<string, boolean>>(() =>
-    Object.fromEntries(channels.map((channel) => [channel.id, channel.enabled])),
-  );
-  const [ruleEnabled, setRuleEnabled] = React.useState<Record<string, boolean>>(() =>
-    Object.fromEntries(notificationRules.map((rule) => [rule.id, rule.on])),
-  );
-  const [digestEnabled, setDigestEnabled] = React.useState<Record<string, boolean>>(() =>
-    Object.fromEntries(digestEmails.map((digest) => [digest.id, digest.enabled])),
-  );
-  const [pendingChannelId, setPendingChannelId] = React.useState<string | null>(null);
-  const [pendingRuleId, setPendingRuleId] = React.useState<string | null>(null);
-  const [pendingDigestId, setPendingDigestId] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setChannelEnabled(Object.fromEntries(channels.map((channel) => [channel.id, channel.enabled])));
-  }, [channels]);
-
-  React.useEffect(() => {
-    setRuleEnabled(Object.fromEntries(notificationRules.map((rule) => [rule.id, rule.on])));
-  }, [notificationRules]);
-
-  React.useEffect(() => {
-    setDigestEnabled(Object.fromEntries(digestEmails.map((digest) => [digest.id, digest.enabled])));
-  }, [digestEmails]);
-
-  const toggleChannel = async (channel: ChannelSetting, enabled: boolean) => {
-    setPendingChannelId(channel.id);
-    setChannelEnabled((current) => ({ ...current, [channel.id]: enabled }));
-    try {
-      await toggleNotificationChannel({ channelId: channel.id, enabled });
-    } catch {
-      setChannelEnabled((current) => ({ ...current, [channel.id]: !enabled }));
-    } finally {
-      setPendingChannelId(null);
-    }
-  };
-
-  const toggleRule = async (rule: NotificationRule, enabled: boolean) => {
-    setPendingRuleId(rule.id);
-    setRuleEnabled((current) => ({ ...current, [rule.id]: enabled }));
-    try {
-      await toggleNotificationRule({ ruleId: rule.id, enabled });
-    } catch {
-      setRuleEnabled((current) => ({ ...current, [rule.id]: !enabled }));
-    } finally {
-      setPendingRuleId(null);
-    }
-  };
-
-  const toggleDigest = async (digest: DigestSetting, enabled: boolean) => {
-    setPendingDigestId(digest.id);
-    setDigestEnabled((current) => ({ ...current, [digest.id]: enabled }));
-    try {
-      await toggleDigestEmail({ digestId: digest.id, enabled });
-    } catch {
-      setDigestEnabled((current) => ({ ...current, [digest.id]: !enabled }));
-    } finally {
-      setPendingDigestId(null);
-    }
-  };
-
-  if (state === 'loading') {
-    return (
-      <main
-        data-testid="settings-notifications-screen"
-        data-screen="notifications_screen"
-        data-route="/settings/notifications"
-        data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:98-163"
-        className="mx-auto max-w-5xl space-y-6 p-6"
-        aria-busy="true"
-      >
-        <PageHead />
-        <section
-          data-testid="settings-notifications-loading"
-          className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm"
-        >
-          {labels.loading}
-        </section>
-      </main>
-    );
-  }
-
-  if (state === 'error') {
-    return (
-      <main
-        data-testid="settings-notifications-screen"
-        data-screen="notifications_screen"
-        data-route="/settings/notifications"
-        data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:98-163"
-        className="mx-auto max-w-5xl space-y-6 p-6"
-      >
-        <PageHead />
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          {labels.error}
-        </div>
-      </main>
-    );
-  }
-
-  const rulesAreEmpty = state === 'empty' || notificationRules.length === 0;
-
-  return (
-    <main
-      data-testid="settings-notifications-screen"
-      data-screen="notifications_screen"
-      data-route="/settings/notifications"
-      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:98-163"
-      aria-labelledby="settings-notifications-title"
-      className="mx-auto max-w-5xl space-y-6 p-6"
-    >
-      <PageHead />
-
-      <Section region="channels-section" title={labels.channelsTitle} sub={labels.channelsSubtitle}>
-        {channels.map((channel) => (
-          <SettingRow key={channel.id} testId="settings-notification-channel-row" label={channel.label} hint={channel.hint}>
-            <div className="flex items-center gap-2">
-              <Switch
-                aria-label={channel.label}
-                checked={Boolean(channelEnabled[channel.id])}
-                disabled={pendingChannelId === channel.id}
-                onCheckedChange={(enabled) => void toggleChannel(channel, enabled)}
-              />
-              {channel.verified ? <Badge variant="success">{labels.verified}</Badge> : null}
-              {channel.usageText ? <span className="text-xs text-slate-500">{channel.usageText}</span> : null}
-              {channel.id === 'slack' ? (
-                <a
-                  href="/settings/integrations?highlight=slack"
-                  className="text-xs font-medium text-blue-600 underline-offset-2 hover:underline"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    router.push('/settings/integrations?highlight=slack');
-                  }}
-                >
-                  {labels.configureSlack}
-                </a>
-              ) : null}
-            </div>
-          </SettingRow>
-        ))}
-      </Section>
-
-      <Section
-        region="notification-rules-section"
-        title={labels.rulesTitle}
-        sub={labels.rulesSubtitle}
-        action={
-          <Button type="button" className="btn-primary btn-sm" onClick={() => router.push('/settings/rules?new=notification')}>
-            {labels.newRule}
-          </Button>
-        }
-      >
-        {rulesAreEmpty ? (
-          <p role="status" className="px-5 py-4 text-sm text-slate-500">
-            {labels.empty}
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{labels.on}</TableHead>
-                <TableHead>{labels.trigger}</TableHead>
-                <TableHead>{labels.audience}</TableHead>
-                <TableHead>{labels.channels}</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {notificationRules.map((rule) => (
-                <TableRow key={rule.id} data-testid="settings-notification-rule-row">
-                  <TableCell className="w-10">
-                    <Switch
-                      aria-label={rule.trigger}
-                      checked={Boolean(ruleEnabled[rule.id])}
-                      disabled={pendingRuleId === rule.id}
-                      onCheckedChange={(enabled) => void toggleRule(rule, enabled)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium" data-testid="settings-notification-rule-trigger">
-                    {rule.trigger}
-                  </TableCell>
-                  <TableCell className="text-slate-500">{rule.audience}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {rule.channel.map((channel) => (
-                        <Badge key={channel} variant={channelBadgeTone[channel] ?? 'muted'}>
-                          {channel}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-slate-400">⋮</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Section>
-
-      <Section region="digest-emails-section" title={labels.digestTitle}>
-        {digestEmails.map((digest) => (
-          <SettingRow key={digest.id} testId="settings-notification-digest-row" label={digest.label} hint={digest.hint}>
-            <Switch
-              aria-label={digest.label}
-              checked={Boolean(digestEnabled[digest.id])}
-              disabled={pendingDigestId === digest.id}
-              onCheckedChange={(enabled) => void toggleDigest(digest, enabled)}
-            />
-          </SettingRow>
-        ))}
-      </Section>
-    </main>
-  );
-}
-
-function PageHead() {
-  return (
-    <header data-region="page-head" className="space-y-1" aria-labelledby="settings-notifications-title">
-      <h1 id="settings-notifications-title" className="text-2xl font-semibold tracking-tight text-slate-950">
-        {labels.title}
-      </h1>
-      <p className="text-sm text-slate-600">{labels.subtitle}</p>
-    </header>
-  );
-}
-
-function Section({
-  region,
-  title,
-  sub,
-  action,
-  children,
-}: {
-  region: string;
-  title: string;
-  sub?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      data-testid="settings-notifications-section"
-      data-region={region}
-      role="region"
-      aria-label={title}
-      className="rounded-xl border border-slate-200 bg-white shadow-sm"
-    >
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-        <div>
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          {sub ? <p className="mt-1 text-sm text-slate-500">{sub}</p> : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      <div className="divide-y divide-slate-100">{children}</div>
-    </section>
-  );
-}
-
-function SettingRow({
-  testId,
-  label,
-  hint,
-  children,
-}: {
-  testId: string;
-  label: string;
-  hint: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div data-testid={testId} className="flex items-center justify-between gap-4 px-5 py-3 first:pt-4 last:pb-4">
-      <div className="min-w-0">
-        <p data-testid="settings-notification-row-label" className="text-sm font-medium text-slate-900">
-          {label}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">{hint}</p>
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
   );
 }

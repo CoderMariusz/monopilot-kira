@@ -16,6 +16,9 @@ const expectedSettingsEvents = [
   'settings.reference.row_updated',
   'settings.schema.migration_requested',
   'settings.rule.deployed',
+  'settings.notification_rule_updated',
+  'settings.notification_channel_updated',
+  'settings.notification_digest_updated',
   'settings.sso.config_changed',
   'settings.scim.token_created',
 ] as const;
@@ -75,7 +78,7 @@ describe('outbox event type source of truth', () => {
     expect(new Set(ALL_SETTINGS_EVENTS).size).toBe(ALL_SETTINGS_EVENTS.length);
 
     for (const eventType of ALL_SETTINGS_EVENTS) {
-      expect(eventType).toMatch(/^settings\.[a-z_]+\.[a-z_]+$/);
+      expect(eventType).toMatch(/^settings\.[a-z_]+(?:\.[a-z_]+)?$/);
       expect(ALL_EVENTS).toContain(eventType);
       expect(Object.values(EventType)).toContain(eventType);
     }
