@@ -14,6 +14,51 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+type ShellComponentCall = Record<string, unknown>;
+
+const mocks = vi.hoisted(() => ({
+  redirect: vi.fn((url: string): never => {
+    throw new Error(`NEXT_REDIRECT:${url}`);
+  }),
+  createServerSupabaseClient: vi.fn(),
+  getUser: vi.fn(),
+  topbarCalls: [] as ShellComponentCall[],
+  sidebarCalls: [] as ShellComponentCall[],
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: mocks.redirect,
+  usePathname: () => '/en/settings/tenant/depts',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock('../../../../../../../lib/auth/supabase-server', () => ({
+  createServerSupabaseClient: mocks.createServerSupabaseClient,
+}));
+
+vi.mock('../../../../../../../components/shell/app-topbar', () => ({
+  AppTopbar: async (props: ShellComponentCall) => {
+    mocks.topbarCalls.push(props);
+    return (
+      <header data-testid="app-topbar" data-locale={String(props.locale)} role="banner">
+        Mock topbar
+      </header>
+    );
+  },
+}));
+
+vi.mock('../../../../../../../components/shell/app-sidebar', () => ({
+  AppSidebar: (props: ShellComponentCall) => {
+    mocks.sidebarCalls.push(props);
+    return (
+      <aside data-testid="app-sidebar" data-locale={String(props.locale)} role="navigation">
+        Mock sidebar
+      </aside>
+    );
+  },
+}));
+
 type Department = {
   code: string;
   name: string;
@@ -60,6 +105,11 @@ type DeptTaxonomyPageProps = {
 
 type DeptTaxonomyPage = (props: DeptTaxonomyPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
+type AppRouteGroupLayout = (props: {
+  children: React.ReactNode;
+  params: Promise<{ locale: 'en' | 'pl' | 'uk' | 'ro' }>;
+}) => React.ReactNode | Promise<React.ReactNode>;
+
 const baselineDepartments: Department[] = [
   { code: 'core', name: 'Core', assignedColumnCount: 12, order: 10, provenance: 'baseline' },
   { code: 'technical', name: 'Technical', assignedColumnCount: 3, order: 20, provenance: 'baseline' },
@@ -85,6 +135,53 @@ const sourceColumns: SourceColumn[] = [
 
 const pagePath = join(__dirname, 'page.tsx');
 const clientPath = join(__dirname, 'dept-taxonomy-screen.client.tsx');
+const appLayoutPath = join(__dirname, '../../../..', 'layout.tsx');
+
+function setAuthenticatedShellUser() {
+  mocks.getUser.mockResolvedValue({
+    data: {
+      user: {
+        id: 'set-061-user',
+        email: 'set-061@example.test',
+        user_metadata: {
+          name: 'SET-061 Tester',
+          org_id: 'org-set-061',
+          org_name: 'SET-061 Org',
+        },
+      },
+    },
+    error: null,
+  });
+  mocks.createServerSupabaseClient.mockResolvedValue({ auth: { getUser: mocks.getUser } });
+}
+
+async function loadAppRouteGroupLayout(): Promise<AppRouteGroupLayout> {
+  const mod = (await import(/* @vite-ignore */ appLayoutPath)) as { default?: AppRouteGroupLayout };
+  expect(mod.default, '/en/settings/tenant/depts must be rendered through app/[locale]/(app)/layout.tsx at runtime').toEqual(
+    expect.any(Function),
+  );
+  return mod.default as AppRouteGroupLayout;
+}
+
+async function renderDeptTaxonomyRouteThroughAppShell(overrides: Partial<DeptTaxonomyPageProps> = {}) {
+  const Page = await loadDeptTaxonomyPage();
+  const Layout = await loadAppRouteGroupLayout();
+  const pageNode = await Page({
+    params: Promise.resolve({ locale: 'en' }),
+    departments: baselineDepartments,
+    sourceColumns,
+    selectedDeptCode: 'technical',
+    canEdit: true,
+    state: 'ready',
+    submitDeptOverride: vi.fn(async (payload: DeptOverridePayload) => ({
+      ok: true as const,
+      data: { storage: 'tenant_variations.dept_overrides', deptOverrides: { actions: { [payload.action]: payload } } },
+    })),
+    ...overrides,
+  });
+  const shellNode = await Layout({ children: pageNode, params: Promise.resolve({ locale: 'en' }) });
+  return render(React.createElement(React.Fragment, null, shellNode));
+}
 
 async function loadDeptTaxonomyPage(): Promise<DeptTaxonomyPage> {
   try {
@@ -128,6 +225,9 @@ describe('SET-061 dept taxonomy editor UX route and structure', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    mocks.topbarCalls.length = 0;
+    mocks.sidebarCalls.length = 0;
+    setAuthenticatedShellUser();
   });
 
   it('keeps the App Router page server-rendered and moves stateful wizard behavior into the client boundary', () => {
@@ -139,6 +239,23 @@ describe('SET-061 dept taxonomy editor UX route and structure', () => {
     expect(pageSource).toContain("from './dept-taxonomy-screen.client'");
     expect(clientSource).toMatch(/^['\"]use client['\"]/m);
     expect(clientSource).toContain('React.useState');
+  });
+
+  it('renders /en/settings/tenant/depts through the real localized AppShell layout at runtime', async () => {
+    const { container } = await renderDeptTaxonomyRouteThroughAppShell();
+
+    expect(mocks.createServerSupabaseClient, 'runtime route evidence must authenticate through the AppShell layout').toHaveBeenCalledTimes(1);
+    expect(mocks.getUser, 'runtime route evidence must call auth.getUser before shell render').toHaveBeenCalledTimes(1);
+    expect(mocks.topbarCalls).toEqual([expect.objectContaining({ locale: 'en' })]);
+    expect(mocks.sidebarCalls).toEqual([expect.objectContaining({ locale: 'en' })]);
+
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('app-topbar')).toHaveAttribute('role', 'banner');
+    expect(screen.getByTestId('app-sidebar')).toHaveAttribute('role', 'navigation');
+    const main = screen.getByTestId('app-shell-main');
+    expect(main.tagName.toLowerCase()).toBe('main');
+    expect(within(main).getByRole('heading', { name: /department taxonomy/i })).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="missing-dept-taxonomy-page"]')).toBeNull();
   });
 
   it('renders the UX-spec Department Taxonomy screen at the AppShell route, not a PromoteToL2 modal surrogate', async () => {
