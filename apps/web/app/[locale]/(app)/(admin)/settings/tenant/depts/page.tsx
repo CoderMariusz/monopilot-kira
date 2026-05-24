@@ -156,7 +156,9 @@ async function buildLabels(locale: string): Promise<DeptTaxonomyLabels> {
 
 async function loadDefaultDepartments(): Promise<{ departments: Department[]; state: PageState }> {
   const result = await getTenantVariations();
-  if (!result.ok) return { departments: BASELINE_DEPARTMENTS, state: result.error === 'forbidden' ? 'permission_denied' : 'error' };
+  if ('error' in result) {
+    return { departments: BASELINE_DEPARTMENTS, state: result.error === 'forbidden' ? 'permission_denied' : 'error' };
+  }
   return { departments: mergeTenantDeptOverrides(BASELINE_DEPARTMENTS, result.data.deptOverrides), state: 'ready' };
 }
 
@@ -325,7 +327,7 @@ function DeptTaxonomyScreen({
     setIsPending(true);
     const result = await submitDeptOverride(payload);
     setIsPending(false);
-    if (!result.ok) {
+    if ('error' in result) {
       setValidationError(result.error);
       return;
     }
