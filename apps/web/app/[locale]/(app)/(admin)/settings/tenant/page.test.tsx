@@ -7,13 +7,15 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const routerPush = vi.fn();
+const { useRouterMock } = vi.hoisted(() => ({
+  useRouterMock: vi.fn(() => ({ push: vi.fn() })),
+}));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: routerPush }),
+  useRouter: useRouterMock,
   redirect: vi.fn(),
   notFound: vi.fn(),
 }));
@@ -256,12 +258,27 @@ describe('SET-060 tenant variations dashboard UX contract', () => {
     expect(within(section(/authorization policies/i)).getByText(/Disabled/i)).toBeInTheDocument();
   });
 
-  it('pushes /settings/tenant/depts through next/navigation when Edit Dept Taxonomy is clicked', async () => {
-    const user = userEvent.setup();
+  it('keeps the tenant RSC page free of router hooks and Vitest-only navigation branches', () => {
+    const source = readFileSync(`${__dirname}/page.tsx`, 'utf8');
+
+    expect(source, 'tenant/page.tsx must not import useRouter from next/navigation').not.toMatch(
+      /import\s*\{[^}]*\buseRouter\b[^}]*\}\s*from\s*['\"]next\/navigation['\"]/,
+    );
+    expect(source, 'tenant/page.tsx must not call useRouter in a Server Component render path').not.toMatch(
+      /\buseRouter\s*\(/,
+    );
+    expect(source, 'tenant/page.tsx must not branch on Vitest/runtime test globals for navigation').not.toMatch(
+      /isVitestRuntime|VITEST_WORKER_ID/,
+    );
+  });
+
+  it('exposes Edit Dept Taxonomy as an accessible navigation target without requiring next/navigation hooks', async () => {
     await renderTenantVariationsDashboard();
 
-    await user.click(within(section(/department overrides.*2/i)).getByRole('button', { name: /edit dept taxonomy/i }));
+    const deptSection = section(/department overrides.*2/i);
+    expect(useRouterMock, 'tenant/page.tsx should expose navigation without calling next/navigation useRouter').not.toHaveBeenCalled();
+    const editLink = within(deptSection).getByRole('link', { name: /edit dept taxonomy/i });
 
-    expect(routerPush).toHaveBeenCalledWith('/settings/tenant/depts');
+    expect(editLink).toHaveAttribute('href', '/settings/tenant/depts');
   });
 });
