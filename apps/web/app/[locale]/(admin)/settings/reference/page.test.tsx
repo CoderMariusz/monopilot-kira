@@ -211,7 +211,11 @@ describe('SET-050 Reference Data screen prototype parity', () => {
     expect(within(root).getByText(/allergen families, uom, currency, country iso/i)).toBeInTheDocument();
 
     const actions = within(root).getByTestId('reference-data-actions');
-    expect(within(actions).getAllByRole(/button|link/).map((element) => element.textContent?.trim())).toEqual([
+    const orderedActions = [
+      within(actions).getByRole('link', { name: /import csv/i }),
+      ...within(actions).getAllByRole('button'),
+    ];
+    expect(orderedActions.map((element) => element.textContent?.trim())).toEqual([
       'Import CSV',
       'Export CSV',
       '+ Add row',
