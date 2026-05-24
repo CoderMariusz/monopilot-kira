@@ -430,6 +430,28 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     expect(screen.queryByText(/not_configured/i)).not.toBeInTheDocument();
   });
 
+  it('fail-closes the client Test send control when the action prop is absent', async () => {
+    const { default: EmailTemplatesScreen } = await import('./email-templates-screen.client');
+
+    render(
+      <EmailTemplatesScreen
+        labels={emailTemplateLabels}
+        providerSettings={providerSettings}
+        templates={templates}
+        state="ready"
+        testSend={undefined as never}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /test send/i });
+    expect(
+      trigger,
+      'The client leaf must not rely on the page wrapper to fail-close an unwired Test Send backend.',
+    ).toBeDisabled();
+    expect(screenRoot()).toHaveTextContent(/test send.*not configured|test send.*coming soon|test send.*unavailable/i);
+    expect(screen.queryByText(/probe sent|message_id=not_configured|not_configured/i)).not.toBeInTheDocument();
+  });
+
   it('renders loading, empty, and error states loudly for email template data', async () => {
     await renderEmailTemplatesPage({ state: 'loading', templates: [] });
     expect(screen.getByRole('status', { name: /loading email templates/i })).toBeInTheDocument();

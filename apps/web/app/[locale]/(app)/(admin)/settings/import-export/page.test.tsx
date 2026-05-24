@@ -114,6 +114,98 @@ function messageFor(key: string) {
   }, messages) as string;
 }
 
+const clientLabels = {
+  eyebrow: messages.eyebrow,
+  title: messages.title,
+  subtitle: messages.subtitle,
+  permissionDenied: messages.permission_denied,
+  entityLabel: messages.entity_label,
+  states: {
+    loading: messages.states.loading,
+    empty: messages.states.empty,
+    error: messages.states.error,
+    noRows: messages.states.no_rows,
+  },
+  entities: {
+    users: messages.entities.users,
+    roles: messages.entities.roles,
+    invitations: messages.entities.invitations,
+    referenceTables: messages.entities.reference_tables,
+    infrastructure: messages.entities.infrastructure,
+    featureFlags: messages.entities.feature_flags,
+    authorizationPolicies: messages.entities.authorization_policies,
+  },
+  capabilities: {
+    importExport: messages.capabilities.import_export,
+    exportOnly: messages.capabilities.export_only,
+    importSupported: messages.capabilities.import_supported,
+    exportSupported: messages.capabilities.export_supported,
+    template: messages.capabilities.template,
+    noTemplate: messages.capabilities.no_template,
+    sync: messages.capabilities.sync,
+    async: messages.capabilities.async,
+    referenceHandoff: messages.capabilities.reference_handoff,
+    auditDryRunRequired: messages.capabilities.audit_dry_run_required,
+  },
+  alerts: {
+    unsupportedImport: messages.alerts.unsupported_import,
+    authorizationPolicy: messages.alerts.authorization_policy,
+  },
+  importCard: {
+    title: messages.import_card.title,
+    description: messages.import_card.description,
+    requiredPermission: messages.import_card.required_permission,
+    processing: messages.import_card.processing,
+    audit: messages.import_card.audit,
+    template: messages.import_card.template,
+    asyncJob: messages.import_card.async_job,
+    synchronous: messages.import_card.synchronous,
+    auditRequired: messages.import_card.audit_required,
+    noAuditMutation: messages.import_card.no_audit_mutation,
+    templateAvailable: messages.import_card.template_available,
+    noTemplate: messages.import_card.no_template,
+    downloadTemplate: messages.import_card.download_template,
+    dropzone: messages.import_card.dropzone,
+    fileLimit: messages.import_card.file_limit,
+    fileAria: messages.import_card.file_aria,
+    auditReason: messages.import_card.audit_reason,
+    auditReasonPlaceholder: messages.import_card.audit_reason_placeholder,
+    runDryRun: messages.import_card.run_dry_run,
+    continueReference: messages.import_card.continue_reference,
+    startImport: messages.import_card.start_import,
+    csvRequired: messages.import_card.csv_required,
+    auditReasonRequired: messages.import_card.audit_reason_required,
+    dryRunPassed: messages.import_card.dry_run_passed,
+    dedicatedFlowRequired: messages.import_card.dedicated_flow_required,
+    preflightUnavailable: messages.import_card.preflight_unavailable,
+  },
+  exportCard: {
+    title: messages.export_card.title,
+    description: messages.export_card.description,
+    format: messages.export_card.format,
+    exportNow: messages.export_card.export_now,
+    exporting: messages.export_card.exporting,
+    downloadExport: messages.export_card.download_export,
+  },
+  jobs: {
+    title: messages.jobs.title,
+    description: messages.jobs.description,
+    tableLabel: messages.jobs.table_label,
+    id: messages.jobs.id,
+    entity: messages.jobs.entity,
+    type: messages.jobs.type,
+    status: messages.jobs.status,
+    rows: messages.jobs.rows,
+    auditReason: messages.jobs.audit_reason,
+    importType: messages.jobs.import_type,
+    exportType: messages.jobs.export_type,
+    queued: messages.jobs.queued,
+    running: messages.jobs.running,
+    completed: messages.jobs.completed,
+    failed: messages.jobs.failed,
+  },
+};
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
@@ -435,6 +527,35 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
     expect(within(hub()).getByRole('alert')).toHaveTextContent(/preflight.*not configured|preflight.*coming soon|preflight.*unavailable/i);
 
     await user.click(dryRun);
+    expect(within(hub()).queryByText(/dry-run passed/i)).not.toBeInTheDocument();
+  });
+
+  it('fail-closes the client authorization-policy preflight control when the action prop is absent', async () => {
+    const user = userEvent.setup();
+    const { default: SettingsImportExportScreen } = await import('./import-export-screen.client');
+
+    render(
+      <SettingsImportExportScreen
+        entities={entities}
+        visiblePermissions={allPermissions}
+        recentJobs={recentJobs}
+        state="ready"
+        labels={clientLabels}
+        exportSettingsEntity={vi.fn(async () => ({ ok: true as const, downloadHref: '/api/settings/import-export/downloads/users.csv' }))}
+        preflightAuthorizationPolicyImport={undefined as never}
+      />,
+    );
+
+    selectEntity('authorization_policies');
+    await user.upload(within(hub()).getByLabelText(/csv file/i), new File(['policy,enabled\nnpd,true'], 'auth-policies.csv', { type: 'text/csv' }));
+    await user.type(within(hub()).getByLabelText(/audit reason/i), 'Preflight policy migration for V-SET-43/V-SET-44 validation');
+
+    const dryRun = within(hub()).getByRole('button', { name: /run t-122 dry-run/i });
+    expect(
+      dryRun,
+      'The client leaf must not rely on the page wrapper to fail-close an unwired T-122 preflight backend.',
+    ).toBeDisabled();
+    expect(within(hub()).getByRole('alert')).toHaveTextContent(/preflight.*not configured|preflight.*coming soon|preflight.*unavailable/i);
     expect(within(hub()).queryByText(/dry-run passed/i)).not.toBeInTheDocument();
   });
 
