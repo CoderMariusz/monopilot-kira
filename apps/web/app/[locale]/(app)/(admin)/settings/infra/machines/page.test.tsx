@@ -8,11 +8,12 @@
  * behavior assertions instead of module-resolution noise.
  */
 import React from 'react';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getTranslations } from 'next-intl/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const labels: Record<string, string> = {
@@ -34,6 +35,40 @@ const labels: Record<string, string> = {
   insufficientPermission:
     'Insufficient permissions: settings.infra.update is required to activate or deactivate machines.',
 };
+
+const REQUIRED_MACHINE_LABEL_KEYS = Object.freeze([
+  'title',
+  'subtitle',
+  'sectionTitle',
+  'toolbarLabel',
+  'status',
+  'warehouse',
+  'statusAll',
+  'warehouseAll',
+  'statusActive',
+  'statusOffline',
+  'statusMaintenance',
+  'locationBreadcrumb',
+  'columnSelect',
+  'columnName',
+  'columnCode',
+  'columnStatus',
+  'columnLocation',
+  'columnDeactivated',
+  'bulkActivate',
+  'bulkActivatePending',
+  'bulkDeactivate',
+  'bulkDeactivatePending',
+  'deactivated',
+  'selectMachine',
+  'insufficientPermission',
+  'loading',
+  'empty',
+  'error',
+  'forbidden',
+  'actionError',
+  'provenance',
+]);
 
 vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async () => (key: string) => labels[key] ?? key),
@@ -248,6 +283,52 @@ async function selectMachines(user: ReturnType<typeof userEvent.setup>, names: s
   }
 }
 
+describe('SET-016 machines i18n and AppShell route contract', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('defines the user-visible localized AppShell route instead of only a legacy settings route', () => {
+    const canonicalRoute = path.join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/infra/machines/page.tsx');
+    const legacyRoute = path.join(process.cwd(), 'app/[locale]/(admin)/settings/infra/machines/page.tsx');
+
+    expect(
+      existsSync(canonicalRoute),
+      'R-F10-004 must keep /en/settings/infra/machines under app/[locale]/(app)/(admin) so AppShell/AppSidebar/AppTopbar wrap the page',
+    ).toBe(true);
+    expect(existsSync(legacyRoute), 'Legacy body-only settings route must not be the only implementation').toBe(false);
+  });
+
+  it('requests the canonical settings.infra.machines namespace at render time', async () => {
+    await renderMachinesPage();
+
+    expect(getTranslations).toHaveBeenCalledWith({ locale: 'en', namespace: 'settings.infra.machines' });
+    expect(getTranslations).not.toHaveBeenCalledWith({ locale: 'en', namespace: 'settings.infra_machines' });
+  });
+
+  it('provides every machine page label in settings.infra.machines for en/pl/ro/uk locale messages', () => {
+    const localeCodes = ['en', 'pl', 'ro', 'uk'] as const;
+
+    for (const locale of localeCodes) {
+      const localePath = path.join(process.cwd(), 'messages', locale, '02-settings.json');
+      const messages = JSON.parse(readFileSync(localePath, 'utf8')) as {
+        infra?: { machines?: Record<string, unknown> };
+      };
+      const machineLabels = messages.infra?.machines;
+
+      expect(machineLabels, `${localePath} must define settings.infra.machines`).toBeTruthy();
+      expect(Object.keys(machineLabels ?? {}).sort(), `${localePath} must cover the full machines label set`).toEqual(
+        [...REQUIRED_MACHINE_LABEL_KEYS].sort(),
+      );
+      for (const key of REQUIRED_MACHINE_LABEL_KEYS) {
+        expect(typeof machineLabels?.[key], `${localePath} key ${key} must be a localized string`).toBe('string');
+        expect(machineLabels?.[key], `${localePath} key ${key} must not be blank`).not.toBe('');
+      }
+    }
+  });
+});
+
 describe('SET-016 machine list behavior', () => {
   beforeEach(() => {
     cleanup();
@@ -264,7 +345,8 @@ describe('SET-016 machine list behavior', () => {
       'utf8',
     );
 
-    expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.infra_machines' })");
+    expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.infra.machines' })");
+    expect(pageSource).not.toContain('settings.infra_machines');
     expect(pageSource).toContain("from './machines-list-screen.client'");
     expect(pageSource).toContain('withOrgContext');
     expect(pageSource).not.toContain('React.useState');
