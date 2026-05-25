@@ -13,6 +13,13 @@
     "empty": "Nu există rânduri de referință pentru acest tabel.",
     "error": "Datele de referință nu au putut fi încărcate.",
     "permissionDenied": "Nu ai permisiunea de a edita datele de referință.",
+    "actions": "Acțiuni",
+    "enabled": "Activat",
+    "disabled": "Dezactivat",
+    "yes": "Da",
+    "no": "Nu",
+    "rowKey": "Cheie rând",
+    "rowKeyHelp": "Majuscule, minimum 2 caractere. Unică în tabel.",
     "modal": {
       "edit": {
         "title": "Rând de referință",

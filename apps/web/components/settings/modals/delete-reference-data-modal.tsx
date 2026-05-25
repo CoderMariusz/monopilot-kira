@@ -218,7 +218,6 @@ export function DeleteReferenceDataModal({
           onKeyDown={handleDialogKeyDown}
           style={{ maxWidth: 'var(--modal-size-sm-width)' }}
         >
-          <div role="dialog" aria-modal="true" aria-labelledby={titleId} data-focus-trap="radix-dialog" hidden />
           <form
             aria-label={title}
             onSubmit={(event) => {

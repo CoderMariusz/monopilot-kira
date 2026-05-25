@@ -23,6 +23,13 @@
     "empty": "No reference rows configured for this table.",
     "error": "Unable to load reference data.",
     "permissionDenied": "You do not have permission to edit reference data.",
+    "actions": "Actions",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "yes": "Yes",
+    "no": "No",
+    "rowKey": "Row key",
+    "rowKeyHelp": "Uppercase, min 2 chars. Unique in table.",
     "modal": {
       "edit": {
         "title": "Reference row",

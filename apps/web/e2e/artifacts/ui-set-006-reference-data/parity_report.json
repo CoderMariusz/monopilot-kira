@@ -1,0 +1,80 @@
+{
+  "task_id": "TASK-001066",
+  "root_task_id": "TASK-001053",
+  "prd_task_id": "UI-SET-006-reference-data-modal-crud-parity",
+  "generated_at_utc": "2026-05-25T19:54:01.115899+00:00",
+  "base_url": "http://127.0.0.1:31866",
+  "target_route": "/en/settings/reference",
+  "prototype_route": "settings/admin-screens.jsx#reference_data_screen; settings/modals.jsx#ref_row_edit_modal+delete_reference_data_modal",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+  "prototype_line_ranges": [
+    "admin-screens.jsx:561-621",
+    "modals.jsx:513-532",
+    "modals.jsx:535-572"
+  ],
+  "status": "BLOCKED",
+  "block_reason": "Authenticated browser session/test harness unavailable: local dev server redirects /en/settings/reference to /login?reason=idle, so real target route cannot render the protected reference-data surface for screenshot-pair/DOM parity.",
+  "viewports": [
+    "desktop-1440x900"
+  ],
+  "region_selectors": {
+    "reference_data_screen": {
+      "target": "main settings reference data table",
+      "prototype": "admin-screens.jsx:561-621",
+      "status": "BLOCKED_AUTH_REDIRECT"
+    },
+    "ref_row_edit_modal": {
+      "target": "dialog[name=\"Reference row\"]",
+      "prototype": "modals.jsx:535-572",
+      "status": "BLOCKED_AUTH_REDIRECT"
+    },
+    "delete_reference_data_modal": {
+      "target": "dialog[name=\"Delete reference data\"]",
+      "prototype": "modals.jsx:513-532",
+      "status": "BLOCKED_AUTH_REDIRECT"
+    }
+  },
+  "parity_matrix": [
+    {
+      "region": "reference-table",
+      "status": "BLOCKED",
+      "reason": "target screen not reached; login redirect observed"
+    },
+    {
+      "region": "edit-modal",
+      "status": "BLOCKED",
+      "reason": "target screen not reached; modal cannot be opened"
+    },
+    {
+      "region": "delete-modal",
+      "status": "BLOCKED",
+      "reason": "target screen not reached; modal cannot be opened"
+    }
+  ],
+  "artifacts": {
+    "playwright_screenshot": "apps/web/e2e/artifacts/ui-set-006-reference-data/playwright/e2e-settings-reference-set-4a1d2-red-edit-delete-modal-flows-chromium/test-failed-1.png",
+    "playwright_trace": "apps/web/e2e/artifacts/ui-set-006-reference-data/playwright/e2e-settings-reference-set-4a1d2-red-edit-delete-modal-flows-chromium/trace.zip",
+    "playwright_error_context": "apps/web/e2e/artifacts/ui-set-006-reference-data/playwright/e2e-settings-reference-set-4a1d2-red-edit-delete-modal-flows-chromium/error-context.md",
+    "dom_diff_json": "apps/web/e2e/artifacts/ui-set-006-reference-data/dom-diff.json",
+    "console_network_json": "apps/web/e2e/artifacts/ui-set-006-reference-data/console-network.json"
+  },
+  "explicit_deviations": [],
+  "console_network_check": "BLOCKED_AUTH_REDIRECT; curl observed HTTP 307 to /login?reason=idle before UI surface rendered.",
+  "prototype_reference": [
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "561-621",
+      "region": "reference_data_screen"
+    },
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/modals.jsx",
+      "lines": "513-532",
+      "region": "delete_reference_data_modal"
+    },
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/modals.jsx",
+      "lines": "535-572",
+      "region": "ref_row_edit_modal"
+    }
+  ]
+}

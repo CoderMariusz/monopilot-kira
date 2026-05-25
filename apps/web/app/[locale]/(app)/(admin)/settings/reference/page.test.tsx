@@ -50,6 +50,13 @@ type ReferenceDataLabels = {
   loading: string;
   empty: string;
   error: string;
+  actions: string;
+  enabled: string;
+  disabled: string;
+  yes: string;
+  no: string;
+  rowKey: string;
+  rowKeyHelp: string;
 };
 
 type ReferenceDataScreenProps = {
@@ -89,6 +96,13 @@ const labels: ReferenceDataLabels = {
   loading: 'Loading reference data…',
   empty: 'No reference rows configured for this table.',
   error: 'Unable to load reference data.',
+  actions: 'Actions',
+  enabled: 'Enabled',
+  disabled: 'Disabled',
+  yes: 'Yes',
+  no: 'No',
+  rowKey: 'Row key',
+  rowKeyHelp: 'Uppercase, min 2 chars. Unique in table.',
 };
 
 const tables: ReferenceTable[] = [
@@ -231,6 +245,13 @@ describe('UI-SET-006 Reference Data route modal CRUD parity', () => {
       'modal.delete.confirmButton',
       'modal.delete.success',
       'permissionDenied',
+      'actions',
+      'enabled',
+      'disabled',
+      'yes',
+      'no',
+      'rowKey',
+      'rowKeyHelp',
     ];
 
     for (const locale of ['en', 'pl', 'ro', 'uk']) {

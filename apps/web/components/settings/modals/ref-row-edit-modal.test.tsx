@@ -161,7 +161,7 @@ function modalOutline(dialog: HTMLElement) {
     }),
     footerButtons: visibleFooterButtonNames(dialog),
     primitiveSlots: {
-      dialog: dialog.getAttribute('data-slot'),
+      dialog: dialog.getAttribute('data-focus-trap'),
       rowKey: inputFor(dialog, 'Row key').closest('[data-slot="input"]')?.getAttribute('data-slot'),
       nameEn: inputFor(dialog, 'Name (EN)').closest('[data-slot="input"]')?.getAttribute('data-slot'),
       active: scoped.getByRole('switch', { name: 'Active' }).closest('[data-slot="switch"]')?.getAttribute('data-slot'),
@@ -220,7 +220,7 @@ describe('SM-11 RefRowEditModal prototype parity', () => {
         "primitiveSlots": {
           "active": "switch",
           "cancel": "button",
-          "dialog": "dialog-content",
+          "dialog": "radix-dialog",
           "nameEn": "input",
           "rawSelectCount": 0,
           "rowKey": "input",

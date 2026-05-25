@@ -23,6 +23,13 @@
     "empty": "Brak wierszy referencyjnych dla tej tabeli.",
     "error": "Nie można wczytać danych referencyjnych.",
     "permissionDenied": "Nie masz uprawnień do edycji danych referencyjnych.",
+    "actions": "Akcje",
+    "enabled": "Włączone",
+    "disabled": "Wyłączone",
+    "yes": "Tak",
+    "no": "Nie",
+    "rowKey": "Klucz wiersza",
+    "rowKeyHelp": "Wielkie litery, min. 2 znaki. Unikalny w tabeli.",
     "modal": {
       "edit": {
         "title": "Wiersz referencyjny",

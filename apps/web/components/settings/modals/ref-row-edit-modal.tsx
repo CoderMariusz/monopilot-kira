@@ -381,7 +381,6 @@ export function RefRowEditModal({
         data-focus-trap="radix-dialog"
         data-modal-id="SM-11"
         data-size="default"
-        data-slot="dialog-content"
         data-testid="ref-row-edit-modal"
         onKeyDown={handleDialogKeyDown}
         style={{ maxWidth: 'var(--modal-size-default-width)' }}

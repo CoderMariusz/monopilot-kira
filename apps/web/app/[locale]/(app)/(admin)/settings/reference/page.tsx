@@ -116,6 +116,13 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
     empty: 'No reference rows configured for this table.',
     error: 'Unable to load reference data.',
     permissionDenied: 'You do not have permission to edit reference data.',
+    actions: 'Actions',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    yes: 'Yes',
+    no: 'No',
+    rowKey: 'Row key',
+    rowKeyHelp: 'Uppercase, min 2 chars. Unique in table.',
     modal: {
       edit: {
         title: 'Reference row',
@@ -172,6 +179,13 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
     empty: safeT('empty', fallback.empty),
     error: safeT('error', fallback.error),
     permissionDenied: safeT('permissionDenied', fallback.permissionDenied ?? ''),
+    actions: safeT('actions', fallback.actions),
+    enabled: safeT('enabled', fallback.enabled),
+    disabled: safeT('disabled', fallback.disabled),
+    yes: safeT('yes', fallback.yes),
+    no: safeT('no', fallback.no),
+    rowKey: safeT('rowKey', fallback.rowKey),
+    rowKeyHelp: safeT('rowKeyHelp', fallback.rowKeyHelp),
     modal: {
       edit: {
         title: safeT('modal.edit.title', fallback.modal?.edit?.title ?? ''),

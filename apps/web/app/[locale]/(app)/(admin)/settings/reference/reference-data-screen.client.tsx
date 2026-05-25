@@ -47,6 +47,13 @@ export type ReferenceDataLabels = {
   empty: string;
   error: string;
   permissionDenied?: string;
+  actions: string;
+  enabled: string;
+  disabled: string;
+  yes: string;
+  no: string;
+  rowKey: string;
+  rowKeyHelp: string;
   modal?: {
     edit?: React.ComponentProps<typeof RefRowEditModal>['labels'];
     delete?: React.ComponentProps<typeof DeleteReferenceDataModal>['labels'];
@@ -103,18 +110,18 @@ function rowLabel(row: ReferenceRow) {
   return row.rowKey || row.rowId;
 }
 
-function cellText(value: string | boolean | number | null, column: ReferenceColumn) {
+function cellText(value: string | boolean | number | null, column: ReferenceColumn, labels: ReferenceDataLabels) {
   if (typeof value === 'boolean') {
-    if (/enabled|active/i.test(column.label)) return value ? 'Enabled' : 'Disabled';
-    return value ? 'Yes' : 'No';
+    if (/enabled|active/i.test(column.label)) return value ? labels.enabled : labels.disabled;
+    return value ? labels.yes : labels.no;
   }
   if (value === null || value === undefined || value === '') return '—';
   return String(value);
 }
 
-function renderCell(value: string | boolean | number | null | undefined, column: ReferenceColumn) {
+function renderCell(value: string | boolean | number | null | undefined, column: ReferenceColumn, labels: ReferenceDataLabels) {
   const normalized = value ?? '—';
-  const text = cellText(normalized, column);
+  const text = cellText(normalized, column, labels);
 
   if (column.type === 'boolean') {
     return (
@@ -131,14 +138,14 @@ function renderCell(value: string | boolean | number | null | undefined, column:
   return text;
 }
 
-function modalColumns(table?: ReferenceTable): ModalColumn[] {
+function modalColumns(labels: ReferenceDataLabels, table?: ReferenceTable): ModalColumn[] {
   const rowKeyColumn: ModalColumn = {
     columnCode: 'row_key',
-    label: 'Row key',
+    label: labels.rowKey,
     type: 'text',
     required: true,
     readOnlyWhenEditing: true,
-    help: 'Uppercase, min 2 chars. Unique in table.',
+    help: labels.rowKeyHelp,
   };
 
   const dataColumns = (table?.columns ?? []).map((column) => ({
@@ -185,7 +192,7 @@ export function ReferenceDataScreen({
   const selectedTable = tables.find((table) => table.code === activeTableCode) ?? tables[0];
   const selectedRows = selectedTable ? rowsByTable[selectedTable.code] ?? [] : [];
   const tableState = state === 'loading' || state === 'error' ? state : selectedRows.length === 0 ? 'empty' : 'ready';
-  const selectedModalColumns = React.useMemo(() => modalColumns(selectedTable), [selectedTable]);
+  const selectedModalColumns = React.useMemo(() => modalColumns(labels, selectedTable), [labels, selectedTable]);
 
   function notifyChanged() {
     onReferenceDataChanged?.();
@@ -232,7 +239,7 @@ export function ReferenceDataScreen({
     ? {
         id: deleteDialog.row.rowId,
         code: deleteDialog.row.rowKey,
-        name: cellText(deleteDialog.row.values.display_name ?? deleteDialog.row.values.name_en ?? deleteDialog.row.values.name ?? deleteDialog.row.rowKey, { key: 'name', label: 'Name', type: 'text' }),
+        name: cellText(deleteDialog.row.values.display_name ?? deleteDialog.row.values.name_en ?? deleteDialog.row.values.name ?? deleteDialog.row.rowKey, { key: 'name', label: labels.rowKey, type: 'text' }, labels),
       }
     : null;
 
@@ -316,14 +323,14 @@ export function ReferenceDataScreen({
                   {selectedTable.columns.map((column) => (
                     <TableHead scope="col" key={column.key}>{column.label}</TableHead>
                   ))}
-                  <TableHead scope="col">Actions</TableHead>
+                  <TableHead scope="col">{labels.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {selectedRows.map((row) => (
                   <TableRow key={row.rowId}>
                     {selectedTable.columns.map((column) => (
-                      <TableCell key={column.key}>{renderCell(row.values[column.key], column)}</TableCell>
+                      <TableCell key={column.key}>{renderCell(row.values[column.key], column, labels)}</TableCell>
                     ))}
                     <TableCell>
                       <Button

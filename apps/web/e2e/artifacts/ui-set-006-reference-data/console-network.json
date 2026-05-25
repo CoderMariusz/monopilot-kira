@@ -1,0 +1,38 @@
+{
+  "task_id": "TASK-001066",
+  "root_task_id": "TASK-001053",
+  "prd_task_id": "UI-SET-006-reference-data-modal-crud-parity",
+  "generated_at_utc": "2026-05-25T19:54:01.115899+00:00",
+  "base_url": "http://127.0.0.1:31866",
+  "target_route": "/en/settings/reference",
+  "prototype_route": "settings/admin-screens.jsx#reference_data_screen; settings/modals.jsx#ref_row_edit_modal+delete_reference_data_modal",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+  "prototype_line_ranges": [
+    "admin-screens.jsx:561-621",
+    "modals.jsx:513-532",
+    "modals.jsx:535-572"
+  ],
+  "status": "BLOCKED",
+  "http_probe_excerpt": "HEADERS\nHTTP/1.1 307 Temporary Redirect\r\nlocation: /login?reason=idle\r\nset-cookie: sb-access-token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax\r\nDate: Mon, 25 May 2026 19:54:01 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\nBODY_PREFIX\n/login?reason=idle",
+  "console_errors": [],
+  "network_errors": [
+    "HTTP 307 /login?reason=idle for /en/settings/reference without authenticated session"
+  ],
+  "prototype_reference": [
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+      "lines": "561-621",
+      "region": "reference_data_screen"
+    },
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/modals.jsx",
+      "lines": "513-532",
+      "region": "delete_reference_data_modal"
+    },
+    {
+      "path": "prototypes/design/Monopilot Design System/settings/modals.jsx",
+      "lines": "535-572",
+      "region": "ref_row_edit_modal"
+    }
+  ]
+}

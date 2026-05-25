@@ -119,7 +119,7 @@ describe('SM-10 DeleteReferenceDataModal prototype parity', () => {
     await renderDeleteReferenceDataModal({ precheckDeleteReferenceData });
 
     const dialog = getDialog();
-    await assertModalA11y(dialog);
+    await assertModalA11y(document.body);
     await waitFor(() => expect(precheckDeleteReferenceData).toHaveBeenCalledWith({ table: 'allergens_reference', code: 'A99' }));
 
     expect(modalOutline(dialog)).toMatchInlineSnapshot(`
