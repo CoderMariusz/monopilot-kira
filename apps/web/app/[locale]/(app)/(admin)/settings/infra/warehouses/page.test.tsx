@@ -91,6 +91,29 @@ type WarehousesPage = (props: WarehousePageProps) => React.ReactNode | Promise<R
 
 const activeWarehouseNames = ['Apex Chilled', 'Apex Ambient', 'Apex Frozen'];
 
+type PrototypeParityWarehouse = Warehouse & {
+  site: string;
+  zones: number;
+  bins: number;
+  capacity: string;
+  usedPercent: number;
+};
+
+const prototypeParityWarehouses = [
+  {
+    id: '00000000-0000-4000-8000-000000000501',
+    code: 'WH-LIVE-01',
+    name: 'Live chilled warehouse',
+    deactivated_at: null,
+    active_wo_count: 0,
+    site: 'Kraków HQ',
+    zones: 6,
+    bins: 842,
+    capacity: '1,200 plt',
+    usedPercent: 68,
+  },
+] satisfies PrototypeParityWarehouse[];
+
 const warehouses: Warehouse[] = Array.from({ length: 25 }, (_, index) => {
   const rowNumber = index + 1;
   const active = rowNumber <= 18;
@@ -226,6 +249,84 @@ describe('SET-012 warehouse AppShell route contract', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('from public.warehouses'), []);
     expect(query).not.toHaveBeenCalledWith(expect.stringContaining('public.work_orders wo'), expect.anything());
     expect(screen.getByRole('row', { name: /apex chilled wh-01 active/i })).toBeInTheDocument();
+    expectNoRawSettingsKeys();
+  });
+});
+
+describe('UI-SET-001 warehouse prototype parity', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('matches the prototype page head, primary CTA, table columns, usage presentation, and storage rules regions', async () => {
+    await renderWarehousesPage({ warehouses: prototypeParityWarehouses as Warehouse[] });
+
+    expect(screen.getByRole('heading', { name: /^warehouses$/i })).toBeInTheDocument();
+    expect(screen.getByText(/zones, bin locations, and storage rules/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^\+ add warehouse$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: /add warehouse/i })).not.toBeInTheDocument();
+
+    const table = warehouseTable();
+    for (const header of ['Code', 'Name', 'Site', 'Zones', 'Bins', 'Capacity', 'Used', 'Status']) {
+      expect(within(table).getByRole('columnheader', { name: new RegExp(`^${header}$`, 'i') })).toBeInTheDocument();
+    }
+
+    const row = within(table).getByRole('row', { name: /WH-LIVE-01.*Live chilled warehouse.*Kraków HQ.*6.*842.*1,200 plt.*68%.*Active/i });
+    expect(within(row).getByText('68%')).toBeInTheDocument();
+    expect(within(row).getByTestId('warehouse-usage-bar')).toHaveAttribute('aria-valuenow', '68');
+
+    expect(screen.getByRole('heading', { name: /^storage rules$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/bin assignment strategy/i)).toBeInTheDocument();
+    expect(screen.getByText(/mixed lot bins/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/expiry warning threshold/i)).toBeInTheDocument();
+    expect(screen.getByText(/block expired stock/i)).toBeInTheDocument();
+    expectNoRawSettingsKeys();
+  });
+
+  it('opens a prototype-style Add warehouse dialog from the header CTA and persists through the real create action prop', async () => {
+    const user = userEvent.setup();
+    const createWarehouse = vi.fn(async (input: CreateWarehouseInput) => ({
+      ok: true as const,
+      data: {
+        id: '00000000-0000-4000-8000-000000000777',
+        code: input.code,
+        name: input.name,
+        address: input.address ?? null,
+        deactivated_at: null,
+        active_wo_count: 0,
+        site: 'Kraków HQ',
+        zones: 0,
+        bins: 0,
+        capacity: '0 plt',
+        usedPercent: 0,
+      } as Warehouse,
+    }));
+    await renderWarehousesPage({ warehouses: prototypeParityWarehouses as Warehouse[], createWarehouse });
+
+    await user.click(screen.getByRole('button', { name: /^\+ add warehouse$/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /^add warehouse$/i });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'WH-LIVE-02');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Live frozen warehouse');
+    await user.click(within(dialog).getByRole('button', { name: /^create warehouse$/i }));
+
+    await waitFor(() => expect(createWarehouse).toHaveBeenCalledTimes(1));
+    expect(createWarehouse).toHaveBeenCalledWith(expect.objectContaining({ code: 'WH-LIVE-02', name: 'Live frozen warehouse' }));
+    expect(screen.queryByRole('dialog', { name: /^add warehouse$/i })).not.toBeInTheDocument();
+    expect(within(warehouseTable()).getByRole('row', { name: /WH-LIVE-02.*Live frozen warehouse.*Active/i })).toBeInTheDocument();
+    expectNoRawSettingsKeys();
+  });
+
+  it('shows a prototype-aligned permission state without exposing the create dialog when update permission is missing', async () => {
+    await renderWarehousesPage({ warehouses: prototypeParityWarehouses as Warehouse[], canUpdateInfra: false, state: 'permission_denied' });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/permission/i);
+    const addButton = screen.getByRole('button', { name: /add warehouse/i });
+    expect(addButton).toBeDisabled();
+    expect(addButton).toHaveAccessibleName(/settings\.infra\.update/i);
+    expect(screen.queryByRole('dialog', { name: /add warehouse/i })).not.toBeInTheDocument();
     expectNoRawSettingsKeys();
   });
 });
