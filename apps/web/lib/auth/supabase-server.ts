@@ -40,7 +40,7 @@ export async function createServerSupabaseClient() {
   try {
     // Dynamic require to avoid build-time errors in non-Next.js environments
     // (e.g. Vitest running in Node without a Next.js server context).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     const { cookies } = require('next/headers') as {
       cookies: () => Promise<{
         getAll: () => { name: string; value: string }[];

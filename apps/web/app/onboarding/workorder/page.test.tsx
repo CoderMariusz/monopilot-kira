@@ -308,7 +308,7 @@ afterEach(() => {
 describe('SET-005 onboarding first work order redirect-card prototype parity', () => {
   it('wires the production page boundary through the real skipOnboarding Server Action module', async () => {
     const user = userEvent.setup();
-    const skipModule = await import('../../../actions/onboarding/skip');
+    const skipModule = await import('../../../actions/onboarding/skip.js');
     expect(skipModule.skipOnboarding, 'skip action mock must be backed by the real on-disk Server Action module').toEqual(
       expect.any(Function),
     );
@@ -331,7 +331,7 @@ describe('SET-005 onboarding first work order redirect-card prototype parity', (
   });
 
   it('consumes Planning callback search params through the real first-wo Server Action and persists resume-state KPI evidence', async () => {
-    const firstWoModule = await import('../../../actions/onboarding/first-wo');
+    const firstWoModule = await import('../../../actions/onboarding/first-wo.js');
     expect(
       firstWoModule.markFirstWorkOrderCreated,
       'first_wo callback mock must be backed by the real on-disk Server Action module',

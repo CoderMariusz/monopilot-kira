@@ -1,5 +1,5 @@
 import React, { useId, useState, useEffect, useRef } from 'react';
-import Textarea from './Textarea';
+import Textarea from './Textarea.js';
 
 /**
  * ReasonInput — textarea + character counter + minLength enforcement.
@@ -51,7 +51,7 @@ function ReasonInput({ name, minLength = 10, placeholder }: ReasonInputProps) {
         value={value}
         placeholder={placeholder}
         aria-describedby={counterId}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
       />
       <span
         data-testid="reason-input-counter"

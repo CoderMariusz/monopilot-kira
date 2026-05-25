@@ -314,7 +314,7 @@ describe('SET-034 localized Schema Shadow Preview', () => {
       ),
     );
 
-    expect(source).not.toMatch(/^['\"]use client['\"]/);
+    expect(source).not.toMatch(/^['"]use client['"]/);
     expect(source).toContain("getTranslations({ locale, namespace: 'settings.schema_preview' })");
     expect(source).toContain("from '@monopilot/ui/Card'");
     expect(source).toContain("from '@monopilot/ui/Button'");

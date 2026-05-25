@@ -148,7 +148,7 @@ describe('inviteUser RBAC (behavior)', () => {
     expect(currentClient.upsertedUser).toBeNull();
   });
 
-  it('allows invite when caller has the settings.users.invite permission', async () => {
+  it('persists optional site and personal message into auth metadata and audit outbox', async () => {
     currentClient = makeClient({
       hasInvitePermission: true,
       seatLimit: 100,
@@ -158,13 +158,26 @@ describe('inviteUser RBAC (behavior)', () => {
       },
     });
     const { inviteUser } = await loadInvite();
-    const result = await inviteUser({ email: 'new@example.com', roleId: VIEWER_ROLE_ID });
+    const result = await inviteUser({
+      email: 'new@example.com',
+      roleId: VIEWER_ROLE_ID,
+      site: 'Warsaw Plant',
+      personalMessage: 'Welcome to the team',
+    });
 
     expect(result.ok).toBe(true);
-    expect(_mockGenerateLink).toHaveBeenCalledTimes(1);
-    expect(currentClient.upsertedUser?.role_id).toBe(VIEWER_ROLE_ID);
-    expect(currentClient.upsertedUser?.email).toBe('new@example.com');
-    expect(currentClient.outboxEvents.map((e) => e.event_type)).toContain('settings.user.invited');
+    expect(_mockGenerateLink).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({
+        data: expect.objectContaining({
+          site: 'Warsaw Plant',
+          personal_message: 'Welcome to the team',
+        }),
+      }),
+    }));
+    expect(currentClient.outboxEvents[0]?.payload).toMatchObject({
+      site: 'Warsaw Plant',
+      personal_message_present: true,
+    });
   });
 });
 

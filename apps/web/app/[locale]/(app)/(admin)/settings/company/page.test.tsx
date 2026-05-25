@@ -167,10 +167,10 @@ describe('SET-010 company profile Server Component boundary and i18n', () => {
     const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
     const clientSource = readFileSync(join(sourceDir, 'company-profile-screen.client.tsx'), 'utf8');
 
-    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toMatch(/^['"]use client['"]/m);
     expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.company_profile' })");
     expect(pageSource).toContain("from './company-profile-screen.client'");
-    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toMatch(/^['"]use client['"]/m);
     expect(clientSource).toContain("useTranslations('settings.company_profile')");
   });
 });

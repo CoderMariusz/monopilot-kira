@@ -1,0 +1,91 @@
+{
+  "title": "T-137 — Foundation shell prototype label index entries",
+  "prompt": "# T-137 — Foundation shell prototype label index entries\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the missing prototype-label index entries for the shared Foundation shell so every prototype-backed shell task can cite a stable `prototype_index_entry`, not just ad-hoc JSX line ranges.\n\n## Files (scope)\n- `_meta/prototype-labels/prototype-index-foundation-shell.json` [create]\n- `_meta/prototype-labels/master-index.json` [create-or-modify — append/merge the same labels if absent]\n\nDo NOT edit prototype JSX files. Do NOT edit product code.\n\n## Required labels\nCreate these entries, each with `label`, `file`, `lines`, `component_type`, `ui_pattern`, `module`, `translation_notes`, `shadcn_equivalent`, `known_bugs`, and `estimated_translation_time_min`:\n\n1. `foundation_shell_tokens` → settings/shell.jsx:1-105 + technical/shell.jsx:1-74 + scanner/shell.jsx:1-66.\n2. `foundation_navigation_manifest` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124 + settings/shell.jsx:35-59.\n3. `foundation_app_sidebar` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124.\n4. `foundation_app_topbar` → settings/shell.jsx:23-33 + multi-site/shell.jsx:13-69 + multi-site/shell.jsx:127-149.\n5. `foundation_app_shell_layout` → settings/shell.jsx:1-105.\n6. `foundation_page_header_settings_nav` → settings/shell.jsx:35-59 + settings/shell.jsx:61-69 + oee/shell.jsx PageHead cross-reference.\n7. `foundation_scanner_frame` → scanner/shell.jsx:1-66 and scanner/shell.jsx:9-66.\n8. `foundation_shell_browser_parity_gate` → settings/shell.jsx:1-105 + scanner/shell.jsx:1-66 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-149.\n9. `foundation_module_route_contract` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124, covering route parity for every AppSidebar item.\n\n## Acceptance criteria\n1. `_meta/prototype-labels/prototype-index-foundation-shell.json` parses as JSON array and contains exactly the nine required `foundation_*` labels.\n2. `_meta/prototype-labels/master-index.json` contains the same eight labels, with `module=\"foundation\"` and file paths under `prototypes/design/Monopilot Design System/`.\n3. Every cited file exists and every line range is within the file length; write a small Python validation snippet in closeout output showing PASS.\n4. No prototype JSX files or product code are modified.\n5. `python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py` still passes after this task's metadata changes.\n\n## Test strategy\n- RED: write/run a Python one-liner that fails because `prototype-index-foundation-shell.json` is missing or labels are absent.\n- Implement the index file and master-index merge.\n- Run the Python validation snippet for label presence + range bounds.\n- Run `python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py`.\n\n## Risk red lines\n- Do not edit `prototypes/design/**`.\n- Do not invent line ranges without checking file length.\n- Do not remove or rewrite existing master-index entries; append/merge only missing labels.\n- Do not use vague labels; every shell task must have a stable `foundation_*` label.\n",
+  "labels": [
+    "wave-app-shell-foundation",
+    "foundation",
+    "shell",
+    "prototype-labels",
+    "metadata",
+    "T4-wiring-test"
+  ],
+  "priority": 45,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-137",
+    "human_task_id": "T-137-foundation-shell-prototype-label-index",
+    "display_task_id": "T-137",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "MON-t3-ui prototype parity contract",
+      "brief §2 prototype anchors"
+    ],
+    "category": "test",
+    "subcategory": "prototype-label-index",
+    "task_type": "T4-wiring-test",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "20k",
+    "estimated_effort": "1h",
+    "description": "Create stable foundation shell prototype-label index entries consumed by all prototype-backed AppShell tasks, including module-route contract labeling.",
+    "details": "Add prototype-index-foundation-shell.json and merge nine foundation_* shell labels into master-index.json. Verify files and line ranges. This is metadata only and must not touch product code or prototypes.",
+    "scope_files": [
+      "_meta/prototype-labels/prototype-index-foundation-shell.json [create]",
+      "_meta/prototype-labels/master-index.json [create-or-modify]"
+    ],
+    "scope_paths": [
+      "_meta/prototype-labels/"
+    ],
+    "out_of_scope": [
+      "Product UI implementation",
+      "Editing prototype JSX",
+      "Changing existing non-foundation prototype labels"
+    ],
+    "dependencies": [],
+    "parallel_safe_with": [
+      "UI-128"
+    ],
+    "acceptance_criteria": [
+      "prototype-index-foundation-shell.json contains exactly nine foundation_* shell labels with file/lines/component_type/ui_pattern/module fields",
+      "master-index.json contains the same eight labels with module=foundation",
+      "Every cited prototype file exists and every line range is within current file length",
+      "No prototype JSX files or product code modified",
+      "validate_wave.py passes after metadata changes"
+    ],
+    "test_strategy": [
+      "Python RED check for missing foundation labels",
+      "Python validation for label presence and line-range bounds",
+      "python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py"
+    ],
+    "risk_red_lines": [
+      "Do not edit prototypes/design/**",
+      "Do not delete or rewrite existing master-index entries",
+      "Do not cite line ranges without range-bound validation"
+    ],
+    "skills": [
+      "acp-verification",
+      "MON-t3-ui"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "prototype_label_index_validation"
+      ]
+    },
+    "wave": "app-shell-foundation-20260520",
+    "integration_branch": "main"
+  }
+}

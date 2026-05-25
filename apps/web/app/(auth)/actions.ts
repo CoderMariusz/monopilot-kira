@@ -214,7 +214,7 @@ export async function signInWithMagicLink(email: string): Promise<MagicLinkResul
     // (e.g. "User already registered", "Invalid email", rate-limit details).
     // We log the real error server-side for ops visibility and return a
     // constant, neutral string. Reveals nothing whether the email is known.
-    // eslint-disable-next-line no-console
+
     console.error('[signInWithMagicLink] supabase.auth.signInWithOtp failed', {
       code: (error as { code?: string }).code,
       status: (error as { status?: number }).status,

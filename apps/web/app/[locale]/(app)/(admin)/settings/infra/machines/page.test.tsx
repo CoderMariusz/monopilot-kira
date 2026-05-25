@@ -351,7 +351,7 @@ describe('SET-016 machine list behavior', () => {
     expect(pageSource).toContain('withOrgContext');
     expect(pageSource).not.toContain('React.useState');
     expect(pageSource).not.toContain('document.querySelector');
-    expect(pageSource).not.toContain('data-testid=\"app-shell\"');
+    expect(pageSource).not.toContain('data-testid="app-shell"');
     expect(pageSource).not.toContain("data-testid': 'app-shell'");
 
     expect(clientSource).toContain("'use client';");

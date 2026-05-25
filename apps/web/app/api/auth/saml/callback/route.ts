@@ -175,7 +175,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (result.user?.email) {
     try {
       const supabase = await createServerSupabaseClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const adminAuth = (supabase.auth as any).admin;
       const linkRes = (await adminAuth.generateLink({
         type: 'magiclink',

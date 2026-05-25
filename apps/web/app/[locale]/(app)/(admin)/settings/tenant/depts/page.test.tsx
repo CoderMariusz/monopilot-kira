@@ -234,10 +234,10 @@ describe('SET-061 dept taxonomy editor UX route and structure', () => {
     const pageSource = readFileSync(pagePath, 'utf8');
     const clientSource = readFileSync(clientPath, 'utf8');
 
-    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toMatch(/^['"]use client['"]/m);
     expect(pageSource).not.toContain('React.useState');
     expect(pageSource).toContain("from './dept-taxonomy-screen.client'");
-    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toMatch(/^['"]use client['"]/m);
     expect(clientSource).toContain('React.useState');
   });
 

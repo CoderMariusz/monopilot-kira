@@ -1,7 +1,13 @@
+import { createRequire } from 'node:module';
 import { expect } from 'vitest';
-import { axe, toHaveNoViolations } from 'jest-axe';
 
-expect.extend(toHaveNoViolations);
+const require = createRequire(import.meta.url);
+const { axe, toHaveNoViolations } = require('jest-axe') as {
+  axe: (html: Element | DocumentFragment, options?: Record<string, unknown>) => Promise<unknown>;
+  toHaveNoViolations: Record<string, unknown>;
+};
+
+expect.extend(toHaveNoViolations as never);
 
 export async function assertModalA11y(container: HTMLElement) {
   const dialogElement = container.querySelector('[role="dialog"]');
@@ -30,5 +36,5 @@ export async function assertModalA11y(container: HTMLElement) {
 
   // Axe accessibility scan
   const results = await axe(container);
-  expect(results).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations: () => void }).toHaveNoViolations();
 }

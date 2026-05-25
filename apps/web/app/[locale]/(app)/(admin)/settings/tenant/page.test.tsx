@@ -262,7 +262,7 @@ describe('SET-060 tenant variations dashboard UX contract', () => {
     const source = readFileSync(`${__dirname}/page.tsx`, 'utf8');
 
     expect(source, 'tenant/page.tsx must not import useRouter from next/navigation').not.toMatch(
-      /import\s*\{[^}]*\buseRouter\b[^}]*\}\s*from\s*['\"]next\/navigation['\"]/,
+      /import\s*\{[^}]*\buseRouter\b[^}]*\}\s*from\s*['"]next\/navigation['"]/,
     );
     expect(source, 'tenant/page.tsx must not call useRouter in a Server Component render path').not.toMatch(
       /\buseRouter\s*\(/,

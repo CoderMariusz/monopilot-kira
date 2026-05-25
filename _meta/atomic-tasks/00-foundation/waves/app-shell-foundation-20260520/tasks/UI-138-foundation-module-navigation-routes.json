@@ -1,0 +1,181 @@
+{
+  "title": "UI-138 — Foundation module nav route contracts + landing stubs",
+  "prompt": "# UI-138 — Foundation module nav route contracts + landing stubs\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nMake the full AppSidebar safe to use: every active desktop nav item from UI-128 must resolve to a non-404 localized route under `(app)`, while `scanner` remains excluded from desktop nav and isolated under `(scanner)`.\n\nThis task does not implement module business screens. It creates minimal shell-compatible module landing stubs only where a module root does not already exist, plus a route-contract Playwright spec that will fail if any sidebar link 404s.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/(modules)/<module>/page.tsx` [create only for missing roots; use the existing project route convention if T-133 selected a different transparent group]\n- `apps/web/e2e/module-nav-route-contract.spec.ts` [create]\n- `apps/web/components/shell/__tests__/module-nav-route-contract.test.tsx` [create]\n- `apps/web/lib/navigation/app-nav.ts` and `module-registry.ts` [read/modify only if needed to export helpers; UI-128 owns the data]\n\nRequired active desktop routes from UI-128:\n`/`, `/settings`, `/npd`, `/technical`, `/planning`, `/scheduler`, `/warehouse`, `/production`, `/quality`, `/finance`, `/shipping`, `/reporting`, `/maintenance`, `/multi-site`, `/oee`.\n\n## Landing stub contract\nIf a route root is missing, create a Server Component page that:\n- renders inside `(app)` shell, not standalone;\n- uses `PageHeader` from UI-132 when available;\n- displays translated module name and a short \"Module shell ready; feature screens land in module wave\" message;\n- includes `data-testid=\"module-landing-<module_id>\"`;\n- has no fake business data, no fixture tables, no mocked KPIs.\n\nDo not create a landing stub for `foundation` or `scanner`. Scanner stays at `/en/dev/scanner` in T-134 as an e2e harness only.\n\n## Acceptance criteria\n1. Every sidebar-exposed UI-128 route returns 200 or intentional auth redirect, never 404, for locale `/en`; route matrix includes Scheduler, Reporting, and Multi-Site.\n2. Route stubs are created only for missing module roots; existing module pages are not overwritten.\n3. Stub pages render inside `data-testid=\"app-shell\"` and include exactly one `module-landing-<module_id>` marker; login/scanner routes do not render AppShell.\n4. Scanner is not present in `APP_NAV_GROUPS` and `/en/dev/scanner` renders ScannerFrame without AppSidebar/AppTopbar.\n5. Playwright `module-nav-route-contract.spec.ts` clicks every AppSidebar link and asserts URL + non-404 + active nav state.\n6. `pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts`, `pnpm --filter web test module-nav-route-contract -- --run`, typecheck, and lint pass.\n\n## Test strategy\n- RED: write module-nav-route-contract Playwright spec before adding missing stubs; it should fail on the first missing route.\n- Create only the minimum missing Server Component stubs.\n- Run the route contract spec, then the shell-smoke spec from T-136.\n- Run `pnpm --filter web typecheck && pnpm --filter web lint`.\n\n## Risk red lines\n- Do not implement module business UI or fake dashboards in landing stubs.\n- Do not overwrite existing route pages; compare first, then skip if present.\n- Do not add scanner to AppSidebar.\n- Do not place user-visible pages outside `apps/web/app/[locale]/...`.\n- Do not modify `proxy.ts`.\n\n## Closeout\nProvide route matrix evidence for every sidebar link, Playwright screenshots for at least Dashboard/Reporting/Multi-Site/Scheduler, console_network_check, changed_files, test commands/results, and a list of any existing pages that were left untouched.\n",
+  "labels": [
+    "wave-app-shell-foundation",
+    "ui",
+    "foundation",
+    "shell",
+    "navigation",
+    "route-contract",
+    "prototype-backed",
+    "ui-parity",
+    "T3-ui"
+  ],
+  "priority": 82,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "UI-138",
+    "human_task_id": "UI-138-foundation-module-nav-route-contracts",
+    "display_task_id": "UI-138",
+    "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+    "prd_refs": [
+      "full 16-module shell coverage",
+      "brief §7 route/topology risk"
+    ],
+    "category": "ui",
+    "subcategory": "module-nav-route-contract",
+    "task_type": "T3-ui",
+    "parent_feature": "foundation-app-shell",
+    "context_budget": "45k",
+    "estimated_effort": "2-3h",
+    "description": "Create route contracts and minimal localized landing stubs so every active AppSidebar item resolves without 404; scanner remains isolated.",
+    "details": "Use UI-128 APP_MODULES/APP_NAV_GROUPS as the source of truth. For each sidebar-exposed route, verify whether a localized route root exists under apps/web/app/[locale]/... after T-133. Create a minimal Server Component landing stub only when missing. Add Playwright and RTL route-contract tests. Do not implement module business screens or fake dashboards.",
+    "scope_files": [
+      "apps/web/app/[locale]/(app)/(modules)/**/page.tsx [create missing only]",
+      "apps/web/e2e/module-nav-route-contract.spec.ts [create]",
+      "apps/web/components/shell/__tests__/module-nav-route-contract.test.tsx [create]",
+      "apps/web/lib/navigation/app-nav.ts [modify only if helper export needed]",
+      "apps/web/lib/navigation/module-registry.ts [read]"
+    ],
+    "scope_paths": [
+      "apps/web/app/[locale]/(app)/",
+      "apps/web/e2e/",
+      "apps/web/components/shell/__tests__/",
+      "apps/web/lib/navigation/"
+    ],
+    "out_of_scope": [
+      "Module business screens",
+      "Scanner production module routes",
+      "proxy.ts changes",
+      "RBAC gating",
+      "Fake module data/KPIs"
+    ],
+    "dependencies": [
+      "UI-128",
+      "UI-131",
+      "UI-132",
+      "T-133"
+    ],
+    "parallel_safe_with": [
+      "T-134"
+    ],
+    "acceptance_criteria": [
+      "All sidebar-exposed UI-128 routes resolve for /en with 200 or intentional auth redirect and never 404, including Scheduler, Reporting, and Multi-Site",
+      "Missing module roots get minimal translated Server Component landing stubs with data-testid=module-landing-<module_id>; existing pages are not overwritten",
+      "Landing stubs render inside AppShell; login and scanner routes remain outside AppShell",
+      "Scanner is absent from APP_NAV_GROUPS and /en/dev/scanner renders ScannerFrame without AppSidebar/AppTopbar",
+      "Playwright clicks every AppSidebar link and verifies URL, non-404 response, active nav state, and clean console/network",
+      "pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts and pnpm --filter web test module-nav-route-contract -- --run pass; typecheck and lint pass"
+    ],
+    "test_strategy": [
+      "Write module-nav-route-contract.spec.ts first (RED on missing routes)",
+      "Create only missing module landing stubs",
+      "Run pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts",
+      "Run pnpm --filter web test module-nav-route-contract -- --run",
+      "Run pnpm --filter web typecheck && pnpm --filter web lint"
+    ],
+    "risk_red_lines": [
+      "Do not overwrite existing module pages",
+      "Do not add scanner to desktop sidebar",
+      "Do not implement fake business dashboards in stubs",
+      "Do not place localized user-visible routes outside apps/web/app/[locale]/",
+      "Do not modify apps/web/proxy.ts"
+    ],
+    "skills": [
+      "acp-frontend",
+      "acp-ui-parity",
+      "acp-verification",
+      "MON-t3-ui"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "force_deep_review": true,
+      "review_minimum": "opus",
+      "closeout_requires": [
+        "screenshots",
+        "screenshot_or_dom_diff_artifacts",
+        "visual_parity_evidence",
+        "prototype_reference",
+        "console_network_check",
+        "acceptance_criteria_status",
+        "test_commands_and_results",
+        "changed_files",
+        "git_status",
+        "deviations_from_prototype"
+      ],
+      "fail_closed_on_missing_ui_evidence": true,
+      "blocking_states": [
+        "ui_parity_evidence_missing"
+      ]
+    },
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_module_route_contract",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "3-21",
+        "component": "SSidebar",
+        "purpose": "base sidebar group/order seed"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+        "lines": "3-23",
+        "component": "PSidebar",
+        "purpose": "Reporting/Analytics sidebar coverage"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+        "lines": "77-124",
+        "component": "MsSidebar",
+        "purpose": "Multi-Site sidebar coverage and badges"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "35-59",
+        "component": "SettingsNav",
+        "purpose": "settings subnav manifest"
+      }
+    ],
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+    "prototype_refs": [
+      "prototypes/design/Monopilot Design System/settings/shell.jsx:3-21",
+      "prototypes/design/Monopilot Design System/reporting/shell.jsx:3-23",
+      "prototypes/design/Monopilot Design System/multi-site/shell.jsx:77-124"
+    ],
+    "target_route": "/en/",
+    "viewports": [
+      "desktop-1440x900"
+    ],
+    "region_selectors": {
+      "app_sidebar": "[data-testid=\"app-sidebar\"]",
+      "module_landing": "[data-testid^=\"module-landing-\"]"
+    },
+    "parity_matrix": [
+      {
+        "prototype": "settings/reporting/multi-site shell sidebars",
+        "target": "all APP_NAV_GROUPS routes",
+        "checks": [
+          "every active sidebar item has route",
+          "no scanner in sidebar",
+          "active nav state",
+          "non-404 route"
+        ]
+      }
+    ],
+    "wave": "app-shell-foundation-20260520",
+    "integration_branch": "main"
+  }
+}

@@ -7,7 +7,9 @@
     "foundation",
     "shell",
     "scanner",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 80,
   "max_attempts": 3,
@@ -51,6 +53,7 @@
       "Editing 00-foundation/manifest.json or T-001..T-126 task files"
     ],
     "dependencies": [
+      "T-137",
       "UI-127",
       "T-133"
     ],
@@ -195,7 +198,28 @@
         "interaction": "n/a"
       }
     ],
-    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-    "wave": "app-shell-foundation-20260520"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "wave": "app-shell-foundation-20260520",
+    "prototype_match": true,
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_scanner_frame",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+        "lines": "1-66",
+        "component": "ScannerFrame/StatusBar/Content/BottomActions",
+        "purpose": "scanner isolated shell frame"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+        "lines": "9-66",
+        "component": "ScannerFrame",
+        "purpose": "device chrome implementation"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

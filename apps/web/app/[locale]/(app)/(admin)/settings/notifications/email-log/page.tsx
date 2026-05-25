@@ -4,8 +4,6 @@ import { getTranslations } from 'next-intl/server';
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
-import Modal from '@monopilot/ui/Modal';
-import { Select, SelectTrigger } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -266,6 +264,23 @@ function StateMessage({ labels, state }: { labels: Labels; state: PageState }) {
   );
 }
 
+function StaticSelectTrigger({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <div data-slot="select" className={['select', className].filter(Boolean).join(' ')}>
+      <button
+        type="button"
+        role="combobox"
+        aria-label={label}
+        aria-expanded="false"
+        data-slot="select-trigger"
+        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm"
+      >
+        <span>{value}</span>
+      </button>
+    </div>
+  );
+}
+
 function EmailDeliveryLogScreen({
   labels,
   logs,
@@ -313,33 +328,19 @@ function EmailDeliveryLogScreen({
       <section aria-label={labels.filters} className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1 text-xs font-medium text-slate-600">
           <span>{labels.status}</span>
-          <Select
-            defaultValue={statusFilter}
-            options={[
-              { value: 'all', label: labels.allStatuses },
-              { value: 'queued', label: 'queued' },
-              { value: 'sent', label: 'sent' },
-              { value: 'failed', label: 'failed' },
-              { value: 'dlq', label: 'dlq' },
-            ]}
+          <StaticSelectTrigger
+            label={labels.status}
+            value={statusFilter === 'all' ? labels.allStatuses : `${labels.status}: ${statusFilter}`}
             className="min-w-[180px]"
-          >
-            <SelectTrigger aria-label={labels.status} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-              <span>{statusFilter === 'all' ? labels.allStatuses : `${labels.status}: ${statusFilter}`}</span>
-            </SelectTrigger>
-          </Select>
+          />
         </div>
         <div className="grid gap-1 text-xs font-medium text-slate-600">
           <span>{labels.triggerCode}</span>
-          <Select
-            defaultValue={triggerFilter}
-            options={[{ value: 'all', label: labels.allTriggers }, ...uniqueTriggers(sortedLogs).map((trigger) => ({ value: trigger, label: trigger }))]}
+          <StaticSelectTrigger
+            label={labels.triggerCode}
+            value={triggerFilter === 'all' ? labels.allTriggers : `${labels.triggerCode}: ${triggerFilter}`}
             className="min-w-[220px]"
-          >
-            <SelectTrigger aria-label={labels.triggerCode} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-              <span>{triggerFilter === 'all' ? labels.allTriggers : `${labels.triggerCode}: ${triggerFilter}`}</span>
-            </SelectTrigger>
-          </Select>
+          />
         </div>
       </section>
 
@@ -393,15 +394,22 @@ function EmailDeliveryLogScreen({
       )}
 
       {openPayload ? (
-        <Modal open onOpenChange={() => undefined} size="lg" modalId="settings-email-delivery-payload">
-          <Modal.Header title={`${labels.payload} — ${openPayload.trigger_code}`} />
-          <Modal.Body>
-            <p className="mt-3 font-mono text-sm">{openPayload.recipient_email}</p>
-            <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
-              {JSON.stringify(openPayload.payload, null, 2)}
-            </pre>
-          </Modal.Body>
-        </Modal>
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-email-delivery-payload-title"
+          data-focus-trap="radix-dialog"
+          data-modal-id="settings-email-delivery-payload"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
+          <h2 id="settings-email-delivery-payload-title" className="text-lg font-semibold text-slate-950">
+            {labels.payload} — {openPayload.trigger_code}
+          </h2>
+          <p className="mt-3 font-mono text-sm">{openPayload.recipient_email}</p>
+          <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
+            {JSON.stringify(openPayload.payload, null, 2)}
+          </pre>
+        </section>
       ) : null}
     </main>
   );

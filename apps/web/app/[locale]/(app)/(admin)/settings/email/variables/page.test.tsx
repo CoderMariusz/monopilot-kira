@@ -195,11 +195,11 @@ describe('T-069 email variables localized AppShell route contract', () => {
     const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
     const clientSource = readFileSync(join(sourceDir, 'email-variables-screen.client.tsx'), 'utf8');
 
-    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toMatch(/^['"]use client['"]/m);
     expect(pageSource).not.toContain('React.useState');
     expect(pageSource).not.toContain('globalThis.vi');
     expect(pageSource).toContain("from './email-variables-screen.client'");
-    expect(clientSource).toMatch(/^['\"]use client['\"]/m);
+    expect(clientSource).toMatch(/^['"]use client['"]/m);
     expect(clientSource).toContain('navigator.clipboard.writeText(name)');
     expect(clientSource).not.toContain('globalThis.vi');
   });

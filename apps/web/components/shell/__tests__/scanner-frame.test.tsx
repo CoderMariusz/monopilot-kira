@@ -41,7 +41,7 @@ async function loadScannerFrame(): Promise<ScannerFrameComponent> {
     'scanner-frame module must export ScannerFrame or a default renderable React component',
   ).toBe('function');
 
-  return ScannerFrame;
+  return ScannerFrame as ScannerFrameComponent;
 }
 
 function runScannerFrameAccessibilityAudit(container: HTMLElement) {

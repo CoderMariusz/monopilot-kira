@@ -1,15 +1,108 @@
 {
   "items": [
     {
+      "title": "T-137 — Foundation shell prototype label index entries",
+      "prompt": "# T-137 — Foundation shell prototype label index entries\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nCreate the missing prototype-label index entries for the shared Foundation shell so every prototype-backed shell task can cite a stable `prototype_index_entry`, not just ad-hoc JSX line ranges.\n\n## Files (scope)\n- `_meta/prototype-labels/prototype-index-foundation-shell.json` [create]\n- `_meta/prototype-labels/master-index.json` [create-or-modify — append/merge the same labels if absent]\n\nDo NOT edit prototype JSX files. Do NOT edit product code.\n\n## Required labels\nCreate these entries, each with `label`, `file`, `lines`, `component_type`, `ui_pattern`, `module`, `translation_notes`, `shadcn_equivalent`, `known_bugs`, and `estimated_translation_time_min`:\n\n1. `foundation_shell_tokens` → settings/shell.jsx:1-105 + technical/shell.jsx:1-74 + scanner/shell.jsx:1-66.\n2. `foundation_navigation_manifest` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124 + settings/shell.jsx:35-59.\n3. `foundation_app_sidebar` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124.\n4. `foundation_app_topbar` → settings/shell.jsx:23-33 + multi-site/shell.jsx:13-69 + multi-site/shell.jsx:127-149.\n5. `foundation_app_shell_layout` → settings/shell.jsx:1-105.\n6. `foundation_page_header_settings_nav` → settings/shell.jsx:35-59 + settings/shell.jsx:61-69 + oee/shell.jsx PageHead cross-reference.\n7. `foundation_scanner_frame` → scanner/shell.jsx:1-66 and scanner/shell.jsx:9-66.\n8. `foundation_shell_browser_parity_gate` → settings/shell.jsx:1-105 + scanner/shell.jsx:1-66 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-149.\n9. `foundation_module_route_contract` → settings/shell.jsx:3-21 + reporting/shell.jsx:3-23 + multi-site/shell.jsx:77-124, covering route parity for every AppSidebar item.\n\n## Acceptance criteria\n1. `_meta/prototype-labels/prototype-index-foundation-shell.json` parses as JSON array and contains exactly the nine required `foundation_*` labels.\n2. `_meta/prototype-labels/master-index.json` contains the same eight labels, with `module=\"foundation\"` and file paths under `prototypes/design/Monopilot Design System/`.\n3. Every cited file exists and every line range is within the file length; write a small Python validation snippet in closeout output showing PASS.\n4. No prototype JSX files or product code are modified.\n5. `python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py` still passes after this task's metadata changes.\n\n## Test strategy\n- RED: write/run a Python one-liner that fails because `prototype-index-foundation-shell.json` is missing or labels are absent.\n- Implement the index file and master-index merge.\n- Run the Python validation snippet for label presence + range bounds.\n- Run `python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py`.\n\n## Risk red lines\n- Do not edit `prototypes/design/**`.\n- Do not invent line ranges without checking file length.\n- Do not remove or rewrite existing master-index entries; append/merge only missing labels.\n- Do not use vague labels; every shell task must have a stable `foundation_*` label.\n",
+      "labels": [
+        "wave-app-shell-foundation",
+        "foundation",
+        "shell",
+        "prototype-labels",
+        "metadata",
+        "T4-wiring-test"
+      ],
+      "priority": 45,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "T-137",
+        "human_task_id": "T-137-foundation-shell-prototype-label-index",
+        "display_task_id": "T-137",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "MON-t3-ui prototype parity contract",
+          "brief §2 prototype anchors"
+        ],
+        "category": "test",
+        "subcategory": "prototype-label-index",
+        "task_type": "T4-wiring-test",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "20k",
+        "estimated_effort": "1h",
+        "description": "Create stable foundation shell prototype-label index entries consumed by all prototype-backed AppShell tasks, including module-route contract labeling.",
+        "details": "Add prototype-index-foundation-shell.json and merge nine foundation_* shell labels into master-index.json. Verify files and line ranges. This is metadata only and must not touch product code or prototypes.",
+        "scope_files": [
+          "_meta/prototype-labels/prototype-index-foundation-shell.json [create]",
+          "_meta/prototype-labels/master-index.json [create-or-modify]"
+        ],
+        "scope_paths": [
+          "_meta/prototype-labels/"
+        ],
+        "out_of_scope": [
+          "Product UI implementation",
+          "Editing prototype JSX",
+          "Changing existing non-foundation prototype labels"
+        ],
+        "dependencies": [],
+        "parallel_safe_with": [
+          "UI-128"
+        ],
+        "acceptance_criteria": [
+          "prototype-index-foundation-shell.json contains exactly nine foundation_* shell labels with file/lines/component_type/ui_pattern/module fields",
+          "master-index.json contains the same eight labels with module=foundation",
+          "Every cited prototype file exists and every line range is within current file length",
+          "No prototype JSX files or product code modified",
+          "validate_wave.py passes after metadata changes"
+        ],
+        "test_strategy": [
+          "Python RED check for missing foundation labels",
+          "Python validation for label presence and line-range bounds",
+          "python3 _meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/validate_wave.py"
+        ],
+        "risk_red_lines": [
+          "Do not edit prototypes/design/**",
+          "Do not delete or rewrite existing master-index entries",
+          "Do not cite line ranges without range-bound validation"
+        ],
+        "skills": [
+          "acp-verification",
+          "MON-t3-ui"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "closeout_requires": [
+            "changed_files",
+            "test_commands_and_results",
+            "acceptance_criteria_status",
+            "deviations_from_prd",
+            "git_status",
+            "prototype_label_index_validation"
+          ]
+        },
+        "wave": "app-shell-foundation-20260520",
+        "integration_branch": "main"
+      }
+    },
+    {
       "title": "UI-127 — Foundation shell design tokens (sidebar/topbar/subnav widths, colors, density)",
-      "prompt": "# UI-127 — Foundation shell design tokens\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nExtract the desktop-shell layout/colour tokens that every module shell uses in the prototype into a single Tailwind v4 globals.css/CSS-variable source of truth, so UI-129/130/131/132/T-134 cannot drift from each other.\n\n## Source of truth (prototype anchors)\nLook at how these prototype `shell.jsx` files style sidebar (~280px), topbar (~56px), settings subnav (~240px), scanner frame (390×844). Reconcile any inter-module differences; if a width or colour conflicts, use `settings/shell.jsx` values and document the deviation:\n\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:1-105`\n- `prototypes/design/Monopilot Design System/technical/shell.jsx:1-74`\n- `prototypes/design/Monopilot Design System/production/shell.jsx` (sidebar/topbar)\n- `prototypes/design/Monopilot Design System/warehouse/shell.jsx` (PSidebar)\n- `prototypes/design/Monopilot Design System/multi-site/shell.jsx` (MsTopbar with site-switch slot)\n- `prototypes/design/Monopilot Design System/oee/shell.jsx` (PageHead)\n- `prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66` (ScannerFrame)\n\nThe brief is `/tmp/monopilot-shell-gap-brief-combined.md` §2.\n\n## Files (scope)\n- `apps/web/app/globals.css` [modify — Tailwind v4 source of truth: append shell CSS variables and expose theme tokens via `@theme { ... }` and/or CSS-variable-backed utilities; do NOT add or require a Tailwind config file]\n- `apps/web/app/_components/__tests__/shell-tokens.test.tsx` [create — RTL contract test that renders a fixture using each utility class and asserts `getComputedStyle().<property>` matches the declared px/colour]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/login/layout.tsx`, or any task-T-XXX.json file outside this wave.\n\n## Token contract\nTokens (CSS variables on `:root`) — exact values come from the prototype, transcribed:\n\n- `--shell-sidebar-w: 280px`\n- `--shell-subnav-w: 240px`\n- `--shell-topbar-h: 56px`\n- `--shell-scanner-w: 390px`\n- `--shell-scanner-h: 844px`\n- `--shell-bg`, `--shell-fg`, `--shell-border`, `--shell-muted`, `--shell-active`, `--shell-active-fg`, `--shell-badge-blue` (HSL values from the prototype palette; cite the rgb/hex lines from `prototypes/design/Monopilot Design System/_tokens/*.css` if present, else use the `style=\"…\"` literals from `settings/shell.jsx`).\n\nEach token must be exposed both as CSS var and as a Tailwind utility (e.g. `w-sidebar`, `h-topbar`, `text-shell-muted`, `bg-shell-active`).\n\n## Acceptance criteria\n1. `apps/web/app/globals.css` defines all `--shell-*` tokens in `@layer base`.\n2. `apps/web/app/globals.css` exposes corresponding utilities; `pnpm --filter web lint` and `typecheck` pass.\n3. `apps/web/app/_components/__tests__/shell-tokens.test.tsx` asserts each utility produces the expected computed style, and the test passes (`pnpm --filter web test shell-tokens`).\n4. No existing screen visual changes — `app/[locale]/login/layout.tsx`, `app/[locale]/page.tsx`, and `(admin)/settings/*` rendered output is byte-identical (no token used yet by them) — verified by running the existing `pnpm --filter web test` suite before/after.\n5. Deviations from any inter-module prototype mismatch documented in PR/closeout.\n\n## Out of scope\n- Building sidebar/topbar components (UI-129/130).\n- Touching `packages/ui/` primitives (PageHeader lands in UI-132).\n- Mobile/responsive breakpoints (deferred wave).\n\n## RED test\nCreate `apps/web/app/_components/__tests__/shell-tokens.test.tsx` before implementation — it must fail because the utilities/vars are absent, then pass after the implementation.\n\n## Risk red lines\n- DO NOT inline px values inside shell components — every UI task in this wave must consume these tokens.\n- DO NOT introduce a new colour family. Stay on the prototype palette.\n- DO NOT modify `apps/web/proxy.ts`.\n\n## Closeout\nProvide: screenshots of the token fixture rendered in dev (`/_dev/shell-tokens` ad-hoc page or Vitest DOM snapshot), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype line ranges), prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype.\n\nIf parity evidence cannot be captured, the task is BLOCKED / needs_human — not completed.",
+      "prompt": "# UI-127 — Foundation shell design tokens\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nExtract the desktop-shell layout/colour tokens that every module shell uses in the prototype into a single Tailwind v4 globals.css/CSS-variable source of truth, so UI-129/130/131/132/T-134 cannot drift from each other.\n\n## Source of truth (prototype anchors)\nLook at how these prototype `shell.jsx` files style sidebar (~280px), topbar (~56px), settings subnav (~240px), scanner frame (390×844). Reconcile any inter-module differences; if a width or colour conflicts, use `settings/shell.jsx` values and document the deviation:\n\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:1-105`\n- `prototypes/design/Monopilot Design System/technical/shell.jsx:1-74`\n- `prototypes/design/Monopilot Design System/production/shell.jsx` (sidebar/topbar)\n- `prototypes/design/Monopilot Design System/warehouse/shell.jsx` (PSidebar)\n- `prototypes/design/Monopilot Design System/multi-site/shell.jsx` (MsTopbar with site-switch slot)\n- `prototypes/design/Monopilot Design System/oee/shell.jsx` (PageHead)\n- `prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66` (ScannerFrame)\n\nThe brief is `/tmp/monopilot-shell-gap-brief-combined.md` §2.\n\n## Files (scope)\n- `apps/web/app/globals.css` [modify — Tailwind v4 source of truth: append shell CSS variables and expose theme tokens via `@theme { ... }` and/or CSS-variable-backed utilities; do NOT add or require a Tailwind config file]\n- `apps/web/app/_components/__tests__/shell-tokens.test.tsx` [create — RTL contract test that renders a fixture using each utility class and asserts `getComputedStyle().<property>` matches the declared px/colour]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/login/layout.tsx`, or any task-T-XXX.json file outside this wave.\n\n## Token contract\nTokens (CSS variables on `:root`) — exact values come from the prototype, transcribed:\n\n- `--shell-sidebar-w: 280px`\n- `--shell-subnav-w: 240px`\n- `--shell-topbar-h: 56px`\n- `--shell-scanner-w: 390px`\n- `--shell-scanner-h: 844px`\n- `--shell-bg`, `--shell-fg`, `--shell-border`, `--shell-muted`, `--shell-active`, `--shell-active-fg`, `--shell-badge-blue` (HSL values from the prototype palette; cite the rgb/hex lines from `prototypes/design/Monopilot Design System/_tokens/*.css` if present, else use the `style=\"…\"` literals from `settings/shell.jsx`).\n\nEach token must be exposed both as CSS var and as a Tailwind utility (e.g. `w-sidebar`, `h-topbar`, `text-shell-muted`, `bg-shell-active`).\n\n## Acceptance criteria\n1. `apps/web/app/globals.css` defines all `--shell-*` tokens in `@layer base`.\n2. `apps/web/app/globals.css` exposes corresponding utilities; `pnpm --filter web lint` and `typecheck` pass.\n3. `apps/web/app/_components/__tests__/shell-tokens.test.tsx` asserts each utility produces the expected computed style, and the test passes (`pnpm --filter web test shell-tokens`).\n4. No existing screen visual changes — `app/[locale]/login/layout.tsx`, `app/[locale]/page.tsx`, and `(admin)/settings/*` rendered output is byte-identical (no token used yet by them) — verified by running the existing `pnpm --filter web test` suite before/after.\n5. Deviations from any inter-module prototype mismatch documented in PR/closeout.\n\n## Out of scope\n- Building sidebar/topbar components (UI-129/130).\n- Touching `packages/ui/` primitives (PageHeader lands in UI-132).\n- Mobile/responsive breakpoints (deferred wave).\n\n## RED test\nCreate `apps/web/app/_components/__tests__/shell-tokens.test.tsx` before implementation — it must fail because the utilities/vars are absent, then pass after the implementation.\n\n## Risk red lines\n- DO NOT inline px values inside shell components — every UI task in this wave must consume these tokens.\n- DO NOT introduce a new colour family. Stay on the prototype palette.\n- DO NOT modify `apps/web/proxy.ts`.\n\n## Closeout\nProvide: screenshots of the token fixture rendered in dev (`/dev/shell-tokens` ad-hoc page or Vitest DOM snapshot), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype line ranges), prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype.\n\nIf parity evidence cannot be captured, the task is BLOCKED / needs_human — not completed.",
       "labels": [
         "wave-app-shell-foundation",
         "ui",
         "foundation",
         "shell",
         "tokens",
-        "T3-ui"
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
       ],
       "priority": 50,
       "max_attempts": 3,
@@ -47,7 +140,9 @@
           "Mobile responsive tokens",
           "Editing 00-foundation/manifest.json or T-001..T-126 task files"
         ],
-        "dependencies": [],
+        "dependencies": [
+          "T-137"
+        ],
         "parallel_safe_with": [
           "UI-128"
         ],
@@ -166,21 +261,50 @@
             "interaction": "n/a"
           }
         ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
         "wave": "app-shell-foundation-20260520",
-        "implementation_contract": {}
+        "implementation_contract": {},
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_shell_tokens",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "1-105",
+            "component": "SSidebar/STopbar/SettingsNav/PageHead",
+            "purpose": "canonical desktop shell token extraction"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/technical/shell.jsx",
+            "lines": "1-74",
+            "component": "TSidebar/topbar pattern",
+            "purpose": "cross-module sidebar/topbar token validation"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+            "lines": "1-66",
+            "component": "ScannerFrame",
+            "purpose": "scanner device frame token sizing"
+          }
+        ],
+        "integration_branch": "main"
       }
     },
     {
       "title": "UI-128 — Foundation navigation manifest (core module nav data + types)",
-      "prompt": "# UI-128 — Foundation navigation manifest\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide a single typed source of truth for the desktop AppSidebar groups/items and for the Settings sub-nav, so UI-129 and UI-132 do not duplicate copy or hard-code routes. This is a data/contract task — no JSX, no styling.\n\n## Source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`): groups Core / Operations / QA & Shipping / Premium.\n- Cross-ref the active-item placement in every `<module>/shell.jsx` to confirm the same item list across modules (settings, technical, production, warehouse, planning, quality, shipping, finance, oee, maintenance).\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` + the `window.SETTINGS_NAV` array referenced there (search prototypes/data*.jsx if needed).\n- Brief: `/tmp/monopilot-shell-gap-brief-combined.md` §1 (snapshot), §3 Luka B/E.\n\n## Files (scope)\n- `apps/web/lib/navigation/app-nav.ts` [create — exports `APP_NAV_GROUPS: AppNavGroup[]`]\n- `apps/web/lib/navigation/settings-nav.ts` [create — exports `SETTINGS_NAV_GROUPS: SettingsNavGroup[]`]\n- `apps/web/lib/navigation/types.ts` [create — `AppNavGroup`, `AppNavItem`, `SettingsNavGroup`, `SettingsNavItem` with `i18n_key`, `route`, `icon_token`, `count_slot` (always `null` here), `permission_key` (always `null` here), `rbac_todo` flag, `highlight` flag]\n- `apps/web/lib/navigation/__tests__/app-nav.test.ts` [create]\n- `apps/web/lib/navigation/__tests__/settings-nav.test.ts` [create]\n- `apps/web/i18n/en.json` [modify — add `Navigation.app.*` and `Navigation.settings.*` keys; values from prototype labels]\n- `apps/web/i18n/pl.json` [modify — same keys translated]\n\nDo NOT modify proxy.ts, [locale]/layout.tsx, or any T-XXX.json outside this wave.\n\n## Contract\nGroups must include exactly: `Core` (Dashboard, Settings), `Operations` (Planning, Production, Warehouse), `QA & Shipping` (Quality, Shipping), `Premium` (Technical, NPD, Finance, OEE, Maintenance). Routes use the post-T-133 topology (e.g. `/settings`, `/planning`, `/production`, etc.) and MUST be locale-relative (no `/en` hard-code; the consumer applies the locale).\n\nEach item:\n```ts\n{ key: 'settings', i18n_key: 'Navigation.app.settings', route: '/settings', icon_token: 'cog', count_slot: null, permission_key: null, rbac_todo: 'gate by 02-settings/T-130 after RBAC enum lock' }\n```\n\nSettings sub-nav items match `window.SETTINGS_NAV` in the prototype (Users, Roles, Authorization, Invitations, Security, Profile, Schema, Reference, …) with the same group labels.\n\n## Acceptance criteria\n1. `APP_NAV_GROUPS` has exactly 4 groups in declared order with the 12 items above.\n2. `SETTINGS_NAV_GROUPS` matches the prototype `SETTINGS_NAV` content 1:1 (item count, order, labels, icons, highlights).\n3. Every item carries a unique `i18n_key` resolvable in both `en.json` and `pl.json`.\n4. RTL/unit tests assert: total counts, key uniqueness, route uniqueness, no hard-coded locale prefix, `count_slot === null` on every item, `permission_key === null` on every item, and `rbac_todo` non-empty for every item that would later be RBAC-gated.\n5. `pnpm --filter web test app-nav settings-nav -- --run` passes; `pnpm --filter web typecheck` passes; `pnpm --filter web lint` passes.\n\n## Out of scope\n- Rendering (UI-129 sidebar, UI-132 settings subnav).\n- Permissions enum / RBAC (02-settings/T-130).\n- Module-specific module sub-navs (PlanNav, ProdNav, WhNav, ...).\n- Topbar links.\n\n## RED test\nCreate `app-nav.test.ts` and `settings-nav.test.ts` first, failing because exports do not exist; then implement.\n\n## Risk red lines\n- Never hard-code a locale prefix into a route field.\n- Never gate items here — emit `rbac_todo` and leave `permission_key: null`.\n- Do not import this file from server-only modules without `'server-only'` consideration (data is plain JSON; safe everywhere).\n\n## Closeout\nProvide: acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype (note any item label that differs from the literal prototype label and why).",
+      "prompt": "# UI-128 — Foundation navigation manifest\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide a single typed source of truth for the desktop AppSidebar groups/items and for the Settings sub-nav, so UI-129 and UI-132 do not duplicate copy or hard-code routes. This is a data/contract task — no JSX, no styling.\n\n## Source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`): groups Core / Operations / QA & Shipping / Premium.\n- Cross-ref the active-item placement in every `<module>/shell.jsx`, especially `reporting/shell.jsx:3-23` and `multi-site/shell.jsx:77-124`, so the manifest covers the full 16-module MON set, not only the older 12-item sidebar.\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` + the `window.SETTINGS_NAV` array referenced there (search prototypes/data*.jsx if needed).\n- Brief: `/tmp/monopilot-shell-gap-brief-combined.md` §1 (snapshot), §3 Luka B/E.\n\n## Files (scope)\n- `apps/web/lib/navigation/module-registry.ts` [create — exports `APP_MODULES: AppModule[]` and every 16-module shell/nav decision]\n- `apps/web/lib/navigation/app-nav.ts` [create — exports `APP_NAV_GROUPS: AppNavGroup[]` derived from sidebar-exposed APP_MODULES]\n- `apps/web/lib/navigation/settings-nav.ts` [create — exports `SETTINGS_NAV_GROUPS: SettingsNavGroup[]`]\n- `apps/web/lib/navigation/types.ts` [create — `AppModule`, `AppNavGroup`, `AppNavItem`, `SettingsNavGroup`, `SettingsNavItem` with `module_id`, `module_kind` (`platform|desktop|scanner`), `shell_kind` (`none|app|scanner`), `nav_exposure` (`sidebar|excluded|merged`), `merged_into`, `i18n_key`, `route`, `icon_token`, `count_slot` (always `null` here), `permission_key` (always `null` here), `rbac_todo` flag, `highlight` flag]\n- `apps/web/lib/navigation/__tests__/app-nav.test.ts` [create]\n- `apps/web/lib/navigation/__tests__/settings-nav.test.ts` [create]\n- `apps/web/i18n/en.json` [modify — add `Navigation.app.*` and `Navigation.settings.*` keys; values from prototype labels]\n- `apps/web/i18n/pl.json` [modify — same keys translated]\n- `apps/web/i18n/uk.json` [modify — same keys translated; no missing keys]\n- `apps/web/i18n/ro.json` [modify — same keys translated; no missing keys]\n\nDo NOT modify proxy.ts, [locale]/layout.tsx, or any T-XXX.json outside this wave.\n\n## Contract\n`APP_MODULES` is the complete 16-module shell registry. It MUST contain exactly these module ids and decisions:\n\n- `foundation`: `module_kind=platform`, `shell_kind=none`, `nav_exposure=excluded`, no sidebar route.\n- `settings`: desktop sidebar item `Settings`, route `/settings`.\n- `npd`: desktop sidebar item `NPD`, route `/npd`.\n- `technical`: desktop sidebar item `Technical`, route `/technical`.\n- `planning-basic`: desktop sidebar item `Planning`, route `/planning`.\n- `planning-ext`: desktop sidebar item `Scheduler`, route `/scheduler`, label key `Navigation.app.scheduler` (Planning+ / Scheduler premium extension).\n- `warehouse`: desktop sidebar item `Warehouse`, route `/warehouse`.\n- `production`: desktop sidebar item `Production`, route `/production`.\n- `quality`: desktop sidebar item `Quality`, route `/quality`.\n- `finance`: desktop sidebar item `Finance`, route `/finance`.\n- `shipping`: desktop sidebar item `Shipping`, route `/shipping`.\n- `reporting`: desktop sidebar item `Reporting`, route `/reporting`, source `reporting/shell.jsx:21-23`.\n- `maintenance`: desktop sidebar item `Maintenance`, route `/maintenance`.\n- `multi-site`: desktop sidebar item `Multi-Site`, route `/multi-site`, source `multi-site/shell.jsx:101-122`; count/setup badges are slots only.\n- `oee`: desktop sidebar item `OEE`, route `/oee`.\n- `scanner`: `module_kind=scanner`, `shell_kind=scanner`, `nav_exposure=excluded`, not rendered in AppSidebar; T-134 owns `/dev/scanner` harness and future scanner module owns production scanner routes.\n\n`APP_NAV_GROUPS` is derived from the 15 sidebar-exposed items (Dashboard + 14 desktop modules; excluding `foundation` and `scanner`, with `planning-basic` and `planning-ext` both explicit). Groups must be exactly:\n\n- `Core`: Dashboard, Settings\n- `Operations`: Planning, Scheduler, Production, Warehouse\n- `QA & Shipping`: Quality, Shipping\n- `Premium`: Technical, NPD, Finance, OEE, Maintenance\n- `Analytics & Network`: Reporting, Multi-Site\n\nAll routes are locale-relative (for example `/settings`, never `/en/settings`); consumers add `/${locale}`.\n\nEach item shape:\n```ts\n{ module_id: 'settings', key: 'settings', i18n_key: 'Navigation.app.settings', route: '/settings', icon_token: 'cog', count_slot: null, permission_key: null, rbac_todo: 'gate by 02-settings/T-130 after RBAC enum lock' }\n```\n\nSettings sub-nav items match `window.SETTINGS_NAV` in the prototype (Users, Roles, Authorization, Invitations, Security, Profile, Schema, Reference, …) with the same group labels.\n\n\n## Documented deviations from literal prototype labels\nThese are intentional IA decisions for the unified product shell and MUST NOT be treated as parity drift:\n\n- `planning-ext` is exposed as `Scheduler` at `/scheduler`; planning-ext prototype copy also uses `Planning+` for settings/PRO surfaces. The shell label uses Scheduler because PRD 07 and screen breadcrumbs centre the Scheduler workflow.\n- `maintenance` is placed under `Premium`, not Operations, to keep the paid-module grouping consistent with current module glossary even though maintenance/shell.jsx shows it near Operations in its local module shell.\n- `Reporting` and `Multi-Site` are grouped under synthesized `Analytics & Network`; reporting/shell.jsx uses `Analytics` and multi-site/shell.jsx uses `NEW`. The unified shell avoids two one-item groups while preserving both items and their prototype visual/badge semantics.\n- `Dashboard` is a shell-level Core item, not one of the 16 module ids; `foundation` remains platform/non-user-facing and excluded.\n\n## Acceptance criteria\n1. `APP_MODULES` covers all 16 MON modules with explicit platform/desktop/scanner decisions, and `APP_NAV_GROUPS` has exactly 5 groups / 15 sidebar items in declared order, including Scheduler, Reporting, and Multi-Site.\n2. `SETTINGS_NAV_GROUPS` matches the prototype `SETTINGS_NAV` content 1:1 (item count, order, labels, icons, highlights).\n3. Every item carries a unique `i18n_key` resolvable in all runtime locale files: `apps/web/i18n/{en,pl,uk,ro}.json`.\n4. RTL/unit tests assert: 16-module matrix, sidebar count, key uniqueness, route uniqueness, no hard-coded locale prefix, scanner/foundation explicit exclusion, `count_slot === null` on every sidebar item, `permission_key === null` on every item, and `rbac_todo` non-empty for every item that would later be RBAC-gated.\n5. `pnpm --filter web test app-nav settings-nav -- --run` passes; `pnpm --filter web typecheck` passes; `pnpm --filter web lint` passes.\n\n## Out of scope\n- Rendering (UI-129 sidebar, UI-132 settings subnav).\n- Permissions enum / RBAC (02-settings/T-130).\n- Module-specific module sub-navs (PlanNav, ProdNav, WhNav, ...).\n- Topbar links.\n\n## RED test\nCreate `app-nav.test.ts` and `settings-nav.test.ts` first, failing because exports do not exist; then implement.\n\n## Risk red lines\n- Never hard-code a locale prefix into a route field.\n- Never gate items here — emit `rbac_todo` and leave `permission_key: null`.\n- Do not import this file from server-only modules without `'server-only'` consideration (data is plain JSON; safe everywhere).\n\n## Closeout\nProvide: acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype (note any item label that differs from the literal prototype label and why).",
       "labels": [
         "wave-app-shell-foundation",
         "ui",
         "foundation",
         "shell",
         "navigation",
-        "T3-ui"
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
       ],
       "priority": 50,
       "max_attempts": 3,
@@ -203,9 +327,10 @@
         "parent_feature": "foundation-app-shell",
         "context_budget": "25k",
         "estimated_effort": "1h",
-        "description": "Typed nav manifest (TypeScript) for AppSidebar groups/items and Settings sub-nav, with i18n keys, count and permission slots as null, and rbac_todo flags. Frontend navigation manifest + unit tests; no JSX render component.",
-        "details": "Transcribe the four sidebar groups (Core/Operations/QA & Shipping/Premium) and 12 module items from prototypes/design/Monopilot Design System/settings/shell.jsx:3-21, cross-checked against every other module's shell.jsx. Transcribe SETTINGS_NAV from settings/shell.jsx:35-59 (search prototypes/data* for the source array). Emit frontend AppNavGroup/SettingsNavGroup with locale-relative routes, icon_token, count_slot=null, permission_key=null, rbac_todo string. Add apps/web/i18n/{en,pl,uk,ro}.json keys for every label. RTL/unit tests assert structure and uniqueness.",
+        "description": "Typed module registry + nav manifest for the full MonoPilot shell: all 16 modules get explicit shell/nav decisions; AppSidebar exposes 15 desktop items (Dashboard + desktop modules), while foundation and scanner are intentionally excluded from desktop sidebar.",
+        "details": "Create APP_MODULES as the complete 16-module shell registry, then derive APP_NAV_GROUPS from sidebar-exposed modules. Include Scheduler (planning-ext), Reporting, and Multi-Site; classify foundation as platform/non-user-facing and scanner as scanner shell/excluded from desktop nav. Keep count_slot=null and permission_key=null, with rbac_todo strings for future gates. Add i18n keys in apps/web/i18n/{en,pl,uk,ro}.json. Tests assert complete module coverage, group/order, route uniqueness, locale-relative routes, and settings subnav parity. Documented deviations: planning-ext shell label is Scheduler (prototype also says Planning+); Maintenance grouped under Premium; Reporting+Multi-Site grouped as Analytics & Network; Dashboard is shell-level, foundation is platform-only.",
         "scope_files": [
+          "apps/web/lib/navigation/module-registry.ts [create]",
           "apps/web/lib/navigation/types.ts [create]",
           "apps/web/lib/navigation/app-nav.ts [create]",
           "apps/web/lib/navigation/settings-nav.ts [create]",
@@ -227,19 +352,24 @@
           "Topbar links",
           "Editing 00-foundation/manifest.json"
         ],
-        "dependencies": [],
+        "dependencies": [
+          "T-137"
+        ],
         "parallel_safe_with": [
           "UI-127"
         ],
         "acceptance_criteria": [
-          "APP_NAV_GROUPS has 4 groups in order Core/Operations/QA & Shipping/Premium with the 12 declared items",
+          "APP_MODULES contains exactly the 16 MON modules (foundation, settings, npd, technical, planning-basic, warehouse, scanner, planning-ext, production, quality, finance, shipping, reporting, maintenance, multi-site, oee) with explicit module_kind/shell_kind/nav_exposure decisions",
+          "APP_NAV_GROUPS has 5 groups in order Core/Operations/QA & Shipping/Premium/Analytics & Network with 15 sidebar items, including Scheduler, Reporting, and Multi-Site, and excluding foundation/scanner by explicit decision",
           "SETTINGS_NAV_GROUPS matches the prototype SETTINGS_NAV 1:1 in count, order, labels, icons, highlights",
-          "Every item has a unique i18n_key resolvable in apps/web/i18n/{en,pl,uk,ro}.json",
+          "Every sidebar/subnav item has a unique i18n_key resolvable in apps/web/i18n/{en,pl,uk,ro}.json; all route values are locale-relative and unique",
           "All count_slot=null, permission_key=null, rbac_todo non-empty for future-RBAC items",
           "pnpm --filter web test app-nav settings-nav -- --run passes; typecheck and lint pass"
         ],
         "test_strategy": [
-          "Write app-nav.test.ts and settings-nav.test.ts asserting structure first (RED)",
+          "Write app-nav.test.ts and settings-nav.test.ts asserting APP_MODULES complete 16-module matrix first (RED)",
+          "Assert APP_NAV_GROUPS exposes 15 sidebar items and excludes foundation/scanner with explicit decisions",
+          "Assert route uniqueness and locale-relative route shape for every sidebar item",
           "pnpm --filter web test app-nav settings-nav -- --run",
           "pnpm --filter web typecheck",
           "pnpm --filter web lint"
@@ -247,7 +377,10 @@
         "risk_red_lines": [
           "Do not hard-code a locale prefix into route fields",
           "Do not gate items by permissions — UI-128 has no RBAC awareness",
-          "Do not import server-only modules from these files"
+          "Do not import server-only modules from these files",
+          "Do not omit Reporting, Multi-Site, or planning-ext/Scheduler from the registry",
+          "Do not render scanner in the desktop AppSidebar; scanner uses the (scanner) shell only",
+          "Do not create routes in this task; UI-138 owns route stubs/contracts for active nav links"
         ],
         "skills": [
           "acp-frontend",
@@ -317,733 +450,46 @@
               "role/admin metadata"
             ]
           }
-        ]
-      }
-    },
-    {
-      "title": "UI-129 — Foundation AppSidebar (groups, items, active state, count slots)",
-      "prompt": "# UI-129 — Foundation AppSidebar\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppSidebar/>` — the persistent 280px left rail used on every authenticated desktop route. Consumes UI-127 tokens and UI-128 navigation manifest. No business logic; pure presentation + `usePathname` for active state. Count badges and permission gates are slots only.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`).\n- Cross-ref structure: `technical/shell.jsx:3-22` (`TSidebar`), `warehouse/shell.jsx` (`PSidebar`), `production/shell.jsx`.\n- Every prototype renders the same four groups (Core / Operations / QA & Shipping / Premium) with the same items; only the `.active` item changes per module.\n\n## Files (scope)\n- `apps/web/components/shell/app-sidebar.tsx` [create — Client Component (`'use client'`) using `usePathname` from `next/navigation` for active state]\n- `apps/web/components/shell/__tests__/app-sidebar.test.tsx` [create — RTL with `next-intl` and `next/navigation` mocks]\n\nDo NOT modify any T-XXX.json outside this wave; do NOT modify `proxy.ts`; do NOT add `app-sidebar.tsx` to a layout in this task (UI-131 mounts it).\n\n## Contract\n```tsx\nexport function AppSidebar({\n  locale,\n  pathnameOverride,\n}: { locale: string; pathnameOverride?: string }): JSX.Element\n```\n\nBehaviour:\n- Reads `APP_NAV_GROUPS` from `apps/web/lib/navigation/app-nav.ts` (UI-128).\n- Resolves labels with `useTranslations('Navigation.app')` from `next-intl` (or the equivalent locale fixture; do not hard-code Polish/English strings).\n- Prefixes `route` with `/${locale}` when rendering `<Link/>`.\n- Active state when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`.\n- Renders `count_slot` as `null` for now (UI-128 sets it to null) but the JSX must include the `<span data-slot=\"count\"/>` markup so modules can later inject content via React context or a portal.\n- Each item carries `data-testid=\"app-sidebar-item-<key>\"`.\n- Root carries `data-testid=\"app-sidebar\"`, `role=\"navigation\"`, `aria-label=\"Primary\"`.\n- Width = `w-sidebar` token from UI-127. Background/foreground/border colours = UI-127 tokens.\n- Each `rbac_todo` non-null item is rendered (no gating) and includes a JSX comment `{/* TODO(rbac/02-settings/T-130) */}`.\n\n## Acceptance criteria\n1. Render asserts: 4 group headers, 12 items, in the order from UI-128.\n2. With `pathnameOverride='/en/settings/users'`, `data-testid=\"app-sidebar-item-settings\"` has `aria-current=\"page\"`; no other item does.\n3. Each item is an `<a href=\"/en/<route>\">` (Next `<Link/>`).\n4. axe-core has 0 violations on the rendered component (`@axe-core/react` or `vitest-axe`).\n5. `pnpm --filter web test app-sidebar -- --run` passes, typecheck passes, lint passes.\n6. Tokens consumed: assert via `getComputedStyle` that root width === `var(--shell-sidebar-w)`.\n\n## Out of scope\n- Mounting in any layout (UI-131).\n- Topbar/UserMenu (UI-130).\n- Settings sub-nav (UI-132).\n- Count badge live values (each module).\n- Permission gating (02-settings/T-130).\n- Mobile collapse / hamburger.\n\n## RED test\nWrite `app-sidebar.test.tsx` first; it must fail because the component file does not exist.\n\n## Risk red lines\n- Do not import `APP_NAV_GROUPS` from anywhere except `apps/web/lib/navigation/app-nav.ts`.\n- Do not hard-code locale prefix logic outside the explicit `/${locale}` join.\n- Do not gate items by permissions.\n- Do not mount in a layout — UI-131 owns mounting.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:3-21`, visual_parity_evidence, prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results (vitest output), changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
-      "labels": [
-        "wave-app-shell-foundation",
-        "ui",
-        "foundation",
-        "shell",
-        "sidebar",
-        "T3-ui"
-      ],
-      "priority": 70,
-      "max_attempts": 3,
-      "pipeline_name": "kira_dev",
-      "pipeline_inputs": {
-        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-        "prd_task_id": "UI-129",
-        "human_task_id": "UI-129-foundation-app-sidebar",
-        "display_task_id": "UI-129",
-        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
-        "prd_refs": [
-          "brief §3 Luka B",
-          "brief §7 risk: RBAC gating deferred"
         ],
-        "category": "ui",
-        "subcategory": "shell-sidebar",
-        "task_type": "T3-ui",
-        "parent_feature": "foundation-app-shell",
-        "context_budget": "40k",
-        "estimated_effort": "2-3h",
-        "description": "Client AppSidebar component consuming UI-128 nav manifest and UI-127 tokens; active state via usePathname; count and permission slots only.",
-        "details": "Render 4 groups (Core/Operations/QA & Shipping/Premium) and 12 items from APP_NAV_GROUPS. Active state via Next usePathname; aria-current=page on the active item. Tokens via w-sidebar/bg-shell-* utilities from UI-127. RTL tests with next-intl + next/navigation mocks. axe-core 0 violations. Do not mount in a layout (UI-131 mounts).",
-        "scope_files": [
-          "apps/web/components/shell/app-sidebar.tsx [create]",
-          "apps/web/components/shell/__tests__/app-sidebar.test.tsx [create]"
+        "prototype_match": true,
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
         ],
-        "scope_paths": [
-          "apps/web/components/shell/"
-        ],
-        "out_of_scope": [
-          "Mounting in a layout (UI-131)",
-          "Topbar/UserMenu (UI-130)",
-          "Settings subnav (UI-132)",
-          "Live count badges (each module)",
-          "Permission gating (02-settings/T-130)",
-          "Mobile hamburger",
-          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
-        ],
-        "dependencies": [
-          "UI-127",
-          "UI-128"
-        ],
-        "parallel_safe_with": [
-          "UI-130"
-        ],
-        "acceptance_criteria": [
-          "Renders 4 group headers + 12 items in UI-128 order",
-          "With pathnameOverride=/en/settings/users, only Settings item carries aria-current=page",
-          "Each item is a Next <Link/> resolving to /<locale>/<route>",
-          "axe-core reports 0 violations on the component fixture",
-          "Root width computed from var(--shell-sidebar-w); colours from --shell-* vars",
-          "data-testid=app-sidebar on root; data-testid=app-sidebar-item-<key> on each item",
-          "pnpm --filter web test app-sidebar -- --run passes; typecheck and lint pass"
-        ],
-        "test_strategy": [
-          "Write app-sidebar.test.tsx first (RED)",
-          "pnpm --filter web test app-sidebar -- --run",
-          "pnpm --filter web typecheck",
-          "pnpm --filter web lint"
-        ],
-        "risk_red_lines": [
-          "Do not import APP_NAV_GROUPS from anywhere except apps/web/lib/navigation/app-nav.ts",
-          "Do not gate items by permissions",
-          "Do not mount in a layout — UI-131 owns mounting",
-          "Do not hard-code label strings"
-        ],
-        "skills": [
-          "acp-frontend",
-          "acp-ui-parity",
-          "acp-verification",
-          "MON-t3-ui"
-        ],
-        "checkpoint_policy": {
-          "required_checkpoints": [
-            "RED",
-            "GREEN",
-            "REVIEW",
-            "CLOSEOUT"
-          ],
-          "force_deep_review": true,
-          "review_minimum": "opus",
-          "fail_closed_on_missing_ui_evidence": true,
-          "closeout_requires": [
-            "screenshots",
-            "screenshot_or_dom_diff_artifacts",
-            "visual_parity_evidence",
-            "prototype_reference",
-            "console_network_check",
-            "acceptance_criteria_status",
-            "test_commands_and_results",
-            "changed_files",
-            "git_status",
-            "deviations_from_prototype"
-          ],
-          "blocking_states": [
-            "ui_parity_evidence_missing"
-          ]
-        },
-        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
-        "prototype_refs": [
-          "prototypes/design/Monopilot Design System/settings/shell.jsx:3-21",
-          "prototypes/design/Monopilot Design System/technical/shell.jsx:3-22"
-        ],
-        "target_route": "component://apps/web/components/shell/app-sidebar.tsx#AppSidebar",
-        "viewports": [
+        "prototype_index_entry": "foundation_navigation_manifest",
+        "prototype_anchors": [
           {
-            "name": "desktop-1440",
-            "width": 1440,
-            "height": 900
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "3-21",
+            "component": "SSidebar",
+            "purpose": "base sidebar group/order seed"
           },
           {
-            "name": "desktop-1280",
-            "width": 1280,
-            "height": 800
+            "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+            "lines": "3-23",
+            "component": "PSidebar",
+            "purpose": "Reporting/Analytics sidebar coverage"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "77-124",
+            "component": "MsSidebar",
+            "purpose": "Multi-Site sidebar coverage and badges"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "35-59",
+            "component": "SettingsNav",
+            "purpose": "settings subnav manifest"
           }
         ],
-        "region_selectors": {
-          "sidebar_root": "[data-testid='app-sidebar']",
-          "sidebar_group_header": "[data-testid='app-sidebar'] [data-slot='group']",
-          "sidebar_item": "[data-testid^='app-sidebar-item-']",
-          "active_item": "[data-testid='app-sidebar'] [aria-current='page']"
-        },
-        "parity_matrix": [
-          {
-            "region": "groups",
-            "prototype": "Core/Operations/QA & Shipping/Premium (settings/shell.jsx:5,9,13,16)",
-            "implementation": "4 group headers in same order from APP_NAV_GROUPS",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "items",
-            "prototype": "12 items in declared order",
-            "implementation": "Same 12 items via APP_NAV_GROUPS",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "pass"
-          },
-          {
-            "region": "active state",
-            "prototype": ".active class on current module item",
-            "implementation": "aria-current=page + active token style",
-            "structural": "pass_with_allowed_deviation",
-            "visual": "pass",
-            "interaction": "pass"
-          }
-        ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-        "wave": "app-shell-foundation-20260520"
-      }
-    },
-    {
-      "title": "UI-130 — Foundation AppTopbar + UserMenu host (mounts existing language picker, static SiteCrumb slot)",
-      "prompt": "# UI-130 — Foundation AppTopbar + UserMenu host\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppTopbar/>` and the `<UserMenu/>` host that re-mounts the existing language picker at `apps/web/app/_components/user-menu-language-picker.tsx` (external existing reference, not a dependency task). Provide a static `SiteCrumb` slot rendering only `org.name` — the live multi-site switcher lands in `14-multi-site/T-020`.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:23-33` (`STopbar`).\n- Cross-ref: `multi-site/shell.jsx` (`MsTopbar`) — site-switch slot position.\n- Topbar height = 56px (UI-127 `--shell-topbar-h`).\n\n## Files (scope)\n- `apps/web/components/shell/app-topbar.tsx` [create — **Server Component** that does the data fetch (`createServerSupabaseClient().auth.getUser()`, plus org name lookup) and renders the Client `<UserMenu/>` as a child]\n- `apps/web/components/shell/user-menu.tsx` [create — Client Component (`'use client'`) that hosts the Radix dropdown and mounts `<UserMenuLanguagePicker/>` from apps/web/app/_components/user-menu-language-picker.tsx + a `<form action={signOut}>` Sign out button]\n- `apps/web/components/shell/site-crumb.tsx` [create — static `<span data-testid=\"app-topbar-sitecrumb\">{orgName}</span>` placeholder Client Component; receives `orgName` as prop; carries inline comment `// TODO(multi-site/14-multi-site/T-020): replace with live SiteSwitcher`]\n- `apps/web/components/shell/__tests__/app-topbar.test.tsx` [create]\n- `apps/web/components/shell/__tests__/user-menu.test.tsx` [create]\n- `apps/web/components/shell/__tests__/site-crumb.test.tsx` [create]\n- `apps/web/app/[locale]/(app)/_actions/sign-out.ts` [create — `'use server'` `signOut()` Server Action calling `supabase.auth.signOut()` and redirecting to `/${locale}/login`]\n- `apps/web/i18n/en.json` and `pl.json` [modify — `Topbar.searchPlaceholder`, `Topbar.signOut`, `Topbar.openUserMenu`]\n\nDo NOT modify `proxy.ts`, the existing `user-menu-language-picker.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// app-topbar.tsx (Server Component)\nexport async function AppTopbar({ locale }: { locale: string }): Promise<JSX.Element>\n```\nServer-renders: brand-mark + `<SearchPlaceholder/>` (just an `<input placeholder=\"Topbar.searchPlaceholder\" aria-label=\"Search\"/>` — no behaviour) + `<SiteCrumb orgName=...>` + `<UserMenu user=... locale=... initialLanguageProps={...}>`.\n\n```tsx\n// user-menu.tsx (Client)\nexport function UserMenu({\n  user, locale, languagePickerProps, signOutAction,\n}: UserMenuProps): JSX.Element\n```\nRenders a Radix `DropdownMenu` triggered by `<button data-testid=\"app-topbar-user-trigger\">` showing user initials. Menu contents (top→bottom):\n1. user identity row (name + email),\n2. `<UserMenuLanguagePicker {...languagePickerProps}/>` (external existing reference),\n3. `<form action={signOutAction}><button type=\"submit\" data-testid=\"app-topbar-sign-out\">{t('Topbar.signOut')}</button></form>`.\n\nAll prop types come from `user-menu-language-picker.tsx` — do not redefine them; import.\n\n## Acceptance criteria\n1. `AppTopbar` is Server Component (no `'use client'`) and renders 56px height (token).\n2. `UserMenu` is Client Component and mounts the existing `UserMenuLanguagePicker` unchanged.\n3. `SiteCrumb` renders only `orgName` text; an inline comment + a `data-todo=\"multi-site-T-020\"` attribute marks the slot.\n4. Sign out: clicking the button calls `signOut` Server Action; on success the user is redirected to `/${locale}/login`. Test asserts the form action wiring with a mocked Server Action.\n5. Keyboard: trigger has `aria-haspopup=menu`, opens with Enter/Space, closes with Escape; first item is focused on open; tested with `userEvent`.\n6. axe-core reports 0 violations.\n7. `pnpm --filter web test app-topbar user-menu site-crumb -- --run` passes; typecheck + lint pass.\n8. Browser console clean on render (test asserts no `console.error` spy hits).\n\n## Out of scope\n- Live multi-site SiteSwitcher (14-multi-site/T-020).\n- Search functionality (input is a static placeholder).\n- Role switcher button from the prototype (admin/user role picker is dev-only; not wired here).\n- Notification bell (none in prototype baseline).\n- Mounting in a layout (UI-131).\n- Modifying `user-menu-language-picker.tsx`.\n\n## RED test\nWrite the three tests first; they must fail because the components do not exist.\n\n## Risk red lines\n- AppTopbar MUST be a Server Component. The language picker is `'use client'` — placing it directly inside AppTopbar would force the topbar client. Wrap it in the `<UserMenu/>` Client child.\n- Do not modify `user-menu-language-picker.tsx`.\n- Do not move the picker file.\n- SiteCrumb is text only; do not introduce a Radix `Select` or any dropdown here.\n- Do not modify `apps/web/proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts vs `settings/shell.jsx:23-33` + `multi-site/shell.jsx`, visual_parity_evidence, prototype_reference, console_network_check, acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
-      "labels": [
-        "wave-app-shell-foundation",
-        "ui",
-        "foundation",
-        "shell",
-        "topbar",
-        "user-menu",
-        "T3-ui"
-      ],
-      "priority": 70,
-      "max_attempts": 3,
-      "pipeline_name": "kira_dev",
-      "pipeline_inputs": {
-        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-        "prd_task_id": "UI-130",
-        "human_task_id": "UI-130-foundation-app-topbar",
-        "display_task_id": "UI-130",
-        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
-        "prd_refs": [
-          "brief §3 Luka C",
-          "brief §7 risks: SiteSwitcher too early, language picker is client"
-        ],
-        "category": "ui",
-        "subcategory": "shell-topbar",
-        "task_type": "T3-ui",
-        "parent_feature": "foundation-app-shell",
-        "context_budget": "45k",
-        "estimated_effort": "2-3h",
-        "description": "AppTopbar Server Component + UserMenu Client child that mounts the existing apps/web/app/_components/user-menu-language-picker.tsx and the Server Action sign-out; SiteCrumb is a static orgName slot for 14-multi-site/T-020.",
-        "details": "Server Component AppTopbar fetches user + orgName, renders brand + static search input + SiteCrumb + UserMenu. UserMenu Client wraps Radix DropdownMenu; mounts UserMenuLanguagePicker from apps/web/app/_components/user-menu-language-picker.tsx unchanged. signOut Server Action under (app)/_actions/sign-out.ts. SiteCrumb is text only with TODO + data-todo attribute. Keyboard a11y + axe-core 0 violations. Do not modify user-menu-language-picker.tsx or proxy.ts.",
-        "scope_files": [
-          "apps/web/components/shell/app-topbar.tsx [create — Server Component]",
-          "apps/web/components/shell/user-menu.tsx [create — Client Component]",
-          "apps/web/components/shell/site-crumb.tsx [create — Client placeholder]",
-          "apps/web/components/shell/__tests__/app-topbar.test.tsx [create]",
-          "apps/web/components/shell/__tests__/user-menu.test.tsx [create]",
-          "apps/web/components/shell/__tests__/site-crumb.test.tsx [create]",
-          "apps/web/app/[locale]/(app)/_actions/sign-out.ts [create]",
-          "apps/web/i18n/en.json [modify]",
-          "apps/web/i18n/pl.json [modify]",
-          "apps/web/i18n/uk.json [modify]",
-          "apps/web/i18n/ro.json [modify]"
-        ],
-        "scope_paths": [
-          "apps/web/components/shell/",
-          "apps/web/app/[locale]/(app)/_actions/",
-          "apps/web/i18n/"
-        ],
-        "out_of_scope": [
-          "Live SiteSwitcher (14-multi-site/T-020)",
-          "Search functionality",
-          "Role switcher button",
-          "Notification bell",
-          "Mounting in a layout (UI-131)",
-          "Modifying apps/web/app/_components/user-menu-language-picker.tsx (external existing reference)",
-          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
-        ],
-        "dependencies": [
-          "UI-127",
-          "T-133"
-        ],
-        "parallel_safe_with": [
-          "UI-129"
-        ],
-        "acceptance_criteria": [
-          "AppTopbar has no 'use client' directive and renders height equal to var(--shell-topbar-h)",
-          "UserMenu mounts UserMenuLanguagePicker unchanged with the existing exported props type",
-          "SiteCrumb renders orgName text only; carries // TODO(multi-site/T-020) and data-todo='multi-site-T-020'",
-          "Sign out submits the Server Action and redirects to /<locale>/login",
-          "Trigger has aria-haspopup=menu; menu opens on Enter/Space; closes on Escape; first item focused on open",
-          "axe-core 0 violations on the rendered tree",
-          "pnpm --filter web test app-topbar user-menu site-crumb -- --run passes; typecheck + lint pass",
-          "console.error spy has zero hits during component render"
-        ],
-        "test_strategy": [
-          "Write the three RTL specs first (RED)",
-          "pnpm --filter web test app-topbar user-menu site-crumb -- --run",
-          "pnpm --filter web typecheck",
-          "pnpm --filter web lint"
-        ],
-        "risk_red_lines": [
-          "AppTopbar MUST remain a Server Component",
-          "Do not modify apps/web/app/_components/user-menu-language-picker.tsx",
-          "SiteCrumb is text only — no dropdown / no Select",
-          "Do not modify apps/web/proxy.ts",
-          "Do not introduce role-switcher behaviour"
-        ],
-        "skills": [
-          "acp-frontend",
-          "acp-ui-parity",
-          "acp-verification",
-          "MON-t3-ui",
-          "MON-t2-api"
-        ],
-        "checkpoint_policy": {
-          "required_checkpoints": [
-            "RED",
-            "GREEN",
-            "REVIEW",
-            "CLOSEOUT"
-          ],
-          "force_deep_review": true,
-          "review_minimum": "opus",
-          "fail_closed_on_missing_ui_evidence": true,
-          "closeout_requires": [
-            "screenshots",
-            "screenshot_or_dom_diff_artifacts",
-            "visual_parity_evidence",
-            "prototype_reference",
-            "console_network_check",
-            "acceptance_criteria_status",
-            "test_commands_and_results",
-            "changed_files",
-            "git_status",
-            "deviations_from_prototype"
-          ],
-          "blocking_states": [
-            "ui_parity_evidence_missing"
-          ]
-        },
-        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
-        "prototype_refs": [
-          "prototypes/design/Monopilot Design System/settings/shell.jsx:23-33",
-          "prototypes/design/Monopilot Design System/multi-site/shell.jsx"
-        ],
-        "target_route": "component://apps/web/components/shell/app-topbar.tsx#AppTopbar",
-        "viewports": [
-          {
-            "name": "desktop-1440",
-            "width": 1440,
-            "height": 900
-          },
-          {
-            "name": "desktop-1280",
-            "width": 1280,
-            "height": 800
-          }
-        ],
-        "region_selectors": {
-          "topbar_root": "[data-testid='app-topbar']",
-          "topbar_search": "[data-testid='app-topbar-search']",
-          "topbar_sitecrumb": "[data-testid='app-topbar-sitecrumb']",
-          "topbar_user_trigger": "[data-testid='app-topbar-user-trigger']",
-          "topbar_sign_out": "[data-testid='app-topbar-sign-out']",
-          "topbar_language_menu": "[role='menu'][aria-label='Language']"
-        },
-        "parity_matrix": [
-          {
-            "region": "topbar height",
-            "prototype": "56px (STopbar root)",
-            "implementation": "var(--shell-topbar-h)",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "user avatar trigger",
-            "prototype": "<div class='avatar'>KN</div>",
-            "implementation": "button with user initials triggering Radix menu",
-            "structural": "pass_with_allowed_deviation",
-            "visual": "pass",
-            "interaction": "pass"
-          },
-          {
-            "region": "site crumb",
-            "prototype": "multi-site/shell.jsx MsTopbar site label",
-            "implementation": "static text orgName, TODO(multi-site/T-020)",
-            "structural": "pass_with_allowed_deviation",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "language picker",
-            "prototype": "n/a — picker is existing external component",
-            "implementation": "UserMenuLanguagePicker mounted unchanged",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "pass"
-          }
-        ],
-        "allowed_deviations": [
-          {
-            "region": "user avatar trigger",
-            "prototype": "non-interactive avatar div",
-            "implementation": "Radix DropdownMenu trigger button",
-            "reason": "menu accessibility requires a focusable trigger; matches every later module shell"
-          },
-          {
-            "region": "role switcher",
-            "prototype": "admin/user buttons",
-            "implementation": "omitted",
-            "reason": "dev-only fixture in prototype; not part of production behaviour"
-          }
-        ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-        "wave": "app-shell-foundation-20260520"
-      }
-    },
-    {
-      "title": "UI-131 — Foundation (app) route-group layout: AppShell grid + Server-Component auth guard",
-      "prompt": "# UI-131 — Foundation (app) layout\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReplace the T-133 pass-through stub at `apps/web/app/[locale]/(app)/layout.tsx` with the real AppShell grid (Sidebar + Topbar + main) and add a Server-Component defence-in-depth auth check. Edge auth in `proxy.ts` stays primary; this layout is the second gate and the shell host for every authenticated desktop route.\n\n## Source\n- Brief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A + Luka G.\n- Prototype layout: sidebar 280px + topbar 56px + main content; settings/shell.jsx is the canonical layout shape.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [modify — replace stub]\n- `apps/web/app/[locale]/(app)/__tests__/layout.test.tsx` [create — RTL for auth guard branches]\n- `apps/web/e2e/app-shell-layout.spec.ts` [create — Playwright smoke: assert sidebar + topbar appear on `/en/`]\n- `apps/web/app/[locale]/(app)/loading.tsx` [create — minimal shell skeleton, sidebar + topbar widths preserved, content area `<div data-testid=\"app-shell-loading\"/>`]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(auth)/layout.tsx`, `[locale]/(scanner)/layout.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// apps/web/app/[locale]/(app)/layout.tsx (Server Component)\nexport default async function AppLayout({\n  children, params,\n}: { children: ReactNode; params: Promise<{ locale: string }> }) {\n  const { locale } = await params;\n  const supabase = await createServerSupabaseClient();\n  const { data, error } = await supabase.auth.getUser();\n  if (error || !data.user) {\n    redirect(`/${locale}/login`);\n  }\n  return (\n    <div data-testid=\"app-shell\" className=\"grid h-screen grid-rows-[var(--shell-topbar-h)_1fr] grid-cols-[var(--shell-sidebar-w)_1fr]\">\n      <header className=\"col-span-2\"><AppTopbar locale={locale}/></header>\n      <aside><AppSidebar locale={locale}/></aside>\n      <main data-testid=\"app-shell-main\" className=\"overflow-auto\">{children}</main>\n    </div>\n  );\n}\n```\n\nUses tokens from UI-127. Mounts UI-129 + UI-130. The Server-Component guard is defence-in-depth — if `proxy.ts` already redirected, this branch is unreachable, but a misconfigured proxy must not leak shell.\n\n## Acceptance criteria\n1. Visiting `/en/` while authenticated renders `data-testid=app-shell`, `data-testid=app-sidebar`, `data-testid=app-topbar`, and the existing `[locale]/page.tsx` content under `data-testid=app-shell-main`.\n2. Visiting `/en/` while unauthenticated (no Supabase cookie) results in HTTP 307/302 to `/en/login`; the response body never contains `data-testid=app-shell`.\n3. `/en/login` (under `(auth)`) DOES NOT contain `data-testid=app-shell`, `app-sidebar`, or `app-topbar`.\n4. RTL `__tests__/layout.test.tsx` covers: authenticated render, unauth redirect, locale prefix propagation to topbar/sidebar.\n5. Playwright `app-shell-layout.spec.ts` asserts the three test-ids appear on `/en/` and are absent on `/en/login`.\n6. axe-core (rendered tree) reports 0 violations.\n7. `pnpm --filter web typecheck` and `lint` pass.\n8. `apps/web/proxy.ts` is byte-identical before/after.\n\n## Out of scope\n- Settings sub-nav (UI-132).\n- PageHeader primitive (UI-132).\n- Scanner shell (T-134).\n- New URLs / locale changes.\n- Modifying any T-XXX.json outside this wave.\n\n## RED test\nWrite layout.test.tsx and app-shell-layout.spec.ts first — fail because layout still passes through.\n\n## Risk red lines\n- Auth guard belongs in Server Component, NOT in middleware/proxy (avoid conflict with edge i18n).\n- Use the existing `createServerSupabaseClient` helper from `apps/web/lib/auth/supabase-server.ts`.\n- Do not import `proxy.ts`-only helpers (edge runtime) here.\n- Do not introduce `<Suspense/>` boundaries that swallow children — child errors must surface to the App Router error boundary.\n- Do not let `loading.tsx` drop sidebar/topbar dimensions (would cause layout shift).\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440 (authenticated `/en/` + unauthenticated `/en/login`), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype settings/shell.jsx layout), prototype_reference, console_network_check (no errors, no failed requests, no hydration warnings), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
-      "labels": [
-        "wave-app-shell-foundation",
-        "ui",
-        "foundation",
-        "shell",
-        "layout",
-        "auth",
-        "T3-ui"
-      ],
-      "priority": 75,
-      "max_attempts": 3,
-      "pipeline_name": "kira_dev",
-      "pipeline_inputs": {
-        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-        "prd_task_id": "UI-131",
-        "human_task_id": "UI-131-foundation-app-shell-layout",
-        "display_task_id": "UI-131",
-        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
-        "prd_refs": [
-          "brief §3 Luka A",
-          "brief §3 Luka G",
-          "brief §7 risk: auth Server vs middleware"
-        ],
-        "category": "ui",
-        "subcategory": "shell-layout",
-        "task_type": "T3-ui",
-        "parent_feature": "foundation-app-shell",
-        "context_budget": "40k",
-        "estimated_effort": "2-3h",
-        "description": "Replace (app)/layout.tsx pass-through with the AppShell CSS-grid (Topbar + Sidebar + Main) and a Server-Component Supabase auth guard. Mounts UI-129 and UI-130. proxy.ts unchanged.",
-        "details": "Server Component reads locale from params, calls createServerSupabaseClient().auth.getUser(); redirect to /<locale>/login on error/no user. Otherwise render CSS grid using --shell-topbar-h and --shell-sidebar-w with AppTopbar (header, col-span-2), AppSidebar (aside), main (overflow-auto). loading.tsx preserves shell dimensions. RTL test covers authed/unauthed branches. Playwright spec asserts test-ids on /en/ and their absence on /en/login.",
-        "scope_files": [
-          "apps/web/app/[locale]/(app)/layout.tsx [modify — replace T-133 stub]",
-          "apps/web/app/[locale]/(app)/__tests__/layout.test.tsx [create]",
-          "apps/web/app/[locale]/(app)/loading.tsx [create]",
-          "apps/web/e2e/app-shell-layout.spec.ts [create]"
-        ],
-        "scope_paths": [
-          "apps/web/app/[locale]/(app)/",
-          "apps/web/e2e/app-shell-layout.spec.ts"
-        ],
-        "out_of_scope": [
-          "Settings subnav (UI-132)",
-          "PageHeader primitive (UI-132)",
-          "Scanner shell (T-134)",
-          "Editing proxy.ts or [locale]/layout.tsx",
-          "Modifying T-001..T-126.json or 00-foundation/manifest.json"
-        ],
-        "dependencies": [
-          "UI-127",
-          "UI-128",
-          "UI-129",
-          "UI-130",
-          "T-133"
-        ],
-        "parallel_safe_with": [
-          "T-134"
-        ],
-        "acceptance_criteria": [
-          "/en/ authenticated renders data-testid=app-shell, app-sidebar, app-topbar; main holds existing page content",
-          "/en/ unauthenticated redirects 302/307 to /en/login; response body does not contain data-testid=app-shell",
-          "/en/login response body does not contain data-testid=app-shell or app-sidebar or app-topbar",
-          "RTL layout.test.tsx covers authed, unauthed, locale-prop propagation",
-          "Playwright app-shell-layout.spec.ts passes on /en/ and /en/login",
-          "axe-core 0 violations on rendered tree",
-          "typecheck and lint pass",
-          "apps/web/proxy.ts is byte-identical before/after"
-        ],
-        "test_strategy": [
-          "Write layout.test.tsx + app-shell-layout.spec.ts first (RED)",
-          "pnpm --filter web test layout -- --run",
-          "pnpm exec playwright test e2e/app-shell-layout.spec.ts",
-          "pnpm --filter web typecheck && pnpm --filter web lint",
-          "git diff --name-only apps/web/proxy.ts -- expected empty"
-        ],
-        "risk_red_lines": [
-          "Auth guard belongs in Server Component, not in middleware/proxy",
-          "Do not import edge-runtime helpers here",
-          "Do not introduce a Suspense boundary that swallows child errors",
-          "loading.tsx must keep sidebar/topbar dimensions (no layout shift)",
-          "Do not modify apps/web/proxy.ts"
-        ],
-        "skills": [
-          "acp-frontend",
-          "acp-ui-parity",
-          "acp-supabase",
-          "acp-verification",
-          "MON-t3-ui",
-          "MON-foundation-primitives"
-        ],
-        "checkpoint_policy": {
-          "required_checkpoints": [
-            "RED",
-            "GREEN",
-            "REVIEW",
-            "CLOSEOUT"
-          ],
-          "force_deep_review": true,
-          "review_minimum": "opus",
-          "fail_closed_on_missing_ui_evidence": true,
-          "closeout_requires": [
-            "screenshots",
-            "screenshot_or_dom_diff_artifacts",
-            "visual_parity_evidence",
-            "prototype_reference",
-            "console_network_check",
-            "acceptance_criteria_status",
-            "test_commands_and_results",
-            "changed_files",
-            "git_status",
-            "deviations_from_prototype"
-          ],
-          "blocking_states": [
-            "ui_parity_evidence_missing"
-          ]
-        },
-        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
-        "prototype_refs": [
-          "prototypes/design/Monopilot Design System/settings/shell.jsx:1-105"
-        ],
-        "target_route": "/{locale}/ (post-T-133 (app) group)",
-        "viewports": [
-          {
-            "name": "desktop-1440",
-            "width": 1440,
-            "height": 900
-          },
-          {
-            "name": "desktop-1280",
-            "width": 1280,
-            "height": 800
-          }
-        ],
-        "region_selectors": {
-          "shell_root": "[data-testid='app-shell']",
-          "shell_main": "[data-testid='app-shell-main']",
-          "sidebar": "[data-testid='app-sidebar']",
-          "topbar": "[data-testid='app-topbar']"
-        },
-        "parity_matrix": [
-          {
-            "region": "grid layout",
-            "prototype": "sidebar + topbar + main (settings/shell.jsx)",
-            "implementation": "CSS grid via tokens",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "auth boundary",
-            "prototype": "n/a (prototype has no auth)",
-            "implementation": "Server-Component getUser + redirect",
-            "structural": "pass_with_allowed_deviation",
-            "visual": "n/a",
-            "interaction": "pass"
-          }
-        ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-        "wave": "app-shell-foundation-20260520"
-      }
-    },
-    {
-      "title": "UI-132 — Foundation PageHeader primitive + Settings subnav layout",
-      "prompt": "# UI-132 — Foundation PageHeader primitive + Settings subnav layout\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDeliver the shared `PageHeader` primitive used by every module page AND the Settings subnav layout that mounts under `(app)/(settings)/`. The brief calls these the same shell-frame deliverable (Lukas D + E) and `SettingsSubNav` consumes `PageHeader` for its actions row, so they ship together.\n\n## Prototype source of truth\n- PageHeader: `prototypes/design/Monopilot Design System/settings/shell.jsx:61-69` (`PageHead`); cross-ref `oee/shell.jsx` PageHead.\n- SettingsSubNav: `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` (`SettingsNav`); uses the `SETTINGS_NAV` array transcribed in UI-128.\n\n## Files (scope)\n- `packages/ui/src/PageHeader.tsx` [create — Server-Component-safe presentational primitive, no `'use client'`]\n- `packages/ui/src/__tests__/PageHeader.test.tsx` [create — RTL fixture, axe-core 0 violations]\n- `packages/ui/src/index.ts` [modify — re-export `PageHeader` + `PageHeaderProps`]\n- `apps/web/components/shell/settings-subnav.tsx` [create — Client Component (`'use client'`) consuming `SETTINGS_NAV_GROUPS` from UI-128, `usePathname` for active state]\n- `apps/web/components/shell/__tests__/settings-subnav.test.tsx` [create]\n- `apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx` [create — Server Component that wraps `{children}` with a two-column shell: 240px subnav + main; uses UI-127 token `--shell-subnav-w`]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(app)/layout.tsx` (UI-131), `user-menu-language-picker.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// packages/ui/src/PageHeader.tsx\nexport interface PageHeaderProps {\n  title: string;\n  subtitle?: string;\n  breadcrumb?: ReactNode;\n  actions?: ReactNode;\n}\nexport function PageHeader(props: PageHeaderProps): JSX.Element;\n```\nLayout: optional `breadcrumb` row above; `title` (`h1`) + optional `subtitle` (`p`) on the left; `actions` slot pinned right. Root carries `data-testid=\"page-header\"`; title carries `data-testid=\"page-header-title\"`; actions carry `data-testid=\"page-header-actions\"`.\n\n```tsx\n// apps/web/components/shell/settings-subnav.tsx (Client)\nexport interface SettingsSubNavProps { locale: string; pathnameOverride?: string }\nexport function SettingsSubNav(props: SettingsSubNavProps): JSX.Element;\n```\nReads `SETTINGS_NAV_GROUPS` from `apps/web/lib/navigation/settings-nav.ts` (UI-128). Renders each item as a Next `<Link/>` to `/${locale}${item.route}`. Active when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`. Each item carries `data-testid=\"settings-subnav-item-<key>\"`. Root carries `data-testid=\"settings-subnav\"`, `role=\"navigation\"`, `aria-label=\"Settings\"`. Width = `w-subnav` (UI-127). Each `rbac_todo` item is rendered with a JSX comment `{/* TODO(rbac/02-settings/T-130) */}` and `data-todo=\"rbac/02-settings/T-130\"`; no gating.\n\n```tsx\n// apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx (Server Component)\nexport default async function SettingsLayout({\n  children, params,\n}: { children: ReactNode; params: Promise<{ locale: string }> }): Promise<JSX.Element>\n```\nRenders a CSS grid `grid-cols-[var(--shell-subnav-w)_1fr]` with `<SettingsSubNav locale={locale}/>` and `<main data-testid=\"settings-main\">{children}</main>`. No auth check (the parent `(app)/layout.tsx` from UI-131 already does it).\n\n## Acceptance criteria\n1. `import { PageHeader } from '@monopilot/ui'` resolves; `PageHeaderProps` is exported.\n2. PageHeader renders title (`h1`), optional subtitle (`p`), optional breadcrumb above, optional actions right-aligned; axe-core 0 violations.\n3. `SettingsSubNav` renders every group/item from `SETTINGS_NAV_GROUPS` in declared order; active item carries `aria-current=\"page\"`; non-active items do not.\n4. `(settings)/layout.tsx` puts the subnav in a 240px column and `{children}` in the remaining column; visiting `/en/settings`, `/en/settings/users`, `/en/settings/roles` shows the subnav and a settings-main region.\n5. Visiting `/en/settings` from a non-settings sibling (e.g. `/en/`) shows no `settings-subnav` — verified by a Playwright spec snippet inside `apps/web/e2e/settings-subnav.spec.ts`.\n6. All RTL tests pass: `pnpm --filter @monopilot/ui test PageHeader -- --run`, `pnpm --filter web test settings-subnav -- --run`.\n7. `pnpm --filter web typecheck && pnpm --filter web lint && pnpm --filter @monopilot/ui typecheck && pnpm --filter @monopilot/ui lint` pass.\n8. `apps/web/proxy.ts` and `apps/web/app/[locale]/(app)/layout.tsx` are byte-identical before/after.\n\n## Out of scope\n- AppSidebar / AppTopbar (UI-129/130).\n- (app)/layout.tsx grid (UI-131).\n- Scanner shell (T-134).\n- RBAC gating (02-settings/T-130).\n- Module-specific subnavs (PlanNav, ProdNav, …).\n- Mobile responsive collapse.\n\n## RED test\nWrite `PageHeader.test.tsx`, `settings-subnav.test.tsx`, and `e2e/settings-subnav.spec.ts` first — they must fail because the files do not exist.\n\n## Risk red lines\n- PageHeader must NOT be marked `'use client'` — it is consumed by Server Component module pages.\n- `SettingsSubNav` is `'use client'` (needs `usePathname`); the `(settings)/layout.tsx` itself stays Server Component.\n- Do not gate items by permissions; emit `data-todo=\"rbac/02-settings/T-130\"`.\n- Do not duplicate the nav array — only import `SETTINGS_NAV_GROUPS` from UI-128.\n- Do not modify `apps/web/app/[locale]/(app)/layout.tsx` (UI-131 owns it) or `proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440 for `/en/settings` and `/en/settings/users` and the PageHeader fixture, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:35-59` and `:61-69`, visual_parity_evidence, prototype_reference, console_network_check (no errors, no failed requests, no hydration warnings), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.\n\n## IA decision (binding)\nSettings pages for this wave live under `apps/web/app/[locale]/(app)/(admin)/settings/*`, matching the existing `(admin)/settings/users` topology after T-133. Do not create a parallel `apps/web/app/[locale]/(app)/(settings)/*` settings layout.\n",
-      "labels": [
-        "wave-app-shell-foundation",
-        "ui",
-        "foundation",
-        "shell",
-        "page-header",
-        "settings-subnav",
-        "T3-ui"
-      ],
-      "priority": 80,
-      "max_attempts": 3,
-      "pipeline_name": "kira_dev",
-      "pipeline_inputs": {
-        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
-        "prd_task_id": "UI-132",
-        "human_task_id": "UI-132-foundation-page-header-settings-nav",
-        "display_task_id": "UI-132",
-        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
-        "prd_refs": [
-          "brief §3 Luka D",
-          "brief §3 Luka E",
-          "brief §7 risk: T-130 not done when UI-132 ready"
-        ],
-        "category": "ui",
-        "subcategory": "shell-page-header+settings-subnav",
-        "task_type": "T3-ui",
-        "parent_feature": "foundation-app-shell",
-        "context_budget": "45k",
-        "estimated_effort": "3h",
-        "description": "Bundle: PageHeader primitive in @monopilot/ui + Settings subnav Client Component + apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx Server-Component wrapper that mounts the subnav. Consumes UI-127 tokens and UI-128 manifest.",
-        "details": "Create PageHeader (no 'use client'), exported from @monopilot/ui with title/subtitle/breadcrumb/actions and data-testids. Create SettingsSubNav ('use client', usePathname, aria-current). Create apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx (Server Component) wrapping subnav + main using --shell-subnav-w. IA decision: settings pages live under (app)/(admin)/settings/*, matching T-133's minimal relocation of the existing (admin)/settings/users tree; do not create a parallel (app)/(settings) settings route. No gating — all rbac_todo items render with data-todo='rbac/02-settings/T-130'. RTL + Playwright specs verify parity against prototype.",
-        "scope_files": [
-          "packages/ui/src/PageHeader.tsx [create]",
-          "packages/ui/src/__tests__/PageHeader.test.tsx [create]",
-          "packages/ui/src/index.ts [modify — re-export]",
-          "apps/web/components/shell/settings-subnav.tsx [create]",
-          "apps/web/components/shell/__tests__/settings-subnav.test.tsx [create]",
-          "apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx [create]",
-          "apps/web/e2e/settings-subnav.spec.ts [create]"
-        ],
-        "scope_paths": [
-          "packages/ui/src/",
-          "apps/web/components/shell/",
-          "apps/web/app/[locale]/(app)/(admin)/settings/",
-          "apps/web/e2e/settings-subnav.spec.ts"
-        ],
-        "out_of_scope": [
-          "AppSidebar / AppTopbar (UI-129/130)",
-          "(app)/layout.tsx grid (UI-131)",
-          "Scanner shell (T-134)",
-          "RBAC gating (02-settings/T-130)",
-          "Module-specific subnavs",
-          "Mobile responsive collapse",
-          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
-        ],
-        "dependencies": [
-          "UI-127",
-          "UI-128",
-          "UI-131"
-        ],
-        "parallel_safe_with": [
-          "T-134"
-        ],
-        "acceptance_criteria": [
-          "PageHeader importable from @monopilot/ui with title/subtitle/breadcrumb/actions and data-testids",
-          "PageHeader is not a Client Component (no 'use client' directive)",
-          "SettingsSubNav renders all SETTINGS_NAV_GROUPS items in order with aria-current on active item",
-          "(admin)/settings/layout.tsx is a Server Component grid 240px subnav + main using var(--shell-subnav-w)",
-          "No apps/web/app/[locale]/(app)/(settings)/settings layout is created; final IA is (app)/(admin)/settings/*",
-          "/en/settings, /en/settings/users, /en/settings/roles all render settings-subnav and settings-main",
-          "/en/ (non-settings sibling) does NOT render settings-subnav",
-          "axe-core 0 violations across PageHeader and SettingsSubNav",
-          "Vitest specs pass for PageHeader and SettingsSubNav; Playwright e2e/settings-subnav.spec.ts passes",
-          "typecheck + lint pass in both @monopilot/ui and @monopilot/web",
-          "proxy.ts and (app)/layout.tsx are byte-identical before/after"
-        ],
-        "test_strategy": [
-          "Write PageHeader.test.tsx, settings-subnav.test.tsx, e2e/settings-subnav.spec.ts first (RED)",
-          "pnpm --filter @monopilot/ui test PageHeader -- --run",
-          "pnpm --filter web test settings-subnav -- --run",
-          "pnpm exec playwright test e2e/settings-subnav.spec.ts",
-          "pnpm --filter @monopilot/ui typecheck && pnpm --filter @monopilot/ui lint",
-          "pnpm --filter web typecheck && pnpm --filter web lint",
-          "git diff --name-only apps/web/proxy.ts apps/web/app/[locale]/(app)/layout.tsx -- expected empty"
-        ],
-        "risk_red_lines": [
-          "PageHeader must remain server-safe (no 'use client')",
-          "(settings)/layout.tsx must remain Server Component; only SettingsSubNav is client",
-          "Do not gate items by permissions — emit data-todo='rbac/02-settings/T-130'",
-          "Do not duplicate SETTINGS_NAV array — import from UI-128",
-          "Do not modify apps/web/app/[locale]/(app)/layout.tsx or apps/web/proxy.ts"
-        ],
-        "skills": [
-          "acp-frontend",
-          "acp-ui-parity",
-          "acp-verification",
-          "MON-t3-ui",
-          "MON-foundation-primitives"
-        ],
-        "checkpoint_policy": {
-          "required_checkpoints": [
-            "RED",
-            "GREEN",
-            "REVIEW",
-            "CLOSEOUT"
-          ],
-          "force_deep_review": true,
-          "review_minimum": "opus",
-          "fail_closed_on_missing_ui_evidence": true,
-          "closeout_requires": [
-            "screenshots",
-            "screenshot_or_dom_diff_artifacts",
-            "visual_parity_evidence",
-            "prototype_reference",
-            "console_network_check",
-            "acceptance_criteria_status",
-            "test_commands_and_results",
-            "changed_files",
-            "git_status",
-            "deviations_from_prototype"
-          ],
-          "blocking_states": [
-            "ui_parity_evidence_missing"
-          ]
-        },
-        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
-        "prototype_refs": [
-          "prototypes/design/Monopilot Design System/settings/shell.jsx:35-59",
-          "prototypes/design/Monopilot Design System/settings/shell.jsx:61-69",
-          "prototypes/design/Monopilot Design System/oee/shell.jsx"
-        ],
-        "target_route": "/{locale}/settings (post-T-133 + UI-131)",
-        "viewports": [
-          {
-            "name": "desktop-1440",
-            "width": 1440,
-            "height": 900
-          },
-          {
-            "name": "desktop-1280",
-            "width": 1280,
-            "height": 800
-          }
-        ],
-        "region_selectors": {
-          "page_header_root": "[data-testid='page-header']",
-          "page_header_title": "[data-testid='page-header-title']",
-          "page_header_actions": "[data-testid='page-header-actions']",
-          "settings_subnav_root": "[data-testid='settings-subnav']",
-          "settings_subnav_item": "[data-testid^='settings-subnav-item-']",
-          "settings_main": "[data-testid='settings-main']",
-          "active_item": "[data-testid='settings-subnav'] [aria-current='page']"
-        },
-        "parity_matrix": [
-          {
-            "region": "PageHeader layout",
-            "prototype": "PageHead title + actions right (settings/shell.jsx:61-69)",
-            "implementation": "h1 left + actions slot pinned right",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "Settings subnav width",
-            "prototype": "240px (SettingsNav root)",
-            "implementation": "var(--shell-subnav-w)",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "n/a"
-          },
-          {
-            "region": "Settings subnav items",
-            "prototype": "SETTINGS_NAV order (settings/shell.jsx:35-59)",
-            "implementation": "SETTINGS_NAV_GROUPS from UI-128, same order",
-            "structural": "pass",
-            "visual": "pass",
-            "interaction": "pass"
-          },
-          {
-            "region": "Active item",
-            "prototype": ".active class on current item",
-            "implementation": "aria-current=page + active token style",
-            "structural": "pass_with_allowed_deviation",
-            "visual": "pass",
-            "interaction": "pass"
-          }
-        ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-        "wave": "app-shell-foundation-20260520"
+        "integration_branch": "main"
       }
     },
     {
       "title": "T-133 — Foundation route topology refactor: (app) / (auth) / (scanner) groups + contract test",
-      "prompt": "# T-133 — Foundation route topology refactor + contract\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReorganise `apps/web/app/[locale]/` into three sibling route groups — `(app)`, `(auth)`, `(scanner)` — without changing any URL, so UI-131 can attach the AppShell to `(app)` only, login keeps its own card layout under `(auth)`, and `(scanner)` is wired before T-134 lands the ScannerFrame. Also produce the contract test that proves no 404 / no wrong redirect after the move.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A; §7 risks (login-renders-sidebar, scanner-inherits-shell, reorg-breaks-tests). `apps/web/proxy.ts` already centralises auth/idle/i18n at the edge — DO NOT move auth into a Node middleware here.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [create — placeholder Server Component that just returns `<>{children}</>`; UI-131 fills it with the AppShell + auth guard]\n- `apps/web/app/[locale]/(auth)/layout.tsx` [create — empty pass-through; login keeps its own visual layout]\n- `apps/web/app/[locale]/(scanner)/layout.tsx` [create — empty pass-through; T-134 fills it with ScannerFrame]\n- relocate: `apps/web/app/[locale]/login/` → `apps/web/app/[locale]/(auth)/login/`\n- relocate: `apps/web/app/[locale]/page.tsx` → `apps/web/app/[locale]/(app)/page.tsx`\n- relocate: `apps/web/app/(admin)/` → `apps/web/app/[locale]/(app)/(admin)/` (URLs stay because route groups are URL-transparent; verify with the contract test)\n- relocate: `apps/web/app/(npd)/` → `apps/web/app/[locale]/(app)/(npd)/`\n- relocate (if exists): any `apps/web/app/(settings)/` → `apps/web/app/[locale]/(app)/(settings)/`\n- `apps/web/e2e/route-topology.spec.ts` [create — Playwright contract test, see below]\n- Update import paths only where module-relative imports break.\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx` (NextIntlProvider stays), `[locale]/login/layout.tsx` content (move-only), any `T-XXX.json` outside this wave, or `00-foundation/manifest.json`.\n\n## URL contract (assertions for the spec)\nEvery URL below MUST resolve with HTTP 200 (or 302→login for unauth) BOTH before and after the refactor:\n\n- `GET /en/` → before-after: same status, same redirect chain\n- `GET /en/login` → 200\n- `GET /en/login/forgot-password` → 200\n- `GET /en/login/mfa?factorId=red-contract` → 200\n- `GET /en/settings`, `/en/settings/users`, `/en/settings/roles`, `/en/settings/profile`, `/en/settings/security`, `/en/settings/invitations`, `/en/settings/authorization`, `/en/settings/schema/preview`, `/en/settings/reference/manufacturing-operations` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/account/profile`, `/en/account/notifications` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/fa/<productCode>` → 200\n- `GET /pl/login` → 200 (locale mirror)\n\nNot covered here:\n- `(scanner)` routes don't exist yet (T-134 introduces them). The contract test only asserts the empty `(scanner)/layout.tsx` exists.\n\n## Auth-guard placement\nAuth guard stays in `proxy.ts` (existing). UI-131 will additionally call `createServerSupabaseClient().auth.getUser()` inside `(app)/layout.tsx` as a defence-in-depth Server-Component check — that's a UI-131 deliverable, not T-133.\n\n## Acceptance criteria\n1. Each of the 18+ URLs above returns the same status before and after relocation (proven by running the new spec twice in the same run — once against snapshot URLs, once against the relocated tree).\n2. Existing Playwright specs (`apps/web/e2e/auth.spec.ts`, `apps/web/e2e/login-ui-parity.spec.ts`) pass unchanged.\n3. Existing vitest suite (`pnpm --filter web test`) passes unchanged — no test file is renamed/moved, only `app/` subtrees move.\n4. Typecheck passes (`pnpm --filter web typecheck`).\n5. `apps/web/app/[locale]/(app)/layout.tsx`, `(auth)/layout.tsx`, `(scanner)/layout.tsx` exist as pass-through stubs; the file headers cite the wave + this task id and reference the follow-on tasks (UI-131 / T-134).\n6. proxy.ts is NOT modified.\n\n## Out of scope\n- AppShell wrapper content (UI-131).\n- AuthGuard in Server Component (UI-131).\n- ScannerFrame (T-134).\n- New URLs / removed URLs / locale changes.\n\n## RED test\nWrite `route-topology.spec.ts` and run against the pre-refactor tree first — capture baseline statuses. Then perform the relocation, run again, diff. The committed spec asserts the post-refactor contract; the baseline run is referenced in closeout.\n\n## Risk red lines\n- Do not move `proxy.ts` or change its matcher.\n- Do not change any URL externally — route groups are URL-transparent.\n- Do not delete the existing `[locale]/login/layout.tsx` content; only relocate it.\n- Do not rename any test file (would alter coverage and blame).\n- Do not modify `_meta/atomic-tasks/00-foundation/manifest.json` or any task under `tasks/T-001..T-126`.\n\n## Closeout\nProvide: changed_files (with `git mv` history preserved), test_commands_and_results for both baseline and post-refactor runs, acceptance_criteria_status, git_status, deviations_from_prototype (n/a — pure structural), and the route-topology diff table.\n\nIf any URL changes status across the refactor, the task is BLOCKED — do not promote.\n\n## Existing-tree inventory and collision policy (binding)\nBefore moving anything, inventory the current App Router tree with `git status --short apps/web/app` and a file listing for these known collision/risk areas:\n- `apps/web/app/(admin)/settings/users/**`\n- `apps/web/app/[locale]/(admin)/settings/users/**`\n- `apps/web/app/(auth)/actions.ts`\n- `apps/web/app/(settings)/schema/_actions/**`\n- `apps/web/app/onboarding/**` special routes\n\nIA decision for this task:\n- Final authenticated shell group is `apps/web/app/[locale]/(app)`.\n- Final settings pages live at `apps/web/app/[locale]/(app)/(admin)/settings/*`; do not create or keep a parallel `apps/web/app/[locale]/(app)/(settings)/*` settings UI tree.\n- Existing duplicate settings/users implementations must be compared and merged surgically. Do not pretend this is a simple `git mv`; do not overwrite either side without preserving tests, route contracts, and imports.\n- Preserve `apps/web/app/(auth)/actions.ts` behaviour/imports unless inventory proves it must move; update imports explicitly if it moves.\n- Treat `apps/web/app/(settings)/schema/_actions/**` as action support code, not the settings subnav layout target. Preserve or relocate only after import inventory proves the safe destination.\n- Onboarding routes are special: leave them outside the AppShell unless the inventory/contract explicitly proves they are authenticated shell routes; document the decision in closeout.\n",
+      "prompt": "# T-133 — Foundation route topology refactor + contract\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReorganise `apps/web/app/[locale]/` into three sibling route groups — `(app)`, `(auth)`, `(scanner)` — without changing any URL, so UI-131 can attach the AppShell to `(app)` only, login keeps its own card layout under `(auth)`, and `(scanner)` is wired before T-134 lands the ScannerFrame. Also produce the contract test that proves no 404 / no wrong redirect after the move.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A; §7 risks (login-renders-sidebar, scanner-inherits-shell, reorg-breaks-tests). `apps/web/proxy.ts` already centralises auth/idle/i18n at the edge — DO NOT move auth into a Node middleware here.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [create — placeholder Server Component that just returns `<>{children}</>`; UI-131 fills it with the AppShell + auth guard]\n- `apps/web/app/[locale]/(auth)/layout.tsx` [create — empty pass-through; login keeps its own visual layout]\n- `apps/web/app/[locale]/(scanner)/layout.tsx` [create — empty pass-through; T-134 fills it with ScannerFrame]\n- relocate: `apps/web/app/[locale]/login/` → `apps/web/app/[locale]/(auth)/login/`\n- relocate: `apps/web/app/[locale]/page.tsx` → `apps/web/app/[locale]/(app)/page.tsx`\n- relocate: `apps/web/app/(admin)/` → `apps/web/app/[locale]/(app)/(admin)/` (URLs stay because route groups are URL-transparent; verify with the contract test)\n- relocate: `apps/web/app/(npd)/` → `apps/web/app/[locale]/(app)/(npd)/`\n- inventory-only first: `apps/web/app/(settings)/schema/_actions/**` is a schema/action island, not a settings UI tree; do NOT blindly move it into `(app)/(settings)`. If imports require relocation, document the decision and keep the final settings UI IA under `(app)/(admin)/settings/*`.\n- `apps/web/e2e/route-topology.spec.ts` [create — Playwright contract test, see below]\n- Update import paths only where module-relative imports break.\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx` (NextIntlProvider stays), `[locale]/login/layout.tsx` content (move-only), any `T-XXX.json` outside this wave, or `00-foundation/manifest.json`.\n\n## URL contract (assertions for the spec)\nEvery URL below MUST resolve with HTTP 200 (or 302→login for unauth) BOTH before and after the refactor:\n\n- `GET /en/` → before-after: same status, same redirect chain\n- `GET /en/login` → 200\n- `GET /en/login/forgot-password` → 200\n- `GET /en/login/mfa?factorId=red-contract` → 200\n- `GET /en/settings`, `/en/settings/users`, `/en/settings/roles`, `/en/settings/profile`, `/en/settings/security`, `/en/settings/invitations`, `/en/settings/authorization`, `/en/settings/schema/preview`, `/en/settings/reference/manufacturing-operations` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/account/profile`, `/en/account/notifications` → 200 (auth or DEV_AUTH_BYPASS)\n- `GET /en/fa/<productCode>` → 200\n- `GET /pl/login` → 200 (locale mirror)\n\nNot covered here:\n- `(scanner)` routes don't exist yet (T-134 introduces them). The contract test only asserts the empty `(scanner)/layout.tsx` exists.\n\n## Auth-guard placement\nAuth guard stays in `proxy.ts` (existing). UI-131 will additionally call `createServerSupabaseClient().auth.getUser()` inside `(app)/layout.tsx` as a defence-in-depth Server-Component check — that's a UI-131 deliverable, not T-133.\n\n## Acceptance criteria\n1. Inventory closeout lists current paths and decisions for `(admin)/settings/users`, `[locale]/(admin)/settings/users`, `(auth)/actions.ts`, `(settings)/schema/_actions`, and onboarding special routes before any move.\n2. Each canonical URL above returns the same status before and after relocation; any redirect-chain change is a blocker unless explicitly justified.\n3. Settings IA is single-source: final settings UI pages live under `apps/web/app/[locale]/(app)/(admin)/settings/*`; no parallel `apps/web/app/[locale]/(app)/(settings)/*` settings UI tree is introduced.\n4. Duplicate settings/users sources are compared and merged surgically with no silent overwrite; preserved tests/contracts are named in closeout.\n5. Existing Playwright specs (`apps/web/e2e/auth.spec.ts`, `apps/web/e2e/login-ui-parity.spec.ts`) pass unchanged.\n6. Existing vitest suite (`pnpm --filter web test`) passes unchanged — no test file is renamed/moved, only `app/` subtrees move.\n7. Typecheck passes (`pnpm --filter web typecheck`).\n8. `apps/web/app/[locale]/(app)/layout.tsx`, `(auth)/layout.tsx`, `(scanner)/layout.tsx` exist as pass-through stubs; the file headers cite the wave + this task id and reference follow-ons (UI-131 / T-134).\n9. `apps/web/proxy.ts` is byte-identical before/after.\n\n## Out of scope\n- AppShell wrapper content (UI-131).\n- AuthGuard in Server Component (UI-131).\n- ScannerFrame (T-134).\n- New URLs / removed URLs / locale changes.\n\n## RED test\nWrite `route-topology.spec.ts` and run against the pre-refactor tree first — capture baseline statuses. Then perform the relocation, run again, diff. The committed spec asserts the post-refactor contract; the baseline run is referenced in closeout.\n\n## Risk red lines\n- Do not move `proxy.ts` or change its matcher.\n- Do not change any URL externally — route groups are URL-transparent.\n- Do not delete the existing `[locale]/login/layout.tsx` content; only relocate it.\n- Do not use blind `git mv` over existing destination files; when `(admin)/settings/users` already exists in both root and localized trees, compare and merge explicitly.\n- Do not create `(app)/(settings)/*` for Settings UI in this wave; UI-132 owns `(app)/(admin)/settings/layout.tsx`.\n- Do not rename any test file (would alter coverage and blame).\n- Do not modify `_meta/atomic-tasks/00-foundation/manifest.json` or any task under `tasks/T-001..T-126`.\n\n## Closeout\nProvide: changed_files (with `git mv` history preserved), test_commands_and_results for both baseline and post-refactor runs, acceptance_criteria_status, git_status, deviations_from_prototype (n/a — pure structural), and the route-topology diff table.\n\nIf any URL changes status across the refactor, the task is BLOCKED — do not promote.\n\n## Existing-tree inventory and collision policy (binding)\nBefore moving anything, inventory the current App Router tree with `git status --short apps/web/app` and a file listing for these known collision/risk areas:\n- `apps/web/app/(admin)/settings/users/**`\n- `apps/web/app/[locale]/(admin)/settings/users/**`\n- `apps/web/app/(auth)/actions.ts`\n- `apps/web/app/(settings)/schema/_actions/**`\n- `apps/web/app/onboarding/**` special routes\n\nIA decision for this task:\n- Final authenticated shell group is `apps/web/app/[locale]/(app)`.\n- Final settings pages live at `apps/web/app/[locale]/(app)/(admin)/settings/*`; do not create or keep a parallel `apps/web/app/[locale]/(app)/(settings)/*` settings UI tree.\n- Existing duplicate settings/users implementations must be compared and merged surgically. Do not pretend this is a simple `git mv`; do not overwrite either side without preserving tests, route contracts, and imports.\n- Preserve `apps/web/app/(auth)/actions.ts` behaviour/imports unless inventory proves it must move; update imports explicitly if it moves.\n- Treat `apps/web/app/(settings)/schema/_actions/**` as action support code, not the settings subnav layout target. Preserve or relocate only after import inventory proves the safe destination.\n- Onboarding routes are special: leave them outside the AppShell unless the inventory/contract explicitly proves they are authenticated shell routes; document the decision in closeout.\n",
       "labels": [
         "wave-app-shell-foundation",
         "test",
@@ -1180,7 +626,841 @@
             "deviations_from_prototype"
           ]
         },
-        "wave": "app-shell-foundation-20260520"
+        "wave": "app-shell-foundation-20260520",
+        "integration_branch": "main"
+      }
+    },
+    {
+      "title": "UI-129 — Foundation AppSidebar (groups, items, active state, count slots)",
+      "prompt": "# UI-129 — Foundation AppSidebar\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppSidebar/>` — the persistent 280px left rail used on every authenticated desktop route. Consumes UI-127 tokens and UI-128 navigation manifest. No business logic; pure presentation + `usePathname` for active state. Count badges and permission gates are slots only.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`).\n- Cross-ref structure: `technical/shell.jsx:3-22` (`TSidebar`), `warehouse/shell.jsx` (`PSidebar`), `production/shell.jsx`.\n- Unified UI-128 manifest extends the older four-group prototypes with Reporting and Multi-Site coverage: 5 groups / 15 sidebar items. Reporting contributes the Analytics item (`reporting/shell.jsx:21-23`); Multi-Site contributes the Multi-Site item/badge slots (`multi-site/shell.jsx:101-122`). Scanner is intentionally excluded from desktop sidebar.\n\n## Files (scope)\n- `apps/web/components/shell/app-sidebar.tsx` [create — Client Component (`'use client'`) using `usePathname` from `next/navigation` for active state]\n- `apps/web/components/shell/__tests__/app-sidebar.test.tsx` [create — RTL with `next-intl` and `next/navigation` mocks]\n\nDo NOT modify any T-XXX.json outside this wave; do NOT modify `proxy.ts`; do NOT add `app-sidebar.tsx` to a layout in this task (UI-131 mounts it).\n\n## Contract\n```tsx\nexport function AppSidebar({\n  locale,\n  pathnameOverride,\n}: { locale: string; pathnameOverride?: string }): JSX.Element\n```\n\nBehaviour:\n- Reads `APP_NAV_GROUPS` from `apps/web/lib/navigation/app-nav.ts` (UI-128).\n- Resolves labels with `useTranslations('Navigation.app')` from `next-intl` (or the equivalent locale fixture; do not hard-code Polish/English strings).\n- Prefixes `route` with `/${locale}` when rendering `<Link/>`.\n- Active state when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`.\n- Renders `count_slot` as `null` for now (UI-128 sets it to null) but the JSX must include the `<span data-slot=\"count\"/>` markup so modules can later inject content via React context or a portal.\n- Each item carries `data-testid=\"app-sidebar-item-<key>\"`.\n- Root carries `data-testid=\"app-sidebar\"`, `role=\"navigation\"`, `aria-label=\"Primary\"`.\n- Width = `w-sidebar` token from UI-127. Background/foreground/border colours = UI-127 tokens.\n- Each `rbac_todo` non-null item is rendered (no gating) and includes a JSX comment `{/* TODO(rbac/02-settings/T-130) */}`.\n\n## Acceptance criteria\n1. Render asserts: 5 group headers and 15 sidebar items in the order from UI-128, including Scheduler, Reporting, and Multi-Site; Scanner is absent.\n2. With `pathnameOverride='/en/settings/users'`, `data-testid=\"app-sidebar-item-settings\"` has `aria-current=\"page\"`; no other item does.\n3. Each item is a Next `<Link/>` whose href is `/${locale}${route}` (for example `/en/settings`); route values themselves remain locale-relative in UI-128.\n4. axe-core has 0 violations on the rendered component (`@axe-core/react` or `vitest-axe`).\n5. `pnpm --filter web test app-sidebar -- --run` passes, typecheck passes, lint passes.\n6. Tokens consumed: assert via `getComputedStyle` that root width === `var(--shell-sidebar-w)`.\n\n## Out of scope\n- Mounting in any layout (UI-131).\n- Topbar/UserMenu (UI-130).\n- Settings sub-nav (UI-132).\n- Count badge live values (each module).\n- Permission gating (02-settings/T-130).\n- Mobile collapse / hamburger.\n\n## RED test\nWrite `app-sidebar.test.tsx` first; it must fail because the component file does not exist.\n\n## Risk red lines\n- Do not import `APP_NAV_GROUPS` from anywhere except `apps/web/lib/navigation/app-nav.ts`.\n- Do not hard-code locale prefix logic outside the explicit `/${locale}` join.\n- Do not gate items by permissions.\n- Do not mount in a layout — UI-131 owns mounting.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:3-21`, visual_parity_evidence, prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results (vitest output), changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+      "labels": [
+        "wave-app-shell-foundation",
+        "ui",
+        "foundation",
+        "shell",
+        "sidebar",
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
+      ],
+      "priority": 70,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "UI-129",
+        "human_task_id": "UI-129-foundation-app-sidebar",
+        "display_task_id": "UI-129",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "brief §3 Luka B",
+          "brief §7 risk: RBAC gating deferred"
+        ],
+        "category": "ui",
+        "subcategory": "shell-sidebar",
+        "task_type": "T3-ui",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "40k",
+        "estimated_effort": "2-3h",
+        "description": "Client AppSidebar component consuming UI-128 nav manifest and UI-127 tokens; active state via usePathname; count and permission slots only.",
+        "details": "Render 5 groups (Core/Operations/QA & Shipping/Premium/Analytics & Network) and 15 sidebar items from APP_NAV_GROUPS, including Scheduler, Reporting, and Multi-Site while excluding Scanner. Active state via Next usePathname; aria-current=page on the active item. Tokens via w-sidebar/bg-shell-* utilities from UI-127. RTL tests with next-intl + next/navigation mocks. axe-core 0 violations. Do not mount in a layout (UI-131 mounts).",
+        "scope_files": [
+          "apps/web/components/shell/app-sidebar.tsx [create]",
+          "apps/web/components/shell/__tests__/app-sidebar.test.tsx [create]"
+        ],
+        "scope_paths": [
+          "apps/web/components/shell/"
+        ],
+        "out_of_scope": [
+          "Mounting in a layout (UI-131)",
+          "Topbar/UserMenu (UI-130)",
+          "Settings subnav (UI-132)",
+          "Live count badges (each module)",
+          "Permission gating (02-settings/T-130)",
+          "Mobile hamburger",
+          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+        ],
+        "dependencies": [
+          "T-137",
+          "UI-127",
+          "UI-128"
+        ],
+        "parallel_safe_with": [
+          "UI-130"
+        ],
+        "acceptance_criteria": [
+          "Renders 5 group headers + 15 sidebar items in UI-128 order, including Scheduler, Reporting, and Multi-Site, and excluding Scanner",
+          "With pathnameOverride=/en/settings/users, only Settings item carries aria-current=page",
+          "Each item is a Next <Link/> resolving to /<locale>/<route>",
+          "axe-core reports 0 violations on the component fixture",
+          "Root width computed from var(--shell-sidebar-w); colours from --shell-* vars",
+          "data-testid=app-sidebar on root; data-testid=app-sidebar-item-<key> on each item",
+          "pnpm --filter web test app-sidebar -- --run passes; typecheck and lint pass"
+        ],
+        "test_strategy": [
+          "Write app-sidebar.test.tsx first (RED)",
+          "pnpm --filter web test app-sidebar -- --run",
+          "pnpm --filter web typecheck",
+          "pnpm --filter web lint"
+        ],
+        "risk_red_lines": [
+          "Do not import APP_NAV_GROUPS from anywhere except apps/web/lib/navigation/app-nav.ts",
+          "Do not gate items by permissions",
+          "Do not mount in a layout — UI-131 owns mounting",
+          "Do not hard-code label strings",
+          "Do not add scanner to AppSidebar; scanner is a separate device shell route group"
+        ],
+        "skills": [
+          "acp-frontend",
+          "acp-ui-parity",
+          "acp-verification",
+          "MON-t3-ui"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "fail_closed_on_missing_ui_evidence": true,
+          "closeout_requires": [
+            "screenshots",
+            "screenshot_or_dom_diff_artifacts",
+            "visual_parity_evidence",
+            "prototype_reference",
+            "console_network_check",
+            "acceptance_criteria_status",
+            "test_commands_and_results",
+            "changed_files",
+            "git_status",
+            "deviations_from_prototype"
+          ],
+          "blocking_states": [
+            "ui_parity_evidence_missing"
+          ]
+        },
+        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "prototype_refs": [
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:3-21",
+          "prototypes/design/Monopilot Design System/technical/shell.jsx:3-22"
+        ],
+        "target_route": "component://apps/web/components/shell/app-sidebar.tsx#AppSidebar",
+        "viewports": [
+          {
+            "name": "desktop-1440",
+            "width": 1440,
+            "height": 900
+          },
+          {
+            "name": "desktop-1280",
+            "width": 1280,
+            "height": 800
+          }
+        ],
+        "region_selectors": {
+          "sidebar_root": "[data-testid='app-sidebar']",
+          "sidebar_group_header": "[data-testid='app-sidebar'] [data-slot='group']",
+          "sidebar_item": "[data-testid^='app-sidebar-item-']",
+          "active_item": "[data-testid='app-sidebar'] [aria-current='page']"
+        },
+        "parity_matrix": [
+          {
+            "region": "groups",
+            "prototype": "Core/Operations/QA & Shipping/Premium + Reporting Analytics + Multi-Site NEW group extensions",
+            "implementation": "5 group headers in UI-128 order from APP_NAV_GROUPS",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "items",
+            "prototype": "15 sidebar items in declared order: Dashboard, Settings, Planning, Scheduler, Production, Warehouse, Quality, Shipping, Technical, NPD, Finance, OEE, Maintenance, Reporting, Multi-Site",
+            "implementation": "Same 15 sidebar items via APP_NAV_GROUPS; Scanner excluded",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "pass"
+          },
+          {
+            "region": "active state",
+            "prototype": ".active class on current module item",
+            "implementation": "aria-current=page + active token style",
+            "structural": "pass_with_allowed_deviation",
+            "visual": "pass",
+            "interaction": "pass"
+          }
+        ],
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_app_sidebar",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "3-21",
+            "component": "SSidebar",
+            "purpose": "desktop sidebar base pattern"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+            "lines": "3-23",
+            "component": "PSidebar",
+            "purpose": "Analytics/Reporting extension"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "77-124",
+            "component": "MsSidebar",
+            "purpose": "Multi-Site extension and badge slots"
+          }
+        ],
+        "integration_branch": "main"
+      }
+    },
+    {
+      "title": "UI-130 — Foundation AppTopbar + UserMenu host (mounts existing language picker, static SiteCrumb slot)",
+      "prompt": "# UI-130 — Foundation AppTopbar + UserMenu host\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppTopbar/>` and the `<UserMenu/>` host that re-mounts the existing language picker at `apps/web/app/_components/user-menu-language-picker.tsx` (external existing reference, not a dependency task). Provide a static `SiteCrumb` slot rendering only `org.name` — the live multi-site switcher lands in `14-multi-site/T-020`.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:23-33` (`STopbar`).\n- Cross-ref: `multi-site/shell.jsx` (`MsTopbar`) — site-switch slot position.\n- Topbar height = 56px (UI-127 `--shell-topbar-h`).\n\n## Files (scope)\n- `apps/web/components/shell/app-topbar.tsx` [create — **Server Component** that does the data fetch (`createServerSupabaseClient().auth.getUser()`, plus org name lookup) and renders the Client `<UserMenu/>` as a child]\n- `apps/web/components/shell/user-menu.tsx` [create — Client Component (`'use client'`) that hosts the Radix dropdown and mounts `<UserMenuLanguagePicker/>` from apps/web/app/_components/user-menu-language-picker.tsx + a `<form action={signOut}>` Sign out button]\n- `apps/web/components/shell/site-crumb.tsx` [create — static `<span data-testid=\"app-topbar-sitecrumb\">{orgName}</span>` placeholder Client Component; receives `orgName` as prop; carries inline comment `// TODO(multi-site/14-multi-site/T-020): replace with live SiteSwitcher`]\n- `apps/web/components/shell/__tests__/app-topbar.test.tsx` [create]\n- `apps/web/components/shell/__tests__/user-menu.test.tsx` [create]\n- `apps/web/components/shell/__tests__/site-crumb.test.tsx` [create]\n- `apps/web/app/[locale]/(app)/_actions/sign-out.ts` [create — `'use server'` `signOut()` Server Action calling `supabase.auth.signOut()` and redirecting to `/${locale}/login`]\n- `apps/web/i18n/{en,pl,uk,ro}.json` [modify — `Topbar.searchPlaceholder`, `Topbar.signOut`, `Topbar.openUserMenu`; all runtime locales must have the same keys]\n\nDo NOT modify `proxy.ts`, the existing `user-menu-language-picker.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// app-topbar.tsx (Server Component)\nexport async function AppTopbar({ locale }: { locale: string }): Promise<JSX.Element>\n```\nServer-renders: brand-mark + `<SearchPlaceholder/>` (just an `<input placeholder=\"Topbar.searchPlaceholder\" aria-label=\"Search\"/>` — no behaviour) + `<SiteCrumb orgName=...>` + `<UserMenu user=... locale=... initialLanguageProps={...}>`.\n\n```tsx\n// user-menu.tsx (Client)\nexport function UserMenu({\n  user, locale, languagePickerProps, signOutAction,\n}: UserMenuProps): JSX.Element\n```\nRenders a Radix `DropdownMenu` triggered by `<button data-testid=\"app-topbar-user-trigger\">` showing user initials. Menu contents (top→bottom):\n1. user identity row (name + email),\n2. `<UserMenuLanguagePicker {...languagePickerProps}/>` (external existing reference),\n3. `<form action={signOutAction}><button type=\"submit\" data-testid=\"app-topbar-sign-out\">{t('Topbar.signOut')}</button></form>`.\n\nAll prop types come from `user-menu-language-picker.tsx` — do not redefine them; import.\n\n## Acceptance criteria\n1. `AppTopbar` is Server Component (no `'use client'`) and renders 56px height (token).\n2. `UserMenu` is Client Component and mounts the existing `UserMenuLanguagePicker` unchanged.\n3. `SiteCrumb` renders only `orgName` text; an inline comment + a `data-todo=\"multi-site-T-020\"` attribute marks the slot.\n4. Sign out: clicking the button calls `signOut` Server Action; on success the user is redirected to `/${locale}/login`. Test asserts the form action wiring with a mocked Server Action.\n5. Keyboard: trigger has `aria-haspopup=menu`, opens with Enter/Space, closes with Escape; first item is focused on open; tested with `userEvent`.\n6. axe-core reports 0 violations.\n7. `pnpm --filter web test app-topbar user-menu site-crumb -- --run` passes; typecheck + lint pass.\n8. Browser console clean on render (test asserts no `console.error` spy hits).\n9. `Topbar.*` keys are present in all runtime locales: `apps/web/i18n/{en,pl,uk,ro}.json`; no legacy messages-directory path is introduced.\n\n## Out of scope\n- Live multi-site SiteSwitcher (14-multi-site/T-020).\n- Search functionality (input is a static placeholder).\n- Role switcher button from the prototype (admin/user role picker is dev-only; not wired here).\n- Notification bell (none in prototype baseline).\n- Mounting in a layout (UI-131).\n- Modifying `user-menu-language-picker.tsx`.\n\n## RED test\nWrite the three tests first; they must fail because the components do not exist.\n\n## Risk red lines\n- AppTopbar MUST be a Server Component. The language picker is `'use client'` — placing it directly inside AppTopbar would force the topbar client. Wrap it in the `<UserMenu/>` Client child.\n- Do not modify `user-menu-language-picker.tsx`.\n- Do not move the picker file.\n- SiteCrumb is text only; do not introduce a Radix `Select` or any dropdown here.\n- Do not modify `apps/web/proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts vs `settings/shell.jsx:23-33` + `multi-site/shell.jsx`, visual_parity_evidence, prototype_reference, console_network_check, acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+      "labels": [
+        "wave-app-shell-foundation",
+        "ui",
+        "foundation",
+        "shell",
+        "topbar",
+        "user-menu",
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
+      ],
+      "priority": 70,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "UI-130",
+        "human_task_id": "UI-130-foundation-app-topbar",
+        "display_task_id": "UI-130",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "brief §3 Luka C",
+          "brief §7 risks: SiteSwitcher too early, language picker is client"
+        ],
+        "category": "ui",
+        "subcategory": "shell-topbar",
+        "task_type": "T3-ui",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "45k",
+        "estimated_effort": "2-3h",
+        "description": "AppTopbar Server Component + UserMenu Client child that mounts the existing apps/web/app/_components/user-menu-language-picker.tsx and the Server Action sign-out; SiteCrumb is a static orgName slot for 14-multi-site/T-020.",
+        "details": "Server Component AppTopbar fetches user + orgName, renders brand + static search input + SiteCrumb + UserMenu. UserMenu Client wraps Radix DropdownMenu; mounts UserMenuLanguagePicker from apps/web/app/_components/user-menu-language-picker.tsx unchanged. signOut Server Action under (app)/_actions/sign-out.ts. SiteCrumb is text only with TODO + data-todo attribute. Keyboard a11y + axe-core 0 violations. Do not modify user-menu-language-picker.tsx or proxy.ts.",
+        "scope_files": [
+          "apps/web/components/shell/app-topbar.tsx [create — Server Component]",
+          "apps/web/components/shell/user-menu.tsx [create — Client Component]",
+          "apps/web/components/shell/site-crumb.tsx [create — Client placeholder]",
+          "apps/web/components/shell/__tests__/app-topbar.test.tsx [create]",
+          "apps/web/components/shell/__tests__/user-menu.test.tsx [create]",
+          "apps/web/components/shell/__tests__/site-crumb.test.tsx [create]",
+          "apps/web/app/[locale]/(app)/_actions/sign-out.ts [create]",
+          "apps/web/i18n/en.json [modify]",
+          "apps/web/i18n/pl.json [modify]",
+          "apps/web/i18n/uk.json [modify]",
+          "apps/web/i18n/ro.json [modify]"
+        ],
+        "scope_paths": [
+          "apps/web/components/shell/",
+          "apps/web/app/[locale]/(app)/_actions/",
+          "apps/web/i18n/"
+        ],
+        "out_of_scope": [
+          "Live SiteSwitcher (14-multi-site/T-020)",
+          "Search functionality",
+          "Role switcher button",
+          "Notification bell",
+          "Mounting in a layout (UI-131)",
+          "Modifying apps/web/app/_components/user-menu-language-picker.tsx (external existing reference)",
+          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+        ],
+        "dependencies": [
+          "T-137",
+          "UI-127",
+          "T-133"
+        ],
+        "parallel_safe_with": [
+          "UI-129"
+        ],
+        "acceptance_criteria": [
+          "AppTopbar has no 'use client' directive and renders height equal to var(--shell-topbar-h)",
+          "UserMenu mounts UserMenuLanguagePicker unchanged with the existing exported props type",
+          "SiteCrumb renders orgName text only; carries // TODO(multi-site/T-020) and data-todo='multi-site-T-020'",
+          "Sign out submits the Server Action and redirects to /<locale>/login",
+          "Trigger has aria-haspopup=menu; menu opens on Enter/Space; closes on Escape; first item focused on open",
+          "axe-core 0 violations on the rendered tree",
+          "pnpm --filter web test app-topbar user-menu site-crumb -- --run passes; typecheck + lint pass",
+          "console.error spy has zero hits during component render",
+          "Topbar.* keys present in apps/web/i18n/{en,pl,uk,ro}.json; no legacy messages-directory path introduced",
+          "Topbar exposes a stable data-slot=\"site-switcher\" / SiteCrumb host matching multi-site/shell.jsx:13-69 placement, but does not implement live site selection before 14-multi-site/T-020"
+        ],
+        "test_strategy": [
+          "Write the three RTL specs first (RED)",
+          "pnpm --filter web test app-topbar user-menu site-crumb -- --run",
+          "pnpm --filter web typecheck",
+          "pnpm --filter web lint"
+        ],
+        "risk_red_lines": [
+          "AppTopbar MUST remain a Server Component",
+          "Do not modify apps/web/app/_components/user-menu-language-picker.tsx",
+          "SiteCrumb is text only — no dropdown / no Select",
+          "Do not modify apps/web/proxy.ts",
+          "Do not introduce role-switcher behaviour",
+          "Do not implement live multi-site switching in this wave; expose only the shell slot and TODO reference to 14-multi-site/T-020"
+        ],
+        "skills": [
+          "acp-frontend",
+          "acp-ui-parity",
+          "acp-verification",
+          "MON-t3-ui",
+          "MON-t2-api"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "fail_closed_on_missing_ui_evidence": true,
+          "closeout_requires": [
+            "screenshots",
+            "screenshot_or_dom_diff_artifacts",
+            "visual_parity_evidence",
+            "prototype_reference",
+            "console_network_check",
+            "acceptance_criteria_status",
+            "test_commands_and_results",
+            "changed_files",
+            "git_status",
+            "deviations_from_prototype"
+          ],
+          "blocking_states": [
+            "ui_parity_evidence_missing"
+          ]
+        },
+        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "prototype_refs": [
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:23-33",
+          "prototypes/design/Monopilot Design System/multi-site/shell.jsx"
+        ],
+        "target_route": "component://apps/web/components/shell/app-topbar.tsx#AppTopbar",
+        "viewports": [
+          {
+            "name": "desktop-1440",
+            "width": 1440,
+            "height": 900
+          },
+          {
+            "name": "desktop-1280",
+            "width": 1280,
+            "height": 800
+          }
+        ],
+        "region_selectors": {
+          "topbar_root": "[data-testid='app-topbar']",
+          "topbar_search": "[data-testid='app-topbar-search']",
+          "topbar_sitecrumb": "[data-testid='app-topbar-sitecrumb']",
+          "topbar_user_trigger": "[data-testid='app-topbar-user-trigger']",
+          "topbar_sign_out": "[data-testid='app-topbar-sign-out']",
+          "topbar_language_menu": "[role='menu'][aria-label='Language']"
+        },
+        "parity_matrix": [
+          {
+            "region": "topbar height",
+            "prototype": "56px (STopbar root)",
+            "implementation": "var(--shell-topbar-h)",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "user avatar trigger",
+            "prototype": "<div class='avatar'>KN</div>",
+            "implementation": "button with user initials triggering Radix menu",
+            "structural": "pass_with_allowed_deviation",
+            "visual": "pass",
+            "interaction": "pass"
+          },
+          {
+            "region": "site crumb",
+            "prototype": "multi-site/shell.jsx MsTopbar site label",
+            "implementation": "static text orgName, TODO(multi-site/T-020)",
+            "structural": "pass_with_allowed_deviation",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "language picker",
+            "prototype": "n/a — picker is existing external component",
+            "implementation": "UserMenuLanguagePicker mounted unchanged",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "pass"
+          }
+        ],
+        "allowed_deviations": [
+          {
+            "region": "user avatar trigger",
+            "prototype": "non-interactive avatar div",
+            "implementation": "Radix DropdownMenu trigger button",
+            "reason": "menu accessibility requires a focusable trigger; matches every later module shell"
+          },
+          {
+            "region": "role switcher",
+            "prototype": "admin/user buttons",
+            "implementation": "omitted",
+            "reason": "dev-only fixture in prototype; not part of production behaviour"
+          }
+        ],
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_app_topbar",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "23-33",
+            "component": "STopbar",
+            "purpose": "default topbar/search/avatar pattern"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "13-69",
+            "component": "MsSiteSwitcher",
+            "purpose": "future site-switcher slot contract"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "127-149",
+            "component": "MsTopbar",
+            "purpose": "topbar placement for site switcher/search/role/avatar"
+          }
+        ],
+        "integration_branch": "main"
+      }
+    },
+    {
+      "title": "UI-131 — Foundation (app) route-group layout: AppShell grid + Server-Component auth guard",
+      "prompt": "# UI-131 — Foundation (app) layout\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nReplace the T-133 pass-through stub at `apps/web/app/[locale]/(app)/layout.tsx` with the real AppShell grid (Sidebar + Topbar + main) and add a Server-Component defence-in-depth auth check. Edge auth in `proxy.ts` stays primary; this layout is the second gate and the shell host for every authenticated desktop route.\n\n## Source\n- Brief `/tmp/monopilot-shell-gap-brief-combined.md` §3 Luka A + Luka G.\n- Prototype layout: sidebar 280px + topbar 56px + main content; settings/shell.jsx is the canonical layout shape.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/layout.tsx` [modify — replace stub]\n- `apps/web/app/[locale]/(app)/__tests__/layout.test.tsx` [create — RTL for auth guard branches]\n- `apps/web/e2e/app-shell-layout.spec.ts` [create — Playwright smoke: assert sidebar + topbar appear on `/en/`]\n- `apps/web/app/[locale]/(app)/loading.tsx` [create — minimal shell skeleton, sidebar + topbar widths preserved, content area `<div data-testid=\"app-shell-loading\"/>`]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(auth)/layout.tsx`, `[locale]/(scanner)/layout.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// apps/web/app/[locale]/(app)/layout.tsx (Server Component)\nexport default async function AppLayout({\n  children, params,\n}: { children: ReactNode; params: Promise<{ locale: string }> }) {\n  const { locale } = await params;\n  const supabase = await createServerSupabaseClient();\n  const { data, error } = await supabase.auth.getUser();\n  if (error || !data.user) {\n    redirect(`/${locale}/login`);\n  }\n  return (\n    <div data-testid=\"app-shell\" className=\"grid h-screen grid-rows-[var(--shell-topbar-h)_1fr] grid-cols-[var(--shell-sidebar-w)_1fr]\">\n      <header className=\"col-span-2\"><AppTopbar locale={locale}/></header>\n      <aside><AppSidebar locale={locale}/></aside>\n      <main data-testid=\"app-shell-main\" className=\"overflow-auto\">{children}</main>\n    </div>\n  );\n}\n```\n\nUses tokens from UI-127. Mounts UI-129 + UI-130. The Server-Component guard is defence-in-depth — if `proxy.ts` already redirected, this branch is unreachable, but a misconfigured proxy must not leak shell.\n\n## Acceptance criteria\n1. Visiting `/en/` while authenticated renders `data-testid=app-shell`, `data-testid=app-sidebar`, `data-testid=app-topbar`, and the existing `[locale]/page.tsx` content under `data-testid=app-shell-main`.\n2. Visiting `/en/` while unauthenticated (no Supabase cookie) results in HTTP 307/302 to `/en/login`; the response body never contains `data-testid=app-shell`.\n3. `/en/login` (under `(auth)`) DOES NOT contain `data-testid=app-shell`, `app-sidebar`, or `app-topbar`.\n4. RTL `__tests__/layout.test.tsx` covers: authenticated render, unauth redirect, locale prefix propagation to topbar/sidebar.\n5. Playwright `app-shell-layout.spec.ts` asserts the three test-ids appear on `/en/` and are absent on `/en/login`.\n6. axe-core (rendered tree) reports 0 violations.\n7. `pnpm --filter web typecheck` and `lint` pass.\n8. `apps/web/proxy.ts` is byte-identical before/after.\n\n## Out of scope\n- Settings sub-nav (UI-132).\n- PageHeader primitive (UI-132).\n- Scanner shell (T-134).\n- New URLs / locale changes.\n- Modifying any T-XXX.json outside this wave.\n\n## RED test\nWrite layout.test.tsx and app-shell-layout.spec.ts first — fail because layout still passes through.\n\n## Risk red lines\n- Auth guard belongs in Server Component, NOT in middleware/proxy (avoid conflict with edge i18n).\n- Use the existing `createServerSupabaseClient` helper from `apps/web/lib/auth/supabase-server.ts`.\n- Do not import `proxy.ts`-only helpers (edge runtime) here.\n- Do not introduce `<Suspense/>` boundaries that swallow children — child errors must surface to the App Router error boundary.\n- Do not let `loading.tsx` drop sidebar/topbar dimensions (would cause layout shift).\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440 (authenticated `/en/` + unauthenticated `/en/login`), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype settings/shell.jsx layout), prototype_reference, console_network_check (no errors, no failed requests, no hydration warnings), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+      "labels": [
+        "wave-app-shell-foundation",
+        "ui",
+        "foundation",
+        "shell",
+        "layout",
+        "auth",
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
+      ],
+      "priority": 75,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "UI-131",
+        "human_task_id": "UI-131-foundation-app-shell-layout",
+        "display_task_id": "UI-131",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "brief §3 Luka A",
+          "brief §3 Luka G",
+          "brief §7 risk: auth Server vs middleware"
+        ],
+        "category": "ui",
+        "subcategory": "shell-layout",
+        "task_type": "T3-ui",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "40k",
+        "estimated_effort": "2-3h",
+        "description": "Replace (app)/layout.tsx pass-through with the AppShell CSS-grid (Topbar + Sidebar + Main) and a Server-Component Supabase auth guard. Mounts UI-129 and UI-130. proxy.ts unchanged.",
+        "details": "Server Component reads locale from params, calls createServerSupabaseClient().auth.getUser(); redirect to /<locale>/login on error/no user. Otherwise render CSS grid using --shell-topbar-h and --shell-sidebar-w with AppTopbar (header, col-span-2), AppSidebar (aside), main (overflow-auto). loading.tsx preserves shell dimensions. RTL test covers authed/unauthed branches. Playwright spec asserts test-ids on /en/ and their absence on /en/login.",
+        "scope_files": [
+          "apps/web/app/[locale]/(app)/layout.tsx [modify — replace T-133 stub]",
+          "apps/web/app/[locale]/(app)/__tests__/layout.test.tsx [create]",
+          "apps/web/app/[locale]/(app)/loading.tsx [create]",
+          "apps/web/e2e/app-shell-layout.spec.ts [create]"
+        ],
+        "scope_paths": [
+          "apps/web/app/[locale]/(app)/",
+          "apps/web/e2e/app-shell-layout.spec.ts"
+        ],
+        "out_of_scope": [
+          "Settings subnav (UI-132)",
+          "PageHeader primitive (UI-132)",
+          "Scanner shell (T-134)",
+          "Editing proxy.ts or [locale]/layout.tsx",
+          "Modifying T-001..T-126.json or 00-foundation/manifest.json"
+        ],
+        "dependencies": [
+          "T-137",
+          "UI-127",
+          "UI-128",
+          "UI-129",
+          "UI-130",
+          "T-133"
+        ],
+        "parallel_safe_with": [
+          "T-134"
+        ],
+        "acceptance_criteria": [
+          "/en/ authenticated renders data-testid=app-shell, app-sidebar, app-topbar; main holds existing page content",
+          "/en/ unauthenticated redirects 302/307 to /en/login; response body does not contain data-testid=app-shell",
+          "/en/login response body does not contain data-testid=app-shell or app-sidebar or app-topbar",
+          "RTL layout.test.tsx covers authed, unauthed, locale-prop propagation",
+          "Playwright app-shell-layout.spec.ts passes on /en/ and /en/login",
+          "axe-core 0 violations on rendered tree",
+          "typecheck and lint pass",
+          "apps/web/proxy.ts is byte-identical before/after"
+        ],
+        "test_strategy": [
+          "Write layout.test.tsx + app-shell-layout.spec.ts first (RED)",
+          "pnpm --filter web test layout -- --run",
+          "pnpm exec playwright test e2e/app-shell-layout.spec.ts",
+          "pnpm --filter web typecheck && pnpm --filter web lint",
+          "git diff --name-only apps/web/proxy.ts -- expected empty"
+        ],
+        "risk_red_lines": [
+          "Auth guard belongs in Server Component, not in middleware/proxy",
+          "Do not import edge-runtime helpers here",
+          "Do not introduce a Suspense boundary that swallows child errors",
+          "loading.tsx must keep sidebar/topbar dimensions (no layout shift)",
+          "Do not modify apps/web/proxy.ts"
+        ],
+        "skills": [
+          "acp-frontend",
+          "acp-ui-parity",
+          "acp-supabase",
+          "acp-verification",
+          "MON-t3-ui",
+          "MON-foundation-primitives"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "fail_closed_on_missing_ui_evidence": true,
+          "closeout_requires": [
+            "screenshots",
+            "screenshot_or_dom_diff_artifacts",
+            "visual_parity_evidence",
+            "prototype_reference",
+            "console_network_check",
+            "acceptance_criteria_status",
+            "test_commands_and_results",
+            "changed_files",
+            "git_status",
+            "deviations_from_prototype"
+          ],
+          "blocking_states": [
+            "ui_parity_evidence_missing"
+          ]
+        },
+        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "prototype_refs": [
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:1-105"
+        ],
+        "target_route": "/{locale}/ (post-T-133 (app) group)",
+        "viewports": [
+          {
+            "name": "desktop-1440",
+            "width": 1440,
+            "height": 900
+          },
+          {
+            "name": "desktop-1280",
+            "width": 1280,
+            "height": 800
+          }
+        ],
+        "region_selectors": {
+          "shell_root": "[data-testid='app-shell']",
+          "shell_main": "[data-testid='app-shell-main']",
+          "sidebar": "[data-testid='app-sidebar']",
+          "topbar": "[data-testid='app-topbar']"
+        },
+        "parity_matrix": [
+          {
+            "region": "grid layout",
+            "prototype": "sidebar + topbar + main (settings/shell.jsx)",
+            "implementation": "CSS grid via tokens",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "auth boundary",
+            "prototype": "n/a (prototype has no auth)",
+            "implementation": "Server-Component getUser + redirect",
+            "structural": "pass_with_allowed_deviation",
+            "visual": "n/a",
+            "interaction": "pass"
+          }
+        ],
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_app_shell_layout",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "1-105",
+            "component": "desktop shell composition",
+            "purpose": "sidebar/topbar/subnav/page content composition"
+          }
+        ],
+        "integration_branch": "main"
+      }
+    },
+    {
+      "title": "UI-132 — Foundation PageHeader primitive + Settings subnav layout",
+      "prompt": "# UI-132 — Foundation PageHeader primitive + Settings subnav layout\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nDeliver the shared `PageHeader` primitive used by every module page AND the Settings subnav layout that mounts under `(app)/(admin)/settings/`. The brief calls these the same shell-frame deliverable (Lukas D + E) and `SettingsSubNav` consumes `PageHeader` for its actions row, so they ship together.\n\n## Prototype source of truth\n- PageHeader: `prototypes/design/Monopilot Design System/settings/shell.jsx:61-69` (`PageHead`); cross-ref `oee/shell.jsx` PageHead.\n- SettingsSubNav: `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` (`SettingsNav`); uses the `SETTINGS_NAV` array transcribed in UI-128.\n\n## Files (scope)\n- `packages/ui/src/PageHeader.tsx` [create — Server-Component-safe presentational primitive, no `'use client'`]\n- `packages/ui/src/__tests__/PageHeader.test.tsx` [create — RTL fixture, axe-core 0 violations]\n- `packages/ui/src/index.ts` [modify — re-export `PageHeader` + `PageHeaderProps`]\n- `apps/web/components/shell/settings-subnav.tsx` [create — Client Component (`'use client'`) consuming `SETTINGS_NAV_GROUPS` from UI-128, `usePathname` for active state]\n- `apps/web/components/shell/__tests__/settings-subnav.test.tsx` [create]\n- `apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx` [create — Server Component that wraps `{children}` with a two-column shell: 240px subnav + main; uses UI-127 token `--shell-subnav-w`]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/(app)/layout.tsx` (UI-131), `user-menu-language-picker.tsx`, or any T-XXX.json outside this wave.\n\n## Contract\n```tsx\n// packages/ui/src/PageHeader.tsx\nexport interface PageHeaderProps {\n  title: string;\n  subtitle?: string;\n  breadcrumb?: ReactNode;\n  actions?: ReactNode;\n}\nexport function PageHeader(props: PageHeaderProps): JSX.Element;\n```\nLayout: optional `breadcrumb` row above; `title` (`h1`) + optional `subtitle` (`p`) on the left; `actions` slot pinned right. Root carries `data-testid=\"page-header\"`; title carries `data-testid=\"page-header-title\"`; actions carry `data-testid=\"page-header-actions\"`.\n\n```tsx\n// apps/web/components/shell/settings-subnav.tsx (Client)\nexport interface SettingsSubNavProps { locale: string; pathnameOverride?: string }\nexport function SettingsSubNav(props: SettingsSubNavProps): JSX.Element;\n```\nReads `SETTINGS_NAV_GROUPS` from `apps/web/lib/navigation/settings-nav.ts` (UI-128). Renders each item as a Next `<Link/>` to `/${locale}${item.route}`. Active when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`. Each item carries `data-testid=\"settings-subnav-item-<key>\"`. Root carries `data-testid=\"settings-subnav\"`, `role=\"navigation\"`, `aria-label=\"Settings\"`. Width = `w-subnav` (UI-127). Each `rbac_todo` item is rendered with a JSX comment `{/* TODO(rbac/02-settings/T-130) */}` and `data-todo=\"rbac/02-settings/T-130\"`; no gating.\n\n```tsx\n// apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx (Server Component)\nexport default async function SettingsLayout({\n  children, params,\n}: { children: ReactNode; params: Promise<{ locale: string }> }): Promise<JSX.Element>\n```\nRenders a CSS grid `grid-cols-[var(--shell-subnav-w)_1fr]` with `<SettingsSubNav locale={locale}/>` and `<main data-testid=\"settings-main\">{children}</main>`. No auth check (the parent `(app)/layout.tsx` from UI-131 already does it).\n\n## Acceptance criteria\n1. `import { PageHeader } from '@monopilot/ui'` resolves; `PageHeaderProps` is exported.\n2. PageHeader renders title (`h1`), optional subtitle (`p`), optional breadcrumb above, optional actions right-aligned; axe-core 0 violations.\n3. `SettingsSubNav` renders every group/item from `SETTINGS_NAV_GROUPS` in declared order; active item carries `aria-current=\"page\"`; non-active items do not.\n4. `(settings)/layout.tsx` puts the subnav in a 240px column and `{children}` in the remaining column; visiting `/en/settings`, `/en/settings/users`, `/en/settings/roles` shows the subnav and a settings-main region.\n5. Visiting `/en/settings` from a non-settings sibling (e.g. `/en/`) shows no `settings-subnav` — verified by a Playwright spec snippet inside `apps/web/e2e/settings-subnav.spec.ts`.\n6. All RTL tests pass: `pnpm --filter @monopilot/ui test PageHeader -- --run`, `pnpm --filter web test settings-subnav -- --run`.\n7. `pnpm --filter web typecheck && pnpm --filter web lint && pnpm --filter @monopilot/ui typecheck && pnpm --filter @monopilot/ui lint` pass.\n8. `apps/web/proxy.ts` and `apps/web/app/[locale]/(app)/layout.tsx` are byte-identical before/after.\n\n## Out of scope\n- AppSidebar / AppTopbar (UI-129/130).\n- (app)/layout.tsx grid (UI-131).\n- Scanner shell (T-134).\n- RBAC gating (02-settings/T-130).\n- Module-specific subnavs (PlanNav, ProdNav, …).\n- Mobile responsive collapse.\n\n## RED test\nWrite `PageHeader.test.tsx`, `settings-subnav.test.tsx`, and `e2e/settings-subnav.spec.ts` first — they must fail because the files do not exist.\n\n## Risk red lines\n- PageHeader must NOT be marked `'use client'` — it is consumed by Server Component module pages.\n- `SettingsSubNav` is `'use client'` (needs `usePathname`); the `(settings)/layout.tsx` itself stays Server Component.\n- Do not gate items by permissions; emit `data-todo=\"rbac/02-settings/T-130\"`.\n- Do not duplicate the nav array — only import `SETTINGS_NAV_GROUPS` from UI-128.\n- Do not modify `apps/web/app/[locale]/(app)/layout.tsx` (UI-131 owns it) or `proxy.ts`.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440 for `/en/settings` and `/en/settings/users` and the PageHeader fixture, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:35-59` and `:61-69`, visual_parity_evidence, prototype_reference, console_network_check (no errors, no failed requests, no hydration warnings), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.\n\n## IA decision (binding)\nSettings pages for this wave live under `apps/web/app/[locale]/(app)/(admin)/settings/*`, matching the existing `(admin)/settings/users` topology after T-133. Do not create a parallel `apps/web/app/[locale]/(app)/(settings)/*` settings layout.\n",
+      "labels": [
+        "wave-app-shell-foundation",
+        "ui",
+        "foundation",
+        "shell",
+        "page-header",
+        "settings-subnav",
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
+      ],
+      "priority": 80,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "UI-132",
+        "human_task_id": "UI-132-foundation-page-header-settings-nav",
+        "display_task_id": "UI-132",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "brief §3 Luka D",
+          "brief §3 Luka E",
+          "brief §7 risk: T-130 not done when UI-132 ready"
+        ],
+        "category": "ui",
+        "subcategory": "shell-page-header+settings-subnav",
+        "task_type": "T3-ui",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "45k",
+        "estimated_effort": "3h",
+        "description": "Bundle: PageHeader primitive in @monopilot/ui + Settings subnav Client Component + apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx Server-Component wrapper that mounts the subnav. Consumes UI-127 tokens and UI-128 manifest.",
+        "details": "Create PageHeader (no 'use client'), exported from @monopilot/ui with title/subtitle/breadcrumb/actions and data-testids. Create SettingsSubNav ('use client', usePathname, aria-current). Create apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx (Server Component) wrapping subnav + main using --shell-subnav-w. IA decision: settings pages live under (app)/(admin)/settings/*, matching T-133's minimal relocation of the existing (admin)/settings/users tree; do not create a parallel (app)/(settings) settings route. No gating — all rbac_todo items render with data-todo='rbac/02-settings/T-130'. RTL + Playwright specs verify parity against prototype.",
+        "scope_files": [
+          "packages/ui/src/PageHeader.tsx [create]",
+          "packages/ui/src/__tests__/PageHeader.test.tsx [create]",
+          "packages/ui/src/index.ts [modify — re-export]",
+          "apps/web/components/shell/settings-subnav.tsx [create]",
+          "apps/web/components/shell/__tests__/settings-subnav.test.tsx [create]",
+          "apps/web/app/[locale]/(app)/(admin)/settings/layout.tsx [create]",
+          "apps/web/e2e/settings-subnav.spec.ts [create]"
+        ],
+        "scope_paths": [
+          "packages/ui/src/",
+          "apps/web/components/shell/",
+          "apps/web/app/[locale]/(app)/(admin)/settings/",
+          "apps/web/e2e/settings-subnav.spec.ts"
+        ],
+        "out_of_scope": [
+          "AppSidebar / AppTopbar (UI-129/130)",
+          "(app)/layout.tsx grid (UI-131)",
+          "Scanner shell (T-134)",
+          "RBAC gating (02-settings/T-130)",
+          "Module-specific subnavs",
+          "Mobile responsive collapse",
+          "Editing 00-foundation/manifest.json or T-001..T-126 task files"
+        ],
+        "dependencies": [
+          "T-137",
+          "UI-127",
+          "UI-128",
+          "UI-131"
+        ],
+        "parallel_safe_with": [
+          "T-134"
+        ],
+        "acceptance_criteria": [
+          "PageHeader importable from @monopilot/ui with title/subtitle/breadcrumb/actions and data-testids",
+          "PageHeader is not a Client Component (no 'use client' directive)",
+          "SettingsSubNav renders all SETTINGS_NAV_GROUPS items in order with aria-current on active item",
+          "(admin)/settings/layout.tsx is a Server Component grid 240px subnav + main using var(--shell-subnav-w)",
+          "No apps/web/app/[locale]/(app)/(settings)/* settings UI layout is created; final IA is (app)/(admin)/settings/*",
+          "/en/settings, /en/settings/users, /en/settings/roles all render settings-subnav and settings-main",
+          "/en/ (non-settings sibling) does NOT render settings-subnav",
+          "axe-core 0 violations across PageHeader and SettingsSubNav",
+          "Vitest specs pass for PageHeader and SettingsSubNav; Playwright e2e/settings-subnav.spec.ts passes",
+          "typecheck + lint pass in both @monopilot/ui and web",
+          "proxy.ts and (app)/layout.tsx are byte-identical before/after"
+        ],
+        "test_strategy": [
+          "Write PageHeader.test.tsx, settings-subnav.test.tsx, e2e/settings-subnav.spec.ts first (RED)",
+          "pnpm --filter @monopilot/ui test PageHeader -- --run",
+          "pnpm --filter web test settings-subnav -- --run",
+          "pnpm exec playwright test e2e/settings-subnav.spec.ts",
+          "pnpm --filter @monopilot/ui typecheck && pnpm --filter @monopilot/ui lint",
+          "pnpm --filter web typecheck && pnpm --filter web lint",
+          "git diff --name-only apps/web/proxy.ts apps/web/app/[locale]/(app)/layout.tsx -- expected empty"
+        ],
+        "risk_red_lines": [
+          "PageHeader must remain server-safe (no 'use client')",
+          "(settings)/layout.tsx must remain Server Component; only SettingsSubNav is client",
+          "Do not gate items by permissions — emit data-todo='rbac/02-settings/T-130'",
+          "Do not duplicate SETTINGS_NAV array — import from UI-128",
+          "Do not modify apps/web/app/[locale]/(app)/layout.tsx or apps/web/proxy.ts"
+        ],
+        "skills": [
+          "acp-frontend",
+          "acp-ui-parity",
+          "acp-verification",
+          "MON-t3-ui",
+          "MON-foundation-primitives"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "fail_closed_on_missing_ui_evidence": true,
+          "closeout_requires": [
+            "screenshots",
+            "screenshot_or_dom_diff_artifacts",
+            "visual_parity_evidence",
+            "prototype_reference",
+            "console_network_check",
+            "acceptance_criteria_status",
+            "test_commands_and_results",
+            "changed_files",
+            "git_status",
+            "deviations_from_prototype"
+          ],
+          "blocking_states": [
+            "ui_parity_evidence_missing"
+          ]
+        },
+        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "prototype_refs": [
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:35-59",
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:61-69",
+          "prototypes/design/Monopilot Design System/oee/shell.jsx"
+        ],
+        "target_route": "/{locale}/settings (post-T-133 + UI-131)",
+        "viewports": [
+          {
+            "name": "desktop-1440",
+            "width": 1440,
+            "height": 900
+          },
+          {
+            "name": "desktop-1280",
+            "width": 1280,
+            "height": 800
+          }
+        ],
+        "region_selectors": {
+          "page_header_root": "[data-testid='page-header']",
+          "page_header_title": "[data-testid='page-header-title']",
+          "page_header_actions": "[data-testid='page-header-actions']",
+          "settings_subnav_root": "[data-testid='settings-subnav']",
+          "settings_subnav_item": "[data-testid^='settings-subnav-item-']",
+          "settings_main": "[data-testid='settings-main']",
+          "active_item": "[data-testid='settings-subnav'] [aria-current='page']"
+        },
+        "parity_matrix": [
+          {
+            "region": "PageHeader layout",
+            "prototype": "PageHead title + actions right (settings/shell.jsx:61-69)",
+            "implementation": "h1 left + actions slot pinned right",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "Settings subnav width",
+            "prototype": "240px (SettingsNav root)",
+            "implementation": "var(--shell-subnav-w)",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "n/a"
+          },
+          {
+            "region": "Settings subnav items",
+            "prototype": "SETTINGS_NAV order (settings/shell.jsx:35-59)",
+            "implementation": "SETTINGS_NAV_GROUPS from UI-128, same order",
+            "structural": "pass",
+            "visual": "pass",
+            "interaction": "pass"
+          },
+          {
+            "region": "Active item",
+            "prototype": ".active class on current item",
+            "implementation": "aria-current=page + active token style",
+            "structural": "pass_with_allowed_deviation",
+            "visual": "pass",
+            "interaction": "pass"
+          }
+        ],
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_page_header_settings_nav",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "35-59",
+            "component": "SettingsNav",
+            "purpose": "settings subnav layout"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "61-69",
+            "component": "PageHead",
+            "purpose": "PageHeader primitive"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/oee/shell.jsx",
+            "lines": "1-80",
+            "component": "PageHead cross-reference",
+            "purpose": "cross-module page header consistency"
+          }
+        ],
+        "integration_branch": "main"
       }
     },
     {
@@ -1192,7 +1472,9 @@
         "foundation",
         "shell",
         "scanner",
-        "T3-ui"
+        "T3-ui",
+        "prototype-backed",
+        "ui-parity"
       ],
       "priority": 80,
       "max_attempts": 3,
@@ -1236,6 +1518,7 @@
           "Editing 00-foundation/manifest.json or T-001..T-126 task files"
         ],
         "dependencies": [
+          "T-137",
           "UI-127",
           "T-133"
         ],
@@ -1380,13 +1663,215 @@
             "interaction": "n/a"
           }
         ],
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-        "wave": "app-shell-foundation-20260520"
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_scanner_frame",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+            "lines": "1-66",
+            "component": "ScannerFrame/StatusBar/Content/BottomActions",
+            "purpose": "scanner isolated shell frame"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+            "lines": "9-66",
+            "component": "ScannerFrame",
+            "purpose": "device chrome implementation"
+          }
+        ],
+        "integration_branch": "main"
+      }
+    },
+    {
+      "title": "UI-138 — Foundation module nav route contracts + landing stubs",
+      "prompt": "# UI-138 — Foundation module nav route contracts + landing stubs\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nMake the full AppSidebar safe to use: every active desktop nav item from UI-128 must resolve to a non-404 localized route under `(app)`, while `scanner` remains excluded from desktop nav and isolated under `(scanner)`.\n\nThis task does not implement module business screens. It creates minimal shell-compatible module landing stubs only where a module root does not already exist, plus a route-contract Playwright spec that will fail if any sidebar link 404s.\n\n## Files (scope)\n- `apps/web/app/[locale]/(app)/(modules)/<module>/page.tsx` [create only for missing roots; use the existing project route convention if T-133 selected a different transparent group]\n- `apps/web/e2e/module-nav-route-contract.spec.ts` [create]\n- `apps/web/components/shell/__tests__/module-nav-route-contract.test.tsx` [create]\n- `apps/web/lib/navigation/app-nav.ts` and `module-registry.ts` [read/modify only if needed to export helpers; UI-128 owns the data]\n\nRequired active desktop routes from UI-128:\n`/`, `/settings`, `/npd`, `/technical`, `/planning`, `/scheduler`, `/warehouse`, `/production`, `/quality`, `/finance`, `/shipping`, `/reporting`, `/maintenance`, `/multi-site`, `/oee`.\n\n## Landing stub contract\nIf a route root is missing, create a Server Component page that:\n- renders inside `(app)` shell, not standalone;\n- uses `PageHeader` from UI-132 when available;\n- displays translated module name and a short \"Module shell ready; feature screens land in module wave\" message;\n- includes `data-testid=\"module-landing-<module_id>\"`;\n- has no fake business data, no fixture tables, no mocked KPIs.\n\nDo not create a landing stub for `foundation` or `scanner`. Scanner stays at `/en/dev/scanner` in T-134 as an e2e harness only.\n\n## Acceptance criteria\n1. Every sidebar-exposed UI-128 route returns 200 or intentional auth redirect, never 404, for locale `/en`; route matrix includes Scheduler, Reporting, and Multi-Site.\n2. Route stubs are created only for missing module roots; existing module pages are not overwritten.\n3. Stub pages render inside `data-testid=\"app-shell\"` and include exactly one `module-landing-<module_id>` marker; login/scanner routes do not render AppShell.\n4. Scanner is not present in `APP_NAV_GROUPS` and `/en/dev/scanner` renders ScannerFrame without AppSidebar/AppTopbar.\n5. Playwright `module-nav-route-contract.spec.ts` clicks every AppSidebar link and asserts URL + non-404 + active nav state.\n6. `pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts`, `pnpm --filter web test module-nav-route-contract -- --run`, typecheck, and lint pass.\n\n## Test strategy\n- RED: write module-nav-route-contract Playwright spec before adding missing stubs; it should fail on the first missing route.\n- Create only the minimum missing Server Component stubs.\n- Run the route contract spec, then the shell-smoke spec from T-136.\n- Run `pnpm --filter web typecheck && pnpm --filter web lint`.\n\n## Risk red lines\n- Do not implement module business UI or fake dashboards in landing stubs.\n- Do not overwrite existing route pages; compare first, then skip if present.\n- Do not add scanner to AppSidebar.\n- Do not place user-visible pages outside `apps/web/app/[locale]/...`.\n- Do not modify `proxy.ts`.\n\n## Closeout\nProvide route matrix evidence for every sidebar link, Playwright screenshots for at least Dashboard/Reporting/Multi-Site/Scheduler, console_network_check, changed_files, test commands/results, and a list of any existing pages that were left untouched.\n",
+      "labels": [
+        "wave-app-shell-foundation",
+        "ui",
+        "foundation",
+        "shell",
+        "navigation",
+        "route-contract",
+        "prototype-backed",
+        "ui-parity",
+        "T3-ui"
+      ],
+      "priority": 82,
+      "max_attempts": 3,
+      "pipeline_name": "kira_dev",
+      "pipeline_inputs": {
+        "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+        "prd_task_id": "UI-138",
+        "human_task_id": "UI-138-foundation-module-nav-route-contracts",
+        "display_task_id": "UI-138",
+        "source_prd": "_meta/atomic-tasks/00-foundation/waves/app-shell-foundation-20260520/README.md",
+        "prd_refs": [
+          "full 16-module shell coverage",
+          "brief §7 route/topology risk"
+        ],
+        "category": "ui",
+        "subcategory": "module-nav-route-contract",
+        "task_type": "T3-ui",
+        "parent_feature": "foundation-app-shell",
+        "context_budget": "45k",
+        "estimated_effort": "2-3h",
+        "description": "Create route contracts and minimal localized landing stubs so every active AppSidebar item resolves without 404; scanner remains isolated.",
+        "details": "Use UI-128 APP_MODULES/APP_NAV_GROUPS as the source of truth. For each sidebar-exposed route, verify whether a localized route root exists under apps/web/app/[locale]/... after T-133. Create a minimal Server Component landing stub only when missing. Add Playwright and RTL route-contract tests. Do not implement module business screens or fake dashboards.",
+        "scope_files": [
+          "apps/web/app/[locale]/(app)/(modules)/**/page.tsx [create missing only]",
+          "apps/web/e2e/module-nav-route-contract.spec.ts [create]",
+          "apps/web/components/shell/__tests__/module-nav-route-contract.test.tsx [create]",
+          "apps/web/lib/navigation/app-nav.ts [modify only if helper export needed]",
+          "apps/web/lib/navigation/module-registry.ts [read]"
+        ],
+        "scope_paths": [
+          "apps/web/app/[locale]/(app)/",
+          "apps/web/e2e/",
+          "apps/web/components/shell/__tests__/",
+          "apps/web/lib/navigation/"
+        ],
+        "out_of_scope": [
+          "Module business screens",
+          "Scanner production module routes",
+          "proxy.ts changes",
+          "RBAC gating",
+          "Fake module data/KPIs"
+        ],
+        "dependencies": [
+          "UI-128",
+          "UI-131",
+          "UI-132",
+          "T-133"
+        ],
+        "parallel_safe_with": [
+          "T-134"
+        ],
+        "acceptance_criteria": [
+          "All sidebar-exposed UI-128 routes resolve for /en with 200 or intentional auth redirect and never 404, including Scheduler, Reporting, and Multi-Site",
+          "Missing module roots get minimal translated Server Component landing stubs with data-testid=module-landing-<module_id>; existing pages are not overwritten",
+          "Landing stubs render inside AppShell; login and scanner routes remain outside AppShell",
+          "Scanner is absent from APP_NAV_GROUPS and /en/dev/scanner renders ScannerFrame without AppSidebar/AppTopbar",
+          "Playwright clicks every AppSidebar link and verifies URL, non-404 response, active nav state, and clean console/network",
+          "pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts and pnpm --filter web test module-nav-route-contract -- --run pass; typecheck and lint pass"
+        ],
+        "test_strategy": [
+          "Write module-nav-route-contract.spec.ts first (RED on missing routes)",
+          "Create only missing module landing stubs",
+          "Run pnpm exec playwright test apps/web/e2e/module-nav-route-contract.spec.ts",
+          "Run pnpm --filter web test module-nav-route-contract -- --run",
+          "Run pnpm --filter web typecheck && pnpm --filter web lint"
+        ],
+        "risk_red_lines": [
+          "Do not overwrite existing module pages",
+          "Do not add scanner to desktop sidebar",
+          "Do not implement fake business dashboards in stubs",
+          "Do not place localized user-visible routes outside apps/web/app/[locale]/",
+          "Do not modify apps/web/proxy.ts"
+        ],
+        "skills": [
+          "acp-frontend",
+          "acp-ui-parity",
+          "acp-verification",
+          "MON-t3-ui"
+        ],
+        "checkpoint_policy": {
+          "required_checkpoints": [
+            "RED",
+            "GREEN",
+            "REVIEW",
+            "CLOSEOUT"
+          ],
+          "force_deep_review": true,
+          "review_minimum": "opus",
+          "closeout_requires": [
+            "screenshots",
+            "screenshot_or_dom_diff_artifacts",
+            "visual_parity_evidence",
+            "prototype_reference",
+            "console_network_check",
+            "acceptance_criteria_status",
+            "test_commands_and_results",
+            "changed_files",
+            "git_status",
+            "deviations_from_prototype"
+          ],
+          "fail_closed_on_missing_ui_evidence": true,
+          "blocking_states": [
+            "ui_parity_evidence_missing"
+          ]
+        },
+        "prototype_match": true,
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_module_route_contract",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "3-21",
+            "component": "SSidebar",
+            "purpose": "base sidebar group/order seed"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+            "lines": "3-23",
+            "component": "PSidebar",
+            "purpose": "Reporting/Analytics sidebar coverage"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "77-124",
+            "component": "MsSidebar",
+            "purpose": "Multi-Site sidebar coverage and badges"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "35-59",
+            "component": "SettingsNav",
+            "purpose": "settings subnav manifest"
+          }
+        ],
+        "prototype_path": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "prototype_refs": [
+          "prototypes/design/Monopilot Design System/settings/shell.jsx:3-21",
+          "prototypes/design/Monopilot Design System/reporting/shell.jsx:3-23",
+          "prototypes/design/Monopilot Design System/multi-site/shell.jsx:77-124"
+        ],
+        "target_route": "/en/",
+        "viewports": [
+          "desktop-1440x900"
+        ],
+        "region_selectors": {
+          "app_sidebar": "[data-testid=\"app-sidebar\"]",
+          "module_landing": "[data-testid^=\"module-landing-\"]"
+        },
+        "parity_matrix": [
+          {
+            "prototype": "settings/reporting/multi-site shell sidebars",
+            "target": "all APP_NAV_GROUPS routes",
+            "checks": [
+              "every active sidebar item has route",
+              "no scanner in sidebar",
+              "active nav state",
+              "non-404 route"
+            ]
+          }
+        ],
+        "wave": "app-shell-foundation-20260520",
+        "integration_branch": "main"
       }
     },
     {
       "title": "T-135 — Foundation shell unit contracts (RTL) — sidebar/topbar/layout/subnav/PageHeader/scanner",
-      "prompt": "# T-135 — Foundation shell unit contracts (RTL)\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nConsolidate the per-component RTL specs created by UI-129/130/131/132 and T-134 into a single contract suite that asserts the cross-component invariants the brief defines as KRYTYCZNE. Each invariant is one focused spec; together they form the shell unit gate that runs before the Playwright gate (T-136). This task does NOT replace the per-component specs — it adds the cross-component contracts that no single UI task owns.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §7 risks (scanner inherits AppShell, login renders sidebar, SiteSwitcher too early, T-130 not done when UI-132 ready, language picker `'use client'`).\n\n## Files (scope)\n- `apps/web/components/shell/__tests__/shell-contract.test.tsx` [create — RTL suite covering the cross-component invariants below]\n- `apps/web/lib/navigation/__tests__/shell-nav-integrity.test.ts` [create — pure-data integrity assertions on UI-128 manifests as they appear at runtime]\n\nDo NOT create new product code in this task. Do NOT modify any UI-127..UI-132 / T-133 / T-134 source file. Do NOT modify proxy.ts or any T-XXX.json outside this wave.\n\n## Invariants to assert (the suite)\n1. AppShell composition — rendering `(app)/layout.tsx` (with a mocked authed Supabase client + mocked `next/headers`) yields exactly one `data-testid=\"app-shell\"`, exactly one `app-sidebar`, exactly one `app-topbar`, and children are rendered under `app-shell-main`.\n2. Login isolation — rendering the `(auth)/login/page.tsx` tree must NOT contain any of `app-shell`, `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame` test-ids.\n3. Settings composition — rendering `(app)/(admin)/settings/layout.tsx` with mocked authed session yields `app-shell` AND `settings-subnav` AND a `settings-main` region; the active settings item carries `aria-current=\"page\"`.\n4. Scanner isolation — rendering `(scanner)/layout.tsx` yields `scanner-frame` and contains NONE of `app-shell`/`app-sidebar`/`app-topbar`/`settings-subnav`.\n5. SiteCrumb static slot — `<SiteCrumb orgName=\"Acme\"/>` renders text `Acme`, carries `data-todo=\"multi-site-T-020\"`, and contains no `role=\"combobox\"` / `role=\"listbox\"` / `<select>` / Radix Select primitives.\n6. RBAC TODO — every `settings-subnav` item in the rendered tree carries `data-todo=\"rbac/02-settings/T-130\"`; no item is conditionally hidden by a permission check.\n7. Language picker mount boundary — rendering `<UserMenu>` mounts `UserMenuLanguagePicker` exactly once; `UserMenuLanguagePicker` source file has not been modified (assert via `fs.readFileSync` hash comparison stored as a frozen baseline in the test).\n8. Tokens consumed — for each of `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame`, the suite asserts the relevant `getComputedStyle` width/height resolves to the UI-127 CSS variable value (not a literal px elsewhere). The CSS-var values themselves come from `apps/web/app/globals.css` parsed at test time.\n9. Nav manifest integrity — `APP_NAV_GROUPS` has 4 groups and 12 items; all `route` values are locale-relative (start with `/`, do not start with `/en` or `/pl`); every `i18n_key` resolves in both `apps/web/i18n/en.json` and `pl.json`; `count_slot === null` and `permission_key === null` on every item; `rbac_todo` is a non-empty string on every item that the brief earmarks for RBAC gating.\n10. Settings nav manifest integrity — same shape as (9) for `SETTINGS_NAV_GROUPS`; route uniqueness; key uniqueness; i18n resolution in both locales.\n\n## Acceptance criteria\n1. All 10 invariants implemented as discrete `it(...)` cases under either `shell-contract.test.tsx` (rendering) or `shell-nav-integrity.test.ts` (pure data).\n2. Each invariant case has a comment naming the brief §7 risk or §3 luka it guards.\n3. The suite is RED before UI-129..UI-132 + T-134 land and GREEN after they all land. Pipeline must run T-135 after each of those is closed; this is enforced by the wave DAG (priority 85, depends on UI-129, UI-130, UI-131, UI-132, T-134).\n4. `pnpm --filter web test shell-contract shell-nav-integrity -- --run` passes.\n5. `pnpm --filter web typecheck` and `lint` pass.\n6. No file outside `apps/web/components/shell/__tests__/` and `apps/web/lib/navigation/__tests__/` is modified.\n\n## Out of scope\n- Browser-level (Playwright) assertions — T-136 owns them.\n- Visual regression / screenshot diffing.\n- Per-component specs that already exist in UI-129..UI-132/T-134 (do NOT duplicate them).\n- Mocking Supabase / next/headers beyond what the tests need to render.\n\n## RED test\nThe suite is itself the RED test for the wave; commit it before promoting UI-131..T-134, then re-run after.\n\n## Risk red lines\n- Do not import production code from `apps/web/app/[locale]/(app)/` directly into Vitest fixtures without mocking `next/headers`, `next/navigation`, `next-intl`, and `createServerSupabaseClient` — they require the App Router runtime otherwise.\n- Do not fork the navigation manifest in tests — import the real modules from UI-128.\n- Do not assert pixel-perfect visual diffs here (T-136).\n- Do not modify product source files; only test files.\n\n## Closeout\nProvide: test_commands_and_results, acceptance_criteria_status, changed_files (only the two test files), git_status, deviations_from_prototype (n/a — pure unit contracts).",
+      "prompt": "# T-135 — Foundation shell unit contracts (RTL)\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nConsolidate the per-component RTL specs created by UI-129/130/131/132 and T-134 into a single contract suite that asserts the cross-component invariants the brief defines as KRYTYCZNE. Each invariant is one focused spec; together they form the shell unit gate that runs before the Playwright gate (T-136). This task does NOT replace the per-component specs — it adds the cross-component contracts that no single UI task owns.\n\n## Source\nBrief `/tmp/monopilot-shell-gap-brief-combined.md` §7 risks (scanner inherits AppShell, login renders sidebar, SiteSwitcher too early, T-130 not done when UI-132 ready, language picker `'use client'`).\n\n## Files (scope)\n- `apps/web/components/shell/__tests__/shell-contract.test.tsx` [create — RTL suite covering the cross-component invariants below]\n- `apps/web/lib/navigation/__tests__/shell-nav-integrity.test.ts` [create — pure-data integrity assertions on UI-128 manifests as they appear at runtime]\n\nDo NOT create new product code in this task. Do NOT modify any UI-127..UI-132 / T-133 / T-134 source file. Do NOT modify proxy.ts or any T-XXX.json outside this wave.\n\n## Invariants to assert (the suite)\n1. AppShell composition — rendering `(app)/layout.tsx` (with a mocked authed Supabase client + mocked `next/headers`) yields exactly one `data-testid=\"app-shell\"`, exactly one `app-sidebar`, exactly one `app-topbar`, and children are rendered under `app-shell-main`.\n2. Login isolation — rendering the `(auth)/login/page.tsx` tree must NOT contain any of `app-shell`, `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame` test-ids.\n3. Settings composition — rendering `(app)/(admin)/settings/layout.tsx` with mocked authed session yields `app-shell` AND `settings-subnav` AND a `settings-main` region; the active settings item carries `aria-current=\"page\"`.\n4. Scanner isolation — rendering `(scanner)/layout.tsx` yields `scanner-frame` and contains NONE of `app-shell`/`app-sidebar`/`app-topbar`/`settings-subnav`.\n5. SiteCrumb static slot — `<SiteCrumb orgName=\"Acme\"/>` renders text `Acme`, carries `data-todo=\"multi-site-T-020\"`, and contains no `role=\"combobox\"` / `role=\"listbox\"` / `<select>` / Radix Select primitives.\n6. RBAC TODO — every `settings-subnav` item in the rendered tree carries `data-todo=\"rbac/02-settings/T-130\"`; no item is conditionally hidden by a permission check.\n7. Language picker mount boundary — rendering `<UserMenu>` mounts `UserMenuLanguagePicker` exactly once; `UserMenuLanguagePicker` source file has not been modified (assert via `fs.readFileSync` hash comparison stored as a frozen baseline in the test).\n8. Tokens consumed — for each of `app-sidebar`, `app-topbar`, `settings-subnav`, `scanner-frame`, the suite asserts the relevant `getComputedStyle` width/height resolves to the UI-127 CSS variable value (not a literal px elsewhere). The CSS-var values themselves come from `apps/web/app/globals.css` parsed at test time.\n9. Nav manifest integrity — `APP_MODULES` covers all 16 MON modules and `APP_NAV_GROUPS` has 5 groups and 15 sidebar items; all `route` values are locale-relative (start with `/`, do not start with a concrete locale prefix like `/en`, `/pl`, `/uk`, or `/ro`); every `i18n_key` resolves in all runtime locale files `apps/web/i18n/{en,pl,uk,ro}.json`; scanner is excluded from desktop sidebar by explicit registry decision; `count_slot === null` and `permission_key === null` on every item; `rbac_todo` is a non-empty string on every item that the brief earmarks for RBAC gating.\n10. Settings nav manifest integrity — same shape as (9) for `SETTINGS_NAV_GROUPS`; route uniqueness; key uniqueness; i18n resolution in all runtime locales (`en`, `pl`, `uk`, `ro`).\n\n## Acceptance criteria\n1. All 10 invariants implemented as discrete `it(...)` cases under either `shell-contract.test.tsx` (rendering) or `shell-nav-integrity.test.ts` (pure data).\n2. Each invariant case has a comment naming the brief §7 risk or §3 luka it guards.\n3. The suite is RED before UI-129..UI-132 + T-134 land and GREEN after they all land. Pipeline must run T-135 after each of those is closed; this is enforced by the wave DAG (priority 85, depends on UI-129, UI-130, UI-131, UI-132, T-134).\n4. `pnpm --filter web test shell-contract shell-nav-integrity -- --run` passes.\n5. `pnpm --filter web typecheck` and `lint` pass.\n6. No file outside `apps/web/components/shell/__tests__/` and `apps/web/lib/navigation/__tests__/` is modified.\n\n## Out of scope\n- Browser-level (Playwright) assertions — T-136 owns them.\n- Visual regression / screenshot diffing.\n- Per-component specs that already exist in UI-129..UI-132/T-134 (do NOT duplicate them).\n- Mocking Supabase / next/headers beyond what the tests need to render.\n\n## RED test\nThe suite is itself the RED test for the wave; commit it before promoting UI-131..T-134, then re-run after.\n\n## Risk red lines\n- Do not import production code from `apps/web/app/[locale]/(app)/` directly into Vitest fixtures without mocking `next/headers`, `next/navigation`, `next-intl`, and `createServerSupabaseClient` — they require the App Router runtime otherwise.\n- Do not fork the navigation manifest in tests — import the real modules from UI-128.\n- Do not assert pixel-perfect visual diffs here (T-136).\n- Do not modify product source files; only test files.\n\n## Closeout\nProvide: test_commands_and_results, acceptance_criteria_status, changed_files (only the two test files), git_status, deviations_from_prototype (n/a — pure unit contracts).",
       "labels": [
         "wave-app-shell-foundation",
         "test",
@@ -1436,13 +1921,14 @@
           "UI-130",
           "UI-131",
           "UI-132",
-          "T-134"
+          "T-134",
+          "UI-138"
         ],
         "parallel_safe_with": [],
         "acceptance_criteria": [
           "10 invariants implemented as discrete it() cases, each with a comment naming brief §7 risk or §3 luka",
           "shell-contract.test.tsx covers AppShell composition, login isolation, settings composition, scanner isolation, SiteCrumb static, RBAC TODO presence, language picker mount boundary, token consumption",
-          "shell-nav-integrity.test.ts covers manifest counts, route uniqueness, locale-relative routes, en/pl/uk/ro i18n resolution, count_slot/permission_key null, rbac_todo populated",
+          "shell-nav-integrity.test.ts covers APP_MODULES 16-module matrix, APP_NAV_GROUPS 15 sidebar items, route uniqueness, locale-relative routes, en/pl/uk/ro i18n resolution, scanner exclusion, count_slot/permission_key null, rbac_todo populated",
           "Suite is RED before UI-129..T-134 land and GREEN after",
           "pnpm --filter web test shell-contract shell-nav-integrity -- --run passes",
           "typecheck + lint pass",
@@ -1484,7 +1970,8 @@
             "deviations_from_prototype"
           ]
         },
-        "wave": "app-shell-foundation-20260520"
+        "wave": "app-shell-foundation-20260520",
+        "integration_branch": "main"
       }
     },
     {
@@ -1497,7 +1984,9 @@
         "shell",
         "playwright",
         "error-discovery",
-        "T4-wiring-test"
+        "T4-wiring-test",
+        "prototype-backed",
+        "ui-parity"
       ],
       "priority": 90,
       "max_attempts": 3,
@@ -1541,14 +2030,16 @@
           "Editing 00-foundation/manifest.json or T-001..T-126 task files"
         ],
         "dependencies": [
+          "T-137",
           "UI-131",
           "UI-132",
           "T-134",
-          "T-123"
+          "T-123",
+          "UI-138"
         ],
         "parallel_safe_with": [],
         "acceptance_criteria": [
-          "apps/web/e2e/shell-smoke.spec.ts visits all 7 listed routes, including /en/dev/scanner for scanner isolation",
+          "apps/web/e2e/shell-smoke.spec.ts visits every active sidebar route from APP_NAV_GROUPS (15 items) plus /en/dev/scanner and auth/login isolation routes",
           "Spec fails closed on pageerror, console.error, requestfailed, status>=400, hydration warning matches",
           "Spec fails closed on missing app-shell/app-sidebar/app-topbar on expects_shell=true routes",
           "Spec fails closed on present app-shell/app-sidebar/app-topbar on expects_shell=false routes",
@@ -1602,7 +2093,8 @@
           "acp-frontend",
           "acp-ui-parity",
           "acp-verification",
-          "MON-t4-test"
+          "MON-t4-test",
+          "MON-t3-ui"
         ],
         "checkpoint_policy": {
           "required_checkpoints": [
@@ -1657,8 +2149,41 @@
           "primary_nav": "nav[aria-label='Primary']",
           "active_nav_item": "[aria-current='page']"
         },
-        "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout; recommended_followups[] is operator-facing only",
-        "wave": "app-shell-foundation-20260520"
+        "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+        "wave": "app-shell-foundation-20260520",
+        "prototype_match": true,
+        "prototype_index_ref": [
+          "_meta/prototype-labels/master-index.json",
+          "_meta/prototype-labels/prototype-index-foundation-shell.json"
+        ],
+        "prototype_index_entry": "foundation_shell_browser_parity_gate",
+        "prototype_anchors": [
+          {
+            "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+            "lines": "1-105",
+            "component": "desktop shell",
+            "purpose": "browser parity gate for AppShell routes"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+            "lines": "1-66",
+            "component": "scanner shell",
+            "purpose": "browser parity gate for scanner isolation"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+            "lines": "3-23",
+            "component": "Reporting sidebar",
+            "purpose": "full navigation route coverage"
+          },
+          {
+            "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+            "lines": "77-149",
+            "component": "Multi-Site sidebar/topbar",
+            "purpose": "full navigation route coverage"
+          }
+        ],
+        "integration_branch": "main"
       }
     }
   ],

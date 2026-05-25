@@ -32,7 +32,7 @@ type CallerAccess = {
 };
 
 type ReferenceHistoryPageProps = {
-  params?: Promise<{ locale: string; table_code: string; row_key: string }>;
+  params?: Promise<{ locale: string; code: string; row_key: string }>;
   searchParams?: Promise<Record<string, string | undefined>>;
   entries?: ReferenceAuditEntry[];
   callerAccess?: CallerAccess;
@@ -136,7 +136,7 @@ async function loadReferenceHistoryPage(): Promise<ReferenceHistoryPage> {
 async function renderReferenceHistory(overrides: Partial<ReferenceHistoryPageProps> = {}) {
   const Page = await loadReferenceHistoryPage();
   const node = await Page({
-    params: Promise.resolve({ locale: 'en', table_code: 'allergens', row_key: 'gluten' }),
+    params: Promise.resolve({ locale: 'en', code: 'allergens', row_key: 'gluten' }),
     searchParams: Promise.resolve({}),
     entries: seededEntries,
     callerAccess: allowedCaller,

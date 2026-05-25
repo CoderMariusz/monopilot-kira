@@ -113,11 +113,48 @@ export const fallbackOrganization: CompanyProfile = {
   region: 'eu-central',
 };
 
-const industries = ['Meat processing', 'Dairy', 'Bakery', 'Beverage', 'Ready meals', 'Fish & seafood'];
-const countries = ['Poland', 'Germany', 'Czech Republic', 'Slovakia'];
-const currencies = ['EUR', 'PLN', 'USD', 'GBP'];
-const timezones = ['Europe/Warsaw', 'Europe/Berlin', 'Europe/London', 'UTC'];
+const defaultIndustries = [
+  'Meat processing',
+  'Dairy',
+  'Bakery',
+  'Beverage',
+  'Ready meals',
+  'Fish & seafood',
+  'Produce',
+  'Pharmaceuticals',
+  'Packaging',
+  'Discrete manufacturing',
+];
+const defaultCountries = [
+  'Poland',
+  'Germany',
+  'Czech Republic',
+  'Slovakia',
+  'United Kingdom',
+  'France',
+  'Spain',
+  'Italy',
+  'Netherlands',
+  'United States',
+];
+const defaultCurrencies = ['EUR', 'PLN', 'USD', 'GBP', 'CZK', 'RON', 'UAH'];
+const defaultTimezones = [
+  'Europe/Warsaw',
+  'Europe/Berlin',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Madrid',
+  'Europe/Prague',
+  'Europe/Bucharest',
+  'Europe/Kyiv',
+  'UTC',
+  'America/New_York',
+];
 const dateFormats = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'];
+
+function uniqueOptions(current: string, defaults: string[]) {
+  return Array.from(new Set([current, ...defaults].filter(Boolean)));
+}
 
 function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyProfileScreenLabels {
   return {
@@ -372,6 +409,10 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   const isDirty = !sameEditableFields(draft, saved);
   const controlsDisabled = !canEdit || isSaving;
+  const industryOptions = uniqueOptions(draft.industry, defaultIndustries);
+  const countryOptions = uniqueOptions(draft.country, defaultCountries);
+  const currencyOptions = uniqueOptions(draft.currency, defaultCurrencies);
+  const timezoneOptions = uniqueOptions(draft.timezone, defaultTimezones);
 
   function updateField<K extends keyof CompanyProfile>(key: K, value: CompanyProfile[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -480,7 +521,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-industry"
           label={labels.fields.industry}
-          options={industries}
+          options={industryOptions}
           value={draft.industry}
           disabled={controlsDisabled}
           onChange={(value) => updateField('industry', value)}
@@ -506,7 +547,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-country"
           label={labels.fields.country}
-          options={countries}
+          options={countryOptions}
           value={draft.country}
           disabled={controlsDisabled}
           onChange={(value) => updateField('country', value)}
@@ -542,7 +583,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-currency"
           label={labels.fields.defaultCurrency}
-          options={currencies}
+          options={currencyOptions}
           value={draft.currency}
           disabled={controlsDisabled}
           onChange={(value) => updateField('currency', value)}
@@ -550,7 +591,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-timezone"
           label={labels.fields.timezone}
-          options={timezones}
+          options={timezoneOptions}
           value={draft.timezone}
           disabled={controlsDisabled}
           onChange={(value) => updateField('timezone', value)}

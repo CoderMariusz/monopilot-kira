@@ -181,7 +181,7 @@ describe('SET-012 warehouse AppShell route contract', () => {
     expect(existsSync(join(process.cwd(), 'lib/auth/with-org-context.ts'))).toBe(true);
     expect(actionModule.deactivateWarehouse).toEqual(expect.any(Function));
     expect(orgContextModule.withOrgContext).toEqual(expect.any(Function));
-    expect(pageSource).not.toMatch(/w\.deactivated_at/);
+    expect(pageSource).not.toMatch(/\bw\.deactivated_at\b/);
     expect(pageSource).toContain("w.address->>'deactivated_at'");
     expect(pageSource).toContain("to_regclass('public.work_orders')");
   });

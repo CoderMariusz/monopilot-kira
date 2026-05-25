@@ -1,13 +1,15 @@
 {
   "title": "UI-127 — Foundation shell design tokens (sidebar/topbar/subnav widths, colors, density)",
-  "prompt": "# UI-127 — Foundation shell design tokens\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nExtract the desktop-shell layout/colour tokens that every module shell uses in the prototype into a single Tailwind v4 globals.css/CSS-variable source of truth, so UI-129/130/131/132/T-134 cannot drift from each other.\n\n## Source of truth (prototype anchors)\nLook at how these prototype `shell.jsx` files style sidebar (~280px), topbar (~56px), settings subnav (~240px), scanner frame (390×844). Reconcile any inter-module differences; if a width or colour conflicts, use `settings/shell.jsx` values and document the deviation:\n\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:1-105`\n- `prototypes/design/Monopilot Design System/technical/shell.jsx:1-74`\n- `prototypes/design/Monopilot Design System/production/shell.jsx` (sidebar/topbar)\n- `prototypes/design/Monopilot Design System/warehouse/shell.jsx` (PSidebar)\n- `prototypes/design/Monopilot Design System/multi-site/shell.jsx` (MsTopbar with site-switch slot)\n- `prototypes/design/Monopilot Design System/oee/shell.jsx` (PageHead)\n- `prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66` (ScannerFrame)\n\nThe brief is `/tmp/monopilot-shell-gap-brief-combined.md` §2.\n\n## Files (scope)\n- `apps/web/app/globals.css` [modify — Tailwind v4 source of truth: append shell CSS variables and expose theme tokens via `@theme { ... }` and/or CSS-variable-backed utilities; do NOT add or require a Tailwind config file]\n- `apps/web/app/_components/__tests__/shell-tokens.test.tsx` [create — RTL contract test that renders a fixture using each utility class and asserts `getComputedStyle().<property>` matches the declared px/colour]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/login/layout.tsx`, or any task-T-XXX.json file outside this wave.\n\n## Token contract\nTokens (CSS variables on `:root`) — exact values come from the prototype, transcribed:\n\n- `--shell-sidebar-w: 280px`\n- `--shell-subnav-w: 240px`\n- `--shell-topbar-h: 56px`\n- `--shell-scanner-w: 390px`\n- `--shell-scanner-h: 844px`\n- `--shell-bg`, `--shell-fg`, `--shell-border`, `--shell-muted`, `--shell-active`, `--shell-active-fg`, `--shell-badge-blue` (HSL values from the prototype palette; cite the rgb/hex lines from `prototypes/design/Monopilot Design System/_tokens/*.css` if present, else use the `style=\"…\"` literals from `settings/shell.jsx`).\n\nEach token must be exposed both as CSS var and as a Tailwind utility (e.g. `w-sidebar`, `h-topbar`, `text-shell-muted`, `bg-shell-active`).\n\n## Acceptance criteria\n1. `apps/web/app/globals.css` defines all `--shell-*` tokens in `@layer base`.\n2. `apps/web/app/globals.css` exposes corresponding utilities; `pnpm --filter web lint` and `typecheck` pass.\n3. `apps/web/app/_components/__tests__/shell-tokens.test.tsx` asserts each utility produces the expected computed style, and the test passes (`pnpm --filter web test shell-tokens`).\n4. No existing screen visual changes — `app/[locale]/login/layout.tsx`, `app/[locale]/page.tsx`, and `(admin)/settings/*` rendered output is byte-identical (no token used yet by them) — verified by running the existing `pnpm --filter web test` suite before/after.\n5. Deviations from any inter-module prototype mismatch documented in PR/closeout.\n\n## Out of scope\n- Building sidebar/topbar components (UI-129/130).\n- Touching `packages/ui/` primitives (PageHeader lands in UI-132).\n- Mobile/responsive breakpoints (deferred wave).\n\n## RED test\nCreate `apps/web/app/_components/__tests__/shell-tokens.test.tsx` before implementation — it must fail because the utilities/vars are absent, then pass after the implementation.\n\n## Risk red lines\n- DO NOT inline px values inside shell components — every UI task in this wave must consume these tokens.\n- DO NOT introduce a new colour family. Stay on the prototype palette.\n- DO NOT modify `apps/web/proxy.ts`.\n\n## Closeout\nProvide: screenshots of the token fixture rendered in dev (`/_dev/shell-tokens` ad-hoc page or Vitest DOM snapshot), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype line ranges), prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype.\n\nIf parity evidence cannot be captured, the task is BLOCKED / needs_human — not completed.",
+  "prompt": "# UI-127 — Foundation shell design tokens\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nExtract the desktop-shell layout/colour tokens that every module shell uses in the prototype into a single Tailwind v4 globals.css/CSS-variable source of truth, so UI-129/130/131/132/T-134 cannot drift from each other.\n\n## Source of truth (prototype anchors)\nLook at how these prototype `shell.jsx` files style sidebar (~280px), topbar (~56px), settings subnav (~240px), scanner frame (390×844). Reconcile any inter-module differences; if a width or colour conflicts, use `settings/shell.jsx` values and document the deviation:\n\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:1-105`\n- `prototypes/design/Monopilot Design System/technical/shell.jsx:1-74`\n- `prototypes/design/Monopilot Design System/production/shell.jsx` (sidebar/topbar)\n- `prototypes/design/Monopilot Design System/warehouse/shell.jsx` (PSidebar)\n- `prototypes/design/Monopilot Design System/multi-site/shell.jsx` (MsTopbar with site-switch slot)\n- `prototypes/design/Monopilot Design System/oee/shell.jsx` (PageHead)\n- `prototypes/design/Monopilot Design System/scanner/shell.jsx:1-66` (ScannerFrame)\n\nThe brief is `/tmp/monopilot-shell-gap-brief-combined.md` §2.\n\n## Files (scope)\n- `apps/web/app/globals.css` [modify — Tailwind v4 source of truth: append shell CSS variables and expose theme tokens via `@theme { ... }` and/or CSS-variable-backed utilities; do NOT add or require a Tailwind config file]\n- `apps/web/app/_components/__tests__/shell-tokens.test.tsx` [create — RTL contract test that renders a fixture using each utility class and asserts `getComputedStyle().<property>` matches the declared px/colour]\n\nDo NOT modify `proxy.ts`, `[locale]/layout.tsx`, `[locale]/login/layout.tsx`, or any task-T-XXX.json file outside this wave.\n\n## Token contract\nTokens (CSS variables on `:root`) — exact values come from the prototype, transcribed:\n\n- `--shell-sidebar-w: 280px`\n- `--shell-subnav-w: 240px`\n- `--shell-topbar-h: 56px`\n- `--shell-scanner-w: 390px`\n- `--shell-scanner-h: 844px`\n- `--shell-bg`, `--shell-fg`, `--shell-border`, `--shell-muted`, `--shell-active`, `--shell-active-fg`, `--shell-badge-blue` (HSL values from the prototype palette; cite the rgb/hex lines from `prototypes/design/Monopilot Design System/_tokens/*.css` if present, else use the `style=\"…\"` literals from `settings/shell.jsx`).\n\nEach token must be exposed both as CSS var and as a Tailwind utility (e.g. `w-sidebar`, `h-topbar`, `text-shell-muted`, `bg-shell-active`).\n\n## Acceptance criteria\n1. `apps/web/app/globals.css` defines all `--shell-*` tokens in `@layer base`.\n2. `apps/web/app/globals.css` exposes corresponding utilities; `pnpm --filter web lint` and `typecheck` pass.\n3. `apps/web/app/_components/__tests__/shell-tokens.test.tsx` asserts each utility produces the expected computed style, and the test passes (`pnpm --filter web test shell-tokens`).\n4. No existing screen visual changes — `app/[locale]/login/layout.tsx`, `app/[locale]/page.tsx`, and `(admin)/settings/*` rendered output is byte-identical (no token used yet by them) — verified by running the existing `pnpm --filter web test` suite before/after.\n5. Deviations from any inter-module prototype mismatch documented in PR/closeout.\n\n## Out of scope\n- Building sidebar/topbar components (UI-129/130).\n- Touching `packages/ui/` primitives (PageHeader lands in UI-132).\n- Mobile/responsive breakpoints (deferred wave).\n\n## RED test\nCreate `apps/web/app/_components/__tests__/shell-tokens.test.tsx` before implementation — it must fail because the utilities/vars are absent, then pass after the implementation.\n\n## Risk red lines\n- DO NOT inline px values inside shell components — every UI task in this wave must consume these tokens.\n- DO NOT introduce a new colour family. Stay on the prototype palette.\n- DO NOT modify `apps/web/proxy.ts`.\n\n## Closeout\nProvide: screenshots of the token fixture rendered in dev (`/dev/shell-tokens` ad-hoc page or Vitest DOM snapshot), screenshot_or_dom_diff_artifacts, visual_parity_evidence (cite prototype line ranges), prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype.\n\nIf parity evidence cannot be captured, the task is BLOCKED / needs_human — not completed.",
   "labels": [
     "wave-app-shell-foundation",
     "ui",
     "foundation",
     "shell",
     "tokens",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -45,7 +47,9 @@
       "Mobile responsive tokens",
       "Editing 00-foundation/manifest.json or T-001..T-126 task files"
     ],
-    "dependencies": [],
+    "dependencies": [
+      "T-137"
+    ],
     "parallel_safe_with": [
       "UI-128"
     ],
@@ -164,8 +168,35 @@
         "interaction": "n/a"
       }
     ],
-    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "wave": "app-shell-foundation-20260520",
-    "implementation_contract": {}
+    "implementation_contract": {},
+    "prototype_match": true,
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_shell_tokens",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "1-105",
+        "component": "SSidebar/STopbar/SettingsNav/PageHead",
+        "purpose": "canonical desktop shell token extraction"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/technical/shell.jsx",
+        "lines": "1-74",
+        "component": "TSidebar/topbar pattern",
+        "purpose": "cross-module sidebar/topbar token validation"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+        "lines": "1-66",
+        "component": "ScannerFrame",
+        "purpose": "scanner device frame token sizing"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

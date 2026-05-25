@@ -6,7 +6,7 @@ import { withOrgContext } from '../../../../../../../../lib/auth/with-org-contex
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
-  params?: Promise<{ locale: string; rule_code: string }>;
+  params?: Promise<{ locale: string; code: string }>;
   searchParams?: Promise<{ from?: string; to?: string }>;
 };
 
@@ -286,7 +286,7 @@ function DiffRow({ entry, labels }: { entry: DiffEntry; labels: Labels }) {
 
 export default async function RuleVersionDiffPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as PageProps;
-  const { locale, rule_code: ruleCode } = props.params ? await props.params : { locale: 'en', rule_code: '' };
+  const { locale, code: ruleCode } = props.params ? await props.params : { locale: 'en', code: '' };
   const query = props.searchParams ? await props.searchParams : {};
   const fromVersion = asVersion(query.from, 1);
   const toVersion = asVersion(query.to, Math.max(fromVersion + 1, 2));

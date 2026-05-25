@@ -126,6 +126,50 @@ UI_CLOSEOUT_REQUIRED = {
 
 UI_BLOCKING_STATES = {"ui_parity_evidence_missing"}
 
+CANONICAL_UI_EVIDENCE_POLICY = "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+MASTER_INDEX = "_meta/prototype-labels/master-index.json"
+FOUNDATION_INDEX = "_meta/prototype-labels/prototype-index-foundation-shell.json"
+
+DENYLIST_PATTERNS = {
+    "wrong workspace package filter": re.compile(r"@monopilot/web"),
+    "legacy messages i18n path": re.compile(r"apps/web/messages"),
+    "Tailwind v3 config path": re.compile(r"tailwind\.config\.ts"),
+    "private _dev route segment": re.compile(r"/_dev"),
+    "stale technical shell line range": re.compile(r"shell\.jsx:1-75"),
+    "ambiguous Settings T-129 task dependency": re.compile(r"\bT-129\b"),
+    "stale 12-item nav contract": re.compile(r"12\s+(?:declared\s+)?items?", re.IGNORECASE),
+    "stale 4-group nav contract": re.compile(r"(?:4|four)\s+group\s+headers|exactly\s+4\s+groups", re.IGNORECASE),
+}
+
+REQUIRED_MODULE_IDS = {
+    "foundation",
+    "settings",
+    "npd",
+    "technical",
+    "planning-basic",
+    "warehouse",
+    "scanner",
+    "planning-ext",
+    "production",
+    "quality",
+    "finance",
+    "shipping",
+    "reporting",
+    "maintenance",
+    "multi-site",
+    "oee",
+}
+
+FULL_NAV_REQUIRED_TOKENS = {
+    "Scheduler",
+    "Reporting",
+    "Multi-Site",
+    "Analytics & Network",
+    "/scheduler",
+    "/reporting",
+    "/multi-site",
+}
+
 # T-136 browser error-discovery specific failure-condition keywords that MUST
 # appear (case-insensitive) somewhere in the prompt or pipeline_inputs JSON.
 T136_REQUIRED_KEYWORDS = [
@@ -217,6 +261,10 @@ def validate_task_file(path: Path) -> list[str]:
         errors.append("labels must be list[str]")
     elif "wave-app-shell-foundation" not in labels:
         errors.append("labels must include 'wave-app-shell-foundation'")
+    elif is_ui_task(payload):
+        for required_label in ("prototype-backed", "ui-parity"):
+            if required_label not in labels:
+                errors.append(f"UI task labels must include {required_label!r}")
 
     priority = payload.get("priority")
     if not isinstance(priority, int) or not (0 <= priority <= 100):
@@ -280,7 +328,42 @@ def validate_task_file(path: Path) -> list[str]:
             if not (UI_BLOCKING_STATES <= blocking):
                 errors.append(f"UI task blocking_states must include {sorted(UI_BLOCKING_STATES)}")
 
+    if is_ui_task(payload):
+        if pi.get("prototype_match") is not True:
+            errors.append("UI task must set pipeline_inputs.prototype_match=true")
+        if pi.get("ui_evidence_policy") != CANONICAL_UI_EVIDENCE_POLICY:
+            errors.append(f"UI task ui_evidence_policy must be {CANONICAL_UI_EVIDENCE_POLICY!r}")
+        if not pi.get("prototype_index_entry"):
+            errors.append("UI task must set pipeline_inputs.prototype_index_entry")
+        refs = pi.get("prototype_index_ref")
+        if not isinstance(refs, list) or FOUNDATION_INDEX not in refs or MASTER_INDEX not in refs:
+            errors.append("UI task prototype_index_ref must include master-index and prototype-index-foundation-shell.json")
+        anchors = pi.get("prototype_anchors")
+        if not isinstance(anchors, list) or not anchors:
+            errors.append("UI task must define non-empty pipeline_inputs.prototype_anchors")
+        else:
+            for idx, anchor in enumerate(anchors):
+                if not isinstance(anchor, dict):
+                    errors.append(f"prototype_anchors[{idx}] must be object")
+                    continue
+                for key in ("file", "lines", "component", "purpose"):
+                    if not anchor.get(key):
+                        errors.append(f"prototype_anchors[{idx}] missing {key!r}")
+
     haystack = json.dumps(payload, ensure_ascii=False)
+    for reason, pat in DENYLIST_PATTERNS.items():
+        if pat.search(haystack):
+            errors.append(f"denylist violation ({reason}): {pat.pattern}")
+
+    if display_id := pi.get("display_task_id"):
+        if display_id == "UI-128":
+            missing_modules = sorted(mid for mid in REQUIRED_MODULE_IDS if mid not in haystack)
+            if missing_modules:
+                errors.append(f"UI-128 missing full 16-module decisions for: {missing_modules}")
+            missing_nav_tokens = sorted(tok for tok in FULL_NAV_REQUIRED_TOKENS if tok not in haystack)
+            if missing_nav_tokens:
+                errors.append(f"UI-128 missing full navigation tokens: {missing_nav_tokens}")
+
     hits = collect_placeholder_hits(haystack)
     if hits:
         errors.append(f"placeholder strings present: {sorted(set(hits))[:10]}")

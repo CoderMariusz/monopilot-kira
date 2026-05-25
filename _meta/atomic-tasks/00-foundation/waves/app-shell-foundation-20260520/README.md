@@ -30,35 +30,59 @@ Scanner (`prototypes/.../scanner/shell.jsx`) is a deliberate exception — `Scan
 This draft wave covers exactly those gaps and the route topology / parity gate
 needed before any module-T3-ui task can verify itself.
 
-## Tasks (10)
+## Tasks (12)
 
 | ID | Title | Type | Priority | Deps |
 |---|---|---|---|---|
-| UI-127 | Foundation shell design tokens | T3-ui | 50 | — |
-| UI-128 | Foundation navigation manifest (frontend contract) | T3-ui | 50 | — |
+| T-137 | Foundation shell prototype label index entries | T4-wiring-test | 45 | — |
+| UI-127 | Foundation shell design tokens | T3-ui | 50 | T-137 |
+| UI-128 | Foundation navigation manifest + 16-module registry | T3-ui | 50 | T-137 |
 | T-133  | Foundation route topology refactor + contract | T4-wiring-test | 60 | T-022, T-126 |
-| UI-129 | Foundation AppSidebar component | T3-ui | 70 | UI-127, UI-128 |
-| UI-130 | Foundation AppTopbar + UserMenu host | T3-ui | 70 | UI-127 |
-| UI-131 | Foundation (app) route-group layout + auth guard | T3-ui | 75 | UI-129, UI-130, T-133 |
-| UI-132 | Foundation PageHeader primitive + Settings subnav | T3-ui | 80 | UI-127, UI-128, UI-131 |
-| T-134  | Foundation scanner route-group isolation + ScannerFrame | T3-ui | 80 | UI-127, T-133 |
-| T-135  | Foundation shell unit contracts (RTL) | T4-wiring-test | 85 | UI-129, UI-130, UI-131, UI-132, T-134 |
-| T-136  | Foundation AppShell browser error-discovery spec | T4-wiring-test | 90 | UI-131, UI-132, T-134, T-123 |
+| UI-129 | Foundation AppSidebar component | T3-ui | 70 | T-137, UI-127, UI-128 |
+| UI-130 | Foundation AppTopbar + UserMenu host | T3-ui | 70 | T-137, UI-127 |
+| UI-131 | Foundation (app) route-group layout + auth guard | T3-ui | 75 | T-137, UI-129, UI-130, T-133 |
+| UI-132 | Foundation PageHeader primitive + Settings subnav | T3-ui | 80 | T-137, UI-127, UI-128, UI-131 |
+| T-134  | Foundation scanner route-group isolation + ScannerFrame | T3-ui | 80 | T-137, UI-127, T-133 |
+| UI-138 | Foundation module nav route contracts + landing stubs | T3-ui | 82 | UI-128, UI-131, UI-132, T-133 |
+| T-135  | Foundation shell unit contracts (RTL) | T4-wiring-test | 85 | UI-129, UI-130, UI-131, UI-132, T-134, UI-138 |
+| T-136  | Foundation AppShell browser error-discovery spec | T4-wiring-test | 90 | T-137, UI-131, UI-132, T-134, UI-138, T-123 |
 
 DAG:
 
 ```
-UI-127 ─┐
-UI-128 ─┤
-T-022 ──┤
-T-126 ──┴─► T-133 ─► UI-131 ─► UI-132 ─┐
-                              T-134 ───┤
-UI-127 ─► UI-129 ─► UI-131            │
-existing language picker file ─► UI-130 ─► UI-131            ▼
-                              T-135 ─► T-136
-                                       ▲
-                              T-123 ───┘
+T-137 ─► UI-127 ─┐
+T-137 ─► UI-128 ─┤
+T-022 ──┐         │
+T-126 ──┴─► T-133 ├─► UI-131 ─► UI-132 ─┐
+UI-127 ─► UI-129 ─┘                      │
+existing language picker file ─► UI-130 ─┘
+T-133 + UI-127 + T-137 ─► T-134 ─────────┤
+UI-128 + UI-131 + UI-132 + T-133 ─► UI-138┤
+UI-129 + UI-130 + UI-131 + UI-132 + T-134 + UI-138 ─► T-135 ─► T-136
+T-123 ───────────────────────────────────────────────────────────────┘
 ```
+
+
+## Full module navigation contract
+
+The shell registry is now explicit for all 16 MonoPilot modules:
+
+- `foundation`: platform/non-user-facing, excluded from desktop nav.
+- `scanner`: scanner shell, excluded from desktop nav; T-134 owns `/en/dev/scanner` harness.
+- `planning-basic`: sidebar item `Planning` → `/planning`.
+- `planning-ext`: sidebar item `Scheduler` → `/scheduler`.
+- Desktop sidebar modules: Settings, NPD, Technical, Planning, Scheduler, Warehouse, Production, Quality, Finance, Shipping, Reporting, Maintenance, Multi-Site, OEE.
+- Dashboard is a shell-level item and remains in Core.
+
+`APP_NAV_GROUPS` target: 5 groups / 15 sidebar items:
+Core, Operations, QA & Shipping, Premium, Analytics & Network.
+
+UI-138 is the anti-404 contract: every active sidebar link must resolve under the localized `(app)` shell or the task fails.
+
+## Prototype labeling contract
+
+T-137 creates stable foundation shell entries in `_meta/prototype-labels/prototype-index-foundation-shell.json` and `master-index.json`.
+Every T3 shell task carries `prototype-backed`, `ui-parity`, `prototype_match: true`, `prototype_index_entry`, `prototype_index_ref`, and `prototype_anchors` metadata. Missing UI evidence remains fail-closed.
 
 ## Route IA notes (review fixes)
 
@@ -110,6 +134,7 @@ coverage.md
 import-request.draft.json
 validate_wave.py
 tasks/
+  T-137-foundation-shell-prototype-label-index.json
   UI-127-foundation-shell-tokens.json
   UI-128-foundation-navigation-manifest.json
   UI-129-foundation-app-sidebar.json
@@ -118,6 +143,7 @@ tasks/
   UI-132-foundation-page-header-settings-nav.json
   T-133-foundation-route-topology.json
   T-134-foundation-scanner-shell-isolation.json
+  UI-138-foundation-module-navigation-routes.json
   T-135-foundation-shell-unit-contracts.json
   T-136-foundation-shell-browser-error-discovery.json
 ```

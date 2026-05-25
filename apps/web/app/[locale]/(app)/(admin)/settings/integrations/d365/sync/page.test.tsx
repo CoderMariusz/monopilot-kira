@@ -194,7 +194,7 @@ describe('T-111 D365 sync localized AppShell route contract', () => {
   it('keeps page.tsx as the async Server Component wrapper with no hooks, browser handlers, or children:any', () => {
     const pageSource = readFileSync(existingRoutePath('page.tsx'), 'utf8');
 
-    expect(pageSource).not.toMatch(/^['\"]use client['\"]/m);
+    expect(pageSource).not.toMatch(/^['"]use client['"]/m);
     expect(pageSource).toContain("import { getTranslations } from 'next-intl/server'");
     expect(pageSource).toMatch(/export\s+default\s+async\s+function\s+D365SyncPage/);
     expect(pageSource).toContain("from './d365-sync-config-form.client'");
@@ -207,7 +207,7 @@ describe('T-111 D365 sync localized AppShell route contract', () => {
     const clientPath = existingRoutePath('d365-sync-config-form.client.tsx');
     const clientSource = readFileSync(clientPath, 'utf8').trimStart();
 
-    expect(clientSource).toMatch(/^['\"]use client['\"]/);
+    expect(clientSource).toMatch(/^['"]use client['"]/);
     expect(clientSource).toContain('D365SyncConfigForm');
     expect(clientSource).toMatch(/React\.useState|\buseState\s*\(/);
 

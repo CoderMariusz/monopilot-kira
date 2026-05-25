@@ -8,7 +8,9 @@
     "shell",
     "layout",
     "auth",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 75,
   "max_attempts": 3,
@@ -50,6 +52,7 @@
       "Modifying T-001..T-126.json or 00-foundation/manifest.json"
     ],
     "dependencies": [
+      "T-137",
       "UI-127",
       "UI-128",
       "UI-129",
@@ -158,7 +161,22 @@
         "interaction": "pass"
       }
     ],
-    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-    "wave": "app-shell-foundation-20260520"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "wave": "app-shell-foundation-20260520",
+    "prototype_match": true,
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_app_shell_layout",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "1-105",
+        "component": "desktop shell composition",
+        "purpose": "sidebar/topbar/subnav/page content composition"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

@@ -86,7 +86,7 @@ async function verifyAndExtractIat(token: string): Promise<number | null> {
   // operators see the breakage immediately rather than a quiet downgrade.
   if (!supabaseUrl || !supabaseAnonKey) {
     if (process.env.NODE_ENV === 'production') {
-      // eslint-disable-next-line no-console
+
       console.error(
         '[session-check] NEXT_PUBLIC_SUPABASE_URL/ANON_KEY missing in production — failing closed (idle=expired)',
       );

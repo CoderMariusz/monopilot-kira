@@ -8,7 +8,9 @@
     "shell",
     "playwright",
     "error-discovery",
-    "T4-wiring-test"
+    "T4-wiring-test",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 90,
   "max_attempts": 3,
@@ -52,14 +54,16 @@
       "Editing 00-foundation/manifest.json or T-001..T-126 task files"
     ],
     "dependencies": [
+      "T-137",
       "UI-131",
       "UI-132",
       "T-134",
-      "T-123"
+      "T-123",
+      "UI-138"
     ],
     "parallel_safe_with": [],
     "acceptance_criteria": [
-      "apps/web/e2e/shell-smoke.spec.ts visits all 7 listed routes, including /en/dev/scanner for scanner isolation",
+      "apps/web/e2e/shell-smoke.spec.ts visits every active sidebar route from APP_NAV_GROUPS (15 items) plus /en/dev/scanner and auth/login isolation routes",
       "Spec fails closed on pageerror, console.error, requestfailed, status>=400, hydration warning matches",
       "Spec fails closed on missing app-shell/app-sidebar/app-topbar on expects_shell=true routes",
       "Spec fails closed on present app-shell/app-sidebar/app-topbar on expects_shell=false routes",
@@ -113,7 +117,8 @@
       "acp-frontend",
       "acp-ui-parity",
       "acp-verification",
-      "MON-t4-test"
+      "MON-t4-test",
+      "MON-t3-ui"
     ],
     "checkpoint_policy": {
       "required_checkpoints": [
@@ -168,7 +173,40 @@
       "primary_nav": "nav[aria-label='Primary']",
       "active_nav_item": "[aria-current='page']"
     },
-    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout; recommended_followups[] is operator-facing only",
-    "wave": "app-shell-foundation-20260520"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "wave": "app-shell-foundation-20260520",
+    "prototype_match": true,
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_shell_browser_parity_gate",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "1-105",
+        "component": "desktop shell",
+        "purpose": "browser parity gate for AppShell routes"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/scanner/shell.jsx",
+        "lines": "1-66",
+        "component": "scanner shell",
+        "purpose": "browser parity gate for scanner isolation"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+        "lines": "3-23",
+        "component": "Reporting sidebar",
+        "purpose": "full navigation route coverage"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+        "lines": "77-149",
+        "component": "Multi-Site sidebar/topbar",
+        "purpose": "full navigation route coverage"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

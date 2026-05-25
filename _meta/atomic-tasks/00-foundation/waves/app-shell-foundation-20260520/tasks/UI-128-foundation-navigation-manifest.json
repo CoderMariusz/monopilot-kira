@@ -1,13 +1,15 @@
 {
   "title": "UI-128 — Foundation navigation manifest (core module nav data + types)",
-  "prompt": "# UI-128 — Foundation navigation manifest\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide a single typed source of truth for the desktop AppSidebar groups/items and for the Settings sub-nav, so UI-129 and UI-132 do not duplicate copy or hard-code routes. This is a data/contract task — no JSX, no styling.\n\n## Source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`): groups Core / Operations / QA & Shipping / Premium.\n- Cross-ref the active-item placement in every `<module>/shell.jsx` to confirm the same item list across modules (settings, technical, production, warehouse, planning, quality, shipping, finance, oee, maintenance).\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` + the `window.SETTINGS_NAV` array referenced there (search prototypes/data*.jsx if needed).\n- Brief: `/tmp/monopilot-shell-gap-brief-combined.md` §1 (snapshot), §3 Luka B/E.\n\n## Files (scope)\n- `apps/web/lib/navigation/app-nav.ts` [create — exports `APP_NAV_GROUPS: AppNavGroup[]`]\n- `apps/web/lib/navigation/settings-nav.ts` [create — exports `SETTINGS_NAV_GROUPS: SettingsNavGroup[]`]\n- `apps/web/lib/navigation/types.ts` [create — `AppNavGroup`, `AppNavItem`, `SettingsNavGroup`, `SettingsNavItem` with `i18n_key`, `route`, `icon_token`, `count_slot` (always `null` here), `permission_key` (always `null` here), `rbac_todo` flag, `highlight` flag]\n- `apps/web/lib/navigation/__tests__/app-nav.test.ts` [create]\n- `apps/web/lib/navigation/__tests__/settings-nav.test.ts` [create]\n- `apps/web/i18n/en.json` [modify — add `Navigation.app.*` and `Navigation.settings.*` keys; values from prototype labels]\n- `apps/web/i18n/pl.json` [modify — same keys translated]\n\nDo NOT modify proxy.ts, [locale]/layout.tsx, or any T-XXX.json outside this wave.\n\n## Contract\nGroups must include exactly: `Core` (Dashboard, Settings), `Operations` (Planning, Production, Warehouse), `QA & Shipping` (Quality, Shipping), `Premium` (Technical, NPD, Finance, OEE, Maintenance). Routes use the post-T-133 topology (e.g. `/settings`, `/planning`, `/production`, etc.) and MUST be locale-relative (no `/en` hard-code; the consumer applies the locale).\n\nEach item:\n```ts\n{ key: 'settings', i18n_key: 'Navigation.app.settings', route: '/settings', icon_token: 'cog', count_slot: null, permission_key: null, rbac_todo: 'gate by 02-settings/T-130 after RBAC enum lock' }\n```\n\nSettings sub-nav items match `window.SETTINGS_NAV` in the prototype (Users, Roles, Authorization, Invitations, Security, Profile, Schema, Reference, …) with the same group labels.\n\n## Acceptance criteria\n1. `APP_NAV_GROUPS` has exactly 4 groups in declared order with the 12 items above.\n2. `SETTINGS_NAV_GROUPS` matches the prototype `SETTINGS_NAV` content 1:1 (item count, order, labels, icons, highlights).\n3. Every item carries a unique `i18n_key` resolvable in both `en.json` and `pl.json`.\n4. RTL/unit tests assert: total counts, key uniqueness, route uniqueness, no hard-coded locale prefix, `count_slot === null` on every item, `permission_key === null` on every item, and `rbac_todo` non-empty for every item that would later be RBAC-gated.\n5. `pnpm --filter web test app-nav settings-nav -- --run` passes; `pnpm --filter web typecheck` passes; `pnpm --filter web lint` passes.\n\n## Out of scope\n- Rendering (UI-129 sidebar, UI-132 settings subnav).\n- Permissions enum / RBAC (02-settings/T-130).\n- Module-specific module sub-navs (PlanNav, ProdNav, WhNav, ...).\n- Topbar links.\n\n## RED test\nCreate `app-nav.test.ts` and `settings-nav.test.ts` first, failing because exports do not exist; then implement.\n\n## Risk red lines\n- Never hard-code a locale prefix into a route field.\n- Never gate items here — emit `rbac_todo` and leave `permission_key: null`.\n- Do not import this file from server-only modules without `'server-only'` consideration (data is plain JSON; safe everywhere).\n\n## Closeout\nProvide: acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype (note any item label that differs from the literal prototype label and why).",
+  "prompt": "# UI-128 — Foundation navigation manifest\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nProvide a single typed source of truth for the desktop AppSidebar groups/items and for the Settings sub-nav, so UI-129 and UI-132 do not duplicate copy or hard-code routes. This is a data/contract task — no JSX, no styling.\n\n## Source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`): groups Core / Operations / QA & Shipping / Premium.\n- Cross-ref the active-item placement in every `<module>/shell.jsx`, especially `reporting/shell.jsx:3-23` and `multi-site/shell.jsx:77-124`, so the manifest covers the full 16-module MON set, not only the older 12-item sidebar.\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:35-59` + the `window.SETTINGS_NAV` array referenced there (search prototypes/data*.jsx if needed).\n- Brief: `/tmp/monopilot-shell-gap-brief-combined.md` §1 (snapshot), §3 Luka B/E.\n\n## Files (scope)\n- `apps/web/lib/navigation/module-registry.ts` [create — exports `APP_MODULES: AppModule[]` and every 16-module shell/nav decision]\n- `apps/web/lib/navigation/app-nav.ts` [create — exports `APP_NAV_GROUPS: AppNavGroup[]` derived from sidebar-exposed APP_MODULES]\n- `apps/web/lib/navigation/settings-nav.ts` [create — exports `SETTINGS_NAV_GROUPS: SettingsNavGroup[]`]\n- `apps/web/lib/navigation/types.ts` [create — `AppModule`, `AppNavGroup`, `AppNavItem`, `SettingsNavGroup`, `SettingsNavItem` with `module_id`, `module_kind` (`platform|desktop|scanner`), `shell_kind` (`none|app|scanner`), `nav_exposure` (`sidebar|excluded|merged`), `merged_into`, `i18n_key`, `route`, `icon_token`, `count_slot` (always `null` here), `permission_key` (always `null` here), `rbac_todo` flag, `highlight` flag]\n- `apps/web/lib/navigation/__tests__/app-nav.test.ts` [create]\n- `apps/web/lib/navigation/__tests__/settings-nav.test.ts` [create]\n- `apps/web/i18n/en.json` [modify — add `Navigation.app.*` and `Navigation.settings.*` keys; values from prototype labels]\n- `apps/web/i18n/pl.json` [modify — same keys translated]\n- `apps/web/i18n/uk.json` [modify — same keys translated; no missing keys]\n- `apps/web/i18n/ro.json` [modify — same keys translated; no missing keys]\n\nDo NOT modify proxy.ts, [locale]/layout.tsx, or any T-XXX.json outside this wave.\n\n## Contract\n`APP_MODULES` is the complete 16-module shell registry. It MUST contain exactly these module ids and decisions:\n\n- `foundation`: `module_kind=platform`, `shell_kind=none`, `nav_exposure=excluded`, no sidebar route.\n- `settings`: desktop sidebar item `Settings`, route `/settings`.\n- `npd`: desktop sidebar item `NPD`, route `/npd`.\n- `technical`: desktop sidebar item `Technical`, route `/technical`.\n- `planning-basic`: desktop sidebar item `Planning`, route `/planning`.\n- `planning-ext`: desktop sidebar item `Scheduler`, route `/scheduler`, label key `Navigation.app.scheduler` (Planning+ / Scheduler premium extension).\n- `warehouse`: desktop sidebar item `Warehouse`, route `/warehouse`.\n- `production`: desktop sidebar item `Production`, route `/production`.\n- `quality`: desktop sidebar item `Quality`, route `/quality`.\n- `finance`: desktop sidebar item `Finance`, route `/finance`.\n- `shipping`: desktop sidebar item `Shipping`, route `/shipping`.\n- `reporting`: desktop sidebar item `Reporting`, route `/reporting`, source `reporting/shell.jsx:21-23`.\n- `maintenance`: desktop sidebar item `Maintenance`, route `/maintenance`.\n- `multi-site`: desktop sidebar item `Multi-Site`, route `/multi-site`, source `multi-site/shell.jsx:101-122`; count/setup badges are slots only.\n- `oee`: desktop sidebar item `OEE`, route `/oee`.\n- `scanner`: `module_kind=scanner`, `shell_kind=scanner`, `nav_exposure=excluded`, not rendered in AppSidebar; T-134 owns `/dev/scanner` harness and future scanner module owns production scanner routes.\n\n`APP_NAV_GROUPS` is derived from the 15 sidebar-exposed items (Dashboard + 14 desktop modules; excluding `foundation` and `scanner`, with `planning-basic` and `planning-ext` both explicit). Groups must be exactly:\n\n- `Core`: Dashboard, Settings\n- `Operations`: Planning, Scheduler, Production, Warehouse\n- `QA & Shipping`: Quality, Shipping\n- `Premium`: Technical, NPD, Finance, OEE, Maintenance\n- `Analytics & Network`: Reporting, Multi-Site\n\nAll routes are locale-relative (for example `/settings`, never `/en/settings`); consumers add `/${locale}`.\n\nEach item shape:\n```ts\n{ module_id: 'settings', key: 'settings', i18n_key: 'Navigation.app.settings', route: '/settings', icon_token: 'cog', count_slot: null, permission_key: null, rbac_todo: 'gate by 02-settings/T-130 after RBAC enum lock' }\n```\n\nSettings sub-nav items match `window.SETTINGS_NAV` in the prototype (Users, Roles, Authorization, Invitations, Security, Profile, Schema, Reference, …) with the same group labels.\n\n\n## Documented deviations from literal prototype labels\nThese are intentional IA decisions for the unified product shell and MUST NOT be treated as parity drift:\n\n- `planning-ext` is exposed as `Scheduler` at `/scheduler`; planning-ext prototype copy also uses `Planning+` for settings/PRO surfaces. The shell label uses Scheduler because PRD 07 and screen breadcrumbs centre the Scheduler workflow.\n- `maintenance` is placed under `Premium`, not Operations, to keep the paid-module grouping consistent with current module glossary even though maintenance/shell.jsx shows it near Operations in its local module shell.\n- `Reporting` and `Multi-Site` are grouped under synthesized `Analytics & Network`; reporting/shell.jsx uses `Analytics` and multi-site/shell.jsx uses `NEW`. The unified shell avoids two one-item groups while preserving both items and their prototype visual/badge semantics.\n- `Dashboard` is a shell-level Core item, not one of the 16 module ids; `foundation` remains platform/non-user-facing and excluded.\n\n## Acceptance criteria\n1. `APP_MODULES` covers all 16 MON modules with explicit platform/desktop/scanner decisions, and `APP_NAV_GROUPS` has exactly 5 groups / 15 sidebar items in declared order, including Scheduler, Reporting, and Multi-Site.\n2. `SETTINGS_NAV_GROUPS` matches the prototype `SETTINGS_NAV` content 1:1 (item count, order, labels, icons, highlights).\n3. Every item carries a unique `i18n_key` resolvable in all runtime locale files: `apps/web/i18n/{en,pl,uk,ro}.json`.\n4. RTL/unit tests assert: 16-module matrix, sidebar count, key uniqueness, route uniqueness, no hard-coded locale prefix, scanner/foundation explicit exclusion, `count_slot === null` on every sidebar item, `permission_key === null` on every item, and `rbac_todo` non-empty for every item that would later be RBAC-gated.\n5. `pnpm --filter web test app-nav settings-nav -- --run` passes; `pnpm --filter web typecheck` passes; `pnpm --filter web lint` passes.\n\n## Out of scope\n- Rendering (UI-129 sidebar, UI-132 settings subnav).\n- Permissions enum / RBAC (02-settings/T-130).\n- Module-specific module sub-navs (PlanNav, ProdNav, WhNav, ...).\n- Topbar links.\n\n## RED test\nCreate `app-nav.test.ts` and `settings-nav.test.ts` first, failing because exports do not exist; then implement.\n\n## Risk red lines\n- Never hard-code a locale prefix into a route field.\n- Never gate items here — emit `rbac_todo` and leave `permission_key: null`.\n- Do not import this file from server-only modules without `'server-only'` consideration (data is plain JSON; safe everywhere).\n\n## Closeout\nProvide: acceptance_criteria_status, test_commands_and_results, changed_files, git_status, deviations_from_prototype (note any item label that differs from the literal prototype label and why).",
   "labels": [
     "wave-app-shell-foundation",
     "ui",
     "foundation",
     "shell",
     "navigation",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 50,
   "max_attempts": 3,
@@ -30,9 +32,10 @@
     "parent_feature": "foundation-app-shell",
     "context_budget": "25k",
     "estimated_effort": "1h",
-    "description": "Typed nav manifest (TypeScript) for AppSidebar groups/items and Settings sub-nav, with i18n keys, count and permission slots as null, and rbac_todo flags. Frontend navigation manifest + unit tests; no JSX render component.",
-    "details": "Transcribe the four sidebar groups (Core/Operations/QA & Shipping/Premium) and 12 module items from prototypes/design/Monopilot Design System/settings/shell.jsx:3-21, cross-checked against every other module's shell.jsx. Transcribe SETTINGS_NAV from settings/shell.jsx:35-59 (search prototypes/data* for the source array). Emit frontend AppNavGroup/SettingsNavGroup with locale-relative routes, icon_token, count_slot=null, permission_key=null, rbac_todo string. Add apps/web/i18n/{en,pl,uk,ro}.json keys for every label. RTL/unit tests assert structure and uniqueness.",
+    "description": "Typed module registry + nav manifest for the full MonoPilot shell: all 16 modules get explicit shell/nav decisions; AppSidebar exposes 15 desktop items (Dashboard + desktop modules), while foundation and scanner are intentionally excluded from desktop sidebar.",
+    "details": "Create APP_MODULES as the complete 16-module shell registry, then derive APP_NAV_GROUPS from sidebar-exposed modules. Include Scheduler (planning-ext), Reporting, and Multi-Site; classify foundation as platform/non-user-facing and scanner as scanner shell/excluded from desktop nav. Keep count_slot=null and permission_key=null, with rbac_todo strings for future gates. Add i18n keys in apps/web/i18n/{en,pl,uk,ro}.json. Tests assert complete module coverage, group/order, route uniqueness, locale-relative routes, and settings subnav parity. Documented deviations: planning-ext shell label is Scheduler (prototype also says Planning+); Maintenance grouped under Premium; Reporting+Multi-Site grouped as Analytics & Network; Dashboard is shell-level, foundation is platform-only.",
     "scope_files": [
+      "apps/web/lib/navigation/module-registry.ts [create]",
       "apps/web/lib/navigation/types.ts [create]",
       "apps/web/lib/navigation/app-nav.ts [create]",
       "apps/web/lib/navigation/settings-nav.ts [create]",
@@ -54,19 +57,24 @@
       "Topbar links",
       "Editing 00-foundation/manifest.json"
     ],
-    "dependencies": [],
+    "dependencies": [
+      "T-137"
+    ],
     "parallel_safe_with": [
       "UI-127"
     ],
     "acceptance_criteria": [
-      "APP_NAV_GROUPS has 4 groups in order Core/Operations/QA & Shipping/Premium with the 12 declared items",
+      "APP_MODULES contains exactly the 16 MON modules (foundation, settings, npd, technical, planning-basic, warehouse, scanner, planning-ext, production, quality, finance, shipping, reporting, maintenance, multi-site, oee) with explicit module_kind/shell_kind/nav_exposure decisions",
+      "APP_NAV_GROUPS has 5 groups in order Core/Operations/QA & Shipping/Premium/Analytics & Network with 15 sidebar items, including Scheduler, Reporting, and Multi-Site, and excluding foundation/scanner by explicit decision",
       "SETTINGS_NAV_GROUPS matches the prototype SETTINGS_NAV 1:1 in count, order, labels, icons, highlights",
-      "Every item has a unique i18n_key resolvable in apps/web/i18n/{en,pl,uk,ro}.json",
+      "Every sidebar/subnav item has a unique i18n_key resolvable in apps/web/i18n/{en,pl,uk,ro}.json; all route values are locale-relative and unique",
       "All count_slot=null, permission_key=null, rbac_todo non-empty for future-RBAC items",
       "pnpm --filter web test app-nav settings-nav -- --run passes; typecheck and lint pass"
     ],
     "test_strategy": [
-      "Write app-nav.test.ts and settings-nav.test.ts asserting structure first (RED)",
+      "Write app-nav.test.ts and settings-nav.test.ts asserting APP_MODULES complete 16-module matrix first (RED)",
+      "Assert APP_NAV_GROUPS exposes 15 sidebar items and excludes foundation/scanner with explicit decisions",
+      "Assert route uniqueness and locale-relative route shape for every sidebar item",
       "pnpm --filter web test app-nav settings-nav -- --run",
       "pnpm --filter web typecheck",
       "pnpm --filter web lint"
@@ -74,7 +82,10 @@
     "risk_red_lines": [
       "Do not hard-code a locale prefix into route fields",
       "Do not gate items by permissions — UI-128 has no RBAC awareness",
-      "Do not import server-only modules from these files"
+      "Do not import server-only modules from these files",
+      "Do not omit Reporting, Multi-Site, or planning-ext/Scheduler from the registry",
+      "Do not render scanner in the desktop AppSidebar; scanner uses the (scanner) shell only",
+      "Do not create routes in this task; UI-138 owns route stubs/contracts for active nav links"
     ],
     "skills": [
       "acp-frontend",
@@ -144,6 +155,40 @@
           "role/admin metadata"
         ]
       }
-    ]
+    ],
+    "prototype_match": true,
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_navigation_manifest",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "3-21",
+        "component": "SSidebar",
+        "purpose": "base sidebar group/order seed"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+        "lines": "3-23",
+        "component": "PSidebar",
+        "purpose": "Reporting/Analytics sidebar coverage"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+        "lines": "77-124",
+        "component": "MsSidebar",
+        "purpose": "Multi-Site sidebar coverage and badges"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "35-59",
+        "component": "SettingsNav",
+        "purpose": "settings subnav manifest"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

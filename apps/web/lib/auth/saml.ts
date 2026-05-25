@@ -183,7 +183,7 @@ export async function handleSamlLogin(
     code_challenge_method: '',
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const result = (await jackson.oauthController.authorize(authorizeReq as any)) as {
     redirect_url?: string;
     authorize_form?: string;
@@ -289,7 +289,7 @@ export async function handleSamlCallback(
   let profile: { id?: string; email?: string } | undefined;
   try {
     const jackson = await getSamlController();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const out = (await jackson.oauthController.samlResponse({
       SAMLResponse: samlResponse,
       RelayState: relayState,
@@ -330,7 +330,7 @@ export async function handleSamlCallback(
   try {
     const supabase = await createServerSupabaseClient();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const created = (await (supabase.auth as any).admin.createUser({
       email,
       email_confirm: true,
@@ -422,7 +422,7 @@ export async function enforceSamlPolicy(
     const isProd = process.env.NODE_ENV === 'production';
     const errMsg = err instanceof Error ? err.message : String(err);
     if (isProd) {
-      // eslint-disable-next-line no-console
+
       console.error(
         '[enforceSamlPolicy] policy lookup failed in production — failing closed',
         { tenantId, err: errMsg },
@@ -434,7 +434,7 @@ export async function enforceSamlPolicy(
       };
     }
     if (process.env.ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV === 'true') {
-      // eslint-disable-next-line no-console
+
       console.warn(
         '[enforceSamlPolicy] policy lookup failed; fail-open due to ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV=true',
         { tenantId, err: errMsg },
@@ -444,7 +444,7 @@ export async function enforceSamlPolicy(
         statusCode: 200,
       };
     }
-    // eslint-disable-next-line no-console
+
     console.error(
       '[enforceSamlPolicy] policy lookup failed; failing closed (set ALLOW_SAML_POLICY_FAIL_OPEN_IN_DEV=true to override in dev)',
       { tenantId, err: errMsg },

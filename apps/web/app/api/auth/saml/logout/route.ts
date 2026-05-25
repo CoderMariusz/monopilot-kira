@@ -26,7 +26,7 @@ async function getJackson() {
     samlPath: '/api/auth/saml/callback',
     samlAudience: externalUrl,
     db: { engine: 'sql', url: databaseUrl, type: 'postgres', manualMigration: false },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   } as any);
 }
 
@@ -55,9 +55,9 @@ async function handle(request: NextRequest): Promise<Response> {
   try {
     const jackson = (await getJackson()) as {
       logoutController: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         handleResponse?: (opts: Record<string, unknown>) => Promise<any>;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         handleRequest?: (opts: Record<string, unknown>) => Promise<any>;
       };
     };

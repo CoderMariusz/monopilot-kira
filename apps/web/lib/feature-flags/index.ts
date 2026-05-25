@@ -32,11 +32,11 @@ function getClient(): PostHogClient {
   if (!_client) {
     const apiKey = process.env.POSTHOG_KEY ?? 'phc_placeholder';
     const host = process.env.POSTHOG_HOST ?? 'https://app.posthog.com';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const Ctor = posthogNode.PostHog as unknown as (key: string, opts: { host: string }) => PostHogClient;
     // Attempt construction; fall back to factory call for test mocks.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       _client = new (posthogNode.PostHog as any)(apiKey, { host }) as PostHogClient;
     } catch {
       _client = Ctor(apiKey, { host });

@@ -1,13 +1,15 @@
 {
   "title": "UI-129 — Foundation AppSidebar (groups, items, active state, count slots)",
-  "prompt": "# UI-129 — Foundation AppSidebar\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppSidebar/>` — the persistent 280px left rail used on every authenticated desktop route. Consumes UI-127 tokens and UI-128 navigation manifest. No business logic; pure presentation + `usePathname` for active state. Count badges and permission gates are slots only.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`).\n- Cross-ref structure: `technical/shell.jsx:3-22` (`TSidebar`), `warehouse/shell.jsx` (`PSidebar`), `production/shell.jsx`.\n- Every prototype renders the same four groups (Core / Operations / QA & Shipping / Premium) with the same items; only the `.active` item changes per module.\n\n## Files (scope)\n- `apps/web/components/shell/app-sidebar.tsx` [create — Client Component (`'use client'`) using `usePathname` from `next/navigation` for active state]\n- `apps/web/components/shell/__tests__/app-sidebar.test.tsx` [create — RTL with `next-intl` and `next/navigation` mocks]\n\nDo NOT modify any T-XXX.json outside this wave; do NOT modify `proxy.ts`; do NOT add `app-sidebar.tsx` to a layout in this task (UI-131 mounts it).\n\n## Contract\n```tsx\nexport function AppSidebar({\n  locale,\n  pathnameOverride,\n}: { locale: string; pathnameOverride?: string }): JSX.Element\n```\n\nBehaviour:\n- Reads `APP_NAV_GROUPS` from `apps/web/lib/navigation/app-nav.ts` (UI-128).\n- Resolves labels with `useTranslations('Navigation.app')` from `next-intl` (or the equivalent locale fixture; do not hard-code Polish/English strings).\n- Prefixes `route` with `/${locale}` when rendering `<Link/>`.\n- Active state when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`.\n- Renders `count_slot` as `null` for now (UI-128 sets it to null) but the JSX must include the `<span data-slot=\"count\"/>` markup so modules can later inject content via React context or a portal.\n- Each item carries `data-testid=\"app-sidebar-item-<key>\"`.\n- Root carries `data-testid=\"app-sidebar\"`, `role=\"navigation\"`, `aria-label=\"Primary\"`.\n- Width = `w-sidebar` token from UI-127. Background/foreground/border colours = UI-127 tokens.\n- Each `rbac_todo` non-null item is rendered (no gating) and includes a JSX comment `{/* TODO(rbac/02-settings/T-130) */}`.\n\n## Acceptance criteria\n1. Render asserts: 4 group headers, 12 items, in the order from UI-128.\n2. With `pathnameOverride='/en/settings/users'`, `data-testid=\"app-sidebar-item-settings\"` has `aria-current=\"page\"`; no other item does.\n3. Each item is an `<a href=\"/en/<route>\">` (Next `<Link/>`).\n4. axe-core has 0 violations on the rendered component (`@axe-core/react` or `vitest-axe`).\n5. `pnpm --filter web test app-sidebar -- --run` passes, typecheck passes, lint passes.\n6. Tokens consumed: assert via `getComputedStyle` that root width === `var(--shell-sidebar-w)`.\n\n## Out of scope\n- Mounting in any layout (UI-131).\n- Topbar/UserMenu (UI-130).\n- Settings sub-nav (UI-132).\n- Count badge live values (each module).\n- Permission gating (02-settings/T-130).\n- Mobile collapse / hamburger.\n\n## RED test\nWrite `app-sidebar.test.tsx` first; it must fail because the component file does not exist.\n\n## Risk red lines\n- Do not import `APP_NAV_GROUPS` from anywhere except `apps/web/lib/navigation/app-nav.ts`.\n- Do not hard-code locale prefix logic outside the explicit `/${locale}` join.\n- Do not gate items by permissions.\n- Do not mount in a layout — UI-131 owns mounting.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:3-21`, visual_parity_evidence, prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results (vitest output), changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
+  "prompt": "# UI-129 — Foundation AppSidebar\n\nWave: `app-shell-foundation-20260520` (00-foundation).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`.\n\n## Goal\nImplement `<AppSidebar/>` — the persistent 280px left rail used on every authenticated desktop route. Consumes UI-127 tokens and UI-128 navigation manifest. No business logic; pure presentation + `usePathname` for active state. Count badges and permission gates are slots only.\n\n## Prototype source of truth\n- `prototypes/design/Monopilot Design System/settings/shell.jsx:3-21` (`SSidebar`).\n- Cross-ref structure: `technical/shell.jsx:3-22` (`TSidebar`), `warehouse/shell.jsx` (`PSidebar`), `production/shell.jsx`.\n- Unified UI-128 manifest extends the older four-group prototypes with Reporting and Multi-Site coverage: 5 groups / 15 sidebar items. Reporting contributes the Analytics item (`reporting/shell.jsx:21-23`); Multi-Site contributes the Multi-Site item/badge slots (`multi-site/shell.jsx:101-122`). Scanner is intentionally excluded from desktop sidebar.\n\n## Files (scope)\n- `apps/web/components/shell/app-sidebar.tsx` [create — Client Component (`'use client'`) using `usePathname` from `next/navigation` for active state]\n- `apps/web/components/shell/__tests__/app-sidebar.test.tsx` [create — RTL with `next-intl` and `next/navigation` mocks]\n\nDo NOT modify any T-XXX.json outside this wave; do NOT modify `proxy.ts`; do NOT add `app-sidebar.tsx` to a layout in this task (UI-131 mounts it).\n\n## Contract\n```tsx\nexport function AppSidebar({\n  locale,\n  pathnameOverride,\n}: { locale: string; pathnameOverride?: string }): JSX.Element\n```\n\nBehaviour:\n- Reads `APP_NAV_GROUPS` from `apps/web/lib/navigation/app-nav.ts` (UI-128).\n- Resolves labels with `useTranslations('Navigation.app')` from `next-intl` (or the equivalent locale fixture; do not hard-code Polish/English strings).\n- Prefixes `route` with `/${locale}` when rendering `<Link/>`.\n- Active state when `pathname === /${locale}${item.route}` or starts with `/${locale}${item.route}/`.\n- Renders `count_slot` as `null` for now (UI-128 sets it to null) but the JSX must include the `<span data-slot=\"count\"/>` markup so modules can later inject content via React context or a portal.\n- Each item carries `data-testid=\"app-sidebar-item-<key>\"`.\n- Root carries `data-testid=\"app-sidebar\"`, `role=\"navigation\"`, `aria-label=\"Primary\"`.\n- Width = `w-sidebar` token from UI-127. Background/foreground/border colours = UI-127 tokens.\n- Each `rbac_todo` non-null item is rendered (no gating) and includes a JSX comment `{/* TODO(rbac/02-settings/T-130) */}`.\n\n## Acceptance criteria\n1. Render asserts: 5 group headers and 15 sidebar items in the order from UI-128, including Scheduler, Reporting, and Multi-Site; Scanner is absent.\n2. With `pathnameOverride='/en/settings/users'`, `data-testid=\"app-sidebar-item-settings\"` has `aria-current=\"page\"`; no other item does.\n3. Each item is a Next `<Link/>` whose href is `/${locale}${route}` (for example `/en/settings`); route values themselves remain locale-relative in UI-128.\n4. axe-core has 0 violations on the rendered component (`@axe-core/react` or `vitest-axe`).\n5. `pnpm --filter web test app-sidebar -- --run` passes, typecheck passes, lint passes.\n6. Tokens consumed: assert via `getComputedStyle` that root width === `var(--shell-sidebar-w)`.\n\n## Out of scope\n- Mounting in any layout (UI-131).\n- Topbar/UserMenu (UI-130).\n- Settings sub-nav (UI-132).\n- Count badge live values (each module).\n- Permission gating (02-settings/T-130).\n- Mobile collapse / hamburger.\n\n## RED test\nWrite `app-sidebar.test.tsx` first; it must fail because the component file does not exist.\n\n## Risk red lines\n- Do not import `APP_NAV_GROUPS` from anywhere except `apps/web/lib/navigation/app-nav.ts`.\n- Do not hard-code locale prefix logic outside the explicit `/${locale}` join.\n- Do not gate items by permissions.\n- Do not mount in a layout — UI-131 owns mounting.\n\n## Closeout (fail-closed)\nProvide: screenshots desktop-1280 + 1440, screenshot_or_dom_diff_artifacts against prototype `settings/shell.jsx:3-21`, visual_parity_evidence, prototype_reference, console_network_check (no console errors), acceptance_criteria_status, test_commands_and_results (vitest output), changed_files, git_status, deviations_from_prototype. `ui_parity_evidence_missing` blocks closeout.",
   "labels": [
     "wave-app-shell-foundation",
     "ui",
     "foundation",
     "shell",
     "sidebar",
-    "T3-ui"
+    "T3-ui",
+    "prototype-backed",
+    "ui-parity"
   ],
   "priority": 70,
   "max_attempts": 3,
@@ -29,7 +31,7 @@
     "context_budget": "40k",
     "estimated_effort": "2-3h",
     "description": "Client AppSidebar component consuming UI-128 nav manifest and UI-127 tokens; active state via usePathname; count and permission slots only.",
-    "details": "Render 4 groups (Core/Operations/QA & Shipping/Premium) and 12 items from APP_NAV_GROUPS. Active state via Next usePathname; aria-current=page on the active item. Tokens via w-sidebar/bg-shell-* utilities from UI-127. RTL tests with next-intl + next/navigation mocks. axe-core 0 violations. Do not mount in a layout (UI-131 mounts).",
+    "details": "Render 5 groups (Core/Operations/QA & Shipping/Premium/Analytics & Network) and 15 sidebar items from APP_NAV_GROUPS, including Scheduler, Reporting, and Multi-Site while excluding Scanner. Active state via Next usePathname; aria-current=page on the active item. Tokens via w-sidebar/bg-shell-* utilities from UI-127. RTL tests with next-intl + next/navigation mocks. axe-core 0 violations. Do not mount in a layout (UI-131 mounts).",
     "scope_files": [
       "apps/web/components/shell/app-sidebar.tsx [create]",
       "apps/web/components/shell/__tests__/app-sidebar.test.tsx [create]"
@@ -47,6 +49,7 @@
       "Editing 00-foundation/manifest.json or T-001..T-126 task files"
     ],
     "dependencies": [
+      "T-137",
       "UI-127",
       "UI-128"
     ],
@@ -54,7 +57,7 @@
       "UI-130"
     ],
     "acceptance_criteria": [
-      "Renders 4 group headers + 12 items in UI-128 order",
+      "Renders 5 group headers + 15 sidebar items in UI-128 order, including Scheduler, Reporting, and Multi-Site, and excluding Scanner",
       "With pathnameOverride=/en/settings/users, only Settings item carries aria-current=page",
       "Each item is a Next <Link/> resolving to /<locale>/<route>",
       "axe-core reports 0 violations on the component fixture",
@@ -72,7 +75,8 @@
       "Do not import APP_NAV_GROUPS from anywhere except apps/web/lib/navigation/app-nav.ts",
       "Do not gate items by permissions",
       "Do not mount in a layout — UI-131 owns mounting",
-      "Do not hard-code label strings"
+      "Do not hard-code label strings",
+      "Do not add scanner to AppSidebar; scanner is a separate device shell route group"
     ],
     "skills": [
       "acp-frontend",
@@ -133,16 +137,16 @@
     "parity_matrix": [
       {
         "region": "groups",
-        "prototype": "Core/Operations/QA & Shipping/Premium (settings/shell.jsx:5,9,13,16)",
-        "implementation": "4 group headers in same order from APP_NAV_GROUPS",
+        "prototype": "Core/Operations/QA & Shipping/Premium + Reporting Analytics + Multi-Site NEW group extensions",
+        "implementation": "5 group headers in UI-128 order from APP_NAV_GROUPS",
         "structural": "pass",
         "visual": "pass",
         "interaction": "n/a"
       },
       {
         "region": "items",
-        "prototype": "12 items in declared order",
-        "implementation": "Same 12 items via APP_NAV_GROUPS",
+        "prototype": "15 sidebar items in declared order: Dashboard, Settings, Planning, Scheduler, Production, Warehouse, Quality, Shipping, Technical, NPD, Finance, OEE, Maintenance, Reporting, Multi-Site",
+        "implementation": "Same 15 sidebar items via APP_NAV_GROUPS; Scanner excluded",
         "structural": "pass",
         "visual": "pass",
         "interaction": "pass"
@@ -156,7 +160,34 @@
         "interaction": "pass"
       }
     ],
-    "ui_evidence_policy": "fail-closed; ui_parity_evidence_missing blocks closeout",
-    "wave": "app-shell-foundation-20260520"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "wave": "app-shell-foundation-20260520",
+    "prototype_match": true,
+    "prototype_index_ref": [
+      "_meta/prototype-labels/master-index.json",
+      "_meta/prototype-labels/prototype-index-foundation-shell.json"
+    ],
+    "prototype_index_entry": "foundation_app_sidebar",
+    "prototype_anchors": [
+      {
+        "file": "prototypes/design/Monopilot Design System/settings/shell.jsx",
+        "lines": "3-21",
+        "component": "SSidebar",
+        "purpose": "desktop sidebar base pattern"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/reporting/shell.jsx",
+        "lines": "3-23",
+        "component": "PSidebar",
+        "purpose": "Analytics/Reporting extension"
+      },
+      {
+        "file": "prototypes/design/Monopilot Design System/multi-site/shell.jsx",
+        "lines": "77-124",
+        "component": "MsSidebar",
+        "purpose": "Multi-Site extension and badge slots"
+      }
+    ],
+    "integration_branch": "main"
   }
 }

@@ -121,6 +121,8 @@ export type InviteUserAction = (input: {
   email: string;
   name?: string;
   roleId: string;
+  site?: string;
+  personalMessage?: string;
   language?: string;
   redirectTo?: string;
 }) => Promise<
@@ -236,6 +238,8 @@ function InviteDialog({
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [roleId, setRoleId] = useState(defaultRoleId);
+  const [site, setSite] = useState(sites[0] ?? labels.allSites);
+  const [personalMessage, setPersonalMessage] = useState('');
   const [isPending, startTransition] = useTransition();
 
   function submitInvite(event: React.FormEvent<HTMLFormElement>) {
@@ -250,12 +254,16 @@ function InviteDialog({
         email: email.trim(),
         name: name.trim() || undefined,
         roleId,
+        site: site && site !== labels.allSites ? site : undefined,
+        personalMessage: personalMessage.trim() || undefined,
         language: locale,
       });
       if (result.ok) {
         onFeedback({ kind: 'status', message: interpolate(labels.invitationSent, { email: result.data.email }) });
         setEmail('');
         setName('');
+        setSite(sites[0] ?? labels.allSites);
+        setPersonalMessage('');
         onOpenChange(false);
         return;
       }
@@ -295,16 +303,16 @@ function InviteDialog({
               </label>
               <label className="block space-y-1 text-sm font-medium">
                 <span>{labels.site}</span>
-                <select className="w-full rounded-md border px-3 py-2 text-sm" defaultValue={sites[0] ?? labels.allSites}>
-                  {(sites.length > 0 ? sites : [labels.allSites]).map((site) => (
-                    <option key={site}>{site}</option>
+                <select className="w-full rounded-md border px-3 py-2 text-sm" value={site} onChange={(event) => setSite(event.currentTarget.value)}>
+                  {(sites.length > 0 ? sites : [labels.allSites]).map((siteOption) => (
+                    <option key={siteOption} value={siteOption}>{siteOption}</option>
                   ))}
                 </select>
               </label>
             </div>
             <label className="block space-y-1 text-sm font-medium">
               <span>{labels.personalMessage}</span>
-              <Textarea rows={2} placeholder={labels.personalMessagePlaceholder} />
+              <Textarea rows={2} placeholder={labels.personalMessagePlaceholder} value={personalMessage} onChange={(event) => setPersonalMessage(event.currentTarget.value)} />
             </label>
             <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
               {labels.inviteHelp}

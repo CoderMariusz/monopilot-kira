@@ -44,7 +44,7 @@ const MANIFEST_PATH = resolve(WEB_ROOT, 'app/manifest.ts');
 describe('AC1 — PWA manifest installability', () => {
   it('manifest.ts exports an object with name equal to "Monopilot"', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     expect(manifest.name).toBe('Monopilot');
@@ -52,7 +52,7 @@ describe('AC1 — PWA manifest installability', () => {
 
   it('manifest.ts has start_url equal to "/"', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     expect(manifest.start_url).toBe('/');
@@ -60,7 +60,7 @@ describe('AC1 — PWA manifest installability', () => {
 
   it('manifest.ts has display equal to "standalone" (required for installability)', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     expect(manifest.display).toBe('standalone');
@@ -68,7 +68,7 @@ describe('AC1 — PWA manifest installability', () => {
 
   it('manifest.ts has icons with both 192x192 and 512x512 sizes', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     const sizes = (manifest.icons ?? []).map((i: { sizes: string }) => i.sizes);
@@ -78,7 +78,7 @@ describe('AC1 — PWA manifest installability', () => {
 
   it('manifest.ts has theme_color field', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     expect(manifest).toHaveProperty('theme_color');
@@ -87,7 +87,7 @@ describe('AC1 — PWA manifest installability', () => {
 
   it('manifest.ts has background_color field', async () => {
     const mod = await import('../../app/manifest.js');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const getManifest = (mod as any).default as () => { name: string; start_url: string; display: string; theme_color: string; background_color: string; icons?: Array<{ sizes: string }> };
     const manifest = getManifest();
     expect(manifest).toHaveProperty('background_color');
@@ -171,7 +171,7 @@ describe('AC3 — Offline mutation queue + flusher drain', () => {
   beforeAll(() => {
     if (typeof globalThis.window === 'undefined') {
       const et = new EventTarget();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (globalThis as any).window = {
         addEventListener: (type: string, handler: EventListenerOrEventListenerObject) =>
           et.addEventListener(type, handler),

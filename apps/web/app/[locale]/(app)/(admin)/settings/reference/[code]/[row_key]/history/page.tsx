@@ -30,7 +30,7 @@ type CallerAccess = {
   roleCodes: string[];
 };
 
-type PageParams = { locale: string; table_code: string; row_key: string };
+type PageParams = { locale: string; code: string; row_key: string };
 type PageSearchParams = Record<string, string | string[] | undefined>;
 
 type ReferenceHistoryPageProps = {
@@ -351,9 +351,9 @@ function HistoryTable({ rows, labels }: { rows: ReferenceAuditEntry[]; labels: L
 }
 
 export default async function ReferenceHistoryPage({ params, entries, callerAccess, currentSnapshot, state }: ReferenceHistoryPageProps) {
-  const resolvedParams = await (params ?? Promise.resolve({ locale: 'en', table_code: '', row_key: '' }));
+  const resolvedParams = await (params ?? Promise.resolve({ locale: 'en', code: '', row_key: '' }));
   const labels = await buildLabels(resolvedParams.locale ?? 'en');
-  const tableCode = resolvedParams.table_code;
+  const tableCode = resolvedParams.code;
   const rowKey = resolvedParams.row_key;
 
   if (callerAccess && !callerCanReadAudit(callerAccess)) return <Forbidden labels={labels} />;

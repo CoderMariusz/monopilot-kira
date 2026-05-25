@@ -17,6 +17,8 @@ export type InviteUserInput = {
   email: string;
   name?: string;
   roleId?: string;
+  site?: string;
+  personalMessage?: string;
   language?: string;
   redirectTo?: string;
 };
@@ -69,6 +71,8 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
   }
 
   const name = normalizeString(input.name) ?? email;
+  const site = normalizeString(input.site);
+  const personalMessage = normalizeString(input.personalMessage);
   const language = normalizeString(input.language) ?? 'pl';
   const redirectTo = normalizeString(input.redirectTo);
   const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
@@ -137,7 +141,13 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       type: 'invite',
       email,
       options: {
-        data: { org_id: orgId, invited_by: userId, expires_in: INVITE_TTL_SECONDS },
+        data: {
+          org_id: orgId,
+          invited_by: userId,
+          expires_in: INVITE_TTL_SECONDS,
+          site: site ?? undefined,
+          personal_message: personalMessage ?? undefined,
+        },
         redirectTo: redirectTo ?? undefined,
       },
     });
@@ -185,6 +195,8 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
             email,
             invited_by: userId,
             expires_at: expiresAt.toISOString(),
+            site,
+            personal_message_present: Boolean(personalMessage),
           }),
         ],
       );
