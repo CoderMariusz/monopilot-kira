@@ -9,6 +9,33 @@
     "save_changes": "Zapisz zmiany",
     "discard_changes": "Odrzuć zmiany"
   },
+  "reference_data": {
+    "title": "Dane referencyjne",
+    "subtitle": "Rodziny alergenów, jednostki miary, waluty, ISO krajów — tabele konfiguracyjne.",
+    "importCsv": "Import CSV",
+    "exportCsv": "Eksport CSV",
+    "addRow": "+ Dodaj wiersz",
+    "edit": "Edytuj",
+    "delete": "Usuń",
+    "rowsSuffix": "wierszy",
+    "updatedPrefix": "Zaktualizowano",
+    "loading": "Ładowanie danych referencyjnych…",
+    "empty": "Brak wierszy referencyjnych dla tej tabeli.",
+    "error": "Nie można wczytać danych referencyjnych.",
+    "permissionDenied": "Nie masz uprawnień do edycji danych referencyjnych.",
+    "modal": {
+      "edit": {
+        "title": "Wiersz referencyjny",
+        "save": "Zapisz"
+      },
+      "delete": {
+        "title": "Usuń dane referencyjne",
+        "confirmLabel": "Wpisz DELETE, aby potwierdzić",
+        "confirmButton": "Usuń trwale",
+        "success": "Dane referencyjne usunięte"
+      }
+    }
+  },
   "users": {
     "screen_title": "Użytkownicy",
     "screen_subtitle": "Zapraszaj, aktywuj i zarządzaj użytkownikami tej organizacji.",

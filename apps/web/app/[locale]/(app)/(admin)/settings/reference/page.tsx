@@ -1,5 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
+import { softDeleteReferenceRow } from '../../../../../../actions/reference/soft-delete';
+import { upsertReferenceRow } from '../../../../../../actions/reference/upsert';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import ReferenceDataScreen, {
   type ReferenceColumn,
@@ -29,6 +31,7 @@ type ReferenceDataRow = {
   table_code: string;
   row_key: string;
   row_data: Record<string, unknown>;
+  version: number;
   is_active: boolean;
   updated_at: string | Date | null;
 };
@@ -40,8 +43,8 @@ type TableCountRow = {
 };
 
 type ReferenceDataResult =
-  | { state: 'ready' | 'empty'; tables: ReferenceTable[]; rowsByTable: Record<string, ReferenceRow[]>; selectedTableCode: string }
-  | { state: 'error'; tables: ReferenceTable[]; rowsByTable: Record<string, ReferenceRow[]>; selectedTableCode: string };
+  | { state: 'ready' | 'empty'; tables: ReferenceTable[]; rowsByTable: Record<string, ReferenceRow[]>; selectedTableCode: string; canEditReferenceData: boolean }
+  | { state: 'error'; tables: ReferenceTable[]; rowsByTable: Record<string, ReferenceRow[]>; selectedTableCode: string; canEditReferenceData: boolean };
 
 const TABLE_DEFINITIONS: Array<Omit<ReferenceTable, 'rows' | 'updated' | 'columns'>> = [
   {
@@ -96,6 +99,7 @@ const FALLBACK_COLUMNS: Record<string, ReferenceColumn[]> = {
 };
 
 const EMPTY_ROWS: Record<string, ReferenceRow[]> = Object.fromEntries(TABLE_DEFINITIONS.map((table) => [table.code, []]));
+const DEFAULT_TABLE_CODE = TABLE_DEFINITIONS[0]?.code ?? 'allergens_reference';
 
 async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
   const fallback: ReferenceDataLabels = {
@@ -111,14 +115,15 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
     loading: 'Loading reference data…',
     empty: 'No reference rows configured for this table.',
     error: 'Unable to load reference data.',
+    permissionDenied: 'You do not have permission to edit reference data.',
   };
 
   const t = await getTranslations({ locale, namespace: 'settings.reference_data' });
   return (Object.keys(fallback) as Array<keyof ReferenceDataLabels>).reduce((acc, key) => {
     try {
-      acc[key] = t(key);
+      (acc as Record<string, string>)[key] = t(key) || fallback[key] || '';
     } catch {
-      acc[key] = fallback[key];
+      (acc as Record<string, string>)[key] = fallback[key] || '';
     }
     return acc;
   }, {} as ReferenceDataLabels);
@@ -169,6 +174,7 @@ function mapRows(rows: ReferenceDataRow[]): Record<string, ReferenceRow[]> {
     grouped[tableCode].push({
       rowId: `${tableCode}:${row.row_key}`,
       rowKey: row.row_key,
+      version: row.version,
       values: Object.fromEntries(Object.entries(row.row_data ?? {}).map(([key, value]) => [key, normalizeValue(value)])),
     });
   }
@@ -196,11 +202,11 @@ function tableShell(columnsByTable: Record<string, ReferenceColumn[]> = {}, coun
 
 async function readReferenceData(): Promise<ReferenceDataResult> {
   try {
-    return await withOrgContext(async ({ client }) => {
-      const queryClient = client as QueryClient;
+    return await withOrgContext(async ({ client, userId, orgId }: { client: QueryClient; userId: string; orgId: string }) => {
+      const queryClient = client;
       const tableCodes = TABLE_DEFINITIONS.map((table) => table.code);
       const schemaTableCodes = tableCodes.flatMap((code) => [code, `reference.${code}`]);
-      const [schemaResult, countResult, rowResult] = await Promise.all([
+      const [schemaResult, countResult, rowResult, permissionResult] = await Promise.all([
         queryClient.query<SchemaColumnRow>(
           `select table_code, column_code, data_type, presentation_json
              from public.reference_schemas
@@ -219,7 +225,7 @@ async function readReferenceData(): Promise<ReferenceDataResult> {
           [tableCodes],
         ),
         queryClient.query<ReferenceDataRow>(
-          `select table_code, row_key, row_data, is_active, updated_at
+          `select table_code, row_key, row_data, version, is_active, updated_at
              from public.reference_tables
             where org_id = app.current_org_id()
               and table_code = any($1::text[])
@@ -227,18 +233,29 @@ async function readReferenceData(): Promise<ReferenceDataResult> {
             order by table_code asc, display_order asc nulls last, row_key asc`,
           [tableCodes],
         ),
+        queryClient.query<{ ok: boolean }>(
+          `select true as ok
+             from public.user_roles ur
+             join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+             join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+            where ur.user_id = $1::uuid
+              and ur.org_id = $2::uuid
+            limit 1`,
+          [userId, orgId, 'settings.reference.edit'],
+        ),
       ]);
 
       const columnsByTable = mapColumns(schemaResult.rows);
       const countsByTable = Object.fromEntries(countResult.rows.map((row) => [row.table_code, row]));
       const rowsByTable = mapRows(rowResult.rows);
       const tables = tableShell(columnsByTable, countsByTable);
-      const selectedTableCode = TABLE_DEFINITIONS[0].code;
+      const selectedTableCode = DEFAULT_TABLE_CODE;
       return {
         state: rowsByTable[selectedTableCode]?.length ? 'ready' : 'empty',
         tables,
         rowsByTable,
         selectedTableCode,
+        canEditReferenceData: permissionResult.rows.length > 0,
       };
     });
   } catch {
@@ -246,7 +263,8 @@ async function readReferenceData(): Promise<ReferenceDataResult> {
       state: 'error',
       tables: tableShell(),
       rowsByTable: { ...EMPTY_ROWS },
-      selectedTableCode: TABLE_DEFINITIONS[0].code,
+      selectedTableCode: DEFAULT_TABLE_CODE,
+      canEditReferenceData: false,
     };
   }
 }
@@ -262,6 +280,9 @@ export default async function ReferenceDataPage({ params }: PageProps) {
       rowsByTable={data.rowsByTable}
       selectedTableCode={data.selectedTableCode}
       state={data.state}
+      canEditReferenceData={data.canEditReferenceData}
+      upsertReferenceRow={upsertReferenceRow}
+      softDeleteReferenceRow={softDeleteReferenceRow}
     />
   );
 }

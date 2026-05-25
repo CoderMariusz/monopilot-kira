@@ -1,4 +1,31 @@
 {
+  "reference_data": {
+    "title": "Date de referință",
+    "subtitle": "Familii de alergeni, UoM, valută, ISO țări — tabele de configurare.",
+    "importCsv": "Import CSV",
+    "exportCsv": "Export CSV",
+    "addRow": "+ Adaugă rând",
+    "edit": "Editează",
+    "delete": "Șterge",
+    "rowsSuffix": "rânduri",
+    "updatedPrefix": "Actualizat",
+    "loading": "Se încarcă datele de referință…",
+    "empty": "Nu există rânduri de referință pentru acest tabel.",
+    "error": "Datele de referință nu au putut fi încărcate.",
+    "permissionDenied": "Nu ai permisiunea de a edita datele de referință.",
+    "modal": {
+      "edit": {
+        "title": "Rând de referință",
+        "save": "Salvează"
+      },
+      "delete": {
+        "title": "Șterge date de referință",
+        "confirmLabel": "Tastează DELETE pentru confirmare",
+        "confirmButton": "Șterge definitiv",
+        "success": "Datele de referință au fost șterse"
+      }
+    }
+  },
   "infra": {
     "machines": {
       "title": "Mașini",

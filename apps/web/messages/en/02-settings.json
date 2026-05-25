@@ -9,6 +9,33 @@
     "save_changes": "Save changes",
     "discard_changes": "Discard changes"
   },
+  "reference_data": {
+    "title": "Reference data",
+    "subtitle": "Allergen families, UoM, currency, country ISO — configuration tables.",
+    "importCsv": "Import CSV",
+    "exportCsv": "Export CSV",
+    "addRow": "+ Add row",
+    "edit": "Edit",
+    "delete": "Delete",
+    "rowsSuffix": "rows",
+    "updatedPrefix": "Updated",
+    "loading": "Loading reference data…",
+    "empty": "No reference rows configured for this table.",
+    "error": "Unable to load reference data.",
+    "permissionDenied": "You do not have permission to edit reference data.",
+    "modal": {
+      "edit": {
+        "title": "Reference row",
+        "save": "Save"
+      },
+      "delete": {
+        "title": "Delete reference data",
+        "confirmLabel": "Type DELETE to confirm",
+        "confirmButton": "Delete permanently",
+        "success": "Reference data deleted"
+      }
+    }
+  },
   "users": {
     "screen_title": "Users",
     "screen_subtitle": "Invite, activate, and manage users for this organization.",
