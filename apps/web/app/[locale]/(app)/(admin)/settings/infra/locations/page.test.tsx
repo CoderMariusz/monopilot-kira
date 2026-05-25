@@ -3,9 +3,12 @@
  * T-105 / SET-014 — Location Tree screen.
  */
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getTranslations } from 'next-intl/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-intl/server', () => ({
@@ -20,6 +23,28 @@ vi.mock('next-intl/server', () => ({
       warehouse: 'Warehouse',
       allWarehouses: 'All warehouses',
       importCsv: 'Import CSV',
+      addLocation: '+ Add location',
+      editLocation: 'Edit',
+      addChild: '+ Child',
+      selectedLocation: 'Selected location',
+      selectedParent: 'Parent',
+      selectedDepth: 'Depth level',
+      selectedType: 'Type',
+      selectedStatus: 'Status',
+      lpsHere: 'LPs here',
+      readOnly: 'Read-only — settings.infra.update required to edit',
+      dialogAddTitle: 'Add location',
+      dialogEditTitle: 'Edit location',
+      fieldCode: 'Code',
+      fieldName: 'Name',
+      fieldParent: 'Parent location',
+      fieldType: 'Type',
+      fieldActive: 'Is active',
+      fieldBarcode: 'Barcode (optional)',
+      depthExceeded: 'Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).',
+      cancel: 'Cancel',
+      createLocation: 'Create location',
+      saveChanges: 'Save changes',
       csvFile: 'CSV file',
       insufficientPermissions: 'Insufficient permissions: settings.infra.update is required to import CSV.',
       loading: 'Loading location tree…',
@@ -256,5 +281,136 @@ describe('SET-014 Location Tree screen', () => {
       'aria-label',
       expect.stringMatching(/insufficient permissions|settings\.infra\.update/i),
     );
+  });
+});
+
+type UpsertLocationInput = {
+  id?: string;
+  warehouseId: string;
+  parentId: string | null;
+  code: string;
+  name: string;
+  level: number;
+  locationType: string;
+  active?: boolean;
+  barcode?: string | null;
+};
+
+type UpsertLocationResult =
+  | { ok: true; data: { id: string; path: string; level: number } }
+  | { ok: false; error: string };
+
+type LocationModalCrudProps = Partial<LocationTreePageProps> & {
+  canUpdateInfra?: boolean;
+  upsertLocation?: (input: UpsertLocationInput) => Promise<UpsertLocationResult>;
+};
+
+const REQUIRED_LOCATION_MODAL_LABEL_KEYS = Object.freeze([
+  'addLocation',
+  'editLocation',
+  'addChild',
+  'selectedLocation',
+  'selectedParent',
+  'selectedDepth',
+  'selectedType',
+  'selectedStatus',
+  'lpsHere',
+  'readOnly',
+  'dialogAddTitle',
+  'dialogEditTitle',
+  'fieldCode',
+  'fieldName',
+  'fieldParent',
+  'fieldType',
+  'fieldActive',
+  'fieldBarcode',
+  'depthExceeded',
+  'cancel',
+  'createLocation',
+  'saveChanges',
+]);
+
+async function renderLocationModalCrud(overrides: LocationModalCrudProps = {}) {
+  return renderLocationTree(overrides as Partial<LocationTreePageProps>);
+}
+
+function currentDialog() {
+  return screen.getByRole('dialog');
+}
+
+describe('UI-SET-002 locations modal CRUD parity RED', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('keeps modal CRUD and RBAC labels localized in settings.infra.locations for en/pl/ro/uk', async () => {
+    await renderLocationModalCrud();
+
+    expect(getTranslations).toHaveBeenCalledWith({ locale: 'en', namespace: 'settings.infra.locations' });
+
+    for (const locale of ['en', 'pl', 'ro', 'uk'] as const) {
+      const localePath = path.join(process.cwd(), 'messages', locale, '02-settings.json');
+      const messages = JSON.parse(readFileSync(localePath, 'utf8')) as { infra?: { locations?: Record<string, unknown> } };
+      const locationLabels = messages.infra?.locations;
+      expect(locationLabels, `${localePath} must define settings.infra.locations`).toBeTruthy();
+      for (const key of REQUIRED_LOCATION_MODAL_LABEL_KEYS) {
+        expect(typeof locationLabels?.[key], `${localePath} missing translated locations.${key}`).toBe('string');
+        expect(locationLabels?.[key], `${localePath} locations.${key} must not expose a raw key or blank fallback`).not.toMatch(/^$|settings\.infra\.locations\./);
+      }
+    }
+  });
+
+  it('renders prototype regions: primary Add location CTA, selected-location card actions, and LP table', async () => {
+    await renderLocationModalCrud({ canUpdateInfra: true });
+
+    expect(screen.getByRole('button', { name: /\+ add location/i })).toBeEnabled();
+    expect(screen.getByRole('region', { name: /selected location/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^edit$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /\+ child/i })).toBeEnabled();
+    expect(screen.getByText(/LPs here/i)).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /LPs at this location/i })).toBeInTheDocument();
+  });
+
+  it('opens Add location dialog with prototype fields, depth validator, and Create footer wired to upsertLocation', async () => {
+    const user = userEvent.setup();
+    const upsertLocation = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'created-bin-c5', path: 'apex.z02.c5', level: 3 },
+    }));
+    await renderLocationModalCrud({ canUpdateInfra: true, upsertLocation });
+
+    await user.click(screen.getByRole('button', { name: /\+ add location/i }));
+
+    expect(within(currentDialog()).getByRole('heading', { name: /add location/i })).toBeInTheDocument();
+    await user.type(within(currentDialog()).getByLabelText(/code/i), 'c5');
+    await user.type(within(currentDialog()).getByLabelText(/^name/i), 'Cold Storage Bin C5');
+    await user.selectOptions(within(currentDialog()).getByLabelText(/parent location/i), 'bin-a02-01');
+    expect(within(currentDialog()).getByText(/maximum location depth/i)).toBeInTheDocument();
+    expect(within(currentDialog()).getByRole('button', { name: /create location/i })).toBeDisabled();
+
+    await user.selectOptions(within(currentDialog()).getByLabelText(/parent location/i), 'zone-a02');
+    await user.selectOptions(within(currentDialog()).getByLabelText(/^type/i), 'storage');
+    await user.type(within(currentDialog()).getByLabelText(/barcode/i), 'LOC-C5');
+    await user.click(within(currentDialog()).getByRole('button', { name: /create location/i }));
+
+    await waitFor(() => expect(upsertLocation).toHaveBeenCalledTimes(1));
+    expect(upsertLocation).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'C5',
+      name: 'Cold Storage Bin C5',
+      parentId: 'zone-a02',
+      locationType: 'storage',
+      barcode: 'LOC-C5',
+    }));
+  });
+
+  it('shows an explicit read-only state and suppresses modal-opening controls without settings.infra.update', async () => {
+    await renderLocationModalCrud({ canUpdateInfra: false });
+
+    expect(screen.getByText(/read-only.*settings\.infra\.update/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /\+ add location/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /\+ child/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
