@@ -5,7 +5,7 @@ import React from 'react';
 import { Button } from '@monopilot/ui/Button';
 import Summary from '@monopilot/ui/Summary';
 
-export type SchemaColumnTier = 'L1' | 'L2' | 'L3';
+export type SchemaColumnTier = 'L1' | 'L2' | 'L3' | 'L4';
 
 export type SchemaColumnSummary = {
   col: string;
@@ -220,7 +220,7 @@ export function SchemaViewModal({
             <SchemaSummary column={column} />
             <StateAlert tone="blue">
               {column.tier === 'L1'
-                ? 'Edit not available — open promotion request'
+                ? 'Edit not available — open promotion request. L1 columns are universal. Use the schema promotion wizard (SM-05) to raise a tier-change request.'
                 : 'L2/L3 columns can be modified via the schema edit wizard.'}
             </StateAlert>
           </>

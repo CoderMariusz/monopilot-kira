@@ -9,6 +9,8 @@ import * as InputModule from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import SchemaViewModal from '../../../../../../components/settings/modals/schema-view-modal';
+
 const Input = ((InputModule as typeof InputModule & { Input?: typeof InputModule.default }).Input ?? InputModule.default) as typeof InputModule.default;
 
 export type Tier = 'L1' | 'L2' | 'L3' | 'L4';
@@ -59,6 +61,8 @@ export type SchemaBrowserLabels = {
   error: string;
   usePromotionRequest: string;
   close: string;
+  previewSchema?: string;
+  newSchemaColumn?: string;
 };
 
 export type SchemaBrowserProps = {
@@ -69,6 +73,7 @@ export type SchemaBrowserProps = {
   userRole: UserRole;
   openModal?: (modalId: 'schemaView' | 'promoteToL2', payload?: { col: SchemaColumnRow }) => void;
   onEditColumn?: (columnCode: string) => void;
+  locale?: string;
 };
 
 type Option = { value: string; label: string };
@@ -100,6 +105,7 @@ export default function SchemaBrowserScreen({
   userRole,
   openModal,
   onEditColumn,
+  locale = 'en',
 }: SchemaBrowserProps) {
   const [tableFilter, setTableFilter] = React.useState(initialSearchParams.table ?? 'all');
   const [tierFilter, setTierFilter] = React.useState(initialSearchParams.tier ?? 'all');
@@ -107,6 +113,7 @@ export default function SchemaBrowserScreen({
   const [tableOpen, setTableOpen] = React.useState(false);
   const [tierOpen, setTierOpen] = React.useState(false);
   const [dialogColumn, setDialogColumn] = React.useState<SchemaColumnRow | null>(null);
+  const schemaBaseHref = `/${locale}/settings/schema`;
 
   const tableOptions = React.useMemo(() => {
     const tables = Array.from(new Set(columns.map((row) => row.table))).sort();
@@ -167,9 +174,17 @@ export default function SchemaBrowserScreen({
           <h1 id="settings-schema-browser-title">{labels.title}</h1>
           <p>{labels.subtitle}</p>
         </div>
-        <Button type="button" className="btn-secondary" onClick={exportVisibleColumns}>
-          {labels.exportSchemaCsv}
-        </Button>
+        <div className="settings-page__actions flex flex-wrap items-center gap-2">
+          <a className="btn btn-secondary" href={`${schemaBaseHref}/preview`}>
+            {labels.previewSchema ?? 'Schema shadow preview'}
+          </a>
+          <a className="btn btn-secondary" href={`${schemaBaseHref}/new`}>
+            {labels.newSchemaColumn ?? 'New schema column'}
+          </a>
+          <Button type="button" className="btn-secondary" onClick={exportVisibleColumns}>
+            {labels.exportSchemaCsv}
+          </Button>
+        </div>
       </header>
 
       {state === 'error' ? <SchemaStateCard role="alert">{labels.error}</SchemaStateCard> : null}
@@ -327,15 +342,13 @@ export default function SchemaBrowserScreen({
         </>
       ) : null}
 
-      {dialogColumn ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="schema-view-dialog-title" className="settings-schema-browser__dialog">
-          <h2 id="schema-view-dialog-title">{labels.columnDefinitions}: {dialogColumn.col}</h2>
-          <p>{dialogColumn.label}</p>
-          <Button type="button" onClick={() => setDialogColumn(null)}>
-            {labels.close}
-          </Button>
-        </div>
-      ) : null}
+      <SchemaViewModal
+        open={dialogColumn !== null}
+        column={dialogColumn}
+        onOpenChange={(open) => {
+          if (!open) setDialogColumn(null);
+        }}
+      />
     </main>
   );
 }

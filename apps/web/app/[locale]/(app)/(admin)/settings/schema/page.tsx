@@ -71,6 +71,8 @@ const DEFAULT_LABELS: SchemaBrowserLabels = {
   error: 'Unable to load schema columns.',
   usePromotionRequest: 'Use Promotion Request',
   close: 'Close',
+  previewSchema: 'Schema shadow preview',
+  newSchemaColumn: 'New schema column',
 };
 
 const FALLBACK_COLUMNS: SchemaColumnRow[] = [
@@ -117,9 +119,9 @@ async function labels(locale: string): Promise<SchemaBrowserLabels> {
     const t = await getTranslations({ locale, namespace: 'settings.schema_browser' });
     return (Object.keys(DEFAULT_LABELS) as Array<keyof SchemaBrowserLabels>).reduce((acc, key) => {
       try {
-        acc[key] = t(key);
+        (acc as Record<keyof SchemaBrowserLabels, string>)[key] = t(key);
       } catch {
-        acc[key] = DEFAULT_LABELS[key];
+        (acc as Record<string, string>)[key] = (DEFAULT_LABELS as Record<string, string>)[key] ?? '';
       }
       return acc;
     }, { ...DEFAULT_LABELS });
@@ -211,6 +213,7 @@ export default async function SchemaBrowserPage(propsInput: unknown) {
       initialSearchParams={query}
       state={resolvedState}
       userRole={resolvedUserRole ?? 'Viewer'}
+      locale={locale}
       openModal={props.openModal}
       onEditColumn={props.onEditColumn}
     />
