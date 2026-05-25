@@ -1,0 +1,100 @@
+{
+  "task_id": "TASK-001056",
+  "generated_at": "2026-05-25T19:09:39.721Z",
+  "prototype_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+  "prototype_route": "settings/admin-screens.jsx#d365_connection_screen+d365_mapping_screen; settings/modals.jsx#d365_test_connection_modal",
+  "target_route": [
+    "/en/settings/integrations/d365",
+    "/en/settings/integrations/d365/mapping"
+  ],
+  "base_url": "http://127.0.0.1:32162",
+  "server_identity": "local Next dev server started in TASK-001062-a1 worktree on 127.0.0.1:32162; curl returned 307 login redirect",
+  "viewports": [
+    "desktop-1440x900"
+  ],
+  "region_selectors": {
+    "d365_connection_screen": {
+      "prototype": "admin-screens.jsx:27-107",
+      "target": "main settings d365 connection form"
+    },
+    "d365_mapping_screen": {
+      "prototype": "admin-screens.jsx:109-146",
+      "target": "main settings d365 mapping table"
+    },
+    "d365_test_connection_modal": {
+      "prototype": "modals.jsx:450-489",
+      "target": "dialog[name=\"Test connection\"]"
+    }
+  },
+  "parity_matrix": [
+    {
+      "region": "connection-form",
+      "target_route": "/en/settings/integrations/d365",
+      "prototype_ref": "admin-screens.jsx:27-107",
+      "status": "BLOCKED_AUTH_REDIRECT",
+      "checks": [
+        "cards",
+        "fields",
+        "status",
+        "primary CTA",
+        "RBAC/error/loading"
+      ]
+    },
+    {
+      "region": "mapping-table",
+      "target_route": "/en/settings/integrations/d365/mapping",
+      "prototype_ref": "admin-screens.jsx:109-146",
+      "status": "BLOCKED_AUTH_REDIRECT",
+      "checks": [
+        "table columns",
+        "export CTA",
+        "empty/error",
+        "live provenance"
+      ]
+    },
+    {
+      "region": "test-connection-modal",
+      "target_route": "/en/settings/integrations/d365",
+      "prototype_ref": "modals.jsx:450-489",
+      "status": "NOT_VERIFIED_BROWSER",
+      "checks": [
+        "open/close",
+        "async submit",
+        "success/failure",
+        "secret redaction"
+      ]
+    }
+  ],
+  "screenshots": {
+    "target_connection": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/target_connection_desktop-1440x900.png",
+    "target_mapping": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/target_mapping_desktop-1440x900.png",
+    "prototype_connection": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/prototype_connection_desktop-1440x900.png",
+    "prototype_mapping": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/prototype_mapping_desktop-1440x900.png",
+    "prototype_modal": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/prototype_modal_desktop-1440x900.png"
+  },
+  "dom_diff_artifact": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/dom_diff.json",
+  "console_network_check": {
+    "status": "pass_with_auth_block",
+    "console_error_count": 1,
+    "target_results": [
+      {
+        "route": "/en/settings/integrations/d365",
+        "screenshot": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/target_connection_desktop-1440x900.png",
+        "final_url": "http://127.0.0.1:32162/en/login?reason=idle",
+        "status": 200,
+        "blocked_reason": "authenticated_session_unavailable_redirected_to_login"
+      },
+      {
+        "route": "/en/settings/integrations/d365/mapping",
+        "screenshot": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001062-a1/e2e/artifacts/TASK-001056/target_mapping_desktop-1440x900.png",
+        "final_url": "http://127.0.0.1:32162/en/login?reason=idle",
+        "status": 200,
+        "blocked_reason": "authenticated_session_unavailable_redirected_to_login"
+      }
+    ]
+  },
+  "explicit_deviations": [
+    "Authenticated browser session/test harness unavailable; target route evidence is login redirect, not full parity approval. RTL parity tests cover component structure and modal async behavior."
+  ],
+  "overall_status": "BLOCKED_PARTIAL_BROWSER_EVIDENCE"
+}

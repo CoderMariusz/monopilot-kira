@@ -1,0 +1,130 @@
+{
+  "task_id": "TASK-001056",
+  "generated_at": "2026-05-25T19:09:39.721Z",
+  "base_url": "http://127.0.0.1:32162",
+  "viewport": "desktop-1440x900",
+  "regions": {
+    "d365_connection_screen": {
+      "prototype": "admin-screens.jsx:27-107",
+      "target": "/en/settings/integrations/d365",
+      "status": "BLOCKED",
+      "reason": "target redirected to /login?reason=idle without authenticated session"
+    },
+    "d365_mapping_screen": {
+      "prototype": "admin-screens.jsx:109-146",
+      "target": "/en/settings/integrations/d365/mapping",
+      "status": "BLOCKED",
+      "reason": "target redirected to /login?reason=idle without authenticated session"
+    },
+    "d365_test_connection_modal": {
+      "prototype": "modals.jsx:450-489",
+      "target": "dialog[name=\"Test connection\"]",
+      "status": "NOT_VERIFIED_BROWSER",
+      "reason": "modal cannot open on authenticated target route without session; covered by RTL tests"
+    }
+  },
+  "console": [
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "type": "log",
+      "text": "[HMR] connected"
+    },
+    {
+      "type": "error",
+      "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <LoadingBoundary name=\"login/\" loading={null}>\n      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>\n        <RedirectBoundary>\n          <RedirectErrorBoundary router={{...}}>\n            <InnerLayoutRouter url=\"/en/login?...\" tree={[...]} params={{locale:\"en\"}} cacheNode={{rsc:{...}, ...}} ...>\n              <SegmentViewNode type=\"page\" pagePath=\"[locale]/(...\">\n                <SegmentTrieNode>\n                <LoginPage>\n                  <main data-region=\"main\" className=\"w-full max...\">\n                    <section aria-label=\"Welcome back\" style={{...}}>\n                      <Card>\n                        <div data-slot=\"card\" className=\"card w-ful...\">\n                          <CardContent>\n                            <div data-slot=\"card-content\" className=\"card__cont...\">\n                              <div>\n                              <LoginFormClient locale=\"en\" labels={{title:\"Wel...\", ...}}>\n                                <h1>\n                                <p>\n                                <div>\n                                <form action={function bound dispatchActionState} className=\"flex flex-...\">\n                                  <input\n                                    type=\"hidden\"\n                                    name=\"locale\"\n                                    value=\"en\"\n-                                   style={{caret-color:\"transparent\"}}\n                                  >\n                                  <div className=\"flex flex-...\">\n                                    <label>\n                                    <_c id=\"email\" name=\"email\" type=\"email\" autoFocus={true} required={true} ...>\n                                      <span data-slot=\"input\" style={{display:\"c...\"}}>\n                                        <input\n                                          ref={null}\n                                          id=\"email\"\n                                          name=\"email\"\n                                          type=\"email\"\n                                          autoFocus={true}\n                                          required={true}\n                                          autoComplete=\"username\"\n                                          className=\"h-10 w-full rounded-md border border-[#d8e0ea] bg-white px-3 text...\"\n                                          placeholder=\"you@company.com\"\n-                                         style={{caret-color:\"transparent\"}}\n                                        >\n                                  <div className=\"flex flex-...\">\n                                    <label>\n                                    <_c id=\"password\" name=\"password\" type=\"password\" required={true} ...>\n                                      <span data-slot=\"input\" style={{display:\"c...\"}}>\n                                        <input\n                                          ref={null}\n                                          id=\"password\"\n                                          name=\"password\"\n                                          type=\"password\"\n                                          required={true}\n                                          autoComplete=\"current-password\"\n                                          className=\"h-10 w-full rounded-md border border-[#d8e0ea] bg-white px-3 text...\"\n                                          placeholder=\"••••••••\"\n-                                         style={{caret-color:\"transparent\"}}\n                                        >\n                                  <div className=\"flex items...\">\n                                    <label htmlFor=\"remember\" className=\"flex curso...\">\n                                      <input\n                                        id=\"remember\"\n                                        name=\"remember\"\n                                        type=\"checkbox\"\n                                        defaultChecked={true}\n                                        className=\"h-3.5 w-3.5 rounded border-[#d8e0ea]\"\n-                                       style={{caret-color:\"transparent\"}}\n                                      >\n                                      ...\n                                    ...\n                                  ...\n                                ...\n                  ...\n              ...\n            ...\n"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "type": "log",
+      "text": "[HMR] connected"
+    }
+  ],
+  "network": [
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_compiled_next-devtools_index_0cmminm.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_compiled_react-dom_0amk97q._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_compiled_react-server-dom-turbopack_0xucavu._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0.onrs-._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_compiled_06w1wh.._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_client_11sikwl._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_0bgyztl._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/_acp_worktrees_TASK-001062-a1_apps_web_0rqeker._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0nai_%40swc_helpers_cjs_0hwxshd._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/turbopack-_acp_worktrees_TASK-001062-a1_apps_web_119z4dw._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_01nf6l5._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/_acp_worktrees_TASK-001062-a1_apps_web_app__components_RegisterSW_tsx_0vxs3~w._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/_acp_worktrees_TASK-001062-a1_apps_web_app_layout_tsx_0yvdo8b._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0baf_next_dist_client_components_builtin_global-error_03b432s.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0-r1__pnpm_0ea5deh._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/_acp_worktrees_TASK-001062-a1_0sfqdy6._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/_acp_worktrees_TASK-001062-a1_apps_web_app_%5Blocale%5D_layout_tsx_03b432s._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/0r0n_worktrees_TASK-001062-a1_apps_web_app_%5Blocale%5D_(auth)_login_page_tsx_107_1pb._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0yjw1oe._.js",
+      "status": 304
+    },
+    {
+      "url": "http://127.0.0.1:32162/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_0ebvbka._.js",
+      "status": 304
+    }
+  ]
+}
