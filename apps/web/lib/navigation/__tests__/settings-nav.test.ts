@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -146,6 +146,33 @@ function loadLocale(locale: string): Record<string, unknown> {
   return JSON.parse(readFileSync(localePath, "utf8")) as Record<string, unknown>;
 }
 
+const localizedAppRoot = resolve(appRoot, "app/[locale]/(app)");
+
+function toRoutePath(pagePath: string) {
+  const routeParts = relative(localizedAppRoot, pagePath)
+    .split(/[\\/]/)
+    .slice(0, -1)
+    .filter((part) => !/^\(.+\)$/.test(part));
+  return routeParts.length === 0 ? "/" : `/${routeParts.join("/")}`;
+}
+
+function collectLocalizedPageRoots(dir = localizedAppRoot): Map<string, string> {
+  const roots = new Map<string, string>();
+  if (!existsSync(dir)) return roots;
+
+  const entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
+  for (const entry of entries) {
+    const absolute = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      for (const [route, file] of collectLocalizedPageRoots(absolute)) roots.set(route, file);
+    } else if (entry.isFile() && entry.name === "page.tsx") {
+      roots.set(toRoutePath(absolute), absolute);
+    }
+  }
+
+  return roots;
+}
+
 describe("UI-128 SETTINGS_NAV_GROUPS", () => {
   it("matches the prototype SETTINGS_NAV groups, items, labels, icons, highlights, and admin metadata 1:1", async () => {
     const { SETTINGS_NAV_GROUPS } = await loadSettingsNavModule<{ SETTINGS_NAV_GROUPS?: Record<string, unknown>[] }>();
@@ -169,7 +196,7 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
     }
   });
 
-  it("uses unique locale-relative settings routes and i18n keys resolvable in all locales", async () => {
+  it("uses unique locale-relative settings/account routes and i18n keys resolvable in all locales", async () => {
     const { SETTINGS_NAV_GROUPS } = await loadSettingsNavModule<{ SETTINGS_NAV_GROUPS?: Record<string, unknown>[] }>();
     const actualItems = (SETTINGS_NAV_GROUPS ?? []).flatMap(itemsOf);
     const routes = actualItems.map(routeOf);
@@ -177,7 +204,7 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
     expect(new Set(routes).size, "Each settings subnav route must be unique").toBe(routes.length);
     for (const [index, route] of routes.entries()) {
       const key = keyOf(actualItems[index] ?? {});
-      expect(route, `${key} route must be under /settings`).toMatch(/^\/settings(\/|$)/);
+      expect(route, `${key} route must be an internal app route`).toMatch(/^\/(settings|account)(\/|$)/);
       expect(route, `${key} route must not hard-code a locale prefix`).not.toMatch(/^\/(en|pl|uk|ro)(\/|$)/);
       expect(route, `${key} route must not be an external URL`).not.toMatch(/^https?:\/\//);
     }
@@ -191,6 +218,20 @@ describe("UI-128 SETTINGS_NAV_GROUPS", () => {
         expect(getByPath(messages, key), `${key} must resolve in ${locale}.json`).toEqual(expect.any(String));
       }
     }
+  });
+
+  it("maps every settings subnav route to a localized app page so authenticated clicks cannot land on 404", async () => {
+    const { SETTINGS_NAV_GROUPS } = await loadSettingsNavModule<{ SETTINGS_NAV_GROUPS?: Record<string, unknown>[] }>();
+    const pageRoots = collectLocalizedPageRoots();
+    const missingRoutes = (SETTINGS_NAV_GROUPS ?? [])
+      .flatMap(itemsOf)
+      .filter((item) => !pageRoots.has(routeOf(item)))
+      .map((item) => `${keyOf(item)}:${routeOf(item)}`);
+
+    expect(
+      missingRoutes,
+      `Every SettingsSubNav item must have a localized apps/web/app/[locale]/(app)/.../page.tsx route; found routes: ${JSON.stringify([...pageRoots.keys()].sort())}`,
+    ).toEqual([]);
   });
 
   it("keeps settings subnav item counts and permissions unset with documented RBAC todos", async () => {

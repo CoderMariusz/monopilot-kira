@@ -550,6 +550,57 @@
         "completed": "completed",
         "failed": "failed"
       }
+    },
+    "routeStubs": {
+      "common": {
+        "eyebrow": "Navigation target connected",
+        "body": "This page intentionally avoids mock business data. It proves the sidebar link resolves under the localized AppShell; the full business screen lands in its owning module wave.",
+        "backToSettings": "Back to settings"
+      },
+      "shifts": {
+        "title": "Shifts & calendar",
+        "description": "Shift pattern and non-production calendar route is connected; the OEE/production wave owns the full scheduling editor."
+      },
+      "products": {
+        "title": "Products & SKUs",
+        "description": "Product and SKU route is connected; the Technical module wave owns the full item list and product master workflow."
+      },
+      "boms": {
+        "title": "BOMs & recipes",
+        "description": "BOM and recipe route is connected; the Technical module wave owns the versioned BOM list and recipe workflow."
+      },
+      "processes": {
+        "title": "Processes",
+        "description": "Process configuration route is connected; the production/technical module waves own the detailed process setup screens."
+      },
+      "partners": {
+        "title": "Suppliers & customers",
+        "description": "Partner master-data route is connected; supplier and customer screens land in their domain waves."
+      },
+      "devices": {
+        "title": "Scanner devices",
+        "description": "Scanner device administration route is connected; scanner production work remains isolated from the desktop scanner shell."
+      },
+      "labels": {
+        "title": "Label templates",
+        "description": "Label template route is connected; document-template editing lands in the labels/document wave."
+      },
+      "onboarding": {
+        "title": "Onboarding wizard",
+        "description": "Onboarding route is connected; setup flow screens remain available while the full admin wizard is wired."
+      },
+      "d365_dlq": {
+        "title": "D365 DLQ",
+        "description": "D365 dead-letter route is connected; shipping/export exception handling lands in the integration wave."
+      },
+      "ship_override_reasons": {
+        "title": "Shipping override reasons",
+        "description": "Shipping override reason route is connected; rule/reference maintenance lands in the shipping/settings wave."
+      },
+      "gallery": {
+        "title": "Modal gallery",
+        "description": "Modal gallery route is connected for design-system verification and future QA evidence."
+      }
     }
   },
   "navigation": {
