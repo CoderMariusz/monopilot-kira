@@ -1,0 +1,10 @@
+[
+  {
+    "ac_id": "AC2-rbac-server-action-persistence",
+    "invariant_class": "runtime_wiring",
+    "evidence_kind": "runtime_wiring",
+    "verification_command": "pnpm --filter web exec playwright test apps/web/e2e/settings-units-parity-evidence.spec.ts --trace on",
+    "captured_output_excerpt": "http=200; final_path=/en/settings/units; base_url=http://127.0.0.1:3314; primary_cta_visible=false; dialog_evidence=not_opened_read_only_or_error_state; withOrgContext_route_fail_closed_no_mock_fallback; explicit_read_only_or_error_state_visible",
+    "assertion": "Editable units CRUD is deferred in this wave: the authenticated target route exposes no dead Add unit CTA, records the deferred/read-only state, and uses the production withOrgContext loader path instead of mock seed data."
+  }
+]

@@ -1,9 +1,9 @@
 {
-  "task_id": "TASK-001049",
+  "task_id": "TASK-001065",
   "artifact_dir_task_id": "TASK-001045",
-  "generated_at": "2026-05-25T17:57:55.866Z",
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001049-a1/prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-  "prototype_route": "http://127.0.0.1:62754/settings/settings.html",
+  "generated_at": "2026-05-25T19:34:05.788Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001065-a1/prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+  "prototype_route": "http://127.0.0.1:49681/settings/settings.html",
   "target_route": "http://127.0.0.1:3314/en/settings/units",
   "viewport": "desktop-1440x1000",
   "region_selectors": {

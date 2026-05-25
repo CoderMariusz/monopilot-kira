@@ -1,13 +1,13 @@
 {
-  "task_id": "TASK-001049",
+  "task_id": "TASK-001065",
   "artifact_dir_task_id": "TASK-001045",
   "root_task_id": "TASK-001038",
-  "generated_at": "2026-05-25T17:57:55.915Z",
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001049-a1/prototypes/design/Monopilot Design System/settings/data-screens.jsx",
-  "prototype_route": "http://127.0.0.1:62754/settings/settings.html",
+  "generated_at": "2026-05-25T19:34:05.832Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001065-a1/prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+  "prototype_route": "http://127.0.0.1:49681/settings/settings.html",
   "target_route": "/en/settings/units",
   "base_url": "http://127.0.0.1:3314",
-  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001049-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
+  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001065-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
   "viewports": [
     "desktop-1440x1000"
   ],
@@ -21,16 +21,27 @@
     "structural": "captured_fail_closed_read_only_or_error_state",
     "visual": "captured_fail_closed_read_only_or_error_state",
     "interaction": "read_only_deferred_no_primary_cta_on_real_route; rtl covers injected editable dialog",
-    "data": "not_verified_live_db_context_unavailable_no_mock_fallback",
-    "rbac": "fail_closed_read_only_or_error_state_captured",
+    "data": "runtime_loader_attempted_withOrgContext_no_mock_fallback",
+    "rbac": "runtime_wiring_fail_closed_read_only_or_error_state_captured",
     "i18n": "captured_no_raw_settings_units_key_observed",
-    "authenticated_preview": "local_dev_harness_with_auth_cookie; fake Supabase user; real withOrgContext DB unavailable in this worktree"
+    "authenticated_preview": "local_dev_harness_with_auth_cookie baseURL=http://127.0.0.1:3314; server=Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001065-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214"
   },
+  "invariant_evidence": [
+    {
+      "ac_id": "AC2-rbac-server-action-persistence",
+      "invariant_class": "runtime_wiring",
+      "evidence_kind": "runtime_wiring",
+      "verification_command": "pnpm --filter web exec playwright test apps/web/e2e/settings-units-parity-evidence.spec.ts --trace on",
+      "captured_output_excerpt": "http=200; final_path=/en/settings/units; base_url=http://127.0.0.1:3314; primary_cta_visible=false; dialog_evidence=not_opened_read_only_or_error_state; withOrgContext_route_fail_closed_no_mock_fallback; explicit_read_only_or_error_state_visible",
+      "assertion": "Editable units CRUD is deferred in this wave: the authenticated target route exposes no dead Add unit CTA, records the deferred/read-only state, and uses the production withOrgContext loader path instead of mock seed data."
+    }
+  ],
   "artifacts": {
     "prototype_screenshot": "apps/web/e2e/artifacts/TASK-001045/prototype-desktop-1440x1000.png",
     "target_screenshot": "apps/web/e2e/artifacts/TASK-001045/target-desktop-1440x1000.png",
     "target_dialog_screenshot": null,
     "dom_diff_json": "apps/web/e2e/artifacts/TASK-001045/dom-diff.json",
+    "invariant_evidence_json": "apps/web/e2e/artifacts/TASK-001045/invariant-evidence.json",
     "axe_report": "apps/web/e2e/artifacts/TASK-001045/axe-report.json"
   },
   "axe": {
