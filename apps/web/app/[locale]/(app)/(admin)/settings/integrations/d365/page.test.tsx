@@ -48,6 +48,10 @@ type D365ConnectionConfig = {
   lastTest: { ok: true; at: string; latencyMs: number; environment: string } | { ok: false; at: string | null; message: string };
 };
 
+type D365ConnectionTestResult =
+  | { status: 'ok'; latencyMs: number; environment: string }
+  | { status: 'error'; reason: string };
+
 type SaveD365ConnectionInput = {
   baseUrl: string;
   environment: 'Production' | 'Sandbox' | 'Development';
@@ -64,7 +68,7 @@ type D365ConnectionPageProps = {
   config?: D365ConnectionConfig | null;
   saveD365Connection?: (input: SaveD365ConnectionInput) => Promise<{ ok: true } | { ok: false; code: string }>;
   rotateD365ClientSecret?: () => Promise<{ ok: true } | { ok: false; code: string }>;
-  testD365Connection?: () => Promise<{ ok: true } | { ok: false; code: string }>;
+  testD365Connection?: () => Promise<D365ConnectionTestResult>;
 };
 
 type D365ConnectionPage = (props: D365ConnectionPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -109,7 +113,7 @@ async function renderD365ConnectionPage(overrides: Partial<D365ConnectionPagePro
     config: d365Config,
     saveD365Connection: vi.fn(async () => ({ ok: true as const })),
     rotateD365ClientSecret: vi.fn(async () => ({ ok: true as const })),
-    testD365Connection: vi.fn(async () => ({ ok: true as const })),
+    testD365Connection: vi.fn(async () => ({ status: 'ok' as const, latencyMs: 138, environment: 'Production' })),
     ...overrides,
   };
 
@@ -218,6 +222,32 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
     expect(screen.getByRole('combobox', { name: /environment/i })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('textbox', { name: /tenant id/i })).toHaveFocus();
+  });
+
+  it('opens the shared SM-08 diagnostics modal from the route, calls the real test action, and renders async provenance without secrets', async () => {
+    const user = userEvent.setup();
+    let resolveConnection!: (value: D365ConnectionTestResult) => void;
+    const testD365Connection = vi.fn(
+      () =>
+        new Promise<D365ConnectionTestResult>((resolve) => {
+          resolveConnection = resolve;
+        }),
+    );
+    await renderD365ConnectionPage({ testD365Connection });
+
+    await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
+
+    await waitFor(() => expect(testD365Connection).toHaveBeenCalledTimes(1));
+    const dialog = await screen.findByRole('dialog', { name: /test d365 connection|test connection/i });
+    expect(dialog).toHaveAttribute('data-modal-id', 'SM-08');
+    expect(within(dialog).getByRole('status', { name: /connecting to d365 environment/i })).toHaveTextContent(
+      d365Config.baseUrl,
+    );
+    expect(document.body).not.toHaveTextContent(/client-secret|super-secret|oauth|bearer/i);
+
+    resolveConnection({ status: 'ok', latencyMs: 238, environment: 'Production' });
+    expect(await within(dialog).findByText(/connection successful/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/latency:/i)).toHaveTextContent(/238ms.*Production/);
   });
 
   it("surfaces inline Zod URL_INVALID and disables Save when Base URL does not contain 'dynamics.com'", async () => {

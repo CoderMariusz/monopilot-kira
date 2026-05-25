@@ -96,6 +96,10 @@ type D365FieldMapping = {
   unmapped?: boolean;
 };
 
+type D365ConnectionTestResult =
+  | { status: 'ok'; latencyMs: number; environment: string }
+  | { status: 'error'; reason: string };
+
 type ExportD365MappingCsv = (input?: { dir?: 'all' | D365Direction; rows?: D365FieldMapping[] }) =>
   | Response
   | Promise<Response>;
@@ -106,6 +110,7 @@ type D365MappingPageProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   rows?: D365FieldMapping[];
   exportD365MappingCsv?: ExportD365MappingCsv;
+  testD365Connection?: () => Promise<D365ConnectionTestResult>;
 };
 
 type D365MappingPage = (props: D365MappingPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -385,6 +390,29 @@ describe('T-062 d365_mapping_screen prototype parity and interactions', () => {
       'dialog-content',
     );
     assertModalA11y(dialog, /d365 test connection|test connection/i);
+  });
+
+  it('wires the mapping Test connection CTA to shared SM-08 async diagnostics instead of a static read-only dialog', async () => {
+    const user = userEvent.setup();
+    let resolveConnection!: (value: D365ConnectionTestResult) => void;
+    const testD365Connection = vi.fn(
+      () =>
+        new Promise<D365ConnectionTestResult>((resolve) => {
+          resolveConnection = resolve;
+        }),
+    );
+    await renderD365MappingPage({ testD365Connection });
+
+    await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
+
+    await waitFor(() => expect(testD365Connection).toHaveBeenCalledTimes(1));
+    const dialog = await screen.findByRole('dialog', { name: /d365 test connection|test connection/i });
+    expect(dialog).toHaveAttribute('data-modal-id', 'SM-08');
+    expect(within(dialog).getByRole('status', { name: /connecting to d365 environment/i })).toBeInTheDocument();
+
+    resolveConnection({ status: 'ok', latencyMs: 238, environment: 'Production' });
+    expect(await within(dialog).findByText(/connection successful/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/latency:/i)).toHaveTextContent(/238ms.*Production/);
   });
 
   it('renders SM-08 through the shared Modal primitive even under jsdom', async () => {
