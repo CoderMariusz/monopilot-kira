@@ -397,7 +397,8 @@
     "dryRunDialogTitle": "Dry-run all rules",
     "close": "Close",
     "filters": "Rules filters",
-    "rulesCount": "{visible} / {total} rules"
+    "rulesCount": "{visible} / {total} rules",
+    "provenance": "Data source: listRules Server Action via withOrgContext (live org-scoped rule_definitions and rule_dry_runs)."
   },
   "reference": {
     "screen_title": "Reference data",

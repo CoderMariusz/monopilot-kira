@@ -30,6 +30,25 @@ type DryRunRow = {
   ran_by: string | null;
 };
 
+
+export type RunRuleDryRunInput = {
+  ruleCode: string;
+  sampleInput: Record<string, unknown>;
+};
+
+export type RunRuleDryRunResult =
+  | {
+      ok: true;
+      data: {
+        ruleCode: string;
+        status: 'pass' | 'fail';
+        warnings: string[];
+        trace: string[];
+        evaluatedAt: string;
+      };
+    }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
 export type ListRuleDryRunsInput = {
   ruleCode: string;
   status?: DryRunStatus;
@@ -94,6 +113,63 @@ export async function listRuleDryRuns(rawInput: ListRuleDryRunsInput): Promise<L
   });
 }
 
+
+export async function runRuleDryRun(rawInput: RunRuleDryRunInput): Promise<RunRuleDryRunResult> {
+  const input = parseRunInput(rawInput);
+  if (!input) return { ok: false, error: 'invalid_input' };
+
+  return withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
+    try {
+      await requirePermission({ client, userId, orgId });
+      const { rows: ruleRows } = await client.query<{
+        id: string;
+        rule_code: string;
+        definition_json: unknown;
+      }>(
+        `select id, rule_code, definition_json
+           from public.rule_definitions
+          where org_id = app.current_org_id()
+            and rule_code = $1
+            and active_to is null
+          order by version desc
+          limit 1`,
+        [input.ruleCode],
+      );
+      const rule = ruleRows[0];
+      if (!rule) return { ok: false, error: 'not_found' };
+
+      const evaluation = evaluateRule(rule.definition_json, input.sampleInput);
+      const { rows: inserted } = await client.query<DryRunRow>(
+        `insert into public.rule_dry_runs
+          (org_id, rule_definition_id, sample_input_json, result_json, ran_by)
+         values (app.current_org_id(), $1::uuid, $2::jsonb, $3::jsonb, $4::uuid)
+         returning id, rule_definition_id, $5::text as rule_code,
+                   coalesce(result_json->>'status', 'pass') as status,
+                   sample_input_json, result_json,
+                   coalesce(result_json->'warnings', '[]'::jsonb) as warnings,
+                   ran_at, ran_by::text as ran_by`,
+        [rule.id, input.sampleInput, evaluation, userId, input.ruleCode],
+      );
+      const persisted = inserted[0];
+      const resultJson = normalizeRecord(persisted?.result_json) ?? evaluation;
+      const statusValue = resultJson.status === 'fail' || resultJson.status === 'failed' ? 'fail' : 'pass';
+      return {
+        ok: true,
+        data: {
+          ruleCode: input.ruleCode,
+          status: statusValue,
+          warnings: normalizeWarnings(resultJson.warnings),
+          trace: normalizeTrace(resultJson.trace),
+          evaluatedAt: persisted?.ran_at == null ? evaluation.evaluatedAt : toIso(persisted.ran_at),
+        },
+      };
+    } catch (error) {
+      if (error === FORBIDDEN) return { ok: false, error: 'forbidden' };
+      return { ok: false, error: 'persistence_failed' };
+    }
+  });
+}
+
 function parseInput(input: ListRuleDryRunsInput | null | undefined): ListRuleDryRunsInput & { limit: number } | null {
   if (!input || typeof input !== 'object') return null;
   const ruleCode = typeof input.ruleCode === 'string' ? input.ruleCode.trim() : '';
@@ -116,6 +192,42 @@ function mapDryRunRow(row: DryRunRow) {
     ranAt: row.ran_at == null ? null : toIso(row.ran_at),
     ranBy: row.ran_by,
   };
+}
+
+
+function parseRunInput(input: RunRuleDryRunInput | null | undefined): RunRuleDryRunInput | null {
+  if (!input || typeof input !== 'object') return null;
+  const ruleCode = typeof input.ruleCode === 'string' ? input.ruleCode.trim() : '';
+  if (!RULE_CODE_PATTERN.test(ruleCode)) return null;
+  const sampleInput = input.sampleInput;
+  if (!sampleInput || typeof sampleInput !== 'object' || Array.isArray(sampleInput)) return null;
+  return { ruleCode, sampleInput };
+}
+
+function evaluateRule(definition: unknown, sampleInput: Record<string, unknown>) {
+  const definitionRecord = normalizeRecord(definition) ?? {};
+  const checks = Array.isArray(definitionRecord.checks)
+    ? definitionRecord.checks.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  const missingChecks = checks.filter((check) => String(sampleInput[check]) === 'false');
+  const status = missingChecks.length > 0 ? 'fail' : 'pass';
+  return {
+    status,
+    warnings: missingChecks.map((check) => `${check} failed sample predicate`),
+    trace: checks.length > 0
+      ? checks.map((check) => `check: ${check} → ${missingChecks.includes(check) ? '×' : '✓'}`)
+      : ['rule definition loaded', `sample keys: ${Object.keys(sampleInput).sort().join(', ') || 'none'}`],
+    evaluatedAt: new Date().toISOString(),
+  };
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeTrace(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
 function normalizeWarnings(value: unknown): string[] {

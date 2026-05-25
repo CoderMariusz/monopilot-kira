@@ -64,6 +64,7 @@ const DEFAULT_LABELS: RulesRegistryLabels = {
   close: 'Close',
   filters: 'Rules filters',
   rulesCount: '{visible} / {total} rules',
+  provenance: 'Data source: listRules Server Action via withOrgContext (live org-scoped rule_definitions and rule_dry_runs).',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof RulesRegistryLabels>;
@@ -113,7 +114,11 @@ function toRule(row: ListedRule): RuleRegistryRow {
 async function buildLabels(locale: string): Promise<RulesRegistryLabels> {
   const messages = locale === 'pl'
     ? (await import('../../../../../../messages/pl/02-settings.json')).default
-    : (await import('../../../../../../messages/en/02-settings.json')).default;
+    : locale === 'ro'
+      ? (await import('../../../../../../messages/ro/02-settings.json')).default
+      : locale === 'uk'
+        ? (await import('../../../../../../messages/uk/02-settings.json')).default
+        : (await import('../../../../../../messages/en/02-settings.json')).default;
   const source = messages.rules_registry as Partial<Record<keyof RulesRegistryLabels, unknown>>;
   return LABEL_KEYS.reduce((labels, key) => {
     const value = source[key];
@@ -151,6 +156,7 @@ export default async function RulesRegistryPage(propsInput: unknown) {
       initialCoverageFilter={normalizeCoverage(asSingle(query.coverage))}
       openModal={openModal}
       onOpenRule={onOpenRule}
+      locale={locale}
     />
   );
 }

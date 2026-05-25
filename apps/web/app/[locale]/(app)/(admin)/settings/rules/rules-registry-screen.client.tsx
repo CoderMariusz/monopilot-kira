@@ -2,6 +2,9 @@
 
 import React from 'react';
 
+import { runRuleDryRun } from '../../../../../../actions/rules/dry-runs';
+import RuleDryRunModal, { type RuleDryRunResult } from '../../../../../../components/settings/modals/rule-dry-run-modal';
+
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
@@ -63,6 +66,7 @@ export type RulesRegistryLabels = {
   close: string;
   filters: string;
   rulesCount: string;
+  provenance: string;
 };
 
 export type RulesRegistryScreenProps = {
@@ -74,6 +78,7 @@ export type RulesRegistryScreenProps = {
   initialCoverageFilter?: RuleCoverage | 'all';
   openModal?: (modalId: 'ruleDryRun') => void;
   onOpenRule?: (ruleCode: string) => void;
+  locale?: string;
 };
 
 const TYPE_OPTIONS: Array<RuleType | 'all'> = ['all', 'workflow', 'cascading', 'conditional', 'gate'];
@@ -179,6 +184,7 @@ export default function RulesRegistryScreen({
   initialCoverageFilter = 'all',
   openModal,
   onOpenRule,
+  locale = 'en',
 }: RulesRegistryScreenProps) {
   const [typeFilter, setTypeFilter] = React.useState<RuleType | 'all'>(initialTypeFilter);
   const [coverageFilter, setCoverageFilter] = React.useState<RuleCoverage | 'all'>(initialCoverageFilter);
@@ -208,7 +214,17 @@ export default function RulesRegistryScreen({
       onOpenRule(ruleCode);
       return;
     }
-    window.location.assign(`/settings/rules/${encodeURIComponent(ruleCode)}`);
+    window.location.assign(`/${encodeURIComponent(locale)}/settings/rules/${encodeURIComponent(ruleCode)}`);
+  };
+
+  const primaryDryRunRule = visibleRules[0] ?? rules[0];
+  const runSharedDryRun = async (input: { ruleCode: string; sampleInput: Record<string, unknown> }): Promise<RuleDryRunResult> => {
+    const result = await runRuleDryRun(input);
+    if (result && typeof result === 'object' && 'ok' in result) {
+      if (result.ok) return result.data;
+      throw new Error(result.error);
+    }
+    return result as RuleDryRunResult;
   };
 
   const actions = (
@@ -296,6 +312,8 @@ export default function RulesRegistryScreen({
         </span>
       </section>
 
+      <p className="muted text-xs" data-testid="rules-registry-provenance">{labels.provenance}</p>
+
       <section data-region="deployed-rules" aria-labelledby="settings-rules-deployed-title">
         <Card>
           <CardHeader>
@@ -336,9 +354,18 @@ export default function RulesRegistryScreen({
                       </TableCell>
                       <TableCell className="muted text-xs">{moduleRefs(labels.moduleRefs, rule.consumers.length)}</TableCell>
                       <TableCell>
-                        <Button type="button" className="btn-secondary btn-sm" onClick={() => openRule(rule.code)} aria-label={`${labels.viewRule} ${rule.code}`}>
+                        <a
+                          className="btn btn-secondary btn-sm"
+                          href={`/${encodeURIComponent(locale)}/settings/rules/${encodeURIComponent(rule.code)}`}
+                          onClick={(event) => {
+                            if (!onOpenRule) return;
+                            event.preventDefault();
+                            openRule(rule.code);
+                          }}
+                          aria-label={`${labels.viewRule} ${rule.code}`}
+                        >
                           {labels.viewRule} →
-                        </Button>
+                        </a>
                       </TableCell>
                     </TableRow>
                   );
@@ -349,26 +376,14 @@ export default function RulesRegistryScreen({
         </Card>
       </section>
 
-      {dialogOpen ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="rule-dry-run-dialog-title"
-          data-modal-id="ruleDryRun"
-          className="modal modal--md"
-        >
-          <header data-testid="modal-header" className="flex items-center justify-between gap-4">
-            <h2 id="rule-dry-run-dialog-title">{labels.dryRunDialogTitle}</h2>
-          </header>
-          <div data-testid="modal-body">
-          <p>{labels.dryRunAllRulesTitle}</p>
-          </div>
-          <footer data-testid="modal-footer" className="flex justify-end gap-2">
-            <Button type="button" onClick={() => setDialogOpen(false)}>
-              {labels.close}
-            </Button>
-          </footer>
-        </div>
+      {dialogOpen && primaryDryRunRule ? (
+        <RuleDryRunModal
+          defaultOpen
+          rule={{ code: primaryDryRunRule.code, description: primaryDryRunRule.description }}
+          initialSampleInput={{ ruleCode: primaryDryRunRule.code, dryRunScope: 'registry', requestedAt: now }}
+          runDryRun={runSharedDryRun}
+          onOpenChange={(open) => setDialogOpen(open)}
+        />
       ) : null}
     </main>
   );

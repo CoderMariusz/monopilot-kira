@@ -397,7 +397,8 @@
     "dryRunDialogTitle": "Próba wszystkich reguł",
     "close": "Zamknij",
     "filters": "Filtry reguł",
-    "rulesCount": "{visible} / {total} reguł"
+    "rulesCount": "{visible} / {total} reguł",
+    "provenance": "Źródło danych: akcja serwera listRules przez withOrgContext (żywe dane org z rule_definitions i rule_dry_runs)."
   },
   "reference": {
     "screen_title": "Dane referencyjne",
