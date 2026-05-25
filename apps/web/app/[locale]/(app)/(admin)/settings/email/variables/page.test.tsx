@@ -242,7 +242,7 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
 
     const search = screen.getByRole('searchbox', { name: /search variable/i });
     expect(search).toHaveAttribute('placeholder', 'Search variable…');
-    expect(search).toHaveAttribute('data-slot', 'input');
+    expect(search.closest('[data-slot="input"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-slot="card"]').length).toBe(emailVariableGroups.length);
     expect(document.querySelectorAll('[data-slot="table"]').length).toBe(emailVariableGroups.length);
     expect(screen.getAllByRole('button', { name: /^Copy$/i })).toHaveLength(6);
@@ -342,7 +342,7 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
 
     await renderEmailVariablesPage({ state: 'empty', groups: [] });
     expect(screen.getByText(/no email variables are available yet/i)).toBeInTheDocument();
-    expect(screen.getByRole('searchbox', { name: /search variable/i })).toHaveAttribute('data-slot', 'input');
+    expect(screen.getByRole('searchbox', { name: /search variable/i }).closest('[data-slot="input"]')).not.toBeNull();
     cleanup();
 
     await renderEmailVariablesPage({ state: 'error', groups: [] });

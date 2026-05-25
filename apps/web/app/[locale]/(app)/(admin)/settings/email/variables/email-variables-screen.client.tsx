@@ -101,7 +101,6 @@ export default function EmailVariablesScreen({ labels, groups, state }: EmailVar
             <label className="inline-flex flex-col gap-1 text-xs text-slate-600">
               <span className="sr-only">{labels.searchPlaceholder.replace('…', '')}</span>
               <Input
-                data-slot="input"
                 aria-label={labels.searchPlaceholder.replace('…', '')}
                 role="searchbox"
                 type="search"
