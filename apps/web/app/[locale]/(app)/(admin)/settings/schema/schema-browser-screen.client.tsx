@@ -175,10 +175,10 @@ export default function SchemaBrowserScreen({
           <p>{labels.subtitle}</p>
         </div>
         <div className="settings-page__actions flex flex-wrap items-center gap-2">
-          <a className="btn btn-secondary" href={`${schemaBaseHref}/preview`}>
+          <a className="btn btn-secondary" href={`${schemaBaseHref}/preview`} tabIndex={-1}>
             {labels.previewSchema ?? 'Schema shadow preview'}
           </a>
-          <a className="btn btn-secondary" href={`${schemaBaseHref}/new`}>
+          <a className="btn btn-secondary" href={`${schemaBaseHref}/new`} tabIndex={-1}>
             {labels.newSchemaColumn ?? 'New schema column'}
           </a>
           <Button type="button" className="btn-secondary" onClick={exportVisibleColumns}>
@@ -304,7 +304,10 @@ export default function SchemaBrowserScreen({
                               data-modal-id="schemaView"
                               onClick={(event) => {
                                 event.currentTarget.blur();
-                                openModal?.('schemaView', { col: row });
+                                if (openModal) {
+                                  openModal('schemaView', { col: row });
+                                  return;
+                                }
                                 setDialogColumn(row);
                               }}
                             >
