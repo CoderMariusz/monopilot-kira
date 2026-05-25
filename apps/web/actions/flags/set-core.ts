@@ -139,8 +139,6 @@ async function requirePermission({ client, userId, orgId }: OrgActionContext): P
         and ur.org_id = $2::uuid
         and (
           rp.permission is not null
-          or r.code = $3
-          or r.slug = $3
           or r.permissions ? $3
         )
       limit 1`,

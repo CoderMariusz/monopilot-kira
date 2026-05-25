@@ -13,6 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from '@monopilot/ui/Table';
+import { setCoreFlag } from '../../../../../../actions/flags/set-core';
+import { setLocalFlag } from '../../../../../../actions/tenant/set-local-flag';
+import FlagEditModal, { type FlagEditResult, type SettingsFlag } from '../../../../../../components/settings/modals/flag-edit-modal';
 
 export type FlagTier = 'L1' | 'L2' | 'L3';
 export type FlagTenant = 'L1-core' | 'L2-local' | 'L3-tenant';
@@ -126,6 +129,8 @@ export default function FlagsAdminScreen({
     Object.fromEntries(flags.map((flag) => [flag.code, flagEnabled(flag)])),
   );
   const [preflightBlocked, setPreflightBlocked] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [editingFlag, setEditingFlag] = React.useState<FeatureFlagRow | null>(null);
 
   React.useEffect(() => {
     setEnabledByCode(Object.fromEntries(flags.map((flag) => [flag.code, flagEnabled(flag)])));
@@ -143,19 +148,62 @@ export default function FlagsAdminScreen({
     return `${flag.code} ${flagDescription(flag)}`.toLowerCase().includes(normalizedQuery);
   });
 
+  const persistToggle = React.useCallback(
+    async (flag: FeatureFlagRow, next: boolean) => {
+      if (onToggleFlag) return onToggleFlag(flag.code, next);
+      if (flag.tier === 'L1') {
+        const result = await setCoreFlag({ flagCode: flag.code, enabled: next });
+        return result.ok ? ({ ok: true } as const) : ({ ok: false, error: result.error } as const);
+      }
+      const result = await setLocalFlag({ flagKey: flag.code, enabled: next });
+      return result.ok ? ({ ok: true } as const) : ({ ok: false, error: result.error } as const);
+    },
+    [onToggleFlag],
+  );
+
   const handleToggle = (flag: FeatureFlagRow, next: boolean) => {
     if (flag.code === authorizationPreflight.flagCode && next && !authorizationPreflight.canEnable) {
       setPreflightBlocked(true);
       return;
     }
     setPreflightBlocked(false);
+    setActionError(null);
+    const previous = Boolean(enabledByCode[flag.code]);
     setEnabledByCode((current) => ({ ...current, [flag.code]: next }));
-    void onToggleFlag?.(flag.code, next);
+    void persistToggle(flag, next).then((result) => {
+      if (result.ok) return;
+      setEnabledByCode((current) => ({ ...current, [flag.code]: previous }));
+      setActionError(result.error);
+    });
   };
 
   const handleEdit = (flag: FeatureFlagRow) => {
-    openModal?.(flag.tier === 'L1' ? 'promoteToL2' : 'flagEdit', { flag });
+    if (flag.tier === 'L1') {
+      openModal?.('promoteToL2', { flag });
+      return;
+    }
+    setEditingFlag(flag);
+    openModal?.('flagEdit', { flag });
   };
+
+  const modalFlag = editingFlag ? toSettingsFlag(editingFlag, enabledByCode[editingFlag.code]) : null;
+
+  const saveFlagChange = React.useCallback(
+    async ({ flagId, enabled, reason }: { flagId: string; enabled: boolean; rollout: number; reason: string }): Promise<FlagEditResult> => {
+      const flag = editingFlag;
+      if (!flag || flagId !== flag.code) return { ok: false, error: 'FLAG_SAVE_FAILED' };
+
+      const result =
+        flag.tier === 'L1'
+          ? await setCoreFlag({ flagCode: flag.code, enabled, auditReason: reason })
+          : await setLocalFlag({ flagKey: flag.code, enabled, auditReason: reason });
+      if (!result.ok) return { ok: false, error: result.error };
+
+      setEnabledByCode((current) => ({ ...current, [flag.code]: enabled }));
+      return { ok: true, flagId: flag.code, revalidatedPath: '/settings/flags' };
+    },
+    [editingFlag],
+  );
 
   if (state === 'loading') {
     return (
@@ -235,6 +283,11 @@ export default function FlagsAdminScreen({
 
       <section data-region="flags-table" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold text-slate-950">{sectionTitle}</h2>
+        {actionError ? (
+          <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+            {actionError}
+          </div>
+        ) : null}
         {state === 'empty' || filteredFlags.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600">{labels.empty}</p>
         ) : (
@@ -292,6 +345,39 @@ export default function FlagsAdminScreen({
           </Table>
         )}
       </section>
+      <FlagEditModal
+        open={Boolean(editingFlag)}
+        flag={modalFlag}
+        onOpenChange={(open) => {
+          if (!open) setEditingFlag(null);
+        }}
+        saveFlagChange={saveFlagChange}
+        onPromoteToL2={({ flag }) => {
+          openModal?.('promoteToL2', { flag: fromSettingsFlag(flag) });
+        }}
+      />
     </main>
   );
+}
+
+function toSettingsFlag(flag: FeatureFlagRow, enabled: boolean | undefined): SettingsFlag {
+  return {
+    id: flag.code,
+    code: flag.code,
+    desc: flagDescription(flag),
+    tenant: flag.tenant,
+    on: Boolean(enabled ?? flagEnabled(flag)),
+    rollout: flagRollout(flag),
+  };
+}
+
+function fromSettingsFlag(flag: SettingsFlag): FeatureFlagRow {
+  return {
+    code: flag.code,
+    description: flag.desc,
+    tier: flag.tenant === 'L1-core' ? 'L1' : flag.tenant === 'L2-local' || flag.tenant === 'L2-site' ? 'L2' : 'L3',
+    tenant: flag.tenant === 'L2-site' ? 'L2-local' : flag.tenant === 'L3-org' ? 'L3-tenant' : flag.tenant,
+    enabled: flag.on,
+    rolloutPercent: flag.rollout,
+  };
 }
