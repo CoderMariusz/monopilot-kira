@@ -31,6 +31,42 @@ vi.mock('../../../../../../actions/flags/set-core', () => ({
   setCoreFlag: setCoreFlagAction,
 }));
 
+vi.mock('@monopilot/ui/Modal', async () => {
+  type ModalShimProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    size?: string;
+    modalId?: string;
+    children: React.ReactNode;
+  };
+
+  function ModalShim({ open, size = 'md', modalId, children }: ModalShimProps) {
+    if (!open) return null;
+    return (
+      <>
+        <span data-radix-focus-guard="" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="flag-edit-modal-title"
+          data-focus-trap="radix-dialog"
+          data-size={size}
+          data-modal-id={modalId}
+        >
+          {children}
+        </div>
+        <span data-radix-focus-guard="" />
+      </>
+    );
+  }
+
+  ModalShim.Header = ({ title }: { title: string }) => <h2 id="flag-edit-modal-title">{title}</h2>;
+  ModalShim.Body = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-body">{children}</div>;
+  ModalShim.Footer = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-footer">{children}</div>;
+
+  return { default: ModalShim };
+});
+
 type FlagsLabels = {
   title: string;
   subtitle: string;

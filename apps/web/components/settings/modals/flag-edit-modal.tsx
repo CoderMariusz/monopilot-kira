@@ -8,43 +8,6 @@ import Modal from '@monopilot/ui/Modal';
 import ReasonInput from '@monopilot/ui/ReasonInput';
 import { Switch } from '@monopilot/ui/Switch';
 
-const radixFocusGuardAttr = ['data', 'radix', 'focus', 'guard'].join('-');
-
-type ModalSurfaceComponent = typeof Modal;
-
-function TestModalSurface({ open, size = 'md', modalId, children }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  size?: string;
-  modalId?: string;
-  children: React.ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      <span {...{ [radixFocusGuardAttr]: '' }} />
-      <div
-        role={'dialog'}
-        aria-modal="true"
-        aria-labelledby="flag-edit-modal-title"
-        data-focus-trap="radix-dialog"
-        data-size={size}
-        data-modal-id={modalId}
-      >
-        {children}
-      </div>
-      <span {...{ [radixFocusGuardAttr]: '' }} />
-    </>
-  );
-}
-
-TestModalSurface.Header = ({ title }: { title: string }) => <h2 id="flag-edit-modal-title">{title}</h2>;
-TestModalSurface.Body = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-body">{children}</div>;
-TestModalSurface.Footer = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-footer">{children}</div>;
-
-const isJsdomRuntime = typeof window !== 'undefined' && window.navigator.userAgent.toLowerCase().includes('jsdom');
-const ModalSurface = (isJsdomRuntime ? TestModalSurface : Modal) as ModalSurfaceComponent;
-
 export type SettingsFlag = {
   id: string;
   code: string;
@@ -202,13 +165,13 @@ export function FlagEditModal({
 
   return (
     <div data-testid="flag-edit-modal">
-      <ModalSurface open={open} onOpenChange={onOpenChange} size="default" modalId="SM-02">
-        <ModalSurface.Header title={title} />
+      <Modal open={open} onOpenChange={onOpenChange} size="default" modalId="SM-02">
+        <Modal.Header title={title} />
         <p id="sm-02-flag-edit-subtitle" className="muted">
           {subtitle}
         </p>
 
-        <ModalSurface.Body>
+        <Modal.Body>
           {loading ? (
             <div role="status" aria-label="Loading feature flag">
               ⟳ Loading feature flag…
@@ -289,9 +252,9 @@ export function FlagEditModal({
               ) : null}
             </>
           )}
-        </ModalSurface.Body>
+        </Modal.Body>
 
-        <ModalSurface.Footer>
+        <Modal.Footer>
           <Button type="button" className="btn-secondary btn-sm" onClick={closeModal} onKeyDown={handleCancelKeyDown}>
             Cancel
           </Button>
@@ -304,8 +267,8 @@ export function FlagEditModal({
           >
             {submitting ? 'Saving…' : 'Save change'}
           </Button>
-        </ModalSurface.Footer>
-      </ModalSurface>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
