@@ -91,8 +91,10 @@ function label(fullKey: string, translated: string, fallback: string) {
   return translated && translated !== fullKey && !translated.endsWith(`.${fullKey}`) ? translated : fallback;
 }
 
-function safeLabel(t: (key: string) => string, key: string, fallback: string) {
+function safeLabel(t: ((key: string) => string) & { raw?: (key: string) => unknown }, key: string, fallback: string) {
   try {
+    const raw = typeof t.raw === 'function' ? t.raw(key) : null;
+    if (typeof raw === 'string') return label(key, raw, fallback);
     return label(key, t(key), fallback);
   } catch {
     return fallback;

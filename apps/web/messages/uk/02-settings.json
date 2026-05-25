@@ -308,5 +308,47 @@
     "deferredReadOnly": "Лише читання / відкладено",
     "deferredReadOnlyDescription": "Супровід одиниць і конверсій відкладено до появи редагованої довідкової схеми та дії RBAC. Live-рядки відображаються лише для читання; mock-дані не використовуються як fallback.",
     "saveUnit": "Зберегти одиницю"
+  },
+  "integrations": {
+    "d365": {
+      "connection": {
+        "title": "Підключення D365",
+        "subtitle": "Dynamics 365 Finance & Operations — endpoint, автентифікація і розклад опитування.",
+        "testConnection": "Перевірити підключення",
+        "save": "Зберегти конфігурацію",
+        "rotateSecret": "Оновити секрет",
+        "secretRotated": "Секрет клієнта D365 оновлено",
+        "urlInvalid": "URL_INVALID",
+        "loading": "Завантаження підключення D365…",
+        "empty": "Підключення D365 не налаштовано.",
+        "error": "Не вдалося завантажити підключення D365."
+      }
+    }
+  },
+  "d365Mapping": {
+    "title": "Мапінг полів D365",
+    "subtitle": "Як поля сутностей D365 відображаються на таблиці Monopilot.",
+    "exportCsv": "Експортувати мапінг CSV",
+    "testConnection": "Перевірити підключення",
+    "changeNotice": "Мапінг розгортається через CI/CD. Щоб змінити мапінг, створіть PR у репозиторії monopilot/integrations-d365.",
+    "unmappedAlert": "Item.allergens[] не має мапінгу в мапінгу полів D365.",
+    "all": "Усі ({count})",
+    "incoming": "D365 → Monopilot ({count})",
+    "outgoing": "Monopilot → D365 ({count})",
+    "directionFilterLabel": "Напрямок мапінгу D365",
+    "fieldLevelMap": "Мапа на рівні полів",
+    "d365Field": "Поле D365",
+    "direction": "Напрямок",
+    "monopilotField": "Поле Monopilot",
+    "type": "Тип",
+    "transform": "Перетворення",
+    "loading": "Завантаження мапінгу полів D365…",
+    "empty": "Мапінги полів D365 не знайдено.",
+    "error": "Не вдалося завантажити мапінг полів D365.",
+    "exportReady": "Експорт CSV готовий",
+    "exportFailed": "Помилка експорту CSV",
+    "testConnectionDialogTitle": "Тест підключення D365",
+    "testConnectionDialogBody": "Перевірки endpoint, Azure AD та експорту мапінгу в SET-081 доступні лише для читання.",
+    "close": "Закрити"
   }
 }

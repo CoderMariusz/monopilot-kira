@@ -308,5 +308,47 @@
     "deferredReadOnly": "Doar citire / amânat",
     "deferredReadOnlyDescription": "Întreținerea unităților și conversiilor este amânată până când schema de referință editabilă și acțiunea RBAC sunt disponibile. Rândurile live sunt afișate doar pentru citire; nu se folosesc date mock ca fallback.",
     "saveUnit": "Salvează unitatea"
+  },
+  "integrations": {
+    "d365": {
+      "connection": {
+        "title": "Conexiune D365",
+        "subtitle": "Dynamics 365 Finance & Operations — endpoint, autentificare și program de polling.",
+        "testConnection": "Testează conexiunea",
+        "save": "Salvează configurația",
+        "rotateSecret": "Rotește secretul",
+        "secretRotated": "Secretul clientului D365 a fost rotit",
+        "urlInvalid": "URL_INVALID",
+        "loading": "Se încarcă conexiunea D365…",
+        "empty": "Conexiunea D365 nu este configurată.",
+        "error": "Conexiunea D365 nu poate fi încărcată."
+      }
+    }
+  },
+  "d365Mapping": {
+    "title": "Maparea câmpurilor D365",
+    "subtitle": "Cum se mapează câmpurile entităților D365 la tabelele Monopilot.",
+    "exportCsv": "Exportă maparea CSV",
+    "testConnection": "Testează conexiunea",
+    "changeNotice": "Maparea este livrată prin CI/CD. Pentru modificări, deschide un PR în repo-ul monopilot/integrations-d365.",
+    "unmappedAlert": "Item.allergens[] nu este mapat în maparea câmpurilor D365.",
+    "all": "Toate ({count})",
+    "incoming": "D365 → Monopilot ({count})",
+    "outgoing": "Monopilot → D365 ({count})",
+    "directionFilterLabel": "Direcția mapării D365",
+    "fieldLevelMap": "Hartă la nivel de câmp",
+    "d365Field": "Câmp D365",
+    "direction": "Direcție",
+    "monopilotField": "Câmp Monopilot",
+    "type": "Tip",
+    "transform": "Transformare",
+    "loading": "Se încarcă maparea câmpurilor D365…",
+    "empty": "Nu s-au găsit mapări de câmpuri D365.",
+    "error": "Maparea câmpurilor D365 nu poate fi încărcată.",
+    "exportReady": "Exportul CSV este gata",
+    "exportFailed": "Exportul CSV a eșuat",
+    "testConnectionDialogTitle": "Test conexiune D365",
+    "testConnectionDialogBody": "Verificările pentru endpoint, Azure AD și exportul mapării sunt doar în citire în SET-081.",
+    "close": "Închide"
   }
 }

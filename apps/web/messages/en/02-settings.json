@@ -783,5 +783,47 @@
     "deferredReadOnly": "Read-only / deferred",
     "deferredReadOnlyDescription": "Unit and conversion maintenance is deferred until the editable reference schema and RBAC action are available. Live rows are displayed read-only; no mock fallback data is used.",
     "saveUnit": "Save unit"
+  },
+  "integrations": {
+    "d365": {
+      "connection": {
+        "title": "D365 connection",
+        "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, polling schedule.",
+        "testConnection": "Test connection",
+        "save": "Save configuration",
+        "rotateSecret": "Rotate secret",
+        "secretRotated": "D365 client secret rotated",
+        "urlInvalid": "URL_INVALID",
+        "loading": "Loading D365 connection…",
+        "empty": "D365 connection is not configured.",
+        "error": "Unable to load D365 connection."
+      }
+    }
+  },
+  "d365Mapping": {
+    "title": "D365 field mapping",
+    "subtitle": "How D365 entity fields map to Monopilot tables.",
+    "exportCsv": "Export mapping CSV",
+    "testConnection": "Test connection",
+    "changeNotice": "Mapping is deployed via CI/CD. To change a mapping, raise a PR in the monopilot/integrations-d365 repo.",
+    "unmappedAlert": "Item.allergens[] is unmapped in D365 field mapping.",
+    "all": "All ({count})",
+    "incoming": "D365 → Monopilot ({count})",
+    "outgoing": "Monopilot → D365 ({count})",
+    "directionFilterLabel": "D365 mapping direction",
+    "fieldLevelMap": "Field-level map",
+    "d365Field": "D365 field",
+    "direction": "Direction",
+    "monopilotField": "Monopilot field",
+    "type": "Type",
+    "transform": "Transform",
+    "loading": "Loading D365 field mapping…",
+    "empty": "No D365 field mappings found.",
+    "error": "Unable to load D365 field mapping.",
+    "exportReady": "CSV export ready",
+    "exportFailed": "CSV export failed",
+    "testConnectionDialogTitle": "D365 test connection",
+    "testConnectionDialogBody": "Endpoint, Azure AD, and mapping export checks are read-only on SET-081.",
+    "close": "Close"
   }
 }

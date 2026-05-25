@@ -783,5 +783,47 @@
     "deferredReadOnly": "Tylko odczyt / odroczone",
     "deferredReadOnlyDescription": "Utrzymanie jednostek i przeliczeń jest odroczone do czasu dostępności edytowalnego schematu referencyjnego i akcji RBAC. Wiersze live są wyświetlane tylko do odczytu; dane mock nie są używane jako fallback.",
     "saveUnit": "Zapisz jednostkę"
+  },
+  "integrations": {
+    "d365": {
+      "connection": {
+        "title": "Połączenie D365",
+        "subtitle": "Dynamics 365 Finance & Operations — endpoint, uwierzytelnianie i harmonogram pobierania.",
+        "testConnection": "Testuj połączenie",
+        "save": "Zapisz konfigurację",
+        "rotateSecret": "Rotuj sekret",
+        "secretRotated": "Sekret klienta D365 został zrotowany",
+        "urlInvalid": "URL_INVALID",
+        "loading": "Ładowanie połączenia D365…",
+        "empty": "Połączenie D365 nie jest skonfigurowane.",
+        "error": "Nie można załadować połączenia D365."
+      }
+    }
+  },
+  "d365Mapping": {
+    "title": "Mapowanie pól D365",
+    "subtitle": "Jak pola encji D365 mapują się na tabele Monopilot.",
+    "exportCsv": "Eksportuj mapowanie CSV",
+    "testConnection": "Testuj połączenie",
+    "changeNotice": "Mapowanie jest wdrażane przez CI/CD. Aby zmienić mapowanie, utwórz PR w repozytorium monopilot/integrations-d365.",
+    "unmappedAlert": "Item.allergens[] nie ma mapowania w mapowaniu pól D365.",
+    "all": "Wszystkie ({count})",
+    "incoming": "D365 → Monopilot ({count})",
+    "outgoing": "Monopilot → D365 ({count})",
+    "directionFilterLabel": "Kierunek mapowania D365",
+    "fieldLevelMap": "Mapa na poziomie pól",
+    "d365Field": "Pole D365",
+    "direction": "Kierunek",
+    "monopilotField": "Pole Monopilot",
+    "type": "Typ",
+    "transform": "Transformacja",
+    "loading": "Ładowanie mapowania pól D365…",
+    "empty": "Nie znaleziono mapowań pól D365.",
+    "error": "Nie można załadować mapowania pól D365.",
+    "exportReady": "Eksport CSV gotowy",
+    "exportFailed": "Eksport CSV nie powiódł się",
+    "testConnectionDialogTitle": "Test połączenia D365",
+    "testConnectionDialogBody": "Kontrole endpointu, Azure AD i eksportu mapowania są tylko do odczytu w SET-081.",
+    "close": "Zamknij"
   }
 }
