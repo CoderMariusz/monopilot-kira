@@ -406,7 +406,7 @@ export default async function UnitsPage(propsInput: unknown) {
   const [labels, loadedData] = await Promise.all([buildLabels(locale), props.units ? Promise.resolve(null) : readUnitsData()]);
   const units = props.units ?? loadedData?.units ?? [];
   const customConversions = props.customConversions ?? loadedData?.customConversions ?? [];
-  const canEdit = props.canEdit ?? loadedData?.canEdit ?? true;
+  const canEdit = props.canEdit ?? loadedData?.canEdit ?? false;
   const state = props.state ?? loadedData?.state ?? (units.length ? 'ready' : 'empty');
   const groups = groupedUnits(units);
   const visibleCategories = CATEGORY_ORDER.filter((category) => groups[category].length > 0).sort(

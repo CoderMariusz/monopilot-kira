@@ -1,0 +1,74 @@
+{
+  "task_id": "TASK-001049",
+  "artifact_dir_task_id": "TASK-001045",
+  "generated_at": "2026-05-25T17:57:55.866Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001049-a1/prototypes/design/Monopilot Design System/settings/data-screens.jsx",
+  "prototype_route": "http://127.0.0.1:62754/settings/settings.html",
+  "target_route": "http://127.0.0.1:3314/en/settings/units",
+  "viewport": "desktop-1440x1000",
+  "region_selectors": {
+    "page": "main",
+    "table": "table, [role=\"table\"]",
+    "dialog": "[role=\"dialog\"]",
+    "primary_cta": "button, [role=\"button\"]"
+  },
+  "prototype_regions": {
+    "page": {
+      "selector": "main",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 3,
+      "visibleCount": 3,
+      "textSample": "CODE NAME FACTOR TO BASE BASE? kg Kilogram 1 Base ⋮ g Gram 0.001 — ⋮ t Tonne 1000 — ⋮"
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 3,
+      "visibleCount": 3,
+      "textSample": "Admin"
+    }
+  },
+  "target_regions": {
+    "page": {
+      "selector": "main",
+      "count": 3,
+      "visibleCount": 3,
+      "textSample": "ORGANIZATION Company profile Sites & lines Warehouses Shifts & calendar DATA Products & SKUs BOMs & recipes Processes Hero Manufacturing operations Hero Suppliers & customers Units & conversions Import / Export Hero ACCESS Users & roles Security Audit logs Hero OPERATIONS Scanner devices Notifications Feature flags INTEGRATIONS Integrations DOCUMENT TEMPLATES Label templates Hero ONBOARDING Onboarding wizard Hero ADMIN D365 connection D365 field mapping D365 DLQ (shipping) Rules registry Feature"
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Units CRUD Read-only / deferred Custom conversions CRUD Read-only / deferred"
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "SP"
+    }
+  },
+  "browser_events": [],
+  "target_http_status": 200,
+  "target_final_url": "http://127.0.0.1:3314/en/settings/units",
+  "dialog_evidence": "not_opened_read_only_or_error_state",
+  "anchors": {
+    "units_screen_excerpt": "const UnitsScreen = () => {\n  const groups = {};\n  window.SETTINGS_UOM.forEach(u => {\n    groups[u.cat] = groups[u.cat] || [];\n    groups[u.cat].push(u);\n  });\n\n  return (\n    <>\n      <PageHead title=\"Units & conversions\" sub=\"Units of measure used across recipes, stock, and shipping.\"\n        actions={<button className=\"btn btn-primary\">+ Add unit</button>} />\n\n      {Object.entries(groups).map(([cat, units]) => (\n        <Section key={cat} title={cat} sub={`Base unit: ${units.find(u => u.base)?.name}`}>\n          <table>\n            <thead><tr><th>Code</th><th>Name</th><th>Factor to base</th><th>Base?</th><th></th></tr></thead>\n            <tbody>\n              {units.map(u => (\n                <tr key={u.code}>\n                  <td className=\"mono\">{u.code}</td>\n                  <td style={{ fontWeight: 500 }}>{u.name}</td>\n                  <td className=\"mono num\">{u.factor}</td>\n                  <td>{u.base ? <span className=\"badge badge-blue\">Base</span> : <span className=\"muted\">—</span>}</td>\n                  <td className=\"muted\">⋮</td>\n                </tr>\n              ))}\n            </tbody>\n          </table>\n        </Section>\n      ))}\n\n      <Section title=\"Custom conversions\" sub=\"Define non-linear conversions (e.g. Flour: 1 cup = 120g).\">\n        <div className=\"muted\" style={{ fontSize: 12 }}>No custom conversions yet. <a style={{ color: \"var(--blue)\", cursor: \"pointer\" }}>+ Add conversion</a></div>\n      </Section>\n    </>\n  );\n};"
+  }
+}
