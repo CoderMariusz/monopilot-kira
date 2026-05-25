@@ -1,24 +1,76 @@
 {
-  "targetUrl": "http://127.0.0.1:32136/en/settings/infra/locations",
-  "targetStatus": 200,
-  "targetDom": {
-    "finalUrl": "http://127.0.0.1:32136/en/login?reason=idle",
-    "statusText": "M\nMonoPilot\nWelcome back\n\nSign in to your MES workspace\n\nEnter your credentials to continue securely.\nWork email\nPassword\nRemember me for 30 days\nForgot password?\nSign in\nOR\nSSO sign-in coming soon\nDo not have an account? Contact your admin\n© 2026 MonoPilot MES·Privacy·Terms·Status·v3.1.0",
-    "mainCount": 1,
-    "dialogCount": 0,
-    "tableCount": 0,
-    "buttonTexts": [
-      "Sign in",
-      "SSO sign-in coming soon"
-    ]
+  "task_id": "TASK-001047",
+  "artifact_dir_task_id": "TASK-001036",
+  "generated_at": "2026-05-25T18:07:33.783Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001047-a1/prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
+  "prototype_route": "http://127.0.0.1:62989/warehouse/warehouse.html",
+  "target_route": "http://127.0.0.1:3314/en/settings/infra/locations",
+  "viewport": "desktop-1440x1000",
+  "region_selectors": {
+    "page": "main, #prod-main",
+    "table": "table, [role=\"table\"]",
+    "dialog": "[role=\"dialog\"]",
+    "primary_cta": "button, [role=\"button\"]"
   },
-  "prototypeUrl": "file:///Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001036-a1/prototypes/design/Monopilot%20Design%20System/warehouse/warehouse.html",
-  "prototypeDom": {
-    "finalUrl": "file:///Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001036-a1/prototypes/design/Monopilot%20Design%20System/warehouse/warehouse.html",
-    "statusText": "",
-    "mainCount": 0,
-    "dialogCount": 0,
-    "tableCount": 0,
-    "buttonTexts": []
+  "prototype_regions": {
+    "page": {
+      "selector": "main, #prod-main",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Warehouse · Locations Locations hierarchy Backed by ltree column · depth 3 max · Apex default: warehouse → zone → bin ＋ Add location ▸ ▭ WH-Factory-A Apex Foods — Factory A 142 ▸ ▭ Cold Cold Storage (0–4°C) 58 ▭ B1 Cold Bin B1 12 ▭ B2 Cold Bin B2 8 ▭ B3 Cold Bin B3 15 ▭ C1 Cold Bin C1 7 ▭ C2 Cold Bin C2 6 ▭ C3 Cold Bin C3 10 ▸ ▭ Dry Dry Storage (ambient) 62 ▭ A2 Dry Bin A2 14 ▭ A4 Dry Bin A4 11 ▭ A5 Dry Bin A5 9 ▭ A8 Dry Bin A8 18 ▸ ⚙ Production Production Line Buffers 10 ⚙ Line-1-Buffer Line 1 "
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "LP PRODUCT QTY BATCH EXPIRY STATUS QA LP-4431 Wieprzowina kl. II R-1001 220.5 kg B-2026-04-02 2026-05-02 Reserved PASSED LP-4432 Wieprzowina kl. II R-1001 137.5 kg B-2026-04-02 2026-05-02 Reserved PASSED"
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Add location ✕ CODE * Alphanumeric + hyphen, max 20 chars, unique within warehouse NAME * PARENT LOCATION * WH-Factory-A WH-Factory-A › Cold WH-Factory-A › Dry WH-Factory-A › Production WH-Factory-A › Receiving TYPE * storage transit receiving production_line IS ACTIVE ACTIVE BARCODE (OPTIONAL) Auto-generated if blank — for location QR / Code128 printing Cancel Create location"
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 13,
+      "visibleCount": 13,
+      "textSample": "Operator"
+    }
+  },
+  "target_regions": {
+    "page": {
+      "selector": "main, #prod-main",
+      "count": 3,
+      "visibleCount": 3,
+      "textSample": "ORGANIZATION Company profile Sites & lines Warehouses Shifts & calendar DATA Products & SKUs BOMs & recipes Processes Hero Manufacturing operations Hero Suppliers & customers Units & conversions Import / Export Hero ACCESS Users & roles Security Audit logs Hero OPERATIONS Scanner devices Notifications Feature flags INTEGRATIONS Integrations DOCUMENT TEMPLATES Label templates Hero ONBOARDING Onboarding wizard Hero ADMIN D365 connection D365 field mapping D365 DLQ (shipping) Rules registry Feature"
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 2,
+      "visibleCount": 2,
+      "textSample": "SP"
+    }
+  },
+  "browser_events": [],
+  "target_http_status": 200,
+  "target_final_url": "http://127.0.0.1:3314/en/settings/infra/locations",
+  "authenticated_route_rendered": true,
+  "dialog_evidence": "not_opened_no_edit_permission_or_live_db_context",
+  "anchors": {
+    "locations_screen_excerpt": "// ============ WH-018 Locations hierarchy ============\n\n// data-prototype-label: locations_hierarchy_page\nconst WhLocations = ({ role, onNav, onOpenLp, openModal }) => {\n  const [selected, setSelected] = React.useState(\"WH-Factory-A.Cold.B3\");\n  const isAdmin = role === \"Admin\";\n  const sel = WH_LOCATIONS.find(l => l.key === selected) || WH_LOCATIONS[0];\n  const childLps = WH_LPS.filter(l => l.loc.join(\".\").startsWith(sel.key));\n\n  return (\n    <>\n      <div className=\"page-head\">\n        <div>\n          <div className=\"breadcrumb\"><a onClick={()=>onNav(\"dashboard\")}>Warehouse</a> · Locations</div>\n          <h1 className=\"page-title\">Locations hierarchy</h1>\n          <div className=\"muted\" style={{fontSize:12}}>Backed by <span className=\"mono\">ltree</span> column · depth {WH_SETTINGS.general && 3} max · Apex default: warehouse → zone → bin</div>\n        </div>\n        <div className=\"row-flex\">\n          {isAdmin && <button className=\"btn btn-primary btn-sm\" onClick={()=>openModal(\"locationEdit\")}>＋ Add location</button>}\n          {!isAdmin && <span className=\"badge badge-gray\" style={{fontSize:10}}>Read-only — Admin required to edit</span>}\n        </div>\n      </div>\n\n      <div className=\"loc-layout\">\n        <div className=\"loc-tree\">\n          {WH_LOCATIONS.map(l => {\n            const typeIc = { storage: \"▭\", transit: \"🚚\", receiving: \"📦\", production_line: \"⚙\" }[l.type] || \"•\";\n            return (\n              <div key={l.key}\n                   className={\"loc-node l\" + l.level + \" \" + (selected === l.key ? \"on\" : \"\")}\n                   onClick={()=>setSelected(l.key)}>\n                <span className=\"ln-tog\">{l.level < 2 ? \"▸\" : \"\"}</span>\n                <span className=\"ln-type-ic\">{typeIc}</span>\n                <span style={{fontFamily:\"var(--font-mono)\", fontSize:11, fontWeight:l.level === 0 ? 700 : l.level === 1 ? 600 : 500}}>{l.code}</span>\n                <span style={{fontSize:11, color:\"var(--muted)\", marginLeft:6}}>{l.name}</span>\n                <span className=\"ln-count\">{l.lpCount}</span>\n              </div>\n            );\n          })}\n        </div>\n\n        <div>\n          <div className=\"card\">\n            <div className=\"card-head\">\n              <div>\n                <h3 className=\"card-title\" style={{fontFamily:\"var(--font-mono)\"}}>{sel.code} — {sel.name}</h3>\n                <div style={{fontSize:11, color:\"var(--muted",
+    "location_modal_excerpt": "// -------- M-13: Location create / edit --------\nconst LocationEditModal = ({ open, onClose, data }) => {\n  const editing = !!data;\n  const [form, setForm] = React.useState({ code: data?.code || \"\", name: data?.name || \"\", parent: data?.parent || \"WH-Factory-A.Cold\", type: data?.type || \"storage\", active: true, barcode: \"\" });\n  const depthExceeded = form.parent.split(\".\").length >= 3;\n  const valid = form.code && form.name && !depthExceeded;\n\n  return (\n    <Modal open={open} onClose={onClose} title={editing ? \"Edit location\" : \"Add location\"} size=\"default\"\n      foot={<>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disabled={!valid} onClick={onClose}>{editing ? \"Save changes\" : \"Create location\"}</button>\n      </>}>\n      <Field label=\"Code\" required help=\"Alphanumeric + hyphen, max 20 chars, unique within warehouse\">\n        <input value={form.code} onChange={e=>setForm({...form, code: e.target.value.toUpperCase()})} maxLength={20} placeholder=\"Bin-C5\" className=\"mono\"/>\n      </Field>\n      <Field label=\"Name\" required><input value={form.name} onChange={e=>setForm({...form, name: e.target.value})} maxLength={80} placeholder=\"Cold Storage Bin C5\"/></Field>\n      <div className=\"ff-inline\">\n        <Field label=\"Parent location\" required help={depthExceeded ? \"Max depth 3 reached\" : \"\"} error={depthExceeded ? \"Maximum location depth for this tenant is 3 levels (warehouse → zone → bin). Contact your administrator to increase the limit in Settings → Warehouse Settings.\" : null}>\n"
   }
 }

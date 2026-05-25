@@ -1,0 +1,9 @@
+{
+  "status": "basic_dom_checks_pass",
+  "checks": {
+    "main_visible": true,
+    "heading_visible": true,
+    "dialog_labelled_when_open": "not_open"
+  },
+  "note": "@axe-core/playwright is not installed in this package; this report records browser DOM accessibility smoke only."
+}
