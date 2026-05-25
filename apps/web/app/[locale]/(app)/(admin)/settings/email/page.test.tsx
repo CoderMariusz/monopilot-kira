@@ -145,8 +145,28 @@ type EmailTemplate = {
   name: string;
   consumer: string;
   subject: string;
+  body?: string;
   active: boolean;
+  activeTo?: string[];
 };
+
+type EmailTemplateDraft = {
+  code: string;
+  name: string;
+  subject: string;
+  body: string;
+  active: boolean;
+  activeTo: string[];
+};
+
+type EmailTemplateVariableGroup = {
+  group: string;
+  vars: Array<{ name: string; token: `{{${string}}}`; desc: string }>;
+};
+
+type EmailTemplateSaveResult =
+  | { ok: true; templateCode: string; revalidatedPath: '/settings/email' }
+  | { ok: false; error: 'UNKNOWN_TEMPLATE_VAR' | 'TEMPLATE_CODE_INVALID' | string };
 
 type TestSendInput = {
   provider: EmailProviderSettings['provider'];
@@ -161,6 +181,8 @@ type EmailTemplatesPageProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   providerSettings?: EmailProviderSettings;
   templates?: EmailTemplate[];
+  variableGroups?: EmailTemplateVariableGroup[];
+  saveTemplate?: (input: EmailTemplateDraft) => Promise<EmailTemplateSaveResult>;
   testSend?: (input: TestSendInput) => Promise<TestSendResult>;
 };
 
@@ -179,14 +201,32 @@ const templates: EmailTemplate[] = [
     name: 'Purchase order → supplier',
     consumer: 'Planning',
     subject: 'PO {{po_number}} for {{supplier_email}}',
+    body: 'Hello supplier, please confirm PO {{po_number}} before dispatch.',
     active: true,
+    activeTo: ['{{supplier_email}}', 'procurement@example.com'],
   },
   {
     code: 'qa_hold_created',
     name: 'Quality hold created',
     consumer: 'QA',
     subject: 'Hold {{hold_code}} requires QA review',
+    body: 'QA hold {{hold_code}} is waiting for release.',
     active: false,
+    activeTo: ['quality@example.com'],
+  },
+];
+
+const variableGroups: EmailTemplateVariableGroup[] = [
+  {
+    group: 'Purchase order',
+    vars: [
+      { name: 'po_number', token: '{{po_number}}', desc: 'Purchase order number' },
+      { name: 'supplier_email', token: '{{supplier_email}}', desc: 'Supplier primary email' },
+    ],
+  },
+  {
+    group: 'Quality',
+    vars: [{ name: 'hold_code', token: '{{hold_code}}', desc: 'QA hold code' }],
   },
 ];
 
@@ -223,6 +263,12 @@ async function renderEmailTemplatesPage(overrides: Partial<EmailTemplatesPagePro
     state: 'ready',
     providerSettings,
     templates,
+    variableGroups,
+    saveTemplate: vi.fn(async (input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> => ({
+      ok: true,
+      templateCode: input.code,
+      revalidatedPath: '/settings/email',
+    })),
     testSend: vi.fn(async (_input: TestSendInput): Promise<TestSendResult> => ({ ok: true, message_id: 'msg_red_123' })),
     ...overrides,
   };
@@ -414,6 +460,58 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     const editDialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
     expect(editDialog).toHaveAttribute('data-modal-id', 'SM-04');
     assertModalA11y(editDialog, /edit template.*po_to_supplier/i);
+  });
+
+  it('links the variables reference to the localized /en/settings/email/variables route instead of plain helper text', async () => {
+    await renderEmailTemplatesPage();
+
+    const variablesLink = screen.getByRole('link', { name: /email variables|variables reference/i });
+    expect(variablesLink).toHaveAttribute('href', '/en/settings/email/variables');
+  });
+
+  it('opens the shared EmailTemplateEditModal wizard from table edit with editable template fields', async () => {
+    const user = userEvent.setup();
+    await renderEmailTemplatesPage();
+
+    await user.click(screen.getByRole('button', { name: /edit po_to_supplier|edit/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
+    expect(dialog).toHaveAttribute('data-modal-id', 'SM-04');
+    expect(within(dialog).getByRole('textbox', { name: /trigger code/i })).toHaveValue('po_to_supplier');
+    expect(within(dialog).getByRole('textbox', { name: /display name/i })).toHaveValue('Purchase order → supplier');
+    expect(within(dialog).getByRole('textbox', { name: /active recipients \(to\)/i })).toHaveValue(
+      '{{supplier_email}}; procurement@example.com',
+    );
+    expect(within(dialog).getByRole('button', { name: /next/i })).toBeEnabled();
+  });
+
+  it('persists edits through the route modal save contract and refetches the visible template row', async () => {
+    const user = userEvent.setup();
+    const saveTemplate = vi.fn(async (input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> => ({
+      ok: true,
+      templateCode: input.code,
+      revalidatedPath: '/settings/email',
+    }));
+    await renderEmailTemplatesPage({ saveTemplate });
+
+    await user.click(screen.getByRole('button', { name: /edit po_to_supplier|edit/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit template.*po_to_supplier/i });
+    await user.click(within(dialog).getByRole('button', { name: /next/i }));
+    await user.clear(within(dialog).getByRole('textbox', { name: /subject/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /subject/i }), 'Updated PO {{po_number}}');
+    await user.clear(within(dialog).getByRole('textbox', { name: /^body/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /^body/i }), 'Updated body for {{po_number}} and {{supplier_email}}.');
+    await user.click(within(dialog).getByRole('button', { name: /next: review/i }));
+    await user.click(within(dialog).getByRole('button', { name: /save template/i }));
+
+    expect(saveTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'po_to_supplier',
+        subject: 'Updated PO {{po_number}}',
+        body: 'Updated body for {{po_number}} and {{supplier_email}}.',
+      }),
+    );
+    expect(await screen.findByRole('row', { name: /po_to_supplier.*updated po \{\{po_number\}\}/i })).toBeInTheDocument();
   });
 
   it("calls the Test send action with provider settings and shows the required success toast with message_id", async () => {
