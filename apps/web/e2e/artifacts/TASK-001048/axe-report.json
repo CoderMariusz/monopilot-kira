@@ -1,0 +1,4 @@
+{
+  "status": "not_run",
+  "reason": "Live DB/org context unavailable; route rendered safe error state, so axe on the target users surface would be misleading."
+}

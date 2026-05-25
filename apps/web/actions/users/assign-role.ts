@@ -43,8 +43,7 @@ function requirePermission(permission: string) {
           and (
             rp.permission is not null
             or r.code = $3
-            or r.slug = $3
-            or r.permissions ? $3
+            or coalesce(r.permissions, '[]'::jsonb) ? $3
           )
         limit 1`,
       [userId, orgId, permission],

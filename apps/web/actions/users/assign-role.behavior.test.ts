@@ -98,7 +98,10 @@ describe('assignRole behavior', () => {
     const result = await assignRole({ targetUserId: TARGET_USER_ID, roleId: OPERATOR_ROLE_ID });
 
     expect(result).toEqual({ ok: true, data: { targetUserId: TARGET_USER_ID, roleId: OPERATOR_ROLE_ID } });
-    expect(currentClient.calls.some((call) => call.sql.includes('role_permissions') && call.params[2] === 'settings.roles.assign')).toBe(true);
+    const permissionCall = currentClient.calls.find((call) => call.sql.includes('role_permissions'));
+    expect(permissionCall?.params[2]).toBe('settings.roles.assign');
+    expect(permissionCall?.sql).toContain("coalesce(r.permissions, '[]'::jsonb) ? $3");
+    expect(permissionCall?.sql).not.toContain('r.slug');
     expect(currentClient.updatedRoleId).toBe(OPERATOR_ROLE_ID);
     expect(currentClient.outboxPayloads[0]).toMatchObject({
       org_id: ORG_ID,

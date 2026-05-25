@@ -1,0 +1,74 @@
+{
+  "task_id": "TASK-001048",
+  "generated_at": "2026-05-25T17:48:32.974Z",
+  "prototype_route": "http://127.0.0.1:62449/settings/settings.html",
+  "target_route": "http://127.0.0.1:3314/en/settings/users",
+  "viewport": "desktop-1440x1000",
+  "region_selectors": {
+    "page": "main",
+    "table": "table, [role=\"table\"]",
+    "dialog": "[role=\"dialog\"]",
+    "primary_cta": "button, [role=\"button\"]"
+  },
+  "prototype_regions": {
+    "page": {
+      "selector": "main",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 2,
+      "visibleCount": 2,
+      "textSample": "NAME EMAIL ROLE SITE LAST ACTIVE STATUS KN Krzysztof Nowak k.nowak@apex.pl Admin Manager Operator Viewer Kraków HQ 2h ago ● Active ⋮ MW Magdalena Wiśniewska m.wisniewska@apex.pl Admin Manager Operator Viewer Kraków HQ 1h ago ● Active ⋮ TK Tomasz Kowalski t.kowalski@apex.pl Admin Manager Operator Viewer Wrocław Today ● Active ⋮ AZ Anna Zając a.zajac@apex.pl Admin Manager Operator Viewer Kraków HQ Yesterday ● Active ⋮ JL Jan Lewandowski j.lewandowski@apex.pl Admin Manager Operator Viewer Kraków HQ"
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 9,
+      "visibleCount": 9,
+      "textSample": "Admin"
+    }
+  },
+  "target_regions": {
+    "page": {
+      "selector": "main",
+      "count": 3,
+      "visibleCount": 3,
+      "textSample": "ORGANIZATION Company profile Sites & lines Warehouses Shifts & calendar DATA Products & SKUs BOMs & recipes Processes Hero Manufacturing operations Hero Suppliers & customers Units & conversions Import / Export Hero ACCESS Users & roles Security Audit logs Hero OPERATIONS Scanner devices Notifications Feature flags INTEGRATIONS Integrations DOCUMENT TEMPLATES Label templates Hero ONBOARDING Onboarding wizard Hero ADMIN D365 connection D365 field mapping D365 DLQ (shipping) Rules registry Feature"
+    },
+    "table": {
+      "selector": "table, [role=\"table\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "dialog": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "primary_cta": {
+      "selector": "button, [role=\"button\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "SP"
+    }
+  },
+  "browser_events": [],
+  "target_http_status": 200,
+  "target_final_url": "http://127.0.0.1:3314/en/settings/users",
+  "dialog_evidence": "not_opened",
+  "anchors": {
+    "access_screen_excerpt": "const UsersScreen = ({ view }) => {\n  const [selRole, setSelRole] = React.useState(\"all\");\n  const [showInvite, setShowInvite] = React.useState(false);\n  const users = selRole === \"all\" ? window.SETTINGS_USERS : window.SETTINGS_USERS.filter(u => u.role === selRole);\n\n  const roleBadge = (role) => {\n    const map = { \"Admin\": \"red\", \"Manager\": \"blue\", \"Operator\": \"green\", \"Viewer\": \"gray\" };\n    return <span className={`badge badge-${map[role]}`}>{role}</span>;\n  };\n\n  return (\n    <>\n      <PageHead title=\"Users & roles\" sub={`${window.SETTINGS_USERS.length} users · 4 roles`}\n        actions={<><button className=\"btn btn-secondary\">Export</button><button className=\"btn btn-primary\" onClick={() => setShowInvite(true)}>+ Invite user</button></>} />\n\n      {/* KPI tiles */}\n      <div style={{ display: \"grid\", gridTemplateColumns: \"repeat(4, 1fr)\", gap: 10, marginBottom: 14 }}>\n        <div className=\"card\" style={{ margin: 0 }}><div className=\"muted\" style={{ fontSize: 11 }}>Active</div><div style={{ fontSize: 24, fontWeight: 700 }}>8</div></div>\n        <div className=\"card\" style={{ margin: 0 }}><div className=\"muted\" style={{ fontSize: 11 }}>Invited</div><div style={{ fontSize: 24, fontWeight: 700 }}>1</div></div>\n        <div className=\"card\" style={{ margin: 0 }}><div className=\"muted\" style={{ fontSize: 11 }}>Disabled</div><div style={{ fontSize: 24, fontWeight: 700 }}>1</div></div>\n        <div className=\"card\" style={{ margin: 0 }}><div className=\"muted\" style={{ fontSize: 11 }}>Seats used</div><div style={{ fontSize: 24, fontWeight: 700 }}>10<span style={{ fontSize: 14, color: \"var(--muted)\" }}> / 50</span></div></div>\n      </div>\n\n      <div className=\"sg-section\">\n        <div className=\"sg-section-head\">\n          <div className=\"pills\">\n            <button className={`pill ${selRole === \"all\" ? \"on\" : \"\"}`} onClick={() => setSelRole(\"all\")}>All</button>\n            {window.SETTINGS_ROLES.map(r => (\n              <button key={r} className={`pill ${selRole",
+    "user_invite_modal_excerpt": "const UserInviteModal = ({ open, onClose }) => {\n  const [email, setEmail] = React.useState(\"\");\n  const [name,  setName]  = React.useState(\"\");\n  const [role,  setRole]  = React.useState(\"Operator\");\n  const [msg,   setMsg]   = React.useState(\"\");\n  const vEmail = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email);\n\n  return (\n    <Modal open={open} onClose={onClose} title=\"Invite team member\"\n      foot={<>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disabled={!vEmail} onClick={onClose}>Send invitation</button>\n      </>}>\n      <Field label=\"Email address\" required error={email && !vEmail ? \"Invalid email format\" : undefined}>\n        <input type=\"email\" value={email} onChange={e=>setEmail(e.target.value)} autoFocus/>\n      </Field>\n      <Field label=\"Full name (optional)\">\n        <input value={name} onChange={e=>setName(e.target.value)}/>\n      </Field>\n      <Field label=\"Role\" required>\n        <select value={role} onChange={e=>setRole(e.target.value)}>\n          {window.SETTINGS_ROLES.map(r => <option key={r}>{r}</option>)}\n        </select>\n      </Field>\n      <Field label=\"Custom message",
+    "role_assign_modal_excerpt": "const RoleAssignModal = ({ open, onClose }) => {\n  const [user, setUser] = React.useState(null);\n  const [role, setRole] = React.useState(\"\");\n  const [q,    setQ]    = React.useState(\"\");\n  const users = window.SETTINGS_USERS.filter(u => !q || u.name.toLowerCase().includes(q.toLowerCase()) || u.email.includes(q.toLowerCase()));\n  const valid = user && role && role !== user.role;\n\n  return (\n    <Modal open={open} onClose={onClose} title=\"Assign role\" subtitle=\"Pick a user, then the new role.\" size=\"wide\"\n      foot={<>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disabled={!valid} onClick={onClose}>Assign role</button>\n      </>}>\n      <Field label=\"Search user\">\n        <input placeholder=\"Name or email…\" value={q} onChange={e=>setQ(e.target.value)} autoFocus/>\n      </Field>\n      <div style={{border:\"1px solid var(--border)\", borderRadius:6, maxHeight:220, overflow:\"auto\", marginBottom:12}}>\n        {users.slice(0, 8).map(u => (\n          <div key={u.id} onClick={()=>setUser(u)}\n               style={{padding:\"8px 12px\", borderTop:\"1px solid var(--border)\", display:\"flex\", alignItems:\""
+  }
+}
