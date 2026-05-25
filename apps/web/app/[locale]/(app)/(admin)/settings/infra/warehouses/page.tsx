@@ -83,14 +83,19 @@ const DEFAULT_LABELS: WarehouseLabels = {
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WarehouseLabels>;
+const LABEL_NAMESPACE = 'settings.infra.warehouses';
+
+function isMissingTranslation(key: keyof WarehouseLabels, value: string) {
+  return value === key || value === `${LABEL_NAMESPACE}.${key}`;
+}
 
 async function buildLabels(locale: string): Promise<WarehouseLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.infra.warehouses' });
+    const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
         const translated = t(key);
-        labels[key] = translated === key ? DEFAULT_LABELS[key] : translated;
+        labels[key] = isMissingTranslation(key, translated) ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
@@ -190,7 +195,8 @@ async function loadWarehouses(): Promise<{ state: WarehousePageState; warehouses
       const rows = await queryWarehouses(context.client);
       return { state: rows.length === 0 ? 'empty' : 'ready', warehouses: rows.map(toWarehouse), canUpdateInfra };
     });
-  } catch {
+  } catch (error) {
+    console.error('[settings/infra/warehouses] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { state: 'error', warehouses: [], canUpdateInfra: false };
   }
 }

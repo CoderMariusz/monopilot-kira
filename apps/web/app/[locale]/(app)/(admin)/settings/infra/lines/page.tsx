@@ -49,6 +49,11 @@ const DEFAULT_LABELS: LinesLabels = {
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LinesLabels>;
+const LABEL_NAMESPACE = 'settings.infra.lines';
+
+function isMissingTranslation(key: keyof LinesLabels, value: string) {
+  return value === key || value === `${LABEL_NAMESPACE}.${key}`;
+}
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
 type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
@@ -94,11 +99,11 @@ type LinesPageProps = {
 
 async function buildLabels(locale: string): Promise<LinesLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.infra.lines' });
+    const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
         const translated = t(key);
-        labels[key] = translated === key ? DEFAULT_LABELS[key] : translated;
+        labels[key] = isMissingTranslation(key, translated) ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
@@ -206,7 +211,8 @@ async function loadLines(): Promise<{ state: LinesPageState; lines: ProductionLi
       const lines = toProductionLines(rows);
       return { state: lines.length === 0 ? 'empty' : 'ready', lines, canUpdateInfra };
     });
-  } catch {
+  } catch (error) {
+    console.error('[settings/infra/lines] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { state: 'error', lines: [], canUpdateInfra: false };
   }
 }

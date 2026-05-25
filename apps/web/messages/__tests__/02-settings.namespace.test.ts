@@ -7,7 +7,7 @@ interface MessageTree {
 }
 
 const LOCALES = ['en', 'pl'] as const;
-const KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
+const KEY_PATTERN = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)*$/;
 const REQUIRED_TOP_LEVEL_GROUPS = [
   'nav',
   'users',
@@ -36,6 +36,18 @@ const T118_QUALITY_FLAG_KEYS = [
   'flags.quality.require_grn_qc_inspection.off_label',
   'flags.quality.require_grn_qc_inspection.read_only',
   'flags.quality.require_grn_qc_inspection.save_success',
+] as const;
+
+const ROUTE_FACING_INFRA_NAMESPACES = [
+  'infra.lines.title',
+  'infra.lines.error',
+  'infra.lines.provenance',
+  'infra.warehouses.title',
+  'infra.warehouses.error',
+  'infra.warehouses.provenance',
+  'infra.locations.title',
+  'infra.locations.error',
+  'infra.locations.provenance',
 ] as const;
 
 function namespacePath(locale: (typeof LOCALES)[number]): string {
@@ -127,6 +139,22 @@ describe('02-settings next-intl namespace', () => {
         getMessage(namespace, 'flags.quality.require_grn_qc_inspection.permission'),
         `${locale} copy must not define a settings.quality.* permission label; T-118 uses settings.flags.edit`,
       ).toBeUndefined();
+    }
+  });
+
+  it('keeps route-facing infra namespaces available to the runtime next-intl settings merge', () => {
+    const requestSource = fs.readFileSync(path.resolve(__dirname, '../../i18n/request.ts'), 'utf8');
+    expect(requestSource).toContain('../messages/en/02-settings.json');
+    expect(requestSource).toContain('settings: mergeMessages');
+
+    for (const locale of LOCALES) {
+      const namespace = loadNamespace(locale);
+      for (const key of ROUTE_FACING_INFRA_NAMESPACES) {
+        const message = getMessage(namespace, key);
+        expect(message, `${locale} 02-settings namespace is missing ${key}`).toEqual(expect.any(String));
+        expect(message as string, `${locale} ${key} must not leak a raw settings.* key`).not.toMatch(/^settings\./);
+        expect((message as string).trim(), `${locale} ${key} must not be empty`).not.toBe('');
+      }
     }
   });
 

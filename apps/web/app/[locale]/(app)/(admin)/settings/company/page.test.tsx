@@ -53,7 +53,7 @@ const messages: Record<string, string> = {
 };
 
 vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => messages[key] ?? key,
+  useTranslations: (namespace?: string) => (key: string) => messages[key] ?? `${namespace}.${key}`,
 }));
 
 type CompanyProfile = {
@@ -163,7 +163,7 @@ function labelledControlNames() {
 
 describe('SET-010 company profile Server Component boundary and i18n', () => {
   it('keeps page.tsx server-rendered and delegates translations/interactivity to the client leaf', () => {
-    const sourceDir = join(process.cwd(), 'app/[locale]/(admin)/settings/company');
+    const sourceDir = join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/company');
     const pageSource = readFileSync(join(sourceDir, 'page.tsx'), 'utf8');
     const clientSource = readFileSync(join(sourceDir, 'company-profile-screen.client.tsx'), 'utf8');
 

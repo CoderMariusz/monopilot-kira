@@ -29,11 +29,11 @@ const labels: Record<string, string> = {
 };
 
 vi.mock('next-intl/server', () => ({
-  getTranslations: vi.fn(async () => (key: string) => labels[key] ?? key),
+  getTranslations: vi.fn(async ({ namespace }: { namespace: string }) => (key: string) => labels[key] ?? `${namespace}.${key}`),
 }));
 
 vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => labels[key] ?? key,
+  useTranslations: (namespace?: string) => (key: string) => labels[key] ?? `${namespace}.${key}`,
 }));
 
 const orgContextMock = vi.hoisted(() => ({
@@ -173,6 +173,10 @@ function machinePreview(row: HTMLElement) {
   return within(row).getByTestId('settings-line-machine-preview');
 }
 
+function expectNoRawSettingsKeys() {
+  expect(document.body.textContent ?? '').not.toMatch(/settings\.infra\.lines\.[a-zA-Z_]+/);
+}
+
 async function selectLine(user: ReturnType<typeof userEvent.setup>, line: ProductionLine) {
   const row = lineRow(new RegExp(`${line.name}.*${line.code}`, 'i'));
   await user.click(within(row).getByRole('checkbox', { name: new RegExp(`select.*${line.name}`, 'i') }));
@@ -253,10 +257,12 @@ describe('SET-018 line list behavior', () => {
     expect(screen.getByRole('heading', { name: /production lines/i })).toBeInTheDocument();
     expect(lineRow(/cheese packing line.*line-4.*WH-01 \/ ZONE-A \/ PACK/i)).toBeInTheDocument();
     expect(within(machinePreview(lineRow(/cheese packing line.*line-4/i))).getAllByTestId('settings-line-machine-chip')).toHaveLength(2);
+    expectNoRawSettingsKeys();
   });
 
   it('renders ordered machine sequence preview chips and limits overflow to six chips plus a +N more indicator', async () => {
     await renderLinesPage();
+    expectNoRawSettingsKeys();
 
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
     expect(screen.queryByTestId('app-sidebar')).not.toBeInTheDocument();

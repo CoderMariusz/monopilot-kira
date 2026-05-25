@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -112,18 +111,6 @@ export type LinesScreenProps = {
   state: LinesPageState;
 };
 
-function labelsFromTranslations(t: ReturnType<typeof useTranslations>): LinesLabels {
-  return LINE_LABEL_KEYS.reduce((labels, key) => {
-    try {
-      const translated = t(key);
-      labels[key] = translated === key ? DEFAULT_LINES_LABELS[key] : translated;
-    } catch {
-      labels[key] = DEFAULT_LINES_LABELS[key];
-    }
-    return labels;
-  }, {} as LinesLabels);
-}
-
 function orderedMachines(line: ProductionLine) {
   return [...line.machines].sort((left, right) => left.seq - right.seq || left.code.localeCompare(right.code));
 }
@@ -182,8 +169,7 @@ function SelectField({
 }
 
 export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra, activateLine, state }: LinesScreenProps) {
-  const t = useTranslations('settings.infra.lines');
-  const labels = React.useMemo(() => labelsProp ?? labelsFromTranslations(t), [labelsProp, t]);
+  const labels = labelsProp ?? DEFAULT_LINES_LABELS;
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [statusById, setStatusById] = React.useState<Record<string, LineStatus>>(() =>
     Object.fromEntries(lines.map((line) => [line.id, line.status])),

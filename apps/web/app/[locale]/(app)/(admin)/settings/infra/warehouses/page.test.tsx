@@ -51,7 +51,7 @@ const labels: Record<string, string> = {
 };
 
 vi.mock('next-intl/server', () => ({
-  getTranslations: vi.fn(async () => (key: string) => labels[key] ?? key),
+  getTranslations: vi.fn(async ({ namespace }: { namespace: string }) => (key: string) => labels[key] ?? `${namespace}.${key}`),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -148,6 +148,10 @@ function rowFor(name: RegExp | string) {
   return within(warehouseTable()).getByRole('row', { name });
 }
 
+function expectNoRawSettingsKeys() {
+  expect(document.body.textContent ?? '').not.toMatch(/settings\.infra\.warehouses\.[a-zA-Z_]+/);
+}
+
 async function selectWarehouses(user: ReturnType<typeof userEvent.setup>, names: string[]) {
   for (const name of names) {
     const row = rowFor(new RegExp(name, 'i'));
@@ -222,6 +226,7 @@ describe('SET-012 warehouse AppShell route contract', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('from public.warehouses'), []);
     expect(query).not.toHaveBeenCalledWith(expect.stringContaining('public.work_orders wo'), expect.anything());
     expect(screen.getByRole('row', { name: /apex chilled wh-01 active/i })).toBeInTheDocument();
+    expectNoRawSettingsKeys();
   });
 });
 
@@ -242,6 +247,7 @@ describe('SET-012 warehouse list behavior', () => {
     expect(screen.getByTestId('settings-warehouse-screen')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^warehouses$/i })).toBeInTheDocument();
     expect(warehouseRows()).toHaveLength(25);
+    expectNoRawSettingsKeys();
 
     const activeRow = rowFor(/apex chilled wh-01 active/i);
     expect(within(activeRow).getByText(/^active$/i)).toHaveAccessibleName(/active/i);

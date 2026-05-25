@@ -50,43 +50,50 @@ type LocationTreeLabels = {
 type TreeNode = LocationRow & { children: TreeNode[] };
 
 const DEFAULT_LABELS: LocationTreeLabels = {
-  title: 'title',
-  subtitle: 'subtitle',
-  workspace: 'workspace',
-  settingsNavigation: 'settingsNavigation',
-  sidebarLabel: 'sidebarLabel',
-  sectionTitle: 'sectionTitle',
-  warehouse: 'warehouse',
-  allWarehouses: 'allWarehouses',
-  importCsv: 'importCsv',
-  csvFile: 'csvFile',
-  insufficientPermissions: 'insufficientPermissions',
-  loading: 'loading',
-  empty: 'empty',
-  error: 'error',
-  forbidden: 'forbidden',
-  provenance: 'provenance',
-  expand: 'expand',
-  leaf: 'leaf',
-  level: 'level',
-  importSuccess: 'importSuccess',
-  importError: 'importError',
+  title: 'Location tree',
+  subtitle: 'Browse warehouse storage locations as a hierarchy.',
+  workspace: 'Workspace',
+  settingsNavigation: 'Settings navigation',
+  sidebarLabel: 'Infrastructure',
+  sectionTitle: 'Locations',
+  warehouse: 'Warehouse',
+  allWarehouses: 'All warehouses',
+  importCsv: 'Import CSV',
+  csvFile: 'CSV file',
+  insufficientPermissions: 'Insufficient permissions: settings.infra.update is required to import CSV.',
+  loading: 'Loading location tree…',
+  empty: 'No locations are available for the selected warehouse.',
+  error: 'Unable to load location tree. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view location infrastructure settings.',
+  provenance: 'Data source: withOrgContext-scoped location tree query; prototype mock rows are not used in production.',
+  expand: 'Expand {name}',
+  leaf: 'Leaf',
+  level: 'Level {level}',
+  importSuccess: 'CSV import completed.',
+  importError: 'CSV import failed.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
+const LABEL_NAMESPACE = 'settings.infra.locations';
+
+function isMissingTranslation(key: keyof LocationTreeLabels, value: string) {
+  return value === key || value === `${LABEL_NAMESPACE}.${key}`;
+}
 
 async function buildLabels(locale: string): Promise<LocationTreeLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.infra.locations' });
+    const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
-        labels[key] = t(key);
+        const translated = t(key);
+        labels[key] = isMissingTranslation(key, translated) ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
       return labels;
     }, {} as LocationTreeLabels);
-  } catch {
+  } catch (error) {
+    console.error('[settings/infra/locations] labels_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ...DEFAULT_LABELS };
   }
 }

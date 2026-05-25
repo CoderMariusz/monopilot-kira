@@ -123,7 +123,8 @@ async function readCompanyProfile(): Promise<ReadCompanyProfileResult> {
       if (!row) return { state: 'empty', canEdit };
       return { state: 'ready', organization: toCompanyProfile(row), canEdit };
     });
-  } catch {
+  } catch (error) {
+    console.error('[settings/company] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { state: 'error', canEdit: false };
   }
 }
