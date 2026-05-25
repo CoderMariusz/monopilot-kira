@@ -87,7 +87,11 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
         payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, active: input.active, barcode: input.barcode, actor_user_id: userId },
       });
 
-      revalidatePath('/en/settings/infra/locations');
+      try {
+        revalidatePath('/en/settings/infra/locations');
+      } catch (error) {
+        console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
+      }
 
       return { ok: true, data: { id: row.id, path: row.path, level: row.level } };
     });

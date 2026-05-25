@@ -1,0 +1,32 @@
+{
+  "task_id": "TASK-001036",
+  "prototype_route": "file:///Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001036-a1/prototypes/design/Monopilot%20Design%20System/warehouse/warehouse.html",
+  "target_route": "/en/settings/infra/locations",
+  "base_url": "http://127.0.0.1:32136",
+  "server_identity": "local Next dev server started from TASK-001036-a1 worktree on port 32136",
+  "viewports": [
+    "desktop-1440x1000"
+  ],
+  "region_selectors": {
+    "page": "main",
+    "table": "table, [role=\"table\"]",
+    "dialog": "[role=\"dialog\"]",
+    "primary_cta": "button, [role=\"button\"]"
+  },
+  "parity_matrix": {
+    "structural": "blocked_auth_redirect",
+    "visual": "blocked_auth_redirect",
+    "interaction": "unit_vitest_green_browser_auth_blocked",
+    "data": "not_verified_auth_redirect",
+    "rbac": "unit_vitest_green",
+    "i18n": "unit_vitest_green",
+    "authenticated_preview": "blocked_no_authenticated_session"
+  },
+  "artifacts": [
+    "target-desktop-1440x1000.png",
+    "prototype-desktop-1440x1000.png",
+    "dom-diff.json"
+  ],
+  "status": "blocked_auth_redirect",
+  "notes": "Unauthenticated local target redirected to /en/login?reason=idle; screenshots/DOM capture prove server/port but not authenticated route parity."
+}

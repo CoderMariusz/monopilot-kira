@@ -1,0 +1,24 @@
+{
+  "targetUrl": "http://127.0.0.1:32136/en/settings/infra/locations",
+  "targetStatus": 200,
+  "targetDom": {
+    "finalUrl": "http://127.0.0.1:32136/en/login?reason=idle",
+    "statusText": "M\nMonoPilot\nWelcome back\n\nSign in to your MES workspace\n\nEnter your credentials to continue securely.\nWork email\nPassword\nRemember me for 30 days\nForgot password?\nSign in\nOR\nSSO sign-in coming soon\nDo not have an account? Contact your admin\n© 2026 MonoPilot MES·Privacy·Terms·Status·v3.1.0",
+    "mainCount": 1,
+    "dialogCount": 0,
+    "tableCount": 0,
+    "buttonTexts": [
+      "Sign in",
+      "SSO sign-in coming soon"
+    ]
+  },
+  "prototypeUrl": "file:///Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001036-a1/prototypes/design/Monopilot%20Design%20System/warehouse/warehouse.html",
+  "prototypeDom": {
+    "finalUrl": "file:///Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001036-a1/prototypes/design/Monopilot%20Design%20System/warehouse/warehouse.html",
+    "statusText": "",
+    "mainCount": 0,
+    "dialogCount": 0,
+    "tableCount": 0,
+    "buttonTexts": []
+  }
+}

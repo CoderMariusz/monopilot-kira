@@ -133,8 +133,8 @@
       "blockExpiredStockHint": "Prevent movements of expired lots automatically."
     },
     "locations": {
-      "title": "Arbore locații",
-      "subtitle": "Browse warehouse storage locations as a hierarchy.",
+      "title": "Locations hierarchy",
+      "subtitle": "Backed by ltree column · depth 3 max · Apex default: warehouse → zone → bin",
       "workspace": "Workspace",
       "settingsNavigation": "Settings navigation",
       "sidebarLabel": "Infrastructure",
@@ -175,7 +175,27 @@
       "depthExceeded": "Adâncimea maximă a locației pentru acest tenant este de 3 niveluri (depozit → zonă → bin).",
       "cancel": "Anulează",
       "createLocation": "Creează locația",
-      "saveChanges": "Salvează modificările"
+      "saveChanges": "Salvează modificările",
+      "active": "Active",
+      "lpsTableTitle": "LPs at this location",
+      "openFullLpList": "Open full LP list →",
+      "lpColumn": "LP",
+      "productColumn": "Product",
+      "qtyColumn": "Qty",
+      "batchColumn": "Batch",
+      "expiryColumn": "Expiry",
+      "statusColumn": "Status",
+      "qaColumn": "QA",
+      "noLpsAtLocation": "No LPs at this location.",
+      "utilization": "Utilization",
+      "binOccupancyTitle": "Bin occupancy",
+      "binOccupancyLegend": "Green < 40% · Amber 40–80% · Red > 80% full",
+      "noBinsTitle": "No bins in this zone",
+      "noBinsAdmin": "Add bins as children of this zone to start tracking occupancy.",
+      "fieldCodeHelp": "Alphanumeric + hyphen, max 20 chars, unique within warehouse",
+      "fieldBarcodeHelp": "Auto-generated if blank — for location QR / Code128 printing",
+      "upsertSuccess": "Location saved.",
+      "upsertError": "Location save failed."
     }
   },
   "flags_admin": {

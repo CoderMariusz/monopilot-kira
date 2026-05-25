@@ -1,10 +1,7 @@
-import React from 'react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
-import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
+import { LocationTreeScreen } from './location-tree-client';
 
 import { upsertLocation as persistLocation } from '../../../../../../../actions/infra/location';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
@@ -33,7 +30,7 @@ type UpsertLocationResult =
   | { ok: false; error: string };
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
-  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string };
+  searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string };
   warehouses?: Warehouse[];
   locations?: LocationRow[];
   selectedWarehouseId?: string;
@@ -88,13 +85,33 @@ type LocationTreeLabels = {
   level: string;
   importSuccess: string;
   importError: string;
+  active: string;
+  lpsTableTitle: string;
+  openFullLpList: string;
+  lpColumn: string;
+  productColumn: string;
+  qtyColumn: string;
+  batchColumn: string;
+  expiryColumn: string;
+  statusColumn: string;
+  qaColumn: string;
+  noLpsAtLocation: string;
+  utilization: string;
+  binOccupancyTitle: string;
+  binOccupancyLegend: string;
+  noBinsTitle: string;
+  noBinsAdmin: string;
+  fieldCodeHelp: string;
+  fieldBarcodeHelp: string;
+  upsertSuccess: string;
+  upsertError: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
 
 const DEFAULT_LABELS: LocationTreeLabels = {
-  title: 'Location tree',
-  subtitle: 'Browse warehouse storage locations as a hierarchy.',
+  title: 'Locations hierarchy',
+  subtitle: 'Backed by ltree column · depth 3 max · Apex default: warehouse → zone → bin',
   workspace: 'Workspace',
   settingsNavigation: 'Settings navigation',
   sidebarLabel: 'Infrastructure',
@@ -136,6 +153,26 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   level: 'Level {level}',
   importSuccess: 'CSV import completed.',
   importError: 'CSV import failed.',
+  active: 'Active',
+  lpsTableTitle: 'LPs at this location',
+  openFullLpList: 'Open full LP list →',
+  lpColumn: 'LP',
+  productColumn: 'Product',
+  qtyColumn: 'Qty',
+  batchColumn: 'Batch',
+  expiryColumn: 'Expiry',
+  statusColumn: 'Status',
+  qaColumn: 'QA',
+  noLpsAtLocation: 'No LPs at this location.',
+  utilization: 'Utilization',
+  binOccupancyTitle: 'Bin occupancy',
+  binOccupancyLegend: 'Green < 40% · Amber 40–80% · Red > 80% full',
+  noBinsTitle: 'No bins in this zone',
+  noBinsAdmin: 'Add bins as children of this zone to start tracking occupancy.',
+  fieldCodeHelp: 'Alphanumeric + hyphen, max 20 chars, unique within warehouse',
+  fieldBarcodeHelp: 'Auto-generated if blank — for location QR / Code128 printing',
+  upsertSuccess: 'Location saved.',
+  upsertError: 'Location save failed.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
@@ -375,6 +412,7 @@ export default async function LocationTreePage(propsInput: unknown) {
   const searchParams = props.searchParams ? await props.searchParams : {};
   const [labels, loadedData] = await Promise.all([buildLabels(locale), props.locations ? Promise.resolve(null) : readLocationData()]);
   const locations = sortByPath(props.locations ?? loadedData?.locations ?? []);
+  const warehouses = props.warehouses ?? loadedData?.warehouses ?? [];
   const selectedWarehouseId = props.selectedWarehouseId ?? searchParams?.warehouseId ?? 'all';
   const state = props.state ?? loadedData?.state ?? (locations.length === 0 ? 'empty' : 'ready');
   const canImport = props.canImport ?? loadedData?.canImport ?? false;
@@ -384,6 +422,12 @@ export default async function LocationTreePage(propsInput: unknown) {
   const importToast = searchParams?.importMessage
     ? { role: searchParams.importStatus === 'error' ? 'alert' as const : 'status' as const, message: searchParams.importMessage }
     : null;
+  const upsertToast = searchParams?.upsertMessage
+    ? { role: searchParams.upsertStatus === 'error' ? 'alert' as const : 'status' as const, message: searchParams.upsertMessage }
+    : null;
+  const activeDialog = searchParams?.modal === 'add' || searchParams?.modal === 'edit' || searchParams?.modal === 'child' ? searchParams.modal : null;
+  const requestedSelectedId = typeof searchParams?.selectedLocationId === 'string' ? searchParams.selectedLocationId : null;
+  const requestedParentId = typeof searchParams?.parentId === 'string' ? searchParams.parentId : null;
 
   async function importCsvAction(formData: FormData): Promise<void> {
     'use server';
@@ -394,350 +438,23 @@ export default async function LocationTreePage(propsInput: unknown) {
     redirect(importResultHref(selectedWarehouseId, result.ok, result.message));
   }
 
+
   return (
     <LocationTreeScreen
       labels={labels}
-      warehouses={props.warehouses ?? loadedData?.warehouses ?? []}
+      warehouses={warehouses}
       locations={locations}
       selectedWarehouseId={selectedWarehouseId}
+      selectedLocationId={requestedSelectedId}
+      parentLocationId={requestedParentId}
       canImport={canImport}
       canUpdateInfra={canUpdateInfra}
       state={state}
+      activeDialog={activeDialog}
       importCsvAction={importCsvAction}
       importToast={importToast}
+      upsertToast={upsertToast}
       upsertLocation={upsertLocation}
     />
   );
-}
-
-function LocationTreeScreen({
-  labels,
-  warehouses,
-  locations,
-  selectedWarehouseId,
-  canImport,
-  canUpdateInfra,
-  state,
-  importCsvAction,
-  importToast,
-  upsertLocation,
-}: {
-  labels: LocationTreeLabels;
-  warehouses: Warehouse[];
-  locations: LocationRow[];
-  selectedWarehouseId: string;
-  canImport: boolean;
-  canUpdateInfra: boolean;
-  state: NonNullable<LocationTreePageProps['state']>;
-  importCsvAction: (formData: FormData) => Promise<void>;
-  importToast: { role: 'status' | 'alert'; message: string } | null;
-  upsertLocation: (input: UpsertLocationInput) => Promise<UpsertLocationResult> | UpsertLocationResult;
-}) {
-  const [rows, setRows] = React.useState<LocationRow[]>(() => [...locations]);
-  const visibleRows = rows.filter((location) => selectedWarehouseId === 'all' || location.warehouseId === selectedWarehouseId);
-  const tree = buildTree(visibleRows);
-  const firstSelected = visibleRows[0] ?? null;
-  const [selectedLocationId, setSelectedLocationId] = React.useState<string | null>(firstSelected?.id ?? null);
-  const selectedLocation = visibleRows.find((location) => location.id === selectedLocationId) ?? firstSelected;
-  const [dialogMode, setDialogMode] = React.useState<'add' | 'edit' | 'child' | null>(null);
-  const [editingLocation, setEditingLocation] = React.useState<LocationRow | null>(null);
-  const [form, setForm] = React.useState({ code: '', name: '', parentId: firstSelected?.id ?? '', locationType: 'storage', active: true, barcode: '' });
-  const [formError, setFormError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setRows([...locations]);
-  }, [locations]);
-
-  React.useEffect(() => {
-    if (selectedLocationId && visibleRows.some((location) => location.id === selectedLocationId)) return;
-    setSelectedLocationId(firstSelected?.id ?? null);
-  }, [firstSelected?.id, selectedLocationId, visibleRows]);
-
-  const warehouseOptions = [
-    { value: 'all', label: labels.allWarehouses },
-    ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
-  ];
-  const parentLocation = visibleRows.find((location) => location.id === form.parentId) ?? null;
-  const depthExceeded = parentLocation ? parentLocation.level >= 3 : false;
-  const nextLevel = parentLocation ? parentLocation.level + 1 : 1;
-  const valid = form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
-
-  function openDialog(mode: 'add' | 'edit' | 'child', location?: LocationRow | null) {
-    if (!canUpdateInfra) return;
-    const target = location ?? selectedLocation;
-    setDialogMode(mode);
-    setEditingLocation(mode === 'edit' ? target ?? null : null);
-    setForm({
-      code: mode === 'edit' && target ? locationCode(target) : '',
-      name: mode === 'edit' && target ? target.name : '',
-      parentId: mode === 'child' && target ? target.id : target?.parentId ?? firstSelected?.id ?? '',
-      locationType: mode === 'edit' && target ? target.locationType ?? 'storage' : 'storage',
-      active: true,
-      barcode: '',
-    });
-    setFormError(null);
-  }
-
-  async function submitDialog(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canUpdateInfra || !valid) return;
-    const warehouseId = editingLocation?.warehouseId ?? parentLocation?.warehouseId ?? selectedLocation?.warehouseId ?? warehouses[0]?.id;
-    if (!warehouseId) return;
-    const input: UpsertLocationInput = {
-      id: editingLocation?.id,
-      warehouseId,
-      parentId: parentLocation?.id ?? null,
-      code: form.code.trim().toUpperCase(),
-      name: form.name.trim(),
-      level: editingLocation && !parentLocation ? editingLocation.level : nextLevel,
-      locationType: form.locationType,
-      active: form.active,
-      barcode: form.barcode.trim() || null,
-    };
-    const result = await upsertLocation(input);
-    if (!result.ok) {
-      setFormError(labels.error);
-      return;
-    }
-    const saved: LocationRow = {
-      id: result.data.id,
-      warehouseId,
-      parentId: input.parentId,
-      name: input.name,
-      level: result.data.level,
-      path: result.data.path,
-      locationType: input.locationType,
-    };
-    setRows((current) => sortByPath([saved, ...current.filter((row) => row.id !== saved.id)]));
-    setSelectedLocationId(saved.id);
-    setDialogMode(null);
-    setEditingLocation(null);
-  }
-
-  return (
-    <main data-testid="settings-location-tree-screen" data-screen="settings-location-tree" className="min-h-screen bg-slate-50 text-slate-950">
-      <header data-region="page-head" className="border-b border-slate-200 bg-white px-6 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">SET-014</div>
-            <h1 className="text-2xl font-semibold">{labels.title}</h1>
-            <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
-          </div>
-          {canUpdateInfra ? (
-            <Button type="button" onClick={() => openDialog('add')} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
-              {labels.addLocation}
-            </Button>
-          ) : (
-            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{labels.readOnly}</span>
-          )}
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-6xl space-y-4 p-6" aria-label={labels.workspace}>
-        <form action={importCsvAction} data-location-import-form="true" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="text-base font-semibold">{labels.sectionTitle} ({visibleRows.length})</div>
-              <p className="mt-1 text-xs text-slate-500">{labels.provenance}</p>
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="grid gap-1 text-sm font-medium">
-                <span id="warehouse-filter-label">{labels.warehouse}</span>
-                <details className="min-w-64 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                  <summary role="combobox" aria-label={labels.warehouse} aria-haspopup="listbox" aria-expanded="false" className="cursor-pointer list-none">
-                    {warehouseOptions.find((option) => option.value === selectedWarehouseId)?.label ?? labels.allWarehouses}
-                  </summary>
-                  <div role="listbox" className="mt-2 grid gap-1">
-                    {warehouseOptions.map((option) => (
-                      <a key={option.value} role="option" aria-selected={option.value === selectedWarehouseId} href={optionHref(option.value)} className="rounded px-2 py-1 text-slate-700 hover:bg-slate-100">
-                        {option.label}
-                      </a>
-                    ))}
-                  </div>
-                </details>
-              </div>
-
-              <label className="grid gap-1 text-sm font-medium" htmlFor="location-csv-file">
-                {labels.csvFile}
-                <Input id="location-csv-file" name="csvFile" aria-label={labels.csvFile} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" type="file" accept=".csv,text/csv" disabled={!canImport} />
-              </label>
-
-              <Button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600" disabled={!canImport} aria-label={!canImport ? labels.insufficientPermissions : labels.importCsv}>
-                {labels.importCsv}
-              </Button>
-            </div>
-          </div>
-        </form>
-
-        {state === 'ready' ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.4fr)]">
-            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div role="tree" aria-label={labels.title} className="space-y-2">
-                {tree.map((location) => renderLocationNode(location, labels, setSelectedLocationId))}
-              </div>
-            </section>
-            <section role="region" aria-label={labels.selectedLocation} className="space-y-3">
-              {selectedLocation ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h2 className="font-mono text-lg font-semibold">{locationCode(selectedLocation)} — {selectedLocation.name}</h2>
-                      <p className="mt-1 font-mono text-xs text-slate-500">{selectedLocation.path.replace(/\./g, ' › ')}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{selectedLocation.locationType ?? 'storage'}</Badge>
-                      <Badge variant="success">● Active</Badge>
-                      {canUpdateInfra ? (
-                        <>
-                          <Button type="button" onClick={() => openDialog('edit', selectedLocation)}>{labels.editLocation}</Button>
-                          <Button type="button" onClick={() => openDialog('child', selectedLocation)}>{labels.addChild}</Button>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-4">
-                    <SummaryItem label={labels.lpsHere} value="0" />
-                    <SummaryItem label={labels.selectedParent} value={selectedLocation.parentId ?? '—'} mono />
-                    <SummaryItem label={labels.selectedDepth} value={`L${selectedLocation.level}`} />
-                    <SummaryItem label={labels.selectedStatus} value="Active" />
-                  </div>
-                </div>
-              ) : null}
-              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table role="table" aria-label="LPs at this location" className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th scope="col" className="px-4 py-3">LP</th><th scope="col" className="px-4 py-3">{labels.warehouse}</th><th scope="col" className="px-4 py-3">{labels.selectedStatus}</th></tr>
-                  </thead>
-                  <tbody><tr><td className="px-4 py-4 text-slate-500" colSpan={3}>0</td></tr></tbody>
-                </table>
-              </section>
-            </section>
-          </div>
-        ) : renderState(state, labels)}
-
-        {importToast ? (
-          <div id="location-import-toast" role={importToast.role} aria-live={importToast.role === 'alert' ? 'assertive' : 'polite'} className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800">
-            {importToast.message}
-          </div>
-        ) : (
-          <div id="location-import-toast" role="status" aria-live="polite" className="hidden rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800" />
-        )}
-      </section>
-
-      {dialogMode && canUpdateInfra ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="location-dialog-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
-          <form onSubmit={submitDialog} className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h2 id="location-dialog-title" className="text-lg font-semibold">{dialogMode === 'edit' ? labels.dialogEditTitle : labels.dialogAddTitle}</h2>
-            <div className="mt-4 grid gap-4">
-              <label className="grid gap-1 text-sm font-medium" htmlFor="location-code">
-                {labels.fieldCode}
-                <Input id="location-code" value={form.code} maxLength={20} onChange={(event) => { const value = event.currentTarget.value.toUpperCase(); setForm((current) => ({ ...current, code: value })); }} className="font-mono" />
-              </label>
-              <label className="grid gap-1 text-sm font-medium" htmlFor="location-name">
-                {labels.fieldName}
-                <Input id="location-name" value={form.name} maxLength={80} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, name: value })); }} />
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-medium" htmlFor="location-parent">
-                  {labels.fieldParent}
-                  <select id="location-parent" value={form.parentId} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, parentId: value })); }} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                    <option value="">—</option>
-                    {visibleRows.map((location) => <option key={location.id} value={location.id}>{location.path.replace(/\./g, ' › ')}</option>)}
-                  </select>
-                  {depthExceeded ? <span className="text-xs font-medium text-red-700">{labels.depthExceeded}</span> : null}
-                </label>
-                <label className="grid gap-1 text-sm font-medium" htmlFor="location-type">
-                  {labels.fieldType}
-                  <select id="location-type" value={form.locationType} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, locationType: value })); }} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                    <option value="storage">storage</option><option value="transit">transit</option><option value="receiving">receiving</option><option value="production_line">production_line</option>
-                  </select>
-                </label>
-              </div>
-              <label className="flex items-center gap-2 text-sm font-medium" htmlFor="location-active">
-                <input id="location-active" type="checkbox" checked={form.active} onChange={(event) => { const checked = event.currentTarget.checked; setForm((current) => ({ ...current, active: checked })); }} />
-                {labels.fieldActive}
-              </label>
-              {form.code || form.name ? (
-                <label className="grid gap-1 text-sm font-medium" htmlFor="location-barcode">
-                  {labels.fieldBarcode}
-                  <Input id="location-barcode" value={form.barcode} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, barcode: value })); }} className="font-mono" />
-                </label>
-              ) : null}
-              {formError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" onClick={() => setDialogMode(null)}>{labels.cancel}</Button>
-              <Button type="submit" disabled={!valid}>{dialogMode === 'edit' ? labels.saveChanges : labels.createLocation}</Button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-    </main>
-  );
-}
-
-function SummaryItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return <div><div className="text-xs text-slate-500">{label}</div><div className={mono ? 'font-mono text-sm font-semibold' : 'text-sm font-semibold'}>{value}</div></div>;
-}
-
-function locationCode(location: LocationRow) {
-  return location.path.split('.').filter(Boolean).at(-1)?.toUpperCase() ?? location.name.toUpperCase();
-}
-
-function renderLocationNode(location: TreeNode, labels: LocationTreeLabels, onSelect?: (id: string) => void): React.ReactNode {
-  const content = (
-    <div className="flex items-center gap-2" onClick={() => onSelect?.(location.id)}>
-      <span aria-hidden="true" className="w-14 text-center text-xs font-medium text-slate-500">
-        {location.children.length > 0 ? '▸' : '•'}
-      </span>
-      <span className="font-medium">{location.name}</span>
-      <Badge variant="outline" className="font-mono text-xs">{location.path}</Badge>
-      <Badge variant={location.level === 1 ? 'info' : 'secondary'}>{formatLabel(labels.level, { level: location.level })}</Badge>
-    </div>
-  );
-
-  if (location.children.length === 0) {
-    return (
-      <div
-        key={location.id}
-        role="treeitem"
-        aria-level={location.level}
-        data-location-id={location.id}
-        data-parent-id={location.parentId ?? undefined}
-        data-warehouse-id={location.warehouseId}
-        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
-        style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}
-      >
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <details
-      key={location.id}
-      role="treeitem"
-      aria-level={location.level}
-      data-location-id={location.id}
-      data-parent-id={location.parentId ?? undefined}
-      data-warehouse-id={location.warehouseId}
-      className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
-      style={{ marginLeft: `${Math.max(location.level - 1, 0) * 24}px` }}
-    >
-      <summary aria-label={formatLabel(labels.expand, { name: location.name })} className="cursor-pointer list-none">
-        {content}
-      </summary>
-      <div role="group" className="mt-2 space-y-2">
-        {location.children.map((child) => renderLocationNode(child, labels, onSelect))}
-      </div>
-    </details>
-  );
-}
-
-function renderState(state: NonNullable<LocationTreePageProps['state']>, labels: LocationTreeLabels) {
-  if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">{labels.loading}</section>;
-  if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
-  if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
-  if (state === 'empty') return <section role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-slate-600 shadow-sm">{labels.empty}</section>;
-  return null;
 }
