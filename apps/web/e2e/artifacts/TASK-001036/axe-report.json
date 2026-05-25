@@ -3,7 +3,7 @@
   "checks": {
     "main_visible": true,
     "heading_visible": true,
-    "dialog_labelled_when_open": "not_open"
+    "dialog_labelled_when_open": true
   },
   "note": "@axe-core/playwright is not installed in this package; this report records browser DOM accessibility smoke only."
 }

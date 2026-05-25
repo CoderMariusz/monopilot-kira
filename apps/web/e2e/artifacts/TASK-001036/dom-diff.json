@@ -1,9 +1,9 @@
 {
   "task_id": "TASK-001047",
   "artifact_dir_task_id": "TASK-001036",
-  "generated_at": "2026-05-25T18:07:33.783Z",
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001047-a1/prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
-  "prototype_route": "http://127.0.0.1:62989/warehouse/warehouse.html",
+  "generated_at": "2026-05-25T18:56:41.355Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001051-a1/prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
+  "prototype_route": "http://127.0.0.1:65064/warehouse/warehouse.html",
   "target_route": "http://127.0.0.1:3314/en/settings/infra/locations",
   "viewport": "desktop-1440x1000",
   "region_selectors": {
@@ -47,28 +47,28 @@
     },
     "table": {
       "selector": "table, [role=\"table\"]",
-      "count": 0,
-      "visibleCount": 0,
-      "textSample": ""
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "LP PRODUCT QTY BATCH EXPIRY STATUS QA No LPs at this location."
     },
     "dialog": {
       "selector": "[role=\"dialog\"]",
-      "count": 0,
-      "visibleCount": 0,
-      "textSample": ""
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Add location Code Alphanumeric + hyphen, max 20 chars, unique within warehouse Name Parent location — WH-FACTORY-A WH-FACTORY-A › COLD WH-FACTORY-A › COLD › B1 Type storage transit receiving production_line Is active Cancel Create location"
     },
     "primary_cta": {
       "selector": "button, [role=\"button\"]",
-      "count": 2,
-      "visibleCount": 2,
+      "count": 7,
+      "visibleCount": 7,
       "textSample": "SP"
     }
   },
   "browser_events": [],
   "target_http_status": 200,
-  "target_final_url": "http://127.0.0.1:3314/en/settings/infra/locations",
+  "target_final_url": "http://127.0.0.1:3314/en/settings/infra/locations?modal=add",
   "authenticated_route_rendered": true,
-  "dialog_evidence": "not_opened_no_edit_permission_or_live_db_context",
+  "dialog_evidence": "primary_cta_clicked_dialog_verified_via_modal_query_fallback",
   "anchors": {
     "locations_screen_excerpt": "// ============ WH-018 Locations hierarchy ============\n\n// data-prototype-label: locations_hierarchy_page\nconst WhLocations = ({ role, onNav, onOpenLp, openModal }) => {\n  const [selected, setSelected] = React.useState(\"WH-Factory-A.Cold.B3\");\n  const isAdmin = role === \"Admin\";\n  const sel = WH_LOCATIONS.find(l => l.key === selected) || WH_LOCATIONS[0];\n  const childLps = WH_LPS.filter(l => l.loc.join(\".\").startsWith(sel.key));\n\n  return (\n    <>\n      <div className=\"page-head\">\n        <div>\n          <div className=\"breadcrumb\"><a onClick={()=>onNav(\"dashboard\")}>Warehouse</a> · Locations</div>\n          <h1 className=\"page-title\">Locations hierarchy</h1>\n          <div className=\"muted\" style={{fontSize:12}}>Backed by <span className=\"mono\">ltree</span> column · depth {WH_SETTINGS.general && 3} max · Apex default: warehouse → zone → bin</div>\n        </div>\n        <div className=\"row-flex\">\n          {isAdmin && <button className=\"btn btn-primary btn-sm\" onClick={()=>openModal(\"locationEdit\")}>＋ Add location</button>}\n          {!isAdmin && <span className=\"badge badge-gray\" style={{fontSize:10}}>Read-only — Admin required to edit</span>}\n        </div>\n      </div>\n\n      <div className=\"loc-layout\">\n        <div className=\"loc-tree\">\n          {WH_LOCATIONS.map(l => {\n            const typeIc = { storage: \"▭\", transit: \"🚚\", receiving: \"📦\", production_line: \"⚙\" }[l.type] || \"•\";\n            return (\n              <div key={l.key}\n                   className={\"loc-node l\" + l.level + \" \" + (selected === l.key ? \"on\" : \"\")}\n                   onClick={()=>setSelected(l.key)}>\n                <span className=\"ln-tog\">{l.level < 2 ? \"▸\" : \"\"}</span>\n                <span className=\"ln-type-ic\">{typeIc}</span>\n                <span style={{fontFamily:\"var(--font-mono)\", fontSize:11, fontWeight:l.level === 0 ? 700 : l.level === 1 ? 600 : 500}}>{l.code}</span>\n                <span style={{fontSize:11, color:\"var(--muted)\", marginLeft:6}}>{l.name}</span>\n                <span className=\"ln-count\">{l.lpCount}</span>\n              </div>\n            );\n          })}\n        </div>\n\n        <div>\n          <div className=\"card\">\n            <div className=\"card-head\">\n              <div>\n                <h3 className=\"card-title\" style={{fontFamily:\"var(--font-mono)\"}}>{sel.code} — {sel.name}</h3>\n                <div style={{fontSize:11, color:\"var(--muted",
     "location_modal_excerpt": "// -------- M-13: Location create / edit --------\nconst LocationEditModal = ({ open, onClose, data }) => {\n  const editing = !!data;\n  const [form, setForm] = React.useState({ code: data?.code || \"\", name: data?.name || \"\", parent: data?.parent || \"WH-Factory-A.Cold\", type: data?.type || \"storage\", active: true, barcode: \"\" });\n  const depthExceeded = form.parent.split(\".\").length >= 3;\n  const valid = form.code && form.name && !depthExceeded;\n\n  return (\n    <Modal open={open} onClose={onClose} title={editing ? \"Edit location\" : \"Add location\"} size=\"default\"\n      foot={<>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disabled={!valid} onClick={onClose}>{editing ? \"Save changes\" : \"Create location\"}</button>\n      </>}>\n      <Field label=\"Code\" required help=\"Alphanumeric + hyphen, max 20 chars, unique within warehouse\">\n        <input value={form.code} onChange={e=>setForm({...form, code: e.target.value.toUpperCase()})} maxLength={20} placeholder=\"Bin-C5\" className=\"mono\"/>\n      </Field>\n      <Field label=\"Name\" required><input value={form.name} onChange={e=>setForm({...form, name: e.target.value})} maxLength={80} placeholder=\"Cold Storage Bin C5\"/></Field>\n      <div className=\"ff-inline\">\n        <Field label=\"Parent location\" required help={depthExceeded ? \"Max depth 3 reached\" : \"\"} error={depthExceeded ? \"Maximum location depth for this tenant is 3 levels (warehouse → zone → bin). Contact your administrator to increase the limit in Settings → Warehouse Settings.\" : null}>\n"

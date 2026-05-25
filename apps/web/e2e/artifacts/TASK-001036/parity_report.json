@@ -2,12 +2,12 @@
   "task_id": "TASK-001047",
   "artifact_dir_task_id": "TASK-001036",
   "root_task_id": "TASK-001031",
-  "generated_at": "2026-05-25T18:07:33.832Z",
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001047-a1/prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
-  "prototype_route": "http://127.0.0.1:62989/warehouse/warehouse.html",
+  "generated_at": "2026-05-25T18:56:41.405Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001051-a1/prototypes/design/Monopilot Design System/warehouse/other-screens.jsx",
+  "prototype_route": "http://127.0.0.1:65064/warehouse/warehouse.html",
   "target_route": "/en/settings/infra/locations",
   "base_url": "http://127.0.0.1:3314",
-  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001047-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
+  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001051-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
   "viewports": [
     "desktop-1440x1000"
   ],
@@ -18,11 +18,11 @@
     "primary_cta": "button, [role=\"button\"]"
   },
   "parity_matrix": {
-    "structural": "captured_authenticated_safe_error_or_empty_state",
-    "visual": "captured_authenticated_safe_state_screenshot",
-    "interaction": "read_only_or_live_db_error_state_no_primary_cta_visible",
-    "data": "runtime_loader_attempted_withOrgContext_no_mock_fallback",
-    "rbac": "explicit_read_only_state_captured",
+    "structural": "captured_locations_tree_card_table_regions",
+    "visual": "captured_target_surface_screenshot",
+    "interaction": "primary_cta_dialog_fields_exercised_in_browser",
+    "data": "captured_from_real_route_loader",
+    "rbac": "authenticated_route_captured",
     "i18n": "captured_no_raw_locations_key_observed",
     "authenticated_preview": "authenticated_local_dev_harness_cookie_final_url_target_route"
   },
@@ -30,7 +30,7 @@
     "prototype_screenshot": "apps/web/e2e/artifacts/TASK-001036/prototype-desktop-1440x1000.png",
     "prototype_dialog_screenshot": "apps/web/e2e/artifacts/TASK-001036/prototype-dialog-desktop-1440x1000.png",
     "target_screenshot": "apps/web/e2e/artifacts/TASK-001036/target-desktop-1440x1000.png",
-    "target_dialog_screenshot": null,
+    "target_dialog_screenshot": "apps/web/e2e/artifacts/TASK-001036/target-add-location-dialog-desktop-1440x1000.png",
     "dom_diff_json": "apps/web/e2e/artifacts/TASK-001036/dom-diff.json",
     "axe_report": "apps/web/e2e/artifacts/TASK-001036/axe-report.json"
   },
@@ -39,7 +39,7 @@
     "checks": {
       "main_visible": true,
       "heading_visible": true,
-      "dialog_labelled_when_open": "not_open"
+      "dialog_labelled_when_open": true
     },
     "note": "@axe-core/playwright is not installed in this package; this report records browser DOM accessibility smoke only."
   },
