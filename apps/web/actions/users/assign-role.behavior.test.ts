@@ -15,6 +15,10 @@ vi.mock('../../lib/auth/with-org-context', () => ({
   ),
 }));
 
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+}));
+
 type QueryCall = { sql: string; params: unknown[] };
 type FakeClient = {
   calls: QueryCall[];

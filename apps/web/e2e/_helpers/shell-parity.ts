@@ -131,8 +131,10 @@ export type ShellParityHarness = {
 };
 
 const HARNESS_ACCESS_TOKEN = 'shell-parity-access-token';
+export const HARNESS_USER_ID = '11111111-1111-4111-8111-111111111111';
+export const HARNESS_ORG_ID = '00000000-0000-0000-0000-000000000002';
 const HARNESS_USER = {
-  id: 'shell-parity-user',
+  id: HARNESS_USER_ID,
   aud: 'authenticated',
   role: 'authenticated',
   email: 'shell.parity@monopilot.local',
@@ -140,8 +142,8 @@ const HARNESS_USER = {
   user_metadata: {
     name: 'Shell Parity',
     full_name: 'Shell Parity',
-    org_id: 'org-shell-parity',
-    org_name: 'MonoPilot MES',
+    org_id: HARNESS_ORG_ID,
+    org_name: 'Apex',
     language: 'en',
     locale: 'en',
   },
@@ -340,6 +342,7 @@ export async function startLocalShellParityHarness(): Promise<ShellParityHarness
     env: {
       ...process.env,
       PORT: String(appPort),
+      NODE_ENV: 'development',
       DEV_AUTH_BYPASS: 'true',
       NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'shell-parity-anon-key',

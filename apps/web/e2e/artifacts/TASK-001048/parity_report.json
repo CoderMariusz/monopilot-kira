@@ -1,12 +1,12 @@
 {
   "task_id": "TASK-001048",
   "root_task_id": "TASK-001037",
-  "generated_at": "2026-05-25T17:48:33.027Z",
-  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001048-a1/prototypes/design/Monopilot Design System/settings/access-screens.jsx",
-  "prototype_route": "http://127.0.0.1:62449/settings/settings.html",
+  "generated_at": "2026-05-25T18:38:46.901Z",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001050-a1/prototypes/design/Monopilot Design System/settings/access-screens.jsx",
+  "prototype_route": "http://127.0.0.1:64170/settings/settings.html",
   "target_route": "/en/settings/users",
   "base_url": "http://127.0.0.1:3314",
-  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001048-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
+  "server_identity": "Next dev server cwd=/Users/mariuszkrawczyk/Projects/monopilot-kira/.acp/worktrees/TASK-001050-a1 baseURL=http://127.0.0.1:3314 fakeSupabase=http://127.0.0.1:3214",
   "viewports": [
     "desktop-1440x1000"
   ],
@@ -17,13 +17,13 @@
     "primary_cta": "button, [role=\"button\"]"
   },
   "parity_matrix": {
-    "structural": "blocked_safe_error_or_permission_state",
-    "visual": "blocked_safe_error_or_permission_state",
-    "interaction": "unit_vitest_covers_dialog; browser target rendered safe error/permission state",
-    "data": "not_verified_live_db_context_unavailable",
-    "rbac": "route_uses_real_withOrgContext; browser captured resulting safe state",
+    "structural": "captured_populated_table_kpis",
+    "visual": "captured_populated_target_vs_prototype_screenshots",
+    "interaction": "populated_route_captured; invite_dialog_verified_by_unit_vitest_due_local_hydration_limit",
+    "data": "captured_from_real_db_seed_via_withOrgContext",
+    "rbac": "real_withOrgContext_plus_role_permissions_seed; invite/assign capabilities enabled by settings permissions",
     "i18n": "captured_no_settings_users_raw_key_observed",
-    "authenticated_preview": "local_dev_harness_with_auth_cookie; live DB context unavailable in this worktree"
+    "authenticated_preview": "local_dev_harness_with_auth_cookie_and_real_db baseURL=http://127.0.0.1:3314"
   },
   "artifacts": {
     "prototype_screenshot": "apps/web/e2e/artifacts/TASK-001048/prototype-desktop-1440x1000.png",
@@ -34,7 +34,7 @@
   },
   "axe": {
     "status": "not_run",
-    "reason": "Live DB/org context unavailable; route rendered safe error state, so axe on the target users surface would be misleading."
+    "reason": "No @axe-core/playwright dependency in web package; structural DOM report and browser error spy captured from populated real DB-backed target route."
   },
   "deviations": [
     {
@@ -43,5 +43,5 @@
       "note": "Current client preselects the edited table row rather than rendering the full scrollable search list from modals.jsx:426-437; this task scope fences edits to page/actions/messages/e2e, so implementation change is deferred for a scoped UI client task."
     }
   ],
-  "status": "BLOCKED_LIVE_DB_CONTEXT_SAFE_STATE_CAPTURED"
+  "status": "CAPTURED"
 }

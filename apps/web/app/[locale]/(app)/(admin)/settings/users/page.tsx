@@ -326,7 +326,7 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.users_screen' });
   return {
     title: t('title'),
-    summary: t('summary'),
+    summary: t('summary', { users: '{users}', roles: '{roles}' }),
     export: t('export'),
     inviteUser: t('invite_user'),
     active: t('active'),

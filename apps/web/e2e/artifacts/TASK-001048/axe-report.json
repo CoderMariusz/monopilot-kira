@@ -1,4 +1,4 @@
 {
   "status": "not_run",
-  "reason": "Live DB/org context unavailable; route rendered safe error state, so axe on the target users surface would be misleading."
+  "reason": "No @axe-core/playwright dependency in web package; structural DOM report and browser error spy captured from populated real DB-backed target route."
 }
