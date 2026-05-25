@@ -103,7 +103,15 @@
       "appSidebarLabel": "Settings navigation",
       "sidebarCrumb": "Settings / Infrastructure",
       "unavailable": "—",
-      "eyebrow": "SET-012 · Warehouse infrastructure"
+      "eyebrow": "SET-012 · Warehouse infrastructure",
+      "addWarehouse": "Adaugă depozit",
+      "createWarehouse": "Creează depozit",
+      "createWarehousePending": "Se creează…",
+      "warehouseCode": "Cod",
+      "warehouseName": "Nume",
+      "warehouseAddress": "Adresă",
+      "createWarehouseFailed": "Depozitul nu a putut fi creat.",
+      "createWarehouseSuccess": "Depozit creat."
     },
     "locations": {
       "title": "Arbore locații",
@@ -160,5 +168,25 @@
     "noConsumers": "—",
     "defaultNpdDescription": "Permite editări ale produselor/BOM NPD lansate după autorizare.",
     "defaultTechnicalDescription": "Solicită aprobarea specificației produsului de către Technical înainte de utilizarea în fabrică."
+  },
+  "units": {
+    "title": "Unități și conversii",
+    "subtitle": "Units of measure used across recipes, stock, and shipping.",
+    "addUnit": "+ Adaugă unitate",
+    "baseUnitPrefix": "Base unit:",
+    "code": "Cod",
+    "name": "Nume",
+    "factorToBase": "Factor to base",
+    "baseQuestion": "Base?",
+    "actions": "Acțiuni",
+    "base": "Bază",
+    "customConversions": "Custom conversions",
+    "customConversionsSubtitle": "Define non-linear conversions (e.g. Flour: 1 cup = 120g).",
+    "noCustomConversions": "No custom conversions yet.",
+    "addCustomConversion": "+ Add custom conversion",
+    "noUnits": "No units configured yet.",
+    "loading": "Loading units…",
+    "error": "Unitățile nu au putut fi încărcate.",
+    "permissionDenied": "You do not have permission to manage units."
   }
 }

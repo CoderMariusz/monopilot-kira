@@ -27,7 +27,7 @@ export type UpsertMachineResult =
   | { ok: true; data: { id: string; locationId: string; status: string } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'invalid_location' | 'location_must_be_bin_level' | 'persistence_failed' };
 
-const EDIT_PERMISSION = 'settings.infrastructure.edit';
+const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineResult> {

@@ -16,6 +16,11 @@ export type Warehouse = {
   active_wo_count?: number;
 };
 
+export type CreateWarehouseInput = { code: string; name: string; address?: string | null };
+export type CreateWarehouseResult =
+  | { ok: true; data: Warehouse }
+  | { ok: false; error?: string };
+
 export type DeactivateWarehouseInput = { warehouseId: string; force?: boolean };
 
 export type DeactivateWarehouseResult =
@@ -72,18 +77,28 @@ export type WarehouseLabels = {
   sidebarCrumb: string;
   unavailable: string;
   eyebrow: string;
+  addWarehouse: string;
+  createWarehouse: string;
+  createWarehousePending: string;
+  warehouseCode: string;
+  warehouseName: string;
+  warehouseAddress: string;
+  createWarehouseFailed: string;
+  createWarehouseSuccess: string;
 };
 
 export default function WarehouseListScreen({
   labels,
   initialWarehouses,
   canUpdateInfra,
+  createWarehouse,
   deactivateWarehouse,
   state,
 }: {
   labels: WarehouseLabels;
   initialWarehouses: Warehouse[];
   canUpdateInfra: boolean;
+  createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
   state: WarehousePageState;
 }) {
@@ -94,6 +109,9 @@ export default function WarehouseListScreen({
   const [filterValue, setFilterValue] = React.useState('');
   const [debouncedFilter, setDebouncedFilter] = React.useState('');
   const [pending, setPending] = React.useState(false);
+  const [createPending, setCreatePending] = React.useState(false);
+  const [createStatus, setCreateStatus] = React.useState<string | null>(null);
+  const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
 
@@ -149,6 +167,31 @@ export default function WarehouseListScreen({
         row.id === warehouseId ? { ...row, deactivated_at: deactivatedAt ?? row.deactivated_at ?? new Date().toISOString() } : row,
       ),
     );
+  }
+
+  async function submitCreateWarehouse(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canUpdateInfra || createPending) return;
+    const input = {
+      code: newWarehouse.code,
+      name: newWarehouse.name,
+      address: newWarehouse.address.trim() || null,
+    };
+    setCreatePending(true);
+    setCreateStatus(null);
+    setError(null);
+    try {
+      const result = await createWarehouse(input);
+      if (!result.ok) {
+        setError(labels.createWarehouseFailed);
+        return;
+      }
+      setRows((current) => [result.data, ...current.filter((row) => row.id !== result.data.id)]);
+      setNewWarehouse({ code: '', name: '', address: '' });
+      setCreateStatus(labels.createWarehouseSuccess);
+    } finally {
+      setCreatePending(false);
+    }
   }
 
   async function bulkDeactivate() {
@@ -234,6 +277,47 @@ export default function WarehouseListScreen({
       </header>
 
       <section className="mx-auto max-w-6xl space-y-4 p-6" aria-labelledby="warehouse-table-title">
+
+        <form onSubmit={(event) => void submitCreateWarehouse(event)} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label={labels.addWarehouse}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="grid min-w-36 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-code">
+              {labels.warehouseCode}
+              <Input
+                id="new-warehouse-code"
+                value={newWarehouse.code}
+                onChange={(event) => setNewWarehouse((current) => ({ ...current, code: event.currentTarget.value }))}
+                disabled={!canUpdateInfra || createPending}
+                required
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+              />
+            </label>
+            <label className="grid min-w-48 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-name">
+              {labels.warehouseName}
+              <Input
+                id="new-warehouse-name"
+                value={newWarehouse.name}
+                onChange={(event) => setNewWarehouse((current) => ({ ...current, name: event.currentTarget.value }))}
+                disabled={!canUpdateInfra || createPending}
+                required
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+              />
+            </label>
+            <label className="grid min-w-56 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-address">
+              {labels.warehouseAddress}
+              <Input
+                id="new-warehouse-address"
+                value={newWarehouse.address}
+                onChange={(event) => setNewWarehouse((current) => ({ ...current, address: event.currentTarget.value }))}
+                disabled={!canUpdateInfra || createPending}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+              />
+            </label>
+            <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
+              {createPending ? labels.createWarehousePending : labels.createWarehouse}
+            </Button>
+          </div>
+          {createStatus ? <p role="status" className="mt-2 text-sm text-emerald-700">{createStatus}</p> : null}
+        </form>
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

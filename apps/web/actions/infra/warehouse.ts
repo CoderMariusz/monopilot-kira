@@ -12,12 +12,18 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
-type WarehouseRow = { id: string; is_active?: boolean | null; deactivated_at?: string | null };
+type WarehouseRow = { id: string; code?: string; name?: string; address_label?: string | null; is_active?: boolean | null; deactivated_at?: string | null };
 type CountRow = { active_count?: number | string | null; count?: number | string | null };
 
 type ParsedDeactivateInput = {
   warehouseId: string;
   force: boolean;
+};
+
+type ParsedCreateInput = {
+  code: string;
+  name: string;
+  address: string | null;
 };
 
 export type DeactivateWarehouseResult =
@@ -28,8 +34,49 @@ export type DeactivateWarehouseResult =
       warning?: { code: 'ACTIVE_WO_REFERENCES'; activeWorkOrders: number };
     };
 
-const EDIT_PERMISSION = 'settings.infrastructure.edit';
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export type CreateWarehouseResult =
+  | { ok: true; data: { id: string; code: string; name: string; address: string | null; deactivated_at: null; active_wo_count: 0 } }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'already_exists' | 'persistence_failed' };
+
+const EDIT_PERMISSION = 'settings.infra.update';
+
+export async function createWarehouse(rawInput: unknown): Promise<CreateWarehouseResult> {
+  const input = parseCreateInput(rawInput);
+  if (!input) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<CreateWarehouseResult> => {
+      if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+      const { rows } = await client.query<WarehouseRow>(
+        `insert into public.warehouses (org_id, code, name, warehouse_type, address)
+         values (app.current_org_id(), $1, $2, 'storage', $3::jsonb)
+         on conflict (org_id, code) do nothing
+         returning id,
+                   code,
+                   name,
+                   nullif(concat_ws(', ', address->>'line1'), '') as address_label,
+                   null::text as deactivated_at`,
+        [input.code, input.name, JSON.stringify(input.address ? { line1: input.address } : {})],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'already_exists' };
+      return {
+        ok: true,
+        data: {
+          id: row.id,
+          code: row.code ?? input.code,
+          name: row.name ?? input.name,
+          address: row.address_label ?? input.address,
+          deactivated_at: null,
+          active_wo_count: 0,
+        },
+      };
+    });
+  } catch (error) {
+    console.error('[settings/infra/warehouse:create] persistence_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
 
 export async function deactivateWarehouse(rawInput: unknown): Promise<DeactivateWarehouseResult> {
   const input = parseDeactivateInput(rawInput);
@@ -73,6 +120,34 @@ export async function deactivateWarehouse(rawInput: unknown): Promise<Deactivate
   } catch {
     return { ok: false, error: 'persistence_failed' };
   }
+}
+
+
+function parseCreateInput(raw: unknown): ParsedCreateInput | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const input = raw as Record<string, unknown>;
+  const code = normalizeCode(input.code);
+  const name = normalizeText(input.name, 128);
+  const address = optionalText(input.address, 256);
+  if (!code || !name) return null;
+  return { code, name, address };
+}
+
+function normalizeCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toUpperCase();
+  return /^[A-Z0-9][A-Z0-9_-]{0,31}$/.test(trimmed) ? trimmed : null;
+}
+
+function normalizeText(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= max ? trimmed : null;
+}
+
+function optionalText(value: unknown, max: number): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  return normalizeText(value, max);
 }
 
 function parseDeactivateInput(raw: unknown): ParsedDeactivateInput | null {
@@ -137,5 +212,7 @@ async function writeOutbox(
 }
 
 function requiredUuid(value: unknown): string | null {
-  return typeof value === 'string' && UUID_RE.test(value.trim()) ? value.trim() : null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 128 ? trimmed : null;
 }

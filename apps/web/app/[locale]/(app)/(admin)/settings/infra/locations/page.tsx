@@ -6,6 +6,10 @@ import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>> };
 type Warehouse = { id: string; code: string; name: string };
 type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string };
 type CreateLocationInput = { csvRowNumber: number; warehouseId: string; parentPath: string | null; name: string; level: number; path: string };
@@ -75,6 +79,7 @@ const DEFAULT_LABELS: LocationTreeLabels = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
 const LABEL_NAMESPACE = 'settings.infra.locations';
+const UPDATE_PERMISSION = 'settings.infra.update';
 
 function isMissingTranslation(key: keyof LocationTreeLabels, value: string) {
   return value === key || value === `${LABEL_NAMESPACE}.${key}`;
@@ -104,6 +109,67 @@ function formatLabel(template: string, values: Record<string, string | number>) 
 
 function sortByPath(rows: LocationRow[]) {
   return [...rows].sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+}
+
+async function hasPermission(client: QueryClient, userId: string, orgId: string, permission: string) {
+  const { rows } = await client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or r.permissions ? $3 or r.code = any($4::text[]) or r.slug = any($4::text[]))
+      limit 1`,
+    [userId, orgId, permission, ['owner', 'admin', 'module_admin']],
+  );
+  return rows.length > 0;
+}
+
+function locationCodeFromPath(path: string) {
+  return path.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g, '_').slice(0, 64) || 'LOCATION';
+}
+
+async function readLocationData(): Promise<{
+  warehouses: Warehouse[];
+  locations: LocationRow[];
+  canImport: boolean;
+  state: NonNullable<LocationTreePageProps['state']>;
+}> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const queryClient = client as QueryClient;
+      const canImport = await hasPermission(queryClient, userId, orgId, UPDATE_PERMISSION);
+      const [warehouseResult, locationResult] = await Promise.all([
+        queryClient.query<Warehouse>(
+          `select id, code, name
+             from public.warehouses
+            where org_id = app.current_org_id()
+            order by code asc`,
+        ),
+        queryClient.query<LocationRow>(
+          `select id,
+                  warehouse_id as "warehouseId",
+                  parent_id as "parentId",
+                  name,
+                  level,
+                  path
+             from public.locations
+            where org_id = app.current_org_id()
+            order by path asc`,
+        ),
+      ]);
+      return {
+        warehouses: warehouseResult.rows,
+        locations: sortByPath(locationResult.rows),
+        canImport,
+        state: locationResult.rows.length === 0 ? 'empty' : 'ready',
+      };
+    });
+  } catch (error) {
+    console.error('[settings/infra/locations] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { warehouses: [], locations: [], canImport: false, state: 'error' };
+  }
 }
 
 function parseCsv(text: string): CreateLocationInput[] {
@@ -136,24 +202,59 @@ async function readFileText(file: File): Promise<string> {
 }
 
 async function postLocationImport(input: CreateLocationInput): Promise<CreateLocationResult> {
-  const response = await fetch('/api/infra/locations/import', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.ok === false) {
-    return {
-      ok: false,
-      error: {
-        code: payload?.error?.code ?? payload?.code ?? 'IMPORT_ERROR',
-        rowNumber: payload?.error?.rowNumber ?? payload?.rowNumber ?? input.csvRowNumber,
-        validation: payload?.error?.validation ?? payload?.validation ?? 'V-SET-60',
-        message: payload?.error?.message ?? payload?.message ?? '',
-      },
-    };
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const queryClient = client as QueryClient;
+      if (!(await hasPermission(queryClient, userId, orgId, UPDATE_PERMISSION))) {
+        return { ok: false, error: { code: 'FORBIDDEN', rowNumber: input.csvRowNumber, validation: 'V-SET-60', message: 'Missing settings.infra.update permission' } };
+      }
+
+      const parentPath = input.parentPath?.trim() || null;
+      let parent: { id: string; level: number } | null = null;
+      if (parentPath) {
+        const { rows } = await queryClient.query<{ id: string; level: number }>(
+          `select id, level
+             from public.locations
+            where org_id = app.current_org_id()
+              and warehouse_id = $1::uuid
+              and path = $2
+            limit 1`,
+          [input.warehouseId, parentPath],
+        );
+        parent = rows[0] ?? null;
+        if (!parent) {
+          return { ok: false, error: { code: 'INVALID_PARENT', rowNumber: input.csvRowNumber, validation: 'V-SET-60', message: `Parent path not found: ${parentPath}` } };
+        }
+        if (input.level !== parent.level + 1) {
+          return { ok: false, error: { code: 'INVALID_PARENT_LEVEL', rowNumber: input.csvRowNumber, validation: 'V-SET-60', message: 'Level must equal parent level + 1' } };
+        }
+      } else if (input.level !== 1) {
+        return { ok: false, error: { code: 'INVALID_PARENT_LEVEL', rowNumber: input.csvRowNumber, validation: 'V-SET-60', message: 'Root locations must use level 1' } };
+      }
+
+      const code = locationCodeFromPath(input.path);
+      await queryClient.query(
+        `insert into public.locations (org_id, warehouse_id, parent_id, code, name, location_type, level, path)
+         values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4, 'storage', $5::integer, $6)
+         on conflict (org_id, code) do update set
+           warehouse_id = excluded.warehouse_id,
+           parent_id = excluded.parent_id,
+           name = excluded.name,
+           level = excluded.level,
+           path = excluded.path`,
+        [input.warehouseId, parent?.id ?? null, code, input.name, input.level, input.path],
+      );
+      await queryClient.query(
+        `insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+         values ($1::uuid, 'settings.location.imported', 'location', gen_random_uuid(), $2::jsonb, 'settings-infra-v1')`,
+        [orgId, JSON.stringify({ warehouse_id: input.warehouseId, path: input.path, actor_user_id: userId })],
+      );
+      return { ok: true, data: { path: input.path } };
+    });
+  } catch (error) {
+    console.error('[settings/infra/locations] import_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: { code: 'IMPORT_ERROR', rowNumber: input.csvRowNumber, validation: 'V-SET-60', message: 'Import failed' } };
   }
-  return { ok: true, data: payload?.data ?? payload };
 }
 
 function buildTree(rows: LocationRow[]): TreeNode[] {
@@ -210,10 +311,11 @@ export default async function LocationTreePage(propsInput: unknown) {
   const props = (propsInput ?? {}) as LocationTreePageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const searchParams = props.searchParams ? await props.searchParams : {};
-  const labels = await buildLabels(locale);
-  const locations = sortByPath(props.locations ?? []);
+  const [labels, loadedData] = await Promise.all([buildLabels(locale), props.locations ? Promise.resolve(null) : readLocationData()]);
+  const locations = sortByPath(props.locations ?? loadedData?.locations ?? []);
   const selectedWarehouseId = props.selectedWarehouseId ?? searchParams?.warehouseId ?? 'all';
-  const state = props.state ?? (locations.length === 0 ? 'empty' : 'ready');
+  const state = props.state ?? loadedData?.state ?? (locations.length === 0 ? 'empty' : 'ready');
+  const canImport = props.canImport ?? loadedData?.canImport ?? false;
   const createLocation = props.createLocation ?? postLocationImport;
   const importToast = searchParams?.importMessage
     ? { role: searchParams.importStatus === 'error' ? 'alert' as const : 'status' as const, message: searchParams.importMessage }
@@ -221,7 +323,7 @@ export default async function LocationTreePage(propsInput: unknown) {
 
   async function importCsvAction(formData: FormData): Promise<void> {
     'use server';
-    if (!(props.canImport ?? false)) return;
+    if (!canImport) return;
     const file = formData.get('csvFile');
     if (!(file instanceof File)) return;
     const result = await importLocationCsvText(await readFileText(file), createLocation, labels);
@@ -231,10 +333,10 @@ export default async function LocationTreePage(propsInput: unknown) {
   return (
     <LocationTreeScreen
       labels={labels}
-      warehouses={props.warehouses ?? []}
+      warehouses={props.warehouses ?? loadedData?.warehouses ?? []}
       locations={locations}
       selectedWarehouseId={selectedWarehouseId}
-      canImport={props.canImport ?? false}
+      canImport={canImport}
       state={state}
       importCsvAction={importCsvAction}
       importToast={importToast}

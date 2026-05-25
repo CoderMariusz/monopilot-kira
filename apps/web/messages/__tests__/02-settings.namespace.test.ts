@@ -48,6 +48,9 @@ const ROUTE_FACING_INFRA_NAMESPACES = [
   'infra.locations.title',
   'infra.locations.error',
   'infra.locations.provenance',
+  'units.title',
+  'units.addUnit',
+  'units.error',
 ] as const;
 
 function namespacePath(locale: (typeof LOCALES)[number]): string {

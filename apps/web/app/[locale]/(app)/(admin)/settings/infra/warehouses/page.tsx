@@ -1,8 +1,10 @@
 import { getTranslations } from 'next-intl/server';
 
-import { deactivateWarehouse as t029DeactivateWarehouse } from '../../../../../../../actions/infra/warehouse';
+import { createWarehouse as t029CreateWarehouse, deactivateWarehouse as t029DeactivateWarehouse } from '../../../../../../../actions/infra/warehouse';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import WarehouseListScreen, {
+  type CreateWarehouseInput,
+  type CreateWarehouseResult,
   type DeactivateWarehouseInput,
   type DeactivateWarehouseResult,
   type Warehouse,
@@ -36,6 +38,7 @@ type PageProps = {
   params?: Promise<{ locale: string }>;
   warehouses?: Warehouse[];
   canUpdateInfra?: boolean;
+  createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
   state?: WarehousePageState;
 };
@@ -80,6 +83,14 @@ const DEFAULT_LABELS: WarehouseLabels = {
   sidebarCrumb: 'Settings / Infrastructure',
   unavailable: '—',
   eyebrow: 'SET-012 · Warehouse infrastructure',
+  addWarehouse: 'Add warehouse',
+  createWarehouse: 'Create warehouse',
+  createWarehousePending: 'Creating…',
+  warehouseCode: 'Code',
+  warehouseName: 'Name',
+  warehouseAddress: 'Address',
+  createWarehouseFailed: 'Warehouse could not be created.',
+  createWarehouseSuccess: 'Warehouse created.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WarehouseLabels>;
@@ -201,6 +212,11 @@ async function loadWarehouses(): Promise<{ state: WarehousePageState; warehouses
   }
 }
 
+async function runCreateWarehouse(input: CreateWarehouseInput): Promise<CreateWarehouseResult> {
+  'use server';
+  return t029CreateWarehouse(input) as Promise<CreateWarehouseResult>;
+}
+
 async function runDeactivateWarehouse(input: DeactivateWarehouseInput): Promise<DeactivateWarehouseResult> {
   'use server';
   return t029DeactivateWarehouse(input) as Promise<DeactivateWarehouseResult>;
@@ -224,6 +240,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       labels={labels}
       initialWarehouses={runtime.warehouses}
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
+      createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}
       state={props.state ?? runtime.state}
     />

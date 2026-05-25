@@ -103,7 +103,15 @@
       "appSidebarLabel": "Settings navigation",
       "sidebarCrumb": "Settings / Infrastructure",
       "unavailable": "—",
-      "eyebrow": "SET-012 · Warehouse infrastructure"
+      "eyebrow": "SET-012 · Warehouse infrastructure",
+      "addWarehouse": "Додати склад",
+      "createWarehouse": "Створити склад",
+      "createWarehousePending": "Створення…",
+      "warehouseCode": "Код",
+      "warehouseName": "Назва",
+      "warehouseAddress": "Адреса",
+      "createWarehouseFailed": "Не вдалося створити склад.",
+      "createWarehouseSuccess": "Склад створено."
     },
     "locations": {
       "title": "Дерево локацій",
@@ -160,5 +168,25 @@
     "noConsumers": "—",
     "defaultNpdDescription": "Дозволити редагування випущених продуктів/BOM NPD після авторизації.",
     "defaultTechnicalDescription": "Вимагати затвердження специфікації продукту Technical перед використанням на фабриці."
+  },
+  "units": {
+    "title": "Одиниці та конверсії",
+    "subtitle": "Units of measure used across recipes, stock, and shipping.",
+    "addUnit": "+ Додати одиницю",
+    "baseUnitPrefix": "Base unit:",
+    "code": "Код",
+    "name": "Назва",
+    "factorToBase": "Factor to base",
+    "baseQuestion": "Base?",
+    "actions": "Дії",
+    "base": "Базова",
+    "customConversions": "Custom conversions",
+    "customConversionsSubtitle": "Define non-linear conversions (e.g. Flour: 1 cup = 120g).",
+    "noCustomConversions": "No custom conversions yet.",
+    "addCustomConversion": "+ Add custom conversion",
+    "noUnits": "No units configured yet.",
+    "loading": "Loading units…",
+    "error": "Не вдалося завантажити одиниці.",
+    "permissionDenied": "You do not have permission to manage units."
   }
 }

@@ -176,7 +176,15 @@
       "appSidebarLabel": "Settings navigation",
       "sidebarCrumb": "Settings / Infrastructure",
       "unavailable": "—",
-      "eyebrow": "SET-012 · Warehouse infrastructure"
+      "eyebrow": "SET-012 · Warehouse infrastructure",
+      "addWarehouse": "Dodaj magazyn",
+      "createWarehouse": "Utwórz magazyn",
+      "createWarehousePending": "Tworzenie…",
+      "warehouseCode": "Kod",
+      "warehouseName": "Nazwa",
+      "warehouseAddress": "Adres",
+      "createWarehouseFailed": "Nie można utworzyć magazynu.",
+      "createWarehouseSuccess": "Magazyn utworzony."
     },
     "locations": {
       "title": "Drzewo lokalizacji",
@@ -635,5 +643,25 @@
     "reset_dialog_body": "Ta operacja zastąpi bieżące operacje wybranymi danymi seed dla branży. Kolejność, sufiksy i nieaktywne wiersze zostaną zresetowane.",
     "cancel": "Anuluj",
     "reset": "Resetuj"
+  },
+  "units": {
+    "title": "Jednostki i przeliczenia",
+    "subtitle": "Units of measure used across recipes, stock, and shipping.",
+    "addUnit": "+ Dodaj jednostkę",
+    "baseUnitPrefix": "Base unit:",
+    "code": "Kod",
+    "name": "Nazwa",
+    "factorToBase": "Factor to base",
+    "baseQuestion": "Base?",
+    "actions": "Akcje",
+    "base": "Bazowa",
+    "customConversions": "Custom conversions",
+    "customConversionsSubtitle": "Define non-linear conversions (e.g. Flour: 1 cup = 120g).",
+    "noCustomConversions": "No custom conversions yet.",
+    "addCustomConversion": "+ Add custom conversion",
+    "noUnits": "No units configured yet.",
+    "loading": "Loading units…",
+    "error": "Nie można załadować jednostek.",
+    "permissionDenied": "You do not have permission to manage units."
   }
 }

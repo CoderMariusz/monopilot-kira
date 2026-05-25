@@ -29,7 +29,6 @@ type RoleRow = {
   id: string;
   code: string;
   name: string;
-  ui_category: string | null;
 };
 
 type UserRow = {
@@ -39,7 +38,6 @@ type UserRow = {
   role_id: string;
   role_code: string;
   role_name: string;
-  ui_category: string | null;
   is_active: boolean;
   invite_token: string | null;
   invite_token_expires_at: string | Date | null;
@@ -63,7 +61,6 @@ type PermissionRow = {
   module_code: string;
   module_name: string;
   role_code: string;
-  ui_category: string | null;
   permission: string | null;
   permissions_json: unknown;
 };
@@ -184,14 +181,12 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
 
       if (!canView) return { state: 'permission-denied' as const };
 
-      const [roleResult, userResult, kpiResult, moduleResult, permissionResult] = await Promise.all([
+      const [roleResult, userResult, kpiResult] = await Promise.all([
         queryClient.query<RoleRow>(
           `select r.id,
                   r.code,
-                  r.name,
-                  rc.ui_category
+                  r.name
              from public.roles r
-             left join public.role_categories rc on rc.role_code = r.code
             where r.org_id = $1::uuid or r.org_id is null
             order by r.display_order nulls last, r.name asc`,
           [orgId],
@@ -203,7 +198,6 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
                   u.role_id,
                   r.code as role_code,
                   coalesce(r.name, r.code) as role_name,
-                  rc.ui_category,
                   u.is_active,
                   u.invite_token,
                   u.invite_token_expires_at,
@@ -211,7 +205,6 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
                   u.updated_at
              from public.users u
              join public.roles r on r.id = u.role_id
-             left join public.role_categories rc on rc.role_code = r.code
             where u.org_id = $1::uuid
             order by u.name asc, u.email asc`,
           [orgId],
@@ -226,32 +219,44 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
             where o.id = $1::uuid`,
           [orgId],
         ),
-        queryClient.query<ModuleRow>(
+      ]);
+
+      let moduleRows: ModuleRow[] = DEFAULT_MODULES.map((name) => ({ code: name.toLowerCase(), name }));
+      try {
+        const moduleResult = await queryClient.query<ModuleRow>(
           `select code, name
              from public.modules
             order by display_order nulls last, name asc`,
-        ),
-        queryClient.query<PermissionRow>(
+        );
+        if (moduleResult.rows.length > 0) moduleRows = moduleResult.rows;
+      } catch (error) {
+        console.error('[settings/users] modules_optional_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+      }
+
+      let permissionRows: PermissionRow[] = [];
+      try {
+        const permissionResult = await queryClient.query<PermissionRow>(
           `select m.code as module_code,
                   m.name as module_name,
                   r.code as role_code,
-                  rc.ui_category,
                   rp.permission,
                   r.permissions as permissions_json
              from public.modules m
              cross join public.roles r
-             left join public.role_categories rc on rc.role_code = r.code
              left join public.role_permissions rp on rp.role_id = r.id
             where r.org_id = $1::uuid or r.org_id is null`,
           [orgId],
-        ),
-      ]);
+        );
+        permissionRows = permissionResult.rows;
+      } catch (error) {
+        console.error('[settings/users] permissions_optional_load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+      }
 
       const roles: RoleSummary[] = roleResult.rows.map((role) => ({
         id: role.id,
         code: role.code,
         label: role.name,
-        category: toCategory(role.ui_category, role.code),
+        category: toCategory(undefined, role.code),
       }));
 
       const users: SettingsUser[] = userResult.rows.map((user) => {
@@ -264,16 +269,13 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           roleCode: user.role_code,
           roleId: user.role_id,
           roleLabel: user.role_name,
-          roleCategory: toCategory(user.ui_category, user.role_code),
+          roleCategory: toCategory(undefined, user.role_code),
           site: labels.allSites,
           lastActive: toIsoString(user.last_login_at ?? user.updated_at),
           status: user.is_active ? 'active' : user.invite_token ? 'invited' : 'disabled',
         };
       });
 
-      const moduleRows = moduleResult.rows.length > 0
-        ? moduleResult.rows
-        : DEFAULT_MODULES.map((name) => ({ code: name.toLowerCase(), name }));
       const modules = moduleRows.map((module) => module.name);
       const moduleNameByCode = new Map(moduleRows.map((module) => [module.code, module.name]));
       const matrix = Object.fromEntries(
@@ -283,10 +285,10 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         ]),
       ) as Record<string, Record<RoleCategory, PermissionCell>>;
 
-      for (const row of permissionResult.rows) {
+      for (const row of permissionRows) {
         const moduleName = moduleNameByCode.get(row.module_code);
         if (!moduleName) continue;
-        const category = toCategory(row.ui_category, row.role_code);
+        const category = toCategory(undefined, row.role_code);
         const permissionStrings = [row.permission, ...permissionsFromJson(row.permissions_json)].filter((value): value is string => Boolean(value));
         for (const permission of permissionStrings) {
           const cell = classifyPermission(row.module_code, moduleName, permission);
@@ -313,7 +315,8 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
         },
       };
     });
-  } catch {
+  } catch (error) {
+    console.error('[settings/users] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { state: 'error' };
   }
 }

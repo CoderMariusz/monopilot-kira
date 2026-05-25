@@ -54,3 +54,5 @@ dev-debug.log
 kanban_board.md
 pipeline.log.md
 .acp/
+.vercel
+.env*.local

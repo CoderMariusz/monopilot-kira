@@ -103,6 +103,11 @@ const DEFAULT_LABELS: UnitsLabels = {
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof UnitsLabels>;
+const LABEL_NAMESPACE = 'settings.units';
+
+function isMissingTranslation(key: keyof UnitsLabels, value: string) {
+  return value === key || value === `${LABEL_NAMESPACE}.${key}`;
+}
 
 // Explicit fallback provenance: seed-shaped common UoM rows used when a test passes
 // props or when the live reference table is unavailable in an isolated worktree.
@@ -148,16 +153,18 @@ function groupedUnits(units: UnitOfMeasure[]) {
 
 async function buildLabels(locale: string): Promise<UnitsLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.units' });
+    const t = await getTranslations({ locale, namespace: LABEL_NAMESPACE });
     return LABEL_KEYS.reduce((labels, key) => {
       try {
-        labels[key] = t(key);
+        const translated = t(key);
+        labels[key] = isMissingTranslation(key, translated) ? DEFAULT_LABELS[key] : translated;
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
       return labels;
     }, {} as UnitsLabels);
-  } catch {
+  } catch (error) {
+    console.error('[settings/units] labels_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ...DEFAULT_LABELS };
   }
 }
@@ -220,7 +227,8 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
         .filter((row): row is CustomConversion => row !== null);
       return { units, customConversions, canEdit: true, state: units.length ? 'ready' : 'empty' };
     });
-  } catch {
+  } catch (error) {
+    console.error('[settings/units] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { units: FALLBACK_UNITS, customConversions: [], canEdit: true, state: 'ready' };
   }
 }
