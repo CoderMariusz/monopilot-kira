@@ -4,13 +4,32 @@
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import SettingsFlagsPage from './page';
+import FlagsAdminScreen, {
+  type FeatureFlagRow,
+  type FlagAuthorizationPreflight,
+  type FlagsAdminLabels,
+} from './flags-admin-screen.client';
 
 type Locale = 'en' | 'pl' | 'ro' | 'uk';
+
+const { setLocalFlagAction, setCoreFlagAction } = vi.hoisted(() => ({
+  setLocalFlagAction: vi.fn(),
+  setCoreFlagAction: vi.fn(),
+}));
+
+vi.mock('../../../../../../actions/tenant/set-local-flag', () => ({
+  setLocalFlag: setLocalFlagAction,
+}));
+
+vi.mock('../../../../../../actions/flags/set-core', () => ({
+  setCoreFlag: setCoreFlagAction,
+}));
 
 type FlagsLabels = {
   title: string;
@@ -190,11 +209,12 @@ const getTranslations = vi.fn(async (request?: string | { locale?: string; names
 
 vi.mock('next-intl/server', () => ({ getTranslations }));
 
-async function renderFlagsPage(locale: Locale) {
+async function renderFlagsPage(locale: Locale, overrides: Record<string, unknown> = {}) {
   activeLocale = locale;
   const node = await SettingsFlagsPage({
     params: Promise.resolve({ locale }),
     searchParams: Promise.resolve({}),
+    ...overrides,
   });
   return render(React.createElement(React.Fragment, null, node));
 }
@@ -202,6 +222,8 @@ async function renderFlagsPage(locale: Locale) {
 afterEach(() => {
   cleanup();
   getTranslations.mockClear();
+  setLocalFlagAction.mockReset();
+  setCoreFlagAction.mockReset();
 });
 
 describe('R-F10-002 flags admin next-intl locale labels', () => {
@@ -230,5 +252,97 @@ describe('R-F10-002 flags admin next-intl locale labels', () => {
     expect(source).not.toMatch(/locale\s*={2,3}\s*['"]pl['"]\s*\?/);
     expect(source).not.toMatch(/messages\/(?:pl|en)\/02-settings\.json[\s\S]*messages\/(?:en|pl)\/02-settings\.json/);
     expect(existsSync(legacyPagePath), 'settings flags production page must stay under [locale]/(app)/(admin), not legacy [locale]/(admin)').toBe(false);
+  });
+});
+
+const parityPreflight: FlagAuthorizationPreflight = {
+  flagCode: 'npd.post_release_edit.enabled',
+  canEnable: true,
+  requiresNewVersion: true,
+  hasAuthorizerRoles: true,
+  configureHref: '/en/settings/authorization',
+};
+
+const coreFixture: FeatureFlagRow = {
+  code: 'npd.post_release_edit.enabled',
+  description: 'Allow released NPD product/BOM edits after authorization.',
+  tier: 'L1',
+  tenant: 'L1-core',
+  enabled: false,
+  rolloutPercent: 0,
+  updatedAt: '2026-05-25',
+  consumers: ['npd', 'technical'],
+};
+
+const localFixtureWithModalId = {
+  id: 'flag-site-scanner-offline',
+  code: 'site.scanner.offline',
+  description: 'Allow site scanners to use the offline PWA queue.',
+  desc: 'Allow site scanners to use the offline PWA queue.',
+  tier: 'L2',
+  tenant: 'L2-local',
+  enabled: false,
+  on: false,
+  rolloutPercent: 25,
+  rollout: 25,
+  updatedAt: '2026-05-25',
+  consumers: ['scanner'],
+} satisfies FeatureFlagRow & { id: string };
+
+describe('UI-SET-008 flags admin route modal/action wiring RED', () => {
+  it('opens the shared SM-02 FlagEditModal from the route L2 edit affordance and persists through setLocalFlag', async () => {
+    const user = userEvent.setup();
+    const reason = 'Enable for supervised site scanner rollout';
+    setLocalFlagAction.mockResolvedValue({ ok: true, data: { flagKey: localFixtureWithModalId.code, enabled: true } });
+
+    await renderFlagsPage('en', {
+      flags: [coreFixture, localFixtureWithModalId],
+      authorizationPreflight: parityPreflight,
+      posthogUrl: '#',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'L2 local (1)' }));
+    await user.click(screen.getByRole('button', { name: /edit/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /edit flag.*site\.scanner\.offline/i });
+    expect(dialog).toHaveAttribute('data-modal-id', 'SM-02');
+    expect(within(dialog).getByRole('slider', { name: /rollout %/i })).toHaveValue('25');
+
+    await user.click(within(dialog).getByRole('switch', { name: /status/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /audit reason/i }), reason);
+    await user.click(within(dialog).getByRole('button', { name: /^save change$/i }));
+
+    await waitFor(() =>
+      expect(setLocalFlagAction).toHaveBeenCalledWith({
+        flagKey: localFixtureWithModalId.code,
+        enabled: true,
+        auditReason: reason,
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /edit flag/i })).not.toBeInTheDocument());
+  });
+
+  it('does not fake toggle success when the real flag action rejects the mutation', async () => {
+    const user = userEvent.setup();
+    const onToggleFlag = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    render(
+      <FlagsAdminScreen
+        labels={localizedLabels.en as FlagsAdminLabels}
+        flags={[localFixtureWithModalId]}
+        posthogUrl="#"
+        authorizationPreflight={parityPreflight}
+        onToggleFlag={onToggleFlag}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'L2 local (1)' }));
+    const toggle = screen.getByRole('switch', { name: localFixtureWithModalId.code });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(toggle);
+
+    await waitFor(() => expect(onToggleFlag).toHaveBeenCalledWith(localFixtureWithModalId.code, true));
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+    expect(screen.getByText(/forbidden/i)).toBeInTheDocument();
   });
 });

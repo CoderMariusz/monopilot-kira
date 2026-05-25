@@ -51,6 +51,7 @@ type FakeClient = {
   featureFlags: Map<string, boolean>;
   d365ConstantsPopulated: number;
   d365ConnectionPassed: boolean;
+  permissionMode: 'granted' | 'denied' | 'role_code_only';
   policies: Map<string, PolicyRow>;
   auditEvents: Array<{ action: string; resourceId: string }>;
   outboxEvents: Array<{ eventType: string; payload: unknown }>;
@@ -164,6 +165,24 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
     expect(statementIndex('org_authorization_policies')).toBe(-1);
   });
 
+  it('denies core flag mutation when caller only has a role code matching the permission string', async () => {
+    currentClient.permissionMode = 'role_code_only';
+
+    const { setCoreFlag } = await loadSetCoreFlag();
+    const result = await setCoreFlag({
+      flagCode: 'maintenance_mode',
+      enabled: true,
+      auditReason: 'attempt with role-code-only grant must not mutate core flags',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+    expect(statementIndex('user_roles')).toBeGreaterThanOrEqual(0);
+    expect(currentClient.featureFlags.get('maintenance_mode')).toBe(false);
+    expect(statementIndex('feature_flags_core')).toBe(-1);
+    expect(currentClient.auditEvents).toHaveLength(0);
+    expect(currentClient.outboxEvents).toHaveLength(0);
+  });
+
   it('writes exactly one audit-triggered row and one outbox event for each successful feature_flags_core change', async () => {
     const { setCoreFlag } = await loadSetCoreFlag();
     const result = await setCoreFlag({
@@ -235,6 +254,7 @@ function makeClient(): FakeClient {
     featureFlags,
     d365ConstantsPopulated: 5,
     d365ConnectionPassed: true,
+    permissionMode: 'granted',
     policies,
     auditEvents: [],
     outboxEvents: [],
@@ -243,7 +263,13 @@ function makeClient(): FakeClient {
       const normalized = sql.replace(/\s+/g, ' ').toLowerCase();
 
       if (normalized.includes('user_roles') || normalized.includes('role_permissions')) {
-        return { rows: [{ ok: true }], rowCount: 1 };
+        if (client.permissionMode === 'granted') {
+          return { rows: [{ ok: true }], rowCount: 1 };
+        }
+        if (client.permissionMode === 'role_code_only' && /\br\.(code|slug)\s*=\s*\$3/.test(normalized)) {
+          return { rows: [{ ok: true, source: 'role_code_only' }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
       }
 
       if (normalized.includes('d365_constants')) {
