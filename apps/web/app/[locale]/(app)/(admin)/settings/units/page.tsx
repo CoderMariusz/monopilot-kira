@@ -49,6 +49,12 @@ type UnitsLabels = {
   loading: string;
   error: string;
   permissionDenied: string;
+  capabilityMatrix: string;
+  unitCrudCapability: string;
+  conversionCrudCapability: string;
+  deferredReadOnly: string;
+  deferredReadOnlyDescription: string;
+  saveUnit: string;
 };
 
 type UnitsPageProps = {
@@ -100,6 +106,13 @@ const DEFAULT_LABELS: UnitsLabels = {
   loading: 'Loading units…',
   error: 'Unable to load units.',
   permissionDenied: 'You do not have permission to manage units.',
+  capabilityMatrix: 'Units capability matrix',
+  unitCrudCapability: 'Units CRUD',
+  conversionCrudCapability: 'Custom conversions CRUD',
+  deferredReadOnly: 'Read-only / deferred',
+  deferredReadOnlyDescription:
+    'Unit and conversion maintenance is deferred until the editable reference schema and RBAC action are available. Live rows are displayed read-only; no mock fallback data is used.',
+  saveUnit: 'Save unit',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof UnitsLabels>;
@@ -108,14 +121,6 @@ const LABEL_NAMESPACE = 'settings.units';
 function isMissingTranslation(key: keyof UnitsLabels, value: string) {
   return value === key || value === `${LABEL_NAMESPACE}.${key}`;
 }
-
-// Explicit fallback provenance: seed-shaped common UoM rows used when a test passes
-// props or when the live reference table is unavailable in an isolated worktree.
-const FALLBACK_UNITS: UnitOfMeasure[] = [
-  { id: 'seed-kg', category: 'mass', code: 'kg', name: 'Kilogram', factorToBase: 1, isBase: true },
-  { id: 'seed-g', category: 'mass', code: 'g', name: 'Gram', factorToBase: 0.001, isBase: false },
-  { id: 'seed-l', category: 'volume', code: 'L', name: 'Litre', factorToBase: 1, isBase: true },
-];
 
 const CATEGORY_ORDER: UnitCategory[] = ['mass', 'volume', 'count'];
 
@@ -225,12 +230,70 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
       const customConversions = conversionResult.rows
         .map(mapConversionRow)
         .filter((row): row is CustomConversion => row !== null);
-      return { units, customConversions, canEdit: true, state: units.length ? 'ready' : 'empty' };
+      return { units, customConversions, canEdit: false, state: units.length ? 'ready' : 'empty' };
     });
   } catch (error) {
     console.error('[settings/units] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
-    return { units: FALLBACK_UNITS, customConversions: [], canEdit: true, state: 'ready' };
+    return { units: [], customConversions: [], canEdit: false, state: 'error' };
   }
+}
+
+function AddUnitDisclosure({ labels }: { labels: UnitsLabels }) {
+  return (
+    <details open className="relative">
+      <summary className="list-none [&::-webkit-details-marker]:hidden">
+        <Button type="button" aria-controls="settings-units-add-unit" data-modal-id="SM-UOM-ADD">
+          {labels.addUnit}
+        </Button>
+      </summary>
+      <div
+        id="settings-units-add-unit"
+        role="dialog"
+        aria-label={labels.addUnit.replace(/^\+\s*/, '')}
+        aria-modal="false"
+        className="absolute right-0 z-10 mt-2 w-80 rounded-xl border bg-white p-4 text-sm shadow-lg"
+      >
+        <form className="space-y-3">
+          <label className="block font-medium text-slate-700">
+            {labels.code}
+            <input tabIndex={-1} name="code" className="mt-1 w-full rounded-md border px-3 py-2 font-mono" />
+          </label>
+          <label className="block font-medium text-slate-700">
+            {labels.name}
+            <input tabIndex={-1} name="name" className="mt-1 w-full rounded-md border px-3 py-2" />
+          </label>
+          <label className="block font-medium text-slate-700">
+            {labels.factorToBase}
+            <input tabIndex={-1} name="factorToBase" inputMode="decimal" className="mt-1 w-full rounded-md border px-3 py-2" />
+          </label>
+          <input tabIndex={-1} type="submit" value={labels.saveUnit} className="rounded-md bg-blue-600 px-3 py-2 text-white" />
+        </form>
+      </div>
+    </details>
+  );
+}
+
+function UnitCapabilityMatrix({ labels }: { labels: UnitsLabels }) {
+  return (
+    <Card role="region" aria-label={labels.capabilityMatrix} className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
+      <CardHeader className="space-y-1 border-b border-amber-200 px-6 py-4">
+        <h2 className="text-lg font-semibold tracking-tight text-amber-950">{labels.capabilityMatrix}</h2>
+        <CardDescription className="text-sm text-amber-900">{labels.deferredReadOnlyDescription}</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table aria-label={labels.capabilityMatrix}>
+          <TableBody>
+            {[labels.unitCrudCapability, labels.conversionCrudCapability].map((capability) => (
+              <TableRow key={capability}>
+                <TableCell className="font-medium">{capability}</TableCell>
+                <TableCell className="text-amber-900">{labels.deferredReadOnly}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
 function UnitsSection({ category, units, labels }: { category: UnitCategory; units: UnitOfMeasure[]; labels: UnitsLabels }) {
@@ -341,7 +404,7 @@ export default async function UnitsPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as UnitsPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const [labels, loadedData] = await Promise.all([buildLabels(locale), props.units ? Promise.resolve(null) : readUnitsData()]);
-  const units = props.units ?? loadedData?.units ?? FALLBACK_UNITS;
+  const units = props.units ?? loadedData?.units ?? [];
   const customConversions = props.customConversions ?? loadedData?.customConversions ?? [];
   const canEdit = props.canEdit ?? loadedData?.canEdit ?? true;
   const state = props.state ?? loadedData?.state ?? (units.length ? 'ready' : 'empty');
@@ -357,12 +420,10 @@ export default async function UnitsPage(propsInput: unknown) {
           <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
-        {canEdit ? (
-          <Button type="button" aria-controls="settings-units-add-unit" data-modal-id="SM-UOM-ADD">
-            {labels.addUnit}
-          </Button>
-        ) : null}
+        {canEdit ? <AddUnitDisclosure labels={labels} /> : null}
       </header>
+
+      {!canEdit ? <UnitCapabilityMatrix labels={labels} /> : null}
 
       {state === 'ready' ? (
         <>

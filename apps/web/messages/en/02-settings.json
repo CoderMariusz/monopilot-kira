@@ -723,6 +723,12 @@
     "noUnits": "No units configured yet.",
     "loading": "Loading units…",
     "error": "Unable to load units.",
-    "permissionDenied": "You do not have permission to manage units."
+    "permissionDenied": "You do not have permission to manage units.",
+    "capabilityMatrix": "Units capability matrix",
+    "unitCrudCapability": "Units CRUD",
+    "conversionCrudCapability": "Custom conversions CRUD",
+    "deferredReadOnly": "Read-only / deferred",
+    "deferredReadOnlyDescription": "Unit and conversion maintenance is deferred until the editable reference schema and RBAC action are available. Live rows are displayed read-only; no mock fallback data is used.",
+    "saveUnit": "Save unit"
   }
 }
