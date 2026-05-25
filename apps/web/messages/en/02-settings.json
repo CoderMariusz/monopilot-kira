@@ -639,6 +639,22 @@
     "createEmailTemplate": "Create email template",
     "close": "Close"
   },
+  "email_variables": {
+    "title": "Email template variables",
+    "subtitle": "Merge fields available inside email templates (Mustache syntax).",
+    "guidance": "Click any variable to copy to clipboard. Variables are resolved per-trigger: PO variables only populate when the trigger payload is a PO.",
+    "searchPlaceholder": "Search variable…",
+    "variable": "Variable",
+    "description": "Description",
+    "exampleValue": "Example value",
+    "copy": "Copy",
+    "copied": "Copied {name} to clipboard",
+    "variablesCount": "{count} variables",
+    "loading": "Loading email variables…",
+    "empty": "No email variables are available yet.",
+    "error": "Unable to load email variables.",
+    "permissionDenied": "You do not have permission to view email variables."
+  },
   "email": {
     "templates_title": "Email templates",
     "variables_title": "Email variables",

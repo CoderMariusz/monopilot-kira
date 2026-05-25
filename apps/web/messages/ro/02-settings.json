@@ -342,6 +342,22 @@
     "createEmailTemplate": "Creează șablon email",
     "close": "Închide"
   },
+  "email_variables": {
+    "title": "Variabile șablon email",
+    "subtitle": "Câmpuri merge disponibile în șabloanele email (sintaxă Mustache).",
+    "guidance": "Apasă pe orice variabilă pentru a o copia în clipboard. Variabilele sunt rezolvate per declanșator: variabilele PO se completează doar când payloadul declanșatorului este un PO.",
+    "searchPlaceholder": "Caută variabilă…",
+    "variable": "Variabilă",
+    "description": "Descriere",
+    "exampleValue": "Valoare exemplu",
+    "copy": "Copiază",
+    "copied": "{name} copiată în clipboard",
+    "variablesCount": "{count} variabile",
+    "loading": "Se încarcă variabilele email…",
+    "empty": "Nu există încă variabile email disponibile.",
+    "error": "Variabilele email nu au putut fi încărcate.",
+    "permissionDenied": "Nu ai permisiunea de a vedea variabilele email."
+  },
   "integrations": {
     "d365": {
       "connection": {

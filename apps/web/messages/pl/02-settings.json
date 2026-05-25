@@ -639,6 +639,22 @@
     "createEmailTemplate": "Utwórz szablon e-mail",
     "close": "Zamknij"
   },
+  "email_variables": {
+    "title": "Zmienne szablonów e-mail",
+    "subtitle": "Pola scalania dostępne w szablonach e-mail (składnia Mustache).",
+    "guidance": "Kliknij dowolną zmienną, aby skopiować ją do schowka. Zmienne są rozwiązywane według wyzwalacza: zmienne PO są wypełniane tylko wtedy, gdy ładunek wyzwalacza dotyczy PO.",
+    "searchPlaceholder": "Szukaj zmiennej…",
+    "variable": "Zmienna",
+    "description": "Opis",
+    "exampleValue": "Przykładowa wartość",
+    "copy": "Kopiuj",
+    "copied": "Skopiowano {name} do schowka",
+    "variablesCount": "{count} zmiennych",
+    "loading": "Ładowanie zmiennych e-mail…",
+    "empty": "Zmienne e-mail nie są jeszcze dostępne.",
+    "error": "Nie można załadować zmiennych e-mail.",
+    "permissionDenied": "Nie masz uprawnień do wyświetlania zmiennych e-mail."
+  },
   "email": {
     "templates_title": "Szablony e-mail",
     "variables_title": "Zmienne e-mail",

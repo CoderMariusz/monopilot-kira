@@ -342,6 +342,22 @@
     "createEmailTemplate": "Створити шаблон email",
     "close": "Закрити"
   },
+  "email_variables": {
+    "title": "Змінні шаблонів email",
+    "subtitle": "Поля злиття, доступні в шаблонах email (синтаксис Mustache).",
+    "guidance": "Натисніть будь-яку змінну, щоб скопіювати її в буфер. Змінні обчислюються за тригером: PO-змінні заповнюються лише коли payload тригера є PO.",
+    "searchPlaceholder": "Пошук змінної…",
+    "variable": "Змінна",
+    "description": "Опис",
+    "exampleValue": "Приклад значення",
+    "copy": "Копіювати",
+    "copied": "{name} скопійовано в буфер",
+    "variablesCount": "{count} змінних",
+    "loading": "Завантаження змінних email…",
+    "empty": "Змінні email ще недоступні.",
+    "error": "Не вдалося завантажити змінні email.",
+    "permissionDenied": "У вас немає дозволу переглядати змінні email."
+  },
   "integrations": {
     "d365": {
       "connection": {
