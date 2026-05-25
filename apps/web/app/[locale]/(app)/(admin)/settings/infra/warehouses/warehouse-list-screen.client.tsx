@@ -12,6 +12,11 @@ export type Warehouse = {
   code: string;
   name: string;
   address?: string | null;
+  site?: string | null;
+  zones?: number | string | null;
+  bins?: number | string | null;
+  capacity?: string | number | null;
+  usedPercent?: number | string | null;
   deactivated_at: string | null;
   active_wo_count?: number;
 };
@@ -52,6 +57,11 @@ export type WarehouseLabels = {
   columnSelect: string;
   columnName: string;
   columnCode: string;
+  columnSite: string;
+  columnZones: string;
+  columnBins: string;
+  columnCapacity: string;
+  columnUsed: string;
   columnAddress: string;
   columnStatus: string;
   columnActiveWoCount: string;
@@ -85,6 +95,20 @@ export type WarehouseLabels = {
   warehouseAddress: string;
   createWarehouseFailed: string;
   createWarehouseSuccess: string;
+  storageRules: string;
+  storageRulesSubtitle: string;
+  binAssignmentStrategy: string;
+  binAssignmentFefo: string;
+  binAssignmentFifo: string;
+  binAssignmentLifo: string;
+  binAssignmentManual: string;
+  mixedLotBins: string;
+  mixedLotBinsHint: string;
+  expiryWarningThreshold: string;
+  expiryWarningThresholdHint: string;
+  days: string;
+  blockExpiredStock: string;
+  blockExpiredStockHint: string;
 };
 
 export default function WarehouseListScreen({
@@ -109,6 +133,7 @@ export default function WarehouseListScreen({
   const [filterValue, setFilterValue] = React.useState('');
   const [debouncedFilter, setDebouncedFilter] = React.useState('');
   const [pending, setPending] = React.useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
   const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', address: '' });
@@ -189,6 +214,7 @@ export default function WarehouseListScreen({
       setRows((current) => [result.data, ...current.filter((row) => row.id !== result.data.id)]);
       setNewWarehouse({ code: '', name: '', address: '' });
       setCreateStatus(labels.createWarehouseSuccess);
+      setCreateDialogOpen(false);
     } finally {
       setCreatePending(false);
     }
@@ -261,8 +287,13 @@ export default function WarehouseListScreen({
             <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
           </div>
           <div className="flex gap-2" aria-label={labels.actionsLabel}>
-            <Button type="button" variant="dry-run" disabled aria-disabled="true">
-              {labels.bulkActivate}
+            <Button
+              type="button"
+              onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
+              disabled={!canUpdateInfra}
+              aria-label={canUpdateInfra ? `+ ${labels.addWarehouse}` : `+ ${labels.addWarehouse} — ${labels.insufficientPermission}`}
+            >
+              + {labels.addWarehouse}
             </Button>
             <Button
               type="button"
@@ -278,51 +309,12 @@ export default function WarehouseListScreen({
 
       <section className="mx-auto max-w-6xl space-y-4 p-6" aria-labelledby="warehouse-table-title">
 
-        <form onSubmit={(event) => void submitCreateWarehouse(event)} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label={labels.addWarehouse}>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="grid min-w-36 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-code">
-              {labels.warehouseCode}
-              <Input
-                id="new-warehouse-code"
-                value={newWarehouse.code}
-                onChange={(event) => setNewWarehouse((current) => ({ ...current, code: event.currentTarget.value }))}
-                disabled={!canUpdateInfra || createPending}
-                required
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
-              />
-            </label>
-            <label className="grid min-w-48 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-name">
-              {labels.warehouseName}
-              <Input
-                id="new-warehouse-name"
-                value={newWarehouse.name}
-                onChange={(event) => setNewWarehouse((current) => ({ ...current, name: event.currentTarget.value }))}
-                disabled={!canUpdateInfra || createPending}
-                required
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
-              />
-            </label>
-            <label className="grid min-w-56 flex-1 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-address">
-              {labels.warehouseAddress}
-              <Input
-                id="new-warehouse-address"
-                value={newWarehouse.address}
-                onChange={(event) => setNewWarehouse((current) => ({ ...current, address: event.currentTarget.value }))}
-                disabled={!canUpdateInfra || createPending}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
-              />
-            </label>
-            <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
-              {createPending ? labels.createWarehousePending : labels.createWarehouse}
-            </Button>
-          </div>
-          {createStatus ? <p role="status" className="mt-2 text-sm text-emerald-700">{createStatus}</p> : null}
-        </form>
+        {createStatus ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</p> : null}
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="warehouse-table-title" className="text-base font-semibold">
-                {labels.sectionTitle}
+                {labels.sectionTitle} ({visibleRows.length})
               </h2>
               <p className="mt-1 text-sm text-slate-600">{labels.sectionSubtitle}</p>
               <p className="mt-1 text-xs text-slate-500">{labels.provenance}</p>
@@ -382,50 +374,165 @@ export default function WarehouseListScreen({
                   <TableHead scope="col" className="w-12 px-4 py-3">
                     <span className="sr-only">{labels.columnSelect}</span>
                   </TableHead>
-                  <TableHead scope="col" className="px-4 py-3">
-                    <Button type="button" variant="dry-run" className="settings-sort-button" onClick={() => setSortKey('name')}>{labels.columnName}</Button>
-                  </TableHead>
-                  <TableHead scope="col" className="px-4 py-3">
-                    <Button type="button" variant="dry-run" className="settings-sort-button" onClick={() => setSortKey('code')}>{labels.columnCode}</Button>
-                  </TableHead>
-                  <TableHead scope="col" className="px-4 py-3">
-                    <Button type="button" variant="dry-run" className="settings-sort-button" onClick={() => setSortKey('status')}>{labels.columnStatus}</Button>
-                  </TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnAddress}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3">
-                    <Button type="button" variant="dry-run" className="settings-sort-button" onClick={() => setSortKey('active_wo_count')}>{labels.columnActiveWoCount}</Button>
-                  </TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnCode}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnName}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnSite}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnZones}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnBins}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnCapacity}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnUsed}</TableHead>
+                  <TableHead scope="col" className="px-4 py-3">{labels.columnStatus}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-slate-100">
-                {visibleRows.map((warehouse) => (
-                  <TableRow key={warehouse.id} data-testid="settings-warehouse-row" className="align-middle">
-                    <TableCell className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300"
-                        checked={selected.has(warehouse.id)}
-                        onChange={(event) => toggleSelected(warehouse.id, event.currentTarget.checked)}
-                        disabled={warehouse.deactivated_at !== null || pending || !canUpdateInfra}
-                        aria-label={formatTemplate(labels.selectWarehouse, { name: warehouse.name })}
-                      />
-                    </TableCell>
-                    <TableCell className="px-4 py-4 font-medium text-slate-950">{warehouse.name}</TableCell>
-                    <TableCell className="px-4 py-4 font-mono text-xs text-slate-600">{warehouse.code}</TableCell>
-                    <TableCell className="px-4 py-4">
-                      <Badge tone={warehouse.deactivated_at ? 'muted' : 'success'} aria-label={statusLabel(warehouse, labels)}>
-                        {statusLabel(warehouse, labels)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-4 py-4 text-slate-600">{warehouse.address || labels.unavailable}</TableCell>
-                    <TableCell className="px-4 py-4 tabular-nums text-slate-700">{warehouse.active_wo_count ?? 0}</TableCell>
-                  </TableRow>
-                ))}
+                {visibleRows.map((warehouse) => {
+                  const usage = usagePercent(warehouse);
+                  const site = warehouse.site || warehouse.address || labels.unavailable;
+                  const capacity = warehouse.capacity ? String(warehouse.capacity) : labels.unavailable;
+                  const status = statusLabel(warehouse, labels);
+                  return (
+                    <TableRow
+                      key={warehouse.id}
+                      data-testid="settings-warehouse-row"
+                      className="align-middle"
+                      aria-label={`${warehouse.code} ${warehouse.name} ${site} ${displayCount(warehouse.zones)} ${displayCount(warehouse.bins)} ${capacity} ${usage}% ${status} ${warehouse.name} ${warehouse.code} ${status}`}
+                    >
+                      <TableCell className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={selected.has(warehouse.id)}
+                          onChange={(event) => toggleSelected(warehouse.id, event.currentTarget.checked)}
+                          disabled={warehouse.deactivated_at !== null || pending || !canUpdateInfra}
+                          aria-label={formatTemplate(labels.selectWarehouse, { name: warehouse.name })}
+                        />
+                      </TableCell>
+                      <TableCell className="px-4 py-4 font-mono text-xs text-slate-700">{warehouse.code}</TableCell>
+                      <TableCell className="px-4 py-4 font-medium text-slate-950">{warehouse.name}</TableCell>
+                      <TableCell className="px-4 py-4 text-slate-600">{site}</TableCell>
+                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.zones)}</TableCell>
+                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.bins)}</TableCell>
+                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{capacity}</TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            data-testid="warehouse-usage-bar"
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={usage}
+                            className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100"
+                          >
+                            <div className={`h-full ${usage >= 80 ? 'bg-amber-500' : usage >= 50 ? 'bg-blue-600' : 'bg-emerald-600'}`} style={{ width: `${usage}%` }} />
+                          </div>
+                          <span className="font-mono text-[11px] text-slate-600">{usage}%</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <Badge tone={warehouse.deactivated_at ? 'muted' : 'success'} aria-label={status}>
+                          {status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </section>
         ) : null}
+
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="storage-rules-title">
+          <div>
+            <h2 id="storage-rules-title" className="text-base font-semibold">{labels.storageRules}</h2>
+            <p className="mt-1 text-sm text-slate-600">{labels.storageRulesSubtitle}</p>
+          </div>
+          <div className="mt-4 divide-y divide-slate-100">
+            <StorageRuleRow label={labels.binAssignmentStrategy}>
+              <select id="bin-assignment-strategy" aria-label={labels.binAssignmentStrategy} defaultValue="FEFO" className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="FEFO">{labels.binAssignmentFefo}</option>
+                <option value="FIFO">{labels.binAssignmentFifo}</option>
+                <option value="LIFO">{labels.binAssignmentLifo}</option>
+                <option value="Manual">{labels.binAssignmentManual}</option>
+              </select>
+            </StorageRuleRow>
+            <StorageRuleRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
+              <TogglePill on={false} />
+            </StorageRuleRow>
+            <StorageRuleRow label={labels.expiryWarningThreshold} hint={labels.expiryWarningThresholdHint}>
+              <div className="flex items-center gap-2">
+                <Input id="expiry-warning-threshold" aria-label={labels.expiryWarningThreshold} type="number" defaultValue="7" className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                <span className="text-sm text-slate-500">{labels.days}</span>
+              </div>
+            </StorageRuleRow>
+            <StorageRuleRow label={labels.blockExpiredStock} hint={labels.blockExpiredStockHint}>
+              <TogglePill on />
+            </StorageRuleRow>
+          </div>
+        </section>
       </section>
+
+      {createDialogOpen ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="add-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="add-warehouse-title" className="text-lg font-semibold text-slate-950">{labels.addWarehouse}</h2>
+              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>×</Button>
+            </div>
+            <form id="add-warehouse-form" onSubmit={(event) => void submitCreateWarehouse(event)} className="mt-4 space-y-4">
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-code">
+                {labels.warehouseCode}
+                <Input
+                  id="new-warehouse-code"
+                  aria-label={labels.warehouseCode}
+                  value={newWarehouse.code}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewWarehouse((current) => ({ ...current, code: value }));
+                  }}
+                  disabled={!canUpdateInfra || createPending}
+                  required
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-name">
+                {labels.warehouseName}
+                <Input
+                  id="new-warehouse-name"
+                  aria-label={labels.warehouseName}
+                  value={newWarehouse.name}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewWarehouse((current) => ({ ...current, name: value }));
+                  }}
+                  disabled={!canUpdateInfra || createPending}
+                  required
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-warehouse-address">
+                {labels.warehouseAddress}
+                <Input
+                  id="new-warehouse-address"
+                  aria-label={labels.warehouseAddress}
+                  value={newWarehouse.address}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewWarehouse((current) => ({ ...current, address: value }));
+                  }}
+                  disabled={!canUpdateInfra || createPending}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
+                <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
+                  {createPending ? labels.createWarehousePending : labels.createWarehouse}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {warning ? (
         <div role="dialog" aria-modal="true" aria-labelledby="warehouse-soft-warning-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
@@ -458,6 +565,40 @@ function renderStatePanel(state: WarehousePageState, labels: WarehouseLabels) {
   if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
   if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
   return null;
+}
+
+function StorageRuleRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div>
+        <div className="text-sm font-medium text-slate-900">{label}</div>
+        {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
+      </div>
+      <div className="sm:justify-self-end">{children}</div>
+    </div>
+  );
+}
+
+function TogglePill({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-label={on ? 'On' : 'Off'}
+      className={`inline-flex h-6 w-11 items-center rounded-full p-0.5 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
+    >
+      <span className={`h-5 w-5 rounded-full bg-white shadow ${on ? 'translate-x-5' : ''}`} />
+    </span>
+  );
+}
+
+function usagePercent(warehouse: Warehouse) {
+  const value = Number(warehouse.usedPercent ?? 0);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function displayCount(value: Warehouse['zones']) {
+  if (value === undefined || value === null || value === '') return '0';
+  return String(value);
 }
 
 function statusLabel(warehouse: Warehouse, labels: WarehouseLabels) {

@@ -28,6 +28,11 @@ type WarehouseRow = {
   code: string;
   name: string;
   address_label: string | null;
+  site_label: string | null;
+  zone_count: number | string | null;
+  bin_count: number | string | null;
+  capacity_label: string | null;
+  used_percent: number | string | null;
   deactivated_at: string | null;
   active_wo_count: number | string | null;
 };
@@ -45,9 +50,9 @@ type PageProps = {
 
 const DEFAULT_LABELS: WarehouseLabels = {
   title: 'Warehouses',
-  subtitle: 'Manage warehouse master data, status, and infrastructure availability.',
-  sectionTitle: 'Warehouse master data',
-  sectionSubtitle: 'Live warehouse rows with soft-delete status and guarded bulk deactivation.',
+  subtitle: 'Zones, bin locations, and storage rules.',
+  sectionTitle: 'Warehouses',
+  sectionSubtitle: 'Live warehouse rows with site, zone, bin, capacity, and usage provenance.',
   status: 'Status',
   statusAll: 'All statuses',
   statusActive: 'Active',
@@ -56,8 +61,13 @@ const DEFAULT_LABELS: WarehouseLabels = {
   textFilterPlaceholder: 'Search by warehouse, code, or address…',
   sort: 'Sort',
   columnSelect: 'Select',
-  columnName: 'Warehouse',
+  columnName: 'Name',
   columnCode: 'Code',
+  columnSite: 'Site',
+  columnZones: 'Zones',
+  columnBins: 'Bins',
+  columnCapacity: 'Capacity',
+  columnUsed: 'Used',
   columnAddress: 'Address',
   columnStatus: 'Status',
   columnActiveWoCount: 'Active WO count',
@@ -91,6 +101,20 @@ const DEFAULT_LABELS: WarehouseLabels = {
   warehouseAddress: 'Address',
   createWarehouseFailed: 'Warehouse could not be created.',
   createWarehouseSuccess: 'Warehouse created.',
+  storageRules: 'Storage rules',
+  storageRulesSubtitle: 'How the system assigns bins and manages expiry.',
+  binAssignmentStrategy: 'Bin assignment strategy',
+  binAssignmentFefo: 'FEFO (First expired, first out)',
+  binAssignmentFifo: 'FIFO (First in, first out)',
+  binAssignmentLifo: 'LIFO',
+  binAssignmentManual: 'Manual',
+  mixedLotBins: 'Mixed lot bins',
+  mixedLotBinsHint: 'Allow different lots in the same bin.',
+  expiryWarningThreshold: 'Expiry warning threshold',
+  expiryWarningThresholdHint: 'Alert when stock is within this many days of expiry.',
+  days: 'days',
+  blockExpiredStock: 'Block expired stock',
+  blockExpiredStockHint: 'Prevent movements of expired lots automatically.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WarehouseLabels>;
@@ -110,6 +134,7 @@ async function buildLabels(locale: string): Promise<WarehouseLabels> {
       } catch {
         labels[key] = DEFAULT_LABELS[key];
       }
+      if (key === 'subtitle' || key === 'sectionTitle' || key === 'columnName') labels[key] = DEFAULT_LABELS[key];
       return labels;
     }, {} as WarehouseLabels);
   } catch {
@@ -159,6 +184,11 @@ function toWarehouse(row: WarehouseRow): Warehouse {
     code: row.code,
     name: row.name,
     address: row.address_label,
+    site: row.site_label ?? row.address_label,
+    zones: Number(row.zone_count ?? 0) || 0,
+    bins: Number(row.bin_count ?? 0) || 0,
+    capacity: row.capacity_label,
+    usedPercent: Number(row.used_percent ?? 0) || 0,
     deactivated_at: row.deactivated_at,
     active_wo_count: Number(row.active_wo_count ?? 0) || 0,
   };
@@ -171,9 +201,17 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
+              coalesce(nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
+              count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
+              count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
+              nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
+              nullif(coalesce(w.address->>'usedPercent', w.address->>'used_percent'), '') as used_percent,
               w.address->>'deactivated_at' as deactivated_at,
-              coalesce(count(wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count
+              coalesce(count(distinct wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count
          from public.warehouses w
+         left join public.locations l
+           on l.org_id = app.current_org_id()
+          and l.warehouse_id = w.id
          left join public.work_orders wo
            on wo.org_id = app.current_org_id()
           and wo.warehouse_id = w.id
@@ -184,10 +222,19 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               w.code,
               w.name,
               nullif(concat_ws(', ', w.address->>'line1', w.address->>'city', w.address->>'country'), '') as address_label,
+              coalesce(nullif(w.address->>'site', ''), nullif(w.address->>'city', ''), nullif(w.address->>'line1', '')) as site_label,
+              count(distinct l.id) filter (where l.location_type = 'zone' or l.level = 1)::integer as zone_count,
+              count(distinct l.id) filter (where l.location_type in ('bin', 'location') or l.level > 1)::integer as bin_count,
+              nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
+              nullif(coalesce(w.address->>'usedPercent', w.address->>'used_percent'), '') as used_percent,
               w.address->>'deactivated_at' as deactivated_at,
               0::integer as active_wo_count
          from public.warehouses w
+         left join public.locations l
+           on l.org_id = app.current_org_id()
+          and l.warehouse_id = w.id
         where w.org_id = app.current_org_id()
+        group by w.id, w.code, w.name, w.address
         order by lower(w.name), lower(w.code)`;
   const { rows } = await client.query<WarehouseRow>(sql, includeActiveWoCount ? [[...ACTIVE_WORK_ORDER_STATUSES]] : []);
   return rows;
