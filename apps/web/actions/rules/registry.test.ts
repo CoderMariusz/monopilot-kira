@@ -70,6 +70,19 @@ type ListRuleDryRunsModule = {
   listRuleDryRuns: (input: { ruleCode: string; status?: 'passed' | 'failed'; limit?: number }) => Promise<ActionResult<{ dryRuns: Array<Record<string, unknown>> }>>;
 };
 
+type RunRuleDryRunModule = {
+  runRuleDryRun: (input: {
+    ruleCode: string;
+    sampleInput: Record<string, unknown>;
+  }) => Promise<ActionResult<{
+    ruleCode: string;
+    status: 'pass' | 'fail';
+    warnings: string[];
+    trace: string[];
+    evaluatedAt: string;
+  }>>;
+};
+
 let currentClient: FakeClient;
 
 const ruleRows: RuleRow[] = [
@@ -235,6 +248,30 @@ describe('rule registry Server Actions (T-025)', () => {
     expect(writeCalls()).toHaveLength(0);
   });
 
+  it('runRuleDryRun evaluates sample input through the persisted Server Action contract and records one dry-run row', async () => {
+    const { runRuleDryRun } = await loadRunRuleDryRun();
+
+    const result = await runRuleDryRun({
+      ruleCode: 'quality_allergen_changeover_gate',
+      sampleInput: { product: 'milk', line: 'L1', workOrder: 'WO-2026-00412' },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        ruleCode: 'quality_allergen_changeover_gate',
+        status: expect.stringMatching(/^(pass|fail)$/),
+        warnings: expect.any(Array),
+        trace: expect.any(Array),
+        evaluatedAt: expect.any(String),
+      },
+    });
+    const writes = writeCalls();
+    expect(writes, 'dry-run must persist an audit/evidence row in rule_dry_runs through withOrgContext').toHaveLength(1);
+    expect(normalizeSql(writes[0].sql)).toContain('insert into public.rule_dry_runs');
+    expect(JSON.stringify(writes[0].params)).toContain('WO-2026-00412');
+  });
+
   it('forbidden: callers lacking settings.rules.view never read rule_definitions or rule_dry_runs', async () => {
     currentClient = makeClient({ authorized: false });
 
@@ -288,6 +325,15 @@ async function loadListRuleDryRuns(): Promise<ListRuleDryRunsModule> {
   return mod as ListRuleDryRunsModule;
 }
 
+async function loadRunRuleDryRun(): Promise<RunRuleDryRunModule> {
+  expect(existsSync(listRuleDryRunsPath), 'apps/web/actions/rules/dry-runs.ts must exist and export runRuleDryRun(input)').toBe(true);
+  const mod = (await import(listRuleDryRunsPath)) as Partial<RunRuleDryRunModule>;
+  if (typeof mod.runRuleDryRun !== 'function') {
+    expect.fail('apps/web/actions/rules/dry-runs.ts must export runRuleDryRun(input) for the shared RuleDryRunModal');
+  }
+  return mod as RunRuleDryRunModule;
+}
+
 function makeClient({ authorized }: { authorized: boolean }): FakeClient {
   const calls: QueryCall[] = [];
   return {
@@ -297,6 +343,25 @@ function makeClient({ authorized }: { authorized: boolean }): FakeClient {
       calls.push({ sql, params });
       const normalized = normalizeSql(sql);
       const paramsBlob = JSON.stringify(params).toLowerCase();
+
+      if (normalized.startsWith('insert into public.rule_dry_runs')) {
+        return {
+          rows: [
+            {
+              id: '99999999-9999-4999-8999-999999999999',
+              rule_definition_id: ACTIVE_GATE_RULE_ID,
+              rule_code: 'quality_allergen_changeover_gate',
+              status: 'pass',
+              sample_input_json: params.find((param) => typeof param === 'object') ?? {},
+              result_json: { status: 'pass', trace: ['fixture evaluator passed'] },
+              warnings: [],
+              ran_at: '2026-05-25T10:15:00.000Z',
+              ran_by: USER_ID,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
 
       if (normalized.includes('user_roles') || normalized.includes('role_permissions') || normalized.includes('from public.roles')) {
         if (!normalized.includes('role_permissions') || !paramsBlob.includes('settings.rules.view')) {
