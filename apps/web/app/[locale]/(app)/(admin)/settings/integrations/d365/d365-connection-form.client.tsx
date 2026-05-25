@@ -71,6 +71,7 @@ type D365ConnectionFormProps = D365ConnectionActions & {
   state: D365ConnectionState;
   config: D365ConnectionConfig | null;
   labels: D365Labels;
+  initialTestConnectionOpen?: boolean;
 };
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-103';
@@ -240,9 +241,11 @@ function ReadyD365ConnectionForm({
   saveD365Connection,
   rotateD365ClientSecret,
   testD365Connection,
+  initialTestConnectionOpen = false,
 }: D365ConnectionActions & {
   config: D365ConnectionConfig;
   labels: D365Labels;
+  initialTestConnectionOpen?: boolean;
 }) {
   const [baseUrl, setBaseUrl] = React.useState(config.baseUrl);
   const [environment, setEnvironment] = React.useState<D365Environment>(config.environment);
@@ -252,7 +255,7 @@ function ReadyD365ConnectionForm({
   const [serviceAccountEmail, setServiceAccountEmail] = React.useState(config.serviceAccountEmail);
   const [pollCron, setPollCron] = React.useState(config.pollCron);
   const [enabled, setEnabled] = React.useState(config.enabled);
-  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [dialogOpen, setDialogOpen] = React.useState(initialTestConnectionOpen);
   const [toast, setToast] = React.useState<string | null>(null);
 
   const payload = { baseUrl, environment, tenantId, clientId, serviceAccountEmail, pollCron, enabled };
@@ -415,6 +418,7 @@ export default function D365ConnectionForm({
   saveD365Connection,
   rotateD365ClientSecret,
   testD365Connection,
+  initialTestConnectionOpen,
 }: D365ConnectionFormProps) {
   if (state === 'error') return <StateCard labels={labels} state="error" />;
   if (state === 'loading') return <StateCard labels={labels} state="loading" />;
@@ -427,6 +431,7 @@ export default function D365ConnectionForm({
       saveD365Connection={saveD365Connection}
       rotateD365ClientSecret={rotateD365ClientSecret}
       testD365Connection={testD365Connection}
+      initialTestConnectionOpen={initialTestConnectionOpen}
     />
   );
 }

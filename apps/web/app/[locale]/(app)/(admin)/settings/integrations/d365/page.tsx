@@ -1,15 +1,18 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
+import { testD365Connection as testD365ConnectionAction } from '../../../../../../../actions/d365/test-connection';
 import D365ConnectionForm, {
   type D365ConnectionActions,
   type D365ConnectionConfig,
   type D365ConnectionState,
+  type D365Environment,
   type D365Labels,
 } from './d365-connection-form.client';
 
 type D365ConnectionPageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<{ modal?: string }>;
 };
 
 type D365ConnectionPageTestOverrides = D365ConnectionActions & {
@@ -21,17 +24,57 @@ function label(fullKey: string, translated: string, fallback: string) {
   return translated && translated !== fullKey ? translated : fallback;
 }
 
+function readRuntimeConnectionConfig(): D365ConnectionConfig | null {
+  const baseUrl = process.env.D365_BASE_URL ?? process.env.NEXT_PUBLIC_D365_BASE_URL;
+  const tenantId = process.env.D365_TENANT_ID;
+  const clientId = process.env.D365_CLIENT_ID;
+  const pollCron = process.env.D365_POLL_CRON ?? '0 2 * * *';
+  if (!baseUrl || !tenantId || !clientId) return null;
+
+  const environmentRaw = process.env.D365_ENVIRONMENT ?? 'Production';
+  const environment: D365Environment =
+    environmentRaw === 'Sandbox' || environmentRaw === 'Development' ? environmentRaw : 'Production';
+
+  return {
+    baseUrl,
+    environment,
+    tenantId,
+    clientId,
+    clientSecretSet: Boolean(process.env.D365_CLIENT_SECRET_REF || process.env.D365_CLIENT_SECRET_SET),
+    serviceAccountEmail: process.env.D365_SERVICE_ACCOUNT_EMAIL ?? '',
+    pollCron,
+    enabled: process.env.D365_ENABLED !== 'false',
+    lastTest: { ok: false, at: null, message: 'not_run' },
+  };
+}
+
+export async function testRuntimeD365Connection() {
+  'use server';
+
+  const config = readRuntimeConnectionConfig();
+  const oauthBearer = process.env.D365_OAUTH_BEARER;
+  if (!config || !oauthBearer) return { status: 'error' as const, reason: 'ERR_D365_CONNECTION_UNAVAILABLE' };
+
+  const started = Date.now();
+  const result = await testD365ConnectionAction({ baseUrl: config.baseUrl, oauthBearer });
+  if (!result.ok) return { status: 'error' as const, reason: result.error };
+  return { status: 'ok' as const, latencyMs: Date.now() - started, environment: config.environment };
+}
+
 export default async function D365ConnectionPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as D365ConnectionPageProps & D365ConnectionPageTestOverrides;
   const {
     params,
+    searchParams,
     state = 'ready',
-    config = null,
+    config = readRuntimeConnectionConfig(),
     saveD365Connection,
     rotateD365ClientSecret,
     testD365Connection,
   } = props;
   await params;
+  const resolvedSearchParams = await searchParams;
+  const initialTestConnectionOpen = resolvedSearchParams?.modal === 'd365Test';
   const t = await getTranslations();
   const labels: D365Labels = {
     title: label('settings.integrations.d365.connection.title', t('settings.integrations.d365.connection.title'), 'D365 connection'),
@@ -57,7 +100,8 @@ export default async function D365ConnectionPage(propsInput: unknown) {
       labels={labels}
       saveD365Connection={saveD365Connection}
       rotateD365ClientSecret={rotateD365ClientSecret}
-      testD365Connection={testD365Connection}
+      testD365Connection={testD365Connection ?? (config ? testRuntimeD365Connection : undefined)}
+      initialTestConnectionOpen={initialTestConnectionOpen}
     />
   );
 }

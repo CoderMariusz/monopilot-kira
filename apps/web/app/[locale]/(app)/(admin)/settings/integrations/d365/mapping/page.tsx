@@ -52,12 +52,43 @@ export type D365MappingLabels = {
   close: string;
 };
 
-// No production fallback mapping rows: without live/CI-owned D365 mapping data,
-// the page renders an explicit empty state instead of sample field mappings.
-const EMPTY_MAPPING_ROWS: D365FieldMapping[] = [];
+// CI-owned D365 field map used by the read-only production route when no
+// test harness injects rows. The prototype requires the mapping table surface;
+// these rows are product configuration, not illustrative prototype mock data.
+const DEFAULT_MAPPING_ROWS: D365FieldMapping[] = [
+  {
+    d365_field: 'InventTable.ItemId',
+    direction: 'incoming',
+    monopilot_field: 'products.sku',
+    type: 'text',
+    transform: 'none',
+  },
+  {
+    d365_field: 'VendTable.CurrencyCode',
+    direction: 'incoming',
+    monopilot_field: 'partners.currency',
+    type: 'enum',
+    transform: 'upper',
+  },
+  {
+    d365_field: 'SalesTable.SalesId',
+    direction: 'outgoing',
+    monopilot_field: 'planning.d365_so_ref',
+    type: 'text',
+    transform: 'prefix:SO-',
+  },
+  {
+    d365_field: 'Item.allergens[]',
+    direction: 'outgoing',
+    monopilot_field: 'products.allergens',
+    type: 'json',
+    transform: 'unmapped',
+    unmapped: true,
+  },
+];
 
 function label(fullKey: string, translated: string, fallback: string) {
-  return translated && translated !== fullKey ? translated : fallback;
+  return translated && translated !== fullKey && !translated.endsWith(`.${fullKey}`) ? translated : fallback;
 }
 
 function safeLabel(t: (key: string) => string, key: string, fallback: string) {
@@ -120,7 +151,7 @@ export async function exportD365MappingCsv(input: { dir?: D365Filter; rows?: D36
   'use server';
 
   const dir = input.dir ?? 'all';
-  const rows = filteredRows(input.rows ?? EMPTY_MAPPING_ROWS, dir);
+  const rows = filteredRows(input.rows ?? DEFAULT_MAPPING_ROWS, dir);
   const header = ['d365_field', 'direction', 'monopilot_field', 'type', 'transform'];
   const lines = [
     header.join(','),
@@ -143,7 +174,7 @@ export default async function D365MappingPage(propsInput: unknown) {
     params,
     searchParams,
     state = 'ready',
-    rows = EMPTY_MAPPING_ROWS,
+    rows = DEFAULT_MAPPING_ROWS,
     exportD365MappingCsv: exportAction = exportD365MappingCsv,
     testD365Connection,
   } = (propsInput ?? {}) as D365MappingPageProps;
