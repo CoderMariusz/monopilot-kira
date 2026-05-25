@@ -1,14 +1,22 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
-import Modal from '@monopilot/ui/Modal';
 import { Select, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import EmailTemplateEditModal, {
+  type EmailTemplateDraft,
+  type EmailTemplateSaveResult,
+  type EmailTemplateVariableGroup,
+} from '../../../../../../components/settings/modals/email-template-edit-modal';
+
+export type { EmailTemplateDraft, EmailTemplateSaveResult, EmailTemplateVariableGroup };
 
 export type EmailProvider = 'Resend' | 'Postmark' | 'SES';
 
@@ -24,7 +32,9 @@ export type EmailTemplate = {
   name: string;
   consumer: string;
   subject: string;
+  body?: string;
   active: boolean;
+  activeTo?: string[];
 };
 
 export type TestSendInput = {
@@ -59,6 +69,7 @@ export type Labels = {
   emptyTitle: string;
   emptyBody: string;
   variablesReference: string;
+  variablesLinkLabel?: string;
   loading: string;
   error: string;
   permissionDenied: string;
@@ -69,6 +80,8 @@ export type Labels = {
   createEmailTemplate: string;
   close: string;
 };
+
+export type SaveTemplate = (input: EmailTemplateDraft) => Promise<EmailTemplateSaveResult>;
 
 const PROVIDER_OPTIONS = [
   { value: 'Resend', label: 'Resend' },
@@ -86,19 +99,27 @@ export default function EmailTemplatesScreen({
   labels,
   providerSettings,
   templates,
+  variableGroups = [],
+  variablesHref = '/en/settings/email/variables',
   state,
+  saveTemplate,
   testSend,
 }: {
   labels: Labels;
   providerSettings: EmailProviderSettings;
   templates: EmailTemplate[];
+  variableGroups?: EmailTemplateVariableGroup[];
+  variablesHref?: string;
   state: PageState;
+  saveTemplate?: SaveTemplate;
   testSend?: (input: TestSendInput) => Promise<TestSendResult>;
 }) {
+  const router = useRouter();
   const [provider, setProvider] = React.useState<EmailProvider>(providerSettings.provider);
   const [fromEmail, setFromEmail] = React.useState(providerSettings.fromEmail);
   const [fromName, setFromName] = React.useState(providerSettings.fromName);
   const [toast, setToast] = React.useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [visibleTemplates, setVisibleTemplates] = React.useState(templates);
   const [modalTemplate, setModalTemplate] = React.useState<EmailTemplate | null | undefined>(undefined);
 
   React.useEffect(() => {
@@ -107,7 +128,12 @@ export default function EmailTemplatesScreen({
     setFromName(providerSettings.fromName);
   }, [providerSettings.provider, providerSettings.fromEmail, providerSettings.fromName]);
 
+  React.useEffect(() => {
+    setVisibleTemplates(templates);
+  }, [templates]);
+
   const hasReviewedTestSend = typeof testSend === 'function';
+  const canEditTemplates = typeof saveTemplate === 'function' && state !== 'permission_denied';
   const testSendUnavailableText = `${labels.testSend} unavailable: ${labels.testSendError}`;
 
   async function sendProbe() {
@@ -121,6 +147,41 @@ export default function EmailTemplatesScreen({
       const errorText = 'error' in result ? result.error : labels.testSendError;
       setToast({ tone: 'error', text: errorText || labels.testSendError });
     }
+  }
+
+  const eventPayloadSchema = React.useMemo(
+    () => ({
+      variables: variableGroups.flatMap((group) =>
+        group.vars.map((variable) => (variable.token ?? `{{${variable.name}}}`).replace(/^{{\s*/, '').replace(/\s*}}$/, '')),
+      ),
+    }),
+    [variableGroups],
+  );
+
+  async function handleSaveTemplate(input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> {
+    if (!saveTemplate) return { ok: false, error: 'SAVE_TEMPLATE_UNAVAILABLE' };
+
+    const result = await saveTemplate(input);
+    if (!result.ok) return result;
+
+    setVisibleTemplates((current) => {
+      const existing = current.find((template) => template.code === input.code) ?? modalTemplate ?? null;
+      const nextTemplate: EmailTemplate = {
+        code: input.code,
+        name: input.name,
+        consumer: existing?.consumer ?? 'Settings',
+        subject: input.subject,
+        body: input.body,
+        active: input.active,
+        activeTo: input.activeTo,
+      };
+      const found = current.some((template) => template.code === input.code);
+      return found
+        ? current.map((template) => (template.code === input.code ? { ...template, ...nextTemplate } : template))
+        : [...current, nextTemplate];
+    });
+    router.refresh?.();
+    return result;
   }
 
   return (
@@ -151,9 +212,9 @@ export default function EmailTemplatesScreen({
             className="btn-primary"
             aria-label={state === 'empty' ? labels.createEmailTemplate : labels.newTemplate}
             onClick={() => {
-              if (state !== 'permission_denied') setModalTemplate(null);
+              if (canEditTemplates) setModalTemplate(null);
             }}
-            disabled={state === 'loading' || state === 'error' || state === 'permission_denied'}
+            disabled={state === 'loading' || state === 'error' || !canEditTemplates}
           >
             {labels.newTemplate}
           </Button>
@@ -222,7 +283,7 @@ export default function EmailTemplatesScreen({
             </ProviderRow>
           </SettingsSection>
 
-          <SettingsSection title={interpolate(labels.templatesTitle, { count: templates.length })} region="templates-section">
+          <SettingsSection title={interpolate(labels.templatesTitle, { count: visibleTemplates.length })} region="templates-section">
             {state === 'loading' ? (
               <section
                 role="status"
@@ -231,10 +292,15 @@ export default function EmailTemplatesScreen({
               >
                 {labels.loading}
               </section>
-            ) : state === 'empty' || templates.length === 0 ? (
-              <EmptyTemplates labels={labels} onNewTemplate={() => setModalTemplate(null)} />
+            ) : visibleTemplates.length === 0 ? (
+              <EmptyTemplates labels={labels} canCreate={canEditTemplates} onNewTemplate={() => setModalTemplate(null)} />
             ) : (
-              <TemplatesTable labels={labels} templates={templates} onEditTemplate={(template) => setModalTemplate(template)} />
+              <TemplatesTable
+                labels={labels}
+                templates={visibleTemplates}
+                canEdit={canEditTemplates}
+                onEditTemplate={(template) => setModalTemplate(template)}
+              />
             )}
           </SettingsSection>
 
@@ -243,7 +309,7 @@ export default function EmailTemplatesScreen({
             role="note"
             className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950"
           >
-            {labels.variablesReference}
+            <VariablesReference labels={labels} href={variablesHref} />
           </div>
         </>
       )}
@@ -255,10 +321,31 @@ export default function EmailTemplatesScreen({
       ) : null}
 
       {modalTemplate !== undefined ? (
-        <TemplateDialog labels={labels} template={modalTemplate} onClose={() => setModalTemplate(undefined)} />
+        <EmailTemplateEditModal
+          open
+          onOpenChange={(open) => {
+            if (!open) setModalTemplate(undefined);
+          }}
+          template={draftFromTemplate(modalTemplate)}
+          eventPayloadSchema={eventPayloadSchema}
+          variableGroups={variableGroups}
+          saveTemplate={handleSaveTemplate}
+        />
       ) : null}
     </main>
   );
+}
+
+function draftFromTemplate(template: EmailTemplate | null): EmailTemplateDraft | undefined {
+  if (!template) return undefined;
+  return {
+    code: template.code,
+    name: template.name,
+    subject: template.subject,
+    body: template.body ?? template.subject,
+    active: template.active,
+    activeTo: template.activeTo ?? [],
+  };
 }
 
 function SettingsSection({
@@ -294,7 +381,7 @@ function ProviderRow({ label, htmlFor, children }: { label: string; htmlFor: str
   );
 }
 
-function EmptyTemplates({ labels, onNewTemplate }: { labels: Labels; onNewTemplate: () => void }) {
+function EmptyTemplates({ labels, canCreate, onNewTemplate }: { labels: Labels; canCreate: boolean; onNewTemplate: () => void }) {
   return (
     <section role="status" className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
       <div aria-hidden="true" className="text-2xl">
@@ -302,7 +389,7 @@ function EmptyTemplates({ labels, onNewTemplate }: { labels: Labels; onNewTempla
       </div>
       <h2 className="mt-2 text-base font-semibold text-slate-950">{labels.emptyTitle}</h2>
       <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">{labels.emptyBody}</p>
-      <Button type="button" className="btn-primary mt-4" onClick={onNewTemplate}>
+      <Button type="button" className="btn-primary mt-4" onClick={onNewTemplate} disabled={!canCreate}>
         {labels.newTemplate}
       </Button>
     </section>
@@ -312,10 +399,12 @@ function EmptyTemplates({ labels, onNewTemplate }: { labels: Labels; onNewTempla
 function TemplatesTable({
   labels,
   templates,
+  canEdit,
   onEditTemplate,
 }: {
   labels: Labels;
   templates: EmailTemplate[];
+  canEdit: boolean;
   onEditTemplate: (template: EmailTemplate) => void;
 }) {
   return (
@@ -352,6 +441,7 @@ function TemplatesTable({
                 className="btn-secondary btn-sm"
                 aria-label={index === 0 ? `Edit ${template.code}` : `Modify ${template.code}`}
                 onClick={() => onEditTemplate(template)}
+                disabled={!canEdit}
               >
                 {labels.edit}
               </Button>
@@ -363,27 +453,19 @@ function TemplatesTable({
   );
 }
 
-function TemplateDialog({ labels, template, onClose }: { labels: Labels; template: EmailTemplate | null; onClose: () => void }) {
-  const title = template ? interpolate(labels.editEmailTemplate, { code: template.code }) : labels.newEmailTemplate;
+function VariablesReference({ labels, href }: { labels: Labels; href: string }) {
+  const linkLabel = labels.variablesLinkLabel ?? 'Email variables';
+  const [before, after] = labels.variablesReference.includes(linkLabel)
+    ? labels.variablesReference.split(linkLabel, 2)
+    : ['Variables reference: open ', ' in the left nav for the full merge-field picker used inside each template body.'];
+
   return (
-    <Modal open onOpenChange={(open) => { if (!open) onClose(); }} size="md" modalId="SM-04">
-      <div className="w-[520px] rounded-lg bg-white shadow-2xl">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <Modal.Header title={title} />
-        </div>
-        <Modal.Body>
-          <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
-            <p>{template ? template.name : labels.emptyBody}</p>
-          </div>
-        </Modal.Body>
-        <Modal.Footer>
-          <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
-            <Button type="button" className="btn-secondary" onClick={onClose}>
-              {labels.close}
-            </Button>
-          </div>
-        </Modal.Footer>
-      </div>
-    </Modal>
+    <>
+      {before}
+      <a href={href} className="font-semibold underline underline-offset-2">
+        {linkLabel}
+      </a>
+      {after}
+    </>
   );
 }

@@ -30,7 +30,7 @@ export type EmailTemplateDraft = {
 };
 
 export type EmailTemplateSaveResult =
-  | { ok: true; templateCode: string; revalidatedPath: '/settings/email-templates' }
+  | { ok: true; templateCode: string; revalidatedPath: '/settings/email' | '/settings/email-templates' }
   | { ok: false; error: 'UNKNOWN_TEMPLATE_VAR' | 'TEMPLATE_CODE_INVALID' | string };
 
 export type EmailTemplateEditModalProps = {
@@ -117,6 +117,12 @@ function parseRecipients(value: string) {
     .split(';')
     .map((entry) => entry.trim())
     .filter(Boolean);
+}
+
+function normalizeMustacheLiteral(value: string) {
+  return value.replace(/(^|[^{])\{([a-zA-Z0-9_.-]+)}}/g, (_match, prefix: string, variable: string) => {
+    return `${prefix}{{${variable}}}`;
+  });
 }
 
 function Stepper({ current, completed }: { current: WizardStep; completed: Set<WizardStep> }) {
@@ -265,11 +271,13 @@ export function EmailTemplateEditModal({
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const normalizedSubject = normalizeMustacheLiteral(subject);
+      const normalizedBody = normalizeMustacheLiteral(body);
       const result = await saveTemplate({
         code: code.trim(),
         name: name.trim(),
-        subject,
-        body,
+        subject: normalizedSubject,
+        body: normalizedBody,
         active: tpl.active,
         activeTo: parseRecipients(to),
       });
