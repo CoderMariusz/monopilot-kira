@@ -147,6 +147,12 @@ async function renderEmailVariablesPage(overrides: Partial<EmailVariablesPagePro
   return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
+async function renderEmailVariablesPageWithoutInjectedData() {
+  const Page = await loadEmailVariablesPage();
+  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+  return render(React.createElement(React.Fragment, null, node));
+}
+
 function screenRoot() {
   return screen.getByTestId('settings-email-variables-screen');
 }
@@ -341,5 +347,20 @@ describe('T-069 email_variables_screen prototype parity and interactions', () =>
 
     await renderEmailVariablesPage({ state: 'error', groups: [] });
     expect(screen.getByRole('alert')).toHaveTextContent(/unable to load email variables/i);
+  });
+
+  it('fails closed when the production route has no live variables/RBAC loader data', async () => {
+    await renderEmailVariablesPageWithoutInjectedData();
+
+    expect(
+      screen.queryByRole('searchbox', { name: /search variable/i }),
+      'The real /settings/email/variables route must not claim AC3 with a static empty state when no loader/RBAC evidence is available.',
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/no email variables are available yet/i),
+      'An empty variables catalog is valid only after a live org-scoped loader runs; missing loader evidence must be loading/error/permission-denied instead.',
+    ).not.toBeInTheDocument();
+    expect(document.body).toHaveTextContent(/loading email variables|unable to load email variables|permission|not configured|live data/i);
+    expect(document.body).not.toHaveTextContent(/sk_|smtp|password|secret|api[_ -]?key/i);
   });
 });
