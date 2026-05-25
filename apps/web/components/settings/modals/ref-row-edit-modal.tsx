@@ -41,6 +41,7 @@ export type RefRowEditModalProps = {
   tableLabel?: string;
   row?: RefRow | null;
   columns: RefSchemaColumn[];
+  labels?: Partial<RefRowEditModalLabels>;
   loading?: boolean;
   error?: string | null;
   upsertReferenceRow: (input: {
@@ -56,7 +57,48 @@ type FieldValue = string | number | boolean | null;
 type FormValues = Record<string, FieldValue>;
 type FieldErrors = Record<string, string | null>;
 
+export type RefRowEditModalLabels = {
+  title: string;
+  editTitle: string;
+  referenceTable: string;
+  cancel: string;
+  save: string;
+  saving: string;
+  loading: string;
+  loadingLabel: string;
+  noSchema: string;
+  rowKeyInvalid: string;
+  rowKeyRequired: string;
+  minChars: string;
+  selectPlaceholder: string;
+  saveFailed: string;
+};
+
 const ROW_KEY_PATTERN = /^[A-Z0-9_-]{2,}$/;
+const DEFAULT_LABELS: RefRowEditModalLabels = {
+  title: 'Reference row',
+  editTitle: 'Edit row — {rowKey}',
+  referenceTable: 'Reference table · {tableCode}',
+  cancel: 'Cancel',
+  save: 'Save',
+  saving: 'Saving…',
+  loading: '⟳ Loading reference row…',
+  loadingLabel: 'Loading reference row',
+  noSchema: 'No schema fields available for {tableCode}',
+  rowKeyInvalid: 'Must be uppercase alnum / underscore / dash, ≥ 2 chars',
+  rowKeyRequired: 'Row key is required',
+  minChars: 'Min 2 chars',
+  selectPlaceholder: 'Select…',
+  saveFailed: 'REFERENCE_ROW_SAVE_FAILED',
+};
+
+function withDefaultLabels(labels?: Partial<RefRowEditModalLabels>): RefRowEditModalLabels {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function formatLabel(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce((message, [key, value]) => message.replaceAll(`{${key}}`, String(value)), template);
+}
 
 function initialValues(columns: RefSchemaColumn[], row: RefRow | null | undefined): FormValues {
   return columns.reduce<FormValues>((acc, column) => {
@@ -78,33 +120,33 @@ function initialValues(columns: RefSchemaColumn[], row: RefRow | null | undefine
   }, {});
 }
 
-function validationError(column: RefSchemaColumn, value: FieldValue) {
+function validationError(column: RefSchemaColumn, value: FieldValue, labels: RefRowEditModalLabels) {
   const stringValue = String(value ?? '');
 
   if (column.columnCode === 'row_key') {
     if (stringValue.length > 0 && !ROW_KEY_PATTERN.test(stringValue)) {
-      return 'Must be uppercase alnum / underscore / dash, ≥ 2 chars';
+      return labels.rowKeyInvalid;
     }
-    if (column.required && !ROW_KEY_PATTERN.test(stringValue)) return 'Row key is required';
+    if (column.required && !ROW_KEY_PATTERN.test(stringValue)) return labels.rowKeyRequired;
     return null;
   }
 
   if (column.required && stringValue.trim().length < 2) {
-    return column.columnCode === 'name_en' ? 'Min 2 chars' : `${column.label} is required`;
+    return column.columnCode === 'name_en' ? labels.minChars : `${column.label} is required`;
   }
 
   return null;
 }
 
-function formErrors(columns: RefSchemaColumn[], values: FormValues): FieldErrors {
+function formErrors(columns: RefSchemaColumn[], values: FormValues, labels: RefRowEditModalLabels): FieldErrors {
   return columns.reduce<FieldErrors>((acc, column) => {
-    acc[column.columnCode] = validationError(column, values[column.columnCode]);
+    acc[column.columnCode] = validationError(column, values[column.columnCode], labels);
     return acc;
   }, {});
 }
 
-function isValid(columns: RefSchemaColumn[], values: FormValues) {
-  return columns.length > 0 && Object.values(formErrors(columns, values)).every((error) => !error);
+function isValid(columns: RefSchemaColumn[], values: FormValues, labels: RefRowEditModalLabels) {
+  return columns.length > 0 && Object.values(formErrors(columns, values, labels)).every((error) => !error);
 }
 
 function valueForInput(value: FieldValue) {
@@ -127,6 +169,7 @@ function ModalField({
   error,
   row,
   disabled,
+  labels,
   onChange,
   inputRef,
 }: {
@@ -135,6 +178,7 @@ function ModalField({
   error: string | null;
   row?: RefRow | null;
   disabled?: boolean;
+  labels: RefRowEditModalLabels;
   onChange: (value: FieldValue) => void;
   inputRef?: React.Ref<HTMLInputElement>;
 }) {
@@ -168,7 +212,7 @@ function ModalField({
           aria-labelledby={`${fieldId}-label`}
         >
           <SelectTrigger aria-label={column.label}>
-            <SelectValue placeholder="Select…" />
+            <SelectValue placeholder={labels.selectPlaceholder} />
           </SelectTrigger>
           <SelectContent>
             {(column.options ?? []).map((option) => (
@@ -215,6 +259,7 @@ export function RefRowEditModal({
   tableLabel: _tableLabel,
   row = null,
   columns,
+  labels: labelOverrides,
   loading = false,
   error = null,
   upsertReferenceRow,
@@ -253,10 +298,11 @@ export function RefRowEditModal({
     };
   }, [open]);
 
-  const errors = React.useMemo(() => formErrors(columns, values), [columns, values]);
-  const canSave = isValid(columns, values) && !loading && !error && !submitting;
-  const title = row ? `Edit row — ${row.rowKey}` : 'Reference row';
-  const subtitle = `Reference table · ${tableCode}`;
+  const labels = React.useMemo(() => withDefaultLabels(labelOverrides), [labelOverrides]);
+  const errors = React.useMemo(() => formErrors(columns, values, labels), [columns, labels, values]);
+  const canSave = isValid(columns, values, labels) && !loading && !error && !submitting;
+  const title = row ? formatLabel(labels.editTitle, { rowKey: row.rowKey }) : labels.title;
+  const subtitle = formatLabel(labels.referenceTable, { tableCode });
 
   function updateValue(columnCode: string, value: FieldValue) {
     setValues((current) => ({ ...current, [columnCode]: value }));
@@ -285,9 +331,9 @@ export function RefRowEditModal({
         onOpenChange(false);
         return;
       }
-      setSubmitError('error' in result ? result.error : 'REFERENCE_ROW_SAVE_FAILED');
+      setSubmitError('error' in result ? result.error : labels.saveFailed);
     } catch {
-      setSubmitError('REFERENCE_ROW_SAVE_FAILED');
+      setSubmitError(labels.saveFailed);
     } finally {
       setSubmitting(false);
     }
@@ -352,8 +398,8 @@ export function RefRowEditModal({
 
         <div data-testid="modal-body">
           {loading ? (
-            <div role="status" aria-label="Loading reference row" style={{ padding: 20, textAlign: 'center' }}>
-              ⟳ Loading reference row…
+            <div role="status" aria-label={labels.loadingLabel} style={{ padding: 20, textAlign: 'center' }}>
+              {labels.loading}
             </div>
           ) : error ? (
             <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>
@@ -361,7 +407,7 @@ export function RefRowEditModal({
             </div>
           ) : columns.length === 0 ? (
             <div role="alert" style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>
-              No schema fields available for {tableCode}
+              {formatLabel(labels.noSchema, { tableCode })}
             </div>
           ) : (
             columns.map((column) => (
@@ -372,6 +418,7 @@ export function RefRowEditModal({
                 error={errors[column.columnCode]}
                 row={row}
                 disabled={submitting}
+                labels={labels}
                 onChange={(nextValue) => updateValue(column.columnCode, nextValue)}
                 inputRef={column.columnCode === 'row_key' ? firstInputRef : undefined}
               />
@@ -387,10 +434,10 @@ export function RefRowEditModal({
 
         <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
           <Button type="button" className="btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
-            Cancel
+            {labels.cancel}
           </Button>
           <Button type="submit" className="btn-primary btn-sm" disabled={!canSave}>
-            {submitting ? 'Saving…' : 'Save'}
+            {submitting ? labels.saving : labels.save}
           </Button>
         </div>
       </form>

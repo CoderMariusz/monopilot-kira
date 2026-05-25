@@ -47,6 +47,10 @@ export type ReferenceDataLabels = {
   empty: string;
   error: string;
   permissionDenied?: string;
+  modal?: {
+    edit?: React.ComponentProps<typeof RefRowEditModal>['labels'];
+    delete?: React.ComponentProps<typeof DeleteReferenceDataModal>['labels'];
+  };
 };
 
 type UpsertReferenceRowInput = {
@@ -169,7 +173,7 @@ export function ReferenceDataScreen({
   rowsByTable,
   labels,
   state = 'ready',
-  canEditReferenceData = true,
+  canEditReferenceData = false,
   upsertReferenceRow,
   softDeleteReferenceRow,
   onReferenceDataChanged,
@@ -359,6 +363,7 @@ export function ReferenceDataScreen({
         tableLabel={selectedTable?.name}
         row={editDialogRow}
         columns={selectedModalColumns}
+        labels={labels.modal?.edit}
         upsertReferenceRow={handleModalUpsert}
         onOpenChange={(open) => {
           if (!open) setDialog(null);
@@ -371,6 +376,7 @@ export function ReferenceDataScreen({
           open={true}
           table={deleteDialog.tableCode}
           row={deleteDialogRow}
+          labels={labels.modal?.delete}
           precheckDeleteReferenceData={async () => ({ affected_count: 0 })}
           deleteReferenceData={handleModalDelete}
           onOpenChange={(open) => {

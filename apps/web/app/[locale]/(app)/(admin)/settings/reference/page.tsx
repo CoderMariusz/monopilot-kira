@@ -116,17 +116,96 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
     empty: 'No reference rows configured for this table.',
     error: 'Unable to load reference data.',
     permissionDenied: 'You do not have permission to edit reference data.',
+    modal: {
+      edit: {
+        title: 'Reference row',
+        editTitle: 'Edit row — {rowKey}',
+        referenceTable: 'Reference table · {tableCode}',
+        cancel: 'Cancel',
+        save: 'Save',
+        saving: 'Saving…',
+        loading: '⟳ Loading reference row…',
+        loadingLabel: 'Loading reference row',
+        noSchema: 'No schema fields available for {tableCode}',
+        rowKeyInvalid: 'Must be uppercase alnum / underscore / dash, ≥ 2 chars',
+        rowKeyRequired: 'Row key is required',
+        minChars: 'Min 2 chars',
+        selectPlaceholder: 'Select…',
+        saveFailed: 'REFERENCE_ROW_SAVE_FAILED',
+      },
+      delete: {
+        title: 'Delete {code}?',
+        cancel: 'Cancel',
+        confirmLabel: 'Type DELETE to confirm',
+        confirmButton: 'Delete permanently',
+        deleting: 'Deleting…',
+        confirmCheckbox: 'Confirm',
+        warning: 'This action cannot be undone. {code} — {name} will be permanently removed from {table}.',
+        affectedRows: '{count} rows referencing this code will be orphaned.',
+        precheckError: 'Unable to check referencing rows',
+        submitFailed: 'DELETE_REFERENCE_DATA_FAILED',
+        success: 'Reference data deleted',
+      },
+    },
   };
 
   const t = await getTranslations({ locale, namespace: 'settings.reference_data' });
-  return (Object.keys(fallback) as Array<keyof ReferenceDataLabels>).reduce((acc, key) => {
+  const safeT = (key: string, value: string, values?: Record<string, string | number>) => {
     try {
-      (acc as Record<string, string>)[key] = t(key) || fallback[key] || '';
+      return t(key, values) || value;
     } catch {
-      (acc as Record<string, string>)[key] = fallback[key] || '';
+      return value;
     }
-    return acc;
-  }, {} as ReferenceDataLabels);
+  };
+
+  const labels = {
+    title: safeT('title', fallback.title),
+    subtitle: safeT('subtitle', fallback.subtitle),
+    importCsv: safeT('importCsv', fallback.importCsv),
+    exportCsv: safeT('exportCsv', fallback.exportCsv),
+    addRow: safeT('addRow', fallback.addRow),
+    edit: safeT('edit', fallback.edit),
+    delete: safeT('delete', fallback.delete),
+    rowsSuffix: safeT('rowsSuffix', fallback.rowsSuffix),
+    updatedPrefix: safeT('updatedPrefix', fallback.updatedPrefix),
+    loading: safeT('loading', fallback.loading),
+    empty: safeT('empty', fallback.empty),
+    error: safeT('error', fallback.error),
+    permissionDenied: safeT('permissionDenied', fallback.permissionDenied ?? ''),
+    modal: {
+      edit: {
+        title: safeT('modal.edit.title', fallback.modal?.edit?.title ?? ''),
+        editTitle: safeT('modal.edit.editTitle', fallback.modal?.edit?.editTitle ?? '', { rowKey: '{rowKey}' }),
+        referenceTable: safeT('modal.edit.referenceTable', fallback.modal?.edit?.referenceTable ?? '', { tableCode: '{tableCode}' }),
+        cancel: safeT('modal.edit.cancel', fallback.modal?.edit?.cancel ?? ''),
+        save: safeT('modal.edit.save', fallback.modal?.edit?.save ?? ''),
+        saving: safeT('modal.edit.saving', fallback.modal?.edit?.saving ?? ''),
+        loading: safeT('modal.edit.loading', fallback.modal?.edit?.loading ?? ''),
+        loadingLabel: safeT('modal.edit.loadingLabel', fallback.modal?.edit?.loadingLabel ?? ''),
+        noSchema: safeT('modal.edit.noSchema', fallback.modal?.edit?.noSchema ?? '', { tableCode: '{tableCode}' }),
+        rowKeyInvalid: safeT('modal.edit.rowKeyInvalid', fallback.modal?.edit?.rowKeyInvalid ?? ''),
+        rowKeyRequired: safeT('modal.edit.rowKeyRequired', fallback.modal?.edit?.rowKeyRequired ?? ''),
+        minChars: safeT('modal.edit.minChars', fallback.modal?.edit?.minChars ?? ''),
+        selectPlaceholder: safeT('modal.edit.selectPlaceholder', fallback.modal?.edit?.selectPlaceholder ?? ''),
+        saveFailed: safeT('modal.edit.saveFailed', fallback.modal?.edit?.saveFailed ?? ''),
+      },
+      delete: {
+        title: safeT('modal.delete.title', fallback.modal?.delete?.title ?? '', { code: '{code}', name: '{name}', table: '{table}' }),
+        cancel: safeT('modal.delete.cancel', fallback.modal?.delete?.cancel ?? ''),
+        confirmLabel: safeT('modal.delete.confirmLabel', fallback.modal?.delete?.confirmLabel ?? ''),
+        confirmButton: safeT('modal.delete.confirmButton', fallback.modal?.delete?.confirmButton ?? ''),
+        deleting: safeT('modal.delete.deleting', fallback.modal?.delete?.deleting ?? ''),
+        confirmCheckbox: safeT('modal.delete.confirmCheckbox', fallback.modal?.delete?.confirmCheckbox ?? ''),
+        warning: safeT('modal.delete.warning', fallback.modal?.delete?.warning ?? '', { code: '{code}', name: '{name}', table: '{table}' }),
+        affectedRows: safeT('modal.delete.affectedRows', fallback.modal?.delete?.affectedRows ?? '', { count: '{count}' }),
+        precheckError: safeT('modal.delete.precheckError', fallback.modal?.delete?.precheckError ?? ''),
+        submitFailed: safeT('modal.delete.submitFailed', fallback.modal?.delete?.submitFailed ?? ''),
+        success: safeT('modal.delete.success', fallback.modal?.delete?.success ?? ''),
+      },
+    },
+  } satisfies ReferenceDataLabels;
+
+  return labels;
 }
 
 function humanizeColumn(columnCode: string) {

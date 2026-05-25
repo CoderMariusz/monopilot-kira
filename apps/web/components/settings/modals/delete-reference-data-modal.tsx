@@ -25,17 +25,53 @@ export type DeleteReferenceDataModalProps = {
   open: boolean;
   table: string;
   row: ReferenceDataRow;
+  labels?: Partial<DeleteReferenceDataModalLabels>;
   precheckDeleteReferenceData: (input: { table: string; code: string }) => Promise<DeleteReferenceDataPrecheck>;
   deleteReferenceData: (input: { table: string; rowId: string; code: string }) => Promise<DeleteReferenceDataResult>;
   onOpenChange: (open: boolean) => void;
 };
 
-const SUCCESS_MESSAGE = 'Reference data deleted';
+export type DeleteReferenceDataModalLabels = {
+  title: string;
+  cancel: string;
+  confirmLabel: string;
+  confirmButton: string;
+  deleting: string;
+  confirmCheckbox: string;
+  warning: string;
+  affectedRows: string;
+  precheckError: string;
+  submitFailed: string;
+  success: string;
+};
+
+const DEFAULT_LABELS: DeleteReferenceDataModalLabels = {
+  title: 'Delete {code}?',
+  cancel: 'Cancel',
+  confirmLabel: 'Type DELETE to confirm',
+  confirmButton: 'Delete permanently',
+  deleting: 'Deleting…',
+  confirmCheckbox: 'Confirm',
+  warning: 'This action cannot be undone. {code} — {name} will be permanently removed from {table}.',
+  affectedRows: '{count} rows referencing this code will be orphaned.',
+  precheckError: 'Unable to check referencing rows',
+  submitFailed: 'DELETE_REFERENCE_DATA_FAILED',
+  success: 'Reference data deleted',
+};
+
+function withDefaultLabels(labels?: Partial<DeleteReferenceDataModalLabels>): DeleteReferenceDataModalLabels {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function formatLabel(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce((message, [key, value]) => message.replaceAll(`{${key}}`, String(value)), template);
+}
 
 export function DeleteReferenceDataModal({
   open,
   table,
   row,
+  labels: labelOverrides,
   precheckDeleteReferenceData,
   deleteReferenceData,
   onOpenChange,
@@ -55,7 +91,9 @@ export function DeleteReferenceDataModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
+  const labels = React.useMemo(() => withDefaultLabels(labelOverrides), [labelOverrides]);
   const displayName = row.name_en || row.name || row.code;
+  const title = formatLabel(labels.title, { code: row.code, name: displayName, table });
   const canDelete = typed === 'DELETE' && confirmed && !submitting;
 
   React.useEffect(() => {
@@ -75,14 +113,14 @@ export function DeleteReferenceDataModal({
         if (!cancelled) setAffectedCount(result.affected_count);
       },
       () => {
-        if (!cancelled) setPrecheckError('Unable to check referencing rows');
+        if (!cancelled) setPrecheckError(labels.precheckError);
       },
     );
 
     return () => {
       cancelled = true;
     };
-  }, [open, precheckDeleteReferenceData, row.code, table]);
+  }, [labels.precheckError, open, precheckDeleteReferenceData, row.code, table]);
 
   React.useLayoutEffect(() => {
     if (!open) return undefined;
@@ -96,7 +134,7 @@ export function DeleteReferenceDataModal({
     dialogRef.current?.querySelector<HTMLElement>('[role="checkbox"]')?.setAttribute('tabindex', '-1');
     deleteButtonRef.current =
       Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? []).find(
-        (button) => button.textContent?.trim() === 'Delete permanently',
+        (button) => button.textContent?.trim() === labels.confirmButton,
       ) ?? null;
     inputRef.current?.focus();
 
@@ -104,7 +142,7 @@ export function DeleteReferenceDataModal({
       beforeGuard.remove();
       afterGuard.remove();
     };
-  }, [open]);
+  }, [labels.confirmButton, open]);
 
   function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
@@ -114,7 +152,7 @@ export function DeleteReferenceDataModal({
 
     if (event.key !== 'Tab') return;
 
-    if (!event.shiftKey && document.activeElement?.textContent?.trim() === 'Cancel' && deleteButtonRef.current) {
+    if (!event.shiftKey && document.activeElement?.textContent?.trim() === labels.cancel && deleteButtonRef.current) {
       event.preventDefault();
       const restoreDisabled = deleteButtonRef.current.hasAttribute('disabled');
       if (restoreDisabled) deleteButtonRef.current.removeAttribute('disabled');
@@ -153,13 +191,13 @@ export function DeleteReferenceDataModal({
     try {
       const result = await deleteReferenceData({ table, rowId: row.id, code: row.code });
       if (result.ok) {
-        setSuccessMessage(SUCCESS_MESSAGE);
+        setSuccessMessage(labels.success);
         onOpenChange(false);
         return;
       }
-      setSubmitError(result.error || 'DELETE_REFERENCE_DATA_FAILED');
+      setSubmitError(result.error || labels.submitFailed);
     } catch {
-      setSubmitError('DELETE_REFERENCE_DATA_FAILED');
+      setSubmitError(labels.submitFailed);
     } finally {
       setSubmitting(false);
     }
@@ -182,7 +220,7 @@ export function DeleteReferenceDataModal({
         >
           <div role="dialog" aria-modal="true" aria-labelledby={titleId} data-focus-trap="radix-dialog" hidden />
           <form
-            aria-label={`Delete ${row.code}`}
+            aria-label={title}
             onSubmit={(event) => {
               event.preventDefault();
               void handleDelete();
@@ -190,14 +228,14 @@ export function DeleteReferenceDataModal({
           >
             <div data-testid="modal-header">
               <h2 id={titleId} style={{ margin: 0 }}>
-                Delete {row.code}?
+                {title}
               </h2>
             </div>
 
             <div data-testid="modal-body">
               <div role={submitError ? undefined : 'alert'} className="alert alert-red" style={{ fontSize: 12, marginBottom: 10 }}>
-                This action cannot be undone. <b>{row.code}</b> — {displayName} will be permanently removed from{' '}
-                <span className="mono">{table}</span>. {affectedCount} rows referencing this code will be orphaned.
+                {formatLabel(labels.warning, { code: row.code, name: displayName, table })}{' '}
+                {formatLabel(labels.affectedRows, { count: affectedCount })}
               </div>
 
               {precheckError ? (
@@ -212,7 +250,7 @@ export function DeleteReferenceDataModal({
                   htmlFor={confirmInputId}
                   style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}
                 >
-                  Type DELETE to confirm
+                  {labels.confirmLabel}
                 </label>
                 <Input
                   ref={inputRef}
@@ -231,7 +269,7 @@ export function DeleteReferenceDataModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
                 <Checkbox
                   id={confirmCheckboxId}
-                  aria-label="Confirm"
+                  aria-label={labels.confirmCheckbox}
                   checked={confirmed}
                   disabled={submitting}
                   onCheckedChange={(checked) => {
@@ -239,7 +277,7 @@ export function DeleteReferenceDataModal({
                     setSubmitError(null);
                   }}
                 />
-                <label htmlFor={confirmCheckboxId}>Confirm</label>
+                <label htmlFor={confirmCheckboxId}>{labels.confirmCheckbox}</label>
               </div>
 
               {submitError ? (
@@ -251,10 +289,10 @@ export function DeleteReferenceDataModal({
 
             <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <Button type="button" className="btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
-                Cancel
+                {labels.cancel}
               </Button>
               <Button type="submit" className="btn-danger btn-sm" disabled={!canDelete}>
-                {submitting ? 'Deleting…' : 'Delete permanently'}
+                {submitting ? labels.deleting : labels.confirmButton}
               </Button>
             </div>
           </form>

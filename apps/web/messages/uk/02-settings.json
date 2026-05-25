@@ -16,12 +16,31 @@
     "modal": {
       "edit": {
         "title": "Довідковий рядок",
-        "save": "Зберегти"
+        "editTitle": "Редагувати рядок — {rowKey}",
+        "referenceTable": "Довідкова таблиця · {tableCode}",
+        "cancel": "Скасувати",
+        "save": "Зберегти",
+        "saving": "Збереження…",
+        "loading": "⟳ Завантаження довідкового рядка…",
+        "loadingLabel": "Завантаження довідкового рядка",
+        "noSchema": "Немає полів схеми для {tableCode}",
+        "rowKeyInvalid": "Використовуйте великі літери, цифри, підкреслення або дефіс, мін. 2 символи",
+        "rowKeyRequired": "Ключ рядка обов’язковий",
+        "minChars": "Мін. 2 символи",
+        "selectPlaceholder": "Виберіть…",
+        "saveFailed": "REFERENCE_ROW_SAVE_FAILED"
       },
       "delete": {
-        "title": "Видалити довідкові дані",
+        "title": "Видалити {code}?",
+        "cancel": "Скасувати",
         "confirmLabel": "Введіть DELETE для підтвердження",
         "confirmButton": "Видалити назавжди",
+        "deleting": "Видалення…",
+        "confirmCheckbox": "Підтвердити",
+        "warning": "Цю дію не можна скасувати. {code} — {name} буде остаточно видалено з {table}.",
+        "affectedRows": "{count} рядків, що посилаються на цей код, залишаться без зв’язку.",
+        "precheckError": "Не вдалося перевірити пов’язані рядки",
+        "submitFailed": "DELETE_REFERENCE_DATA_FAILED",
         "success": "Довідкові дані видалено"
       }
     }

@@ -16,12 +16,31 @@
     "modal": {
       "edit": {
         "title": "Rând de referință",
-        "save": "Salvează"
+        "editTitle": "Editează rândul — {rowKey}",
+        "referenceTable": "Tabel de referință · {tableCode}",
+        "cancel": "Anulează",
+        "save": "Salvează",
+        "saving": "Se salvează…",
+        "loading": "⟳ Se încarcă rândul de referință…",
+        "loadingLabel": "Se încarcă rândul de referință",
+        "noSchema": "Nu există câmpuri de schemă pentru {tableCode}",
+        "rowKeyInvalid": "Folosește majuscule, cifre, underscore sau cratimă, minimum 2 caractere",
+        "rowKeyRequired": "Cheia rândului este obligatorie",
+        "minChars": "Minimum 2 caractere",
+        "selectPlaceholder": "Selectează…",
+        "saveFailed": "REFERENCE_ROW_SAVE_FAILED"
       },
       "delete": {
-        "title": "Șterge date de referință",
+        "title": "Ștergi {code}?",
+        "cancel": "Anulează",
         "confirmLabel": "Tastează DELETE pentru confirmare",
         "confirmButton": "Șterge definitiv",
+        "deleting": "Se șterge…",
+        "confirmCheckbox": "Confirm",
+        "warning": "Această acțiune nu poate fi anulată. {code} — {name} va fi eliminat definitiv din {table}.",
+        "affectedRows": "{count} rânduri care referă acest cod vor rămâne orfane.",
+        "precheckError": "Nu se pot verifica rândurile care fac referință",
+        "submitFailed": "DELETE_REFERENCE_DATA_FAILED",
         "success": "Datele de referință au fost șterse"
       }
     }

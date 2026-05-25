@@ -26,12 +26,31 @@
     "modal": {
       "edit": {
         "title": "Wiersz referencyjny",
-        "save": "Zapisz"
+        "editTitle": "Edytuj wiersz — {rowKey}",
+        "referenceTable": "Tabela referencyjna · {tableCode}",
+        "cancel": "Anuluj",
+        "save": "Zapisz",
+        "saving": "Zapisywanie…",
+        "loading": "⟳ Ładowanie wiersza referencyjnego…",
+        "loadingLabel": "Ładowanie wiersza referencyjnego",
+        "noSchema": "Brak pól schematu dla {tableCode}",
+        "rowKeyInvalid": "Użyj wielkich liter, cyfr, podkreślenia lub myślnika, min. 2 znaki",
+        "rowKeyRequired": "Klucz wiersza jest wymagany",
+        "minChars": "Min. 2 znaki",
+        "selectPlaceholder": "Wybierz…",
+        "saveFailed": "REFERENCE_ROW_SAVE_FAILED"
       },
       "delete": {
-        "title": "Usuń dane referencyjne",
+        "title": "Usunąć {code}?",
+        "cancel": "Anuluj",
         "confirmLabel": "Wpisz DELETE, aby potwierdzić",
         "confirmButton": "Usuń trwale",
+        "deleting": "Usuwanie…",
+        "confirmCheckbox": "Potwierdzam",
+        "warning": "Tej operacji nie można cofnąć. {code} — {name} zostanie trwale usunięty z {table}.",
+        "affectedRows": "Liczba wierszy odwołujących się do tego kodu: {count}.",
+        "precheckError": "Nie można sprawdzić wierszy zależnych",
+        "submitFailed": "DELETE_REFERENCE_DATA_FAILED",
         "success": "Dane referencyjne usunięte"
       }
     }

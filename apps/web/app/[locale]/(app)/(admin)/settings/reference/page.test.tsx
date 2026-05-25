@@ -132,7 +132,8 @@ async function loadReferenceDataScreen(): Promise<React.ComponentType<ReferenceD
   expect(component, 'ReferenceDataScreen must be exported from the localized AppShell route client leaf').toEqual(
     expect.any(Function),
   );
-  return component;
+  if (!component) throw new Error('ReferenceDataScreen export missing');
+  return component as React.ComponentType<ReferenceDataScreenProps>;
 }
 
 async function renderReferenceData(overrides: Partial<ReferenceDataScreenProps> = {}) {
