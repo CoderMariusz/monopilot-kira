@@ -7,6 +7,7 @@ interface MessageTree {
 }
 
 const LOCALES = ['en', 'pl'] as const;
+const SETTINGS_UNIT_LOCALES = ['en', 'pl', 'ro', 'uk'] as const;
 const KEY_PATTERN = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)*$/;
 const REQUIRED_TOP_LEVEL_GROUPS = [
   'nav',
@@ -53,7 +54,42 @@ const ROUTE_FACING_INFRA_NAMESPACES = [
   'units.error',
 ] as const;
 
-function namespacePath(locale: (typeof LOCALES)[number]): string {
+const SETTINGS_UNITS_REQUIRED_KEYS = [
+  'units.title',
+  'units.subtitle',
+  'units.addUnit',
+  'units.baseUnitPrefix',
+  'units.code',
+  'units.name',
+  'units.factorToBase',
+  'units.baseQuestion',
+  'units.actions',
+  'units.base',
+  'units.customConversions',
+  'units.customConversionsSubtitle',
+  'units.noCustomConversions',
+  'units.addCustomConversion',
+  'units.noUnits',
+  'units.loading',
+  'units.error',
+  'units.permissionDenied',
+] as const;
+
+const SETTINGS_UNITS_ENGLISH_COPY_KEYS = [
+  'units.subtitle',
+  'units.baseUnitPrefix',
+  'units.factorToBase',
+  'units.baseQuestion',
+  'units.customConversions',
+  'units.customConversionsSubtitle',
+  'units.noCustomConversions',
+  'units.addCustomConversion',
+  'units.noUnits',
+  'units.loading',
+  'units.permissionDenied',
+] as const;
+
+function namespacePath(locale: string): string {
   return path.resolve(__dirname, '..', locale, '02-settings.json');
 }
 
@@ -61,7 +97,7 @@ function isMessageTree(value: unknown): value is MessageTree {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function loadNamespace(locale: (typeof LOCALES)[number]): MessageTree {
+function loadNamespace(locale: string): MessageTree {
   const filePath = namespacePath(locale);
   expect(
     fs.existsSync(filePath),
@@ -157,6 +193,30 @@ describe('02-settings next-intl namespace', () => {
         expect(message, `${locale} 02-settings namespace is missing ${key}`).toEqual(expect.any(String));
         expect(message as string, `${locale} ${key} must not leak a raw settings.* key`).not.toMatch(/^settings\./);
         expect((message as string).trim(), `${locale} ${key} must not be empty`).not.toBe('');
+      }
+    }
+  });
+
+  it('proves settings.units labels are present and localized in EN, PL, RO, and UK without English fallback leakage', () => {
+    const english = loadNamespace('en');
+
+    for (const locale of SETTINGS_UNIT_LOCALES) {
+      const namespace = loadNamespace(locale);
+      for (const key of SETTINGS_UNITS_REQUIRED_KEYS) {
+        const message = getMessage(namespace, key);
+        expect(message, `${locale} 02-settings namespace is missing ${key}`).toEqual(expect.any(String));
+        expect((message as string).trim(), `${locale} ${key} must not be empty`).not.toBe('');
+        expect(message as string, `${locale} ${key} must not leak a raw i18n key`).not.toMatch(/^(settings\.)?units\./);
+      }
+    }
+
+    for (const locale of ['pl', 'ro', 'uk'] as const) {
+      const namespace = loadNamespace(locale);
+      for (const key of SETTINGS_UNITS_ENGLISH_COPY_KEYS) {
+        expect(
+          getMessage(namespace, key),
+          `${locale} ${key} must be translated, not copied from EN fallback text`,
+        ).not.toBe(getMessage(english, key));
       }
     }
   });

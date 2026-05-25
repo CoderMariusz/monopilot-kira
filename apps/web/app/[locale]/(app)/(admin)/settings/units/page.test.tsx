@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   }),
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
+  withOrgContext: vi.fn(),
   topbarCalls: [] as Array<Record<string, unknown>>,
   sidebarCalls: [] as Array<Record<string, unknown>>,
 }));
@@ -32,6 +33,10 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../../../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: mocks.createServerSupabaseClient,
+}));
+
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: mocks.withOrgContext,
 }));
 
 vi.mock('../../../../../../components/shell/app-topbar', () => ({
@@ -170,6 +175,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
     vi.clearAllMocks();
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
+    mocks.withOrgContext.mockReset();
     setAuthenticatedShellUser();
   });
 
@@ -284,5 +290,42 @@ describe('SET-094 Units (UoM) screen parity', () => {
         "+ Add custom conversion",
       ]
     `);
+  });
+
+  it('does not expose a dead Add unit affordance: the screen is either editable via dialog or explicitly deferred/read-only', async () => {
+    await renderUnitsPage();
+    const user = userEvent.setup();
+
+    const addUnitButton = screen.queryByRole('button', { name: /^\+ add unit$/i });
+    if (addUnitButton) {
+      await user.click(addUnitButton);
+      const dialog = screen.queryByRole('dialog', { name: /add unit/i });
+      expect(
+        dialog,
+        'Clicking the prototype primary CTA must open an Add unit dialog; otherwise hide the CTA and render explicit read-only/deferred capability copy.',
+      ).toBeInTheDocument();
+      expect(within(dialog!).getByLabelText(/code/i)).toBeInTheDocument();
+      expect(within(dialog!).getByLabelText(/name/i)).toBeInTheDocument();
+      expect(within(dialog!).getByLabelText(/factor to base/i)).toBeInTheDocument();
+      expect(within(dialog!).getByRole('button', { name: /save|create|add unit/i })).toBeEnabled();
+      return;
+    }
+
+    expect(
+      screen.getByRole('region', { name: /units capability matrix|capability matrix/i }),
+      'When units are not editable in this wave, the UI must state that as an explicit capability matrix instead of implying CRUD is complete.',
+    ).toBeInTheDocument();
+    expect(screen.getByText(/read-only|deferred|not editable/i)).toBeInTheDocument();
+  });
+
+  it('does not fall back to seed-looking unit data or enabled CRUD when live org DB context is unavailable', async () => {
+    mocks.withOrgContext.mockRejectedValueOnce(new Error('org context unavailable'));
+
+    await renderUnitsPage({ units: undefined, customConversions: undefined, canEdit: undefined, state: undefined });
+
+    expect(screen.queryByRole('row', { name: /kg kilogram 1 base/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /g gram 0\.001/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^\+ add unit$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/unable|unavailable|permission|read-only|deferred/i);
   });
 });
