@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { revalidatePath } from 'next/cache';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -31,6 +32,8 @@ type ParsedLocationInput = {
   name: string;
   level: number;
   locationType: string;
+  active: boolean;
+  barcode: string | null;
 };
 
 export type UpsertLocationResult =
@@ -81,8 +84,10 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
         eventType: 'settings.location.upserted',
         aggregateType: 'location',
         aggregateId: row.id,
-        payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, actor_user_id: userId },
+        payload: { location_id: row.id, warehouse_id: input.warehouseId, path: row.path, level: row.level, active: input.active, barcode: input.barcode, actor_user_id: userId },
       });
+
+      revalidatePath('/en/settings/infra/locations');
 
       return { ok: true, data: { id: row.id, path: row.path, level: row.level } };
     });
@@ -100,11 +105,14 @@ function parseLocationInput(raw: unknown): ParsedLocationInput | null {
   const code = normalizeCode(input.code);
   const name = normalizeText(input.name, 128);
   const locationType = normalizeCode(input.locationType);
+  const active = typeof input.active === 'boolean' ? input.active : true;
+  const barcode = input.barcode === null || input.barcode === undefined || input.barcode === '' ? null : normalizeText(input.barcode, 128);
   const level = Number(input.level);
   if (input.id !== undefined && id === null) return null;
   if (!warehouseId || (input.parentId !== null && input.parentId !== undefined && !parentId)) return null;
+  if (input.barcode !== null && input.barcode !== undefined && input.barcode !== '' && !barcode) return null;
   if (!code || !name || !locationType || !Number.isInteger(level) || level < 1 || level > 4) return null;
-  return { id, warehouseId, parentId, code, name, level, locationType };
+  return { id, warehouseId, parentId, code, name, level, locationType, active, barcode };
 }
 
 async function getLocation(client: QueryClient, id: string): Promise<LocationRow | null> {
