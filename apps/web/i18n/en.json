@@ -130,8 +130,17 @@
       "invalid_invite": "Enter an email address and select a role before sending the invitation.",
       "load_error": "Users could not be loaded. Try refreshing the settings users page.",
       "permission_denied": "Permission denied: settings.users.view or settings.users.invite is required to view users and roles.",
-      "role_assignment_unavailable": "Role assignment requires the settings.roles.assign action and is not yet wired from this screen.",
-      "export_status": "Visible users were exported."
+      "role_assignment_unavailable": "Role assignment requires settings.roles.assign permission.",
+      "export_status": "Visible users were exported.",
+      "assign_role_dialog_title": "Assign role",
+      "role_assignment_subtitle": "Pick a user, then the new role.",
+      "search_user": "Search user",
+      "search_user_placeholder": "Name or email…",
+      "new_role": "New role",
+      "pick_role": "— pick role —",
+      "role_assignment_preview": "Assigning {role} to {user}. Previous role {previousRole} will be replaced.",
+      "role_assignment_success": "Role updated.",
+      "role_assignment_failed": "Role assignment failed: {error}."
     },
     "features": {
       "title": "Feature flags",

@@ -130,8 +130,17 @@
       "invalid_invite": "Podaj adres e-mail i wybierz rolę przed wysłaniem zaproszenia.",
       "load_error": "Nie udało się wczytać użytkowników. Odśwież stronę ustawień użytkowników.",
       "permission_denied": "Brak uprawnień: settings.users.view lub settings.users.invite jest wymagane do podglądu użytkowników i ról.",
-      "role_assignment_unavailable": "Przypisanie roli wymaga akcji settings.roles.assign i nie jest jeszcze podłączone z tego ekranu.",
-      "export_status": "Wyeksportowano widocznych użytkowników."
+      "role_assignment_unavailable": "Przypisanie roli wymaga uprawnienia settings.roles.assign.",
+      "export_status": "Wyeksportowano widocznych użytkowników.",
+      "assign_role_dialog_title": "Przypisz rolę",
+      "role_assignment_subtitle": "Wybierz użytkownika, a następnie nową rolę.",
+      "search_user": "Szukaj użytkownika",
+      "search_user_placeholder": "Imię, nazwisko lub e-mail…",
+      "new_role": "Nowa rola",
+      "pick_role": "— wybierz rolę —",
+      "role_assignment_preview": "Przypisanie roli {role} użytkownikowi {user}. Poprzednia rola {previousRole} zostanie zastąpiona.",
+      "role_assignment_success": "Rola została zaktualizowana.",
+      "role_assignment_failed": "Nie udało się przypisać roli: {error}."
     },
     "features": {
       "title": "Feature flags",

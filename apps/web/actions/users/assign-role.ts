@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const FORBIDDEN = 'forbidden' as const;
@@ -63,7 +65,7 @@ export async function assignRole(input: AssignRoleInput): Promise<AssignRoleResu
 
   return withOrgContext(async ({ userId, orgId, client }) => {
     try {
-      await requirePermission('org.access.admin')({ client, userId, orgId });
+      await requirePermission('settings.roles.assign')({ client, userId, orgId });
 
       const { rows: roleRows } = await client.query<{ id: string }>(
         `select id from public.roles where id = $1::uuid and org_id = $2::uuid`,
@@ -114,6 +116,13 @@ export async function assignRole(input: AssignRoleInput): Promise<AssignRoleResu
         ],
       );
 
+      try {
+        revalidatePath('/settings/users');
+        revalidatePath('/en/settings/users');
+      } catch {
+        // Unit tests and non-Next callers do not provide a static-generation store;
+        // persistence has already succeeded, so cache invalidation must not mask it.
+      }
       return { ok: true, data: { targetUserId, roleId } };
     } catch (error) {
       if (error === FORBIDDEN) {

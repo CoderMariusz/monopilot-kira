@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
+import { assignRole } from '../../../../../../actions/users/assign-role';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import SettingsUsersScreen, {
@@ -405,6 +406,15 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     loadError: t('load_error'),
     permissionDenied: t('permission_denied'),
     roleAssignmentUnavailable: t('role_assignment_unavailable'),
+    assignRoleDialogTitle: t('assign_role_dialog_title'),
+    roleAssignmentSubtitle: t('role_assignment_subtitle'),
+    searchUser: t('search_user'),
+    searchUserPlaceholder: t('search_user_placeholder'),
+    newRole: t('new_role'),
+    pickRole: t('pick_role'),
+    roleAssignmentPreview: t('role_assignment_preview'),
+    roleAssignmentSuccess: t('role_assignment_success'),
+    roleAssignmentFailed: t('role_assignment_failed'),
     exportStatus: t('export_status'),
   };
 }
@@ -447,6 +457,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       searchParams={normalizedSearchParams}
       locale={locale}
       inviteUserAction={inviteUser}
+      assignRoleAction={assignRole}
     />
   );
 }
