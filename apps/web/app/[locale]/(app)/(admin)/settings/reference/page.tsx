@@ -101,6 +101,51 @@ const FALLBACK_COLUMNS: Record<string, ReferenceColumn[]> = {
 const EMPTY_ROWS: Record<string, ReferenceRow[]> = Object.fromEntries(TABLE_DEFINITIONS.map((table) => [table.code, []]));
 const DEFAULT_TABLE_CODE = TABLE_DEFINITIONS[0]?.code ?? 'allergens_reference';
 
+function isReferenceDataPlaywrightHarnessEnabled() {
+  return process.env.NODE_ENV !== 'production' && process.env.PLAYWRIGHT_REFERENCE_DATA_HARNESS === 'true';
+}
+
+function referenceDataHarnessResult(): ReferenceDataResult {
+  const rowsByTable: Record<string, ReferenceRow[]> = {
+    ...EMPTY_ROWS,
+    allergens_reference: [
+      {
+        rowId: 'allergens_reference:MILK',
+        rowKey: 'MILK',
+        version: 1,
+        values: {
+          allergen_code: 'MILK',
+          display_name: 'Milk protein',
+          eu_disclosure_text: 'Contains milk and dairy derivatives',
+          risk_level: 'major',
+          is_enabled: true,
+        },
+      },
+    ],
+  };
+
+  return {
+    state: 'ready',
+    tables: tableShell(
+      {
+        allergens_reference: FALLBACK_COLUMNS.allergens_reference,
+        uom_reference: FALLBACK_COLUMNS.uom_reference,
+        currency_reference: FALLBACK_COLUMNS.currency_reference,
+        country_iso_reference: FALLBACK_COLUMNS.country_iso_reference,
+      },
+      {
+        allergens_reference: { table_code: 'allergens_reference', row_count: 1, updated_at: '2026-05-25T00:00:00.000Z' },
+        uom_reference: { table_code: 'uom_reference', row_count: 0, updated_at: null },
+        currency_reference: { table_code: 'currency_reference', row_count: 0, updated_at: null },
+        country_iso_reference: { table_code: 'country_iso_reference', row_count: 0, updated_at: null },
+      },
+    ),
+    rowsByTable,
+    selectedTableCode: DEFAULT_TABLE_CODE,
+    canEditReferenceData: true,
+  };
+}
+
 async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
   const fallback: ReferenceDataLabels = {
     title: 'Reference data',
@@ -294,6 +339,8 @@ function tableShell(columnsByTable: Record<string, ReferenceColumn[]> = {}, coun
 }
 
 async function readReferenceData(): Promise<ReferenceDataResult> {
+  if (isReferenceDataPlaywrightHarnessEnabled()) return referenceDataHarnessResult();
+
   try {
     return await withOrgContext(async ({ client, userId, orgId }: { client: QueryClient; userId: string; orgId: string }) => {
       const queryClient = client;
@@ -376,6 +423,7 @@ export default async function ReferenceDataPage({ params }: PageProps) {
       canEditReferenceData={data.canEditReferenceData}
       upsertReferenceRow={upsertReferenceRow}
       softDeleteReferenceRow={softDeleteReferenceRow}
+      e2eHarnessOpenModals={isReferenceDataPlaywrightHarnessEnabled()}
     />
   );
 }

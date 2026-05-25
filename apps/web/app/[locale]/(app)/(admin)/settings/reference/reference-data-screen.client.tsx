@@ -83,6 +83,7 @@ export type ReferenceDataScreenProps = {
   upsertReferenceRow?: (input: UpsertReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
   softDeleteReferenceRow?: (input: SoftDeleteReferenceRowInput) => Promise<{ ok: boolean; data?: unknown; error?: string }>;
   onReferenceDataChanged?: () => void;
+  e2eHarnessOpenModals?: boolean;
 };
 
 type DialogState =
@@ -184,6 +185,7 @@ export function ReferenceDataScreen({
   upsertReferenceRow,
   softDeleteReferenceRow,
   onReferenceDataChanged,
+  e2eHarnessOpenModals = false,
 }: ReferenceDataScreenProps) {
   const initialTable = tables.some((table) => table.code === selectedTableCode) ? selectedTableCode : tables[0]?.code ?? '';
   const [activeTableCode, setActiveTableCode] = React.useState(initialTable);
@@ -234,6 +236,7 @@ export function ReferenceDataScreen({
   }
 
   const editDialogRow = dialog?.kind === 'edit' ? modalRow(dialog.tableCode, dialog.row) : null;
+  const harnessDialogRow = e2eHarnessOpenModals && selectedTable && selectedRows[0] ? modalRow(selectedTable.code, selectedRows[0]) : null;
   const deleteDialog = dialog?.kind === 'delete' ? dialog : null;
   const deleteDialogRow = deleteDialog
     ? {
@@ -241,7 +244,13 @@ export function ReferenceDataScreen({
         code: deleteDialog.row.rowKey,
         name: cellText(deleteDialog.row.values.display_name ?? deleteDialog.row.values.name_en ?? deleteDialog.row.values.name ?? deleteDialog.row.rowKey, { key: 'name', label: labels.rowKey, type: 'text' }, labels),
       }
-    : null;
+    : harnessDialogRow && selectedRows[0]
+      ? {
+          id: selectedRows[0].rowId,
+          code: selectedRows[0].rowKey,
+          name: cellText(selectedRows[0].values.display_name ?? selectedRows[0].values.name_en ?? selectedRows[0].values.name ?? selectedRows[0].rowKey, { key: 'name', label: labels.rowKey, type: 'text' }, labels),
+        }
+      : null;
 
   return (
     <main data-testid="settings-reference-data-screen" aria-labelledby="reference-data-heading" className="settings-reference-data-screen space-y-4">
@@ -365,10 +374,10 @@ export function ReferenceDataScreen({
       ) : null}
 
       <RefRowEditModal
-        open={dialog?.kind === 'add' || dialog?.kind === 'edit'}
-        tableCode={dialog?.kind === 'add' || dialog?.kind === 'edit' ? dialog.tableCode : activeTableCode}
+        open={Boolean(harnessDialogRow) || dialog?.kind === 'add' || dialog?.kind === 'edit'}
+        tableCode={harnessDialogRow?.tableCode ?? (dialog?.kind === 'add' || dialog?.kind === 'edit' ? dialog.tableCode : activeTableCode)}
         tableLabel={selectedTable?.name}
-        row={editDialogRow}
+        row={harnessDialogRow ?? editDialogRow}
         columns={selectedModalColumns}
         labels={labels.modal?.edit}
         upsertReferenceRow={handleModalUpsert}
@@ -378,10 +387,10 @@ export function ReferenceDataScreen({
         onSaved={notifyChanged}
       />
 
-      {deleteDialog && deleteDialogRow ? (
+      {deleteDialogRow ? (
         <DeleteReferenceDataModal
           open={true}
-          table={deleteDialog.tableCode}
+          table={deleteDialog?.tableCode ?? selectedTable?.code ?? activeTableCode}
           row={deleteDialogRow}
           labels={labels.modal?.delete}
           precheckDeleteReferenceData={async () => ({ affected_count: 0 })}
