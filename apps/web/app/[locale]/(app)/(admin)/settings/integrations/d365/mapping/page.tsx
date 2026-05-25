@@ -22,6 +22,7 @@ export type D365MappingPageProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   rows?: D365FieldMapping[];
   exportD365MappingCsv?: ExportD365MappingCsv;
+  testD365Connection?: () => Promise<{ status: 'ok'; latencyMs: number; environment: string } | { status: 'error'; reason: string }>;
 };
 
 export type D365MappingLabels = {
@@ -144,6 +145,7 @@ export default async function D365MappingPage(propsInput: unknown) {
     state = 'ready',
     rows = EMPTY_MAPPING_ROWS,
     exportD365MappingCsv: exportAction = exportD365MappingCsv,
+    testD365Connection,
   } = (propsInput ?? {}) as D365MappingPageProps;
   const labels = await labelsFor();
   const resolvedParams = await params;
@@ -159,6 +161,7 @@ export default async function D365MappingPage(propsInput: unknown) {
       locale={locale}
       state={state}
       exportAction={exportAction}
+      testD365Connection={testD365Connection}
       includeRowsInExport={exportAction === exportD365MappingCsv}
     />
   );

@@ -3,6 +3,7 @@
 import React from 'react';
 
 import { Button } from '@monopilot/ui/Button';
+import Modal from '@monopilot/ui/Modal';
 
 export type D365ConnectionResult =
   | { status: 'ok'; latencyMs: number; environment: string }
@@ -13,6 +14,13 @@ export type D365TestConnectionModalProps = {
   environmentUrl: string;
   testConnection: () => Promise<D365ConnectionResult>;
   onOpenChange?: (open: boolean) => void;
+  title?: string;
+  description?: string;
+  closeLabel?: string;
+  cancelLabel?: string;
+  retryLabel?: string;
+  triggerLabel?: string;
+  useModalPrimitive?: boolean;
 };
 
 type Phase = 'idle' | 'running' | 'ok' | 'fail';
@@ -24,10 +32,18 @@ export function D365TestConnectionModal({
   environmentUrl,
   testConnection,
   onOpenChange,
+  title = 'Test D365 connection',
+  description,
+  closeLabel = 'Close',
+  cancelLabel = 'Cancel',
+  retryLabel = 'Retry',
+  triggerLabel = 'Test connection',
+  useModalPrimitive = false,
 }: D365TestConnectionModalProps) {
   const [open, setOpen] = React.useState(defaultOpen);
   const [phase, setPhase] = React.useState<Phase>(defaultOpen ? 'running' : 'idle');
   const [result, setResult] = React.useState<D365ConnectionResult | null>(null);
+  const [modalId, setModalId] = React.useState(useModalPrimitive ? 'SM-08' : 'd365Test');
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const requestIdRef = React.useRef(0);
   const timerRef = React.useRef<number | null>(null);
@@ -35,6 +51,7 @@ export function D365TestConnectionModal({
   const setModalOpen = React.useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
+      setModalId(useModalPrimitive ? 'SM-08' : 'd365Test');
       onOpenChange?.(nextOpen);
       if (!nextOpen) {
         requestIdRef.current += 1;
@@ -51,7 +68,7 @@ export function D365TestConnectionModal({
         }, 0);
       }
     },
-    [onOpenChange],
+    [onOpenChange, useModalPrimitive],
   );
 
   const runConnectionTest = React.useCallback(() => {
@@ -66,6 +83,7 @@ export function D365TestConnectionModal({
 
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
+      setModalId('SM-08');
       void testConnection()
         .then((nextResult) => {
           if (requestIdRef.current !== requestId) return;
@@ -82,6 +100,10 @@ export function D365TestConnectionModal({
 
   React.useEffect(() => {
     if (!open) return undefined;
+
+    const dialog = document.querySelector<HTMLElement>('[data-modal-id="SM-08"], [data-modal-id="d365Test"]');
+    dialog?.setAttribute('id', 'SM-08');
+    dialog?.setAttribute('aria-labelledby', titleId);
 
     runConnectionTest();
     queueMicrotask(() => {
@@ -147,11 +169,28 @@ export function D365TestConnectionModal({
           data-modal-trigger="SM-08"
           onClick={() => setModalOpen(true)}
         >
-          Test connection
+          {triggerLabel}
         </Button>
       ) : null}
 
-      {open ? (
+      {useModalPrimitive ? (
+        <Modal open={open} onOpenChange={setModalOpen} size="sm" modalId={modalId}>
+          <div ref={dialogRef} onKeyDown={handleDialogKeyDown}>
+            <DialogContents
+              title={title}
+              description={description}
+              phase={phase}
+              result={result}
+              environmentUrl={environmentUrl}
+              closeLabel={closeLabel}
+              cancelLabel={cancelLabel}
+              retryLabel={retryLabel}
+              runConnectionTest={runConnectionTest}
+              close={() => setModalOpen(false)}
+            />
+          </div>
+        </Modal>
+      ) : open ? (
         <div
           id="SM-08"
           ref={dialogRef}
@@ -159,41 +198,80 @@ export function D365TestConnectionModal({
           aria-modal="true"
           aria-labelledby={titleId}
           data-focus-trap="radix-dialog"
-          data-modal-id="SM-08"
+          data-modal-id={modalId}
           data-size="sm"
           onKeyDown={handleDialogKeyDown}
           style={{ maxWidth: 'var(--modal-size-sm-width)' }}
         >
-          <div data-testid="modal-header">
-            <h2 id={titleId} style={{ margin: 0 }}>
-              Test D365 connection
-            </h2>
-          </div>
-
-          <div data-testid="modal-body">
-            {phase === 'running' ? <RunningState environmentUrl={environmentUrl} /> : null}
-            {phase === 'ok' && result?.status === 'ok' ? <SuccessState result={result} /> : null}
-            {phase === 'fail' && result?.status === 'error' ? <FailureState reason={result.reason} /> : null}
-          </div>
-
-          <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-            <Button
-              type="button"
-              className="btn-secondary btn-sm"
-              data-modal-close="SM-08"
-              onClick={() => setModalOpen(false)}
-            >
-              {phase === 'running' ? 'Cancel' : 'Close'}
-            </Button>
-            {phase === 'fail' ? (
-              <Button type="button" className="btn-primary btn-sm" onClick={runConnectionTest}>
-                Retry
-              </Button>
-            ) : null}
-          </div>
+          <DialogContents
+            title={title}
+            description={description}
+            phase={phase}
+            result={result}
+            environmentUrl={environmentUrl}
+            closeLabel={closeLabel}
+            cancelLabel={cancelLabel}
+            retryLabel={retryLabel}
+            runConnectionTest={runConnectionTest}
+            close={() => setModalOpen(false)}
+          />
         </div>
       ) : null}
     </div>
+  );
+}
+
+type DialogContentsProps = {
+  title: string;
+  description?: string;
+  phase: Phase;
+  result: D365ConnectionResult | null;
+  environmentUrl: string;
+  closeLabel: string;
+  cancelLabel: string;
+  retryLabel: string;
+  runConnectionTest: () => void;
+  close: () => void;
+};
+
+function DialogContents({
+  title,
+  description,
+  phase,
+  result,
+  environmentUrl,
+  closeLabel,
+  cancelLabel,
+  retryLabel,
+  runConnectionTest,
+  close,
+}: DialogContentsProps) {
+  return (
+    <>
+      <div data-testid="modal-header">
+        <h2 id={titleId} style={{ margin: 0 }}>
+          {title}
+        </h2>
+      </div>
+
+      <div data-testid="modal-body">
+        {description ? <p className="muted">{description}</p> : null}
+        {phase === 'running' ? <RunningState environmentUrl={environmentUrl} /> : null}
+        {phase === 'ok' && result?.status === 'ok' ? <SuccessState result={result} /> : null}
+        {phase === 'fail' && result?.status === 'error' ? <FailureState reason={result.reason} /> : null}
+      </div>
+
+      <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+        <Button type="button" className="btn-secondary btn-sm" data-modal-close="SM-08" onClick={close}>
+          {phase === 'running' ? cancelLabel : closeLabel}
+        </Button>
+        {phase === 'fail' ? (
+          <Button type="button" className="btn-primary btn-sm" onClick={runConnectionTest}>
+            {retryLabel}
+          </Button>
+        ) : null}
+      </div>
+    </>
   );
 }
 

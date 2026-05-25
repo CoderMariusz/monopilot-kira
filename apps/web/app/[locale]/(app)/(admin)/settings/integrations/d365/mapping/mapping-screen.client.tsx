@@ -7,6 +7,9 @@ import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import Modal from '@monopilot/ui/Modal';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+import D365TestConnectionModal, {
+  type D365ConnectionResult,
+} from '../../../../../../../../components/settings/modals/d365-test-connection-modal';
 
 import type { D365FieldMapping, D365Filter, D365Direction, D365MappingLabels, ExportD365MappingCsv } from './page';
 
@@ -20,6 +23,7 @@ type D365MappingScreenProps = {
   locale: string;
   state: 'ready' | 'loading' | 'empty' | 'error';
   exportAction: ExportD365MappingCsv;
+  testD365Connection?: () => Promise<D365ConnectionResult>;
   includeRowsInExport?: boolean;
 };
 
@@ -152,42 +156,30 @@ function TestConnectionDialog({
   labels,
   open,
   onOpenChange,
+  testD365Connection,
 }: {
   labels: D365MappingLabels;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  testD365Connection?: () => Promise<D365ConnectionResult>;
 }) {
-  const accessibleName = `${labels.testConnectionDialogTitle} — ${labels.testConnection}`;
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onOpenChange(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onOpenChange, open]);
-
   if (!open) return null;
 
-  const body = (
-    <>
-      <div data-testid="modal-body" className="space-y-3 px-4 py-3">
-        <h2 className="text-base font-semibold">{accessibleName}</h2>
-        <p className="text-sm text-slate-700">{labels.testConnectionDialogBody}</p>
-      </div>
-      <div data-testid="modal-footer" className="mt-4 flex justify-end gap-2">
-        <Button type="button" className="btn-secondary btn-sm" onClick={() => onOpenChange(false)}>
-          {labels.close}
-        </Button>
-      </div>
-    </>
-  );
-
   return (
-    <Modal open={open} onOpenChange={onOpenChange} size="sm" modalId="SM-08">
-      {body}
-    </Modal>
+    <D365TestConnectionModal
+      key="SM-08-mapping-open"
+      defaultOpen
+      environmentUrl="configured D365 endpoint"
+      testConnection={testD365Connection ?? (async () => ({ status: 'error', reason: 'ERR_D365_CONNECTION_UNAVAILABLE' }))}
+      onOpenChange={onOpenChange}
+      title={`${labels.testConnectionDialogTitle} — ${labels.testConnection}`}
+      description={labels.testConnectionDialogBody}
+      closeLabel={labels.close}
+      cancelLabel={labels.close}
+      retryLabel="Retry"
+      triggerLabel={labels.testConnection}
+      useModalPrimitive
+    />
   );
 }
 
@@ -198,6 +190,7 @@ export default function D365MappingScreen({
   locale,
   state,
   exportAction,
+  testD365Connection,
   includeRowsInExport = false,
 }: D365MappingScreenProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -274,7 +267,12 @@ export default function D365MappingScreen({
           </CardContent>
         </Card>
       </section>
-      <TestConnectionDialog labels={labels} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <TestConnectionDialog
+        labels={labels}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        testD365Connection={testD365Connection}
+      />
     </Shell>
   );
 }

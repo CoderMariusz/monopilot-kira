@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Switch } from '@monopilot/ui/Switch';
+import D365TestConnectionModal, {
+  type D365ConnectionResult,
+} from '../../../../../../../components/settings/modals/d365-test-connection-modal';
 
 export type D365Environment = 'Production' | 'Sandbox' | 'Development';
 
@@ -38,7 +41,7 @@ export type D365ConnectionState = 'ready' | 'loading' | 'empty' | 'error';
 export type D365ConnectionActions = {
   saveD365Connection?: (input: SaveD365ConnectionInput) => Promise<{ ok: true } | { ok: false; code: string }>;
   rotateD365ClientSecret?: () => Promise<{ ok: true } | { ok: false; code: string }>;
-  testD365Connection?: () => Promise<{ ok: true } | { ok: false; code: string }>;
+  testD365Connection?: () => Promise<D365ConnectionResult>;
 };
 
 export type D365Labels = {
@@ -205,55 +208,29 @@ function TestConnectionDialog({
   open,
   onOpenChange,
   testD365Connection,
+  environmentUrl,
   labels,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   testD365Connection?: D365ConnectionActions['testD365Connection'];
+  environmentUrl: string;
   labels: D365Labels;
 }) {
-  const titleId = 'd365-test-dialog-title';
-  React.useEffect(() => {
-    if (!open) return undefined;
-    void testD365Connection?.();
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      onOpenChange(false);
-    }
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [open, onOpenChange, testD365Connection]);
-
   if (!open) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      data-modal-id="d365Test"
-      data-focus-trap="radix-dialog"
-      data-size="sm"
-      className="rounded-md border bg-white p-4 shadow-lg"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          onOpenChange(false);
-        }
-      }}
-    >
-      <h2 id={titleId} className="text-base font-semibold">
-        {labels.dialog?.testTitle ?? 'Test D365 connection'}
-      </h2>
-      <p className="mt-2 text-sm text-slate-700">Pre-flight checks are running for the configured endpoint and service account.</p>
-      <div className="mt-4 flex justify-end">
-        <Button type="button" className="btn-secondary btn-sm" onClick={() => onOpenChange(false)}>
-          {labels.dialog?.close ?? 'Close'}
-        </Button>
-      </div>
-    </div>
+    <D365TestConnectionModal
+      key="SM-08-open"
+      defaultOpen
+      environmentUrl={environmentUrl}
+      testConnection={testD365Connection ?? (async () => ({ status: 'error', reason: 'ERR_D365_CONNECTION_UNAVAILABLE' }))}
+      onOpenChange={onOpenChange}
+      title={labels.dialog?.testTitle ?? 'Test D365 connection'}
+      closeLabel={labels.dialog?.close ?? 'Close'}
+      cancelLabel={labels.dialog?.close ?? 'Cancel'}
+      triggerLabel={labels.testConnection}
+    />
   );
 }
 
@@ -415,7 +392,13 @@ function ReadyD365ConnectionForm({
         </Section>
       </form>
 
-      <TestConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} testD365Connection={testD365Connection} labels={labels} />
+      <TestConnectionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        testD365Connection={testD365Connection}
+        environmentUrl={baseUrl}
+        labels={labels}
+      />
       {toast ? (
         <p role="status" aria-live="polite" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           {toast}
