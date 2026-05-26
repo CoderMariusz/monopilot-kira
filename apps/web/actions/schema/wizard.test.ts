@@ -230,6 +230,28 @@ describe('schema admin wizard Server Actions (T-023)', () => {
     expect(ddlCalls(), 'approved L1 promotion path still never executes live DDL').toHaveLength(0);
   });
 
+  it('V-SET-04: addColumn publish rejects stale schema_version with discriminator CONCURRENT_EDIT and returns a diff before any mutation', async () => {
+    const { addColumn } = await loadAddColumn();
+
+    const result = await addColumn({
+      tableCode: 'main_table',
+      columnCode: 'pack_finish',
+      scope: 'variation',
+      dataType: 'enum',
+      dropdownSource: 'pack_sizes',
+      validationJson: { required: true },
+      presentationJson: { section: 'Packaging', order: 31 },
+      expectedSchemaVersion: 1,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'CONCURRENT_EDIT',
+      data: expect.objectContaining({ currentSchemaVersion: 2, diff: expect.any(Object) }),
+    });
+    expect(writeCalls(), 'CONCURRENT_EDIT must not mutate schema or emit outbox').toHaveLength(0);
+  });
+
   it('V-SET-04: editColumn rejects stale schema_version with discriminator CONCURRENT_EDIT and returns diff', async () => {
     const { editColumn } = await loadEditColumn();
 

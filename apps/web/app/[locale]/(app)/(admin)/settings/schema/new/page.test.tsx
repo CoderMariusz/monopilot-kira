@@ -224,6 +224,39 @@ describe('SET-031 Schema Column Edit Wizard localized AppShell route', () => {
     expect(screen.getByRole('button', { name: /publish column/i })).toBeDisabled();
   });
 
+  it('resolves the schema-column-wizard namespace in all supported locale message bundles instead of falling back to raw English defaults', () => {
+    const requiredKeys = [
+      'title',
+      'subtitle',
+      'step1',
+      'step2',
+      'step3',
+      'step4',
+      'step5',
+      'step6',
+      'step7',
+      'step8',
+      'publishColumn',
+      'reloadLatest',
+      'concurrentEditTitle',
+      'concurrentEditBody',
+      'provenance',
+    ];
+
+    for (const locale of ['en', 'pl', 'ro', 'uk']) {
+      const messages = JSON.parse(readFileSync(`${process.cwd()}/messages/${locale}/02-settings.json`, 'utf8')) as {
+        settings?: { schema_column_wizard?: Record<string, string> };
+        schema_column_wizard?: Record<string, string>;
+      };
+      const namespace = messages.schema_column_wizard ?? messages.settings?.schema_column_wizard;
+      expect(namespace, `${locale}/02-settings.json must define schema_column_wizard messages for SET-031`).toBeDefined();
+      for (const key of requiredKeys) {
+        expect(namespace?.[key], `${locale}/02-settings.json missing schema_column_wizard.${key}`).toEqual(expect.any(String));
+        expect(namespace?.[key], `${locale}/02-settings.json schema_column_wizard.${key} must not be an empty fallback`).not.toEqual('');
+      }
+    }
+  });
+
   it('keeps the page as a Server Component: no page-level use client, React stateful class, or browser event handlers in page.tsx', () => {
     const source = readFileSync(`${process.cwd()}/app/[locale]/(app)/(admin)/settings/schema/new/page.tsx`, 'utf8');
     expect(source.slice(0, 100)).not.toMatch(/['"]use client['"]/);
