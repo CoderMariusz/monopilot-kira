@@ -991,7 +991,8 @@
         "urlInvalid": "URL_INVALID",
         "loading": "Loading D365 connection…",
         "empty": "D365 connection is not configured.",
-        "error": "Unable to load D365 connection."
+        "error": "Unable to load D365 connection.",
+        "missingPrerequisites": "D365 connection prerequisites are missing. Configure the endpoint, Azure AD tenant, client ID, and secret reference before saving or enabling sync."
       }
     }
   },

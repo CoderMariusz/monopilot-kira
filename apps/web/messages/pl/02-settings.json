@@ -991,7 +991,8 @@
         "urlInvalid": "URL_INVALID",
         "loading": "Ładowanie połączenia D365…",
         "empty": "Połączenie D365 nie jest skonfigurowane.",
-        "error": "Nie można załadować połączenia D365."
+        "error": "Nie można załadować połączenia D365.",
+        "missingPrerequisites": "Brakuje wymaganych elementów połączenia D365. Skonfiguruj endpoint, dzierżawę Azure AD, identyfikator klienta i referencję sekretu przed zapisem lub włączeniem synchronizacji."
       }
     }
   },
