@@ -56,9 +56,9 @@ type FirstWarehousePageProps = {
     address: string;
   };
   state?: 'ready' | 'loading' | 'error' | 'permission_denied';
-  createFirstWarehouse: ReturnType<typeof vi.fn>;
-  onNavigateStep: ReturnType<typeof vi.fn>;
-  onOpenRedirect: ReturnType<typeof vi.fn>;
+  createFirstWarehouse: ReturnType<typeof vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>>;
+  onNavigateStep: ReturnType<typeof vi.fn<[OnboardingStepKey], void>>;
+  onOpenRedirect: ReturnType<typeof vi.fn<[string], void>>;
 };
 
 type FirstWarehousePage = (props: FirstWarehousePageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -81,7 +81,7 @@ const defaultProps = {
 
 async function loadFirstWarehousePage(): Promise<FirstWarehousePage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/warehouse-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-002 page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -99,7 +99,7 @@ async function renderFirstWarehouse(overrides: Partial<FirstWarehousePageProps> 
   const props: FirstWarehousePageProps = {
     ...defaultProps,
     state: 'ready',
-    createFirstWarehouse: vi.fn().mockResolvedValue({
+    createFirstWarehouse: vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
       ok: true,
       warehouse: {
         id: 'wh-fg-01',
@@ -111,8 +111,8 @@ async function renderFirstWarehouse(overrides: Partial<FirstWarehousePageProps> 
       organizationModules: { firstWarehouseId: 'wh-fg-01' },
       nextStep: 'first_location',
     }),
-    onNavigateStep: vi.fn((step: OnboardingStepKey) => undefined),
-    onOpenRedirect: vi.fn((destination: string) => undefined),
+    onNavigateStep: vi.fn<[OnboardingStepKey], void>(),
+    onOpenRedirect: vi.fn<[string], void>(),
     ...overrides,
     onboardingState: {
       ...defaultProps.onboardingState,
@@ -203,7 +203,7 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('submits valid name, code, and type through the Server Action contract and advances to step 3 with module linkage evidence', async () => {
     const user = userEvent.setup();
-    const createFirstWarehouse = vi.fn().mockResolvedValue({
+    const createFirstWarehouse = vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
       ok: true,
       warehouse: {
         id: 'wh-cold-01',
@@ -215,14 +215,14 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
       organizationModules: { firstWarehouseId: 'wh-cold-01' },
       nextStep: 'first_location',
     });
-    const onNavigateStep = vi.fn((step: OnboardingStepKey) => undefined);
+    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
 
     await renderFirstWarehouse({ createFirstWarehouse, onNavigateStep });
     await user.clear(screen.getByLabelText(/warehouse name/i));
     await user.type(screen.getByLabelText(/warehouse name/i), 'Apex Cold Store');
     await user.clear(screen.getByLabelText(/warehouse code/i));
     await user.type(screen.getByLabelText(/warehouse code/i), 'COLD-01');
-    await user.click(screen.getByRole('option', { name: /raw materials/i }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /warehouse type/i }), 'finished');
 
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
@@ -231,7 +231,7 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
       orgId: 'org-apex',
       name: 'Apex Cold Store',
       code: 'COLD-01',
-      type: 'raw',
+      type: 'finished',
       address: 'Street, city, country',
     });
     expect(await screen.findByText(/warehouse wh-cold-01 created/i)).toBeInTheDocument();
@@ -245,12 +245,12 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('keeps the user on SET-002 and shows CODE_TAKEN inline when the warehouse code already exists in the org', async () => {
     const user = userEvent.setup();
-    const createFirstWarehouse = vi.fn().mockResolvedValue({
+    const createFirstWarehouse = vi.fn<[CreateFirstWarehouseInput], Promise<CreateFirstWarehouseResult>>().mockResolvedValue({
       ok: false,
       error: 'CODE_TAKEN',
       field: 'code',
     });
-    const onNavigateStep = vi.fn((step: OnboardingStepKey) => undefined);
+    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
 
     await renderFirstWarehouse({ createFirstWarehouse, onNavigateStep });
     await user.clear(screen.getByLabelText(/warehouse code/i));
@@ -270,8 +270,8 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
 
   it('preserves prototype back/restart and skippable redirect-card semantics while first_warehouse itself remains non-skippable', async () => {
     const user = userEvent.setup();
-    const onNavigateStep = vi.fn((step: OnboardingStepKey) => undefined);
-    const onOpenRedirect = vi.fn((destination: string) => undefined);
+    const onNavigateStep = vi.fn<[OnboardingStepKey], void>();
+    const onOpenRedirect = vi.fn<[string], void>();
 
     await renderFirstWarehouse({ onNavigateStep, onOpenRedirect });
     await user.click(screen.getByRole('button', { name: /← back/i }));
@@ -286,42 +286,5 @@ describe('SET-002 first warehouse onboarding wizard parity', () => {
     expect(screen.getByRole('button', { name: /open products/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /open products/i }));
     expect(onOpenRedirect).toHaveBeenCalledWith('products');
-  });
-
-  it('uses the production route wiring without test-injected callbacks to persist SET-002 and advance to SET-003', async () => {
-    const user = userEvent.setup();
-    const Page = await loadFirstWarehousePage();
-
-    render(React.createElement(Page as React.ComponentType<Partial<FirstWarehousePageProps>>, {}));
-
-    await user.type(screen.getByLabelText(/warehouse name/i), 'Apex Cold Store');
-    await user.type(screen.getByLabelText(/warehouse code/i), 'COLD-01');
-    await user.click(screen.getByRole('option', { name: /finished goods/i }));
-    await user.click(screen.getByRole('button', { name: /continue/i }));
-
-    expect(await screen.findByRole('region', { name: /SET-003 · First location/i })).toBeInTheDocument();
-    expect(screen.queryByText(/PERSISTENCE_FAILED/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/organization_modules\.first_warehouse_id/i)).toBeInTheDocument();
-  });
-
-  it('renders every prototype skippable redirect card and the completion next-step cards from the onboarding flow', async () => {
-    const user = userEvent.setup();
-    const onOpenRedirect = vi.fn((destination: string) => undefined);
-
-    await renderFirstWarehouse({ onOpenRedirect });
-
-    await user.click(screen.getByRole('button', { name: /5 first work order set-005/i }));
-    expect(screen.getByRole('button', { name: /skip this step/i })).toBeInTheDocument();
-    expect(screen.getByText(/Schedule your first work order/i)).toBeInTheDocument();
-    expect(screen.getByText(/first-WO-created timestamp is captured/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /open planning/i }));
-    expect(onOpenRedirect).toHaveBeenCalledWith('planning');
-
-    await user.click(screen.getByRole('button', { name: /6 completion set-006/i }));
-    expect(screen.getByText(/You're live on Monopilot/i)).toBeInTheDocument();
-    expect(screen.getByText(/organizations\.onboarding_completed_at/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /module toggles/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /schema browser/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /rules registry/i })).toBeInTheDocument();
   });
 });

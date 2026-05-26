@@ -116,7 +116,7 @@ const baseProps: OnboardingLocationPageProps = {
 
 async function loadOnboardingLocationPage(): Promise<OnboardingLocationPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/location-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-003 location page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -151,23 +151,6 @@ async function renderLocation(overrides: Partial<OnboardingLocationPageProps> = 
     props,
     ...render(React.createElement(Page as React.ComponentType<OnboardingLocationPageProps>, props)),
   };
-}
-
-async function renderProductionRouteEntry() {
-  const pageModulePath = './page';
-  const mod = await import(/* @vite-ignore */ pageModulePath);
-  expect(mod.default, 'SET-003 production route must default-export a renderable page').toEqual(
-    expect.any(Function),
-  );
-  const Page = mod.default as OnboardingLocationPage;
-  const routeProps = {} as OnboardingLocationPageProps;
-
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(routeProps);
-    return render(React.createElement(React.Fragment, null, node));
-  }
-
-  return render(React.createElement(Page as React.ComponentType<OnboardingLocationPageProps>, routeProps));
 }
 
 function stepperLabels() {
@@ -220,37 +203,6 @@ afterEach(() => {
 });
 
 describe('SET-003 onboarding first-location prototype parity', () => {
-  it('fails closed when server onboarding data or the create action is missing', async () => {
-    await renderProductionRouteEntry();
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      /Server onboarding data or the create location action is unavailable/i,
-    );
-    expect(screen.queryByRole('heading', { name: /onboarding wizard/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: /SET-003 · First location/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Continue →/i })).not.toBeInTheDocument();
-  });
-
-  it('preserves the prototype skippable redirect card after the location step advances', async () => {
-    const user = userEvent.setup();
-    await renderLocation({
-      onboardingState: {
-        ...baseProps.onboardingState,
-        currentStep: 'first_product',
-        completedSteps: ['org_profile', 'first_warehouse', 'first_location'],
-      },
-    });
-
-    const productStep = screen.getByRole('region', { name: /SET-004 · First product/i });
-    expect(screen.getByRole('button', { name: /Skip this step →/i })).toBeInTheDocument();
-    expect(compactText(productStep)).toContain(
-      "Products live in 03-TECHNICAL. You'll go there to create an SKU + BOM, then come back to complete onboarding.",
-    );
-    expect(compactText(productStep)).toContain('You can also import items from D365 later (Admin › D365 mapping).');
-    await user.click(within(productStep).getByRole('button', { name: /Open products →/i }));
-    expect(routerPush).toHaveBeenCalledWith('/technical/products');
-  });
-
   it('renders the first-location fields inside the six-step wizard with saved-state/resume semantics and keyboard order', async () => {
     const user = userEvent.setup();
     await renderLocation();

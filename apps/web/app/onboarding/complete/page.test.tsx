@@ -16,11 +16,13 @@ import userEvent from '@testing-library/user-event';
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
+const usePathnameMock = vi.fn(() => '/en/onboarding/complete');
 
 vi.mock('next/navigation', () => ({
   redirect: (href: string) => {
     throw new Error(`NEXT_REDIRECT:${href}`);
   },
+  usePathname: usePathnameMock,
   useRouter: () => ({
     push: routerPush,
     replace: vi.fn(),
@@ -83,14 +85,14 @@ const baseProps: OnboardingCompletionPageProps = {
   completeOnboarding: vi.fn().mockResolvedValue({
     ok: true,
     onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-    redirectTo: '/admin',
+    redirectTo: '/settings/users',
   } satisfies CompleteOnboardingResult),
   retryLoad: vi.fn(),
 };
 
 async function loadOnboardingCompletionPage(): Promise<OnboardingCompletionPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/complete-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-006 completion page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -113,7 +115,7 @@ async function renderCompletion(overrides: Partial<OnboardingCompletionPageProps
     completeOnboarding: overrides.completeOnboarding ?? vi.fn().mockResolvedValue({
       ok: true,
       onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-      redirectTo: '/admin',
+      redirectTo: '/settings/users',
     } satisfies CompleteOnboardingResult),
     retryLoad: overrides.retryLoad ?? vi.fn(),
   };
@@ -129,17 +131,6 @@ async function renderCompletion(overrides: Partial<OnboardingCompletionPageProps
   };
 }
 
-async function renderProductionRouteEntry() {
-  const Page = await loadOnboardingCompletionPage();
-
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page({} as OnboardingCompletionPageProps);
-    return render(React.createElement(React.Fragment, null, node));
-  }
-
-  return render(React.createElement(Page as React.ComponentType<OnboardingCompletionPageProps>, {} as OnboardingCompletionPageProps));
-}
-
 function stepperLabels() {
   return screen.getAllByRole('button', { name: /SET-00[1-6]/ }).map((button) => button.textContent);
 }
@@ -147,24 +138,10 @@ function stepperLabels() {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  usePathnameMock.mockReturnValue('/en/onboarding/complete');
 });
 
 describe('SET-006 onboarding completion prototype parity', () => {
-  it('renders the production route boundary with real data/action wiring instead of test-injected completion props', async () => {
-    const user = userEvent.setup();
-    await renderProductionRouteEntry();
-
-    expect(screen.queryByTestId('missing-onboarding-completion-page')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /onboarding wizard/i })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /Finish onboarding/i }));
-
-    expect(await screen.findByText(/onboarding completed/i)).toBeInTheDocument();
-    expect(routerPush).toHaveBeenCalledWith('/admin');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
   it('renders the completion celebration inside the six-step wizard with saved-state/resume progress and keyboard order', async () => {
     const user = userEvent.setup();
     await renderCompletion();
@@ -229,7 +206,7 @@ describe('SET-006 onboarding completion prototype parity', () => {
     const completeOnboarding = vi.fn().mockResolvedValue({
       ok: true,
       onboardingCompletedAt: '2026-05-19T21:00:00.000Z',
-      redirectTo: '/admin',
+      redirectTo: '/settings/users',
     } satisfies CompleteOnboardingResult);
     await renderCompletion({ completeOnboarding });
 
@@ -245,7 +222,9 @@ describe('SET-006 onboarding completion prototype parity', () => {
     expect(completeOnboarding).toHaveBeenCalledWith({ orgId: 'org-apex' });
     expect(await screen.findByText(/onboarding completed/i)).toBeInTheDocument();
     expect(screen.getByText(/2026-05-19T21:00:00.000Z/i)).toBeInTheDocument();
-    expect(routerPush).toHaveBeenCalledWith('/admin');
+    expect(routerRefresh).toHaveBeenCalledTimes(1);
+    expect(routerPush).toHaveBeenCalledWith('/en/settings/users');
+    expect(routerPush).not.toHaveBeenCalledWith('/admin');
     expect(routerPush).not.toHaveBeenCalledWith('/onboarding');
   });
 

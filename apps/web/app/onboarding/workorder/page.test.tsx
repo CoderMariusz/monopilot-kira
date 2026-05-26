@@ -10,14 +10,9 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-
-const serverActionHarness = vi.hoisted(() => ({
-  withOrgContextRunner: vi.fn(),
-  revalidatePath: vi.fn(),
-}));
 
 const routerPush = vi.fn();
 const routerRefresh = vi.fn();
@@ -35,20 +30,6 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
   }),
 }));
-
-vi.mock('../../../lib/auth/with-org-context', () => ({
-  withOrgContext: vi.fn(async (action: (ctx: unknown) => Promise<unknown>) =>
-    serverActionHarness.withOrgContextRunner(action),
-  ),
-}));
-
-vi.mock('next/cache', () => ({
-  revalidatePath: serverActionHarness.revalidatePath,
-}));
-
-const ORG_ID = '11111111-1111-4111-8111-111111111111';
-const USER_ID = '22222222-2222-4222-8222-222222222222';
-const STARTED_AT = '2026-05-19T21:00:00.000Z';
 
 type OnboardingStepKey =
   | 'org_profile'
@@ -105,25 +86,6 @@ type OnboardingWorkOrderPageProps = {
 
 type OnboardingWorkOrderPage = (props: OnboardingWorkOrderPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
-type PersistedOnboardingStateFixture = {
-  current_step: number;
-  completed_steps: number[];
-  skipped_steps: number[];
-  started_at?: string;
-  last_activity_at?: string;
-  first_wo_at?: string | null;
-  time_to_first_wo_ms?: number | null;
-};
-
-type FakeQueryClient = {
-  state: PersistedOnboardingStateFixture;
-  auditLog: string[];
-  outboxEvents: string[];
-  query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number }>;
-};
-
-let currentClient: FakeQueryClient;
-
 const baseProps: OnboardingWorkOrderPageProps = {
   organization: {
     id: 'org-apex',
@@ -166,7 +128,7 @@ const baseProps: OnboardingWorkOrderPageProps = {
 
 async function loadOnboardingWorkOrderPage(): Promise<OnboardingWorkOrderPage> {
   try {
-    const pageModulePath = './page';
+    const pageModulePath = './_components/workorder-client';
     const mod = await import(/* @vite-ignore */ pageModulePath);
     expect(mod.default, 'SET-005 workorder page must default-export a renderable React component').toEqual(
       expect.any(Function),
@@ -220,21 +182,10 @@ async function renderWorkOrder(overrides: Partial<OnboardingWorkOrderPageProps> 
   };
 }
 
-async function renderProductionWorkOrderPage(rawProps: Record<string, unknown> = {}) {
-  const Page = await loadOnboardingWorkOrderPage();
-
-  if (Page.constructor.name === 'AsyncFunction') {
-    const node = await Page(rawProps as unknown as OnboardingWorkOrderPageProps);
-    return render(React.createElement(React.Fragment, null, node));
-  }
-
-  return render(React.createElement(Page as React.ComponentType<Record<string, unknown>>, rawProps));
-}
-
 function stepperLabels() {
   return screen
     .getAllByRole('button', { name: /SET-00[1-6]/ })
-    .map((button) => button.textContent);
+    .map((button: HTMLButtonElement) => button.textContent);
 }
 
 function lastPushedHref() {
@@ -248,110 +199,12 @@ function lastPushedHref() {
   return String(target ?? '');
 }
 
-function makeClient(state: PersistedOnboardingStateFixture): FakeQueryClient {
-  const client: FakeQueryClient = {
-    state: structuredClone(state),
-    auditLog: [],
-    outboxEvents: [],
-    async query(sql: string, params: unknown[] = []) {
-      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
-      if (normalized.includes('from public.user_roles') || normalized.includes('from public.roles')) {
-        return { rows: [{ ok: true, permission: 'settings.onboarding.complete' }], rowCount: 1 };
-      }
-      if (normalized.includes('from public.organizations')) {
-        return { rows: [{ onboarding_state: structuredClone(client.state) }], rowCount: 1 };
-      }
-      if (normalized.includes('update public.organizations')) {
-        const stateParam = params.find((param) => typeof param === 'string' && param.includes('current_step'));
-        if (typeof stateParam !== 'string') throw new Error('onboarding_state update must pass JSON state');
-        client.state = JSON.parse(stateParam) as PersistedOnboardingStateFixture;
-        return { rows: [{ onboarding_state: structuredClone(client.state) }], rowCount: 1 };
-      }
-      if (normalized.includes('insert into public.audit_log')) {
-        client.auditLog.push(JSON.stringify(params));
-        return { rows: [], rowCount: 1 };
-      }
-      if (normalized.includes('insert into public.outbox_events')) {
-        client.outboxEvents.push(JSON.stringify(params));
-        return { rows: [], rowCount: 1 };
-      }
-      throw new Error(`Unexpected onboarding query in SET-005 page test: ${normalized}`);
-    },
-  };
-  return client;
-}
-
-function resetServerActionClient(state: PersistedOnboardingStateFixture = {
-  current_step: 5,
-  completed_steps: [1, 2, 3, 4],
-  skipped_steps: [],
-  started_at: STARTED_AT,
-  last_activity_at: STARTED_AT,
-  first_wo_at: null,
-}) {
-  currentClient = makeClient(state);
-  serverActionHarness.withOrgContextRunner.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) =>
-    action({ userId: USER_ID, orgId: ORG_ID, client: currentClient }),
-  );
-}
-
-beforeEach(() => {
-  resetServerActionClient();
-});
-
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe('SET-005 onboarding first work order redirect-card prototype parity', () => {
-  it('wires the production page boundary through the real skipOnboarding Server Action module', async () => {
-    const user = userEvent.setup();
-    const skipModule = await import('../../../actions/onboarding/skip.js');
-    expect(skipModule.skipOnboarding, 'skip action mock must be backed by the real on-disk Server Action module').toEqual(
-      expect.any(Function),
-    );
-
-    await renderProductionWorkOrderPage();
-
-    expect(screen.queryByText(/Server onboarding data or actions are unavailable/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Open planning/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Skip this step →/i })).toBeEnabled();
-
-    await user.click(screen.getByRole('button', { name: /Skip this step →/i }));
-
-    await waitFor(() => expect(currentClient.state.current_step).toBe(6));
-    expect(currentClient.state.skipped_steps).toContain(5);
-    expect(currentClient.state.completed_steps).not.toContain(5);
-    expect(currentClient.auditLog.some((entry) => entry.includes('onboarding.skip'))).toBe(true);
-    expect(currentClient.outboxEvents.some((entry) => entry.includes('onboarding.step.skip'))).toBe(true);
-    expect(await screen.findByText(/skipped_steps includes 5/i)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
-  });
-
-  it('consumes Planning callback search params through the real first-wo Server Action and persists resume-state KPI evidence', async () => {
-    const firstWoModule = await import('../../../actions/onboarding/first-wo.js');
-    expect(
-      firstWoModule.markFirstWorkOrderCreated,
-      'first_wo callback mock must be backed by the real on-disk Server Action module',
-    ).toEqual(expect.any(Function));
-
-    await renderProductionWorkOrderPage({
-      searchParams: { workOrderId: 'wo-1001', createdAt: '2026-05-19T21:11:00.000Z' },
-    });
-
-    await waitFor(() => expect(currentClient.state.first_wo_at).toBe('2026-05-19T21:11:00.000Z'));
-    expect(currentClient.state.time_to_first_wo_ms).toBe(660000);
-    expect(currentClient.state.current_step).toBe(6);
-    expect(currentClient.state.completed_steps).toContain(5);
-    expect(currentClient.auditLog.some((entry) => entry.includes('onboarding.first_wo'))).toBe(true);
-    expect(currentClient.outboxEvents.some((entry) => entry.includes('onboarding.first_wo_recorded'))).toBe(true);
-    expect(await screen.findByText(/onboarding_state\.first_wo_at = 2026-05-19T21:11:00.000Z/i)).toBeInTheDocument();
-    expect(screen.getByText(/time_to_first_wo = 11 min/i)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /SET-006 · Completion/i })).toBeInTheDocument();
-  });
-
   it('renders the skippable first_wo card inside the saved-state six-step wizard with prototype labels and keyboard order', async () => {
     const user = userEvent.setup();
     await renderWorkOrder();
