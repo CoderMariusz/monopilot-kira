@@ -358,7 +358,8 @@
       "statusMisconfigured": "Misconfigured",
       "technicalDescription": "Blocks production/factory use until Technical approval is recorded.",
       "technicalTitle": "Technical product-spec approval gate",
-      "version": "Version"
+      "version": "Version",
+      "heading": "Authorization Policies"
     },
     "manufacturing_operations": {
       "breadcrumb_settings": "Settings",
@@ -610,6 +611,28 @@
         "title": "Modal gallery",
         "description": "Modal gallery route is connected for design-system verification and future QA evidence."
       }
+    },
+    "users": {
+      "heading": "Users & roles",
+      "invite_user": "+ Invite user",
+      "export": "Export",
+      "error_load": "Users could not be loaded. Try refreshing the settings users page.",
+      "permission_denied": "Permission denied: settings.users.manage is required to manage users and roles."
+    },
+    "invitations": {
+      "heading": "Pending Invitations"
+    },
+    "roles": {
+      "heading": "Roles & Permissions"
+    },
+    "security": {
+      "heading": "Security"
+    },
+    "reference_mfg": {
+      "heading": "Manufacturing Operations",
+      "add_operation": "Add New Operation",
+      "reset_seed": "Reset to seed data",
+      "delete_inactive": "Delete inactive rows"
     }
   },
   "navigation": {
@@ -785,5 +808,26 @@
     "openUserMenu": "Open user menu for {name}",
     "signOut": "Sign out",
     "siteCrumbLabel": "Current organization"
+  },
+  "onboarding": {
+    "wizard_title": "Onboarding wizard",
+    "wizard_subtitle": "6-step setup · target <15 minutes · state saved automatically (organizations.onboarding_state). {percent}% complete.",
+    "step_eyebrow": "SET-001..006",
+    "in_progress_eyebrow": "Onboarding",
+    "in_progress_title": "Onboarding in progress",
+    "in_progress_body": "Your organization setup is still being completed. An administrator must finish onboarding before this workspace is available.",
+    "restart": "Restart",
+    "skip_step": "Skip this step →",
+    "back": "← Back",
+    "continue": "Continue →",
+    "saving": "Saving…",
+    "loading": "Loading onboarding profile…",
+    "loading_aria": "Loading onboarding profile",
+    "error_load": "Couldn't load onboarding profile. The saved wizard state remains unchanged.",
+    "permission_denied": "Permission denied: settings.onboarding.write is required to continue onboarding.",
+    "retry": "Retry",
+    "gs1_required": "GS1 Company Prefix is required for SSCC generation",
+    "finish": "Finish onboarding",
+    "save_failed": "Organization profile could not be saved."
   }
 }

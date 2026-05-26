@@ -358,7 +358,8 @@
       "statusMisconfigured": "Misconfigured",
       "technicalDescription": "Blocks production/factory use until Technical approval is recorded.",
       "technicalTitle": "Technical product-spec approval gate",
-      "version": "Version"
+      "version": "Version",
+      "heading": "Політики авторизації"
     },
     "manufacturing_operations": {
       "breadcrumb_settings": "Налаштування",
@@ -610,6 +611,28 @@
         "title": "Modal gallery",
         "description": "Modal gallery route is connected for design-system verification and future QA evidence."
       }
+    },
+    "users": {
+      "heading": "Користувачі та ролі",
+      "invite_user": "+ Запросити користувача",
+      "export": "Експортувати",
+      "error_load": "Не вдалося завантажити користувачів. Спробуйте оновити сторінку користувачів у налаштуваннях.",
+      "permission_denied": "Доступ заборонено: для керування користувачами та ролями потрібно settings.users.manage."
+    },
+    "invitations": {
+      "heading": "Очікувані запрошення"
+    },
+    "roles": {
+      "heading": "Ролі та дозволи"
+    },
+    "security": {
+      "heading": "Безпека"
+    },
+    "reference_mfg": {
+      "heading": "Виробничі операції",
+      "add_operation": "Додати нову операцію",
+      "reset_seed": "Скинути до базових даних",
+      "delete_inactive": "Видалити неактивні рядки"
     }
   },
   "navigation": {
@@ -785,5 +808,26 @@
     "openUserMenu": "Відкрити меню користувача для {name}",
     "signOut": "Вийти",
     "siteCrumbLabel": "Поточна організація"
+  },
+  "onboarding": {
+    "wizard_title": "Майстер впровадження",
+    "wizard_subtitle": "Налаштування з 6 кроків · мета <15 хвилин · стан зберігається автоматично (organizations.onboarding_state). Завершено {percent}%.",
+    "step_eyebrow": "SET-001..006",
+    "in_progress_eyebrow": "Впровадження",
+    "in_progress_title": "Впровадження триває",
+    "in_progress_body": "Налаштування вашої організації ще триває. Адміністратор має завершити впровадження, перш ніж цей робочий простір стане доступним.",
+    "restart": "Почати спочатку",
+    "skip_step": "Пропустити цей крок →",
+    "back": "← Назад",
+    "continue": "Далі →",
+    "saving": "Збереження…",
+    "loading": "Завантаження профілю впровадження…",
+    "loading_aria": "Завантаження профілю впровадження",
+    "error_load": "Не вдалося завантажити профіль впровадження. Збережений стан майстра не змінено.",
+    "permission_denied": "Доступ заборонено: для продовження впровадження потрібно settings.onboarding.write.",
+    "retry": "Повторити",
+    "gs1_required": "Префікс компанії GS1 обов'язковий для генерації SSCC",
+    "finish": "Завершити впровадження",
+    "save_failed": "Не вдалося зберегти профіль організації."
   }
 }

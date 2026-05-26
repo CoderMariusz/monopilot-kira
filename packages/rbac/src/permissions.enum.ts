@@ -19,6 +19,8 @@ export const Permission = {
   SETTINGS_USERS_DEACTIVATE: 'settings.users.deactivate',
   /** Settings user invitation access; PRD 02-SETTINGS §3 lines 116-123. */
   SETTINGS_USERS_INVITE: 'settings.users.invite',
+  /** Settings user/role management page access; PRD 02-SETTINGS §3 lines 116-125. */
+  SETTINGS_USERS_MANAGE: 'settings.users.manage',
   /** Settings role assignment access; PRD 02-SETTINGS §3 lines 121-125. */
   SETTINGS_ROLES_ASSIGN: 'settings.roles.assign',
   /** Settings audit read access; PRD 02-SETTINGS §3 lines 118-119. */
@@ -65,6 +67,8 @@ export const Permission = {
   // Security
   /** Settings security configuration permission; PRD 02-SETTINGS §3, §11, §13, §14. */
   SETTINGS_SECURITY_EDIT: 'settings.security.edit',
+  /** Settings security management page access; PRD 02-SETTINGS §3, §11, §13, §14. */
+  SETTINGS_SECURITY_MANAGE: 'settings.security.manage',
 
   // SSO
   /** Settings SSO administration permissions; PRD 02-SETTINGS §3, §11, §13, §14. */
@@ -103,6 +107,7 @@ export const ALL_SETTINGS_CORE_PERMISSIONS = [
   Permission.SETTINGS_USERS_CREATE,
   Permission.SETTINGS_USERS_DEACTIVATE,
   Permission.SETTINGS_USERS_INVITE,
+  Permission.SETTINGS_USERS_MANAGE,
   Permission.SETTINGS_ROLES_ASSIGN,
   Permission.SETTINGS_AUDIT_READ,
   Permission.SETTINGS_IMPERSONATE_TENANT,
@@ -125,6 +130,7 @@ export const ALL_SETTINGS_EXT_PERMISSIONS = [
   Permission.SETTINGS_EMAIL_EDIT,
   Permission.SETTINGS_ONBOARDING_COMPLETE,
   Permission.SETTINGS_SECURITY_EDIT,
+  Permission.SETTINGS_SECURITY_MANAGE,
   Permission.SETTINGS_SSO_VIEW,
   Permission.SETTINGS_SSO_EDIT,
   Permission.SETTINGS_SCIM_VIEW,
