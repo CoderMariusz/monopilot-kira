@@ -240,7 +240,6 @@ export function ReferenceDataScreen({
       return { ok: true as const };
     }
     const error = friendlyActionError(result.error, labels, labels.modal?.delete?.submitFailed ?? 'Unable to delete reference data.');
-    setActionError(error);
     return { ok: false as const, error };
   }
 
