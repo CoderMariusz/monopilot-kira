@@ -52,6 +52,37 @@
       }
     }
   },
+  "schema_diff": {
+    "title": "Diferență schemă",
+    "subtitle": "Comparație alăturată a versiunilor de schemă pentru o coloană specifică.",
+    "unifiedDiff": "Diff JSON profund unificat",
+    "noPriorVersion": "Nu există versiune anterioară",
+    "noPriorVersionBody": "Această coloană este la versiunea 1. Nu există încă nimic de comparat.",
+    "added": "{count} adăugate",
+    "removed": "{count} eliminate",
+    "changed": "{count} modificate",
+    "unchanged": "{count} neschimbate",
+    "changedBy": "Modificat de",
+    "changedAt": "Modificat la",
+    "deployRef": "Referință deploy",
+    "revertToPrevious": "Revino la versiunea N-1",
+    "backToSchemaBrowser": "Înapoi la browserul de scheme",
+    "forbiddenTitle": "403 — Interzis",
+    "forbiddenBody": "Nu ai permisiunea de a vedea diferențele de schemă.",
+    "unableToLoadTitle": "Diferența de schemă nu poate fi încărcată",
+    "unableToLoadBody": "Istoricul versiunilor de schemă nu este disponibil pentru această migrare.",
+    "unavailableTitle": "Diferența de schemă nu este disponibilă",
+    "noVersionsBody": "Nu s-au găsit versiuni de schemă pentru {id}.",
+    "compare": "Compară",
+    "against": "cu",
+    "tier": "Nivel",
+    "path": "Cale",
+    "before": "înainte",
+    "current": "curent",
+    "change": "Schimbare",
+    "settingsCrumb": "Setări",
+    "schemaBrowserCrumb": "Browser scheme"
+  },
   "infra": {
     "machines": {
       "title": "Mașini",

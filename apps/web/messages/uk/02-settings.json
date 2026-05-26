@@ -52,6 +52,37 @@
       }
     }
   },
+  "schema_diff": {
+    "title": "Різниця схеми",
+    "subtitle": "Порівняння версій схеми поруч для конкретної колонки.",
+    "unifiedDiff": "Уніфікований глибокий diff JSON",
+    "noPriorVersion": "Немає попередньої версії",
+    "noPriorVersionBody": "Ця колонка має версію 1. Поки немає з чим порівнювати.",
+    "added": "{count} додано",
+    "removed": "{count} видалено",
+    "changed": "{count} змінено",
+    "unchanged": "{count} без змін",
+    "changedBy": "Змінив",
+    "changedAt": "Змінено о",
+    "deployRef": "Посилання deploy",
+    "revertToPrevious": "Повернути до версії N-1",
+    "backToSchemaBrowser": "Назад до браузера схем",
+    "forbiddenTitle": "403 — Заборонено",
+    "forbiddenBody": "У вас немає дозволу переглядати різниці схеми.",
+    "unableToLoadTitle": "Не вдалося завантажити різницю схеми",
+    "unableToLoadBody": "Історія версій схеми недоступна для цієї міграції.",
+    "unavailableTitle": "Різниця схеми недоступна",
+    "noVersionsBody": "Не знайдено версій схеми для {id}.",
+    "compare": "Порівняти",
+    "against": "з",
+    "tier": "Рівень",
+    "path": "Шлях",
+    "before": "до",
+    "current": "поточна",
+    "change": "Зміна",
+    "settingsCrumb": "Налаштування",
+    "schemaBrowserCrumb": "Браузер схем"
+  },
   "infra": {
     "machines": {
       "title": "Машини",
