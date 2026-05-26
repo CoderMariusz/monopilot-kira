@@ -61,7 +61,7 @@
     "rowKeyHelp": "Wielkie litery, min. 2 znaki. Unikalny w tabeli.",
     "modal": {
       "edit": {
-        "title": "Wiersz referencyjny",
+        "title": "Dodaj wiersz",
         "editTitle": "Edytuj wiersz — {rowKey}",
         "referenceTable": "Tabela referencyjna · {tableCode}",
         "cancel": "Anuluj",
@@ -74,7 +74,7 @@
         "rowKeyRequired": "Klucz wiersza jest wymagany",
         "minChars": "Min. 2 znaki",
         "selectPlaceholder": "Wybierz…",
-        "saveFailed": "REFERENCE_ROW_SAVE_FAILED"
+        "saveFailed": "Nie można zapisać wiersza referencyjnego."
       },
       "delete": {
         "title": "Usunąć {code}?",
@@ -86,7 +86,7 @@
         "warning": "Tej operacji nie można cofnąć. {code} — {name} zostanie trwale usunięty z {table}.",
         "affectedRows": "Liczba wierszy odwołujących się do tego kodu: {count}.",
         "precheckError": "Nie można sprawdzić wierszy zależnych",
-        "submitFailed": "DELETE_REFERENCE_DATA_FAILED",
+        "submitFailed": "Nie można usunąć danych referencyjnych.",
         "success": "Dane referencyjne usunięte"
       }
     }

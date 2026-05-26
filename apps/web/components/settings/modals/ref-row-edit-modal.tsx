@@ -75,6 +75,7 @@ export type RefRowEditModalLabels = {
 };
 
 const ROW_KEY_PATTERN = /^[A-Z0-9_-]{2,}$/;
+const ADD_ROW_TITLE = 'Add row';
 const DEFAULT_LABELS: RefRowEditModalLabels = {
   title: 'Reference row',
   editTitle: 'Edit row — {rowKey}',
@@ -89,7 +90,7 @@ const DEFAULT_LABELS: RefRowEditModalLabels = {
   rowKeyRequired: 'Row key is required',
   minChars: 'Min 2 chars',
   selectPlaceholder: 'Select…',
-  saveFailed: 'REFERENCE_ROW_SAVE_FAILED',
+  saveFailed: 'Unable to save reference row.',
 };
 
 function withDefaultLabels(labels?: Partial<RefRowEditModalLabels>): RefRowEditModalLabels {
@@ -301,7 +302,8 @@ export function RefRowEditModal({
   const labels = React.useMemo(() => withDefaultLabels(labelOverrides), [labelOverrides]);
   const errors = React.useMemo(() => formErrors(columns, values, labels), [columns, labels, values]);
   const canSave = isValid(columns, values, labels) && !loading && !error && !submitting;
-  const title = row ? formatLabel(labels.editTitle, { rowKey: row.rowKey }) : labels.title;
+  const isReadyAddMode = !row && !loading && !error && columns.length > 0;
+  const title = row ? formatLabel(labels.editTitle, { rowKey: row.rowKey }) : isReadyAddMode && labels.title === DEFAULT_LABELS.title ? ADD_ROW_TITLE : labels.title;
   const subtitle = formatLabel(labels.referenceTable, { tableCode });
 
   function updateValue(columnCode: string, value: FieldValue) {

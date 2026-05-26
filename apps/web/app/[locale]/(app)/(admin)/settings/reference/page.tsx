@@ -170,7 +170,7 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
     rowKeyHelp: 'Uppercase, min 2 chars. Unique in table.',
     modal: {
       edit: {
-        title: 'Reference row',
+        title: 'Add row',
         editTitle: 'Edit row — {rowKey}',
         referenceTable: 'Reference table · {tableCode}',
         cancel: 'Cancel',
@@ -183,7 +183,7 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
         rowKeyRequired: 'Row key is required',
         minChars: 'Min 2 chars',
         selectPlaceholder: 'Select…',
-        saveFailed: 'REFERENCE_ROW_SAVE_FAILED',
+        saveFailed: 'Unable to save reference row.',
       },
       delete: {
         title: 'Delete {code}?',
@@ -195,7 +195,7 @@ async function buildLabels(locale: string): Promise<ReferenceDataLabels> {
         warning: 'This action cannot be undone. {code} — {name} will be permanently removed from {table}.',
         affectedRows: '{count} rows referencing this code will be orphaned.',
         precheckError: 'Unable to check referencing rows',
-        submitFailed: 'DELETE_REFERENCE_DATA_FAILED',
+        submitFailed: 'Unable to delete reference data.',
         success: 'Reference data deleted',
       },
     },

@@ -55,7 +55,7 @@ const DEFAULT_LABELS: DeleteReferenceDataModalLabels = {
   warning: 'This action cannot be undone. {code} — {name} will be permanently removed from {table}.',
   affectedRows: '{count} rows referencing this code will be orphaned.',
   precheckError: 'Unable to check referencing rows',
-  submitFailed: 'DELETE_REFERENCE_DATA_FAILED',
+  submitFailed: 'Unable to delete reference data.',
   success: 'Reference data deleted',
 };
 
@@ -65,6 +65,12 @@ function withDefaultLabels(labels?: Partial<DeleteReferenceDataModalLabels>): De
 
 function formatLabel(template: string, values: Record<string, string | number>) {
   return Object.entries(values).reduce((message, [key, value]) => message.replaceAll(`{${key}}`, String(value)), template);
+}
+
+function submitErrorMessage(error: string | undefined, labels: DeleteReferenceDataModalLabels) {
+  if (!error) return labels.submitFailed;
+  if (/^(forbidden|permission_denied|PERMISSION_DENIED)$/i.test(error)) return labels.submitFailed;
+  return error;
 }
 
 export function DeleteReferenceDataModal({
@@ -195,7 +201,7 @@ export function DeleteReferenceDataModal({
         onOpenChange(false);
         return;
       }
-      setSubmitError(result.error || labels.submitFailed);
+      setSubmitError(submitErrorMessage(result.error, labels));
     } catch {
       setSubmitError(labels.submitFailed);
     } finally {

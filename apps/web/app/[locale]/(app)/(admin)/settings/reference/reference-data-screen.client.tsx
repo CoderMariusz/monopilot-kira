@@ -175,6 +175,15 @@ function emptyDeleteResult(): Promise<{ ok: false; error: string }> {
   return Promise.resolve({ ok: false, error: 'permission_denied' });
 }
 
+function friendlyActionError(error: string | undefined, labels: ReferenceDataLabels, fallback: string) {
+  if (!error) return fallback;
+  if (/^(forbidden|permission_denied|PERMISSION_DENIED)$/i.test(error)) {
+    return labels.permissionDenied ?? fallback;
+  }
+  if (/^[A-Z0-9_]+$/.test(error)) return fallback;
+  return error;
+}
+
 export function ReferenceDataScreen({
   tables,
   selectedTableCode,
@@ -213,7 +222,7 @@ export function ReferenceDataScreen({
       setActionError(null);
       return { ok: true as const, tableCode: input.tableCode, rowKey: input.rowKey, revalidatedPath: '/settings/reference' as const };
     }
-    const error = result.error ?? 'REFERENCE_ROW_SAVE_FAILED';
+    const error = friendlyActionError(result.error, labels, labels.modal?.edit?.saveFailed ?? 'Unable to save reference row.');
     setActionError(error);
     return { ok: false as const, error };
   }
@@ -230,7 +239,7 @@ export function ReferenceDataScreen({
       notifyChanged();
       return { ok: true as const };
     }
-    const error = result.error ?? 'DELETE_REFERENCE_DATA_FAILED';
+    const error = friendlyActionError(result.error, labels, labels.modal?.delete?.submitFailed ?? 'Unable to delete reference data.');
     setActionError(error);
     return { ok: false as const, error };
   }
