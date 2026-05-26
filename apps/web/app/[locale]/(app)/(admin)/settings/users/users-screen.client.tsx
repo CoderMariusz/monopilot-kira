@@ -8,6 +8,10 @@ import Input from '@monopilot/ui/Input';
 import Modal from '@monopilot/ui/Modal';
 import Textarea from '@monopilot/ui/Textarea';
 
+import { PasswordResetModal } from '../../../../../../components/settings/modals/password-reset-modal';
+import { RoleAssignModal } from '../../../../../../components/settings/modals/role-assign-modal';
+import { UserInviteModal } from '../../../../../../components/settings/modals/user-invite-modal';
+
 export type RoleCategory = 'Admin' | 'Manager' | 'Operator' | 'Viewer';
 export type UserStatus = 'active' | 'invited' | 'disabled';
 export type PermissionCell = 'admin' | 'rw' | 'r' | 'none';
@@ -50,6 +54,7 @@ export type UsersScreenData = {
   kpis: UsersKpis;
   canInviteUsers: boolean;
   canAssignRoles: boolean;
+  canResetPasswords?: boolean;
 };
 
 export type UsersSearchParams = {
@@ -123,6 +128,10 @@ export type UsersScreenLabels = {
   roleAssignmentPreview?: string;
   roleAssignmentSuccess?: string;
   roleAssignmentFailed?: string;
+  resetPassword?: string;
+  resetPasswordUnavailable?: string;
+  passwordResetSuccess?: string;
+  passwordResetFailed?: string;
   exportStatus: string;
 };
 
@@ -144,6 +153,8 @@ export type AssignRoleAction = (input: { targetUserId: string; roleId: string })
   | { ok: false; error: string }
 >;
 
+export type ResetPasswordAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+
 export type SettingsUsersScreenProps = {
   data: UsersScreenData;
   labels: UsersScreenLabels;
@@ -151,6 +162,7 @@ export type SettingsUsersScreenProps = {
   locale: string;
   inviteUserAction?: InviteUserAction;
   assignRoleAction?: AssignRoleAction;
+  resetPasswordAction?: ResetPasswordAction;
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
@@ -471,12 +483,21 @@ function RoleAssignDialog({
   );
 }
 
-export default function SettingsUsersScreen({ data, labels, searchParams, locale, inviteUserAction, assignRoleAction }: SettingsUsersScreenProps) {
+export default function SettingsUsersScreen({
+  data,
+  labels,
+  searchParams,
+  locale,
+  inviteUserAction,
+  assignRoleAction,
+  resetPasswordAction,
+}: SettingsUsersScreenProps) {
   const [selectedRole, setSelectedRole] = useState<RoleFilter>(normalizeRoleFilter(searchParams?.role));
   const [view, setView] = useState<UsersView>(normalizeView(searchParams?.view));
   const [query, setQuery] = useState(searchParams?.q ?? '');
   const [showInvite, setShowInvite] = useState(false);
   const [roleAssignmentDraft, setRoleAssignmentDraft] = useState<{ user: SettingsUser; roleId: string } | null>(null);
+  const [passwordResetUser, setPasswordResetUser] = useState<SettingsUser | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; message: string } | null>(null);
 
   const visibleUsers = useMemo(() => {
@@ -506,6 +527,30 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
     ? `${data.kpis.activeUsers} ${labels.seatsUnlimited}`
     : `${data.kpis.activeUsers} / ${data.kpis.seatLimit}`;
 
+  const inviteRoleLabels = data.roles.map((role) => role.label);
+  const modalUsers = data.users.map((user) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    initials: user.initials,
+    currentRoleId: user.roleId,
+    currentRoleLabel: user.roleLabel,
+  }));
+  const modalRoles = data.roles.map((role) => ({ id: role.id, label: role.label }));
+
+  function openInviteDialog() {
+    if (!data.canInviteUsers) return;
+    setShowInvite(true);
+  }
+
+  function openPasswordReset(user: SettingsUser) {
+    if (!data.canResetPasswords || !resetPasswordAction) {
+      setFeedback({ kind: 'alert', message: labels.resetPasswordUnavailable ?? 'Password reset unavailable' });
+      return;
+    }
+    setPasswordResetUser(user);
+  }
+
   const renderEmptyState = () => (
     <div role="status" className="rounded-lg border border-dashed p-8 text-center">
       <EmptyState
@@ -513,7 +558,7 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
         title={interpolate(labels.noUsersTitle, { role: labels.emptyRoleName[selectedRole] })}
         body={labels.noUsersBody}
         action={(
-          <Button type="button" className="mt-4" onClick={() => setShowInvite(true)} disabled={!data.canInviteUsers}>
+          <Button type="button" className="mt-4" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
             {labels.inviteUser}
           </Button>
         )}
@@ -534,7 +579,7 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
           <Button type="button" onClick={exportVisibleUsers}>
             {labels.export}
           </Button>
-          <Button type="button" onClick={() => setShowInvite(true)} disabled={!data.canInviteUsers}>
+          <Button type="button" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
             + {labels.inviteUser}
           </Button>
         </div>
@@ -625,6 +670,19 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
                   <div className="border-t pt-2 text-xs text-muted-foreground">
                     {labels.lastActivePrefix}: {user.lastActive}
                   </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      type="button"
+                      className="text-xs"
+                      disabled={!data.canResetPasswords || !resetPasswordAction}
+                      aria-label={data.canResetPasswords && resetPasswordAction
+                        ? `${labels.resetPassword ?? 'Reset password'} for ${user.name}`
+                        : `${labels.resetPasswordUnavailable ?? 'Password reset unavailable'} for ${user.name}`}
+                      onClick={() => openPasswordReset(user)}
+                    >
+                      {labels.resetPassword ?? 'Reset password'}
+                    </Button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -679,7 +737,19 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
                       <td className="p-2">{user.site}</td>
                       <td className="p-2 text-muted-foreground">{user.lastActive}</td>
                       <td className="p-2"><Pill toneKey={user.status}>{labels.statuses[user.status]}</Pill></td>
-                      <td className="p-2 text-muted-foreground">⋮</td>
+                      <td className="p-2">
+                        <Button
+                          type="button"
+                          className="text-xs"
+                          disabled={!data.canResetPasswords || !resetPasswordAction}
+                          aria-label={data.canResetPasswords && resetPasswordAction
+                            ? `${labels.resetPassword ?? 'Reset password'} for ${user.name}`
+                            : `${labels.resetPasswordUnavailable ?? 'Password reset unavailable'} for ${user.name}`}
+                          onClick={() => openPasswordReset(user)}
+                        >
+                          {labels.resetPassword ?? 'Reset password'}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -740,6 +810,28 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
         inviteUserAction={inviteUserAction}
         onFeedback={setFeedback}
       />
+      <UserInviteModal
+        open={showInvite && data.canInviteUsers}
+        onOpenChange={setShowInvite}
+        roles={inviteRoleLabels}
+        inviteUser={async (input) => {
+          const role = data.roles.find((candidate) => candidate.label === input.role || candidate.id === input.role);
+          if (!inviteUserAction || !role) return { ok: false, error: 'ROLE_REQUIRED' };
+          const result = await inviteUserAction({
+            email: input.email,
+            name: input.fullName,
+            roleId: role.id,
+            personalMessage: input.message,
+            language: locale,
+          });
+          if (result.ok) {
+            setFeedback({ kind: 'status', message: interpolate(labels.invitationSent, { email: result.data.email }) });
+            return { ok: true };
+          }
+          setFeedback({ kind: 'alert', message: interpolate(labels.invitationFailed, { error: result.error }) });
+          return { ok: false, error: result.error };
+        }}
+      />
       <RoleAssignDialog
         draft={roleAssignmentDraft}
         onClose={() => setRoleAssignmentDraft(null)}
@@ -748,6 +840,44 @@ export default function SettingsUsersScreen({ data, labels, searchParams, locale
         assignRoleAction={assignRoleAction}
         onFeedback={setFeedback}
       />
+      <RoleAssignModal
+        open={Boolean(roleAssignmentDraft) && data.canAssignRoles && Boolean(assignRoleAction)}
+        users={roleAssignmentDraft
+          ? modalUsers.filter((user) => user.id === roleAssignmentDraft.user.id)
+          : modalUsers}
+        roles={modalRoles}
+        searchUsers={async ({ query, limit }) => {
+          const normalized = query.toLowerCase();
+          return modalUsers
+            .filter((user) => `${user.name} ${user.email}`.toLowerCase().includes(normalized))
+            .slice(0, limit);
+        }}
+        assignRole={async (input) => {
+          if (!assignRoleAction) return { ok: false, error: labels.roleAssignmentUnavailable };
+          const result = await assignRoleAction({ targetUserId: input.userId, roleId: input.roleId });
+          if (!result.ok) return { ok: false, error: result.error };
+          return { ok: true, userId: result.data.targetUserId, roleId: result.data.roleId, revalidatedPath: '/settings/users' };
+        }}
+        onOpenChange={(open) => { if (!open) setRoleAssignmentDraft(null); }}
+        onAssigned={() => setFeedback({ kind: 'status', message: labels.roleAssignmentSuccess ?? 'Role updated.' })}
+      />
+      {passwordResetUser ? (
+        <PasswordResetModal
+          open={Boolean(passwordResetUser)}
+          user={{ id: passwordResetUser.id, name: passwordResetUser.name, email: passwordResetUser.email }}
+          resetPassword={async () => {
+            if (!resetPasswordAction) return { ok: false, error: labels.resetPasswordUnavailable ?? 'Password reset unavailable' };
+            const result = await resetPasswordAction({ userId: passwordResetUser.id });
+            if (result.ok) {
+              setFeedback({ kind: 'status', message: labels.passwordResetSuccess ?? 'Password reset email sent' });
+              return { ok: true };
+            }
+            setFeedback({ kind: 'alert', message: interpolate(labels.passwordResetFailed ?? 'Password reset failed: {error}', { error: result.error }) });
+            return { ok: false, error: result.error };
+          }}
+          onOpenChange={(open) => { if (!open) setPasswordResetUser(null); }}
+        />
+      ) : null}
     </main>
   );
 }

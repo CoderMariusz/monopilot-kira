@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { assignRole } from '../../../../../../actions/users/assign-role';
 import { inviteUser } from '../../../../../../actions/users/invite';
+import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import SettingsUsersScreen, {
   type PermissionCell,
@@ -174,10 +175,11 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
   try {
     return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
-      const [canView, canInviteUsers, canAssignRoles] = await Promise.all([
+      const [canView, canInviteUsers, canAssignRoles, canResetPasswords] = await Promise.all([
         hasAnyPermission(queryClient, userId, orgId, ['settings.users.view', 'settings.users.invite', 'settings.roles.assign', 'settings.users.create', 'settings.users.deactivate']),
         hasAnyPermission(queryClient, userId, orgId, ['settings.users.invite']),
         hasAnyPermission(queryClient, userId, orgId, ['settings.roles.assign']),
+        hasAnyPermission(queryClient, userId, orgId, ['org.access.admin']),
       ]);
 
       if (!canView) return { state: 'permission-denied' as const };
@@ -313,6 +315,7 @@ async function readUsersScreenData(labels: UsersScreenLabels): Promise<UsersScre
           },
           canInviteUsers,
           canAssignRoles,
+          canResetPasswords,
         },
       };
     });
@@ -415,6 +418,10 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     roleAssignmentPreview: t('role_assignment_preview'),
     roleAssignmentSuccess: t('role_assignment_success'),
     roleAssignmentFailed: t('role_assignment_failed'),
+    resetPassword: t('reset_password'),
+    resetPasswordUnavailable: t('reset_password_unavailable'),
+    passwordResetSuccess: t('password_reset_success'),
+    passwordResetFailed: t('password_reset_failed'),
     exportStatus: t('export_status'),
   };
 }
@@ -458,6 +465,11 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       locale={locale}
       inviteUserAction={inviteUser}
       assignRoleAction={assignRole}
+      resetPasswordAction={async ({ userId }) => {
+        const result = await resetPassword({ targetUserId: userId });
+        if (result.ok) return { ok: true };
+        return { ok: false, error: result.error };
+      }}
     />
   );
 }
