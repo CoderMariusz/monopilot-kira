@@ -7,7 +7,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -59,6 +59,38 @@ vi.mock('next-intl/server', () => ({
     return template.replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? `{${name}}`));
   },
 }));
+
+const REQUIRED_SCHEMA_DIFF_I18N_KEYS = [
+  'title',
+  'subtitle',
+  'unifiedDiff',
+  'noPriorVersion',
+  'noPriorVersionBody',
+  'added',
+  'removed',
+  'changed',
+  'unchanged',
+  'changedBy',
+  'changedAt',
+  'deployRef',
+  'revertToPrevious',
+  'backToSchemaBrowser',
+  'forbiddenTitle',
+  'forbiddenBody',
+  'unableToLoadTitle',
+  'unableToLoadBody',
+  'unavailableTitle',
+  'noVersionsBody',
+  'compare',
+  'against',
+  'tier',
+  'path',
+  'before',
+  'current',
+  'change',
+  'settingsCrumb',
+  'schemaBrowserCrumb',
+] as const;
 
 const versionRows = [
   {
@@ -228,6 +260,24 @@ describe('SET-032 localized Schema Diff Viewer', () => {
     cleanup();
     harness.client = undefined;
     harness.queryParams = [];
+  });
+
+  it('has schema_diff i18n messages for every supported locale and state', async () => {
+    const locales = ['en', 'pl', 'ro', 'uk'] as const;
+
+    for (const locale of locales) {
+      const filePath = path.join(process.cwd(), 'messages', locale, '02-settings.json');
+      const messages = JSON.parse(await readFile(filePath, 'utf8')) as { schema_diff?: Record<string, unknown> };
+      expect(
+        messages.schema_diff,
+        `${locale}/02-settings.json must define settings.schema_diff so the page does not fall back to English defaults or raw keys`,
+      ).toBeDefined();
+      for (const key of REQUIRED_SCHEMA_DIFF_I18N_KEYS) {
+        expect(messages.schema_diff?.[key], `${locale}/02-settings.json missing schema_diff.${key}`).toEqual(
+          expect.any(String),
+        );
+      }
+    }
   });
 
   it('is implemented only at the localized AppShell route /settings/schema/diff/:id', async () => {
