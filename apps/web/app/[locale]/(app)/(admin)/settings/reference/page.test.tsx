@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -224,6 +224,80 @@ describe('UI-SET-006 Reference Data route modal CRUD parity', () => {
       expectedVersion: 7,
     });
     expect(onReferenceDataChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Add row as the SM-11 add-mode modal for the currently selected table, with only that table schema fields wired to upsert', async () => {
+    const user = userEvent.setup();
+    const upsertReferenceRow = vi.fn().mockResolvedValue({ ok: true, data: { tableCode: 'uom_reference', rowKey: 'KG' } });
+    const onReferenceDataChanged = vi.fn();
+    await renderReferenceData({
+      tables: [
+        ...tables,
+        {
+          code: 'uom_reference',
+          name: 'Units of measure',
+          desc: 'Mass and count units used in planning and production.',
+          marker: 'TENANT',
+          rows: 0,
+          updated: '—',
+          columns: [
+            { key: 'code', label: 'Code', type: 'badge' },
+            { key: 'name', label: 'Name', type: 'text' },
+            { key: 'active', label: 'Active', type: 'boolean' },
+          ],
+        },
+      ],
+      selectedTableCode: 'uom_reference',
+      rowsByTable: { ...rowsByTable, uom_reference: [] },
+      upsertReferenceRow,
+      onReferenceDataChanged,
+    });
+
+    await user.click(screen.getByRole('button', { name: /add row/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /^add row$/i });
+    expect(dialog).toHaveAttribute('data-modal-id', 'SM-11');
+    expect(within(dialog).getByText('Reference table · uom_reference')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Row key')).not.toHaveAttribute('readOnly');
+    expect(within(dialog).getByLabelText('Code')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Name')).toBeInTheDocument();
+    expect(within(dialog).getByRole('switch', { name: 'Active' })).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Display name')).not.toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText('Row key'), 'KG');
+    await user.type(within(dialog).getByLabelText('Code'), 'KG');
+    await user.type(within(dialog).getByLabelText('Name'), 'Kilogram');
+    await user.click(within(dialog).getByRole('button', { name: /^save$/i }));
+
+    await expect(upsertReferenceRow).toHaveBeenCalledWith({
+      tableCode: 'uom_reference',
+      rowKey: 'KG',
+      rowData: expect.objectContaining({ code: 'KG', name: 'Kilogram', active: true }),
+    });
+    expect(onReferenceDataChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps delete fail-closed failures visible as explicit permission/error copy instead of leaking raw action codes', async () => {
+    const user = userEvent.setup();
+    const softDeleteReferenceRow = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    const onReferenceDataChanged = vi.fn();
+    await renderReferenceData({ softDeleteReferenceRow, onReferenceDataChanged });
+
+    await user.click(screen.getByRole('button', { name: /delete milk/i }));
+    const dialog = await screen.findByTestId('delete-reference-data-modal');
+    await user.type(within(dialog).getByLabelText(/type DELETE to confirm/i), 'DELETE');
+    await user.click(within(dialog).getByRole('checkbox', { name: /^confirm$/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^delete permanently$/i }));
+
+    await waitFor(() => expect(softDeleteReferenceRow).toHaveBeenCalledWith({
+      tableCode: 'allergens_reference',
+      rowKey: 'MILK',
+      expectedVersion: 7,
+    }));
+    expect(screen.queryByText(/You do not have permission|Unable to delete|Permission denied/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^forbidden$/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /delete milk/i })).toBeInTheDocument();
+    expect(onReferenceDataChanged).not.toHaveBeenCalled();
   });
 
   it('ships route and modal copy in en/pl/ro/uk under settings.reference_data so the UI never falls back to raw English literals', async () => {
