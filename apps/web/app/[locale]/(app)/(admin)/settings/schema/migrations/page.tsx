@@ -251,6 +251,7 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
       aria-labelledby="settings-schema-migrations-title"
       className="settings-page settings-schema-migrations-queue space-y-4"
     >
+      <style>{`.settings-schema-migrations-queue__detail-row:not([open]) .settings-schema-migrations-queue__detail{display:none;}`}</style>
       <header data-region="page-head" className="settings-page__head">
         <div>
           <h1 id="settings-schema-migrations-title">{labels.title}</h1>
@@ -336,11 +337,9 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
                   </div>
                 </div>
                 <div role="rowgroup" className="table__body">
-                  {filtered.map((row, index) => {
-                    const renderDetail = selectedStatus === 'pending' && index === 0;
-                    return (
-                      <details key={row.migrationId} className="settings-schema-migrations-queue__detail-row" open={renderDetail}>
-                        <summary role="row" className="table__row" aria-label={`${labels.detail}: ${formatTableColumn(row)}`}>
+                  {filtered.map((row) => (
+                    <details key={row.migrationId} className="settings-schema-migrations-queue__detail-row">
+                      <summary role="row" className="table__row" aria-label={`${labels.detail}: ${formatTableColumn(row)}`}>
                         <span role="cell" className="table__cell mono">{shortId(row.migrationId)}</span>
                         <span role="cell" className="table__cell mono">{formatTableColumn(row)}</span>
                         <span role="cell" className="table__cell"><Badge variant="secondary">{row.action}</Badge></span>
@@ -349,20 +348,19 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
                         <span role="cell" className="table__cell">{row.approvedByName ?? labels.none}</span>
                         <span role="cell" className="table__cell"><StatusBadge status={row.status} /></span>
                         <span role="cell" className="table__cell settings-schema-migrations-queue__actions">
-                          <Button type="button" className="btn-ghost btn-sm" aria-label={labels.viewMigrationScript}>
+                          <span role="button" tabIndex={0} className="btn btn-ghost btn-sm" aria-label={labels.viewMigrationScript}>
                             👁 {labels.viewMigrationScript}
-                          </Button>
+                          </span>
                           {row.status === 'pending' ? (
                             <Button type="button" className="btn-ghost btn-sm" disabled aria-disabled="true">
                               {labels.cancel}
                             </Button>
                           ) : null}
                         </span>
-                        </summary>
-                        {renderDetail ? <MigrationDetail row={row} labels={labels} /> : null}
-                      </details>
-                    );
-                  })}
+                      </summary>
+                      <MigrationDetail row={row} labels={labels} />
+                    </details>
+                  ))}
                 </div>
               </div>
             )}
@@ -373,11 +371,11 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
   );
 }
 
-function StatusBadge({ status }: { status: MigrationStatus }) {
+function StatusBadge({ status, label = status }: { status: MigrationStatus; label?: string }) {
   const tone = STATUS_TONES[status];
   return (
     <Badge variant={tone.variant} data-status-tone={tone.tone} data-status={status} className={status === 'running' ? 'animate-pulse' : undefined}>
-      {status}
+      {label}
     </Badge>
   );
 }
@@ -401,7 +399,7 @@ function MigrationDetail({ row, labels }: { row: SchemaMigrationRow; labels: Que
       <ol aria-label={labels.statusTimeline}>
         {row.timeline.map((event) => (
           <li key={`${event.status}-${event.at}-${event.actor}`}>
-            <StatusBadge status={event.status} /> <time dateTime={event.at}>{toDisplayDate(event.at)}</time> · {event.actor}
+            <StatusBadge status={event.status} label={event.status.toUpperCase()} /> <time dateTime={event.at}>{toDisplayDate(event.at)}</time> · {event.actor}
           </li>
         ))}
       </ol>
