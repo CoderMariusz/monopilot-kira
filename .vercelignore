@@ -1,0 +1,26 @@
+# Local ACP/runtime artifacts are huge and must never be uploaded by Vercel CLI deploys.
+.acp
+.hermes
+.claude
+.codex
+
+# Dependency/build/cache outputs.
+node_modules
+**/node_modules
+.next
+**/.next
+.turbo
+**/.turbo
+coverage
+**/coverage
+playwright-report
+test-results
+**/playwright-report
+**/test-results
+
+# Local env/log/temp artifacts.
+.env*
+*.log
+logs
+**/logs
+.DS_Store
