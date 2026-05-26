@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+const productionModalCalls = vi.hoisted(() => ({
+  invite: [] as Array<{ open: boolean; roles: string[] }>,
+  roleAssign: [] as Array<{ open: boolean; users: Array<{ id: string; currentRoleLabel: string }>; roles: Array<{ id: string; label: string }> }>,
+  passwordReset: [] as Array<{ open: boolean; user: { id: string; email: string } | null }>,
+}));
+
 vi.mock('@monopilot/ui/Button', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
 }));
@@ -46,6 +52,53 @@ vi.mock('@monopilot/ui/Modal', () => {
   return { default: Object.assign(Modal, { Header, Body, Footer }) };
 });
 
+vi.mock('../../../../../../components/settings/modals/user-invite-modal', () => ({
+  UserInviteModal: (props: { open: boolean; roles: string[]; onOpenChange: (open: boolean) => void }) => {
+    productionModalCalls.invite.push({ open: props.open, roles: props.roles });
+    if (!props.open) return null;
+    return (
+      <div role="dialog" aria-modal="true" aria-label="production invite modal">
+        <p>Production UserInviteModal</p>
+        <button type="button" onClick={() => props.onOpenChange(false)}>Close production invite</button>
+      </div>
+    );
+  },
+}));
+
+vi.mock('../../../../../../components/settings/modals/role-assign-modal', () => ({
+  RoleAssignModal: (props: {
+    open: boolean;
+    users: Array<{ id: string; currentRoleLabel: string }>;
+    roles: Array<{ id: string; label: string }>;
+    onOpenChange: (open: boolean) => void;
+  }) => {
+    productionModalCalls.roleAssign.push({ open: props.open, users: props.users, roles: props.roles });
+    if (!props.open) return null;
+    return (
+      <div role="dialog" aria-modal="true" aria-label="production role assign modal">
+        <p>Production RoleAssignModal</p>
+        <p>Selected user {props.users[0]?.id}</p>
+        <p>Role options {props.roles.map((role) => role.label).join(', ')}</p>
+        <button type="button" onClick={() => props.onOpenChange(false)}>Close production role assign</button>
+      </div>
+    );
+  },
+}));
+
+vi.mock('../../../../../../components/settings/modals/password-reset-modal', () => ({
+  PasswordResetModal: (props: { open: boolean; user?: { id: string; email: string } | null; onOpenChange: (open: boolean) => void }) => {
+    productionModalCalls.passwordReset.push({ open: props.open, user: props.user ?? null });
+    if (!props.open || !props.user) return null;
+    return (
+      <div role="dialog" aria-modal="true" aria-label="production password reset modal">
+        <p>Production PasswordResetModal</p>
+        <p>Reset target {props.user.email}</p>
+        <button type="button" onClick={() => props.onOpenChange(false)}>Close production password reset</button>
+      </div>
+    );
+  },
+}));
+
 import SettingsUsersScreen, {
   type SettingsUsersScreenProps,
   type UsersScreenData,
@@ -56,6 +109,8 @@ type AssignRoleAction = (input: { targetUserId: string; roleId: string }) => Pro
   | { ok: true; data: { targetUserId: string; roleId: string } }
   | { ok: false; error: string }
 >;
+
+type ResetPasswordAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
 
 const labels: UsersScreenLabels = {
   title: 'Users & roles',
@@ -154,8 +209,8 @@ const data: UsersScreenData = {
   canAssignRoles: true,
 };
 
-function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRoleAction: AssignRoleAction }> = {}) {
-  const Screen = SettingsUsersScreen as React.ComponentType<SettingsUsersScreenProps & { assignRoleAction?: AssignRoleAction }>;
+function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRoleAction: AssignRoleAction; resetPasswordAction: ResetPasswordAction }> = {}) {
+  const Screen = SettingsUsersScreen as React.ComponentType<SettingsUsersScreenProps & { assignRoleAction?: AssignRoleAction; resetPasswordAction?: ResetPasswordAction }>;
   return render(
     <Screen
       data={data}
@@ -169,6 +224,31 @@ function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRole
 }
 
 describe('SettingsUsersScreen invite and role assignment parity', () => {
+  beforeEach(() => {
+    productionModalCalls.invite.length = 0;
+    productionModalCalls.roleAssign.length = 0;
+    productionModalCalls.passwordReset.length = 0;
+  });
+
+  it('opens the production UserInviteModal from the route CTA and keeps the CTA fail-closed without invite permission', async () => {
+    const user = userEvent.setup();
+    const inviteUserAction = vi.fn().mockResolvedValue({ ok: true, data: { email: 'new@example.com', expiresAt: '2026-06-01T00:00:00Z' } });
+    renderScreen({ inviteUserAction });
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    expect(await screen.findByRole('dialog', { name: /production invite modal/i })).toBeVisible();
+    expect(productionModalCalls.invite.at(-1)).toMatchObject({ open: true, roles: ['Admin', 'Manager', 'Operator', 'Viewer'] });
+
+    renderScreen({
+      data: { ...data, canInviteUsers: false } as UsersScreenData,
+      inviteUserAction,
+    });
+    const disabledInvite = screen.getAllByRole('button', { name: /invite user/i }).at(-1);
+    expect(disabledInvite).toBeDisabled();
+    await user.click(disabledInvite!);
+    expect(screen.queryAllByRole('dialog', { name: /production invite modal/i })).toHaveLength(1);
+  });
+
   it('submits Invite user dialog through the injected Server Action with role, site, and personal message metadata', async () => {
     const user = userEvent.setup();
     const inviteUserAction = vi.fn().mockResolvedValue({ ok: true, data: { email: 'new@example.com', expiresAt: '2026-06-01T00:00:00Z' } });
@@ -206,5 +286,58 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
 
     expect(assignRoleAction).toHaveBeenCalledWith({ targetUserId: 'user-maria', roleId: 'role-operator' });
     expect(screen.getByRole('status')).toHaveTextContent(/role.*updated|assigned/i);
+  });
+
+  it('opens the production RoleAssignModal for the selected user and passes role picker options/categories', async () => {
+    const user = userEvent.setup();
+    const assignRoleAction = vi.fn().mockResolvedValue({ ok: true, data: { targetUserId: 'user-maria', roleId: 'role-operator' } });
+    renderScreen({ assignRoleAction });
+
+    const row = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.selectOptions(within(row).getByRole('combobox', { name: /Maria Manager Role/i }), 'role-operator');
+
+    expect(await screen.findByRole('dialog', { name: /production role assign modal/i })).toBeVisible();
+    expect(screen.getByText(/Selected user user-maria/i)).toBeVisible();
+    expect(screen.getByText(/Role options Admin, Manager, Operator, Viewer/i)).toBeVisible();
+    expect(productionModalCalls.roleAssign.at(-1)).toMatchObject({
+      open: true,
+      users: [expect.objectContaining({ id: 'user-maria', currentRoleLabel: 'Manager' })],
+    });
+  });
+
+  it('opens PasswordResetModal from a visible per-user action when allowed', async () => {
+    const user = userEvent.setup();
+    const resetPasswordAction = vi.fn().mockResolvedValue({ ok: true });
+    renderScreen({
+      data: { ...data, canResetPasswords: true } as UsersScreenData,
+      resetPasswordAction,
+    });
+
+    const row = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    await user.click(within(row).getByRole('button', { name: /reset password for maria manager/i }));
+
+    expect(await screen.findByRole('dialog', { name: /production password reset modal/i })).toBeVisible();
+    expect(screen.getByText(/Reset target maria@example\.com/i)).toBeVisible();
+    expect(productionModalCalls.passwordReset.at(-1)).toMatchObject({
+      open: true,
+      user: expect.objectContaining({ id: 'user-maria', email: 'maria@example.com' }),
+    });
+  });
+
+  it('shows an explicit disabled password reset state instead of a hidden or generic action when reset permission is unavailable', () => {
+    renderScreen({ data: { ...data, canResetPasswords: false } as UsersScreenData });
+
+    const row = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
+    const resetControl = within(row).getByRole('button', { name: /password reset unavailable for maria manager/i });
+    expect(resetControl).toBeDisabled();
+  });
+
+  it('renders normal users data without raw settings i18n keys or the generic load-error panel', () => {
+    renderScreen();
+
+    expect(screen.getByRole('heading', { name: /users & roles/i })).toBeVisible();
+    expect(screen.getByText('Maria Manager')).toBeVisible();
+    expect(screen.queryByRole('alert', { name: /unable to load users/i })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/settings\.users_screen|settings\.[a-z0-9_.-]+/i);
   });
 });
