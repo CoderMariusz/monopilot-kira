@@ -201,7 +201,7 @@ describe('SET-033 schema migrations queue UX contract', () => {
 
     const pendingRow = rowContaining('main_table / shelf_life_days');
     expect(pendingRow).toBeTruthy();
-    await user.click(pendingRow!);
+    await user.click(within(pendingRow!).getByRole('button', { name: /view migration script/i }));
 
     const detail = screen.getByRole('region', { name: /migration script detail/i });
     const codeMirror = within(detail).getByTestId('migration-script-codemirror');
@@ -212,6 +212,24 @@ describe('SET-033 schema migrations queue UX contract', () => {
     expect(within(detail).getByText(/Awaiting Monopilot superadmin review/i)).toBeInTheDocument();
     expect(within(detail).getByRole('list', { name: /status timeline/i })).toHaveTextContent(/pending/i);
     expect(within(detail).queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('keeps the detail panel closed until the operator chooses a specific row script and then shows that row SQL', async () => {
+    const user = userEvent.setup();
+    await renderSchemaMigrationsQueue({ searchParams: Promise.resolve({ status: 'all' }) });
+
+    expect(screen.queryByRole('region', { name: /migration script detail/i })).not.toBeInTheDocument();
+
+    const completedRow = rowContaining('partners / supplier_cert_expiry');
+    expect(completedRow).toBeTruthy();
+    await user.click(within(completedRow!).getByRole('button', { name: /view migration script/i }));
+
+    const detail = screen.getByRole('region', { name: /migration script detail/i });
+    const codeMirror = within(detail).getByTestId('migration-script-codemirror');
+    expect(codeMirror).toHaveAttribute('data-language', 'sql');
+    expect(codeMirror).toHaveAttribute('aria-readonly', 'true');
+    expect(codeMirror).toHaveTextContent(/alter table public\.partners add column supplier_cert_expiry date/i);
+    expect(codeMirror).not.toHaveTextContent(/shelf_life_days/i);
   });
 
   it('renders empty and loading states named by the UX spec without silently skipping evidence', async () => {
