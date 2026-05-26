@@ -36,6 +36,14 @@ vi.mock('next-intl/server', () => ({
   }),
 }));
 
+const { testD365ConnectionActionMock } = vi.hoisted(() => ({
+  testD365ConnectionActionMock: vi.fn(async () => ({ ok: true as const })),
+}));
+
+vi.mock('../../../../../../../actions/d365/test-connection', () => ({
+  testD365Connection: testD365ConnectionActionMock,
+}));
+
 type D365ConnectionConfig = {
   baseUrl: string;
   environment: 'Production' | 'Sandbox' | 'Development';
@@ -84,6 +92,42 @@ const d365Config: D365ConnectionConfig = {
   enabled: true,
   lastTest: { ok: true, at: '2026-05-20T14:02:00.000Z', latencyMs: 138, environment: 'Production' },
 };
+
+const d365EnvKeys = [
+  'D365_BASE_URL',
+  'NEXT_PUBLIC_D365_BASE_URL',
+  'D365_TENANT_ID',
+  'D365_CLIENT_ID',
+  'D365_CLIENT_SECRET_REF',
+  'D365_CLIENT_SECRET_SET',
+  'D365_SERVICE_ACCOUNT_EMAIL',
+  'D365_POLL_CRON',
+  'D365_ENABLED',
+  'D365_ENVIRONMENT',
+  'D365_OAUTH_BEARER',
+] as const;
+
+function withRuntimeD365Env(values: Partial<Record<(typeof d365EnvKeys)[number], string>>) {
+  const previous = new Map<(typeof d365EnvKeys)[number], string | undefined>();
+  for (const key of d365EnvKeys) {
+    previous.set(key, process.env[key]);
+    if (Object.prototype.hasOwnProperty.call(values, key)) {
+      const value = values[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    } else {
+      delete process.env[key];
+    }
+  }
+
+  return () => {
+    for (const key of d365EnvKeys) {
+      const value = previous.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
 
 async function loadD365ConnectionPage(): Promise<D365ConnectionPage> {
   const routeCandidates = [
@@ -297,5 +341,62 @@ describe('T-061 D365 connection prototype parity and behavior', () => {
     await renderD365ConnectionPage({ state: 'error', config: null });
     expect(connectionScreen()).toHaveTextContent(/Unable to load D365 connection/i);
     expect(screen.getByRole('alert')).toHaveTextContent(/Unable to load D365 connection/i);
+  });
+
+  it('uses the existing d365 test-connection action path when the route supplies no test override', async () => {
+    const restoreEnv = withRuntimeD365Env({
+      D365_BASE_URL: d365Config.baseUrl,
+      D365_TENANT_ID: d365Config.tenantId,
+      D365_CLIENT_ID: d365Config.clientId,
+      D365_CLIENT_SECRET_SET: 'true',
+      D365_SERVICE_ACCOUNT_EMAIL: d365Config.serviceAccountEmail,
+      D365_POLL_CRON: d365Config.pollCron,
+      D365_ENABLED: 'true',
+      D365_ENVIRONMENT: 'Production',
+      D365_OAUTH_BEARER: 'redacted-test-bearer',
+    });
+    try {
+      const user = userEvent.setup();
+      const Page = await loadD365ConnectionPage();
+      const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+      render(React.createElement(React.Fragment, null, node));
+
+      await user.click(screen.getByRole('button', { name: /^Test connection$/i }));
+
+      await waitFor(() => expect(testD365ConnectionActionMock).toHaveBeenCalledTimes(1));
+      expect(testD365ConnectionActionMock).toHaveBeenCalledWith({
+        baseUrl: d365Config.baseUrl,
+        oauthBearer: expect.any(String),
+      });
+      expect(await screen.findByRole('dialog', { name: /test d365 connection|test connection/i })).toHaveAttribute(
+        'data-modal-id',
+        'SM-08',
+      );
+      expect(document.body).not.toHaveTextContent(/redacted-test-bearer|D365_OAUTH_BEARER|bearer/i);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it('keeps D365 controls visible but fail-closed and explicit when runtime prerequisites are missing', async () => {
+    const restoreEnv = withRuntimeD365Env({});
+    try {
+      const Page = await loadD365ConnectionPage();
+      const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+      render(React.createElement(React.Fragment, null, node));
+
+      expect(connectionScreen()).toHaveTextContent(/D365 connection is not configured|missing/i);
+      expect(screen.getByRole('button', { name: /^Test connection$/i })).toBeEnabled();
+      expect(screen.getByRole('button', { name: /^Save configuration$/i })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: /base url/i })).toBeDisabled();
+      expect(screen.getByRole('combobox', { name: /environment/i })).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('textbox', { name: /tenant id/i })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: /client id/i })).toBeDisabled();
+      expect(screen.getByRole('switch', { name: /integration enabled/i })).toBeDisabled();
+      expect(screen.getByRole('alert')).toHaveTextContent(/D365.*(prerequisite|configuration|environment|missing)/i);
+      expect(document.body).not.toHaveTextContent(/settings\./i);
+    } finally {
+      restoreEnv();
+    }
   });
 });
