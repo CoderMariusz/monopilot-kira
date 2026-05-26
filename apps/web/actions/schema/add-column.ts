@@ -13,6 +13,19 @@ type OrgActionContext = {
   client: QueryClient;
 };
 
+type SchemaRow = {
+  table_code: string;
+  column_code: string;
+  data_type: string;
+  tier: string;
+  storage: string;
+  dropdown_source?: string | null;
+  validation_json?: Record<string, unknown> | null;
+  presentation_json?: Record<string, unknown> | null;
+  schema_version: number | string;
+  deprecated_at?: string | null;
+};
+
 type SchemaScope = 'universal' | 'variation' | 'org-specific' | 'private';
 type SchemaTier = 'L1' | 'L2' | 'L3' | 'L4';
 
@@ -58,7 +71,7 @@ export type AddColumnResult =
     }
   | {
       ok: false;
-      error: 'INVALID_INPUT' | 'INVALID_DATA_TYPE' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'PERSISTENCE_FAILED';
+      error: 'INVALID_INPUT' | 'INVALID_DATA_TYPE' | 'DROPDOWN_SOURCE_FK_VIOLATION' | 'FORBIDDEN' | 'CONCURRENT_EDIT' | 'PERSISTENCE_FAILED';
       data?: Record<string, unknown>;
     };
 
@@ -100,6 +113,21 @@ export async function addColumn(rawInput: AddColumnInput): Promise<AddColumnResu
           error: 'DROPDOWN_SOURCE_FK_VIOLATION',
           data: { dropdownSource: null, reason: 'enum/relation data type requires dropdown_source' },
         };
+      }
+
+      const existing = await findSchemaColumn({ client, tableCode: input.tableCode, columnCode: input.columnCode });
+      if (existing && input.expectedSchemaVersion !== null) {
+        const currentVersion = Number(existing.schema_version);
+        if (currentVersion !== input.expectedSchemaVersion) {
+          return {
+            ok: false,
+            error: 'CONCURRENT_EDIT',
+            data: {
+              currentSchemaVersion: currentVersion,
+              diff: conflictDiff(existing, input),
+            },
+          };
+        }
       }
 
       const plan = tierPlan(input.scope);
@@ -314,6 +342,42 @@ async function referenceTableExists({ client, tableCode }: { client: QueryClient
     [tableCode],
   );
   return rows.length > 0;
+}
+
+async function findSchemaColumn({ client, tableCode, columnCode }: { client: QueryClient; tableCode: string; columnCode: string }): Promise<SchemaRow | null> {
+  const { rows } = await client.query<SchemaRow>(
+    `select table_code, column_code, data_type, tier, storage, dropdown_source,
+            validation_json, presentation_json, schema_version, deprecated_at
+       from public.reference_schemas
+      where org_id = app.current_org_id()
+        and table_code = $1
+        and column_code = $2
+      limit 1`,
+    [tableCode, columnCode],
+  );
+  return rows[0] ?? null;
+}
+
+function conflictDiff(existing: SchemaRow, input: ParsedAddColumnInput): Record<string, unknown> {
+  return {
+    expectedSchemaVersion: input.expectedSchemaVersion,
+    current: {
+      dataType: existing.data_type,
+      tier: existing.tier,
+      storage: existing.storage,
+      dropdownSource: existing.dropdown_source ?? null,
+      validationJson: existing.validation_json ?? {},
+      presentationJson: existing.presentation_json ?? {},
+      deprecatedAt: existing.deprecated_at ?? null,
+    },
+    attempted: {
+      dataType: input.dataType,
+      scope: input.scope,
+      dropdownSource: input.dropdownSource,
+      validationJson: input.validationJson,
+      presentationJson: input.presentationJson,
+    },
+  };
 }
 
 function normalizeScope(value: unknown): SchemaScope | null {
