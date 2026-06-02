@@ -5,50 +5,74 @@ The orchestrator routes each unit of work to the cheapest model that can do it
 the legacy `routing_hints` (`hermes_gpt55`, `spark_low_risk_else_opus`,
 `opus_if_high_risk_or_ui_or_architecture`).
 
+# Model Routing — who runs which job
+
+The orchestrator routes each unit of work to the model that does it **correctly
+at the lowest cost**, and pairs writer/reviewer across providers. **Codex is the
+primary implementer** — both standard and logic-heavy code go to it. Claude is
+the orchestrator, the UI/parity author, and the reviewer of Codex's work. This
+replaces the legacy `routing_hints` (`hermes_gpt55`, `spark_low_risk_else_opus`,
+`opus_if_high_risk_or_ui_or_architecture`).
+
+The Claude side is wired as **named subagents** in `.claude/agents/kira-*.md`
+(the orchestrator calls them by name); Codex is invoked via `/codex:*` (it is a
+separate provider, not a Claude subagent).
+
 ## Routing tokens (use these in `routing_hints` after Phase 1)
 
 | Token | Resolves to | Used for |
 |---|---|---|
-| `research-fanout` | Claude **Sonnet** sub-agents (`Agent` tool, parallel) | broad codebase sweeps, reality audits, "find all X" |
+| `research-quick` | Claude **Haiku** (`kira-mechanical`) | fast lookups: grep/find, "where is X", "does Y exist" |
+| `research-audit` | Claude **Sonnet** (`kira-research`, parallel) | Phase-0 reality classification + module research reads (needs judgment) |
 | `research-synth` | Claude **Opus** | synthesizing fan-out results into a judgment |
-| `mechanical` | Claude **Haiku** | renames, lint/codemod fixes, i18n key moves, string extraction, file moves |
-| `impl-standard` | Claude **Sonnet** | T1-schema, T2-api, T5-seed — clear contracts, low ambiguity |
+| `mechanical` | Claude **Haiku** (`kira-mechanical`) | renames, lint/codemod fixes, i18n key moves, string extraction, file moves |
+| `impl-easy` | Claude **Sonnet** (`kira-easy`) | ONLY trivial work: a single CRUD action, a simple seed/fixture, a simple test |
+| `impl-standard` | **Codex** (`/codex:rescue`, `--model gpt-5.4`) | the bulk of implementation: T1-schema, T2-api, T5-seed |
 | `impl-logic` | **Codex** (`/codex:rescue`, `--model gpt-5.4`) | algorithm/logic-heavy code: MRP, allocation, FIFO/WAC, SSCC mod-10, DSL executors, scheduling/cycle detection |
-| `impl-ui` | Claude **Opus** | T3-ui and UI-flow T4 — prototype-parity translation is architectural (per `MON-t3-ui`) |
-| `test` | Claude **Sonnet** | T4-wiring-test, Playwright/Vitest authoring |
+| `impl-ui` | Claude **Opus** (`kira-ui`) | T3-ui and UI-flow T4 — prototype-parity translation is architectural (per `MON-t3-ui`) |
+| `test` | Claude **Sonnet** (`kira-easy`); **Codex** if complex | T4-wiring-test, Playwright/Vitest authoring |
+| `review-codex-work` | Claude **Opus** (`kira-codex-review`, high-risk) / **Sonnet** (low) | Claude reviewing Codex-written code |
 | `decompose` | Claude **Opus** | `prd-decompose-hybrid` (Opus-only — Haiku fails tech-stack accuracy) |
 | `plan` / `orchestrate` | Claude **Opus** | wave planning, consolidation, audit synthesis, this orchestrator |
 
+> **Why Sonnet still does the Phase-0 audit (`research-audit`), not Haiku:**
+> classifying "implemented vs stub vs broken" with file evidence is judgment, not
+> a quick lookup. Haiku is reserved for genuinely mechanical work + fast lookups.
+> If you'd rather push the audit to Haiku to save cost, change `kira-research`'s
+> model to `haiku` — but expect more misclassifications to fix in Phase 1.
+
 ## Writer → reviewer pairing (cross-provider)
 
-The model that wrote the code never signs off on it. Pairing depends on risk
-tier (see `02-QUALITY-GATES.md`):
+The model that wrote the code never signs off on it. Since **Codex writes most
+code**, Claude does most reviewing; the one inverted lane is UI (Opus writes,
+Codex reviews). Pairing depends on risk tier (see `02-QUALITY-GATES.md`):
 
 | Writer | High-risk reviewer | Low-risk reviewer |
 |---|---|---|
-| Claude (Sonnet/Opus) | **Codex** `/codex:review` (or `/codex:adversarial-review`) | Claude Sonnet self-check pass |
-| Codex (`impl-logic`) | **Claude Opus** review | Claude Sonnet review |
-| Haiku (`mechanical`) | n/a — diff is trivial | Sonnet spot-check |
+| **Codex** (`impl-standard`, `impl-logic`) | **Claude Opus** (`kira-codex-review`) | Claude Sonnet (`kira-easy`) |
+| Claude **Opus** (`impl-ui`) | **Codex** `/codex:review` (or `/codex:adversarial-review`) | Codex `/codex:review` |
+| Claude **Sonnet** (`impl-easy`, `test`) | **Codex** `/codex:review` | Codex `/codex:review` |
+| Claude **Haiku** (`mechanical`) | n/a — diff is trivial | Sonnet spot-check |
 
 ## Default routing by `task_type`
 
 | `task_type` | Writer | Reviewer (high-risk) | Notes |
 |---|---|---|---|
-| T1-schema | `impl-standard` | Codex + Opus (RLS/security always high-risk) | migrations, Drizzle, RLS, audit triggers |
-| T2-api | `impl-standard`; `impl-logic` if algorithm-heavy | Codex | Server Actions, validation, outbox, rate-limit |
-| T3-ui | `impl-ui` (Opus) | Codex review **+** screenshot/axe parity gate | parity is non-negotiable |
-| T4-wiring-test | `test` | Codex | E2E + integration |
+| T1-schema | **Codex** (`impl-standard`) | Claude Opus (RLS/security always high-risk) | migrations, Drizzle, RLS, audit triggers |
+| T2-api | **Codex** (`impl-standard`/`impl-logic`) | Claude Opus (high) / Sonnet (low) | Server Actions, validation, outbox, rate-limit |
+| T3-ui | `impl-ui` (Opus) | Codex review **+** screenshot/axe parity gate | parity is non-negotiable; the inverted lane |
+| T4-wiring-test | `test` (Sonnet; Codex if complex) | Codex | E2E + integration |
 | T4-e2e | `test` | Codex | Playwright only |
-| T5-seed | `impl-standard` / `mechanical` | Sonnet | inserts/fixtures |
+| T5-seed | **Codex** (`impl-standard`); `impl-easy` if trivial | Sonnet | inserts/fixtures |
 | T0-root / docs | `plan` (Opus) | Opus self + Codex spot | policy/ADR/contract |
 
 ## `impl-logic` task families per module → route to Codex
 
-These are the algorithmic cores where Codex (`/codex:rescue`) leads
-implementation and Claude (Opus high-risk / Sonnet low-risk) reviews. Everything
-NOT listed here defaults to the `task_type` table above (Claude writes, Codex
-reviews on high-risk). When in doubt, logic with non-trivial edge cases, money,
-or ordering/graph constraints → Codex.
+Both `impl-standard` and `impl-logic` go to Codex now; this list flags the
+**algorithmic cores** that additionally deserve a careful **Opus** review (money,
+ordering/graph constraints, regulatory math). When in doubt, anything with
+non-trivial edge cases → Codex writes, Opus reviews.
+
 
 | Module | `impl-logic` families (Codex implements) |
 |---|---|
@@ -73,13 +97,18 @@ Opus writes the screen that drives it, each reviewed by the other.
 
 ## Cost note (agentmaxxing economics)
 
-Codex Cloud delegation does not consume local resources, so the orchestrator may
-run several local Claude worktrees alongside several Codex Cloud tasks
-concurrently. Give Codex **worker** tasks a cheaper profile and reserve
-`gpt-5.4` for reviews (see `04-CODEX-INTEGRATION.md` → profiles). High-risk
-implementation and all parity/architecture judgment stay on **Opus**.
+Codex is now the implementation workhorse, so most volume lands there. Codex
+Cloud delegation does not consume local resources, so the orchestrator may run a
+few local Claude worktrees (Opus UI, Sonnet easy/review, Haiku mechanical)
+alongside many Codex Cloud implementation tasks concurrently. Give Codex
+**worker/implementation** tasks a cheaper profile and reserve `gpt-5.4` for
+high-risk implementation + reviews (see `04-CODEX-INTEGRATION.md` → profiles).
+All parity/architecture judgment and review of Codex's high-risk work stay on
+**Opus**; Sonnet is for trivial work + low-risk review; Haiku for mechanics + fast
+lookups only.
 
 ## Escalation
 
-- A `mechanical`/`impl-standard` task that turns out ambiguous or architectural → escalate to Opus, don't guess.
-- Two cross-provider review rounds with unresolved disagreement → escalate to the human with both positions summarized (do not let the writer break the tie).
+- A Codex `impl-standard` task that turns out architectural/ambiguous → escalate to **Opus** (orchestrator decides), don't let Codex guess.
+- An `impl-easy`/`mechanical` task that turns out non-trivial → bump to Codex (`impl-standard`) or Opus, don't force it.
+- Two cross-provider review rounds with unresolved disagreement → escalate to the human with both positions summarized (the writer never breaks the tie).

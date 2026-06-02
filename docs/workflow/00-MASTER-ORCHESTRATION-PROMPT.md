@@ -62,12 +62,16 @@ DB-backed product.
    - Prototype parity is a gate for every UI task (literal JSX anchor + evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).
    - Tests run for real and their output is captured. A self-declared GREEN with no captured run output is a FAIL.
    - A task may not start until every `dependencies` and `cross_module_dependencies` entry is `✅ DONE` in the owning module's `STATUS.md`.
-3. **Model routing:** follow `docs/workflow/01-MODEL-ROUTING.md`. Summary —
-   research/audit fan-out → Sonnet workers + Opus synthesis; mechanical edits
-   (renames, lint/codemod, string moves) → Haiku; T1/T2 implementation → Sonnet;
-   logic/algorithm-heavy implementation → Codex (`/codex:rescue`); T3-ui +
-   architecture + any audit/synthesis/parity judgment → Opus; PRD decomposition
-   and planning → Opus (`prd-decompose-hybrid` is Opus-only).
+3. **Model routing:** follow `docs/workflow/01-MODEL-ROUTING.md`; the Claude side
+   is wired as named subagents in `.claude/agents/kira-*.md` — call them by name.
+   Summary — **Codex is the primary implementer**: standard (T1/T2/T5) AND
+   logic-heavy → Codex (`/codex:rescue`). **Sonnet** only for trivial work
+   (`kira-easy`) + the Phase-0 reality audit (`kira-research`) + low-risk review.
+   **Haiku** only for mechanics + fast lookups (`kira-mechanical`). **Opus** for
+   T3-ui (`kira-ui`) + parity/architecture + decompose/plan/orchestrate + review
+   of Codex's high-risk work (`kira-codex-review`). Cross-provider rule holds:
+   Codex-written → Claude reviews; Opus-written UI → Codex reviews; the writer
+   never signs off its own work.
 4. **Review is risk-based** (`docs/workflow/02-QUALITY-GATES.md`): high-risk
    (UI, schema/RLS, security, money, regulatory: e-sign/D365/GDPR/BRCGS/GS1) gets
    a cross-provider review with the *other* provider; low-risk gets a single
