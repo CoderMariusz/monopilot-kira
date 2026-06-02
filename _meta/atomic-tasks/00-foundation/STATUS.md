@@ -76,6 +76,23 @@ Updated by orchestrator after every PASS review.
 
 **🎉 00-FOUNDATION 61/61 DONE — Wave0 v4.3 readiness ≥95% achieved**
 
+## Wave 0 — Walking Skeleton (`/kira:skeleton`, 2026-06-02)
+
+Brownfield audit of the hand-added skeleton (login + app shell + nav) found
+DoD #1/#2/#3/#5 already ✅ (login via Supabase Auth, shell + 15 nav links +
+36 settings sub-nav links resolve, parity_report.json PASS, build green). The
+"missing middleware.ts" flagged by the audit was a **false positive** — this is
+Next.js 16 where `proxy.ts` IS the middleware (build shows `ƒ Proxy
+(Middleware)`). Only DoD #4 (real data) was a genuine gap. Audited-OK pieces
+were NOT rebuilt.
+
+| Task | Title | Status | Notes |
+|---|---|---|---|
+| T-127 | Walking Skeleton real-data wiring (DoD #4) | ✅ DONE | `(modules)/_actions/skeleton-data.ts` org-scoped counts via `withOrgContext` (RLS); dashboard 6-metric summary + technical/production/quality/shipping/warehouse wired to public.bom_item/work_order/quality_event/shipment/lot (migration 014); 8 table-less modules → honest `module-stub-notice`; `Skeleton` i18n ns in en/pl/uk/ro; unit 6/6, nav+contract 14/14, `tsc` 0, `eslint` 0, `next build` 0 (all routes ƒ dynamic). E2E `walking-skeleton.spec.ts` added (login→shell→full menu→data); strict DB-value assertion gated behind `WALKING_SKELETON_REQUIRE_DB` for a real Supabase target. |
+| T-128 | App-shell logout clears Supabase session (DoD #1) | ✅ DONE | `(app)/layout.tsx` `signOutAction` now `await supabase.auth.signOut()` before redirect (was redirect-only → stale session re-admit). `tsc`/`eslint`/`build` green. |
+
+**Live-DB / Vercel deploy smoke = final CI/human step** (docker unavailable locally for `db:up`; Supabase MCP needs interactive auth). Schema + RLS the pages depend on are verified from migration `014` source + unit tests; tables: lot/work_order/quality_event/shipment/bom_item all `force row level security` + `org_id = app.current_org_id()` policies.
+
 ## Migration ordering lock
 
 **Use exactly the migration filename specified in your task JSON's `scope_files`.** Do not invent your own number. The JSON is the source of truth.

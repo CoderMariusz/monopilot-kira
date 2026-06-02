@@ -1,4 +1,23 @@
 {
+  "Skeleton": {
+    "liveBadge": "În timp real · Supabase",
+    "records": "{count, plural, =0 {Nicio înregistrare} one {# înregistrare} few {# înregistrări} other {# de înregistrări}}",
+    "unavailable": "Contor indisponibil",
+    "rlsNote": "Limitat la organizație prin RLS (app.current_org_id())",
+    "stubBadge": "Schelet aplicație",
+    "stubNotice": "Această pagină face parte din scheletul aplicației. Datele în timp real apar după lansarea modulului.",
+    "summary": {
+      "title": "Organizația ta pe scurt",
+      "subtitle": "Contoare în timp real din Supabase, limitate la organizația ta prin RLS.",
+      "users": "Membri echipă",
+      "workOrders": "Comenzi de lucru",
+      "lots": "Loturi",
+      "qualityEvents": "Evenimente de calitate",
+      "shipments": "Expedieri",
+      "bomItems": "Articole BOM",
+      "unavailable": "—"
+    }
+  },
   "auth": {
     "signin": {
       "title": "Autentificare",

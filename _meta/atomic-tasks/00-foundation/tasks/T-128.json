@@ -1,0 +1,86 @@
+{
+  "title": "T-128 / W0-LOGOUT — App-shell logout must clear the Supabase session before redirect",
+  "prompt": "# T-128 / W0-LOGOUT — logout actually logs out\n\nPRD: Walking Skeleton (Wave 0) Definition of Done — `/kira:skeleton` DoD #1 (logout works).\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nThe app-shell topbar logout was wired to an inline `signOutAction` in `apps/web/app/[locale]/(app)/layout.tsx` that only `redirect(...)`'d to `/login` WITHOUT calling `supabase.auth.signOut()`. The Supabase auth cookies survived, so the `(app)` layout guard re-admitted the user — logout did nothing. Fix: clear the Supabase session before redirecting.\n\n## Implementation contract\n1. `apps/web/app/[locale]/(app)/layout.tsx` [modify] — in `signOutAction`, create `createServerSupabaseClient()` (already imported) and `await supabase.auth.signOut()` before `redirect(/${locale}/login)`. Wrap the signOut in try/catch + console.error so a transient failure still redirects (never silent — logged). Preserve the locale-resolution behavior.\n\n## Acceptance criteria\n1. Triggering logout from the app-shell topbar calls supabase.auth.signOut() (session cookies cleared) and then redirects to /<locale>/login.\n2. After logout, navigating back to an (app) route redirects to login (no stale session re-admit).\n3. Gates green: tsc --noEmit, eslint, next build.\n\n## Out of scope\n- The dedicated `_actions/sign-out.ts` (already correct) and the login flow itself.\n\n## Closeout evidence\nchanged_files, test_commands_and_results, acceptance_criteria_status, deviations, git_status.",
+  "labels": [
+    "walking-skeleton",
+    "wave0",
+    "auth",
+    "T2-api",
+    "security",
+    "high-priority"
+  ],
+  "priority": 96,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-128",
+    "carry_forward_id": "W0-LOGOUT",
+    "source_prd": "docs/workflow/00-MASTER-ORCHESTRATION-PROMPT.md",
+    "prd_refs": [
+      "Walking Skeleton DoD #1"
+    ],
+    "category": "auth",
+    "subcategory": "session-logout",
+    "task_type": "T2-api",
+    "risk_tier": "high",
+    "parent_feature": "Wave 0 Walking Skeleton",
+    "context_budget": "20k",
+    "estimated_effort": "15m",
+    "description": "App-shell topbar logout only redirected without clearing the Supabase session, so the layout guard re-admitted the user. Call supabase.auth.signOut() before redirect.",
+    "scope_files": [
+      "apps/web/app/[locale]/(app)/layout.tsx [modify]"
+    ],
+    "out_of_scope": [
+      "The already-correct _actions/sign-out.ts.",
+      "Login / MFA / forgot-password flows."
+    ],
+    "dependencies": [
+      "T-011",
+      "T-125"
+    ],
+    "parallel_safe_with": [
+      "T-127"
+    ],
+    "acceptance_criteria": [
+      "Triggering logout from the app-shell topbar calls supabase.auth.signOut() (session cookies cleared) and then redirects to /<locale>/login.",
+      "After logout, navigating to an (app) route redirects to login (no stale session re-admit).",
+      "Gates green: tsc --noEmit, eslint, next build."
+    ],
+    "test_strategy": [
+      "Static: tsc --noEmit, eslint, next build (the change is a small server-action edit).",
+      "Manual/E2E: covered structurally by apps/web/e2e/walking-skeleton.spec.ts login/shell flow; full logout round-trip needs a real session target."
+    ],
+    "risk_red_lines": [
+      "Must clear the Supabase session before redirect — a redirect-only logout is a security false-green.",
+      "Do not silently swallow signOut errors — log them, then still redirect."
+    ],
+    "skills": [
+      "MON-foundation-primitives",
+      "MON-multi-tenant-site",
+      "verification-before-completion"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

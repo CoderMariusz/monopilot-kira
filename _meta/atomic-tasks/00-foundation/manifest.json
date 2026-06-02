@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T00:00:00Z",
   "generator": "prd-decompose-hybrid-wave0-v4.3-readiness-patch",
   "pipeline_name": "kira_dev",
-  "task_count": 125,
+  "task_count": 128,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -130,7 +130,10 @@
     "tasks/T-122.json",
     "tasks/T-123.json",
     "tasks/T-124.json",
-    "tasks/T-125.json"
+    "tasks/T-125.json",
+    "tasks/T-126.json",
+    "tasks/T-127.json",
+    "tasks/T-128.json"
   ],
   "coverage_file": "coverage.md",
   "business_scope_column": "org_id"

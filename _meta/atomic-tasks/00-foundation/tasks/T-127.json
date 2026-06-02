@@ -1,0 +1,105 @@
+{
+  "title": "T-127 / W0-DATA — Walking Skeleton real-data wiring (dashboard summary + module landings, org-scoped Supabase via withOrgContext)",
+  "prompt": "# T-127 / W0-DATA — Walking Skeleton real-data wiring\n\nPRD: Walking Skeleton (Wave 0) Definition of Done — `/kira:skeleton` DoD #4.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\n\n## Goal\nReplace the i18n-only placeholder content on the dashboard and module landing pages with REAL, org-scoped data read from Supabase through `withOrgContext` (RLS `org_id = app.current_org_id()`), so the menu-driven product shows live DB data — the Wave 0 Definition of Done. Honest-maximal scope: every module whose domain table exists in the schema today is wired to a live count; modules without a domain table yet render a clearly-marked honest stub (live data lands in their own wave).\n\n## Implementation contract\n1. `apps/web/app/[locale]/(app)/(modules)/_actions/skeleton-data.ts` [create] — server-only module (NOT 'use server'; called directly from Server Components). Exports `getModuleCount(table)` and `getOrgSummary()`. Each wraps `withOrgContext(async ({ client }) => client.query('select count(*)::int ...'))` so reads run as `app_user` inside `app.set_org_context`. Fixed allowlist of schema-qualified tables (`public.bom_item|work_order|quality_event|shipment|lot|users`) — no caller input interpolated into SQL. Failures are logged + surfaced as `{ ok:false }` / null (graceful, never silent).\n2. `_components/module-data-panel.tsx` + `_components/module-stub-notice.tsx` [create] — presentational Server Components; all copy passed pre-localized.\n3. Real-data pages [modify] — dashboard (6-metric org summary), technical→bom_item, production→work_order, quality→quality_event, shipping→shipment, warehouse→lot. Preserve existing `data-testid=module-landing-<id>` + heading; add `export const dynamic = 'force-dynamic'`.\n4. Honest-stub pages [modify] — planning, scheduler, finance, reporting, maintenance, oee, multi-site, npd render `<ModuleStubNotice>`.\n5. i18n `Skeleton` namespace added to all four locales (`apps/web/i18n/{en,pl,uk,ro}.json`).\n6. Tests — `_actions/__tests__/skeleton-data.test.ts` (vitest, mocks withOrgContext; allowlist mapping, zero-row, error degrade, summary). `apps/web/e2e/walking-skeleton.spec.ts` (executable DoD: login → shell → full menu click-through → data renders; strict numeric assertion gated behind WALKING_SKELETON_REQUIRE_DB against a real Supabase target).\n\n## Acceptance criteria\n1. Dashboard renders `data-testid=dashboard-org-summary` with 6 metric tiles fed by `getOrgSummary()` (org-scoped via withOrgContext/RLS).\n2. Each of technical/production/quality/shipping/warehouse renders `data-testid=module-live-data` from its allowlisted public table; the 8 table-less modules render `data-testid=module-stub-notice`.\n3. All reads are org-scoped through `withOrgContext` (no raw `current_setting`, no cross-org leakage); failures degrade to an honest 'unavailable' state, never a 500 or a mock.\n4. Gates green: vitest unit + nav/contract suites, `tsc --noEmit`, `eslint`, `next build`.\n\n## Out of scope\n- Domain schemas/tables for modules that don't exist yet (each ships in its own wave).\n- Replacing the working login/shell/nav (audited ✅, not rebuilt).\n\n## Closeout evidence\nchanged_files, test_commands_and_results, acceptance_criteria_status, deviations, git_status.",
+  "labels": [
+    "walking-skeleton",
+    "wave0",
+    "T3-ui",
+    "T2-api",
+    "real-data",
+    "rls",
+    "high-priority"
+  ],
+  "priority": 95,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-127",
+    "carry_forward_id": "W0-DATA",
+    "source_prd": "docs/workflow/00-MASTER-ORCHESTRATION-PROMPT.md",
+    "prd_refs": [
+      "Walking Skeleton DoD #4"
+    ],
+    "category": "ui",
+    "subcategory": "walking-skeleton-data",
+    "task_type": "T3-ui",
+    "risk_tier": "high",
+    "parent_feature": "Wave 0 Walking Skeleton",
+    "context_budget": "60k",
+    "estimated_effort": "3-4h",
+    "description": "Wire the dashboard summary + module landing pages to real org-scoped Supabase data via withOrgContext; honest stubs where domain tables don't exist yet. The DoD #4 'real data, not mocks' gate for the Walking Skeleton.",
+    "scope_files": [
+      "apps/web/app/[locale]/(app)/(modules)/_actions/skeleton-data.ts [create]",
+      "apps/web/app/[locale]/(app)/(modules)/_actions/__tests__/skeleton-data.test.ts [create]",
+      "apps/web/app/[locale]/(app)/(modules)/_components/module-data-panel.tsx [create]",
+      "apps/web/app/[locale]/(app)/(modules)/_components/module-stub-notice.tsx [create]",
+      "apps/web/app/[locale]/(app)/(modules)/dashboard/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/technical/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/production/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/quality/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/shipping/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/warehouse/page.tsx [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/{planning,scheduler,finance,reporting,maintenance,oee,multi-site,npd}/page.tsx [modify]",
+      "apps/web/i18n/en.json [modify]",
+      "apps/web/i18n/pl.json [modify]",
+      "apps/web/i18n/uk.json [modify]",
+      "apps/web/i18n/ro.json [modify]",
+      "apps/web/e2e/walking-skeleton.spec.ts [create]"
+    ],
+    "out_of_scope": [
+      "Domain schemas/tables for modules that have none yet (built in their own wave).",
+      "Rebuilding the audited-OK login/shell/nav."
+    ],
+    "dependencies": [
+      "T-125"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Dashboard renders data-testid=dashboard-org-summary with 6 metric tiles fed by getOrgSummary() (org-scoped via withOrgContext/RLS).",
+      "technical/production/quality/shipping/warehouse each render data-testid=module-live-data from their allowlisted public table; the 8 table-less modules render data-testid=module-stub-notice.",
+      "All reads are org-scoped through withOrgContext (no raw current_setting, no cross-org leakage); failures degrade to an honest 'unavailable' state, never a 500 or a mock.",
+      "Gates green: vitest unit + nav/contract suites, tsc --noEmit, eslint, next build."
+    ],
+    "test_strategy": [
+      "Unit: vitest mocks withOrgContext, asserts allowlist→public.* mapping, zero-row=0, error→{ok:false}, summary all-6 and all-null-on-failure.",
+      "E2E: apps/web/e2e/walking-skeleton.spec.ts — login→shell→click every sidebar item→assert module landing + live-data/stub; strict numeric assertion behind WALKING_SKELETON_REQUIRE_DB against a real Supabase target.",
+      "Static: tsc --noEmit, eslint, next build."
+    ],
+    "risk_red_lines": [
+      "Never interpolate caller input into SQL — only the fixed schema-qualified allowlist.",
+      "All DB reads go through withOrgContext (RLS app.current_org_id()); never raw current_setting and never bypass org scoping.",
+      "Do not present mock/hardcoded data as real; a failed read must render an honest 'unavailable' state, not fabricated numbers.",
+      "Preserve module-landing-<id> data-testids and headings (route-contract + parity gates)."
+    ],
+    "skills": [
+      "MON-t3-ui",
+      "MON-t2-api",
+      "MON-multi-tenant-site",
+      "test-driven-development",
+      "verification-before-completion"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "opus_ui",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "spark_low_risk_else_opus"
+    },
+    "cross_module_dependencies": []
+  }
+}

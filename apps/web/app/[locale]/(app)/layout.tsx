@@ -57,7 +57,19 @@ async function signOutAction(formData: FormData): Promise<never> {
   'use server';
 
   const locale = formData.get('locale');
-  redirect(`/${typeof locale === 'string' && locale.length > 0 ? locale : 'en'}/login`);
+  const targetLocale = typeof locale === 'string' && locale.length > 0 ? locale : 'en';
+
+  // Clear the Supabase session before redirecting. Without this the auth
+  // cookies survive, the (app) layout guard re-admits the user, and "logout"
+  // does nothing (Walking Skeleton DoD #1: logout must actually log out).
+  try {
+    const supabase = await createServerSupabaseClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error('[layout] sign-out failed to clear Supabase session:', error);
+  }
+
+  redirect(`/${targetLocale}/login`);
 }
 
 async function selectLanguageAction(input: { userId: string; orgId: string; locale: UserLanguage }) {
