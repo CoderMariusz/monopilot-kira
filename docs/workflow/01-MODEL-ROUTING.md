@@ -27,8 +27,8 @@ separate provider, not a Claude subagent).
 | `research-synth` | Claude **Opus** | synthesizing fan-out results into a judgment |
 | `mechanical` | Claude **Haiku** (`kira-mechanical`) | renames, lint/codemod fixes, i18n key moves, string extraction, file moves |
 | `impl-easy` | Claude **Sonnet** (`kira-easy`) | ONLY trivial work: a single CRUD action, a simple seed/fixture, a simple test |
-| `impl-standard` | **Codex** (`/codex:rescue`, `--model gpt-5.4`) | the bulk of implementation: T1-schema, T2-api, T5-seed |
-| `impl-logic` | **Codex** (`/codex:rescue`, `--model gpt-5.4`) | algorithm/logic-heavy code: MRP, allocation, FIFO/WAC, SSCC mod-10, DSL executors, scheduling/cycle detection |
+| `impl-standard` | **Codex** (`/codex:rescue`, `--model gpt-5.5`) | the bulk of implementation: T1-schema, T2-api, T5-seed |
+| `impl-logic` | **Codex** (`/codex:rescue`, `--model gpt-5.5`) | algorithm/logic-heavy code: MRP, allocation, FIFO/WAC, SSCC mod-10, DSL executors, scheduling/cycle detection |
 | `impl-ui` | Claude **Opus** (`kira-ui`) | T3-ui and UI-flow T4 — prototype-parity translation is architectural (per `MON-t3-ui`) |
 | `test` | Claude **Sonnet** (`kira-easy`); **Codex** if complex | T4-wiring-test, Playwright/Vitest authoring |
 | `review-codex-work` | Claude **Opus** (`kira-codex-review`, high-risk) / **Sonnet** (low) | Claude reviewing Codex-written code |
@@ -101,7 +101,7 @@ Codex is now the implementation workhorse, so most volume lands there. Codex
 Cloud delegation does not consume local resources, so the orchestrator may run a
 few local Claude worktrees (Opus UI, Sonnet easy/review, Haiku mechanical)
 alongside many Codex Cloud implementation tasks concurrently. Give Codex
-**worker/implementation** tasks a cheaper profile and reserve `gpt-5.4` for
+**worker/implementation** tasks a cheaper profile and reserve `gpt-5.5` for
 high-risk implementation + reviews (see `04-CODEX-INTEGRATION.md` → profiles).
 All parity/architecture judgment and review of Codex's high-risk work stay on
 **Opus**; Sonnet is for trivial work + low-risk review; Haiku for mechanics + fast
