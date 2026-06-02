@@ -71,7 +71,9 @@ DB-backed product.
    no dependency edge between them run concurrently, each in its own
    `git worktree`; dependency edges serialize. You review diffs and merge winners.
 6. **Autonomy = UNATTENDED** (`docs/workflow/06-AUTONOMY-AND-REMOTE.md`). Run
-   continuously — do NOT block at routine phase/wave gates. Instead **proceed
+   continuously — do NOT block at routine phase/wave gates. **The ONE routine stop
+   is the module sign-off** (Phase 4): you finish a module, present it, and wait
+   for my review before starting the next module. Otherwise **proceed
    automatically** and fire a phone push at each gate, each wave, and each
    blocking question: `bash .claude/hooks/notify.sh "<one-line summary>"`. Block
    for my input ONLY for: (a) irreversible/out-of-scope actions (force-push,
@@ -80,6 +82,9 @@ DB-backed product.
    deadlock after 2 rounds; (d) skill deletion in Phase 3. Everything else: pick
    the sensible default, log it in your summary, and continue. Permissions run in
    bypass mode — you have full tool control on this dedicated machine; use it.
+   I can reach this session from my phone (Claude **Remote Control** / **Channels**
+   — see `06-AUTONOMY-AND-REMOTE.md`), so when you ask me something, send the push
+   AND keep working on anything not blocked by my answer.
 7. **Commit discipline:** small, reviewable commits on the integration branch;
    one logical change per commit; never push to `main` without my say-so.
 
@@ -131,28 +136,40 @@ retired ACP). Add any new workflow skills the loop needs. Update `MON-INDEX.md`.
 proposed deletion list to my phone and wait for my confirmation. Updates/additions
 proceed automatically.
 
-## Phase 4 — Long-run execution
+## Phase 4 — Long-run execution: ONE MODULE AT A TIME
+
+We build **module by module**, not all modules at once (`docs/workflow/07-MODULE-EXECUTION.md`).
 
 **Step 1 — Walking Skeleton (Wave 0): run `/kira:skeleton`.** Make login (Supabase
 Auth) + the app shell + navigation + Supabase-backed pages real and verified, and
 confirm `pnpm build` is green for Vercel. Do not move past this until I can log in
 and click through a DB-backed product. Push the DoD pass/fail to my phone.
 
-**Step 2 — the rest: loop `/kira:run-wave <N>`** from Wave 1. Per wave: launch
-the wave's tasks in parallel worktrees with the routed model; enforce the four
-gates (test, UI-parity, cross-module-dep, risk-based review) before any merge;
-run the cross-provider review loop; merge winners; refresh `STATUS.md`; push a
-per-wave pass/fail summary to my phone and continue to the next wave. Re-plan
-(`/kira:consolidate` + `/kira:plan`) if reality drifts. Keep going until the plan
-is exhausted or you hit a block-condition from item 6.
+**Step 2 — then, for each module in the rollout order: `/kira:run-module <NN>`.**
+Inside a module you have **full autonomy**: run its waves to completion (worktrees,
+routed models, the four gates, cross-provider review, merge), recording any
+feature blocked by a not-yet-built module as an EXPECTED EXTERNAL GAP (don't stop
+on those). Iterate until **you and Codex both agree** the module's buildable scope
+is complete and correct. Then write the **sign-off report** (`_meta/runs/<NN>-SIGNOFF.md`)
+— including the **task→feature map** (so no piece of work is missed) and the known
+external gaps — push "Module <NN> ready for review" to my phone, and **STOP**.
+
+When I review (possibly from my phone) and say what doesn't work, run **gap triage**:
+for each comment decide A) blocked by another module (name it), B) in-scope with an
+owning task `T-NNN` (reopen+fix), C) in-scope but **no task exists → create it**
+(`prd-decompose-hybrid`) and implement, or D) belongs to another module. Implement
+B+C, re-reach consensus, re-present. Advance to the next module only after I sign
+off (or tell you to proceed and track the rest as gaps). Re-plan
+(`/kira:consolidate` + `/kira:plan`) if reality drifts.
 
 ## Begin
 
-First: confirm `/codex:status` is healthy and that `KIRA_NOTIFY_URL` is set (if
-not, warn me in your first push-attempt and continue anyway). Echo back, in ≤10
-lines, your understanding of the four gates, the model-routing summary, the
-UNATTENDED autonomy profile, and the Walking-Skeleton-first priority. Then run
-`/kira:audit`.
+First: confirm `/codex:status` is healthy, that `KIRA_NOTIFY_URL` is set (if not,
+warn me in your first push-attempt and continue anyway), and that I can reach you
+from my phone (I'll have started Remote Control / Channels — just acknowledge it).
+Echo back, in ≤10 lines, your understanding of the four gates, the model-routing
+summary, the UNATTENDED autonomy profile, the module-by-module + sign-off model,
+and the Walking-Skeleton-first priority. Then run `/kira:audit`.
 
 === END PROMPT ===
 
@@ -161,10 +178,12 @@ UNATTENDED autonomy profile, and the Walking-Skeleton-first priority. Then run
 ## Notes for the operator (not part of the pasted prompt)
 
 - **Before you leave the desk:** install `codex-plugin-cc` (`/codex:status` green),
-  `export KIRA_NOTIFY_URL=...` (phone push, see `06-AUTONOMY-AND-REMOTE.md`), run
-  inside `tmux` so you can `tmux attach` from your phone over SSH/Tailscale to
-  answer the rare blocking question, and `git switch` to a dedicated integration
-  branch (e.g. `kira/long-run`). The repo ships `.claude/settings.json` with
+  `export KIRA_NOTIFY_URL=...` (phone push, see `06-AUTONOMY-AND-REMOTE.md`),
+  `git switch` to a dedicated integration branch (e.g. `kira/long-run`), start the
+  run inside `tmux` so the process survives a closed terminal, then turn on
+  **`/remote-control`** (scan the QR with the Claude phone app) so you can read and
+  reply from your phone, and optionally connect a **Channel** (Telegram/Discord)
+  to message the session. The repo ships `.claude/settings.json` with
   `bypassPermissions` so it won't stop on tool calls; launch `claude`
   (or `claude --dangerously-skip-permissions` to be doubly sure).
 - Infra is live: **Vercel** (deploy) + **Supabase** (Postgres + Auth). The loop

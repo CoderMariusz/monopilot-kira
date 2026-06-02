@@ -27,10 +27,17 @@ in `.claude/commands/kira/`.
 | **2 — Mega execution plan** | `/kira:plan` | Opus | `_meta/plans/EXECUTION-PLAN.md` + per-wave manifests |
 | **3 — Skills overhaul** | `/kira:skills-overhaul` | Opus | updated/new/removed skills + `MON-INDEX.md` |
 | **4a — Walking Skeleton (Wave 0)** | `/kira:skeleton` | Opus + routed | login (Supabase Auth) + app shell + nav + Supabase-backed pages, verified for Vercel |
-| **4b — Long-run execution** | `/kira:run-wave` | routed per task | implemented + reviewed + gated tasks, merged wave by wave |
+| **4b — Execution, ONE MODULE AT A TIME** | `/kira:run-module <NN>` | routed per task | a whole module built to Claude+Codex consensus, `_meta/runs/<NN>-SIGNOFF.md`, then STOP for your review |
 
-Cross-cutting: **`/kira:review`** is the risk-based cross-provider review
-dispatcher (Claude↔Codex) used inside Phase 4 and on demand.
+`/kira:run-module` drives a module's intra-module waves via `/kira:run-wave`
+mechanics. Cross-cutting: **`/kira:review`** is the risk-based cross-provider
+review dispatcher (Claude↔Codex).
+
+**Execution model = module by module** (`07-MODULE-EXECUTION.md`): full autonomy
+inside a module, then it STOPS at the **module sign-off** for your review. The
+sign-off carries a **task→feature map** (so no work is missed) + known external
+gaps; your review comments are triaged into "blocked by another module" vs
+"missing task here → create + implement".
 
 **Priority:** Phase 4 begins with `/kira:skeleton` — the human's Definition of
 Done is *a clickable, menu-driven product showing real Supabase data on Vercel*.
@@ -50,10 +57,13 @@ the root `AGENTS.md`.
 - `03-WORKTREE-PROTOCOL.md` — hybrid `git worktree` parallelism (parallel within a module, serialized across dependency edges).
 - `04-CODEX-INTEGRATION.md` — `codex-plugin-cc` wiring, profiles, and the `/codex:*` command map.
 - `05-AUDIT-PLAYBOOK.md` — Phase 0 verdict vocabulary, per-`task_type` checklist, Walking Skeleton audit, REALITY.md template.
-- `06-AUTONOMY-AND-REMOTE.md` — UNATTENDED autonomy profile, `bypassPermissions`, phone notifications, and watching/steering from your phone (tmux+SSH).
+- `06-AUTONOMY-AND-REMOTE.md` — UNATTENDED autonomy profile, `bypassPermissions`, phone notifications, and steering from your phone (Claude **Remote Control** + Channels, tmux fallback).
+- `07-MODULE-EXECUTION.md` — the module-by-module model: rollout order, in-module autonomy, Claude+Codex consensus, sign-off report, and gap triage.
 
 Autonomy is wired in `.claude/settings.json` (bypass mode + a `Notification` hook
-→ `.claude/hooks/notify.sh` for phone pushes via `KIRA_NOTIFY_URL`).
+→ `.claude/hooks/notify.sh` for phone pushes via `KIRA_NOTIFY_URL`). Two-way phone
+control uses Claude Code **Remote Control** (`/remote-control`) — your local Mac
+session, driven from the phone app.
 
 ## Ground rules (non-negotiable, inherited from skills)
 
