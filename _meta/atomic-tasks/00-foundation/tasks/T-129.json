@@ -1,0 +1,99 @@
+{
+  "title": "T-129 / SEC-RLS — Close rls_disabled_in_public ERRORs: enable RLS + policies on PostgREST-exposed tables, revoke anon EXECUTE on SECURITY DEFINER fns",
+  "prompt": "# T-129 / SEC-RLS — Remediate Supabase security advisors (RLS off on public tables exposed to anon REST)\n\nPRD: `docs/prd/00-FOUNDATION-PRD.md` §5 RLS / §8 multi-tenant. Wave0 lock: `org_id`, `app.current_org_id()`.\nProject root: `/Users/mariuszkrawczyk/Projects/monopilot-kira`\nSource: Supabase security advisors on project `khjvkhzwfzuwzrusgobp` (run via Supabase MCP `get_advisors type=security`, 2026-06-02, during `/kira:skeleton`).\n\n## Why (confirmed exposure)\nSupabase exposes the `public` schema via PostgREST. The tables below have **RLS disabled** AND **`anon,authenticated` SELECT grants** — so they are readable through the public anon key REST API (`/rest/v1/<table>`). Confirmed via `information_schema.role_table_grants`. Three carry `org_id` (cross-tenant leak); the audit partitions expose the audit trail. This is an ERROR-level finding and must be closed before broad module work.\n\n## Scope — remediate exactly these (advisor 0013 rls_disabled_in_public, ERROR)\nOrg-scoped (add RLS + org policy `org_id = app.current_org_id()` for `app_user`, mirror migration 002/014 pattern; revoke anon/authenticated SELECT — the app reads via `app_user`, not PostgREST):\n- `public.tenant_variations` (has org_id)\n- `public.consumed_approval_tokens` (has org_id)\n- `public.tenant_migrations` (has org_id)\nGlobal/reference, no org_id (enable RLS; allow read to `authenticated` only via an explicit policy if the UI needs it, else `app_user`/service-role only; revoke `anon`):\n- `public.modules`, `public.allergens`, `public.line_machines`, `public.role_categories`\nLegacy / internal (enable RLS, no anon/authenticated access; or drop if truly dead):\n- `public.tenant_migrations_legacy_t038`\n- `public.audit_log_2026_01` … `audit_log_2026_12` (12 partitions — RLS on the parent + partitions; audit is internal, no anon/authenticated)\n\nAlso (advisor 0008 rls_enabled_no_policy, INFO): `public.tenant_idp_config`, `public.tenants` have RLS enabled but NO policy → add the correct org/tenant policy (currently fail-closed, but make intent explicit).\n\nAlso (advisor 0028/0029, WARN): revoke `EXECUTE` from `anon` and `authenticated` on the public `SECURITY DEFINER` functions (audit_events_impersonation_guard, audit_log_create_partitions, audit_log_detach_old, prune_audit_events, prune_consumed_approval_tokens, prune_reference_csv_import_reports, seed_reference_data_on_org_insert, seed_system_roles_on_org_insert, seed_tenant_idp_config, touch_updated_at, set_user_pins_updated_at) unless a caller genuinely needs them; set explicit `search_path` on `set_user_pins_updated_at` (advisor 0011).\n\nAlso (auth WARN): enable Leaked Password Protection in Supabase Auth (HaveIBeenPwned).\n\n## Implementation contract\n1. New migration `packages/db/migrations/NNN-rls-public-exposure-remediation.sql` (next free number; check the lock list in STATUS.md). Idempotent (`if exists`/`if not exists`, `drop policy if exists`). Per table: `alter table ... enable row level security; alter table ... force row level security;` + the appropriate policy + `revoke select on ... from anon, authenticated;` where the app does not use PostgREST for it.\n2. Drizzle schema parity where these tables have schema files (`packages/db/schema/*.ts`) — add the RLS marker/comment so the schema reflects reality.\n3. RLS isolation tests (vitest + testcontainers Postgres 16, connect as `app_user`, never superuser): for each org-scoped table assert cross-org SELECT returns 0 rows (real `42501`/empty, non-vacuous); for anon-revoked tables assert the grant is gone.\n4. Re-run `get_advisors type=security` after deploy → 0 ERROR remaining for these tables.\n\n## Out of scope\n- Walking-skeleton tables (lot/work_order/quality_event/shipment/bom_item/users/organizations) — already RLS-forced + org-scoped.\n- `citext` extension-in-public relocation (separate low-pri advisor 0014).\n- Functional changes to the audit/seed functions themselves — only their grants/search_path.\n\n## Acceptance criteria\n1. Every listed ERROR table has RLS enabled + forced with a correct policy; `anon` (and `authenticated` where not needed) SELECT grant revoked; org-scoped tables enforce `org_id = app.current_org_id()` with proven cross-org isolation.\n2. `tenant_idp_config` + `tenants` have explicit policies (no rls_enabled_no_policy).\n3. Public SECURITY DEFINER functions are no longer EXECUTE-able by `anon`/`authenticated` unless justified in the migration comment; `set_user_pins_updated_at` has a fixed `search_path`.\n4. `get_advisors type=security` returns 0 ERROR for the listed tables after migration applies; app still builds (`next build`) and existing RLS/integration tests pass.\n5. Leaked Password Protection enabled in Supabase Auth.\n\n## Closeout evidence\nchanged_files, migration applied + advisor re-run output, test_commands_and_results, acceptance_criteria_status, deviations, git_status.",
+  "labels": [
+    "security",
+    "rls",
+    "foundation-hardening",
+    "T1-schema",
+    "p0-blocker",
+    "SEC-RLS"
+  ],
+  "priority": 100,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-129",
+    "carry_forward_id": "SEC-RLS",
+    "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
+    "prd_refs": [
+      "§5 RLS",
+      "§8 multi-tenant"
+    ],
+    "category": "security",
+    "subcategory": "rls-public-exposure",
+    "task_type": "T1-schema",
+    "risk_tier": "high",
+    "parent_feature": "00-FOUNDATION security hardening",
+    "context_budget": "60k",
+    "estimated_effort": "3-5h",
+    "description": "Supabase security advisors flagged RLS-disabled public tables that carry anon+authenticated SELECT grants (readable via the public anon-key PostgREST API). Three have org_id (cross-tenant leak); audit partitions expose the audit trail. Enable RLS + correct policies, revoke unneeded anon/authenticated grants, lock down public SECURITY DEFINER functions, enable leaked-password protection. Not introduced by the Walking Skeleton — pre-existing foundation debt surfaced during /kira:skeleton live verification.",
+    "scope_files": [
+      "packages/db/migrations/NNN-rls-public-exposure-remediation.sql [create]",
+      "packages/db/schema/*.ts [modify — RLS markers where applicable]",
+      "packages/db/__tests__/rls-public-exposure-remediation.test.ts [create]",
+      "_meta/atomic-tasks/00-foundation/manifest.json [modify]",
+      "_meta/atomic-tasks/00-foundation/coverage.md [modify]"
+    ],
+    "out_of_scope": [
+      "Walking-skeleton tables (already RLS-forced + org-scoped).",
+      "citext extension-in-public relocation (advisor 0014, low priority).",
+      "Functional changes to audit/seed functions (only grants + search_path)."
+    ],
+    "dependencies": [
+      "T-007",
+      "T-125"
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Every flagged ERROR table (tenant_variations, consumed_approval_tokens, tenant_migrations, modules, allergens, line_machines, role_categories, tenant_migrations_legacy_t038, audit_log_2026_01..12) has RLS enabled+forced with a correct policy; anon (and authenticated where not needed) SELECT revoked; org-scoped tables enforce org_id=app.current_org_id() with proven cross-org isolation.",
+      "tenant_idp_config + tenants have explicit policies (no rls_enabled_no_policy INFO).",
+      "Public SECURITY DEFINER functions are not EXECUTE-able by anon/authenticated unless justified; set_user_pins_updated_at has a fixed search_path.",
+      "get_advisors type=security returns 0 ERROR for the listed tables after the migration applies; next build green; existing RLS/integration tests pass.",
+      "Leaked Password Protection enabled in Supabase Auth."
+    ],
+    "test_strategy": [
+      "RED: packages/db/__tests__/rls-public-exposure-remediation.test.ts asserts (a) cross-org SELECT returns 0 rows as app_user for each org-scoped table, (b) anon/authenticated SELECT grant removed for the revoked tables, before the migration exists.",
+      "testcontainers Postgres 16; apply packages/db/migrations/*.sql in order; connect as app_user (never superuser).",
+      "Post-deploy: re-run Supabase MCP get_advisors type=security and capture 0-ERROR output for the listed tables."
+    ],
+    "risk_red_lines": [
+      "Do not break the app's app_user read/write path — only revoke anon/authenticated PostgREST grants, keep app_user grants + RLS policy.",
+      "Org-scoped tables must use org_id = app.current_org_id() (Wave0 lock), never raw current_setting.",
+      "Migration must be idempotent (if [not] exists / drop policy if exists) and use the next free migration number per the STATUS.md ordering lock.",
+      "Do not drop tenant_migrations_legacy_t038 unless confirmed dead — default to RLS-lockdown.",
+      "Connect as app_user in tests (never superuser — RLS is bypassed for superuser)."
+    ],
+    "skills": [
+      "Mon-rls",
+      "Mon-supabase",
+      "MON-t1-schema",
+      "MON-multi-tenant-site",
+      "test-driven-development",
+      "verification-before-completion"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "red": "hermes_gpt55",
+      "implementation": "hermes_gpt55",
+      "review": "opus_if_high_risk_or_ui_or_architecture",
+      "close": "opus"
+    },
+    "cross_module_dependencies": []
+  }
+}
