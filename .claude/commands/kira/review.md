@@ -27,7 +27,7 @@ output; the *other* provider does.
 3. **Route:**
    - **Claude-written, HIGH** → `/codex:review --base <integration-branch> --background`,
      then `/codex:status` → `/codex:result`. If `--adversarial` or contentious →
-     `/codex:adversarial-review --base <integration-branch> --model gpt-5.4`.
+     `/codex:adversarial-review --base <integration-branch> --model gpt-5.5`.
    - **Codex-written, HIGH** → launch an **Opus** `Agent` review against the
      task's acceptance_criteria + risk_red_lines + the applicable `MON-*` skills.
    - **LOW (either writer)** → single cheaper-model self-check (Sonnet `Agent`):

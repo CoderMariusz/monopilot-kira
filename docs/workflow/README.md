@@ -52,7 +52,7 @@ the root `AGENTS.md`.
 
 ## Reference docs
 
-- `01-MODEL-ROUTING.md` — which model/agent runs which job, incl. the `impl-logic`→Codex task families per module.
+- `01-MODEL-ROUTING.md` — who runs which job: **Codex is the primary implementer** (standard + logic); Sonnet = trivial work + Phase-0 audit, Haiku = mechanics + fast lookups, Opus = UI/parity + plan/orchestrate + review of Codex's high-risk work. The Claude side is wired as named subagents in `.claude/agents/kira-*.md`.
 - `02-QUALITY-GATES.md` — the four gates that fix the ACP holes (test, UI-parity, cross-module-dep, risk-based review).
 - `03-WORKTREE-PROTOCOL.md` — hybrid `git worktree` parallelism (parallel within a module, serialized across dependency edges).
 - `04-CODEX-INTEGRATION.md` — `codex-plugin-cc` wiring, profiles, and the `/codex:*` command map.

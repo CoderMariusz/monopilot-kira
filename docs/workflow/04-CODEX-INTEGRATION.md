@@ -20,7 +20,7 @@ homework" bias documented in `02-QUALITY-GATES.md` (Gate 4).
 | Background review of a diff | `/codex:review --base <integration-branch> --background` | Gate 4 review of Claude-written high-risk tasks |
 | Poll a backgrounded job | `/codex:status` | after delegating |
 | Fetch a finished review/result | `/codex:result` | after status shows done |
-| Full adversarial debate | `/codex:adversarial-review --base <integration> --model gpt-5.4` | highest-risk / contentious tasks (4-phase: independent → cross → meta → synthesis) |
+| Full adversarial debate | `/codex:adversarial-review --base <integration> --model gpt-5.5` | highest-risk / contentious tasks (4-phase: independent → cross → meta → synthesis) |
 | Delegate implementation to Codex | `/codex:rescue` | `impl-logic` tasks (MRP, allocation, FIFO/WAC, SSCC mod-10, DSL/scheduling, cycle detection) |
 
 `--background` is mandatory for multi-file reviews so the Claude session isn't
@@ -35,15 +35,18 @@ plugin's profile settings):
 ```toml
 # reviewer — quality matters most
 [profiles.review]
-model = "gpt-5.4"
+model = "gpt-5.5"
 
 # worker — cheaper, for bulk impl-logic delegation / Codex Cloud fan-out
 [profiles.worker]
-model = "gpt-5.4-mini"   # use the cheapest model that passes the gate
+model = "gpt-5.3-codex-spark"   # use the cheapest model that passes the gate
 ```
 
-Adjust model names to whatever your account exposes; the principle is **strong
-model for judgment, cheap model for volume**.
+Adjust model names to whatever your account exposes — on this ChatGPT-plan
+account that is `gpt-5.5` (strong) and `gpt-5.3-codex-spark` (cheap, the `spark`
+alias); `gpt-5.4*` and the app-server default `gpt-5.3-codex` are **not**
+available and return HTTP 400. The principle is **strong model for judgment,
+cheap model for volume**.
 
 ## Pairing rules (from `01-MODEL-ROUTING.md`)
 
