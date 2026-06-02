@@ -12,6 +12,9 @@
 #                     then install the ntfy app on your phone and subscribe to that topic.
 #                     (Any service that takes a plain POST body works: Pushover proxy, a
 #                      Telegram bot webhook wrapper, your own endpoint, etc.)
+#   KIRA_NOTIFY_TOKEN (optional) ntfy access token (tk_...), sent as an
+#                     `Authorization: Bearer` header. Needed only for
+#                     reserved/protected topics; harmless on public ones.
 #
 # If KIRA_NOTIFY_URL is unset, this is a silent no-op so runs never break.
 
@@ -32,10 +35,19 @@ fi
 url="${KIRA_NOTIFY_URL:-}"
 [ -z "$url" ] && exit 0
 
-curl -fsS -m 10 \
-  -H "Title: MonoPilot Kira" \
-  -H "Tags: robot" \
-  -d "$msg" \
-  "$url" >/dev/null 2>&1 || true
+if [ -n "${KIRA_NOTIFY_TOKEN:-}" ]; then
+  curl -fsS -m 10 \
+    -H "Authorization: Bearer ${KIRA_NOTIFY_TOKEN}" \
+    -H "Title: MonoPilot Kira" \
+    -H "Tags: robot" \
+    -d "$msg" \
+    "$url" >/dev/null 2>&1 || true
+else
+  curl -fsS -m 10 \
+    -H "Title: MonoPilot Kira" \
+    -H "Tags: robot" \
+    -d "$msg" \
+    "$url" >/dev/null 2>&1 || true
+fi
 
 exit 0
