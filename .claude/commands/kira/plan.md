@@ -14,6 +14,13 @@ Phase 4 executes deterministically.
 
 ## Procedure
 
+0. **Reserve Wave 0 = Walking Skeleton.** Before the topo sort, pin the
+   login/auth (Supabase Auth) + app-shell + navigation + DB-backed-data tasks
+   (the ones `/kira:skeleton` materializes) to **Wave 0**, even if they would
+   naturally fall later. This is the human's Definition-of-Done gate: a clickable,
+   Supabase-backed product must exist before broad module work. Everything else
+   starts at Wave 1 and may depend on Wave 0.
+
 1. **Topological sort into waves.** Wave `N` = all tasks whose dependencies AND
    cross_module_dependencies are satisfied by waves `< N`. Within a wave, tasks
    must be mutually independent AND must not collide on the same file or

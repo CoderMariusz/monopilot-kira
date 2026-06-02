@@ -42,6 +42,35 @@ tier (see `02-QUALITY-GATES.md`):
 | T5-seed | `impl-standard` / `mechanical` | Sonnet | inserts/fixtures |
 | T0-root / docs | `plan` (Opus) | Opus self + Codex spot | policy/ADR/contract |
 
+## `impl-logic` task families per module → route to Codex
+
+These are the algorithmic cores where Codex (`/codex:rescue`) leads
+implementation and Claude (Opus high-risk / Sonnet low-risk) reviews. Everything
+NOT listed here defaults to the `task_type` table above (Claude writes, Codex
+reviews on high-risk). When in doubt, logic with non-trivial edge cases, money,
+or ordering/graph constraints → Codex.
+
+| Module | `impl-logic` families (Codex implements) |
+|---|---|
+| 00-foundation | workflow-as-data / rule-DSL executor, rule cascade, idempotency canonical-stringify, GS1 mod-10 + check-digit parsers, RBAC HMAC + SoD, e-sign crypto (T-124), sync-queue backoff/dedup, schema-drift diff |
+| 01-npd | BOM explosion + versioning, recipe/spec computation, cost roll-up inputs |
+| 02-settings | rule-registry DSL evaluation, schema-driven column draft/publish logic, feature-flag evaluation |
+| 03-technical | D365 anti-corruption mapping (export-only), cost-per-kg calc (dual ownership), BOM SSOT resolution |
+| 04 + 07 planning | MRP netting, WO scheduling, capacity, `wo_dependencies` **cycle detection (V-PLAN-WO-CYCLE)**, `schedule_outputs` derivation |
+| 05-warehouse | FEFO selection, LP-transition DSL, reservation/allocation math |
+| 06-scanner-p1 | offline sync conflict resolution, queue flush ordering/idempotency |
+| 08-production | WO lifecycle state machine, yield/waste calc, **`oee_snapshots` producer math (D-OEE-1)**, consume-gate enforcement |
+| 09-quality | HACCP/CCP deviation logic, allergen gate, hold + **T-064 consume gate**, spec evaluation |
+| 10-finance | **FIFO/WAC valuation, variance, actual costing roll-up, cost-per-kg** (NUMERIC-exact) |
+| 11-shipping | allocation, pick/wave sequencing, **SSCC-18 mod-10**, BOL/POD SHA-256 hashing, carrier rate logic |
+| 12-reporting | aggregation + KPI computation (push heavy aggregation into SQL/MVs) |
+| 13-maintenance | PM schedule generation, MTBF/MTTR calc, calibration interval logic |
+| 14-multi-site | site-scope propagation (`app.current_site_id()`), cross-site allocation |
+| 15-oee | **OEE = Availability × Performance × Quality**, MV refresh logic, DSL rule definitions, drilldown aggregation |
+
+UI for these modules still goes to `impl-ui` (Opus) — Codex writes the engine,
+Opus writes the screen that drives it, each reviewed by the other.
+
 ## Cost note (agentmaxxing economics)
 
 Codex Cloud delegation does not consume local resources, so the orchestrator may

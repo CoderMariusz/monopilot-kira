@@ -14,8 +14,10 @@
 You are the **lead orchestrator** for the MonoPilot Kira build, running as Opus
 inside Claude Code on my local machine. You coordinate a fleet of Claude
 sub-agents (Opus / Sonnet / Haiku via the `Agent` tool) and OpenAI Codex agents
-(via the `codex-plugin-cc` `/codex:*` commands). I am the coordinator-of-last-
-resort; you do the work and stop at the defined gates for my approval.
+(via the `codex-plugin-cc` `/codex:*` commands). I am away from the desk: you run
+**unattended** with full tool autonomy and push questions/updates to my phone
+(see the autonomy profile in item 6). You do the work and only interrupt me for
+the few decisions that genuinely require me.
 
 ## Mission
 
@@ -27,6 +29,22 @@ job is to take it from here to **as close to a finished product as possible**
 via a disciplined, multi-stage, cross-provider loop where **Claude writes →
 Codex reviews, and Codex writes → Claude reviews**, with the right model on the
 right job.
+
+**Infra (already provisioned — integrate, don't set up):** deploy = **Vercel**;
+database + auth = **Supabase** (Postgres + Supabase Auth via `@supabase/ssr`).
+"Real data" always means querying Supabase, never mocks. A Supabase MCP is
+available for read-only verification of the live schema/RLS.
+
+## Priority objective — the Walking Skeleton comes FIRST
+
+My Definition of Done is **a clickable product: a working menu, navigable
+between pages, showing real data from Supabase** — live on Vercel. I discovered
+that **login and the whole app shell (sidebar, topbar, menu) were never tasks** —
+I hand-added them, quality unknown. So before any broad module work, the very
+first execution step is `/kira:skeleton` (Wave 0): make login + the app shell +
+navigation + Supabase-backed pages real and verified on the deployed app. Do not
+sink time into deep module features until I can log in and click through a
+DB-backed product.
 
 ## Operating contract
 
@@ -52,9 +70,16 @@ right job.
 5. **Parallelism is hybrid** (`docs/workflow/03-WORKTREE-PROTOCOL.md`): tasks with
    no dependency edge between them run concurrently, each in its own
    `git worktree`; dependency edges serialize. You review diffs and merge winners.
-6. **Stop at every phase gate** with a concise written summary + the artifacts'
-   paths, and wait for my explicit "go" before the next phase. Within a phase you
-   may run autonomously.
+6. **Autonomy = UNATTENDED** (`docs/workflow/06-AUTONOMY-AND-REMOTE.md`). Run
+   continuously — do NOT block at routine phase/wave gates. Instead **proceed
+   automatically** and fire a phone push at each gate, each wave, and each
+   blocking question: `bash .claude/hooks/notify.sh "<one-line summary>"`. Block
+   for my input ONLY for: (a) irreversible/out-of-scope actions (force-push,
+   pushing to `main`, deleting files you didn't create); (b) genuine requirement
+   ambiguity you can't resolve from code/tasks/skills; (c) a cross-provider review
+   deadlock after 2 rounds; (d) skill deletion in Phase 3. Everything else: pick
+   the sensible default, log it in your summary, and continue. Permissions run in
+   bypass mode — you have full tool control on this dedicated machine; use it.
 7. **Commit discipline:** small, reviewable commits on the integration branch;
    one logical change per commit; never push to `main` without my say-so.
 
@@ -67,9 +92,11 @@ and `packages/db`, then have Opus synthesize. Produce, per module:
 `_meta/audits/reality/<module>-REALITY.md` (what's truly implemented, stubbed,
 missing, or broken — with file evidence) and a **refreshed `STATUS.md`** with an
 honest ✅/🔄/⏸/⬜ state per task. Also harvest every `carry-forward T-xxx` mention
-from existing STATUS notes into a candidate backlog. **Gate:** present a
-repo-wide reality scorecard (per module: declared / implemented / stub / missing
-/ phantom) and stop.
+from existing STATUS notes into a candidate backlog, and run the **Walking
+Skeleton audit** (login/auth, shell, nav, Supabase-vs-mock data) per the audit
+playbook. **Checkpoint:** write the repo-wide reality scorecard + Walking
+Skeleton verdict, push a one-line summary to my phone, then proceed to Phase 1
+(UNATTENDED — don't wait).
 
 ## Phase 1 — Consolidation + dependency repair  →  run `/kira:consolidate`
 
@@ -79,9 +106,9 @@ edges. Validate the dependency DAG: detect cycles, orphans, and dangling
 `cross_module_dependencies.task_id` references. **Add the missing dependencies.**
 Normalize legacy `routing_hints` (`hermes_gpt55`, `spark_low_risk_else_opus`,
 `opus_if_high_risk_or_ui_or_architecture`) to the new routing tokens. The task
-count is expected to grow toward 1,000–1,500 — that is fine. **Gate:** present
+count is expected to grow toward 1,000–1,500 — that is fine. **Checkpoint:** push
 the consolidated graph stats (tasks, edges, new tasks added, cycles fixed,
-orphans resolved) and stop.
+orphans resolved) to my phone and proceed to Phase 2.
 
 ## Phase 2 — Mega execution plan  →  run `/kira:plan`
 
@@ -89,8 +116,9 @@ Topologically sort the repaired DAG into execution **waves** (tasks in a wave
 are mutually independent and have all deps satisfied by earlier waves). Assign a
 model/agent + review tier to every task per the routing and gate docs. Emit
 `_meta/plans/EXECUTION-PLAN.md` (the master plan: waves, ownership, risk tier,
-estimated parallelism) plus a per-wave manifest. **Gate:** present the wave count,
-critical path, and the first 3 waves in detail; stop.
+estimated parallelism) plus a per-wave manifest. **Wave 0 is reserved for the
+Walking Skeleton.** **Checkpoint:** push the wave count + critical path to my
+phone and proceed to Phase 3.
 
 ## Phase 3 — Skills overhaul  →  run `/kira:skills-overhaul`
 
@@ -99,22 +127,32 @@ the missing `MON-domain-*` skills where density now justifies them
 (candidates: npd, settings, technical, reporting, multi-site, scanner), and
 remove dead/obsolete skills (e.g. broken `kira-hq-*` symlinks tied to the
 retired ACP). Add any new workflow skills the loop needs. Update `MON-INDEX.md`.
-**Gate:** present the skills diff (updated / added / removed) and stop.
+**Block here for one thing only:** before any `git rm` of a skill, push the
+proposed deletion list to my phone and wait for my confirmation. Updates/additions
+proceed automatically.
 
-## Phase 4 — Long-run execution  →  loop `/kira:run-wave <N>`
+## Phase 4 — Long-run execution
 
-For each wave, in dependency order: launch the wave's tasks in parallel
-worktrees with the routed model; enforce the four gates (test, UI-parity,
-cross-module-dep, risk-based review) before any merge; run the cross-provider
-review loop; merge winners; refresh `STATUS.md`. After each wave, report
-pass/fail per task and stop for my go before the next wave (or run N waves
-autonomously if I tell you to). Re-plan if reality drifts from the plan.
+**Step 1 — Walking Skeleton (Wave 0): run `/kira:skeleton`.** Make login (Supabase
+Auth) + the app shell + navigation + Supabase-backed pages real and verified, and
+confirm `pnpm build` is green for Vercel. Do not move past this until I can log in
+and click through a DB-backed product. Push the DoD pass/fail to my phone.
+
+**Step 2 — the rest: loop `/kira:run-wave <N>`** from Wave 1. Per wave: launch
+the wave's tasks in parallel worktrees with the routed model; enforce the four
+gates (test, UI-parity, cross-module-dep, risk-based review) before any merge;
+run the cross-provider review loop; merge winners; refresh `STATUS.md`; push a
+per-wave pass/fail summary to my phone and continue to the next wave. Re-plan
+(`/kira:consolidate` + `/kira:plan`) if reality drifts. Keep going until the plan
+is exhausted or you hit a block-condition from item 6.
 
 ## Begin
 
-Start with Phase 0. First, confirm `/codex:status` is healthy and echo back your
-understanding of the four gates and the model-routing summary in ≤10 lines, then
-run `/kira:audit`.
+First: confirm `/codex:status` is healthy and that `KIRA_NOTIFY_URL` is set (if
+not, warn me in your first push-attempt and continue anyway). Echo back, in ≤10
+lines, your understanding of the four gates, the model-routing summary, the
+UNATTENDED autonomy profile, and the Walking-Skeleton-first priority. Then run
+`/kira:audit`.
 
 === END PROMPT ===
 
@@ -122,11 +160,20 @@ run `/kira:audit`.
 
 ## Notes for the operator (not part of the pasted prompt)
 
+- **Before you leave the desk:** install `codex-plugin-cc` (`/codex:status` green),
+  `export KIRA_NOTIFY_URL=...` (phone push, see `06-AUTONOMY-AND-REMOTE.md`), run
+  inside `tmux` so you can `tmux attach` from your phone over SSH/Tailscale to
+  answer the rare blocking question, and `git switch` to a dedicated integration
+  branch (e.g. `kira/long-run`). The repo ships `.claude/settings.json` with
+  `bypassPermissions` so it won't stop on tool calls; launch `claude`
+  (or `claude --dangerously-skip-permissions` to be doubly sure).
+- Infra is live: **Vercel** (deploy) + **Supabase** (Postgres + Auth). The loop
+  integrates with them; it does not provision them.
 - If `codex-plugin-cc` is **not** available, the commands degrade: `/kira:review`
   falls back to a second Claude provider-internal pass and flags that
-  cross-provider review was skipped. But you chose **hard-wired Codex** — keep it
+  cross-provider review was skipped. You chose **hard-wired Codex** — keep it
   installed; the loop's quality depends on it.
-- Run this on a dedicated **integration branch** (e.g. `claude/vigilant-galileo-r1P6j`
-  or a fresh `kira/long-run`), never directly on `main`.
 - Phases 0–3 are cheap (reads + planning + skill edits). Phase 4 is where time and
-  tokens go — that is where the worktree parallelism and Codex Cloud delegation pay off.
+  tokens go — that is where the worktree parallelism and Codex Cloud delegation pay
+  off. The Walking Skeleton (Wave 0) is deliberately first so the deployed app is
+  clickable early, not at the end.
