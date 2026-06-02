@@ -53,6 +53,11 @@ DB-backed product.
    touch, load the task-type skill (`MON-t1-schema|t2-api|t3-ui|t4-test`) and the
    relevant `MON-domain-*` skill per the index.
 2. **Hard rules (never violate):**
+   - **BROWNFIELD — never rebuild what works.** This repo already has a lot built
+     (the skeleton, much of 00-foundation and 02-settings, etc.). For every area:
+     audit what exists → list precise gaps → implement ONLY the gaps. A ✅
+     IMPLEMENTED task is not redone; touch working code only where a gap requires
+     it, and call it out in the diff. We complete, we do not start over.
    - `org_id` NOT `tenant_id`; RLS via `app.current_org_id()`.
    - Prototype parity is a gate for every UI task (literal JSX anchor + evidence per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`).
    - Tests run for real and their output is captured. A self-declared GREEN with no captured run output is a FAIL.
@@ -140,12 +145,17 @@ proceed automatically.
 
 We build **module by module**, not all modules at once (`docs/workflow/07-MODULE-EXECUTION.md`).
 
-**Step 1 — Walking Skeleton (Wave 0): run `/kira:skeleton`.** Make login (Supabase
-Auth) + the app shell + navigation + Supabase-backed pages real and verified, and
-confirm `pnpm build` is green for Vercel. Do not move past this until I can log in
-and click through a DB-backed product. Push the DoD pass/fail to my phone.
+**Step 1 — Walking Skeleton (Wave 0): run `/kira:skeleton`.** The skeleton already
+EXISTS (hand-added) — **verify it, list the gaps, fill ONLY the gaps; do not
+rebuild it.** Confirm login (Supabase Auth) + app shell + navigation +
+Supabase-backed pages actually work and `pnpm build` is green for Vercel; fix only
+what's missing/broken. Do not move past this until I can log in and click through a
+DB-backed product. Push the DoD pass/fail + gap list to my phone.
 
 **Step 2 — then, for each module in the rollout order: `/kira:run-module <NN>`.**
+Run the most-built modules **first** — `00-foundation` then `02-settings` (both
+already substantial) — in the same brownfield mode: audit → gap-list → fill gaps,
+never rebuild ✅ work. Then continue the rollout order.
 Inside a module you have **full autonomy**: run its waves to completion (worktrees,
 routed models, the four gates, cross-provider review, merge), recording any
 feature blocked by a not-yet-built module as an EXPECTED EXTERNAL GAP (don't stop
