@@ -1,0 +1,85 @@
+# Model Routing — who runs which job
+
+The orchestrator routes each unit of work to the cheapest model that can do it
+**correctly**, and pairs writer/reviewer across providers. This table replaces
+the legacy `routing_hints` (`hermes_gpt55`, `spark_low_risk_else_opus`,
+`opus_if_high_risk_or_ui_or_architecture`).
+
+## Routing tokens (use these in `routing_hints` after Phase 1)
+
+| Token | Resolves to | Used for |
+|---|---|---|
+| `research-fanout` | Claude **Sonnet** sub-agents (`Agent` tool, parallel) | broad codebase sweeps, reality audits, "find all X" |
+| `research-synth` | Claude **Opus** | synthesizing fan-out results into a judgment |
+| `mechanical` | Claude **Haiku** | renames, lint/codemod fixes, i18n key moves, string extraction, file moves |
+| `impl-standard` | Claude **Sonnet** | T1-schema, T2-api, T5-seed — clear contracts, low ambiguity |
+| `impl-logic` | **Codex** (`/codex:rescue`, `--model gpt-5.4`) | algorithm/logic-heavy code: MRP, allocation, FIFO/WAC, SSCC mod-10, DSL executors, scheduling/cycle detection |
+| `impl-ui` | Claude **Opus** | T3-ui and UI-flow T4 — prototype-parity translation is architectural (per `MON-t3-ui`) |
+| `test` | Claude **Sonnet** | T4-wiring-test, Playwright/Vitest authoring |
+| `decompose` | Claude **Opus** | `prd-decompose-hybrid` (Opus-only — Haiku fails tech-stack accuracy) |
+| `plan` / `orchestrate` | Claude **Opus** | wave planning, consolidation, audit synthesis, this orchestrator |
+
+## Writer → reviewer pairing (cross-provider)
+
+The model that wrote the code never signs off on it. Pairing depends on risk
+tier (see `02-QUALITY-GATES.md`):
+
+| Writer | High-risk reviewer | Low-risk reviewer |
+|---|---|---|
+| Claude (Sonnet/Opus) | **Codex** `/codex:review` (or `/codex:adversarial-review`) | Claude Sonnet self-check pass |
+| Codex (`impl-logic`) | **Claude Opus** review | Claude Sonnet review |
+| Haiku (`mechanical`) | n/a — diff is trivial | Sonnet spot-check |
+
+## Default routing by `task_type`
+
+| `task_type` | Writer | Reviewer (high-risk) | Notes |
+|---|---|---|---|
+| T1-schema | `impl-standard` | Codex + Opus (RLS/security always high-risk) | migrations, Drizzle, RLS, audit triggers |
+| T2-api | `impl-standard`; `impl-logic` if algorithm-heavy | Codex | Server Actions, validation, outbox, rate-limit |
+| T3-ui | `impl-ui` (Opus) | Codex review **+** screenshot/axe parity gate | parity is non-negotiable |
+| T4-wiring-test | `test` | Codex | E2E + integration |
+| T4-e2e | `test` | Codex | Playwright only |
+| T5-seed | `impl-standard` / `mechanical` | Sonnet | inserts/fixtures |
+| T0-root / docs | `plan` (Opus) | Opus self + Codex spot | policy/ADR/contract |
+
+## `impl-logic` task families per module → route to Codex
+
+These are the algorithmic cores where Codex (`/codex:rescue`) leads
+implementation and Claude (Opus high-risk / Sonnet low-risk) reviews. Everything
+NOT listed here defaults to the `task_type` table above (Claude writes, Codex
+reviews on high-risk). When in doubt, logic with non-trivial edge cases, money,
+or ordering/graph constraints → Codex.
+
+| Module | `impl-logic` families (Codex implements) |
+|---|---|
+| 00-foundation | workflow-as-data / rule-DSL executor, rule cascade, idempotency canonical-stringify, GS1 mod-10 + check-digit parsers, RBAC HMAC + SoD, e-sign crypto (T-124), sync-queue backoff/dedup, schema-drift diff |
+| 01-npd | BOM explosion + versioning, recipe/spec computation, cost roll-up inputs |
+| 02-settings | rule-registry DSL evaluation, schema-driven column draft/publish logic, feature-flag evaluation |
+| 03-technical | D365 anti-corruption mapping (export-only), cost-per-kg calc (dual ownership), BOM SSOT resolution |
+| 04 + 07 planning | MRP netting, WO scheduling, capacity, `wo_dependencies` **cycle detection (V-PLAN-WO-CYCLE)**, `schedule_outputs` derivation |
+| 05-warehouse | FEFO selection, LP-transition DSL, reservation/allocation math |
+| 06-scanner-p1 | offline sync conflict resolution, queue flush ordering/idempotency |
+| 08-production | WO lifecycle state machine, yield/waste calc, **`oee_snapshots` producer math (D-OEE-1)**, consume-gate enforcement |
+| 09-quality | HACCP/CCP deviation logic, allergen gate, hold + **T-064 consume gate**, spec evaluation |
+| 10-finance | **FIFO/WAC valuation, variance, actual costing roll-up, cost-per-kg** (NUMERIC-exact) |
+| 11-shipping | allocation, pick/wave sequencing, **SSCC-18 mod-10**, BOL/POD SHA-256 hashing, carrier rate logic |
+| 12-reporting | aggregation + KPI computation (push heavy aggregation into SQL/MVs) |
+| 13-maintenance | PM schedule generation, MTBF/MTTR calc, calibration interval logic |
+| 14-multi-site | site-scope propagation (`app.current_site_id()`), cross-site allocation |
+| 15-oee | **OEE = Availability × Performance × Quality**, MV refresh logic, DSL rule definitions, drilldown aggregation |
+
+UI for these modules still goes to `impl-ui` (Opus) — Codex writes the engine,
+Opus writes the screen that drives it, each reviewed by the other.
+
+## Cost note (agentmaxxing economics)
+
+Codex Cloud delegation does not consume local resources, so the orchestrator may
+run several local Claude worktrees alongside several Codex Cloud tasks
+concurrently. Give Codex **worker** tasks a cheaper profile and reserve
+`gpt-5.4` for reviews (see `04-CODEX-INTEGRATION.md` → profiles). High-risk
+implementation and all parity/architecture judgment stay on **Opus**.
+
+## Escalation
+
+- A `mechanical`/`impl-standard` task that turns out ambiguous or architectural → escalate to Opus, don't guess.
+- Two cross-provider review rounds with unresolved disagreement → escalate to the human with both positions summarized (do not let the writer break the tie).
