@@ -18,7 +18,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-004 | Reference.ManufacturingOperations table | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.ManufacturingOperations reshape (mig 078) — merged; nit: drop redundant 012 unique (wave-close) |
 | T-005 | Reference lookup tables (PackSizes, Templates, LineTypes) | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference lookups PackSizes/Templates/Lines/Equip/CloseConfirm (mig 079) — merged; AlertThresholds removed (owned by T-049) |
 | T-006 | Reference.RolePermissions schema + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). RolePermissions seed → npd.* namespace per T-101 + legacy-string cleanup; matrix per PRD §2.2; merged. NOTE: re-verify vs T-101 final enum when T-101 built |
-| T-007 | outbox_events emitter wrapper for fa.* events | ⏸ BLOCKED | Partial: events.enum.ts has FG_CREATED alias; no emitFaEvent wrapper function |
+| T-007 | outbox_events emitter wrapper for fa.* events | ✅ DONE | DONE 2026-06-04 (Wave B). outbox emitFaEvent wrapper for fa.*/brief.* events (mig 102) — tx-scoped, idempotent, app_user insert org-RLS-checked; 25+4 green. merged |
 | T-008 | Server Action createFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
 | T-009 | Server Action updateFaCell + reset_built trigger | ⬜ PENDING | Blocked by T-001, T-003, T-006, T-007 |
 | T-010 | Cascade Chain 1: Pack_Size → Line → Equipment_Setup | ⬜ PENDING | Blocked by T-001, T-005 |
