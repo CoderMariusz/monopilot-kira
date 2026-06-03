@@ -13,3 +13,9 @@ export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
 export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
+export { npdProjects } from './npd-projects.js';
+export type { NewNpdProject, NpdProject } from './npd-projects.js';
+export { gateChecklistItems } from './gate-checklist-items.js';
+export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
+export { gateApprovals } from './gate-approvals.js';
+export type { GateApproval, NewGateApproval } from './gate-approvals.js';
