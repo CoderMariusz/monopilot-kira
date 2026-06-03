@@ -13,3 +13,10 @@ export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
 export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
+export { costingBreakdowns, costingWaterfallSteps } from './costing.js';
+export type {
+  CostingBreakdown,
+  CostingWaterfallStep,
+  NewCostingBreakdown,
+  NewCostingWaterfallStep,
+} from './costing.js';
