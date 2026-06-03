@@ -157,6 +157,16 @@ LIVE PROOF (Playwright, logged in): /en/settings/company renders REAL org data (
 The 3-layer chain (28P01 pwd → ENOTFOUND direct-host → self-signed-cert) all resolved. See memory [[deploy-migration-gotcha]].
 REMAINING per-screen: /settings/infra/lines still 500s ("This page couldn't load", ERROR 2923698551 — uncaught server error, SEPARATE bug, not data-plane). → full Gate-5 sweep agent to find+fix remaining per-screen bugs now that data plane is up.
 
+## ✅ GATE-5 LIVE VERIFIED (2026-06-03, commit ce68e984 deployed)
+Per-screen RSC crashes fixed: infra/lines + users passed inline closures (not 'use server' actions)
+to Client Components → Next16 serialization throw → error boundary. Fixed (pass actions directly).
+LIVE PROOF after redeploy: /settings/company = real org data (Apex); /settings/users = real user dir
+(1 user, admin@monopilot.test, role matrix, KPIs); /settings/infra/lines = renders (RBAC-gated, not crash).
+Sweep report: _meta/runs/02-settings-GATE5-SWEEP.md. Remaining non-OK = INTENTIONAL: RBAC-denied for the
+admin@monopilot.test account on owner-only screens (/flags, /d365/sync), honest empty states (audit/features/
+reference/tenant w/ 0 rows), D8 stubs (shifts/products/boms/processes/partners/devices/ship-override). No bugs.
+NOTE: test account is org-admin, NOT owner → real owner will see fuller access. Write path (outbox CHECK 071) verified live.
+
 ## (superseded) earlier hypothesis: DATABASE_URL_APP env on Vercel
 Whole settings/account data plane down on preview — withOrgContext app-pool auths with wrong app_user password
 because DATABASE_URL_APP is unset (falls back to DATABASE_URL + APP_USER_PASSWORD/'app-user-test-password').
