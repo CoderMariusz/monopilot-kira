@@ -77,3 +77,15 @@ Classify each task's risk; route review accordingly (see `/kira:review`).
 
 Only after the applicable gates are green does the worktree merge into the
 integration branch and `STATUS.md` flip to ✅.
+
+## Gate 5 — Live-deploy verification before sign-off (fixes: "green locally, broken on Vercel+Supabase")
+
+**MANDATORY before presenting ANY module for human sign-off.** Local unit/RTL/DB-against-local-Postgres green is NOT acceptance — local ≠ live. (On 02-settings, every local test passed while the live preview was broken: migrations 051-070 never reached Supabase because a duplicate migration prefix broke the runner and `apps/web/vercel.json` swallowed the failure with `|| echo`.)
+
+Run, in order:
+1. **Build is real:** push the branch; confirm the Vercel build is `READY` and the migrate step is **fail-loud** (`apps/web/vercel.json` runs `pnpm --filter @monopilot/db migrate` WITHOUT `|| echo` swallowing). A red build = stop.
+2. **DB parity:** Supabase `select max(filename) from public.schema_migrations where filename is not null` (MCP, project `khjvkhzwfzuwzrusgobp`) MUST equal the highest migration in `packages/db/migrations`; confirm each new table via `to_regclass`. Any drift = the deploy is running on a stale schema.
+3. **Authenticated browser click-through (Playwright):** log in to the deployed PREVIEW (`/en/login`, test user `admin@monopilot.test`) and visit EVERY route of the module. Classify each OK / EMPTY / ERROR. For every ERROR capture the exact server error from Vercel `get_runtime_logs` (+ Supabase `get_logs`) — never hand-wave a failure.
+4. **Real data on the live screen:** each screen shows the same real Supabase data the loaders read locally (not error/empty/placeholder).
+
+Only when the live click-through is clean (or each remaining failure is a recorded external gap) write `_meta/runs/<module>-SIGNOFF.md` and STOP for human review. Note: Vercel **production = `main`**; module work deploys as a PREVIEW (branch alias) — verify on the preview, merge to main only after human acceptance.

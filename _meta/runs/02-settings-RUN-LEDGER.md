@@ -114,7 +114,26 @@ Worktrees branch from `main` (8601fd90, 137 behind). Since touched files are bas
 Remaining 17 fails = ALL pre-existing, out of W3 scope: npd dashboard (T-134, other module) ~8; notifications T-071 live-DB pg_catalog test (needs DB) 1; `[locale]/(admin)/settings/{flags,reference,rules}` MIDDLE-TREE parity test cruft (canonical (app)/(admin) versions pass) — fix/remove in W4.
 Screens now real-data + parity: ~28. Tasks advanced (set 🔄 in next STATUS reconcile): T-058/059/060/061/062/063/064/067/077/097/098/099/100/101/102/108/109/111/112/114/115/119.
 
-## Remaining waves after W3
+## CRITICAL DEPLOY FIX (2026-06-03) — see memory [[deploy-migration-gotcha]]
+Live preview was broken because migrations 051-070 NEVER reached Supabase (dup-049 broke migrate-runner + vercel.json `|| echo` swallowed it; Supabase stuck at 050). FIXED: applied 051-070 to Supabase via MCP + tracked w/ sha256; renumbered dup-049→070 (+ outbox CHECK onboarding.* union); vercel.json fail-loud. Commits f73f5195. Build f73f5195 READY (fail-loud migrate passed). Seeds verified (authz/UoM/flags/gate).
+Vercel PROD = main; work is PREVIEW (alias monopilot-kira-git-kira-long-run-...). Test login: admin@monopilot.test.
+
+## LIVE AUDIT findings (in progress, background agent ab782065)
+- company STILL "could not be loaded" AFTER migrations (columns exist) → real loader bug ([settings/company] load_failed) — agent diagnosing via runtime logs + fixing.
+- INVALID_MESSAGE (next-intl ICU) errors in runtime logs — possible bad message from i18n merges → agent validating messages/02-settings.json + i18n/<locale>.json.
+- App shell + full settings nav RENDER fine; login works.
+- Background: live-audit-and-fix agent (full click-through + root-cause + code fixes, no commit) + Codex review of schema 063-070 (_meta/runs/codex-review-schema-063-070.md).
+- modules.description seed = 0 on Supabase (069 codes mismatch live module codes) — cosmetic, backfill later.
+
+## STANDARD (user, 2026-06-03): Gate 5 — live-deploy verification before sign-off
+Green-local ≠ live. Before ANY sign-off: push → Vercel build READY w/ fail-loud migrate → Supabase
+max(filename) == repo's highest migration (no stale schema) → authenticated Playwright click-through of
+EVERY route on the deployed preview (`/en/login`, admin@monopilot.test), capturing get_runtime_logs error
+for each failure → screens show real data live. Codified in: docs/workflow/02-QUALITY-GATES.md (Gate 5),
+07-MODULE-EXECUTION.md (step 5), .claude/commands/kira/run-module.md (step 5 + Never), MON-domain-settings
+skill (Gate 5 + DoD), memory [[live-deploy-verification-gate]].
+
+## Remaining waves after W3 (Gate 5 live-verify is the LAST step before sign-off)
 - W3 parity polish (real data OK, parity gaps): rules(T-063)+rule-detail(T-064)+diff(T-108), schema/new(T-097)+diff(T-098)+migrations(T-099), reference(T-067)+mfg-ops(T-077,115), users(T-059), company(T-058), security(T-060), invitations(T-119), d365 conn/mapping(T-061/062), tenant/*(T-100/101/102/109), modals SM-01..11, language picker(T-129), onboarding steps(T-041..046).
 - W4 structural cleanup: delete non-localized (admin)/settings orphans (users/client.tsx, profile/*), redirect dups; consolidate. (roles handled in W2b.)
 - W5 Class D build-now: boms/partners/processes (no owner) build in settings + seed; devices/shifts/labels/etc per ownership — hide nav OR build (user: build part now + seed). onboarding /onboarding stub→real wizard.

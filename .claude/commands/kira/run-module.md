@@ -37,16 +37,29 @@ plan defines this module's intra-module waves and its place in the rollout order
    after 2 rounds escalates to the human (autonomy profile); otherwise do NOT
    involve the human yet.
 
-5. **Sign-off report.** Write `_meta/runs/$1-SIGNOFF.md` containing:
+5. **Live-deploy verification (MANDATORY before sign-off — Gate 5, `02-QUALITY-GATES.md`).**
+   Green-local is NOT acceptance — local ≠ live. Push the branch → confirm the Vercel
+   build is `READY` and the migrate step is **fail-loud** (`apps/web/vercel.json` must
+   NOT swallow migrate with `|| echo`) → verify Supabase
+   `select max(filename) from public.schema_migrations where filename is not null`
+   (MCP `khjvkhzwfzuwzrusgobp`) equals the repo's highest `packages/db/migrations` file
+   and each new table exists (`to_regclass`) → log in to the deployed PREVIEW
+   (`/en/login`, `admin@monopilot.test`) and Playwright-click EVERY module route,
+   classifying OK/EMPTY/ERROR and pulling the exact server error (`get_runtime_logs` +
+   Supabase `get_logs`) for any failure. Fix any real bug and re-verify. Do NOT proceed
+   to sign-off until the live click-through is clean or each failure is a recorded gap.
+
+6. **Sign-off report.** Write `_meta/runs/$1-SIGNOFF.md` containing:
    - **Task → feature map** (every task → verdict → user-visible feature) so no
      work is missed;
    - **Known external gaps** (feature → blocking module/T-NNN);
-   - **Evidence** (real test results, UI parity artifacts, the exact routes to
-     click on the Vercel+Supabase app);
+   - **Evidence** (real test results, UI parity artifacts, **the captured Gate-5 live
+     click-through result** — every route OK/EMPTY/ERROR on the deployed app with the
+     server error for any failure — and the exact routes to click on the Vercel+Supabase app);
    - **Consensus note** (Claude + Codex sign-off, deviations).
    Commit + push it. Then `bash .claude/hooks/notify.sh "Module $1 ready for review — routes: <…>"`.
 
-6. **STOP for human review.** This is a deliberate checkpoint. Wait for the
+7. **STOP for human review.** This is a deliberate checkpoint. Wait for the
    human's comments. (They review on the deployed app and may reply from their
    phone — see `06-AUTONOMY-AND-REMOTE.md`.)
 
@@ -67,4 +80,5 @@ the human signs off (or explicitly says "proceed, track the rest as gaps").
 
 - Never duplicate a canonical owner across modules to "fill a gap" (that's bucket A/D).
 - Never mark a task ✅ without its real gates green.
+- Never present for sign-off on green-local alone — Gate 5 (live authenticated browser click-through on the deployed Vercel+Supabase preview) is MANDATORY first.
 - Never skip the sign-off STOP — the module boundary is the human's review point.

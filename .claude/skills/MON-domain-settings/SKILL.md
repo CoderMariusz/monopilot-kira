@@ -50,7 +50,15 @@ duplicate routes), confirm every AppSidebar/settings sub-nav link resolves to a 
 - Migrations: next free number is dynamic — `git ls-files packages/db/migrations | sort | tail`; never invent.
   Foundation reached 062. Honor the migration-serialization lock.
 
-## Gates recap (all four, per task)
+## Gates recap (per task G1-G4, + G5 per module before sign-off)
 G1 real tests run + captured (DB-gated suites against a real Postgres/local DB — foundation's pattern) ·
 G2 prototype parity (above) · G3 deps DONE in STATUS · G4 cross-provider review (Opus UI → Codex; Codex → Opus/Sonnet).
-DoD echo: a user logs in and clicks every settings link → sees a prototype-faithful screen backed by real Supabase data.
+**G5 (MANDATORY pre-sign-off, module-level): live-deploy verification** — green-local ≠ live. Push → Vercel build
+`READY` with **fail-loud** migrate (`apps/web/vercel.json` must NOT swallow migrate with `|| echo`) → confirm
+Supabase `max(filename)` in `public.schema_migrations` == repo's highest `packages/db/migrations` file (no stale
+schema; new tables via `to_regclass`, project `khjvkhzwfzuwzrusgobp`) → log in to the deployed PREVIEW
+(`/en/login`, `admin@monopilot.test`) and Playwright-click EVERY settings route, capturing the exact
+`get_runtime_logs` server error for any ERROR. (This caught the deploy break: migrations 051-070 never reached
+Supabase via the dup-049 + fail-silent build.) Detail: `docs/workflow/02-QUALITY-GATES.md` Gate 5.
+DoD echo: a user logs in **on the deployed Vercel+Supabase app** and clicks every settings link → sees a
+prototype-faithful screen backed by real Supabase data (verified live, not just locally).

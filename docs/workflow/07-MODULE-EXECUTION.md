@@ -45,6 +45,14 @@ graph dictates; the above is the expected shape.
    `MON-domain-*` rules + prototype parity. Iterate fixes until **both** sign off
    (or escalate a true deadlock per the autonomy profile). Only then do you
    present it.
+5. **Live-deploy verification (MANDATORY pre-sign-off) — Gate 5 in `02-QUALITY-GATES.md`:**
+   green-local is NOT acceptance. Push → confirm Vercel build `READY` with a
+   **fail-loud** migrate → verify Supabase `max(filename)` in `public.schema_migrations`
+   equals the repo's highest migration (no stale schema) → log in to the deployed
+   PREVIEW (`/en/login`, `admin@monopilot.test`) and Playwright-click EVERY module
+   route, classifying OK/EMPTY/ERROR and pulling the exact server error
+   (`get_runtime_logs` + Supabase `get_logs`) for any failure. Only present once the
+   live click-through is clean or each failure is a recorded external gap.
 
 ## Module Sign-off Report (committed + pushed + phone push, then STOP)
 
@@ -58,8 +66,10 @@ notification. The report MUST contain:
    to another module (→ named there).
 2. **Known external gaps** — features that look incomplete *on purpose* because
    they depend on a module not built yet, each with the blocking `module / T-NNN`.
-3. **Evidence** — real test results, UI parity screenshots/trace/axe, the routes
-   to click on the deployed (Vercel + Supabase) app.
+3. **Evidence** — real test results, UI parity screenshots/trace/axe, AND the
+   captured Gate-5 live-deploy click-through result (every route OK/EMPTY/ERROR on
+   the deployed Vercel+Supabase preview, with the exact server error for any
+   failure). The routes to click are listed for the human to re-verify.
 4. **Consensus note** — Claude's and Codex's sign-off, and any deviations.
 
 Then **STOP** and wait for your review. Ping says: "Module <NN> ready — review on
