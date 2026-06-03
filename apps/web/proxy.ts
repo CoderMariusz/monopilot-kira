@@ -11,6 +11,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
+import { matchPreset, rateLimitResponse } from '../../packages/rate-limit/src/index.js';
 import { routing } from './i18n/routing';
 import { checkIdleTimeout } from './lib/auth/session-check';
 import {
@@ -121,8 +122,30 @@ function forbiddenIpResponse(): NextResponse {
   }) as NextResponse;
 }
 
+function rateLimitUnavailableResponse(): NextResponse {
+  return new Response(JSON.stringify({ error: 'RATE_LIMIT_UNAVAILABLE' }), {
+    status: 503,
+    headers: { 'content-type': 'application/json', 'retry-after': '60' },
+  }) as NextResponse;
+}
+
 export default async function proxy(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
+
+  let rateLimit: ReturnType<typeof matchPreset>;
+  try {
+    rateLimit = matchPreset(req);
+  } catch {
+    return rateLimitUnavailableResponse();
+  }
+  if (rateLimit) {
+    const result = await rateLimit.limiter.check(req);
+    if (!result.allowed) {
+      return rateLimitResponse(result.resetAt, {
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      }) as NextResponse;
+    }
+  }
 
   // Preserve the existing DEV_AUTH_BYPASS warning semantics. In non-production
   // dev bypass keeps local app shells reachable but still never enables in prod.
