@@ -61,6 +61,11 @@ export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
 export { gateChecklistItems } from './gate-checklist-items.js';
 export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
+export { gateChecklistTemplates } from './gate-checklist-templates.js';
+export type {
+  GateChecklistTemplate,
+  NewGateChecklistTemplate,
+} from './gate-checklist-templates.js';
 export { gateApprovals } from './gate-approvals.js';
 export type { GateApproval, NewGateApproval } from './gate-approvals.js';
 export { costingBreakdowns, costingWaterfallSteps } from './costing.js';
