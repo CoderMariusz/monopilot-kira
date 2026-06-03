@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@monopilot/db": "workspace:*",
+    "@monopilot/observability": "workspace:*",
     "@monopilot/outbox": "workspace:*",
     "@monopilot/server": "workspace:*",
     "dotenv": "^16.4.7",

@@ -25,6 +25,7 @@
     "react-dom": "^19.2.0",
     "serwist": "^9.5.11",
     "@monopilot/db": "workspace:*",
+    "@monopilot/observability": "workspace:*",
     "@monopilot/ui": "workspace:*",
     "zod": "^3.25.76",
     "json-schema-to-zod": "^2.8.1",
