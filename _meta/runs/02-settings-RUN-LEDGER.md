@@ -180,3 +180,14 @@ Then re-run Gate-5 live click-through. observability (with-org-context phase_fai
 - W6 parity evidence Playwright+axe (T-143..153) + E2E (T-080..088) — run from MAIN checkout (worktrees lack node_modules).
 - W7 i18n ro/uk full (T-116), SCIM bearer fix (T-034), ESLint enum-lock (T-130), integration_settings migration.
 - → Claude+Codex consensus → SIGNOFF → STOP.
+
+## ✅ MODULE SIGN-OFF (2026-06-03) — W4–W7 complete, consensus reached, STOP for human
+W7(9e8136e3): integration_settings 072 + ESLint enum-lock T-130 + i18n ro/uk parity T-116 + SCIM bearer test T-034.
+W4(fc01f78e): dropped stale non-localized dup routes; canonical [locale]/(app)/(admin)/settings; tests repointed+green.
+W5(6a673e58): processes/partners real schema-driven reference screens + 073 seed (live: 6+2 rows); onboarding entry; boms=external gap→03-technical.
+W6 authored(a1258aac)+LIVE capture(8e1cb1f6): 11/11 parity groups CAPTURED on Vercel preview, 56 screens, 35 OK/5 RBAC_DENIED/1 EMPTY/0 ERROR, real Supabase data.
+Codex review: 2×P2 (reference write-path: universal schemas invisible via reference_schemas SELECT RLS) → FIXED 0f7da85d + migration 074 (applied live); Codex round-2 = SIGN-OFF (no regressions).
+STATUS: ✅70 · 🔄53 · ⏸29 · ⬜1. SIGNOFF report: _meta/runs/02-settings-SIGNOFF.md.
+Gate-5 login: admin@monopilot.test / G4te5-Verify-Kira!2026 (reset via Supabase, TEST env).
+NOTE: migration 074 applied to Supabase via MCP but schema_migrations tracking row lands on next deploy (074 idempotent, fail-loud migrate). Untracked prototypes/.../settings/import-export.jsx NOT committed (provenance unverified).
+STOP — awaiting human review on the deployed preview.
