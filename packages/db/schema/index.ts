@@ -13,3 +13,5 @@ export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
 export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
+export { brief, briefLines, npdProjects } from './brief.js';
+export type { Brief, BriefLine, NewBrief, NewBriefLine, NewNpdProject, NpdProject } from './brief.js';
