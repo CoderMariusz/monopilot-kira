@@ -26,7 +26,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-012 | Cascade Chain 3: Recipe_Components → Ingredient_Code | ⬜ PENDING | Blocked by T-001, T-002 |
 | T-013 | Cascade Chain 4: Template → ApplyTemplate to ProdDetail | ⬜ PENDING | Blocked by T-001, T-002, T-005, T-011 |
 | T-014 | Schema-driven Zod runtime from Reference.DeptColumns | ⬜ PENDING | Blocked by T-003, T-005 |
-| T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ⬜ PENDING | Blocked by T-001, T-003 |
+| T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ✅ DONE | DONE 2026-06-04 (Wave B). IsAllRequiredFilled + Done_<Dept> + fa_status_overall view (mig 097, security_invoker, schema-driven) — merged |
 | T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
 | T-017 | Server Action closeDeptSection | ⬜ PENDING | Blocked by T-001, T-006, T-007, T-015 |
 | T-018 | Autofilter logic + reopenDeptSection Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-017 |
@@ -43,7 +43,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-029 | Server Action deleteFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
 | T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
 | T-031 | Server Actions: createBrief + saveBriefDraft | ⬜ PENDING | Blocked by T-006, T-007, T-030, T-054 |
-| T-032 | Reference.BriefFieldMapping seed | ⬜ PENDING | Blocked by T-001 |
+| T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
 | T-033 | Server Action convertBriefToFa | ⬜ PENDING | Blocked by T-001, T-002, T-008, T-030, T-031, T-032 |
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
 | T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
@@ -67,7 +67,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-053 | E2E: dashboard refresh + alert thresholds smoke | ⬜ PENDING | Blocked by T-051, T-052 |
 | T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
 | T-055 | Reference.GateChecklistTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.GateChecklistTemplates (mig 092) — merged |
-| T-056 | Default G0-G4 GateChecklistTemplates seed | ⬜ PENDING | Blocked by T-055 |
+| T-056 | Default G0-G4 GateChecklistTemplates seed | ✅ DONE | DONE 2026-06-04 (Wave B). Default G0-G4 GateChecklistTemplates seed (mig 101, Sonnet, 9/9 idempotent) — merged |
 | T-057 | createProject + listProjects + getProject Server Actions | ⬜ PENDING | Blocked by T-054, T-055, T-056 |
 | T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ⬜ PENDING | Blocked by T-054, T-057, T-095 |
 | T-059 | UI: Pipeline Kanban view | ⬜ PENDING | Blocked by T-057, T-058 |
@@ -88,7 +88,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-074 | UI: NutritionScreen | ⬜ PENDING | Blocked by T-072 |
 | T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
-| T-077 | Reference.ApprovalChainTemplates table | ⬜ PENDING | Blocked by T-001, T-054 |
+| T-077 | Reference.ApprovalChainTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.ApprovalChainTemplates (mig 098, zod) — merged |
 | T-078 | Approval criteria (C1-C7) evaluator Server Action | ⬜ PENDING | Blocked by T-064, T-072, T-073, T-077 |
 | T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
 | T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
@@ -104,7 +104,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-090 | d365_import_cache_meta view + scheduled sync worker | ⬜ PENDING | Blocked by T-049 |
 | T-091 | E2E: dashboard interactive controls | ⬜ PENDING | Blocked by T-052, T-051 |
 | T-092 | Shared BOM SSOT schema | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). Shared BOM SSOT bom_headers+bom_lines (mig 090, NUMERIC-exact, versioned) — Codex+rework (INSERT immutability guard), merged. Existing bom_item(014) is R13 placeholder, no collision |
-| T-093 | API/backfill: NPD Builder writes initial shared BOM | ⬜ PENDING | Blocked by T-092 |
+| T-093 | API/backfill: NPD Builder writes initial shared BOM | ✅ DONE | DONE 2026-06-04 (Wave B). NPD Builder writes initial shared BOM + bom.* events (mig 099) — merged; immutability/idempotency/RLS verified |
 | T-094 | FG canonical terminology compatibility pass (UI/i18n) | ⬜ PENDING | Blocked by T-056, T-058, T-095 |
 | T-095 | G3 create/map FG candidate for NPD project | ⬜ PENDING | Blocked by T-031, T-054, T-057, T-058 |
 | T-096 | releaseNpdProjectToFactory | ⬜ PENDING | Blocked by T-056, T-058, T-092, T-093, T-095, T-097 |
