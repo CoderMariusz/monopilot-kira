@@ -74,6 +74,8 @@ export { risks } from './risks.js';
 export type { NewRisk, Risk } from './risks.js';
 export { complianceDocs } from './compliance-docs.js';
 export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
+export { bomHeaders, bomLines } from './shared-bom.js';
+export type { BomHeader, BomLine, NewBomHeader, NewBomLine } from './shared-bom.js';
 export {
   nutriScoreResults,
   nutritionAllergens,
