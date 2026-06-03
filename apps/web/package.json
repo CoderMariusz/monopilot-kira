@@ -27,6 +27,7 @@
     "@monopilot/db": "workspace:*",
     "@monopilot/ui": "workspace:*",
     "zod": "^3.25.76",
+    "@monopilot/rbac": "workspace:*",
     "json-schema-to-zod": "^2.8.1"
   },
   "devDependencies": {

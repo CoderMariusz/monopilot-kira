@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@monopilot/db": "workspace:*",
+    "@monopilot/rbac": "workspace:*",
     "argon2": "^0.31.2",
     "libsodium-wrappers": "^0.8.4",
     "otplib": "^13.4.0",

@@ -41,6 +41,9 @@ importers:
       '@monopilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@monopilot/rbac':
+        specifier: workspace:*
+        version: link:../../packages/rbac
       '@monopilot/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -190,6 +193,9 @@ importers:
       '@monopilot/db':
         specifier: workspace:*
         version: link:../db
+      '@monopilot/rbac':
+        specifier: workspace:*
+        version: link:../rbac
       argon2:
         specifier: ^0.31.2
         version: 0.31.2(encoding@0.1.13)

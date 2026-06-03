@@ -106,6 +106,8 @@ async function seedTestOrg(owner: pg.Pool): Promise<void> {
       [orgId],
     );
   }
+  await owner.query(`delete from public.users where id in ($1::uuid, $2::uuid, $3::uuid)`,
+    [actorId, approverId, targetId]);
   if ((await owner.query(`select to_regclass('public.roles') as t`)).rows[0]?.t) {
     await owner.query(`delete from public.roles where org_id = $1::uuid`, [orgId]);
   }
@@ -113,8 +115,6 @@ async function seedTestOrg(owner: pg.Pool): Promise<void> {
     await owner.query(`delete from public.org_security_policies where org_id = $1::uuid`, [orgId]);
   }
 
-  await owner.query(`delete from public.users where id in ($1::uuid, $2::uuid, $3::uuid)`,
-    [actorId, approverId, targetId]);
   await owner.query(`delete from public.organizations where id = $1::uuid`, [orgId]);
   // Tenant deletion is skipped: other test suites may reference the same tenantId.
   // The INSERT below uses ON CONFLICT DO NOTHING so an existing tenant row is fine.
@@ -133,13 +133,19 @@ async function seedTestOrg(owner: pg.Pool): Promise<void> {
     [orgId, tenantId],
   );
 
+  const fixtureRoleId = await seedRole(owner, orgId, 't091.fixture.user', 'T-091 Fixture User');
+
   await owner.query(
-    `insert into public.users (id, org_id, email) values
-       ($1, $2, 'actor@rbac-test.example'),
-       ($3, $2, 'approver@rbac-test.example'),
-       ($4, $2, 'target@rbac-test.example')
-     on conflict (id) do nothing`,
-    [actorId, orgId, approverId, targetId],
+    `insert into public.users (id, org_id, email, name, role_id) values
+       ($1, $2, 'actor@rbac-test.example', 'RBAC Test Actor', $5),
+       ($3, $2, 'approver@rbac-test.example', 'RBAC Test Approver', $5),
+       ($4, $2, 'target@rbac-test.example', 'RBAC Test Target', $5)
+     on conflict (id) do update
+        set org_id = excluded.org_id,
+            email = excluded.email,
+            name = excluded.name,
+            role_id = excluded.role_id`,
+    [actorId, orgId, approverId, targetId, fixtureRoleId],
   );
 }
 
@@ -153,6 +159,28 @@ async function seedOrgContext(owner: pg.Pool, sessionToken: string, oid: string)
 
 async function setAppContext(client: pg.PoolClient, sessionToken: string, oid: string): Promise<void> {
   await client.query('select app.set_org_context($1::uuid, $2::uuid)', [sessionToken, oid]);
+}
+
+async function seedRole(
+  owner: pg.Pool,
+  oid: string,
+  slug: string,
+  name = slug,
+  system = false,
+): Promise<string> {
+  const { rows } = await owner.query<{ id: string }>(
+    `insert into public.roles (org_id, slug, system, code, name, permissions, is_system)
+     values ($1, $2, $3, $2, $4, '[]'::jsonb, $3)
+     on conflict (org_id, slug) do update
+        set system = excluded.system,
+            code = excluded.code,
+            name = excluded.name,
+            permissions = excluded.permissions,
+            is_system = excluded.is_system
+     returning id`,
+    [oid, slug, system, name],
+  );
+  return rows[0]!.id;
 }
 
 // ─── AC1 ─────────────────────────────────────────────────────────────────────
@@ -177,7 +205,9 @@ describe('AC1 — SoD: org.access.admin holder cannot receive org.schema.admin w
       await adminClient.query('begin');
       // Insert system roles and assign org.access.admin to TARGET via owner (bypasses RLS)
       await adminClient.query(
-        `insert into public.roles (org_id, slug, system) values ($1, 'org.access.admin', true), ($1, 'org.schema.admin', true)
+        `insert into public.roles (org_id, slug, system, code, name, permissions, is_system)
+         values ($1, 'org.access.admin', true, 'org.access.admin', 'Org Access Admin', '[]'::jsonb, true),
+                ($1, 'org.schema.admin', true, 'org.schema.admin', 'Org Schema Admin', '[]'::jsonb, true)
          on conflict (org_id, slug) do nothing`,
         [orgId],
       );
@@ -300,7 +330,9 @@ describe('AC2 — Valid second-admin approval token → grant succeeds + audit_e
     try {
       await adminClient.query('begin');
       await adminClient.query(
-        `insert into public.roles (org_id, slug, system) values ($1, 'org.access.admin', true), ($1, 'org.schema.admin', true)
+        `insert into public.roles (org_id, slug, system, code, name, permissions, is_system)
+         values ($1, 'org.access.admin', true, 'org.access.admin', 'Org Access Admin', '[]'::jsonb, true),
+                ($1, 'org.schema.admin', true, 'org.schema.admin', 'Org Schema Admin', '[]'::jsonb, true)
          on conflict (org_id, slug) do nothing`,
         [orgId],
       );
@@ -484,7 +516,7 @@ describe('AC3 — Fresh org seed creates BOTH system roles, no tenant-scoped row
   });
 
   runIntegration('AC3 integration — system roles seeded on org insert', () => {
-    it('seeds exactly both system roles (org.access.admin AND org.schema.admin) for the fresh org', async () => {
+    it('seeds both required system roles (org.access.admin AND org.schema.admin) for the fresh org', async () => {
       const client = await app.connect();
       try {
         await client.query('begin');
@@ -497,11 +529,10 @@ describe('AC3 — Fresh org seed creates BOTH system roles, no tenant-scoped row
 
         const slugs = rows.map((r) => r.slug);
 
-        // MUTATION EXPERIMENT: seed only one system role → count assertion fails
-        expect(rows).toHaveLength(2);
-        // Specific pin: both exact slugs must be present (not just any 2 rows)
+        // Specific pin: both exact slugs must be present.
         expect(slugs).toContain('org.access.admin');
         expect(slugs).toContain('org.schema.admin');
+        expect(slugs.filter((slug) => ['org.access.admin', 'org.schema.admin'].includes(slug))).toHaveLength(2);
         // All seeded rows are system=true
         expect(rows.every((r) => r.system === true)).toBe(true);
       } finally {
@@ -738,12 +769,17 @@ runIntegration('P0-Fix2 — Cross-org grant rejected (actor belongs to org A, pa
          values ($1, $2, 'Org B', 'generic')`,
       [orgBId, tenantId],
     );
+    const orgBRoleId = await seedRole(ownerXorg, orgBId, 't091.fixture.user', 'T-091 Fixture User');
     await ownerXorg.query(
-      `insert into public.users (id, org_id, email) values
-         ($1, $2, 'orgb-actor@rbac-test.example'),
-         ($3, $2, 'orgb-target@rbac-test.example')
-       on conflict (id) do nothing`,
-      [orgBActorId, orgBId, orgBTargetId],
+      `insert into public.users (id, org_id, email, name, role_id) values
+         ($1, $2, 'orgb-actor@rbac-test.example', 'Org B Actor', $4),
+         ($3, $2, 'orgb-target@rbac-test.example', 'Org B Target', $4)
+       on conflict (id) do update
+          set org_id = excluded.org_id,
+              email = excluded.email,
+              name = excluded.name,
+              role_id = excluded.role_id`,
+      [orgBActorId, orgBId, orgBTargetId, orgBRoleId],
     );
   });
 
@@ -799,26 +835,23 @@ runIntegration('P0-Fix3 — SoD check is on TARGET (not actor): neutral actor + 
          values ($1, $2, 'SoD Test Org', 'generic')`,
       [sodOrgId, tenantId],
     );
+    const sodFixtureRoleId = await seedRole(ownerSod, sodOrgId, 't091.fixture.user', 'T-091 Fixture User');
     await ownerSod.query(
-      `insert into public.users (id, org_id, email) values
-         ($1, $2, 'neutral@sod-test.example'),
-         ($3, $2, 'target@sod-test.example'),
-         ($4, $2, 'approver@sod-test.example')
-       on conflict (id) do nothing`,
-      [neutralActorId, sodOrgId, sodTargetId, sodApproverId],
+      `insert into public.users (id, org_id, email, name, role_id) values
+         ($1, $2, 'neutral@sod-test.example', 'SoD Neutral Actor', $5),
+         ($3, $2, 'target@sod-test.example', 'SoD Target', $5),
+         ($4, $2, 'approver@sod-test.example', 'SoD Approver', $5)
+       on conflict (id) do update
+          set org_id = excluded.org_id,
+              email = excluded.email,
+              name = excluded.name,
+              role_id = excluded.role_id`,
+      [neutralActorId, sodOrgId, sodTargetId, sodApproverId, sodFixtureRoleId],
     );
 
     // Give TARGET (not neutral actor) org.access.admin
-    await ownerSod.query(
-      `insert into public.roles (org_id, slug, system) values ($1, 'org.access.admin', true), ($1, 'org.schema.admin', true)
-         on conflict (org_id, slug) do nothing`,
-      [sodOrgId],
-    );
-    const { rows } = await ownerSod.query<{ id: string }>(
-      `select id from public.roles where org_id = $1 and slug = 'org.access.admin'`,
-      [sodOrgId],
-    );
-    const accessAdminRoleId = rows[0]!.id;
+    const accessAdminRoleId = await seedRole(ownerSod, sodOrgId, 'org.access.admin', 'Org Access Admin', true);
+    await seedRole(ownerSod, sodOrgId, 'org.schema.admin', 'Org Schema Admin', true);
     // Target holds org.access.admin; neutral actor holds NO admin roles
     await ownerSod.query(
       `insert into public.user_roles (user_id, role_id, org_id) values ($1, $2, $3) on conflict do nothing`,
@@ -873,6 +906,152 @@ runIntegration('P0-Fix3 — SoD check is on TARGET (not actor): neutral actor + 
 
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
+  });
+});
+
+runIntegration('T-091 round 2 — system actor grants are first-class and org-safe', () => {
+  let ownerSystem: pg.Pool;
+  const systemTenantId = randomUUID();
+  const systemOrgId = randomUUID();
+  const otherOrgId = randomUUID();
+  const systemTargetId = randomUUID();
+  const otherOrgTargetId = randomUUID();
+  const sodTargetId = randomUUID();
+  const systemTargetEmail = `system-target-${systemTargetId}@example.test`;
+  const otherOrgTargetEmail = `system-cross-target-${otherOrgTargetId}@example.test`;
+  const sodTargetEmail = `system-sod-target-${sodTargetId}@example.test`;
+  const systemRoleSlug = 'production.scim_member';
+
+  beforeAll(async () => {
+    if (!databaseUrl) return;
+    ownerSystem = getOwnerConnection();
+    await seedBaselineAndMigrations(ownerSystem);
+
+    await ownerSystem.query(
+      `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'System Actor Tenant', 'eu', 'https://system-actor.example.test')
+       on conflict (id) do nothing`,
+      [systemTenantId],
+    );
+    await ownerSystem.query(
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+       values ($1, $2, 'System Actor Org', 'generic'),
+              ($3, $2, 'Other System Actor Org', 'generic')
+       on conflict (id) do nothing`,
+      [systemOrgId, systemTenantId, otherOrgId],
+    );
+    const systemFixtureRoleId = await seedRole(ownerSystem, systemOrgId, 't091.fixture.user', 'T-091 Fixture User');
+    const otherOrgFixtureRoleId = await seedRole(ownerSystem, otherOrgId, 't091.fixture.user', 'T-091 Fixture User');
+    await ownerSystem.query(
+      `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, $8, 'System Target', $6),
+              ($3, $4, $9, 'System Cross Target', $7),
+              ($5, $2, $10, 'System SoD Target', $6)
+       on conflict (id) do update
+          set org_id = excluded.org_id,
+              email = excluded.email,
+              name = excluded.name,
+              role_id = excluded.role_id`,
+      [
+        systemTargetId,
+        systemOrgId,
+        otherOrgTargetId,
+        otherOrgId,
+        sodTargetId,
+        systemFixtureRoleId,
+        otherOrgFixtureRoleId,
+        systemTargetEmail,
+        otherOrgTargetEmail,
+        sodTargetEmail,
+      ],
+    );
+    await seedRole(ownerSystem, systemOrgId, 'org.schema.admin', 'Org Schema Admin', true);
+    await seedRole(ownerSystem, systemOrgId, systemRoleSlug, systemRoleSlug);
+    const { rows } = await ownerSystem.query<{ id: string }>(
+      `select id from public.roles where org_id = $1 and slug = 'org.access.admin'`,
+      [systemOrgId],
+    );
+    await ownerSystem.query(
+      `insert into public.user_roles (user_id, role_id, org_id)
+       values ($1, $2, $3)
+       on conflict do nothing`,
+      [sodTargetId, rows[0]!.id, systemOrgId],
+    );
+  });
+
+  afterAll(async () => {
+    if (!databaseUrl) return;
+    await ownerSystem?.end();
+  });
+
+  it('system actor grant succeeds without any actor membership row and writes nullable actor audit', async () => {
+    await ownerSystem.query(
+      `insert into public.org_security_policies (org_id, dual_control_required)
+       values ($1, false)
+       on conflict (org_id) do update set dual_control_required = false`,
+      [systemOrgId],
+    );
+
+    const result = await grantRole({
+      actorType: 'system',
+      targetUserId: systemTargetId,
+      orgId: systemOrgId,
+      roleSlug: systemRoleSlug,
+    });
+
+    expect(result).toEqual({ success: true });
+
+    const audit = await ownerSystem.query<{
+      actor_type: string;
+      actor_user_id: string | null;
+      action: string;
+      retention_class: string;
+    }>(
+      `select actor_type, actor_user_id, action, retention_class
+         from public.audit_events
+        where org_id = $1
+          and action = 'role.assigned'
+          and resource_id = $2
+        order by occurred_at desc
+        limit 1`,
+      [systemOrgId, systemRoleSlug],
+    );
+
+    expect(audit.rows[0]).toEqual({
+      actor_type: 'system',
+      actor_user_id: null,
+      action: 'role.assigned',
+      retention_class: 'security',
+    });
+  });
+
+  it('system actor grant still rejects a target user outside the org', async () => {
+    await expect(
+      grantRole({
+        actorType: 'system',
+        targetUserId: otherOrgTargetId,
+        orgId: systemOrgId,
+        roleSlug: systemRoleSlug,
+      }),
+    ).rejects.toThrow(/target does not belong/i);
+  });
+
+  it('system actor grant still enforces SoD without an approval token', async () => {
+    await ownerSystem.query(
+      `insert into public.org_security_policies (org_id, dual_control_required)
+       values ($1, true)
+       on conflict (org_id) do update set dual_control_required = true`,
+      [systemOrgId],
+    );
+
+    const result = await grantRole({
+      actorType: 'system',
+      targetUserId: sodTargetId,
+      orgId: systemOrgId,
+      roleSlug: 'org.schema.admin',
+    });
+
+    expect(result).toEqual({ success: false, error: 'sod_violation' });
   });
 });
 
@@ -993,25 +1172,25 @@ runIntegration('FT-011 — approval-token jti replay protection', () => {
          values ($1, $2, 'Replay Test Org', 'generic')`,
       [replayOrgId, tenantId],
     );
+    const replayFixtureRoleId = await seedRole(ownerReplay, replayOrgId, 't091.fixture.user', 'T-091 Fixture User');
     await ownerReplay.query(
-      `insert into public.users (id, org_id, email) values
-         ($1, $2, 'replay-actor@rbac-test.example'),
-         ($3, $2, 'replay-approver@rbac-test.example'),
-         ($4, $2, 'replay-target@rbac-test.example')
-       on conflict (id) do nothing`,
-      [replayActorId, replayOrgId, replayApproverId, replayTargetId],
+      `insert into public.users (id, org_id, email, name, role_id) values
+         ($1, $2, 'replay-actor@rbac-test.example', 'Replay Actor', $5),
+         ($3, $2, 'replay-approver@rbac-test.example', 'Replay Approver', $5),
+         ($4, $2, 'replay-target@rbac-test.example', 'Replay Target', $5)
+       on conflict (id) do update
+          set org_id = excluded.org_id,
+              email = excluded.email,
+              name = excluded.name,
+              role_id = excluded.role_id`,
+      [replayActorId, replayOrgId, replayApproverId, replayTargetId, replayFixtureRoleId],
     );
     // Seed both system roles + dual_control policy. The replay scenario uses
     // a dual-control-required path (which is what forces an approval token in
     // the first place) — without dual_control_required, no token is required
     // and the replay branch is never entered.
-    await ownerReplay.query(
-      `insert into public.roles (org_id, slug, system) values
-         ($1, 'org.access.admin', true),
-         ($1, 'org.schema.admin', true)
-       on conflict (org_id, slug) do nothing`,
-      [replayOrgId],
-    );
+    await seedRole(ownerReplay, replayOrgId, 'org.access.admin', 'Org Access Admin', true);
+    await seedRole(ownerReplay, replayOrgId, 'org.schema.admin', 'Org Schema Admin', true);
     await ownerReplay.query(
       `insert into public.org_security_policies (org_id, dual_control_required)
          values ($1, true)
