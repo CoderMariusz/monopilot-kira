@@ -70,6 +70,8 @@ export type {
   NewCostingBreakdown,
   NewCostingWaterfallStep,
 } from './costing.js';
+export { complianceDocs } from './compliance-docs.js';
+export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
 export {
   nutriScoreResults,
   nutritionAllergens,
