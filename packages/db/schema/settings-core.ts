@@ -72,6 +72,7 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// RLS: forced by 051; global reference rows are readable only through app_user.
 export const modules = pgTable('modules', {
   code: text('code').primaryKey(),
   name: text('name').notNull(),

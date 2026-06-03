@@ -18,12 +18,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "drizzle-orm": "0.40.0",
     "drizzle-kit": "0.31.1",
+    "drizzle-orm": "0.40.0",
     "pg": "8.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@testcontainers/postgresql": "^10.28.0",
     "@types/pg": "^8.11.10",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",

@@ -1,7 +1,7 @@
 {
   "source_prd": "docs/prd/00-FOUNDATION-PRD.md",
   "root_path": ".",
-  "generated_at": "2026-05-03T00:00:00Z",
+  "generated_at": "2026-06-03T00:00:00Z",
   "generator": "prd-decompose-hybrid-wave0-v4.3-readiness-patch",
   "pipeline_name": "kira_dev",
   "task_count": 129,

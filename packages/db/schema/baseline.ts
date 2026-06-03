@@ -28,6 +28,8 @@ const r13IdentityColumns = {
   schemaVersion: integer('schema_version').notNull().default(1),
 };
 
+// RLS: forced by 051; explicit app_user policy scopes control-plane rows
+// through organizations.tenant_id + app.current_org_id().
 export const tenants = pgTable(
   'tenants',
   {

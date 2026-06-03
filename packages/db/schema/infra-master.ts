@@ -104,6 +104,7 @@ export const productionLines = pgTable(
   }),
 );
 
+// RLS: forced by 051; global join rows keep app_user access, with anon/auth revoked.
 export const lineMachines = pgTable(
   'line_machines',
   {
@@ -121,6 +122,7 @@ export const lineMachines = pgTable(
   }),
 );
 
+// RLS: forced by 051; global reference rows are readable only through app_user.
 export const allergens = pgTable('allergens', {
   code: text('code').primaryKey(),
   name: text('name').notNull(),

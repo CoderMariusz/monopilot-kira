@@ -34,7 +34,7 @@ Readiness assessment: **96%+ ACP implementation readiness** for 00-FOUNDATION af
 | §5 Tech stack — feature flags PostHog | feature-flags wiring | T-033 | covered |
 | §5 frontend — PWA Workbox (service worker + manifest) | PWA scaffold + E2E | T-041, T-042 | covered |
 | §5 frontend — IndexedDB sync queue (R14 idempotent) | offline queue primitive + flusher | T-043, T-044 | covered |
-| §5 RLS default — testy zawsze z app-role / §13 Tests run w app-role | app-role connection split + ESLint guard | T-045 | covered |
+| §5 RLS default — testy zawsze z app-role / §13 Tests run w app-role | app-role connection split + ESLint guard + public exposure remediation | T-045, T-129 | covered |
 | §5.x Auth & Identity (F-A1, 6 OSS libs) | Supabase + SAML + SCIM + TOTP + verify-PIN | T-011, T-012, T-013, T-015, T-016 | covered |
 | §5.y UI primitives @monopilot/ui (F-A3) + 10 MODAL-SCHEMA patterns | primitives + Storybook + axe | T-025, T-026, T-027, T-028, T-029, T-030, T-031 | covered |
 | §6 Schema-driven foundation (ADR-028) | DeptColumns + Zod runtime | T-017 | covered |
@@ -51,7 +51,7 @@ Readiness assessment: **96%+ ACP implementation readiness** for 00-FOUNDATION af
 | §11 i18n + Audit log F-U3 (13-field, retention tiers) + regulatory | i18n + audit_events + regulatory | T-022, T-009, T-032 | covered |
 | §12 ADRs 028-031 active + R1-R15 candidate | marker discipline + governance | T-005 | covered |
 | §13 Success criteria + F-U5 (MFA-by-default, NIST password, idle 60min, SSO baseline, magic-link 7d) | tenant_idp_config seed + tests | T-010, T-011 | covered |
-| §13 Niefunkcjonalne — drift detection + RLS coverage 100% | drift detection job + RLS test | T-007, T-034 | covered |
+| §13 Niefunkcjonalne — drift detection + RLS coverage 100% | drift detection job + RLS test + Supabase advisor remediation | T-007, T-034, T-129 | covered |
 | §14 Open items — pre-Phase-D ADR review / regulatory artifact / dry-run scope | regulatory + dry-run mode | T-018 (dry-run), T-032 (regulatory) | covered |
 | §15 References | out-of-scope per PRD §15 (links only) | none | out-of-scope per PRD §15 (PRD-internal references) |
 | §W0-v4.3 | Wave0 final domain amendment / org_id / fg.* / shared BOM / D365 posture | T-047, T-048, T-049, T-050, T-051, T-052 | covered |
@@ -233,6 +233,14 @@ Tasks T-053..T-061 were generated from 4 audit reports (consistency, PRD-drift, 
 | T-060 | ALTER tenant_idp_config: add 11 missing F-A2 columns | P0 (Wave-B blocker) | PRD-drift Critical drift #2 |
 | T-061 | Password policy enforcement library (NIST: min-12, HIBP, last-5 history) | P1 | PRD-drift Critical drift #3 |
 
+## Supabase Security Advisor Remediation (2026-06-03)
+
+| Finding | Closed by |
+|---|---|
+| `rls_disabled_in_public` on PostgREST-exposed public tables and audit partitions | T-129 |
+| `rls_enabled_no_policy` on `tenant_idp_config` and `tenants` | T-129 |
+| Public `SECURITY DEFINER` function execute grants and mutable `set_user_pins_updated_at` search path | T-129 |
+
 ### Sequencing
 - Pre-Wave-B blockers (must land before T-020/T-021/T-035/T-039 start): T-053 → T-054 → T-058; T-055 parallel-safe; T-060 parallel-safe.
 - Wave-B-concurrent: T-056, T-057, T-061.
@@ -345,4 +353,3 @@ Audit source: `_meta/audits/2026-05-14-architecture-and-cross-cutting-gaps.md` �
 | T-125 | FT-001 | `withOrgContext` HOF in `packages/db/src/with-org-context.ts` + Next.js wrapper in `apps/web/lib/auth/with-org-context-route.ts` + testcontainers Postgres parallel-tx isolation test | atomized — supersedes module-level ad-hoc helpers |
 
 Foundation Wave0 v4.3 lock: business-scope column is `org_id`; RLS policies read via the non-spoofable `app.current_org_id()` function (from `packages/db/migrations/002-rls-baseline.sql`); writes are gated by `app.set_org_context(session_token, org_id)`. The 16 drifted module/foundation task JSONs identified in the audit (NPD T-001/T-006, Settings T-004/T-015, Technical T-001, Planning-basic T-008, Warehouse T-002/T-012, Planning-ext T-001/T-002/T-008/T-013, Production T-010, Quality T-004/T-009, Foundation T-011) were rewritten in place to honor this contract.
-

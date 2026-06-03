@@ -13,6 +13,7 @@ import { organizations, users } from './baseline.js';
 // Canonical tenant_migrations table per ADR-031 + migration 040 (org_id, not tenant_id).
 // Wave0 lock: business scope is org_id. The legacy tenant_id/cohort-shaped table from
 // migration 013 was renamed to tenant_migrations_legacy_t038 by migration 040.
+// RLS: forced by 051; app_user policy uses org_id = app.current_org_id().
 const _table = pgTable(
   'tenant_migrations',
   {

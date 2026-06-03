@@ -22,6 +22,7 @@ export const tenantMigrationStatuses = [
 
 export type TenantMigrationStatus = (typeof tenantMigrationStatuses)[number];
 
+// RLS: forced by 051; app_user policy uses org_id = app.current_org_id().
 export const tenantVariations = pgTable('tenant_variations', {
   orgId: uuid('org_id')
     .primaryKey()
@@ -35,6 +36,7 @@ export const tenantVariations = pgTable('tenant_variations', {
   upgradedToVersion: text('upgraded_to_version'),
 });
 
+// RLS: forced by 051; app_user policy uses org_id = app.current_org_id().
 export const tenantMigrations = pgTable(
   'tenant_migrations',
   {
