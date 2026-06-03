@@ -5,7 +5,7 @@
  *
  * Loads the tenant's SAML config from `tenant_idp_config`, asks Jackson to
  * generate a signed AuthnRequest, and 302-redirects the browser to the IdP's
- * SSO endpoint with `SAMLRequest`, `RelayState=<orgId>`, `SigAlg`, and
+ * SSO endpoint with signed `RelayState`, `SigAlg`, and
  * `Signature` query parameters (HTTP-Redirect binding).
  *
  * Security:
@@ -15,8 +15,10 @@
  *     the metadata-onboarding flow; this route only initiates the redirect.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { Pool } from 'pg';
+import { signRelayState } from '../../../../../../../packages/auth/src/saml/relay-state.js';
 import { handleSamlLogin } from '../../../../../lib/auth/saml';
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -70,9 +72,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
+  const relayState = signRelayState({
+    orgId,
+    nonce: randomUUID(),
+    expSec: Math.floor(Date.now() / 1000) + 60,
+  });
+
   return handleSamlLogin({
     tenantId,
-    orgId,
+    orgId: relayState,
     tenantConfig: {
       tenant_id: row.tenant_id,
       provider_type: row.provider_type as 'saml' | 'oidc' | 'password' | 'magic',

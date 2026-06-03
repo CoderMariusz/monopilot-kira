@@ -5,21 +5,28 @@
  * Body: application/x-www-form-urlencoded with SAMLResponse + RelayState
  *
  * Verifies the SAML response (x509 signature via Jackson), enforces the
- * RelayState ↔ org_id integrity check, and JIT-provisions the user when the
+ * HMAC-bound RelayState ↔ org_id integrity check, and JIT-provisions the user when the
  * tenant has jit_provisioning=true. After provisioning, sets the org context
  * for the new session via `app.set_org_context` (service-role pool — see
  * T-011 carry-forward note in lib/auth/session-check.ts).
  *
  * RED LINES:
- *   - Cross-tenant: RelayState must equal tenantConfig.org_id (lib/auth/saml.ts).
+ *   - Cross-tenant: RelayState must HMAC-verify and bind to tenantConfig.org_id.
  *   - x509: Jackson rejects on signature mismatch; we do not swallow.
  */
 
 import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { Pool } from 'pg';
+import {
+  createRelayStateNonceGuard,
+  readRelayStateOrgId,
+  verifyRelayState,
+} from '../../../../../../../packages/auth/src/saml/relay-state.js';
 import { handleSamlCallback } from '../../../../../lib/auth/saml';
 import { createServerSupabaseClient } from '../../../../../lib/auth/supabase-server';
+
+const rememberRelayStateNonce = createRelayStateNonceGuard();
 
 export async function POST(request: NextRequest): Promise<Response> {
   const form = await request.formData();
@@ -31,6 +38,29 @@ export async function POST(request: NextRequest): Promise<Response> {
       JSON.stringify({ error: 'SAMLResponse and RelayState form fields are required' }),
       { status: 400, headers: { 'content-type': 'application/json' } },
     );
+  }
+
+  const relayStateOrgId = readRelayStateOrgId(relayState);
+  if (!relayStateOrgId) {
+    return new Response(JSON.stringify({ error: 'relay_state_invalid' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  const relayStateResult = verifyRelayState(relayState, relayStateOrgId);
+  if (!relayStateResult.ok) {
+    return new Response(JSON.stringify({ error: relayStateResult.error }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  if (!rememberRelayStateNonce(relayStateResult.nonce, relayStateResult.expSec)) {
+    return new Response(JSON.stringify({ error: 'relay_state_invalid' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
   }
 
   // Resolve the tenant config from RelayState (== org_id). We do a separate
@@ -79,7 +109,7 @@ export async function POST(request: NextRequest): Promise<Response> {
          from public.tenant_idp_config tic
          join public.organizations o on o.tenant_id = tic.tenant_id
         where o.id = $1`,
-      [relayState],
+      [relayStateResult.orgId],
     );
     row = res.rows[0];
   } finally {
@@ -95,7 +125,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const result = await handleSamlCallback({
     samlResponse,
-    relayState,
+    relayState: relayStateResult.orgId,
     tenantConfig: {
       tenant_id: row.tenant_id,
       org_id: row.org_id,
