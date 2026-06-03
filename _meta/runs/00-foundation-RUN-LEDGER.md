@@ -34,7 +34,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-086 | T2-api | Codex | high | lib/auth/saml | ⬜ |
 | T-087 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-089 | T4-test | Codex | high | scim __tests__ | ⬜ |
-| T-091 | T2-api | Codex | high | scim v2/Groups +mig053 +rbac revokeRole | 🔄 rework-rd2 (system-actor) |
+| T-091 | T2-api | Codex | high | scim v2/Groups +mig053 +rbac revokeRole | ✅ merged (3 rounds) |
 | T-092 | T2-api(logic) | Codex | high | saml RelayState | ⬜ |
 | T-094 | T2-api | Codex | high | saml SLO | ⬜ |
 | T-098 | T2-api | Codex | high | system-actor-conn + wire drift/outbox | 🔄 rework (wire real routes) |

@@ -109,7 +109,7 @@ Updated by orchestrator after every PASS review.
 | T-088 | enforceSamlPolicy wired to sign-in routes | ✅ DONE | apps/web/app/(auth)/actions.ts L31/167 calls enforceSamlPolicy |
 | T-089 | Cross-tenant SCIM ambiguity regression test | ⏸ BLOCKED | Guard exists in lib/scim/middleware.ts L165-184; but no dedicated >1-hash→401 regression test file |
 | T-090 | Jackson createConnection at tenant onboarding | ✅ DONE | apps/web/app/(admin)/settings/saml/_actions/save-saml-config.ts L168 |
-| T-091 | SCIM Group provisioning POST/PATCH | ⏸ BLOCKED | apps/web/app/api/scim/v2/Groups/route.ts is GET-only stub from T-013; POST/PATCH/members not implemented |
+| T-091 | SCIM Group provisioning (POST/PATCH) | ✅ DONE | **DONE 2026-06-03** (run-module, 3 Opus REWORK rounds). Mig 053-scim-groups.sql (scim_groups+members, org-scoped RLS app.current_org_id(), force RLS, FK cascade, app_user grants) + tenant_idp_config.scim_group_role_map. Routes /scim/v2/Groups(+[id]) replace 501 stub; verifyScimBearer+withScimOrgContext. Member add/remove via CANONICAL @monopilot/rbac grantRole + NEW canonical revokeRole (org-scoped, audited, actorType:'system' path for SCIM). REWORK fixed: forked RBAC, missing tables, wrong path, multi-org system-actor, DB-test fixtures. **Real local Postgres: scim cross-org isolation 2/2, rbac 42/42 (grantRole intact), auth groups 7/7.** |
 | T-092 | HMAC-bound RelayState SAML replay defence | ⬜ PENDING | No HMAC RelayState in saml.ts or callback route |
 | T-093 | packages/ui peerDeps align React 19 | ✅ DONE | packages/ui/package.json peerDependencies `"react": "^18 || ^19"` |
 | T-094 | SLO session cookie clearing + Supabase signOut | ⬜ PENDING | No Supabase signOut in SAML SLO path |

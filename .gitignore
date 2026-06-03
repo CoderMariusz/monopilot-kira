@@ -56,3 +56,4 @@ pipeline.log.md
 .acp/
 .vercel
 .env*.local
+.claude/scheduled_tasks.lock
