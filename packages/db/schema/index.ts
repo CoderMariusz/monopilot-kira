@@ -13,3 +13,8 @@ export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
 export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
+export {
+  referenceAllergens,
+  referenceAllergensAddedByProcess,
+  referenceAllergensByRm,
+} from './allergens.js';
