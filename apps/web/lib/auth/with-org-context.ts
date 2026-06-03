@@ -179,12 +179,34 @@ async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: st
  *     return _upsertDeptColumnDraft({ actorUserId: userId, orgId, ... });
  *   });
  */
+/**
+ * Tag a thrown error with the `withOrgContext` phase that produced it and the
+ * structured pg diagnostics (code/detail/routine) that the higher-level page
+ * loaders otherwise discard (they log only `error.message`). This turns an
+ * opaque "could not be loaded" surface into a root-causable runtime log line
+ * without changing control flow — the original error is always re-thrown.
+ */
+function annotateOrgContextError(phase: string, err: unknown): never {
+  const pg = err as { code?: string; detail?: string; routine?: string; severity?: string } | undefined;
+  const diag = {
+    phase,
+    message: err instanceof Error ? err.message : String(err),
+    code: pg?.code,
+    detail: pg?.detail,
+    routine: pg?.routine,
+    severity: pg?.severity,
+  };
+  // eslint-disable-next-line no-console -- intentional: surfaces the real root cause in Vercel runtime logs
+  console.error('[withOrgContext] phase_failed', diag);
+  throw err;
+}
+
 export async function withOrgContext<T>(
   action: (ctx: OrgContext) => Promise<T>,
 ): Promise<T> {
   const { userId, orgId } = isTestEnvWithStub()
     ? await resolveContextFromTestStub()
-    : await resolveContextFromSupabase();
+    : await resolveContextFromSupabase().catch((err) => annotateOrgContextError('resolve_context', err));
 
   // Fresh session_token per call — guarantees no collision in
   // app.active_org_contexts across concurrent requests on the same backend PID
@@ -192,16 +214,20 @@ export async function withOrgContext<T>(
   const sessionToken = randomUUID();
 
   const owner = getOwnerPool();
-  await owner.query(
-    `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
-    [sessionToken, orgId],
-  );
+  await owner
+    .query(
+      `insert into app.session_org_contexts (session_token, org_id) values ($1::uuid, $2::uuid)`,
+      [sessionToken, orgId],
+    )
+    .catch((err) => annotateOrgContextError('owner_register_session', err));
 
   const app = getAppPool();
-  const client = await app.connect();
+  const client = await app.connect().catch((err) => annotateOrgContextError('app_pool_connect', err));
   try {
-    await client.query('begin');
-    await client.query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId]);
+    await client.query('begin').catch((err) => annotateOrgContextError('begin', err));
+    await client
+      .query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId])
+      .catch((err) => annotateOrgContextError('set_org_context', err));
     const result = await action({ userId, orgId, sessionToken, client });
     await client.query('commit');
     return result;
