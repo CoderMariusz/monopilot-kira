@@ -28,7 +28,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-075 | mech | Haiku | low | feature-flags + .env | ✅ merged |
 | T-077 | T2-api | Codex | high | packages/rbac grant | ⬜ |
 | T-078 | mech | Haiku | low | flags/route | ✅ merged |
-| T-082 | T2-api | Codex | high | with-org-context | ⬜ |
+| T-082 | T2-api | Codex | high | with-org-context | ✅ obsolete (superseded T-125) |
 | T-083 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-085 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-086 | T2-api | Codex | high | lib/auth/saml | ⬜ |
