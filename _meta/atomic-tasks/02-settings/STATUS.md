@@ -16,14 +16,14 @@
 | T-008 | Drizzle migration: reference_tables generic storage | ✅ | schema/reference-tables.ts + 041-reference-tables.sql + test |
 | T-009 | Drizzle migration: infrastructure (warehouses/locations/machines/lines) | ✅ | schema/infra-master.ts + 042-infra-master.sql + test |
 | T-010 | Drizzle migration: audit_log monthly partitioning | ✅ | 043-audit-log-partitioning.sql + audit-log-retention.test.ts |
-| T-011 | Drizzle migration: org_security_policies + login_attempts + password_history | ⏸ | org_security_policies in 017-rbac.sql, password_history in 018-password-history.sql; **login_attempts table MISSING**; `packages/db/schema/security.ts` MISSING; test MISSING |
-| T-012 | Drizzle migration: SSO + SCIM + IP allowlist | ⏸ | SQL in 044-settings-security-scim-ipallowlist.sql (scim_tokens + admin_ip_allowlist); `packages/db/schema/sso-scim-ip.ts` MISSING |
-| T-013 | Drizzle migration: feature_flags_core + notification_preferences | ⏸ | notification_preferences in 049-notification-preferences.sql; `packages/db/schema/flags-prefs.ts` MISSING; seed `feature-flags-core.sql` MISSING; dedicated feature_flags_core table absent |
+| T-011 | Drizzle migration: org_security_policies + login_attempts + password_history | ✅ | W1 2026-06-03: `068-login-attempts.sql` (org_id nullable, lockout indexes, RLS) + `packages/db/schema/security.ts` (loginAttempts + orgSecurityPolicies + passwordHistory); cross-org isolation test green |
+| T-012 | Drizzle migration: SSO + SCIM + IP allowlist | ✅ | W1 2026-06-03: `packages/db/schema/sso-scim-ip.ts` (scimTokens + adminIpAllowlist) added over existing 044 SQL |
+| T-013 | Drizzle migration: feature_flags_core + notification_preferences | ✅ | W1 2026-06-03: `067-feature-flags-core.sql` (PK org_id+flag_code, rolled_out_pct, RLS) + per-org core-flag seed + `packages/db/schema/flags-prefs.ts` (featureFlagsCore + notificationPreferences) |
 | T-014 | Audit trigger framework (write-on-change) + pg_cron retention | ✅ | 004-audit.sql + 036-audit-log-retention.sql + tests |
 | T-039 | Migration: Reference.ManufacturingOperations table + per-industry seed | ✅ | 012-manufacturing-ops.sql + seeds/manufacturing-operations.sql + test |
 | T-095 | Decisions log: lock D1..D8 | ✅ | `_meta/decisions/2026-04-30-settings-d1-d8.md` exists |
-| T-117 | Schema: settings flag require_grn_qc_inspection | ⏸ | Flag stored as JSONB in org_flags; dedicated Drizzle migration `0117_*.sql` MISSING; `src/db/schema/settings/flags.ts` MISSING |
-| T-122 | Authorization policies schema and org seed | ⬜ | `public.org_authorization_policies` table has NO migration; preflight.ts reads it — **runtime bomb** |
+| T-117 | Schema: settings flag require_grn_qc_inspection | ✅ | W1 2026-06-03: confirmed canonical store = `tenant_variations.feature_flags` JSONB (exists); accessor + reader + UI toggle already present. No redundant migration (PO/JSONB decision documented) |
+| T-122 | Authorization policies schema and org seed | ✅ | W1 2026-06-03: `063-org-authorization-policies.sql` (forced RLS, V-SET-43 CHECK, per-org default seed) — columns match preflight.ts/policy-actions.ts; also seeds `technical_product_spec_approval_gate_v1` into rule_definitions (clears T-123 + T-126 runtime bomb). `/authorization` `/roles` `/tenant` now read real data |
 
 ## T2-api — Server Actions & API routes
 
@@ -168,7 +168,7 @@
 | T-093 | Seed: 25 reference table schemas | ✅ | seeds/reference-schemas.sql (126 lines) + test |
 | T-094 | ADR-034 docs: Manufacturing Operations | ✅ | `docs/02-settings/manufacturing-operations.mdx` exists |
 | T-116 | Seed: i18n namespace 02-settings.json (PL + EN) | ⏸ | EN + PL at 1112 lines ✓; RO + UK at 590 lines (~47%) — partial coverage for ro/uk |
-| T-123 | Seed: technical_product_spec_approval_gate_v1 rule definition | ⬜ | No seed SQL in `packages/db/seeds/`; rule code referenced in code but never seeded |
+| T-123 | Seed: technical_product_spec_approval_gate_v1 rule definition | ✅ | W1 2026-06-03: seeded as active `gate` rule into `public.rule_definitions` via `063-org-authorization-policies.sql` per-org seed; clears technical preflight `gate_rule_missing` blocker |
 
 ## T0-root — Orchestration roots
 
