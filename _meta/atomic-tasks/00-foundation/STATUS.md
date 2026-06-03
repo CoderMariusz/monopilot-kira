@@ -142,7 +142,7 @@ Updated by orchestrator after every PASS review.
 | T-121 | packages/rate-limit middleware | ✅ DONE | **DONE 2026-06-03** (run-module). Edge-safe Store iface: InMemoryStore (Map sliding-window/token-bucket, default) + UpstashStore (Redis distributed prod). Integrated into apps/web/proxy.ts (Next16 middleware, NOT dead middleware.ts) → 429+Retry-After; auth presets. No node-only imports (edge). rate-limit 6/6, proxy-rate-limit 1/1, web tc 0. |
 | T-122 | CI/CD workflow hardened | ⏸ BLOCKED | .github/workflows/ci.yml has lint/typecheck/build/vitest/migration-check BUT playwright is continue-on-error; not fully hardened |
 | T-123 | Playwright harness scaffolded | ✅ DONE | playwright.config.ts at root; apps/web/e2e/ specs exist |
-| T-124 | packages/e-sign CFR 21 Part 11 | ⬜ PENDING | packages/e-sign does NOT exist; blocks quality/production dual-sign |
+| T-124 | packages/e-sign CFR 21 Part 11 | ✅ DONE | **DONE 2026-06-03** (run-module, 1 rework). mig 055-e-sign-log (append-only REVOKE UPD/DEL, org-scoped RLS). sign.ts CFR-21 manifest (signer/intent/ts/SHA-256+nonce) in e_sign_log+audit_events; locale-independent codepoint canonical JSON; replay double-guard; client/org-context required. dual.ts case-insensitive distinct-signer SoD. Opus PASS-WITH-NITS→3 MEDIUM fixed (locale hash, SoD case-bypass, dead path). **12/12 on real local Postgres.** Unblocks quality/production dual-sign. |
 | T-125 | withOrgContext HOF | ✅ DONE | apps/web/lib/auth/with-org-context.ts — full impl: JWT verify + org_id lookup + app.set_org_context tx + ROLLBACK |
 | T-126 | Login screen UI | ✅ DONE | apps/web/app/[locale]/(auth)/login/{page,login-card,layout,forgot-password,mfa} all present; real Supabase Auth |
 
