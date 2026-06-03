@@ -16,6 +16,7 @@
     "@monopilot/observability": "workspace:*",
     "@monopilot/outbox": "workspace:*",
     "@monopilot/server": "workspace:*",
+    "@sentry/node": "^10.56.0",
     "dotenv": "^16.4.7",
     "pg": "8.16.0",
     "zod": "^3.25.76"

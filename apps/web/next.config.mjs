@@ -1,4 +1,5 @@
 import createNextIntlPlugin from 'next-intl/plugin';
+import { withSentryConfig } from '@sentry/nextjs';
 import withSerwistInit from '@serwist/next';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,8 +42,8 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV === 'development',
 });
 
-// withNextIntl wraps last (outermost) so it can see the fully resolved config.
-// Plugin wrap order: withNextIntl( withSerwist( nextConfig ) )
+// withNextIntl wraps after app plugins so it can see the fully resolved config.
+// Plugin wrap order: withSentryConfig( withNextIntl( withSerwist( nextConfig ) ) )
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
@@ -54,4 +55,7 @@ const nextConfig = {
   },
 };
 
-export default withNextIntl(withSerwist(nextConfig));
+export default withSentryConfig(withNextIntl(withSerwist(nextConfig)), {
+  silent: true,
+  dryRun: !process.env.SENTRY_AUTH_TOKEN,
+});
