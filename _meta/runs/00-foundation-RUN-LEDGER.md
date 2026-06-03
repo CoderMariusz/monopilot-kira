@@ -63,7 +63,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-107 | T2-api | Codex | low | ←T-118 (outbox error→Sentry) | ⬜ |
 
 ### Layer 4
-| T-120 | T2-api | Codex | high | ←T-119; tooling/restore-drill | ⬜ |
+| T-120 | T2-api | Codex | high | restore-drill | ✅ merged |
 
 ### Layer 5
 | T-122 | T4-test | Codex | high | ←T-120,T-123(done); CI harden | ⬜ |
