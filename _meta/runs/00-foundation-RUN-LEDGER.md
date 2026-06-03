@@ -34,10 +34,10 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-086 | T2-api | Codex | high | lib/auth/saml | ⬜ |
 | T-087 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-089 | T4-test | Codex | high | scim __tests__ | ⬜ |
-| T-091 | T2-api | Codex | high | api/scim Groups (+mig 053, rbac revokeRole) | 👀 rework-rd1 |
+| T-091 | T2-api | Codex | high | scim v2/Groups +mig053 +rbac revokeRole | 🔄 rework-rd2 (system-actor) |
 | T-092 | T2-api(logic) | Codex | high | saml RelayState | ⬜ |
 | T-094 | T2-api | Codex | high | saml SLO | ⬜ |
-| T-098 | T2-api | Codex | high | packages/db | ⬜ |
+| T-098 | T2-api | Codex | high | system-actor-conn + wire drift/outbox | 🔄 rework (wire real routes) |
 | T-099 | T4-test | Codex | low | playwright + package.json | ⬜ |
 | T-100 | T2-api | Codex | low | outbox route | ⬜ |
 | T-103 | T4-test | Haiku | low | apps/web/tsconfig | ✅ merged |
@@ -78,3 +78,8 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 ## Notes
 - T-101 (drift strict) was "deferred until dept_code table registry"; T-106/T-107/T-108 conditional-deferred now unblocked in-module → scheduled above.
 - Serialization points: `packages/db/migrations/`, `permissions.enum.ts`, `apps/web/package.json`, `apps/worker/src/index.ts`, `packages/db/src/schema/index.ts` — run alone, merge, then fan out.
+
+## Infra unlocked 2026-06-03
+- **Local Postgres** at 127.0.0.1:5432 fully migrated (001-052 + 054; anon/authenticated/service_role roles created). Owner=`mariuszkrawczyk` (superuser), app=`monopilot` (member of app_user). Run DB-gated tests: `DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot DATABASE_URL_OWNER=postgres://mariuszkrawczyk@127.0.0.1:5432/monopilot pnpm --filter <pkg> test`. **This is the real Gate-1 for DB tasks** — orchestrator runs integration suites here before merge (Codex reported 'no DB' falsely).
+- **Migration numbering:** 052=T-064(merged), 053=T-091(scim-groups, pending), 054=audit-seq-grant(merged), 055=next free (T-124 e-sign).
+- **Systemic Codex pattern:** creates dead code at stale scope paths (T-073/T-100/T-082/T-098). Pre-check the real integration point before dispatch.
