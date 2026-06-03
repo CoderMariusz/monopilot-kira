@@ -125,7 +125,7 @@ Updated by orchestrator after every PASS review.
 | T-104 | Org-scoped Postgres sequence for nextSeq7() | ✅ DONE | **DONE 2026-06-03** (run-module). mig 061 org-scoped atomic sequence (gap-free monotonic per org) + next-seq-7.ts. 4/4 real DB. |
 | T-105 | Vercel-only deploy assumption doc for cron | ✅ DONE | **DONE 2026-06-03** (run-module, kira-easy). docs/runbooks/cron-auth.md: x-vercel-cron Vercel-only assumption + non-Vercel migration (Bearer-only). (scope route.ts path stale; docs satisfy AC.) |
 | T-106 | Surface EvaluateResult through ExecutorResult | ⬜ PENDING | Deferred until executeRule made async |
-| T-107 | Outbox error surfacing via error-reporting | ⬜ PENDING | Deferred until T-118 Sentry lands |
+| T-107 | Outbox error surfacing via error-reporting | ✅ DONE | **DONE 2026-06-03** (run-module; was deferred-until-T-118). dispatch-queue.ts surfaces caught errors via @monopilot/observability (Sentry, redacted); at-least-once preserved. 2/2 + 18 outbox tests. |
 | T-108 | Restore FK tenant_migrations.tenant_id | ⬜ PENDING | Deferred until T-039 verified in prod |
 | T-109 | totp.ts masterKey fail-closed guard | ✅ DONE | packages/auth/src/totp.ts L25-57 MFA_MASTER_KEY guard; CF-T015-B resolved |
 | T-110 | Bundle NIST top-25K common password list | ✅ DONE | **DONE 2026-06-03** (run-module). packages/auth/data/common-passwords-25k.txt (25,000 unique) + deterministic fetch script; password-policy rejects lowercased matches (lazy memoized). common-passwords 4/4 + password-policy 19/19 (no T-061 regression). |

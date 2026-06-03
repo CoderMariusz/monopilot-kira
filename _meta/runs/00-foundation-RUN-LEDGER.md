@@ -60,7 +60,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-118 | T2-api | Codex | high | Sentry (web+worker+obs) | ✅ merged |
 | T-119 | T2-api | Codex | high | backup policy + cron | ✅ merged |
 | T-121 | T2-api | Codex | high | rate-limit → proxy.ts (edge) | ✅ merged |
-| T-107 | T2-api | Codex | low | ←T-118 (outbox error→Sentry) | ⬜ |
+| T-107 | T2-api | Codex | low | outbox error→Sentry | ✅ merged |
 
 ### Layer 4
 | T-120 | T2-api | Codex | high | restore-drill | ✅ merged |
@@ -84,5 +84,6 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 - **Migration numbering:** 052=T-064(merged), 053=T-091(scim-groups, pending), 054=audit-seq-grant(merged), 055=next free (T-124 e-sign).
 - **Systemic Codex pattern:** creates dead code at stale scope paths (T-073/T-100/T-082/T-098). Pre-check the real integration point before dispatch.
 
-## KNOWN ISSUES FOR SIGN-OFF (must resolve before module sign-off)
+## KNOWN ISSUES FOR SIGN-OFF
+- **[pre-existing, low]** packages/outbox `worker.e2e.test.ts` fails on real local DB with `type "citext" does not exist` — test creates tables in an isolated schema/search_path that excludes public (where citext lives); same class as ci_* isolation. Belongs to T-008 test infra; not a foundation-run regression. (must resolve before module sign-off)
 - **[RESOLVED 2026-06-03]** Pre-existing auth DB-test failures (totp/verify-pin) fixed — full auth suite 84/84 on real local Postgres (fixture seed name+role_id).
