@@ -14,6 +14,12 @@ import type { WorkflowRule } from './workflow.js';
 import * as cascadeHandlerModule from './cascade-handler.js';
 import type { Pool } from 'pg';
 
+export { dispatchCascade, isCascadeEvent } from './dispatch.js';
+export type {
+  DispatchCascadeMessage,
+  DispatchCascadeOptions,
+} from './dispatch.js';
+
 export enum RuleExecutionMode {
   NORMAL = 'normal',
   DRY_RUN = 'dry_run',
