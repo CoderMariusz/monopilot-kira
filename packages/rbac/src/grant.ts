@@ -25,8 +25,11 @@ import { LegacyPermissionAlias, SOD_EXCLUSIVE_PAIRS } from './permissions.enum.j
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
+export type RbacActorType = 'user' | 'system';
+
 export interface GrantRoleInput {
-  actorUserId: string;
+  actorUserId?: string;
+  actorType?: RbacActorType;
   targetUserId: string;
   orgId: string;
   roleSlug: string;
@@ -38,6 +41,21 @@ export type GrantRoleError = 'sod_violation' | 'self_approval' | 'invalid_token'
 export interface GrantRoleResult {
   success: boolean;
   error?: GrantRoleError;
+}
+
+export interface RevokeRoleInput {
+  actorUserId?: string;
+  actorType?: RbacActorType;
+  targetUserId: string;
+  orgId: string;
+  roleSlug: string;
+}
+
+export type RevokeRoleError = 'legacy_alias' | 'db_unavailable';
+
+export interface RevokeRoleResult {
+  success: boolean;
+  error?: RevokeRoleError;
 }
 
 export interface GenerateApprovalTokenInput {
@@ -185,6 +203,7 @@ async function assertUserBelongsToOrg(
 
 export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult> {
   const { actorUserId, targetUserId, orgId, roleSlug, approvalToken } = input;
+  const actorType = input.actorType ?? 'user';
 
   // Step 1: Reject legacy aliases outright — do NOT normalize-and-persist (fail-safe)
   if (Object.prototype.hasOwnProperty.call(LegacyPermissionAlias, roleSlug)) {
@@ -194,6 +213,9 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
   // Step 1b: Quick token pre-check (no DB needed) — catches obviously invalid tokens
   // before we open a DB connection. Primarily helps unit tests without DB setup.
   if (approvalToken !== undefined) {
+    if (!actorUserId) {
+      return { success: false, error: 'invalid_token' };
+    }
     const preCheck = verifyApprovalToken(approvalToken, actorUserId);
     if (!preCheck.valid) {
       return { success: false, error: preCheck.error };
@@ -214,7 +236,12 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     // Step 1c: Org membership validation — BEFORE any other DB work.
     // Prevents horizontal privilege escalation: caller in org A cannot pass orgId=B
     // and write roles/audit rows in org B.
-    await assertUserBelongsToOrg(client, actorUserId, orgId, 'actor');
+    if (actorType === 'user') {
+      if (!actorUserId) {
+        throw new Error('actorUserId is required for user RBAC actors');
+      }
+      await assertUserBelongsToOrg(client, actorUserId, orgId, 'actor');
+    }
     await assertUserBelongsToOrg(client, targetUserId, orgId, 'target');
 
     // Step 2: Load org_security_policies
@@ -263,6 +290,10 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
       }
 
       // Re-verify token (already done above as pre-check, but re-verify in transaction scope)
+      if (!actorUserId) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'invalid_token' };
+      }
       const verification = verifyApprovalToken(approvalToken, actorUserId);
       if (!verification.valid) {
         await client.query('ROLLBACK');
@@ -323,9 +354,68 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     await client.query(
       `INSERT INTO public.audit_events
          (org_id, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
-       VALUES ($1, $2, 'user', 'role.assigned', 'role', $3, $4, 'security')`,
-      [orgId, actorUserId, roleSlug, randomUUID()],
+       VALUES ($1, $2, $3, 'role.assigned', 'role', $4, $5, 'security')`,
+      [orgId, actorType === 'system' ? null : actorUserId, actorType, roleSlug, randomUUID()],
     );
+
+    await client.query('COMMIT');
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+// ─── revokeRole ───────────────────────────────────────────────────────────────
+
+export async function revokeRole(input: RevokeRoleInput): Promise<RevokeRoleResult> {
+  const { actorUserId, targetUserId, orgId, roleSlug } = input;
+  const actorType = input.actorType ?? 'user';
+
+  if (Object.prototype.hasOwnProperty.call(LegacyPermissionAlias, roleSlug)) {
+    return { success: false, error: 'legacy_alias' };
+  }
+
+  if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_OWNER) {
+    return { success: false, error: 'db_unavailable' };
+  }
+
+  const pool = getOwnerConnection();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    if (actorType === 'user') {
+      if (!actorUserId) {
+        throw new Error('actorUserId is required for user RBAC actors');
+      }
+      await assertUserBelongsToOrg(client, actorUserId, orgId, 'actor');
+    }
+    await assertUserBelongsToOrg(client, targetUserId, orgId, 'target');
+
+    const deleted = await client.query(
+      `DELETE FROM public.user_roles ur
+        USING public.roles r
+       WHERE r.id = ur.role_id
+         AND r.org_id = $1
+         AND r.slug = $2
+         AND ur.org_id = $1
+         AND ur.user_id = $3`,
+      [orgId, roleSlug, targetUserId],
+    );
+
+    if ((deleted.rowCount ?? 0) > 0) {
+      await client.query(
+        `INSERT INTO public.audit_events
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, request_id, retention_class)
+         VALUES ($1, $2, $3, 'role.revoked', 'role', $4, $5, 'security')`,
+        [orgId, actorType === 'system' ? null : actorUserId, actorType, roleSlug, randomUUID()],
+      );
+    }
 
     await client.query('COMMIT');
     return { success: true };

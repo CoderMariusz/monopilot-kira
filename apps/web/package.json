@@ -28,7 +28,8 @@
     "@monopilot/ui": "workspace:*",
     "zod": "^3.25.76",
     "json-schema-to-zod": "^2.8.1",
-    "@monopilot/ops": "workspace:*"
+    "@monopilot/ops": "workspace:*",
+    "@monopilot/rbac": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

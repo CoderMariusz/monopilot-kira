@@ -1,30 +1,50 @@
-/**
- * T-013 — SCIM 2.0 /Groups (minimal collection endpoint).
- *
- * Group provisioning is not in the AC1-3 contract for T-013, but the SCIM
- * contract requires the endpoint to be reachable and to enforce the same
- * bearer-token verification as /Users.
- *
- * GET  → empty ListResponse (groups not modelled in 001-baseline yet)
- * POST → 501 Not Implemented (reserve for follow-up T-NNN; tests do not
- *        exercise group create)
- */
-
-import { scimUnauthorized, verifyScimBearer } from '../../../../../lib/scim/middleware';
+import { randomUUID } from 'node:crypto';
+import {
+  createScimGroup,
+  listScimGroups,
+  type ScimGroupResource,
+} from '../../../../../../../packages/auth/src/scim/groups';
+import {
+  scimUnauthorized,
+  verifyScimBearer,
+  withScimOrgContext,
+} from '../../../../../lib/scim/middleware';
 
 const SCIM_CT = 'application/scim+json';
 const LIST_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:ListResponse';
+const ERROR_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:Error';
+
+interface GroupCreateBody {
+  displayName?: unknown;
+  externalId?: unknown;
+}
+
+function scimError(status: number, detail: string, scimType?: string): Response {
+  return new Response(
+    JSON.stringify({
+      schemas: [ERROR_SCHEMA],
+      status: String(status),
+      detail,
+      ...(scimType ? { scimType } : {}),
+    }),
+    { status, headers: { 'content-type': SCIM_CT } },
+  );
+}
 
 export async function GET(request: Request): Promise<Response> {
   const ctx = await verifyScimBearer(request);
   if (!ctx) return scimUnauthorized();
 
+  const resources = await withScimOrgContext<ScimGroupResource[]>(ctx, (client) =>
+    listScimGroups({ db: client, orgId: ctx.orgId }),
+  );
+
   return new Response(
     JSON.stringify({
       schemas: [LIST_SCHEMA],
-      totalResults: 0,
-      Resources: [],
-      itemsPerPage: 0,
+      totalResults: resources.length,
+      Resources: resources,
+      itemsPerPage: resources.length,
       startIndex: 1,
     }),
     { status: 200, headers: { 'content-type': SCIM_CT } },
@@ -35,12 +55,34 @@ export async function POST(request: Request): Promise<Response> {
   const ctx = await verifyScimBearer(request);
   if (!ctx) return scimUnauthorized();
 
-  return new Response(
-    JSON.stringify({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '501',
-      detail: 'Group provisioning not implemented',
+  let body: GroupCreateBody;
+  try {
+    body = (await request.json()) as GroupCreateBody;
+  } catch {
+    return scimError(400, 'Invalid JSON', 'invalidSyntax');
+  }
+
+  if (typeof body.displayName !== 'string' || body.displayName.trim() === '') {
+    return scimError(400, 'displayName is required', 'invalidValue');
+  }
+
+  const requestId = request.headers.get('x-request-id') ?? randomUUID();
+  const group = await withScimOrgContext<ScimGroupResource>(ctx, (client) =>
+    createScimGroup({
+      db: client,
+      orgId: ctx.orgId,
+      tenantId: ctx.tenantId,
+      displayName: body.displayName as string,
+      externalId: typeof body.externalId === 'string' ? body.externalId : null,
+      requestId,
     }),
-    { status: 501, headers: { 'content-type': SCIM_CT } },
   );
+
+  return new Response(JSON.stringify(group), {
+    status: 201,
+    headers: {
+      'content-type': SCIM_CT,
+      location: `/scim/v2/Groups/${group.id}`,
+    },
+  });
 }
