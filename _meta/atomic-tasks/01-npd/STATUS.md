@@ -12,12 +12,12 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 
 | Task | Title | Status | Notes |
 |---|---|---|---|
-| T-001 | product table + fa compat view DDL | ⬜ PENDING | Root blocker for all T1-schema downstream; migration 0010 absent |
-| T-002 | prod_detail table + indexes | ⬜ PENDING | Blocked by T-001 |
-| T-003 | Reference.DeptColumns metadata table | ⬜ PENDING | Blocked by T-001 |
-| T-004 | Reference.ManufacturingOperations table | ⬜ PENDING | Blocked by T-001; note foundation 012-manufacturing-ops.sql is unrelated |
-| T-005 | Reference lookup tables (PackSizes, Templates, LineTypes) | ⬜ PENDING | Blocked by T-001 |
-| T-006 | Reference.RolePermissions schema + Apex seed | ⬜ PENDING | Blocked by T-001; RBAC pkg has partial perms (FG_CREATE etc) but no seed migration |
+| T-001 | product table + fa compat view DDL | ✅ DONE | **DONE 2026-06-03** (run-module Wave A0). mig **075** (renamed from stale 0010). product table (69 cols+ext/private jsonb+schema_version+R13 audit), org_id Wave0 scope, RLS `app.current_org_id()`+FORCE RLS, partial idx WHERE built=false. fa view security_invoker=true + INSTEAD OF trigger = structurally read-only. Codex impl → Opus review (REWORK: fake read-only AC / orphan src/schema shim / index drift) → fixed → 4/4 green on local canon DB. Merged 5253a0f4. Unblocks all downstream T1-schema. |
+| T-002 | prod_detail table + indexes | ✅ DONE | DONE 2026-06-03 (Wave A1). prod_detail (mig 076) — Codex→Opus, merged |
+| T-003 | Reference.DeptColumns metadata table | 🔄 IN PROGRESS | REWORK in flight (mig 077): P0 collision w/ existing 009 "Reference"."DeptColumns" — extend existing table, not new |
+| T-004 | Reference.ManufacturingOperations table | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.ManufacturingOperations reshape (mig 078) — merged; nit: drop redundant 012 unique (wave-close) |
+| T-005 | Reference lookup tables (PackSizes, Templates, LineTypes) | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference lookups PackSizes/Templates/Lines/Equip/CloseConfirm (mig 079) — merged; AlertThresholds removed (owned by T-049) |
+| T-006 | Reference.RolePermissions schema + Apex seed | 🔄 IN PROGRESS | REWORK in flight (mig 080): permission strings → npd.* namespace per T-101 |
 | T-007 | outbox_events emitter wrapper for fa.* events | ⏸ BLOCKED | Partial: events.enum.ts has FG_CREATED alias; no emitFaEvent wrapper function |
 | T-008 | Server Action createFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
 | T-009 | Server Action updateFaCell + reset_built trigger | ⬜ PENDING | Blocked by T-001, T-003, T-006, T-007 |
@@ -41,18 +41,18 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-027 | UI: FA History tab + audit_events timeline | ⬜ PENDING | Blocked by T-001, T-007, T-020 |
 | T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ⬜ PENDING | Blocked by T-001, T-005 |
 | T-029 | Server Action deleteFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
-| T-030 | brief + brief_lines tables (NPD-b schema) | ⬜ PENDING | Blocked by T-001 |
+| T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
 | T-031 | Server Actions: createBrief + saveBriefDraft | ⬜ PENDING | Blocked by T-006, T-007, T-030, T-054 |
 | T-032 | Reference.BriefFieldMapping seed | ⬜ PENDING | Blocked by T-001 |
 | T-033 | Server Action convertBriefToFa | ⬜ PENDING | Blocked by T-001, T-002, T-008, T-030, T-031, T-032 |
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
 | T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
-| T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ⬜ PENDING | Blocked by T-001 |
+| T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
 | T-037 | fa_allergen_overrides table + audit chain | ⬜ PENDING | Blocked by T-001, T-036 |
 | T-038 | Allergen cascade engine + fa_allergen_cascade view | ⬜ PENDING | Blocked by T-001, T-002, T-036, T-037 |
 | T-039 | Server Actions: setAllergenOverride + V07 validator | ⬜ PENDING | Blocked by T-006, T-037, T-038 |
 | T-040 | UI: Allergen Cascade widget + Override modal | ⬜ PENDING | Blocked by T-026, T-038, T-039 |
-| T-041 | Reference.D365_Constants table + Apex seed | ⬜ PENDING | Blocked by T-001 |
+| T-041 | Reference.D365_Constants table + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.D365_Constants + Apex seed (mig 083) — merged |
 | T-042 | exceljs Builder generator: 8 tabs per FA | ⬜ PENDING | Blocked by T-001, T-002, T-041 |
 | T-043 | fa_builder_outputs storage + signed URL service | ⬜ PENDING | Blocked by T-001 |
 | T-044 | Server Action buildD365/export | ⬜ PENDING | Blocked by T-006, T-007, T-039, T-042, T-043, T-080, T-081 |
@@ -60,12 +60,12 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-046 | ROOT: D365 integration UI group | ⬜ PENDING | Blocked by T-044 |
 | T-047 | Wizard step Server Actions (validate/dataPreview/build) | ⬜ PENDING | Blocked by T-042, T-043, T-044, T-045, T-080, T-081 |
 | T-048 | dashboard_summary + launch_alerts + missing_requirements view | ⬜ PENDING | Blocked by T-001, T-049 |
-| T-049 | Reference.AlertThresholds + d365_import_cache tables | ⬜ PENDING | Blocked by T-001 |
+| T-049 | Reference.AlertThresholds + d365_import_cache tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.AlertThresholds + d365_import_cache (mig 084) — merged (canonical AlertThresholds owner) |
 | T-050 | Reference.AlertThresholds default seed | ⬜ PENDING | Blocked by T-049 |
 | T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ⬜ PENDING | Blocked by T-048, T-049, T-050 |
 | T-052 | ROOT: NPD Dashboard page group | ⏸ BLOCKED | dashboard-counters.tsx + dashboard-pipeline-preview.tsx exist as stubs; no dashboard page.tsx; no real data |
 | T-053 | E2E: dashboard refresh + alert thresholds smoke | ⬜ PENDING | Blocked by T-051, T-052 |
-| T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ⬜ PENDING | Blocked by T-001 |
+| T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
 | T-055 | Reference.GateChecklistTemplates table | ⬜ PENDING | Blocked by T-054 |
 | T-056 | Default G0-G4 GateChecklistTemplates seed | ⬜ PENDING | Blocked by T-055 |
 | T-057 | createProject + listProjects + getProject Server Actions | ⬜ PENDING | Blocked by T-054, T-055, T-056 |
@@ -80,8 +80,8 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-066 | UI: FormulationEditor (RecipeScreen prototype) | ⬜ PENDING | Blocked by T-064 |
 | T-067 | ROOT: FormulationEditor live panels | ⬜ PENDING | Blocked by T-065, T-066 |
 | T-068 | E2E: formulation edit → submit-for-trial → lock | ⬜ PENDING | Blocked by T-064, T-065, T-066, T-067 |
-| T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | ⬜ PENDING | Blocked by T-001 |
-| T-070 | costing_breakdowns + costing_waterfall_steps tables | ⬜ PENDING | Blocked by T-001 |
+| T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | 🔄 IN PROGRESS | REWORK in flight (mig 086): unique nulls-not-distinct fix |
+| T-070 | costing_breakdowns + costing_waterfall_steps tables | ✅ DONE | DONE 2026-06-03 (Wave A1). costing_breakdowns + waterfall_steps (mig 087, NUMERIC-exact) — merged |
 | T-071 | DEFERRED/CROSS-MODULE: Sensory schema (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-072 | Nutrition computation Server Action + Nutri-Score | ⬜ PENDING | Blocked by T-069 |
 | T-073 | Costing 9-step waterfall + scenario Server Action | ⬜ PENDING | Blocked by T-070, T-049, T-050 |
