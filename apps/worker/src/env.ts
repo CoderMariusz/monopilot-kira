@@ -8,6 +8,7 @@ if (process.env.WORKER_DOTENV === '1') {
 const envSchema = z
   .object({
     DATABASE_URL: z.string().url().optional(),
+    DATABASE_URL_OWNER: z.string().url().optional(),
     BACKUP_VERIFICATION_MODE: z.enum(['postgres', 'supabase', 'stub']).default('postgres'),
     BACKUP_MAX_AGE_HOURS: z.coerce.number().positive().default(25),
     OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(5_000),

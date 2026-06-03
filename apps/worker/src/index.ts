@@ -1,6 +1,7 @@
 import './sentry.js';
-import pg from 'pg';
+import type pg from 'pg';
 import { startNodeSdk } from '@monopilot/observability/sdk-node';
+import { getSystemActorConnection } from '@monopilot/db/system-actor-connection.js';
 
 import { env } from './env.js';
 import { registerBackupVerificationCron } from './jobs/backup-verification-cron.js';
@@ -61,11 +62,12 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerR
   startNodeSdk({ serviceName: 'monopilot-worker' });
 
   const logger = createLogger(env.WORKER_LOG_LEVEL);
-  const pool =
-    options.pool ??
-    new pg.Pool({
-      connectionString: env.DATABASE_URL,
-    });
+  // Control-plane jobs (outbox all-org sweep, GDPR-request claim, backup audit) operate
+  // ACROSS orgs, so the shared pool must be an owner/system-actor connection (BYPASSRLS +
+  // app.actor_type='system'). A plain app_user DATABASE_URL pool would be RLS-scoped and
+  // silently see zero cross-org rows. getSystemActorConnection() reads DATABASE_URL_OWNER
+  // (?? DATABASE_URL). Tests inject options.pool. (Cross-provider consensus P1 fix.)
+  const pool = options.pool ?? getSystemActorConnection();
   const registry = captureRegistryJobFailures(options.registry ?? new JobRegistry({ pool, logger }));
   registerBackupVerificationCron(registry);
   registerOutboxConsumer(registry, { everyMs: env.OUTBOX_INTERVAL_MS });

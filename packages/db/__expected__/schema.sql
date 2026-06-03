@@ -612,6 +612,7 @@ $$;
 
 CREATE FUNCTION public.set_user_pins_updated_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
     AS $$
 begin
   new.updated_at = now();
@@ -4276,22 +4277,6 @@ CREATE TRIGGER trg_user_pins_updated_at BEFORE UPDATE ON public.user_pins FOR EA
 
 ALTER TABLE ONLY "Reference"."DeptColumns"
     ADD CONSTRAINT "DeptColumns_field_type_fkey" FOREIGN KEY (field_type) REFERENCES "Reference"."FieldTypes"(code);
-
-
---
--- Name: ManufacturingOperations ManufacturingOperations_org_id_fkey; Type: FK CONSTRAINT; Schema: Reference; Owner: -
---
-
-ALTER TABLE ONLY "Reference"."ManufacturingOperations"
-    ADD CONSTRAINT "ManufacturingOperations_org_id_fkey" FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: Rules Rules_org_id_fkey; Type: FK CONSTRAINT; Schema: Reference; Owner: -
---
-
-ALTER TABLE ONLY "Reference"."Rules"
-    ADD CONSTRAINT "Rules_org_id_fkey" FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
