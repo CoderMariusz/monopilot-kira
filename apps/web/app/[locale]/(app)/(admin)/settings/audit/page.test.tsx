@@ -19,6 +19,17 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   topbarCalls: [] as Array<Record<string, unknown>>,
   sidebarCalls: [] as Array<Record<string, unknown>>,
+  loadAuditCallerAccess: vi.fn(),
+  queryPartitionAwareAuditLog: vi.fn(),
+}));
+
+// Mock the real-data loader so the production fallback path (no injected props)
+// is observable: the page MUST resolve callerAccess + run the partition-aware
+// query through these real entry points — never a forbidden-by-default sentinel
+// or an empty fallback loader.
+vi.mock('./audit-log-loader', () => ({
+  loadAuditCallerAccess: mocks.loadAuditCallerAccess,
+  queryPartitionAwareAuditLog: mocks.queryPartitionAwareAuditLog,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -453,5 +464,107 @@ describe('SET-013 audit log viewer prototype parity and partition-aware query', 
         "insert",
       ]
     `);
+  });
+});
+
+describe('SET-013 audit log viewer real-data wiring (no forbidden-by-default, no empty fallback)', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mocks.topbarCalls.length = 0;
+    mocks.sidebarCalls.length = 0;
+    setAuthenticatedShellUser();
+    window.history.replaceState(null, '', '/en/settings/audit');
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('resolves real caller access via loadAuditCallerAccess and runs the live partition-aware query when no props are injected', async () => {
+    mocks.loadAuditCallerAccess.mockResolvedValue({
+      orgId: 'org-apex',
+      requestedOrgId: 'org-apex',
+      orgName: 'Apex Foods Sp. z o.o.',
+      permissions: ['settings.audit.read'],
+      roleCodes: ['settings_admin'],
+    });
+    mocks.queryPartitionAwareAuditLog.mockResolvedValue({
+      entries: baseRows.slice(0, 3),
+      totalCount: 3,
+      scannedPartitions: ['audit_log_2026_05'],
+      explainText: 'Append on audit_log  ->  Index Scan on audit_log_2026_05',
+    });
+
+    const Page = await loadAuditLogViewerPage();
+    // No callerAccess, no entries, no queryAuditLog injected → production path.
+    // `now` pins the 7d window to the seeded rows' month so they pass the client filter.
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), now: '2026-05-24T12:00:00.000Z' });
+    render(<>{node}</>);
+
+    // Real caller-access resolver was used (not a forbidden-by-default sentinel).
+    expect(
+      mocks.loadAuditCallerAccess,
+      'page must populate callerAccess from the real withOrgContext loader, not DEFAULT_CALLER_ACCESS with permissions: []',
+    ).toHaveBeenCalledTimes(1);
+
+    // Real partition-aware query was used (not the deleted empty fallback loader).
+    expect(
+      mocks.queryPartitionAwareAuditLog,
+      'page must query public.audit_log through queryPartitionAwareAuditLog, not an empty fallback',
+    ).toHaveBeenCalledTimes(1);
+    expect(mocks.queryPartitionAwareAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: 'org-apex',
+        requestedOrgId: 'org-apex',
+        datePreset: '7d',
+        page: 1,
+        pageSize: 50,
+        user: 'all',
+        action: 'all',
+      }),
+    );
+
+    // Authorized caller renders the live screen — NOT a 403, NOT an empty placeholder.
+    expect(screen.getByTestId('settings-audit-log-viewer-screen')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /403|forbidden|access denied/i })).toBeNull();
+    expect(screen.getByRole('table', { name: /settings audit log/i })).toBeInTheDocument();
+    // Honest partition-scan evidence from the real EXPLAIN result, not a stub string.
+    expect(screen.getByText(/EXPLAIN verified/i)).toBeInTheDocument();
+  });
+
+  it('fails closed to 403 when the real loader cannot resolve caller access (unauthenticated / no org row)', async () => {
+    mocks.loadAuditCallerAccess.mockResolvedValue(null);
+
+    const Page = await loadAuditLogViewerPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(<>{node}</>);
+
+    expect(mocks.loadAuditCallerAccess).toHaveBeenCalledTimes(1);
+    // Query must NOT run for an unresolved caller.
+    expect(mocks.queryPartitionAwareAuditLog).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /403|forbidden|access denied/i })).toBeInTheDocument();
+    expect(screen.getByText(/settings\.audit\.read/i)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Apex Foods/i);
+  });
+
+  it('denies a genuinely unauthorized caller (resolved org context but missing settings.audit.read) without running the query', async () => {
+    mocks.loadAuditCallerAccess.mockResolvedValue({
+      orgId: 'org-apex',
+      requestedOrgId: 'org-apex',
+      orgName: 'Apex Foods Sp. z o.o.',
+      permissions: ['settings.users.manage'],
+      roleCodes: ['module_admin'],
+    });
+
+    const Page = await loadAuditLogViewerPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(<>{node}</>);
+
+    expect(mocks.loadAuditCallerAccess).toHaveBeenCalledTimes(1);
+    expect(mocks.queryPartitionAwareAuditLog).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /403|forbidden|access denied/i })).toBeInTheDocument();
+    expect(screen.getByText(/settings\.audit\.read/i)).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: /settings audit log/i })).not.toBeInTheDocument();
   });
 });

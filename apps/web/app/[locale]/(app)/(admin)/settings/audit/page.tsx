@@ -11,14 +11,11 @@ import {
   type DatePreset,
   type DateRange,
 } from './page.client';
-
-type CallerAccess = {
-  orgId: string;
-  requestedOrgId: string;
-  orgName: string;
-  permissions: string[];
-  roleCodes: string[];
-};
+import {
+  loadAuditCallerAccess,
+  queryPartitionAwareAuditLog,
+  type CallerAccess,
+} from './audit-log-loader';
 
 type PageProps = {
   params?: Promise<{ locale: string }> | { locale: string };
@@ -257,7 +254,13 @@ async function buildLabels(locale: string): Promise<AuditLabels> {
   };
 }
 
-const DEFAULT_CALLER_ACCESS: CallerAccess = {
+// Fail-closed sentinel used ONLY when no caller access was injected (test path)
+// AND the live withOrgContext resolution returned null (unauthenticated /
+// org-context-unavailable). With `permissions: []` this trips the
+// `settings.audit.read` gate → 403, which is the correct deny for an
+// unresolved caller. The production happy path NEVER hits this: it builds real
+// callerAccess via `loadAuditCallerAccess` (see below).
+const ANONYMOUS_CALLER_ACCESS: CallerAccess = {
   orgId: 'org-context-unavailable',
   requestedOrgId: 'org-context-unavailable',
   orgName: 'Organization unavailable',
@@ -300,15 +303,6 @@ function isForbidden(access: CallerAccess) {
   return null;
 }
 
-async function defaultPartitionAwareAuditQuery(input: AuditQueryInput): Promise<AuditQueryResult> {
-  void input;
-  return {
-    entries: [],
-    totalCount: 0,
-    scannedPartitions: [],
-    explainText: 'EXPLAIN not run in fallback loader; production Drizzle loader supplies live partition evidence.',
-  };
-}
 
 function ForbiddenAuditLog({ labels, reason }: { labels: AuditLabels; reason: string }) {
   const [beforeReason, afterReason = ''] = labels.forbiddenMessage.split('{reason}');
@@ -332,7 +326,13 @@ export default async function SettingsAuditLogPage(propsInput: unknown = {}) {
   const labels = await buildLabels(locale);
   const now = props.now ?? new Date().toISOString();
   const pageSize = props.pageSize ?? 50;
-  const callerAccess = props.callerAccess ?? DEFAULT_CALLER_ACCESS;
+
+  // Real caller access: when not injected by a test, resolve it live through
+  // withOrgContext (RLS app.current_org_id()) so permissions/org name reflect
+  // the authenticated caller. A null resolution (unauthenticated / no org row)
+  // fails closed to the anonymous sentinel → 403, never a populated screen.
+  const callerAccess =
+    props.callerAccess ?? (await loadAuditCallerAccess()) ?? ANONYMOUS_CALLER_ACCESS;
   const forbiddenReason = isForbidden(callerAccess);
 
   if (forbiddenReason) return <ForbiddenAuditLog labels={labels} reason={forbiddenReason} />;
@@ -343,7 +343,10 @@ export default async function SettingsAuditLogPage(propsInput: unknown = {}) {
   let totalCount = entries?.length ?? 0;
 
   if (!entries) {
-    queryResult = await (props.queryAuditLog ?? defaultPartitionAwareAuditQuery)({
+    // Real partition-aware query against public.audit_log (date range first to
+    // prune to the 1-2 monthly partitions the last-7-days window touches).
+    const runQuery = props.queryAuditLog ?? queryPartitionAwareAuditLog;
+    queryResult = await runQuery({
       orgId: callerAccess.orgId,
       requestedOrgId: callerAccess.requestedOrgId,
       datePreset: '7d',

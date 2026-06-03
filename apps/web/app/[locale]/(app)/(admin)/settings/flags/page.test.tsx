@@ -6,7 +6,7 @@ import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import SettingsFlagsPage from './page';
@@ -18,9 +18,11 @@ import FlagsAdminScreen, {
 
 type Locale = 'en' | 'pl' | 'ro' | 'uk';
 
-const { setLocalFlagAction, setCoreFlagAction } = vi.hoisted(() => ({
+const { setLocalFlagAction, setCoreFlagAction, withOrgContextMock, queryMock } = vi.hoisted(() => ({
   setLocalFlagAction: vi.fn(),
   setCoreFlagAction: vi.fn(),
+  withOrgContextMock: vi.fn(),
+  queryMock: vi.fn(),
 }));
 
 vi.mock('../../../../../../actions/tenant/set-local-flag', () => ({
@@ -29,6 +31,13 @@ vi.mock('../../../../../../actions/tenant/set-local-flag', () => ({
 
 vi.mock('../../../../../../actions/flags/set-core', () => ({
   setCoreFlag: setCoreFlagAction,
+}));
+
+// Real-data wiring: the production page reads feature_flags_core +
+// org_authorization_policies through withOrgContext (RLS app.current_org_id()).
+// We mock the HOF so the jsdom suite can assert the wiring without a live pg pool.
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: withOrgContextMock,
 }));
 
 vi.mock('@monopilot/ui/Modal', async () => {
@@ -92,6 +101,7 @@ type FlagsLabels = {
   loading: string;
   empty: string;
   error: string;
+  permissionDenied: string;
   vSet43Title: string;
   vSet43Body: string;
   configureAuthorization: string;
@@ -126,6 +136,7 @@ const localizedLabels: Record<Locale, FlagsLabels> = {
     loading: 'Loading feature flags…',
     empty: 'No feature flags found.',
     error: 'Unable to load feature flags.',
+    permissionDenied: 'You need org admin access to view and change feature flags.',
     vSet43Title: 'V-SET-43 authorization preflight failed',
     vSet43Body: 'NPD post-release edits require an authorization policy.',
     configureAuthorization: 'Configure authorization policy',
@@ -158,6 +169,7 @@ const localizedLabels: Record<Locale, FlagsLabels> = {
     loading: 'Ładowanie flag funkcji…',
     empty: 'Nie znaleziono flag funkcji.',
     error: 'Nie udało się wczytać flag funkcji.',
+    permissionDenied: 'Potrzebujesz uprawnień administratora organizacji, aby przeglądać i zmieniać flagi funkcji.',
     vSet43Title: 'Kontrola autoryzacji V-SET-43 nie powiodła się',
     vSet43Body: 'Edycje NPD po wydaniu wymagają polityki autoryzacji.',
     configureAuthorization: 'Skonfiguruj politykę autoryzacji',
@@ -190,6 +202,7 @@ const localizedLabels: Record<Locale, FlagsLabels> = {
     loading: 'Se încarcă indicatorii de funcții…',
     empty: 'Nu s-au găsit indicatori de funcții.',
     error: 'Indicatorii de funcții nu au putut fi încărcați.',
+    permissionDenied: 'Aveți nevoie de acces de administrator al organizației pentru a vizualiza și modifica indicatorii de funcții.',
     vSet43Title: 'Verificarea de autorizare V-SET-43 a eșuat',
     vSet43Body: 'Editările NPD după lansare necesită o politică de autorizare.',
     configureAuthorization: 'Configurează politica de autorizare',
@@ -222,6 +235,7 @@ const localizedLabels: Record<Locale, FlagsLabels> = {
     loading: 'Завантаження прапорців функцій…',
     empty: 'Прапорці функцій не знайдено.',
     error: 'Не вдалося завантажити прапорці функцій.',
+    permissionDenied: 'Потрібен доступ адміністратора організації для перегляду та зміни прапорців функцій.',
     vSet43Title: 'Попередня перевірка авторизації V-SET-43 не пройдена',
     vSet43Body: 'Редагування NPD після випуску вимагає політики авторизації.',
     configureAuthorization: 'Налаштувати політику авторизації',
@@ -245,6 +259,66 @@ const getTranslations = vi.fn(async (request?: string | { locale?: string; names
 
 vi.mock('next-intl/server', () => ({ getTranslations }));
 
+// Seeded feature_flags_core rows (migration 067 per-org seed) the mocked HOF returns.
+const seededCoreFlagRows = [
+  {
+    flag_code: 'npd.post_release_edit.enabled',
+    description: 'Allow released NPD product/BOM edits after authorization.',
+    is_enabled: false,
+    rolled_out_pct: 0,
+    tier: 'L1',
+    updated_at: '2026-05-25T00:00:00.000Z',
+  },
+  {
+    flag_code: 'technical.product_spec_approval.required',
+    description: 'Require Technical product-spec approval before factory use.',
+    is_enabled: true,
+    rolled_out_pct: 100,
+    tier: 'L1',
+    updated_at: '2026-05-25T00:00:00.000Z',
+  },
+];
+
+// org_authorization_policies row for npd_post_release_edit (V-SET-43 preflight source).
+const seededPolicyRow = {
+  is_enabled: true,
+  requires_new_version: true,
+  authorize_role_count: 1,
+};
+
+type DbResult = { rows: unknown[]; rowCount?: number };
+
+function installLiveOrgContext(options?: {
+  flagRows?: unknown[];
+  policyRow?: Record<string, unknown> | null;
+  forbidden?: boolean;
+}) {
+  const flagRows = options?.flagRows ?? seededCoreFlagRows;
+  const policyRow = options?.policyRow === undefined ? seededPolicyRow : options.policyRow;
+
+  queryMock.mockImplementation(async (sql: string): Promise<DbResult> => {
+    if (/from public\.user_roles/i.test(sql)) {
+      if (options?.forbidden) return { rows: [], rowCount: 0 };
+      return { rows: [{ ok: true }], rowCount: 1 };
+    }
+    if (/from public\.feature_flags_core/i.test(sql)) {
+      return { rows: flagRows, rowCount: flagRows.length };
+    }
+    if (/from public\.org_authorization_policies/i.test(sql)) {
+      return { rows: policyRow ? [policyRow] : [], rowCount: policyRow ? 1 : 0 };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+
+  withOrgContextMock.mockImplementation(async (action: (ctx: unknown) => Promise<unknown>) => {
+    return action({
+      userId: '00000000-0000-0000-0000-000000000001',
+      orgId: '00000000-0000-0000-0000-0000000000aa',
+      client: { query: queryMock },
+    });
+  });
+}
+
 async function renderFlagsPage(locale: Locale, overrides: Record<string, unknown> = {}) {
   activeLocale = locale;
   const node = await SettingsFlagsPage({
@@ -255,11 +329,17 @@ async function renderFlagsPage(locale: Locale, overrides: Record<string, unknown
   return render(React.createElement(React.Fragment, null, node));
 }
 
+beforeEach(() => {
+  installLiveOrgContext();
+});
+
 afterEach(() => {
   cleanup();
   getTranslations.mockClear();
   setLocalFlagAction.mockReset();
   setCoreFlagAction.mockReset();
+  withOrgContextMock.mockReset();
+  queryMock.mockReset();
 });
 
 describe('R-F10-002 flags admin next-intl locale labels', () => {
@@ -380,5 +460,80 @@ describe('UI-SET-008 flags admin route modal/action wiring RED', () => {
     await waitFor(() => expect(onToggleFlag).toHaveBeenCalledWith(localFixtureWithModalId.code, true));
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     expect(screen.getByText(/forbidden/i)).toBeInTheDocument();
+  });
+});
+
+describe('T-065 flags admin reads REAL feature_flags_core via withOrgContext (no hardcoded defaultFlags)', () => {
+  it('the production page source contains no hardcoded defaultFlags array and reads feature_flags_core through withOrgContext', () => {
+    const pagePath = path.resolve(process.cwd(), 'app/[locale]/(app)/(admin)/settings/flags/page.tsx');
+    const source = readFileSync(pagePath, 'utf8');
+
+    // Audit finding #1: the page must not ship a hardcoded defaultFlags fallback.
+    expect(source).not.toMatch(/function\s+defaultFlags/);
+    expect(source).not.toMatch(/const\s+DEFAULT_PREFLIGHT\b/);
+    // Real-data wiring: withOrgContext + the two live tables.
+    expect(source).toMatch(/withOrgContext/);
+    expect(source).toMatch(/public\.feature_flags_core/);
+    expect(source).toMatch(/public\.org_authorization_policies/);
+  });
+
+  it('renders the seeded feature_flags_core rows fetched through the org-scoped HOF', async () => {
+    installLiveOrgContext();
+    await renderFlagsPage('en');
+
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    // feature_flags_core SELECT is RLS-scoped to app.current_org_id().
+    const flagSelect = queryMock.mock.calls.find(([sql]) => /from public\.feature_flags_core/i.test(sql as string));
+    expect(flagSelect?.[0]).toMatch(/app\.current_org_id\(\)/);
+
+    expect(screen.getByText('npd.post_release_edit.enabled')).toBeInTheDocument();
+    expect(screen.getByText('technical.product_spec_approval.required')).toBeInTheDocument();
+    // L1 core tab count reflects the live row count (2 seeded core flags), not a constant.
+    expect(screen.getByRole('button', { name: 'L1 core (2)' })).toBeInTheDocument();
+  });
+
+  it('computes the V-SET-43 preflight from the REAL org_authorization_policies row (canEnable true), so the toggle is not pre-blocked', async () => {
+    setCoreFlagAction.mockResolvedValue({ ok: true, data: { flagCode: 'npd.post_release_edit.enabled', enabled: true } });
+    installLiveOrgContext({ policyRow: { is_enabled: true, requires_new_version: true, authorize_role_count: 1 } });
+    const user = userEvent.setup();
+    await renderFlagsPage('en');
+
+    const toggle = screen.getByRole('switch', { name: 'npd.post_release_edit.enabled' });
+    await user.click(toggle);
+
+    // canEnable=true (real policy satisfies V-SET-43) → toggle persists through setCoreFlag,
+    // it is NOT short-circuited by a hardcoded canEnable:false preflight.
+    await waitFor(() =>
+      expect(setCoreFlagAction).toHaveBeenCalledWith({ flagCode: 'npd.post_release_edit.enabled', enabled: true }),
+    );
+    expect(screen.queryByText(/V-SET-43 authorization preflight failed/i)).not.toBeInTheDocument();
+  });
+
+  it('blocks the npd toggle and shows the V-SET-43 failure when the REAL policy is incomplete (canEnable false)', async () => {
+    // Policy disabled / no authorizer roles → canEnable=false derived from live state.
+    installLiveOrgContext({ policyRow: { is_enabled: false, requires_new_version: false, authorize_role_count: 0 } });
+    const user = userEvent.setup();
+    await renderFlagsPage('en');
+
+    const toggle = screen.getByRole('switch', { name: 'npd.post_release_edit.enabled' });
+    await user.click(toggle);
+
+    expect(await screen.findByText(/V-SET-43 authorization preflight failed/i)).toBeInTheDocument();
+    expect(setCoreFlagAction).not.toHaveBeenCalled();
+  });
+
+  it('renders the permission-denied state when withOrgContext rejects with forbidden (RBAC enforced server-side)', async () => {
+    installLiveOrgContext({ forbidden: true });
+    await renderFlagsPage('en');
+
+    expect(screen.getByTestId('settings-flags-permission-denied-state')).toBeInTheDocument();
+    expect(screen.getByText(localizedLabels.en.permissionDenied)).toBeInTheDocument();
+  });
+
+  it('renders the empty state when feature_flags_core returns zero rows for the org', async () => {
+    installLiveOrgContext({ flagRows: [] });
+    await renderFlagsPage('en');
+
+    expect(screen.getByText(localizedLabels.en.empty)).toBeInTheDocument();
   });
 });

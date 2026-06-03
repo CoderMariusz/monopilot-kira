@@ -11,6 +11,9 @@ import { Select, SelectTrigger, SelectValue, type SelectOption } from '@monopilo
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 import Textarea from '@monopilot/ui/Textarea';
 
+import { previewPromotion } from './_actions/previewPromotion';
+import { submitPromotion } from './_actions/submitPromotion';
+
 const h = React.createElement;
 
 export type PromotionStage = { id: string; label: string; description: string; count: number };
@@ -22,9 +25,23 @@ export type Labels = {
   title: string; subtitle: string; startPromotion: string; activeTab: string; historyTab: string; stageOverview: string;
   activePromotions: string; historyTitle: string; loading: string; empty: string; error: string; forbidden: string;
 };
+
+export type SubmitPromotionResult =
+  | { ok: true; data: { id: string; status: string; artefact: string; target: string } }
+  | { ok: false; error: string; message?: string };
+export type PreviewPromotionResult =
+  | { ok: true; data: { artefact: string; from: string; target: string; before: string; after: string; affectsCount: number } }
+  | { ok: false; error: string; message?: string };
+
+export type SubmitPromotionAction = (input: { artefact: string; target: TargetStage; from: string; reason: string }) => Promise<SubmitPromotionResult>;
+export type PreviewPromotionAction = (input: { artefact: string; target: TargetStage; from: string }) => Promise<PreviewPromotionResult>;
+
 export type PromotionsScreenProps = {
   labels: Labels; promotionStages: PromotionStage[]; promotions: PromotionRecord[]; tenantMigrations: TenantMigrationRow[];
   callerAccess: CallerAccess; state: PageState; initialTab: 'active' | 'history';
+  // Real Server Actions (injectable for tests). Default to the production actions.
+  submitAction?: SubmitPromotionAction;
+  previewAction?: PreviewPromotionAction;
 };
 
 type DialogState = { kind: 'create' } | { kind: 'diff'; promotion: PromotionRecord } | null;
@@ -42,10 +59,14 @@ const WIZARD_STEPS: Array<{ key: WizardStep; label: string }> = [
   { key: 'review', label: 'Confirm + reason' },
 ];
 
-export default function PromotionsScreen({ labels, promotionStages, promotions, tenantMigrations, callerAccess, state, initialTab }: PromotionsScreenProps) {
+export default function PromotionsScreen({ labels, promotionStages, promotions, tenantMigrations, callerAccess, state, initialTab, submitAction, previewAction }: PromotionsScreenProps) {
   const [activeTab, setActiveTab] = React.useState<'active' | 'history'>(initialTab);
   const [dialog, setDialog] = React.useState<DialogState>(null);
   React.useEffect(() => setActiveTab(initialTab), [initialTab]);
+
+  // Default to the real Server Actions; tests may inject deterministic stubs.
+  const submit = submitAction ?? (submitPromotion as unknown as SubmitPromotionAction);
+  const preview = previewAction ?? (previewPromotion as unknown as PreviewPromotionAction);
 
   if (!callerAccess.roleCodes.includes('Admin')) {
     return h('main', { 'data-testid': 'settings-promotions-screen', 'data-route': '/settings/promotions', 'data-screen': 'promotions_screen', className: 'space-y-3 p-6' },
@@ -84,7 +105,7 @@ export default function PromotionsScreen({ labels, promotionStages, promotions, 
           h(ActivePromotions, { labels, promotions, state, onDiff: (promotion: PromotionRecord) => setDialog({ kind: 'diff', promotion }) }),
         )
       : h(HistoryTable, { labels, rows: historyRows }),
-    dialog ? h(PromoteDialog, { dialog, onClose: () => setDialog(null) }) : null,
+    dialog ? h(PromoteDialog, { dialog, labels, onClose: () => setDialog(null), submitAction: submit, previewAction: preview }) : null,
   );
 }
 
@@ -149,21 +170,72 @@ function HistoryTable({ labels, rows }: { labels: Labels; rows: TenantMigrationR
   );
 }
 
-function PromoteDialog({ dialog, onClose }: { dialog: Exclude<DialogState, null>; onClose: () => void }) {
+function PromoteDialog({ dialog, labels, onClose, submitAction, previewAction }: { dialog: Exclude<DialogState, null>; labels: Labels; onClose: () => void; submitAction: SubmitPromotionAction; previewAction: PreviewPromotionAction }) {
   const promotion = dialog.kind === 'diff' ? dialog.promotion : null;
   const [step, setStep] = React.useState<WizardStep>('select');
   const [done, setDone] = React.useState<Set<WizardStep>>(new Set());
   const [artefact, setArtefact] = React.useState(promotion?.artefact ?? '');
   const [target, setTarget] = React.useState<TargetStage>((promotion?.to as TargetStage | undefined) ?? 'L2-local');
   const [reason, setReason] = React.useState('');
+  const from = promotion?.from ?? 'L3-tenant';
+
+  // Real preview state (replaces the prototype's hardcoded JSON diff).
+  const [preview, setPreview] = React.useState<{ before: string; after: string; affects: string } | null>(null);
+  // Submit state machine (optimistic + error).
+  const [submitting, setSubmitting] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [submitted, setSubmitted] = React.useState(false);
+
+  const mounted = React.useRef(true);
+  React.useEffect(() => () => { mounted.current = false; }, []);
+
   const titleId = promotion ? `promotion-dialog-${promotion.id}` : 'promotion-dialog-create';
   React.useEffect(() => {
     const dialogNode = document.querySelector<HTMLElement>('[data-modal-id="SM-05"]');
     dialogNode?.setAttribute('aria-labelledby', titleId);
     dialogNode?.focus();
   }, [titleId]);
-  const next = () => { setDone((prev) => new Set([...prev, step])); setStep(step === 'select' ? 'diff' : 'review'); };
+
+  const goToDiff = () => {
+    setDone((prev) => new Set([...prev, 'select']));
+    setStep('diff');
+    // Fire the REAL preview action for the selected artefact + target.
+    void Promise.resolve(previewAction({ artefact, target, from })).then((result) => {
+      if (!mounted.current) return;
+      if (result.ok) {
+        setPreview({ before: result.data.before, after: result.data.after, affects: `${result.data.affectsCount} tenant(s)` });
+      } else {
+        setPreview(null);
+      }
+    }).catch(() => { if (mounted.current) setPreview(null); });
+  };
+  const next = () => {
+    if (step === 'select') return goToDiff();
+    setDone((prev) => new Set([...prev, step]));
+    setStep('review');
+  };
   const back = () => setStep(step === 'review' ? 'diff' : 'select');
+
+  const onSubmit = () => {
+    if (reason.length < 10 || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    void Promise.resolve(submitAction({ artefact, target, from, reason })).then((result) => {
+      if (!mounted.current) return;
+      setSubmitting(false);
+      if (result.ok) {
+        setSubmitted(true);
+        onClose();
+      } else {
+        setSubmitError(result.error);
+      }
+    }).catch(() => {
+      if (!mounted.current) return;
+      setSubmitting(false);
+      setSubmitError('persistence_failed');
+    });
+  };
+
   const title = promotion ? `Promotion ${promotion.id}` : 'Start L1→L2→L3 promotion';
 
   return h(Modal as any, { open: true, onOpenChange: (open: boolean) => !open && onClose(), size: 'xl', modalId: 'SM-05' },
@@ -175,8 +247,10 @@ function PromoteDialog({ dialog, onClose }: { dialog: Exclude<DialogState, null>
       h('div', { className: 'px-5 py-4 text-sm text-slate-700' },
         h(PromotionStepper, { current: step, done }),
         step === 'select' ? h(SelectStep, { artefact, setArtefact, target, setTarget: (value: string) => setTarget(value as TargetStage) }) : null,
-        step === 'diff' ? h(DiffStep, { target, affects: promotion?.affects ?? '12 tenants' }) : null,
-        step === 'review' ? h(ReviewStep, { artefact, from: promotion?.from ?? 'L3-tenant', target, affects: promotion?.affects ?? '12 tenants', reason, setReason }) : null,
+        step === 'diff' ? h(DiffStep, { target, before: preview?.before ?? null, after: preview?.after ?? null, affects: preview?.affects ?? promotion?.affects ?? '—' }) : null,
+        step === 'review' ? h(ReviewStep, { artefact, from, target, affects: preview?.affects ?? promotion?.affects ?? '—', reason, setReason }) : null,
+        submitError ? h('div', { role: 'alert', className: 'mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900' }, `${labels.error} (${submitError})`) : null,
+        submitted ? h('div', { role: 'status', className: 'mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900' }, 'Promotion submitted.') : null,
       ),
     ),
     h((Modal as any).Footer, null,
@@ -187,7 +261,7 @@ function PromoteDialog({ dialog, onClose }: { dialog: Exclude<DialogState, null>
           ? h(Button, { type: 'button', className: 'btn-primary btn-sm', disabled: artefact.length < 3, onClick: next }, 'Next: preview →')
           : step === 'diff'
             ? h(Button, { type: 'button', className: 'btn-primary btn-sm', onClick: next }, 'Next: confirm →')
-            : h(Button, { type: 'button', className: 'btn-primary btn-sm', disabled: reason.length < 10, onClick: onClose }, 'Submit promotion'),
+            : h(Button, { type: 'button', className: 'btn-primary btn-sm', disabled: reason.length < 10 || submitting, onClick: onSubmit }, submitting ? 'Submitting…' : 'Submit promotion'),
       ),
     ),
   );
@@ -207,11 +281,18 @@ function SelectStep({ artefact, setArtefact, target, setTarget }: { artefact: st
   );
 }
 
-function DiffStep({ target, affects }: { target: string; affects: string }) {
+function DiffStep({ target, before, after, affects }: { target: string; before: string | null; after: string | null; affects: string }) {
+  // before/after are the REAL preview JSON from previewPromotion (Server Action).
+  // While the preview action resolves they are null — show a pending placeholder
+  // but keep the labelled panes so the structure stays prototype-faithful.
+  const pending = before === null || after === null;
+  const beforeText = before ?? 'Loading current value…';
+  const afterText = after ?? 'Loading target value…';
   return h('div', { className: 'mt-4 space-y-3' },
+    pending ? h('div', { role: 'status', className: 'text-[11px] text-slate-500' }, 'Computing live diff…') : null,
     h('div', { className: 'grid grid-cols-2 gap-4' },
-      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, 'Current (before)'), h('pre', { className: 'mono min-h-[180px] rounded-md bg-slate-100 p-3 text-[11px]' }, '{\n  "tier": "L2-local",\n  "variance_threshold": 0.05,\n  "audit_required_above": 0.10\n}')),
-      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, `Target (${target})`), h('pre', { className: 'mono min-h-[180px] rounded-md bg-lime-100 p-3 text-[11px]' }, `{\n  "tier": "${target}",\n  "variance_threshold": 0.10,\n  "audit_required_above": 0.10\n}`)),
+      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, 'Current (before)'), h('pre', { 'data-testid': 'promotion-diff-before', className: 'mono min-h-[180px] rounded-md bg-slate-100 p-3 text-[11px]' }, beforeText)),
+      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, `Target (${target})`), h('pre', { 'data-testid': 'promotion-diff-after', className: 'mono min-h-[180px] rounded-md bg-lime-100 p-3 text-[11px]' }, afterText)),
     ),
     h('div', { className: 'rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950' }, h('b', null, 'Impact:'), ' This migration affects ', h('b', null, affects), '. Existing L3 overrides will be preserved.'),
   );

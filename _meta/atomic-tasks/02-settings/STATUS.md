@@ -90,21 +90,21 @@
 | T-062 | D365 Mapping screen (SET-081) | ⏸ | Page exists; no parity evidence |
 | T-063 | Rules Registry screen (SET-040) | ⏸ | 162-line page; no parity evidence |
 | T-064 | Rule Detail screen (SET-041) | ⏸ | Page exists; no parity evidence |
-| T-065 | Flags Admin screen (SET-071) | ⏸ | 171-line page; no parity evidence |
+| T-065 | Flags Admin screen (SET-071) | 🔄 | W2a 2026-06-03: REAL data wired — reads `feature_flags_core` via withOrgContext, V-SET-43 from real `org_authorization_policies`, toggle via setCoreFlag; removed defaultFlags/DEFAULT_PREFLIGHT; +permission-denied state; 13/13 UI tests. Playwright/axe evidence pending W6 |
 | T-066 | Schema Browser screen (SET-030) | ⏸ | 221-line page, real Supabase; parity_report present; completeness unverified |
 | T-067 | Reference Data screen (SET-050) | ⏸ | 429-line page; E2E spec + partial parity artifact |
-| T-068 | Email Templates screen (SET-090) | ⏸ | Page + parity spec present |
-| T-069 | Email Variables screen (SET-091) | ⏸ | Two duplicate routes exist (`email-vars/` and `email/variables/`) |
-| T-070 | Promotions screen (SET-063) | ⏸ | 85-line page; no parity evidence |
+| T-068 | Email Templates screen (SET-090) | 🔄 | W2a 2026-06-03: REAL loader via withOrgContext (reference_tables email_config + integration_settings w/ to_regclass guard); test-send via real RBAC; removed DEFAULT_TEMPLATES; UI tests green. Gap: `integration_settings` table has no migration (fails closed). Playwright/axe pending W6 |
+| T-069 | Email Variables screen (SET-091) | 🔄 | W2a 2026-06-03: REAL variable registry (domain constant) via withOrgContext; removed DEFAULT_GROUPS; UI tests green. Playwright/axe pending W6 |
+| T-070 | Promotions screen (SET-063) | 🔄 | W2a 2026-06-03: REAL callerAccess via withOrgContext + real tenant_migrations; authored submitPromotion/previewPromotion actions; removed always-403 default; 9/9 UI tests. Playwright/axe pending W6 |
 | T-071 | Notifications screen (SET-092) | ⏸ | Page exists; no parity evidence |
-| T-072 | Features screen (SET-070) | ⏸ | Page exists; no parity evidence |
+| T-072 | Features screen (SET-070) | 🔄 | W2a 2026-06-03: REAL organization_modules+modules via withOrgContext; removed DEFAULT_FEATURES/MODULE_DESCRIPTIONS/activeSessionCount=28; descriptions from catalog (migration 069 adds modules.description); 16 UI tests (shared w/ T-103). Playwright/axe pending W6 |
 | T-073 | Units (UoM) screen | ⏸ | Page + parity spec + artifact present |
 | T-074 | My Profile screen (SET-101) | ⏸ | Page exists; no parity evidence |
 | T-075 | My Notifications preferences screen | ⏸ | Page exists; no parity evidence |
-| T-076 | Integrations catalog screen (SET-110) | ⏸ | Page exists; no parity evidence |
+| T-076 | Integrations catalog screen (SET-110) | 🔄 | W2a 2026-06-03: REAL loader via withOrgContext (d365_constants, email_config, scim_tokens, d365_sync_runs); interactive accordion; removed EMPTY_CATEGORIES; 9 UI tests. SSO derived via SCIM (tenant_idp_config is control-plane). Playwright/axe pending W6 |
 | T-077 | Manufacturing Operations List screen (SET-055) | ⏸ | Page + parity_report present; completeness unverified |
 | T-078 | Manufacturing Operation Edit modal (SET-056) | ⏸ | Modal + test exist; no parity evidence |
-| T-079 | Audit log viewer screen (SET-013) | ⏸ | Real page at `audit/`; `audit-logs/` is redirect stub; no parity evidence |
+| T-079 | Audit log viewer screen (SET-013) | 🔄 | W2a 2026-06-03: REAL loader — callerAccess + partition-aware audit_log query via withOrgContext (real EXPLAIN partition names); removed forbidden-by-default + empty fallback; 9/9 UI tests. IP column null (table has none). Playwright/axe pending W6 |
 | T-096 | Reference CSV Import Wizard screen (SET-053) | ⏸ | 380-line page exists; no parity evidence |
 | T-097 | Schema Column Edit Wizard screen (SET-031, 8-step) | ⏸ | `schema/new/page.tsx` 577 lines; `schema-wizard/` redirects here; no parity evidence |
 | T-098 | Schema Diff Viewer screen (SET-032) | ⏸ | `schema/diff/[id]/page.tsx` 483 lines; no parity evidence |
@@ -112,7 +112,7 @@
 | T-100 | Tenant Variations Dashboard (SET-060) | ⏸ | `tenant/page.tsx` 584 lines, real Supabase; no parity evidence |
 | T-101 | Dept Taxonomy Editor (SET-061) | ⏸ | `tenant/depts/page.tsx` 198 lines; no parity evidence |
 | T-102 | Rule Variant Selector (SET-062) | ⏸ | `tenant/rules/page.tsx` 377 lines; no parity evidence |
-| T-103 | Module Toggles Dashboard (SET-070-grid) | ⏸ | `modules/page.tsx` exists; no parity evidence |
+| T-103 | Module Toggles Dashboard (SET-070-grid) | 🔄 | W2a 2026-06-03: REAL org-scoped loader (modules+organization_modules, reverse-dep warnings) via withOrgContext; removed NO_LIVE_MODULES; toggle via T-019; migration 069 adds organization_modules.updated_at (fixes latent toggle bug); 16 UI tests (shared w/ T-072). Playwright/axe pending W6 |
 | T-104 | Warehouse List screen (SET-012-warehouse) | ⏸ | `infra/warehouses/page.tsx` 295 lines; no parity evidence |
 | T-105 | Location Tree screen (SET-014) | ⏸ | `infra/locations/page.tsx`; locations-modal-crud E2E spec present |
 | T-106 | Machine List screen (SET-016) | ⏸ | `infra/machines/page.tsx`; no parity evidence |

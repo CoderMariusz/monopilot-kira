@@ -14,6 +14,8 @@ import EmailTemplatesScreen, {
   type TestSendResult,
 } from './email-templates-screen.client';
 import { upsertEmailConfig } from '../../../../../../actions/email/upsert-config';
+import { testEmailProvider } from '../../../../../../actions/email/test-provider';
+import { loadEmailTemplatesData } from '../../../../../../actions/email/load-email-config';
 
 type EmailTemplatesPageProps = {
   params?: Promise<{ locale: string }>;
@@ -61,17 +63,14 @@ const DEFAULT_LABELS: Required<Labels> = {
   close: 'Close',
 };
 
-// No production fallback provider/template rows: until SET-090 live loader data is injected,
-// render an explicit empty/provenance state instead of tenant-flavored sample settings.
+// Production renders real Supabase data via loadEmailTemplatesData() (withOrgContext /
+// RLS). These constants are only the fallback shape used when a test injects no rows.
 const DEFAULT_PROVIDER_SETTINGS: EmailProviderSettings = {
   provider: 'Resend',
   apiKeyDisplay: '',
   fromEmail: '',
   fromName: '',
 };
-
-const DEFAULT_TEMPLATES: EmailTemplate[] = [];
-const DEFAULT_VARIABLE_GROUPS: EmailTemplateVariableGroup[] = [];
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>;
 
@@ -93,12 +92,50 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
   const params = props.params ? await props.params : { locale: 'en' };
   const locale = params?.locale || 'en';
   const labels = buildLabelsFromTranslations(await getTranslations('settings.email_templates'));
-  const providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
-  const templates = props.templates ?? DEFAULT_TEMPLATES;
-  const variableGroups = props.variableGroups ?? DEFAULT_VARIABLE_GROUPS;
-  const hasReviewedTestSend = typeof props.testSend === 'function';
-  const reviewedTestSend = props.testSend;
-  const reviewedSaveTemplate = props.saveTemplate ?? saveTemplateThroughEmailConfig;
+
+  // Injected-data mode: a test (or storybook) supplies provider/templates/state
+  // directly. Production mode: no data props → read real org-scoped Supabase rows.
+  const hasInjectedData =
+    Array.isArray(props.templates) || props.providerSettings !== undefined || props.state !== undefined;
+
+  let providerSettings: EmailProviderSettings;
+  let templates: EmailTemplate[];
+  let variableGroups: EmailTemplateVariableGroup[];
+  let loadedState: PageState;
+  let canEdit: boolean;
+
+  if (hasInjectedData) {
+    providerSettings = props.providerSettings ?? DEFAULT_PROVIDER_SETTINGS;
+    templates = props.templates ?? [];
+    variableGroups = props.variableGroups ?? [];
+    loadedState = props.state ?? (templates.length === 0 ? 'empty' : 'ready');
+    // Injected mode cannot prove RBAC; edit/test-send availability is driven solely
+    // by the explicitly injected action props below.
+    canEdit = false;
+  } else {
+    const loaded = await loadEmailTemplatesData();
+    providerSettings = loaded.providerSettings;
+    templates = loaded.templates;
+    variableGroups = loaded.variableGroups;
+    loadedState = loaded.state;
+    canEdit = loaded.canEdit;
+  }
+
+  // Test-send: available to authorized callers (real settings.email.edit permission),
+  // never denied-by-default. Tests inject their own reviewed testSend.
+  const reviewedTestSend: ((input: TestSendInput) => Promise<TestSendResult>) | undefined = hasInjectedData
+    ? props.testSend
+    : canEdit
+      ? testSendThroughProvider
+      : undefined;
+  const hasReviewedTestSend = typeof reviewedTestSend === 'function';
+
+  const reviewedSaveTemplate: SaveTemplate | undefined = hasInjectedData
+    ? props.saveTemplate
+    : canEdit
+      ? saveTemplateThroughEmailConfig
+      : undefined;
+
   const failClosedTestSend = hasReviewedTestSend && reviewedTestSend
     ? async (input: TestSendInput): Promise<TestSendResult> => {
         const result = await reviewedTestSend(input);
@@ -108,7 +145,9 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
         return result;
       }
     : undefined;
-  const state: PageState = hasReviewedTestSend ? (props.state ?? (templates.length === 0 ? 'empty' : 'ready')) : 'permission_denied';
+
+  // Permission-denied is an explicit loader state; otherwise honor the loaded state.
+  const state: PageState = loadedState;
   const screenLabels = hasReviewedTestSend
     ? labels
     : {
@@ -129,6 +168,16 @@ export default async function EmailTemplatesPage(propsInput: unknown = {}) {
       testSend={failClosedTestSend}
     />
   );
+}
+
+async function testSendThroughProvider(input: TestSendInput): Promise<TestSendResult> {
+  'use server';
+
+  const result = await testEmailProvider({ to: input.fromEmail });
+  if (result.status === 'ok') {
+    return { ok: true, message_id: result.message_id };
+  }
+  return { ok: false, error: result.code };
 }
 
 async function saveTemplateThroughEmailConfig(input: EmailTemplateDraft): Promise<EmailTemplateSaveResult> {

@@ -8,7 +8,7 @@
  * assertion failures instead of module-resolution noise.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -27,7 +27,7 @@ const labels: Record<string, string> = {
   joinPreviewProgram: 'Join the preview program →',
   loading: 'Loading module toggles…',
   empty: 'No modules are configured for this workspace.',
-  error: 'Unable to load module toggles.',
+  error: 'Module toggles are currently unavailable. Try again later.',
   premium: 'Premium',
   beta: 'Beta',
   dependentsEnabled: '{count} dependents enabled',
@@ -53,6 +53,13 @@ vi.mock('../../../../../../actions/modules/toggle', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+}));
+
+// Live org-scoped loader is exercised via this mock so the no-injected-data
+// path renders REAL-shaped catalog rows rather than the old NO_LIVE_MODULES [].
+const withOrgContextMock = vi.fn();
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: (fn: (ctx: unknown) => unknown) => withOrgContextMock(fn),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -168,6 +175,17 @@ async function renderModulesPage(overrides: Partial<ModulesPageProps> = {}) {
 }
 
 async function renderModulesPageWithoutInjectedData() {
+  // Live loader returns zero catalog rows → honest empty state (NOT demo rows).
+  withOrgContextMock.mockImplementation(async (fn: (ctx: unknown) => unknown) =>
+    fn({
+      orgId: '00000000-0000-0000-0000-000000000001',
+      client: {
+        query: vi.fn(async (sql: string) =>
+          /from\s+public\.modules/i.test(sql) ? { rows: [] } : { rows: [{ tier: 'L2', active_sessions: 0 }] },
+        ),
+      },
+    }),
+  );
   const Page = await loadModulesPage();
   const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
   return render(React.createElement(React.Fragment, null, node));
@@ -317,15 +335,86 @@ describe('SET-070 module toggles prototype parity', () => {
     expect(within(dialog).getAllByRole('button').map((button) => button.textContent?.trim())).toEqual(['Close', 'Save changes']);
   });
 
-  it('does not render PRD/demo module rows, plan name, or dry-run counts when no live loader data is injected', async () => {
+  it('does not fabricate PRD/demo module rows when the live loader returns an empty catalog', async () => {
     await renderModulesPageWithoutInjectedData();
 
+    // Live loader was invoked (no NO_LIVE_MODULES [] shortcut).
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
     expect(
       screen.queryAllByTestId('settings-module-toggle-row'),
-      'Default production render must be live-loader backed or an explicit placeholder; it must not fabricate enabled module rows.',
+      'Empty live catalog must render the honest empty state, never fabricated module rows.',
     ).toHaveLength(0);
-    expect(document.body).not.toHaveTextContent(/Premium plan|28 active sessions|NPD|Warehouse|Shipping|OEE/i);
-    expect(document.body).toHaveTextContent(/loading|no modules|not configured|unavailable|placeholder|live data/i);
+    // No fabricated demo module names or the old demo session count.
+    expect(document.body).not.toHaveTextContent(/28 active sessions|NPD|Warehouse|Shipping|OEE/i);
+    // Honest empty-state copy is shown.
+    expect(document.body).toHaveTextContent(/no modules|not configured/i);
+  });
+
+  it('the page source wires a real org-scoped loader and carries no NO_LIVE_MODULES demo shortcut', () => {
+    const sourcePath = [
+      join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/modules/page.tsx'),
+      join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/modules/page.tsx'),
+    ].find((candidate) => existsSync(candidate));
+    expect(sourcePath, 'modules page.tsx must exist').toBeTruthy();
+    const source = readFileSync(sourcePath as string, 'utf8');
+    expect(source, 'NO_LIVE_MODULES placeholder array must be removed').not.toMatch(/NO_LIVE_MODULES/);
+    expect(source, "the dead 'live data unavailable' plan name must be removed").not.toMatch(/live data unavailable/);
+    expect(source, 'an org-scoped loader must be wired').toMatch(/withOrgContext/);
+    expect(source, 'the loader must query the real module catalog').toMatch(/from\s+public\.modules/);
+    expect(source, 'the loader must read per-org enablement').toMatch(/organization_modules/);
+    expect(source, 'module description must come from the catalog row').toMatch(/m\.description/);
+  });
+
+  it('renders REAL catalog-backed module rows with phase badges and dependency warnings', async () => {
+    withOrgContextMock.mockImplementation(async (fn: (ctx: unknown) => unknown) =>
+      fn({
+        orgId: '00000000-0000-0000-0000-000000000001',
+        client: {
+          query: vi.fn(async (sql: string) => {
+            if (/from\s+public\.modules/i.test(sql)) {
+              return {
+                rows: [
+                  {
+                    code: '08-production',
+                    name: 'Production',
+                    description: 'Work order execution, outputs, waste, and downtime.',
+                    dependencies: [],
+                    can_disable: true,
+                    phase: 1,
+                    enabled: true,
+                  },
+                  {
+                    code: '15-oee',
+                    name: 'OEE',
+                    description: 'Availability, performance, quality, and read-only snapshots.',
+                    dependencies: ['08-production'],
+                    can_disable: true,
+                    phase: 3,
+                    enabled: true,
+                  },
+                ],
+              };
+            }
+            return { rows: [{ tier: 'L2', active_sessions: 5 }] };
+          }),
+        },
+      }),
+    );
+
+    const Page = await loadModulesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Work order execution, outputs, waste, and downtime.')).toBeInTheDocument();
+    // OEE is phase 3 → Premium badge derived from real catalog phase.
+    const oeeRow = screen.getAllByTestId('settings-module-toggle-row').find((row) => within(row).queryByText('OEE'));
+    expect(within(oeeRow as HTMLElement).getByText('Premium')).toBeInTheDocument();
+    // OEE (enabled) depends on Production → Production shows "1 dependents enabled".
+    const productionRow = screen
+      .getAllByTestId('settings-module-toggle-row')
+      .find((row) => within(row).queryByText('Production'));
+    expect(within(productionRow as HTMLElement).getByText('1 dependents enabled')).toBeInTheDocument();
   });
 
   it('renders loading, empty, and error states without silently skipping parity invariants', async () => {
@@ -340,7 +429,7 @@ describe('SET-070 module toggles prototype parity', () => {
 
     cleanup();
     await renderModulesPage({ state: 'error' });
-    expect(screen.getByRole('alert')).toHaveTextContent(/unable to load module toggles/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/module toggles are currently unavailable/i);
   });
 
   it('shows enabled-dependent warning and requires force confirmation before invoking T-019 toggleModule', async () => {

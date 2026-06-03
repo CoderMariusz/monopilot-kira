@@ -8,7 +8,7 @@
  * behavior assertion failures instead of module-resolution noise.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -47,6 +47,20 @@ const labels: Record<string, string> = {
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+}));
+
+// Live org-scoped loader is exercised via this mock so the no-injected-data
+// path renders REAL-shaped rows (catalog-backed) rather than demo fallbacks.
+const withOrgContextMock = vi.fn();
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: (fn: (ctx: unknown) => unknown) => withOrgContextMock(fn),
+}));
+
+vi.mock('../../../../../../actions/modules/toggle', () => ({
+  toggleModule: vi.fn(async (input: { moduleCode: string; enabled: boolean }) => ({
+    ok: true as const,
+    data: { moduleCode: input.moduleCode, enabled: input.enabled },
+  })),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -356,5 +370,110 @@ describe('T-072 features_screen prototype parity', () => {
     await user.click(within(confirmDialog).getByRole('button', { name: /force-disable/i }));
 
     expect(toggleFeature).toHaveBeenLastCalledWith({ featureKey: 'quality', enabled: false, force: true });
+  });
+});
+
+describe('T-072 features real-data wiring (no demo fallback)', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('the page source contains no DEFAULT_FEATURES / MODULE_DESCRIPTIONS hardcoded demo fallback', () => {
+    const sourcePath = [
+      join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/features/page.tsx'),
+      join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/features/page.tsx'),
+    ].find((candidate) => existsSync(candidate));
+    expect(sourcePath, 'features page.tsx must exist').toBeTruthy();
+    const source = readFileSync(sourcePath as string, 'utf8');
+    expect(source, 'DEFAULT_FEATURES demo fallback must be removed').not.toMatch(/DEFAULT_FEATURES/);
+    expect(source, 'MODULE_DESCRIPTIONS hardcoded map must be removed').not.toMatch(/MODULE_DESCRIPTIONS/);
+    expect(source, 'activeSessionCount must not fall back to the demo value 28').not.toMatch(/activeSessionCount[^\n]*28/);
+    // Description must be read from the catalog row, not a map.
+    expect(source).toMatch(/m\.description/);
+    // The org-scoped loader must be wired.
+    expect(source).toMatch(/withOrgContext/);
+  });
+
+  it('renders REAL catalog-backed rows from the org-scoped loader when no props are injected', async () => {
+    withOrgContextMock.mockImplementation(async (fn: (ctx: unknown) => unknown) =>
+      fn({
+        orgId: '00000000-0000-0000-0000-000000000001',
+        client: {
+          query: vi.fn(async (sql: string) => {
+            if (/from\s+public\.modules/i.test(sql)) {
+              return {
+                rows: [
+                  {
+                    code: '08-production',
+                    name: 'Production',
+                    description: 'Work order execution, outputs, waste, and downtime.',
+                    dependencies: [],
+                    can_disable: true,
+                    phase: 1,
+                    enabled: true,
+                  },
+                  {
+                    code: '15-oee',
+                    name: 'OEE',
+                    description: 'Availability, performance, quality, and read-only snapshots.',
+                    dependencies: ['08-production'],
+                    can_disable: true,
+                    phase: 3,
+                    enabled: false,
+                  },
+                ],
+              };
+            }
+            return { rows: [{ tier: 'L2', active_sessions: 7 }] };
+          }),
+        },
+      }),
+    );
+
+    const Page = await loadFeaturesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('settings-features-screen')).toBeInTheDocument();
+    // Catalog description is rendered verbatim from public.modules.description.
+    expect(screen.getByText('Work order execution, outputs, waste, and downtime.')).toBeInTheDocument();
+    // phase >= 3 derives the Premium badge for OEE.
+    const oeeRow = screen.getAllByTestId('settings-feature-row').find((row) => within(row).queryByText('OEE'));
+    expect(within(oeeRow as HTMLElement).getByText('Premium')).toBeInTheDocument();
+    // No fabricated demo rows.
+    expect(screen.queryByText('Core manufacturing')).not.toBeInTheDocument();
+  });
+
+  it('renders the honest empty state (no demo rows) when the catalog read returns zero modules', async () => {
+    withOrgContextMock.mockImplementation(async (fn: (ctx: unknown) => unknown) =>
+      fn({
+        orgId: '00000000-0000-0000-0000-000000000001',
+        client: {
+          query: vi.fn(async (sql: string) =>
+            /from\s+public\.modules/i.test(sql) ? { rows: [] } : { rows: [{ tier: 'L2', active_sessions: 0 }] },
+          ),
+        },
+      }),
+    );
+
+    const Page = await loadFeaturesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(screen.getByText(/no feature flags are configured/i)).toBeInTheDocument();
+    expect(screen.queryAllByTestId('settings-feature-row')).toHaveLength(0);
+  });
+
+  it('renders the honest error state (no demo rows) when the catalog read throws', async () => {
+    withOrgContextMock.mockRejectedValue(new Error('context_unavailable'));
+
+    const Page = await loadFeaturesPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/unable to load feature flags/i);
+    expect(screen.queryAllByTestId('settings-feature-row')).toHaveLength(0);
   });
 });

@@ -6,6 +6,7 @@ import EmailVariablesScreen, {
   type EmailVariablesScreenLabels,
   type PageState,
 } from './email-variables-screen.client';
+import { loadEmailVariablesData } from '../../../../../../../actions/email/load-email-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,11 +36,6 @@ const DEFAULT_LABELS: Labels = {
   permissionDenied: 'You do not have permission to view email variables.',
 };
 
-// No production fallback variable examples: without a live variable loader or
-// injected test data, fail closed with an explicit load/error state instead of
-// tenant-flavored sample values or a false empty catalog.
-const DEFAULT_GROUPS: EmailTemplateVariableGroup[] = [];
-
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
 
 async function buildLabels(locale: string): Promise<Labels> {
@@ -62,9 +58,22 @@ export default async function EmailVariablesPage(propsInput: unknown = {}) {
   const props = propsInput as EmailVariablesPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const labels = await buildLabels(locale);
+
+  // Injected-data mode: a test supplies groups/state directly. Production mode:
+  // no data props → run the real org-scoped (withOrgContext / RLS) loader, which
+  // returns the merge-field domain registry after the RBAC gate passes.
   const hasInjectedGroups = Array.isArray(props.groups);
-  const groups = props.groups ?? DEFAULT_GROUPS;
-  const state: PageState = props.state ?? (hasInjectedGroups ? (groups.length === 0 ? 'empty' : 'ready') : 'error');
+  let groups: EmailTemplateVariableGroup[];
+  let state: PageState;
+
+  if (hasInjectedGroups || props.state !== undefined) {
+    groups = props.groups ?? [];
+    state = props.state ?? (groups.length === 0 ? 'empty' : 'ready');
+  } else {
+    const loaded = await loadEmailVariablesData();
+    groups = loaded.groups;
+    state = loaded.state;
+  }
 
   return React.createElement(EmailVariablesScreen, { labels, groups, state });
 }

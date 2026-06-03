@@ -191,6 +191,46 @@ vi.mock('@monopilot/ui/Modal', () => {
   return { default: Modal };
 });
 
+// Real Server Action wiring: mock withOrgContext so the props-less (real-render)
+// path is exercised without a DB. We stub a query client returning Admin roles
+// and one tenant_migrations row, proving the page builds callerAccess + data
+// from REAL queries, not the broken DEFAULT_CALLER_ACCESS (roleCodes:[]).
+const withOrgContextMock = vi.fn();
+vi.mock('../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: (fn: (ctx: unknown) => unknown) => withOrgContextMock(fn),
+}));
+
+// Stub the Server Actions so the client's default-imported actions don't pull
+// pg/supabase at import time, and so we can assert the submit action is invoked
+// (NOT the prototype's onClose-only stub).
+const submitPromotionMock = vi.fn(async () => ({ ok: true, data: { id: 'tm-new', status: 'scheduled', artefact: 'rules.new_variance', target: 'L2-local' } }));
+const previewPromotionMock = vi.fn(async () => ({
+  ok: true,
+  data: { artefact: 'rules.new_variance', from: 'L3-tenant', target: 'L2-local', before: '{\n  "tier": "L3-tenant"\n}', after: '{\n  "tier": "L2-local"\n}', affectsCount: 1 },
+}));
+vi.mock('./_actions/submitPromotion', () => ({ submitPromotion: (input: unknown) => submitPromotionMock(input) }));
+vi.mock('./_actions/previewPromotion', () => ({ previewPromotion: (input: unknown) => previewPromotionMock(input) }));
+
+type FakeQueryClient = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>;
+};
+
+function makeOrgContextClient(roleRows: unknown[], migrationRows: unknown[]): FakeQueryClient {
+  return {
+    query: async (sql: string) => {
+      if (sql.includes('from public.user_roles')) return { rows: roleRows, rowCount: roleRows.length };
+      if (sql.includes('from public.tenant_migrations')) return { rows: migrationRows, rowCount: migrationRows.length };
+      return { rows: [], rowCount: 0 };
+    },
+  };
+}
+
+function installOrgContext(roleRows: unknown[], migrationRows: unknown[]) {
+  withOrgContextMock.mockImplementation(async (fn: (ctx: unknown) => unknown) =>
+    fn({ userId: '00000000-0000-0000-0000-000000000001', orgId: '00000000-0000-0000-0000-0000000000aa', sessionToken: 's', client: makeOrgContextClient(roleRows, migrationRows) }),
+  );
+}
+
 function routeExists() {
   return [
     join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/promotions/page.tsx'),
@@ -432,5 +472,96 @@ describe('SET-063 promotions_screen prototype parity and behavior', () => {
     expect(within(table).getByText('rolled_back')).toBeInTheDocument();
     expect(screen.queryByText('mig-canary-hidden')).not.toBeInTheDocument();
     expect(screen.queryByText('mig-scheduled-hidden')).not.toBeInTheDocument();
+  });
+});
+
+describe('SET-063 promotions REAL data wiring (no hardcoded callerAccess / no onClose-only submit)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    submitPromotionMock.mockResolvedValue({ ok: true, data: { id: 'tm-new', status: 'scheduled', artefact: 'rules.new_variance', target: 'L2-local' } });
+    previewPromotionMock.mockResolvedValue({
+      ok: true,
+      data: { artefact: 'rules.new_variance', from: 'L3-tenant', target: 'L2-local', before: '{\n  "tier": "L3-tenant"\n}', after: '{\n  "tier": "L2-local"\n}', affectsCount: 1 },
+    });
+    window.history.replaceState(null, '', '/en/settings/promotions');
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('builds callerAccess from REAL roles via withOrgContext and renders the admin screen (NOT a default-403) when no props are injected', async () => {
+    // Real-render path: an org "Admin" role row + one scheduled tenant_migrations row.
+    installOrgContext(
+      [{ code: 'admin', name: 'Admin', slug: 'org-admin', permissions: ['settings.promotions.approve'] }],
+      [{ id: 'tm-001', component: 'rules.cycle_count_variance_v1', current_version: 'L3-tenant', target_version: 'L2-local', status: 'scheduled', canary_pct: 0, last_run_at: null, created_at: '2026-05-20T11:30:00.000Z', scheduled_by_name: 'Alicja Admin', scheduled_by_email: null }],
+    );
+    const Page = await loadPromotionsPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+    render(React.createElement(React.Fragment, null, node));
+
+    // withOrgContext was actually invoked (real query path), not skipped.
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    // Admin screen renders — proves roleCodes came from the DB row, not DEFAULT (roleCodes:[]).
+    expect(screen.getByTestId('settings-promotions-screen')).toHaveAttribute('data-route', '/settings/promotions');
+    expect(screen.getByRole('button', { name: /start promotion/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /403/i })).not.toBeInTheDocument();
+    // The real scheduled migration surfaces as an active promotion.
+    expect(screen.getByText('rules.cycle_count_variance_v1')).toBeInTheDocument();
+  });
+
+  it('renders 403 ONLY for a genuinely non-Admin caller resolved from REAL roles (no Admin row)', async () => {
+    installOrgContext(
+      [{ code: 'viewer', name: 'Viewer', slug: 'org-viewer', permissions: ['settings.promotions.read'] }],
+      [],
+    );
+    const Page = await loadPromotionsPage();
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: /403/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start promotion/i })).not.toBeInTheDocument();
+  });
+
+  it('Submit promotion invokes the REAL submitPromotion Server Action (not just onClose) with the entered artefact/target/reason', async () => {
+    const user = userEvent.setup();
+    await renderPromotionsPage();
+
+    await user.click(screen.getByRole('button', { name: /start promotion/i }));
+    const dialog = screen.getByRole('dialog', { name: /start l1→l2→l3 promotion/i });
+    await user.type(within(dialog).getByLabelText(/artefact to promote/i), 'rules.new_variance');
+    await user.click(within(dialog).getByRole('button', { name: /next: preview/i }));
+
+    // The diff is backed by the REAL preview action, not hardcoded JSON.
+    expect(previewPromotionMock).toHaveBeenCalledWith({ artefact: 'rules.new_variance', target: 'L2-local', from: 'L3-tenant' });
+    expect(await within(dialog).findByTestId('promotion-diff-after')).toHaveTextContent('"tier": "L2-local"');
+
+    await user.click(within(dialog).getByRole('button', { name: /next: confirm/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /justification/i }), 'Audit-ready reason');
+    await user.click(within(dialog).getByRole('button', { name: /submit promotion/i }));
+
+    expect(submitPromotionMock).toHaveBeenCalledTimes(1);
+    expect(submitPromotionMock).toHaveBeenCalledWith({ artefact: 'rules.new_variance', target: 'L2-local', from: 'L3-tenant', reason: 'Audit-ready reason' });
+  });
+
+  it('surfaces a Server Action error (forbidden) without closing the dialog — error state', async () => {
+    submitPromotionMock.mockResolvedValueOnce({ ok: false, error: 'forbidden' });
+    const user = userEvent.setup();
+    await renderPromotionsPage();
+
+    await user.click(screen.getByRole('button', { name: /start promotion/i }));
+    const dialog = screen.getByRole('dialog', { name: /start l1→l2→l3 promotion/i });
+    await user.type(within(dialog).getByLabelText(/artefact to promote/i), 'rules.new_variance');
+    await user.click(within(dialog).getByRole('button', { name: /next: preview/i }));
+    await within(dialog).findByTestId('promotion-diff-after');
+    await user.click(within(dialog).getByRole('button', { name: /next: confirm/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /justification/i }), 'Audit-ready reason');
+    await user.click(within(dialog).getByRole('button', { name: /submit promotion/i }));
+
+    expect(submitPromotionMock).toHaveBeenCalledTimes(1);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/forbidden/i);
+    // Dialog stays open on error.
+    expect(screen.getByRole('dialog', { name: /start l1→l2→l3 promotion/i })).toBeInTheDocument();
   });
 });

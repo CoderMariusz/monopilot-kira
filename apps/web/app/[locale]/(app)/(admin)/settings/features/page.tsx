@@ -29,6 +29,7 @@ type QueryClient = {
 type ModuleRow = {
   code: string;
   name: string;
+  description: string | null;
   dependencies?: string[] | null;
   can_disable?: boolean | null;
   phase?: number | string | null;
@@ -40,11 +41,13 @@ type OrgPlanRow = {
   active_sessions: string | number | null;
 };
 
-type FeaturesReadResult = {
-  features: FeatureFlag[];
-  planName: string;
-  activeSessionCount: number;
-};
+// Discriminated read result: NO demo/hardcoded fallback. The page renders the
+// honest 'empty' state when the org has no module catalog rows and the honest
+// 'error' state when the query throws (RLS / connectivity / context failure).
+type FeaturesReadResult =
+  | { state: 'ready'; features: FeatureFlag[]; planName: string; activeSessionCount: number }
+  | { state: 'empty'; planName: string; activeSessionCount: number }
+  | { state: 'error' };
 
 const LABEL_KEYS: Array<keyof FeaturesLabels> = [
   'title',
@@ -77,51 +80,12 @@ const LABEL_KEYS: Array<keyof FeaturesLabels> = [
   'affectedModulesLabel',
 ];
 
-const DEFAULT_FEATURES: FeatureFlag[] = [
-  {
-    key: '08-production',
-    label: 'Core manufacturing',
-    desc: 'Production execution, work orders, and operator workflows.',
-    on: true,
-  },
-  {
-    key: '09-quality',
-    label: 'Quality',
-    desc: 'Specifications, holds, NCR, HACCP, and allergen gates.',
-    on: true,
-    beta: true,
-  },
-  {
-    key: '15-oee',
-    label: 'OEE',
-    desc: 'Availability, performance, quality, and read-only snapshots.',
-    on: false,
-    premium: true,
-    beta: true,
-  },
-];
-
-const MODULE_DESCRIPTIONS: Record<string, string> = {
-  '00-foundation': 'Authentication, RBAC, tenancy, audit, outbox, and observability.',
-  '01-npd': 'Product development, specifications, and allergen workflow.',
-  '02-settings': 'Reference data, policies, permissions, and workspace configuration.',
-  '03-technical': 'Products, BOMs, routings, equipment, items, and standard costs.',
-  '04-planning-basic': 'Suppliers, purchase orders, work order baseline, and MRP.',
-  '05-warehouse': 'License plates, GRN, transfers, and stock movements.',
-  '06-scanner-p1': 'Mobile scanner workflows, operators, and offline sync.',
-  '07-planning-ext': 'Extended planning, scheduler outputs, and dependency planning.',
-  '08-production': 'Work order execution, outputs, waste, and downtime.',
-  '09-quality': 'Specifications, holds, NCR, HACCP, and allergen gates.',
-  '10-finance': 'Standard costs, actual costing, FIFO/WAC variance, and D365 export.',
-  '11-shipping': 'Sales orders, allocation, pick/pack, BOL, POD, and carriers.',
-  '12-reporting': 'KPIs, dashboards, exports, and reporting consumers.',
-  '13-maintenance': 'Assets, PM schedules, maintenance work orders, LOTO, and calibration.',
-  '14-multi-site': 'Site context, inter-site transfers, lanes, and master-data sync.',
-  '15-oee': 'Availability, performance, quality, and read-only snapshots.',
-};
-
-const PREMIUM_MODULE_CODES = new Set(['01-npd', '07-planning-ext', '10-finance', '12-reporting', '13-maintenance', '14-multi-site', '15-oee']);
-const BETA_MODULE_CODES = new Set(['06-scanner-p1', '07-planning-ext', '12-reporting', '13-maintenance', '14-multi-site', '15-oee']);
+// Premium/Beta presentation tier is derived from the catalog phase column
+// (real data): phase >= 3 modules are premium-tier, phase >= 4 are beta. There
+// is no separate plan_tier/beta column in public.modules, so phase is the
+// catalog-driven signal — not a hardcoded per-module override map.
+const PREMIUM_PHASE = 3;
+const BETA_PHASE = 4;
 
 async function buildLabels(locale: string): Promise<FeaturesLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.features' });
@@ -139,6 +103,7 @@ async function readFeaturesData(): Promise<FeaturesReadResult> {
         queryClient.query<ModuleRow>(
           `select m.code,
                   m.name,
+                  m.description,
                   m.dependencies,
                   m.can_disable,
                   m.phase,
@@ -160,33 +125,40 @@ async function readFeaturesData(): Promise<FeaturesReadResult> {
         ),
       ]);
 
+      const planName = planNameFromTier(orgResult.rows[0]?.tier);
+      const activeSessionCount = toNumber(orgResult.rows[0]?.active_sessions, 0);
+
+      if (moduleResult.rows.length === 0) {
+        return { state: 'empty', planName, activeSessionCount };
+      }
+
       return {
+        state: 'ready',
         features: mapModuleRows(moduleResult.rows),
-        planName: planNameFromTier(orgResult.rows[0]?.tier),
-        activeSessionCount: toNumber(orgResult.rows[0]?.active_sessions, 28),
+        planName,
+        activeSessionCount,
       };
     });
   } catch {
-    return {
-      features: DEFAULT_FEATURES,
-      planName: 'Premium plan',
-      activeSessionCount: 28,
-    };
+    // No demo fallback: surface the honest error state instead of fabricating
+    // module rows / an active-session count.
+    return { state: 'error' };
   }
 }
 
 function mapModuleRows(rows: ModuleRow[]): FeatureFlag[] {
-  if (rows.length === 0) return DEFAULT_FEATURES;
   return rows.map((row) => {
-    const code = row.code;
     const phase = toNumber(row.phase, 1);
     return {
-      key: code,
+      key: row.code,
       label: row.name,
-      desc: MODULE_DESCRIPTIONS[code] ?? `${row.name} module surface.`,
+      // Description comes from the catalog row (public.modules.description),
+      // not a hardcoded map. Fall back to a derived label only if a catalog row
+      // genuinely has no description yet.
+      desc: row.description?.trim() ? row.description : `${row.name} module surface.`,
       on: Boolean(row.enabled),
-      premium: PREMIUM_MODULE_CODES.has(code) || phase >= 3,
-      beta: BETA_MODULE_CODES.has(code) || phase >= 4,
+      premium: phase >= PREMIUM_PHASE,
+      beta: phase >= BETA_PHASE,
     };
   });
 }
@@ -233,15 +205,36 @@ async function defaultToggleFeature(input: ToggleFeatureInput): Promise<ToggleFe
 
 export default async function SettingsFeaturesPage(props: FeaturesPageProps = {}) {
   const { locale } = props.params ? await props.params : { locale: 'en' };
-  const [labels, loaded] = await Promise.all([buildLabels(locale), props.features ? Promise.resolve(null) : readFeaturesData()]);
+
+  // When the test/host injects features explicitly, honor the injected props
+  // and skip the live read. Otherwise read REAL Supabase data — no demo rows.
+  const loaded = props.features ? null : await readFeaturesData();
+  const labels = await buildLabels(locale);
+
+  const resolvedState: PageState =
+    props.state ??
+    (loaded?.state === 'error'
+      ? 'error'
+      : loaded?.state === 'empty'
+        ? 'empty'
+        : 'ready');
+
+  const resolvedFeatures =
+    props.features ?? (loaded && loaded.state === 'ready' ? loaded.features : []);
+
+  const resolvedPlanName =
+    props.planName ?? (loaded && loaded.state !== 'error' ? loaded.planName : 'Premium plan');
+
+  const resolvedSessionCount =
+    props.activeSessionCount ?? (loaded && loaded.state !== 'error' ? loaded.activeSessionCount : 0);
 
   return (
     <FeaturesScreenClient
       labels={labels}
-      features={props.features ?? loaded?.features ?? DEFAULT_FEATURES}
-      state={props.state ?? 'ready'}
-      planName={props.planName ?? loaded?.planName ?? 'Premium plan'}
-      activeSessionCount={props.activeSessionCount ?? loaded?.activeSessionCount ?? 28}
+      features={resolvedFeatures}
+      state={resolvedState}
+      planName={resolvedPlanName}
+      activeSessionCount={resolvedSessionCount}
       toggleFeature={props.toggleFeature ?? defaultToggleFeature}
     />
   );

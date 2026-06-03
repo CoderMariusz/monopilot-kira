@@ -1,14 +1,12 @@
 'use server';
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
+import { triggerPayloadSchema } from './variable-registry';
 
 const EMAIL_CONFIG_TABLE = 'email_config';
 const EMAIL_CONFIG_EDIT_PERMISSION = 'settings.email_config.edit';
 
-const TRIGGER_PAYLOAD_SCHEMA: Record<string, readonly string[]> = {
-  core_closed: ['fa_code', 'dept', 'closed_at', 'closed_by'],
-  fa_d365_ready: ['fa_code', 'dept', 'd365_stage', 'ready_at'],
-};
+const TRIGGER_PAYLOAD_SCHEMA: Record<string, readonly string[]> = triggerPayloadSchema();
 
 export type UpsertEmailConfigInput = {
   triggerCode?: string;

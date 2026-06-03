@@ -9,11 +9,25 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
+}));
+
+// Default suites inject `categories`/`activity` directly, so the real loader is
+// never invoked. Stub the module so importing page.tsx does not pull the DB /
+// Supabase stack (pg, with-org-context) into the jsdom test environment. The
+// dedicated loader-wiring suite below overrides this with `vi.doMock`.
+vi.mock('./_data/load-integrations', () => ({
+  loadIntegrations: vi.fn(async () => ({
+    state: 'empty' as const,
+    categories: [],
+    syncSummary: { totalLast24h: 0, failedLast24h: 0 },
+    activity: [],
+  })),
 }));
 
 vi.mock('next-intl/server', () => ({
@@ -240,7 +254,10 @@ describe('SET-110 integrations prototype parity', () => {
     expect(screen.queryByText(/D365 DLQ \(shipping\).*1/s)).not.toBeInTheDocument();
 
     const sections = within(root).getAllByTestId('settings-integrations-category-section');
-    expect(sections.map((section) => within(section).getByRole('heading', { level: 2 }).textContent)).toEqual([
+    expect(
+      sections.map((section) => within(section).getByRole('heading', { level: 2 }).getAttribute('id')?.replace('settings-integrations-', '')),
+    ).toEqual(['erp', 'accounting', 'bi', 'shipping']);
+    expect(sections.map((section) => within(section).getByRole('button', { expanded: true }).getAttribute('aria-label'))).toEqual([
       'ERP',
       'Accounting',
       'BI',
@@ -301,10 +318,16 @@ describe('SET-110 integrations prototype parity', () => {
     await renderIntegrationsPage();
 
     const root = screenRoot();
-    const focusableLabels = Array.from(root.querySelectorAll<HTMLElement>('button, input, [href], [role="button"]'))
-      .filter((element) => !element.hasAttribute('disabled'))
-      .map((element) => element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder'));
-    expect(focusableLabels.slice(0, 4)).toEqual(['Browse all (5)', 'Configure', 'Connect', 'Configure']);
+    // First focusable is the page-head action; each interactive category header
+    // is an accordion toggle (button) followed by its row Connect/Configure
+    // actions — no synthetic dialog DOM in the focus path.
+    const focusables = Array.from(root.querySelectorAll<HTMLElement>('button, input, [href], [role="button"]')).filter(
+      (element) => !element.hasAttribute('disabled'),
+    );
+    expect(focusables[0]?.textContent?.trim()).toMatch(/^Browse all \(5\)/);
+    const toggles = focusables.filter((element) => element.getAttribute('aria-expanded') !== null);
+    expect(toggles).toHaveLength(4);
+    toggles.forEach((toggle) => expect(toggle.tagName).toBe('BUTTON'));
 
     const d365Row = screen.getByText('D365').closest('.int-row');
     expect(d365Row).not.toBeNull();
@@ -312,5 +335,122 @@ describe('SET-110 integrations prototype parity', () => {
     expect(root).toHaveAttribute('data-dialog-primitive', 'unavailable-in-ui-package');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="dialog-content"]')).not.toBeInTheDocument();
+  });
+
+  it('collapses and re-expands a category when its accordion header is toggled (client interactivity)', async () => {
+    const user = userEvent.setup();
+    await renderIntegrationsPage();
+
+    const root = screenRoot();
+    const erpSection = within(root)
+      .getAllByTestId('settings-integrations-category-section')
+      .find((section) => within(section).getByRole('heading', { level: 2 }).getAttribute('id') === 'settings-integrations-erp');
+    expect(erpSection).toBeDefined();
+
+    const toggle = within(erpSection as HTMLElement).getByRole('button', { name: 'ERP' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // Default expanded: D365 row visible.
+    expect(within(erpSection as HTMLElement).getByText('D365')).toBeVisible();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const panel = (erpSection as HTMLElement).querySelector('[role="region"]');
+    expect(panel).toHaveAttribute('hidden');
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect((erpSection as HTMLElement).querySelector('[role="region"]')).not.toHaveAttribute('hidden');
+  });
+});
+
+describe('SET-110 integrations real Supabase loader wiring', () => {
+  afterEach(() => {
+    cleanup();
+    vi.resetModules();
+  });
+
+  it('renders the live loader result (no EMPTY_CATEGORIES fallback) when no props are injected', async () => {
+    vi.resetModules();
+    const loadIntegrations = vi.fn(async () => ({
+      state: 'ready' as const,
+      categories: [
+        {
+          category: 'ERP',
+          items: [
+            {
+              id: 'd365',
+              name: 'D365',
+              description: 'Live D365 connection.',
+              status: 'connected' as const,
+              logo: 'D',
+              color: '#1d4ed8',
+            },
+          ],
+        },
+        {
+          category: 'Notifications',
+          items: [
+            {
+              id: 'email-resend',
+              name: 'Email (Resend)',
+              description: 'Not configured yet.',
+              status: 'available' as const,
+              logo: 'M',
+              color: '#0f766e',
+            },
+          ],
+        },
+      ],
+      syncSummary: { totalLast24h: 7, failedLast24h: 2 },
+      activity: [
+        {
+          id: 'run-1',
+          when: '08:00',
+          integration: 'D365 · ItemEntity',
+          direction: 'Inbound',
+          records: 5,
+          status: 'success' as const,
+        },
+      ],
+    }));
+
+    vi.doMock('./_data/load-integrations', () => ({ loadIntegrations }));
+    const mod = await import('./page.tsx');
+    const Page = mod.default as IntegrationsPage;
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(loadIntegrations).toHaveBeenCalledTimes(1);
+
+    const root = screen.getByTestId('settings-integrations-screen');
+    const kpis = within(root).getAllByTestId('settings-integrations-kpi');
+    expect(kpis.map((card) => card.textContent)).toEqual([
+      expect.stringMatching(/Connected.*1/s),
+      expect.stringMatching(/Categories.*2/s),
+      expect.stringMatching(/Sync last 24h.*7/s),
+      expect.stringMatching(/Failed syncs last 24h.*2/s),
+    ]);
+    expect(within(root).getAllByTestId('settings-integrations-category-section')).toHaveLength(2);
+    // Connector with no config is surfaced as a real "Available" state, not hidden.
+    expect(within(root).getByText('Email (Resend)')).toBeInTheDocument();
+    expect(screen.getByText('D365 · ItemEntity')).toBeInTheDocument();
+  });
+
+  it('renders the loud error state when the loader cannot resolve org context', async () => {
+    vi.resetModules();
+    const loadIntegrations = vi.fn(async () => ({
+      state: 'error' as const,
+      categories: [],
+      syncSummary: { totalLast24h: 0, failedLast24h: 0 },
+      activity: [],
+    }));
+    vi.doMock('./_data/load-integrations', () => ({ loadIntegrations }));
+    const mod = await import('./page.tsx');
+    const Page = mod.default as IntegrationsPage;
+    const node = await Page({ params: Promise.resolve({ locale: 'en' }), searchParams: Promise.resolve({}) });
+    render(React.createElement(React.Fragment, null, node));
+
+    expect(loadIntegrations).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert')).toHaveTextContent(/unable to load integrations/i);
   });
 });

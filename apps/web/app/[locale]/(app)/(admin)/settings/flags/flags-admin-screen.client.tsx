@@ -19,7 +19,7 @@ import FlagEditModal, { type FlagEditResult, type SettingsFlag } from '../../../
 
 export type FlagTier = 'L1' | 'L2' | 'L3';
 export type FlagTenant = 'L1-core' | 'L2-local' | 'L3-tenant';
-export type PageState = 'ready' | 'loading' | 'empty' | 'error';
+export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 type TabKey = 'core' | 'local' | 'tenant';
 
 export type FeatureFlagRow = {
@@ -42,7 +42,8 @@ export type FlagAuthorizationPreflight = {
   canEnable: boolean;
   requiresNewVersion: boolean;
   hasAuthorizerRoles: boolean;
-  configureHref: '/en/settings/authorization' | '/settings/authorization';
+  // Locale-prefixed authorization route (e.g. /en|pl|ro|uk/settings/authorization).
+  configureHref: string;
 };
 
 export type FlagsAdminLabels = {
@@ -70,6 +71,7 @@ export type FlagsAdminLabels = {
   loading: string;
   empty: string;
   error: string;
+  permissionDenied: string;
   vSet43Title: string;
   vSet43Body: string;
   configureAuthorization: string;
@@ -211,6 +213,20 @@ export default function FlagsAdminScreen({
         <section data-testid="settings-flags-loading-state" className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           {labels.loading}
         </section>
+      </main>
+    );
+  }
+
+  if (state === 'permission_denied') {
+    return (
+      <main data-testid="settings-flags-admin-screen" className="space-y-4 p-6">
+        <div
+          data-testid="settings-flags-permission-denied-state"
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          {labels.permissionDenied}
+        </div>
       </main>
     );
   }

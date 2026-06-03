@@ -7,28 +7,9 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-type IntegrationItem = {
-  id: string;
-  name: string;
-  description: string;
-  status: 'connected' | 'available';
-  logo: string;
-  color: string;
-};
-
-type IntegrationCategory = {
-  category: string;
-  items: IntegrationItem[];
-};
-
-type SyncActivity = {
-  id: string;
-  when: string;
-  integration: string;
-  direction: string;
-  records: number;
-  status: 'success' | 'failed';
-};
+import { CategoryAccordion } from './_components/CategoryAccordion';
+import { loadIntegrations } from './_data/load-integrations';
+import type { IntegrationCategory, IntegrationItem, SyncActivity } from './_data/load-integrations';
 
 type IntegrationsPageProps = {
   params?: Promise<{ locale: string }>;
@@ -77,6 +58,8 @@ type IntegrationLabels = {
   columnStatus: string;
   statusSuccess: string;
   statusFailedRetry: string;
+  expand: string;
+  collapse: string;
 };
 
 // No production fallback catalog/activity rows. The default route renders the
@@ -155,6 +138,8 @@ async function getIntegrationLabels(locale: string): Promise<IntegrationLabels> 
     columnStatus: translate(t, 'activity.columns.status', 'Status'),
     statusSuccess: translate(t, 'status.success', '✓ Success'),
     statusFailedRetry: translate(t, 'status.failedRetry', '✗ Failed · Retry backoff'),
+    expand: translate(t, 'actions.expand', 'Expand category'),
+    collapse: translate(t, 'actions.collapse', 'Collapse category'),
   };
 }
 
@@ -237,68 +222,6 @@ function GridHead({ connected, total, labels }: { connected: number; total: numb
         </label>
       </div>
     </header>
-  );
-}
-
-function CategorySection({ category, labels }: { category: IntegrationCategory; labels: IntegrationLabels }) {
-  const connected = category.items.filter((item) => item.status === 'connected').length;
-  const headingId = `settings-integrations-${category.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-
-  return (
-    <section
-      aria-labelledby={headingId}
-      className="sg-section rounded-md border bg-white"
-      data-testid="settings-integrations-category-section"
-    >
-      <div className="sg-section-head flex cursor-pointer items-center justify-between gap-4 border-b px-4 py-3">
-        <div>
-          <h2 id={headingId} className="sg-section-title text-base font-semibold">
-            {category.category}
-          </h2>
-          <div className="sg-section-sub text-xs text-muted-foreground">{labels.categorySummary(connected, category.items.length)}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {connected > 0 ? <Badge variant="success">{labels.connectedBadge(connected)}</Badge> : null}
-          <span className="text-sm text-muted-foreground">▾</span>
-        </div>
-      </div>
-      {category.items.length === 0 ? (
-        <div className="px-4 py-3">
-          <EmptyState
-            icon="🔌"
-            title={labels.noCategoryIntegrations(category.category)}
-            body={labels.emptyCategoryBody}
-            action={<Button type="button">{labels.browseCatalog}</Button>}
-          />
-        </div>
-      ) : (
-        category.items.map((item) => (
-          <div key={item.id} className="int-row grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-b px-4 py-3 last:border-b-0">
-            {integrationLogo(item)}
-            <div>
-              <div className="int-name text-sm font-semibold">{item.name}</div>
-              <div className="int-desc text-xs text-muted-foreground">{item.description}</div>
-            </div>
-            <div>
-              {item.status === 'connected' ? (
-                <Badge variant="success">{labels.statusConnected}</Badge>
-              ) : (
-                <Badge variant="muted">{labels.statusAvailable}</Badge>
-              )}
-            </div>
-            {item.status === 'connected' ? (
-              <Button type="button" className="btn-secondary btn-sm">
-                {labels.configure}
-              </Button>
-            ) : (
-              <Button type="button" className="btn-primary btn-sm">
-                {labels.connect}
-              </Button>
-            )}
-          </div>
-        ))
-      )}
-    </section>
   );
 }
 
@@ -399,12 +322,27 @@ export default async function IntegrationsPage({ params, searchParams, state, ca
   const labels = await getIntegrationLabels(locale);
   const resolvedSearchParams = await searchParams;
   const view = resolvedSearchParams?.view === 'grid' ? 'grid' : 'list';
-  const resolvedCategories = categories ?? EMPTY_CATEGORIES;
-  const resolvedActivity = activity ?? EMPTY_ACTIVITY;
-  const resolvedState = state ?? (resolvedCategories.length === 0 ? 'empty' : 'ready');
+
+  // Real data: when no data is injected via props (production render), query
+  // live org-scoped Supabase state through `withOrgContext` (RLS). Tests inject
+  // `categories`/`activity` directly to exercise parity + the 5 states without a DB.
+  const injected = categories !== undefined || activity !== undefined || state !== undefined;
+  const loaded = injected
+    ? null
+    : await loadIntegrations();
+
+  const resolvedCategories = categories ?? loaded?.categories ?? EMPTY_CATEGORIES;
+  const resolvedActivity = activity ?? loaded?.activity ?? EMPTY_ACTIVITY;
+  const resolvedState =
+    state ?? loaded?.state ?? (resolvedCategories.length === 0 ? 'empty' : 'ready');
   const all = resolvedCategories.flatMap((category) => category.items);
   const connected = all.filter((item) => item.status === 'connected').length;
-  const summary = syncSummary ?? { totalLast24h: 0, failedLast24h: resolvedActivity.filter((row) => row.status === 'failed').length };
+  const summary =
+    syncSummary ??
+    loaded?.syncSummary ?? {
+      totalLast24h: 0,
+      failedLast24h: resolvedActivity.filter((row) => row.status === 'failed').length,
+    };
 
   if (resolvedState === 'loading') {
     return (
@@ -481,7 +419,23 @@ export default async function IntegrationsPage({ params, searchParams, state, ca
             />
           </div>
           {resolvedCategories.map((category) => (
-            <CategorySection key={category.category} category={category} labels={labels} />
+            <CategoryAccordion
+              key={category.category}
+              category={category}
+              labels={{
+                categorySummary: labels.categorySummary,
+                connectedBadge: labels.connectedBadge,
+                noCategoryIntegrations: labels.noCategoryIntegrations,
+                emptyCategoryBody: labels.emptyCategoryBody,
+                browseCatalog: labels.browseCatalog,
+                statusConnected: labels.statusConnected,
+                statusAvailable: labels.statusAvailable,
+                configure: labels.configure,
+                connect: labels.connect,
+                expand: labels.expand,
+                collapse: labels.collapse,
+              }}
+            />
           ))}
           <ActivityTable activity={resolvedActivity} labels={labels} locale={locale} />
         </>
