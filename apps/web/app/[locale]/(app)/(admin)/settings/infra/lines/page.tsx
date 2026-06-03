@@ -290,8 +290,13 @@ export default async function LinesPage(propsInput: unknown = {}) {
       }
     : await loadLines();
 
-  const activateLineForClient: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult =
-    props.activateLine ?? ((input: ActivateLineInput) => activateProductionLine(input) as Promise<ActivateLineResult>);
+  // Must pass the `'use server'` action reference directly. Wrapping it in a
+  // plain arrow closure makes it an ordinary function, which Next.js refuses to
+  // serialize across the RSC boundary ("Functions cannot be passed directly to
+  // Client Components") → uncaught 500 / error boundary.
+  const activateLineForClient = (props.activateLine ?? activateProductionLine) as (
+    input: ActivateLineInput,
+  ) => Promise<ActivateLineResult>;
 
   return React.createElement(LinesScreen, {
     labels,

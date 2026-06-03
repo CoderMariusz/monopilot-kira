@@ -133,6 +133,36 @@ for each failure → screens show real data live. Codified in: docs/workflow/02-
 07-MODULE-EXECUTION.md (step 5), .claude/commands/kira/run-module.md (step 5 + Never), MON-domain-settings
 skill (Gate 5 + DoD), memory [[live-deploy-verification-gate]].
 
+## Codex cross-provider review (done) → migration 071 (applied + pushed e63345f5)
+Codex found real P1s in 063-070 (validates using Codex): notification_preferences missing grant/revoke;
+outbox CHECK not union-complete (missing settings.module.toggled/org.updated/reference.row_updated/scim/fa.* → 23514 on writes);
+SECURITY DEFINER seed fns public-executable (cross-org bypass); d365 direction allowed 'pull' (R15 export-only).
+071 fixes all + verified on Supabase (app_user grant, 44 outbox types, seed execute revoked, direction=push). 066/069 confirmed correct.
+
+## DATA-PLANE ROOT CAUSE FOUND + FIXED (2026-06-03) — app_user PASSWORD DRIFT
+Full runtime log (via `vercel logs`): `[withOrgContext] phase_failed { phase:'app_pool_connect',
+message:'password authentication failed for user "app_user"', code:'28P01' }`. The env vars DO exist
+(they are Vercel "Sensitive" → unreadable via pull) — DATABASE_URL_APP's embedded app_user password
+no longer matched the app_user role on Supabase (DB was wiped/reseeded; env kept stale pwd). Owner pool
+(DATABASE_URL/OWNER=postgres) worked → only app pool broke. FIX: reset `app_user` password via Supabase MCP
+(ALTER ROLE) to a new value; set `DATABASE_URL_APP` (direct host db.<ref>.supabase.co:5432, sslmode=require)
++ `APP_USER_PASSWORD` on Vercel preview+prod to match; redeploy. Direct host from get_project (region eu-central-2).
+VERIFY pending: redeploy → Playwright Gate-5 click-through → confirm phase_failed gone + real data renders.
+(Earlier "DATABASE_URL_APP unset" hypothesis was WRONG — vars are set-but-sensitive; real cause = pwd drift.)
+
+## ✅ DATA PLANE FIXED + VERIFIED LIVE (2026-06-03)
+DATABASE_URL_APP corrected to `app_user.<ref>@aws-1-eu-central-2.pooler.supabase.com:5432/postgres?sslmode=no-verify`
+(app_user pwd reset; pooler host aws-1/session-5432; sslmode=no-verify) on Vercel preview+prod + redeployed.
+LIVE PROOF (Playwright, logged in): /en/settings/company renders REAL org data (Apex / Meat processing / Poland / PLN / Europe-Warsaw).
+The 3-layer chain (28P01 pwd → ENOTFOUND direct-host → self-signed-cert) all resolved. See memory [[deploy-migration-gotcha]].
+REMAINING per-screen: /settings/infra/lines still 500s ("This page couldn't load", ERROR 2923698551 — uncaught server error, SEPARATE bug, not data-plane). → full Gate-5 sweep agent to find+fix remaining per-screen bugs now that data plane is up.
+
+## (superseded) earlier hypothesis: DATABASE_URL_APP env on Vercel
+Whole settings/account data plane down on preview — withOrgContext app-pool auths with wrong app_user password
+because DATABASE_URL_APP is unset (falls back to DATABASE_URL + APP_USER_PASSWORD/'app-user-test-password').
+Fix = set DATABASE_URL_APP (app_user pooler conn, real pwd) on Vercel + redeploy. Options A/B/C presented to user.
+Then re-run Gate-5 live click-through. observability (with-org-context phase_failed log) deployed to confirm phase.
+
 ## Remaining waves after W3 (Gate 5 live-verify is the LAST step before sign-off)
 - W3 parity polish (real data OK, parity gaps): rules(T-063)+rule-detail(T-064)+diff(T-108), schema/new(T-097)+diff(T-098)+migrations(T-099), reference(T-067)+mfg-ops(T-077,115), users(T-059), company(T-058), security(T-060), invitations(T-119), d365 conn/mapping(T-061/062), tenant/*(T-100/101/102/109), modals SM-01..11, language picker(T-129), onboarding steps(T-041..046).
 - W4 structural cleanup: delete non-localized (admin)/settings orphans (users/client.tsx, profile/*), redirect dups; consolidate. (roles handled in W2b.)

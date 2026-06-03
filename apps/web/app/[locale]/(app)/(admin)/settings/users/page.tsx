@@ -426,6 +426,18 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
   };
 }
 
+// Top-level `'use server'` adapter: maps the client's { userId } shape to the
+// resetPassword action's { targetUserId } shape. It MUST be a module-scope
+// server action — an inline arrow defined in the Server Component cannot be
+// serialized across the RSC boundary ("Functions cannot be passed directly to
+// Client Components") and crashes the page with an uncaught 500.
+async function resetPasswordAction(input: { userId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  'use server';
+  const result = await resetPassword({ targetUserId: input.userId });
+  if (result.ok) return { ok: true };
+  return { ok: false, error: result.error };
+}
+
 function LoadingState() {
   return (
     <main data-testid="settings-users-loading" aria-busy="true" className="space-y-4 p-6">
@@ -465,11 +477,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       locale={locale}
       inviteUserAction={inviteUser}
       assignRoleAction={assignRole}
-      resetPasswordAction={async ({ userId }) => {
-        const result = await resetPassword({ targetUserId: userId });
-        if (result.ok) return { ok: true };
-        return { ok: false, error: result.error };
-      }}
+      resetPasswordAction={resetPasswordAction}
     />
   );
 }
