@@ -8,8 +8,7 @@
  */
 
 import { createServerSupabaseClient } from '../../../../lib/auth/supabase-server';
-
-const ORG_ACCESS_ADMIN = 'org.access.admin';
+import { Permission } from '../../../../../../packages/rbac/src/permissions.enum.js';
 
 export async function GET(req: Request): Promise<Response> {
   try {
@@ -30,7 +29,7 @@ export async function GET(req: Request): Promise<Response> {
       .from('user_roles')
       .select('roles(slug)')
       .eq('user_id', user.id)
-      .eq('roles.slug', ORG_ACCESS_ADMIN)
+      .eq('roles.slug', Permission.ORG_ACCESS_ADMIN)
       .limit(1);
 
     if (roleError) {
@@ -43,7 +42,7 @@ export async function GET(req: Request): Promise<Response> {
       Array.isArray(roleRows) &&
       roleRows.some(
         (row: { roles: { slug: string }[] } | null) =>
-          Array.isArray(row?.roles) && row.roles.some((r) => r.slug === ORG_ACCESS_ADMIN),
+          Array.isArray(row?.roles) && row.roles.some((r) => r.slug === Permission.ORG_ACCESS_ADMIN),
       );
 
     if (!isAdmin) {

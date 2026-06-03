@@ -30,7 +30,7 @@ let _client: PostHogClient | null = null;
 
 function getClient(): PostHogClient {
   if (!_client) {
-    const apiKey = process.env.POSTHOG_KEY ?? 'phc_placeholder';
+    const apiKey = process.env.POSTHOG_API_KEY ?? 'phc_placeholder';
     const host = process.env.POSTHOG_HOST ?? 'https://app.posthog.com';
 
     const Ctor = posthogNode.PostHog as unknown as (key: string, opts: { host: string }) => PostHogClient;

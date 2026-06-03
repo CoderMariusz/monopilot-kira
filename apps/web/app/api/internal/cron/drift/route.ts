@@ -20,7 +20,7 @@
  * the Web `Request`/`Response` globals provided by Node 20.
  */
 
-import { detectDrift } from '../../../../../../../packages/ops/src/drift-detect';
+import { detectDrift } from '@monopilot/ops';
 import pg from 'pg';
 import { timingSafeEqual } from 'node:crypto';
 

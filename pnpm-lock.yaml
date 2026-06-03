@@ -41,6 +41,9 @@ importers:
       '@monopilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@monopilot/ops':
+        specifier: workspace:*
+        version: link:../../packages/ops
       '@monopilot/ui':
         specifier: workspace:*
         version: link:../../packages/ui
