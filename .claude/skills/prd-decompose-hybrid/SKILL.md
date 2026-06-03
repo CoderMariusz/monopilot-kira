@@ -1,7 +1,7 @@
 ---
 name: prd-decompose-hybrid
 description: Decompose a PRD section into atomic JSON task files for the kira_dev pipeline. Use when filling gaps in _meta/atomic-tasks/{module}/tasks/ or generating tasks for a new PRD section. Produces T-NNN.json files + updates manifest.json + coverage.md. Required model: Opus (Haiku fails tech-stack accuracy). Do NOT use Haiku for this skill.
-version: 1.1.0
+version: 1.2.0
 model: opus
 canonical_spec: _meta/plans/atomic-task-decomposition-guide.md
 ---
@@ -74,15 +74,30 @@ canonical_spec: _meta/plans/atomic-task-decomposition-guide.md
       "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
       "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
     },
+    "risk_tier": "high|low",
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard|impl-logic|impl-ui|test|plan",
+      "reviewer": "review-codex-work|codex-review"
     }
   }
 }
 ```
+
+### routing_hints + risk_tier (normalized — Phase 1, `docs/workflow/01-MODEL-ROUTING.md`)
+
+> The legacy tokens (`hermes_gpt55`, `spark_low_risk_else_opus`,
+> `opus_if_high_risk_or_ui_or_architecture`) are **retired** — never emit them.
+
+- **`writer`** by `task_type`: T1-schema / T2-api / T5-seed → `impl-standard`
+  (Codex); algorithmic cores (MRP, FIFO/WAC, SSCC mod-10, OEE math, DSL/cycle
+  detection) → `impl-logic` (Codex); T3-ui → `impl-ui` (Opus); T4-* → `test`;
+  T0-root / docs → `plan` (Opus).
+- **`risk_tier`** = `high` for every T1-schema and T3-ui, or any task touching
+  security/RLS, money/finance/cost, or regulatory (e-sign, GDPR, BRCGS, GS1/SSCC,
+  D365, HACCP/CCP, allergen, LOTO, audit, RBAC, p0-blocker); else `low`.
+- **`reviewer`** = `codex-review` when `writer` is `impl-ui` or `plan` (inverted
+  lane: Codex reviews Opus); otherwise `review-codex-work` (Claude reviews Codex —
+  Opus `kira-codex-review` if high-risk, Sonnet `kira-easy` if low).
 
 ## Priority bands (canonical — do NOT invent values)
 

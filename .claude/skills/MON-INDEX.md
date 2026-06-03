@@ -3,6 +3,22 @@
 **Convention:** All skills prefixed `MON-` are project-scoped to monopilot-kira. Read order: always start with `MON-project-overview`, then drill into specifics.
 
 **Generated:** 2026-05-14 — after Master Aggregate Report (Phase 5/Wave 7) closeout.
+**Refreshed:** 2026-06-03 — Phase 3 skills-overhaul (post Phase-0 audit + Phase-1 consolidation).
+
+> **Phase 3 notes (2026-06-03):**
+> - **Routing tokens normalized.** Legacy `hermes_gpt55` / `spark_low_risk_else_opus` /
+>   `opus_if_high_risk_or_ui_or_architecture` are retired across all 1041 tasks and in
+>   `prd-decompose-hybrid` (v1.2.0). New shape: `routing_hints {writer, reviewer}` +
+>   `risk_tier`. Source of truth: `docs/workflow/01-MODEL-ROUTING.md`.
+> - **Dead skills removed:** the 3 broken `kira-hq-*` symlinks (claude-pipeline /
+>   hermes-pipeline / render-kanban) pointed at the retired ACP path `~/.kira-hq/…` and
+>   resolved to nothing. Removed (no `MON-INDEX`/task `skills[]` references existed).
+> - **New `MON-domain-*` skills deferred to module run.** Density justifies dedicated
+>   domain skills for 01-npd, 02-settings, 03-technical, 06-scanner, 12-reporting,
+>   14-multi-site, but per the lean policy each is authored as the **first step of its
+>   module's `/kira:run-module`** (when its PRD is loaded), not pre-emptively. Existing
+>   domain skills (planning/warehouse/production/quality/finance/shipping/oee/maintenance)
+>   remain authoritative.
 
 ---
 
