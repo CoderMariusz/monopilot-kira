@@ -90,7 +90,7 @@ Updated by orchestrator after every PASS review.
 | T-069 | organizations.industry_code CHECK 'generic' | ✅ DONE | industry_code='generic' accepted in test seeds; CHECK constraint verified |
 | T-070 | 8-h absolute session lifetime | ✅ DONE | apps/web/lib/auth/session-check.ts L122 — 8h cap enforced via JWT iat |
 | T-071 | Approval-token replay protection | ✅ DONE | migrations/033-consumed-approval-tokens.sql + 034-approval-token-prune-cron.sql; packages/rbac/src/grant.ts |
-| T-072 | shouldFail click-driven error-transition test | ⬜ PENDING | packages/ui/src/__tests__/patterns.test.tsx — no shouldFail=true error-transition test |
+| T-072 | shouldFail click-driven error-transition test | ✅ DONE | **DONE 2026-06-03** (run-module). patterns.test.tsx +shouldFail error-transition (P10). 27/27. |
 | T-073 | Tenant-scoped JIT provisioning flag | ✅ DONE | **DONE 2026-06-03** (run-module). Live `(auth)/actions.ts signInWithMagicLink` reads `tenant_idp_config.jit_provisioning` (left join) → `shouldCreateUser = jit===true`, DENY-BY-DEFAULT. Codex round0 wrote dead helper→Opus REWORK→fixed into live path. 9/9 action tests, tc/lint 0. Column verified on Supabase. |
 | T-074 | Shared rbac pool lifecycle (closeRbacPool) | ✅ DONE | **DONE 2026-06-03** (run-module). grant.ts memoizes owner pool + closeRbacPool() teardown. rbac 45/45 real DB (grantRole/revokeRole intact). |
 | T-075 | POSTHOG_KEY → POSTHOG_API_KEY rename | ✅ DONE | **DONE 2026-06-03** (mechanical batch). Renamed in .env.example + feature-flags/index.ts; whole-word grep clean. |
