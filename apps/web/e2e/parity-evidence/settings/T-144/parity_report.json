@@ -1,0 +1,88 @@
+{
+  "task_id": "T-144",
+  "group": "a-modals",
+  "title": "RBAC modals",
+  "generated_at": "2026-06-03T19:07:48.189Z",
+  "base_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app",
+  "auth_storage": "/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/.auth/user.json",
+  "viewport": "desktop-1440x1000",
+  "policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+  "screens": [
+    {
+      "set_task_id": "SET-005",
+      "route": "/en/settings/users",
+      "label": "user-invite-modal",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/modals.jsx:378-407",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/users",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-144/user-invite-modal-desktop-1440x1000.png",
+      "modal_screenshot": "apps/web/e2e/parity-evidence/settings/T-144/user-invite-modal-modal-desktop-1440x1000.png",
+      "modal_evidence": "opened_via_button",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-007",
+      "route": "/en/settings/roles",
+      "label": "role-assign-modal",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/modals.jsx:410-447",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/roles",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-144/role-assign-modal-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "trigger_not_visible",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-005",
+      "route": "/en/settings/users",
+      "label": "password-reset-modal",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/modals.jsx:492-510",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/users",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-144/password-reset-modal-desktop-1440x1000.png",
+      "modal_screenshot": "apps/web/e2e/parity-evidence/settings/T-144/password-reset-modal-modal-desktop-1440x1000.png",
+      "modal_evidence": "opened_via_button",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    }
+  ],
+  "summary": {
+    "screens": 3,
+    "captured": 3,
+    "failed": 0,
+    "ok": 3,
+    "rbac_denied": 0,
+    "empty": 0,
+    "errored": 0,
+    "login_redirect": 0,
+    "axe_violations": 0,
+    "axe_unavailable": 3
+  },
+  "status": "CAPTURED"
+}

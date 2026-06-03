@@ -1,0 +1,67 @@
+{
+  "task_id": "T-145",
+  "group": "account",
+  "title": "Account self-service",
+  "generated_at": "2026-06-03T19:08:23.423Z",
+  "base_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app",
+  "auth_storage": "/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/.auth/user.json",
+  "viewport": "desktop-1440x1000",
+  "policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+  "screens": [
+    {
+      "set_task_id": "SET-100",
+      "route": "/en/account/profile",
+      "label": "my-profile",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/account/profile",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-145/my-profile-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-101",
+      "route": "/en/account/notifications",
+      "label": "my-notifications",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/account-screens.jsx:77-124",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/account/notifications",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-145/my-notifications-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    }
+  ],
+  "summary": {
+    "screens": 2,
+    "captured": 2,
+    "failed": 0,
+    "ok": 2,
+    "rbac_denied": 0,
+    "empty": 0,
+    "errored": 0,
+    "login_redirect": 0,
+    "axe_violations": 0,
+    "axe_unavailable": 2
+  },
+  "status": "CAPTURED"
+}

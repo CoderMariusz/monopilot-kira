@@ -1,0 +1,67 @@
+{
+  "task_id": "T-152",
+  "group": "e-modals",
+  "title": "Infra / Security modals",
+  "generated_at": "2026-06-03T19:12:10.750Z",
+  "base_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app",
+  "auth_storage": "/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/.auth/user.json",
+  "viewport": "desktop-1440x1000",
+  "policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+  "screens": [
+    {
+      "set_task_id": "SET-060",
+      "route": "/en/settings/email",
+      "label": "email-template-edit-modal",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/modals.jsx:141-259",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/email",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-152/email-template-edit-modal-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "trigger_not_visible",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-090",
+      "route": "/en/settings/integrations/d365",
+      "label": "d365-test-connection-modal",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/modals.jsx:450-489",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/integrations/d365",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-152/d365-test-connection-modal-desktop-1440x1000.png",
+      "modal_screenshot": "apps/web/e2e/parity-evidence/settings/T-152/d365-test-connection-modal-modal-desktop-1440x1000.png",
+      "modal_evidence": "opened_via_button",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    }
+  ],
+  "summary": {
+    "screens": 2,
+    "captured": 2,
+    "failed": 0,
+    "ok": 2,
+    "rbac_denied": 0,
+    "empty": 0,
+    "errored": 0,
+    "login_redirect": 0,
+    "axe_violations": 0,
+    "axe_unavailable": 2
+  },
+  "status": "CAPTURED"
+}

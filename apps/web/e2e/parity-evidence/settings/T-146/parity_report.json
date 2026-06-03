@@ -1,0 +1,193 @@
+{
+  "task_id": "T-146",
+  "group": "b-ui",
+  "title": "Variants / Modules screens",
+  "generated_at": "2026-06-03T19:11:01.948Z",
+  "base_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app",
+  "auth_storage": "/Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/.auth/user.json",
+  "viewport": "desktop-1440x1000",
+  "policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+  "screens": [
+    {
+      "set_task_id": "SET-040",
+      "route": "/en/settings/flags",
+      "label": "flags-admin",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:350-408",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/flags",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/flags-admin-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-041",
+      "route": "/en/settings/promotions",
+      "label": "promotions",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:630-688",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/promotions",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/promotions-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-042",
+      "route": "/en/settings/features",
+      "label": "features",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:350-408",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/features",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/features-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-043",
+      "route": "/en/settings/tenant",
+      "label": "tenant-variations-dashboard",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:630-688",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/tenant",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/tenant-variations-dashboard-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-044",
+      "route": "/en/settings/tenant/depts",
+      "label": "dept-taxonomy-editor",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:630-688",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/tenant/depts",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/dept-taxonomy-editor-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-045",
+      "route": "/en/settings/tenant/rules",
+      "label": "rule-variant-selector",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:630-688",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/tenant/rules",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/rule-variant-selector-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-046",
+      "route": "/en/settings/modules",
+      "label": "module-toggles",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx:166-198",
+      "spec_driven": true,
+      "http_status": 200,
+      "final_pathname": "/en/settings/modules",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/module-toggles-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    },
+    {
+      "set_task_id": "SET-047",
+      "route": "/en/settings/tenant/migrations",
+      "label": "migration-history",
+      "prototype_anchor": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:630-688",
+      "spec_driven": false,
+      "http_status": 200,
+      "final_pathname": "/en/settings/tenant/migrations",
+      "real_surface": true,
+      "screenshot": "apps/web/e2e/parity-evidence/settings/T-146/migration-history-desktop-1440x1000.png",
+      "modal_screenshot": null,
+      "modal_evidence": "no_modal_in_scope",
+      "axe": {
+        "status": "axe_unavailable",
+        "reason": "@axe-core/playwright not resolvable (Cannot find package '@axe-core/playwright' imported from /Users/mariuszkrawczyk/Projects/monopilot-kira/apps/web/e2e/settings/_runner.ts\nDid you mean to import \"@axe-core/playwright/dist/index.js\"?); install it in apps/web or run from a checkout where packages/ui deps are linked."
+      },
+      "browser_failures": 0,
+      "classification": "OK",
+      "blocking": false,
+      "status": "CAPTURED"
+    }
+  ],
+  "summary": {
+    "screens": 8,
+    "captured": 8,
+    "failed": 0,
+    "ok": 8,
+    "rbac_denied": 0,
+    "empty": 0,
+    "errored": 0,
+    "login_redirect": 0,
+    "axe_violations": 0,
+    "axe_unavailable": 8
+  },
+  "status": "CAPTURED"
+}

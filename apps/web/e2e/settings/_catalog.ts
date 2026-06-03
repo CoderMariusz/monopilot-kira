@@ -98,7 +98,7 @@ export const GROUP_A_UI: ParityGroup = {
     },
     {
       set_task_id: 'SET-020',
-      route: '/en/settings/audit-logs',
+      route: '/en/settings/audit',
       label: 'audit-log',
       prototype_anchor: `${PROTO}/org-screens.jsx:192-252`,
       expectText: /audit|log/i,
@@ -190,14 +190,14 @@ export const GROUP_ACCOUNT: ParityGroup = {
   screens: [
     {
       set_task_id: 'SET-100',
-      route: '/en/settings/my-profile',
+      route: '/en/account/profile',
       label: 'my-profile',
       prototype_anchor: `${PROTO}/account-screens.jsx:3-75`,
       expectText: /profile|name|email|language/i,
     },
     {
       set_task_id: 'SET-101',
-      route: '/en/settings/my-notifications',
+      route: '/en/account/notifications',
       label: 'my-notifications',
       prototype_anchor: `${PROTO}/account-screens.jsx:77-124`,
       expectText: /notification/i,
@@ -647,7 +647,7 @@ export const GROUP_SYSTEM_UI: ParityGroup = {
     },
     {
       set_task_id: 'SET-100',
-      route: '/en/settings/my-profile',
+      route: '/en/account/profile',
       label: 'language-picker',
       prototype_anchor: `${PROTO}/account-screens.jsx:20-24`,
       spec_driven: true,
