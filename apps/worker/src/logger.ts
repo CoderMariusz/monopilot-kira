@@ -1,6 +1,8 @@
+import { createLogger as createStructuredLogger, type LogDestination } from '@monopilot/observability';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export type LogFields = {
+export type LogFields = Record<string, unknown> & {
   job?: string;
   err?: unknown;
 };
@@ -12,52 +14,11 @@ export type WorkerLogger = {
   error: (msg: string, fields?: LogFields) => void;
 };
 
-const levelRank: Record<LogLevel, number> = {
-  debug: 10,
-  info: 20,
-  warn: 30,
-  error: 40,
-};
+export function createLogger(minLevel: LogLevel = 'info', destination?: LogDestination): WorkerLogger {
+  const logger = createStructuredLogger({ name: 'worker', level: minLevel }, destination);
 
-function serializeError(err: unknown) {
-  if (err instanceof Error) {
-    return {
-      name: err.name,
-      message: err.message,
-      stack: err.stack,
-    };
-  }
-
-  return err;
-}
-
-export function createLogger(minLevel: LogLevel = 'info'): WorkerLogger {
   function write(level: LogLevel, msg: string, fields: LogFields = {}) {
-    if (levelRank[level] < levelRank[minLevel]) {
-      return;
-    }
-
-    // [follow-up] T-117 replaces this console shim with @monopilot/observability
-    // while preserving the WorkerLogger method shape used by the registry.
-    const line = JSON.stringify({
-      ts: new Date().toISOString(),
-      level,
-      msg,
-      ...(fields.job ? { job: fields.job } : {}),
-      ...(fields.err ? { err: serializeError(fields.err) } : {}),
-    });
-
-    if (level === 'error') {
-      console.error(line);
-      return;
-    }
-
-    if (level === 'warn') {
-      console.warn(line);
-      return;
-    }
-
-    console.log(line);
+    logger[level](fields, msg);
   }
 
   return {

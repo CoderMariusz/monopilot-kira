@@ -68,3 +68,11 @@ The existing NPD erasure logic from T-089 is the first sibling implementation to
 wire into this registry. T-114 supplies the worker cron caller, T-115 registers
 the NPD handler, and later Warehouse, Scanner, Quality, Production, and Settings
 tasks add their handlers dynamically without modifying `@monopilot/gdpr`.
+
+## Logging redaction
+
+Any code path touching erasure rows or `subject_id` MUST use the shared
+`@monopilot/observability` structured logger. Direct `console.log` or equivalent
+raw output of erasure payloads is forbidden because `subject_id` is GDPR PII.
+The logger redacts `subject_id` and shortens `actor_user_id` to its first eight
+characters before a line is written.
