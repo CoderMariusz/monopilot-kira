@@ -122,7 +122,7 @@ Updated by orchestrator after every PASS review.
 | T-101 | drift-detect strict mode (extra_in_db) | ⬜ PENDING | Deferred until dept_code table registry lands |
 | T-102 | public.fg fixture → real migration (01-NPD) | ⬜ PENDING | Deferred until 01-NPD ships |
 | T-103 | @monopilot/ops TS path alias in apps/web/tsconfig.json | ✅ DONE | **DONE 2026-06-03** (mechanical, orchestrator-fixed). cron drift route imports `@monopilot/ops`; added packages/ops/src/index.ts (fixed broken main) + @monopilot/ops dep; removed redundant apps/web tsconfig paths block (base already provides @monopilot/*; local block broke baseUrl resolution). tc/lint 0. |
-| T-104 | Org-scoped Postgres sequence for nextSeq7() | ⬜ PENDING | No nextSeq7 or org-scoped sequence found |
+| T-104 | Org-scoped Postgres sequence for nextSeq7() | ✅ DONE | **DONE 2026-06-03** (run-module). mig 061 org-scoped atomic sequence (gap-free monotonic per org) + next-seq-7.ts. 4/4 real DB. |
 | T-105 | Vercel-only deploy assumption doc for cron | ✅ DONE | **DONE 2026-06-03** (run-module, kira-easy). docs/runbooks/cron-auth.md: x-vercel-cron Vercel-only assumption + non-Vercel migration (Bearer-only). (scope route.ts path stale; docs satisfy AC.) |
 | T-106 | Surface EvaluateResult through ExecutorResult | ⬜ PENDING | Deferred until executeRule made async |
 | T-107 | Outbox error surfacing via error-reporting | ⬜ PENDING | Deferred until T-118 Sentry lands |

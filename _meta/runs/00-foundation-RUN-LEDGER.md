@@ -41,7 +41,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-099 | T4-test | Codex | low | playwright offline E2E | ✅ merged |
 | T-100 | T2-api | Codex | low | outbox route | ⬜ |
 | T-103 | T4-test | Haiku | low | apps/web/tsconfig | ✅ merged |
-| T-104 | T1-schema(logic) | Codex | high | migrations/* | ⬜ |
+| T-104 | T1-schema(logic) | Codex | high | org-scoped seq mig061 | ✅ merged |
 | T-105 | docs | Sonnet | low | cron docs | ⬜ |
 | T-106 | T2-api | Codex | low | executor | ⬜ (was deferred; executeRule async in-task) |
 | T-108 | T1-schema | Codex | high | migrations/* | ⬜ (T-039 done) |

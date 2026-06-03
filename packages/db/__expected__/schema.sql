@@ -58,6 +58,55 @@ COMMENT ON EXTENSION citext IS 'data type for case-insensitive character strings
 
 
 --
+-- Name: app_next_seq_7(uuid, text); Type: FUNCTION; Schema: app; Owner: -
+--
+
+CREATE FUNCTION app.app_next_seq_7(p_org_id uuid, p_seq_name text DEFAULT 'short_codes'::text) RETURNS text
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  v_current_org_id uuid;
+  v_seq_name text;
+  v_next bigint;
+begin
+  v_current_org_id := app.current_org_id();
+  v_seq_name := pg_catalog.btrim(p_seq_name);
+
+  if p_org_id is null then
+    raise exception 'org_id is required'
+      using errcode = '22004';
+  end if;
+
+  if v_current_org_id is null or v_current_org_id <> p_org_id then
+    raise exception 'invalid organization context'
+      using errcode = '28000';
+  end if;
+
+  if v_seq_name is null or v_seq_name = '' then
+    raise exception 'sequence name is required'
+      using errcode = '22004';
+  end if;
+
+  insert into public.org_sequences (org_id, seq_name, current_value, updated_at)
+  values (p_org_id, v_seq_name, 1, pg_catalog.now())
+  on conflict (org_id, seq_name) do update
+    set current_value = public.org_sequences.current_value + 1,
+        updated_at = pg_catalog.now()
+    where public.org_sequences.current_value < 9999999
+  returning current_value into v_next;
+
+  if v_next is null then
+    raise exception 'sequence exhausted for org_id %, seq_name %', p_org_id, v_seq_name
+      using errcode = '2200H';
+  end if;
+
+  return pg_catalog.lpad(v_next::text, 7, '0');
+end;
+$$;
+
+
+--
 -- Name: count_manufacturing_operation_usage(uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -1439,6 +1488,22 @@ ALTER TABLE ONLY public.org_security_policies FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: org_sequences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_sequences (
+    org_id uuid NOT NULL,
+    seq_name text NOT NULL,
+    current_value bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT org_sequences_current_value_check CHECK (((current_value >= 0) AND (current_value <= 9999999))),
+    CONSTRAINT org_sequences_seq_name_not_blank_check CHECK ((length(btrim(seq_name)) > 0))
+);
+
+ALTER TABLE ONLY public.org_sequences FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: organization_modules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2657,6 +2722,14 @@ ALTER TABLE ONLY public.org_security_policies
 
 
 --
+-- Name: org_sequences org_sequences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_sequences
+    ADD CONSTRAINT org_sequences_pkey PRIMARY KEY (org_id, seq_name);
+
+
+--
 -- Name: organization_modules organization_modules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3530,6 +3603,13 @@ CREATE INDEX mfa_secrets_last_otp_window_idx ON public.mfa_secrets USING btree (
 --
 
 CREATE INDEX notification_preferences_org_event_idx ON public.notification_preferences USING btree (org_id, category, event);
+
+
+--
+-- Name: org_sequences_org_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX org_sequences_org_id_idx ON public.org_sequences USING btree (org_id);
 
 
 --
@@ -4415,6 +4495,14 @@ ALTER TABLE ONLY public.org_security_policies
 
 
 --
+-- Name: org_sequences org_sequences_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_sequences
+    ADD CONSTRAINT org_sequences_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: organization_modules organization_modules_enabled_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5181,6 +5269,19 @@ ALTER TABLE public.org_security_policies ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY org_security_policies_org_context ON public.org_security_policies TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: org_sequences; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_sequences ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: org_sequences org_sequences_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY org_sequences_org_context ON public.org_sequences TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
