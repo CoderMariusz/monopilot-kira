@@ -99,3 +99,23 @@ since pre-npd — settings 063-074 + all npd objects missing; CI check:drift); (
   round-2 Codex (T-015 views, T-077 ApprovalChainTemplates, T-093 BOM writer[needs T-092✓], T-007 outbox emitter,
   T-032 BriefFieldMapping table+seed) + Sonnet T-056 (G0-G4 seed, after T-055 merged). Allocate migs 097+.
 - After T-101 merged: RE-VERIFY T-006 permission seed against T-101's final enum.
+
+### Wave B COMPLETE (2026-06-04) — 12 tasks (round-1: 6, round-2: 5, +T-007 finishing)
+Migs 092-101 + T-101 enum (no mig). Canon @101. T-007 (102 outbox fa.* emitter) running detached (b3,
+poll `.batch-b3-done`, NOT harness-tracked — launched with & not run_in_background).
+
+### Wave C PLAN (server actions + compute cores) — layered; Codex≤4 medium, Opus hard cores
+HARD cores → Opus (impl-hard, kira-ui/direct), Codex reviews: T-038 allergen cascade engine,
+T-042 exceljs D365 builder, T-065 formulation compute, T-073 costing 9-step waterfall, T-089 GDPR erasure.
+Medium (Codex≤4/batch):
+- C1 (deps done, no T-007): T-057(createProject/list/get), T-064(formulation lifecycle), T-081(risks CRUD),
+  T-048(dashboard views), T-072(nutrition compute), T-028(V03/V04 validators), T-043(builder storage),
+  T-084(compliance upload), T-085(compliance expiry cron), T-090(d365 import sync), T-097(factory release RM),
+  T-014(schema-driven Zod runtime), T-010/T-011/T-012(cascade chains 1-3).
+- C1-needs-T-007: T-008(createFa), T-009(updateFaCell+reset_built — MIND T-080 V18 downgrade-guard!),
+  T-017(closeDeptSection), T-029(deleteFa).
+- C2 (need C1): T-013(cascade4←T-011), T-018(←T-017), T-033(convertBriefToFa←T-008,T-031),
+  T-039(setAllergenOverride←T-038), T-044(buildD365←many), T-045(bom_export←T-028), T-051(dashboard actions←T-048),
+  T-058(advanceProjectGate←T-057,T-095), T-078(approval criteria←T-064,T-072,T-073), T-095(G3 FG←T-031,T-057,T-058),
+  T-096(releaseToFactory), T-099(allergen bulk-rebuild←T-011/12/13), T-031(createBrief←T-007).
+Mig numbers from 103+. Watch: T-009 reset_built vs T-080 V18 downgrade-guard interaction (deferred nit).
