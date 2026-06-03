@@ -1256,6 +1256,29 @@ ALTER TABLE ONLY public.e_sign_log FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: gdpr_erasure_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gdpr_erasure_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    subject_id text NOT NULL,
+    requested_by uuid NOT NULL,
+    requested_at timestamp with time zone DEFAULT now() NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    started_at timestamp with time zone,
+    processed_at timestamp with time zone,
+    domains_run text[] DEFAULT '{}'::text[] NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT gdpr_erasure_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))
+);
+
+ALTER TABLE ONLY public.gdpr_erasure_requests FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: idempotency_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2362,6 +2385,21 @@ ALTER TABLE ONLY public.allergens
 
 
 --
+-- Name: audit_events audit_events_dept_column_denied_security_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.audit_events
+    ADD CONSTRAINT audit_events_dept_column_denied_security_check CHECK (((action <> 'dept_column_denied'::text) OR ((after_state IS NOT NULL) AND (after_state ? 'dept_id'::text) AND (after_state ? 'column_key'::text) AND (after_state ? 'actor_user_id'::text)))) NOT VALID;
+
+
+--
+-- Name: CONSTRAINT audit_events_dept_column_denied_security_check ON audit_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT audit_events_dept_column_denied_security_check ON public.audit_events IS 'T-083: dept_column_denied audit events require dept_id, column_key, and actor_user_id in after_state';
+
+
+--
 -- Name: audit_events audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2519,6 +2557,14 @@ ALTER TABLE ONLY public.e_sign_log
 
 ALTER TABLE ONLY public.e_sign_log
     ADD CONSTRAINT e_sign_log_signer_user_id_subject_hash_intent_nonce_key UNIQUE (signer_user_id, subject_hash, intent, nonce);
+
+
+--
+-- Name: gdpr_erasure_requests gdpr_erasure_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gdpr_erasure_requests
+    ADD CONSTRAINT gdpr_erasure_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -3378,6 +3424,20 @@ CREATE INDEX e_sign_log_org_created_idx ON public.e_sign_log USING btree (org_id
 --
 
 CREATE INDEX e_sign_log_subject_idx ON public.e_sign_log USING btree (org_id, subject_hash, intent);
+
+
+--
+-- Name: gdpr_erasure_requests_org_requested_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gdpr_erasure_requests_org_requested_idx ON public.gdpr_erasure_requests USING btree (org_id, requested_at);
+
+
+--
+-- Name: gdpr_erasure_requests_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gdpr_erasure_requests_pending_idx ON public.gdpr_erasure_requests USING btree (requested_at, id) WHERE (status = 'pending'::text);
 
 
 --
@@ -4243,6 +4303,14 @@ ALTER TABLE ONLY public.e_sign_log
 
 
 --
+-- Name: gdpr_erasure_requests gdpr_erasure_requests_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gdpr_erasure_requests
+    ADD CONSTRAINT gdpr_erasure_requests_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: line_machines line_machines_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4931,6 +4999,19 @@ ALTER TABLE public.e_sign_log ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY e_sign_log_org_context ON public.e_sign_log TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: gdpr_erasure_requests; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gdpr_erasure_requests ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gdpr_erasure_requests gdpr_erasure_requests_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gdpr_erasure_requests_org_context ON public.gdpr_erasure_requests TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
