@@ -24,7 +24,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-068 | mech | Haiku | high | feature-flags | ⬜ |
 | T-072 | T4-test | Sonnet | low | packages/ui __tests__ | ⬜ |
 | T-073 | T2-api | Codex | high | login _actions | ✅ merged |
-| T-074 | T2-api | Codex | high | packages/rbac grant | ⬜ |
+| T-074 | T2-api | Codex | high | rbac pool lifecycle | ✅ merged |
 | T-075 | mech | Haiku | low | feature-flags + .env | ✅ merged |
 | T-077 | T2-api | Codex | high | packages/rbac grant | ⬜ |
 | T-078 | mech | Haiku | low | flags/route | ✅ merged |
