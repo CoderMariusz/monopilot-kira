@@ -39,7 +39,7 @@ Updated by orchestrator after every PASS review.
 | T-025 | packages/ui + Modal primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 18/18 tests; ESLint no-restricted-imports for radix-dialog (jest-axe fallback for axe scan documented) |
 | T-026 | Stepper primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 31/31 tests; @radix-ui/react-tabs (manual activation) + Zustand store keyed by wizardId; AC4 density made non-vacuous (`toHaveAttribute('data-density','default')`); canEnter dual-guard hardened (preventDefault + stopPropagation) |
 | T-027 | Field primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 16/16 tests; RHF Controller + useFormContext; Input.tsx wrapper (data-slot); aria-invalid + aria-describedby; required asterisk with aria-label="required"; UI-evidence carry-forward (Storybook screenshots policy gap, deferred to T-056) |
-| T-028 | ReasonInput primitive | ✅ DONE | RED+GREEN+REVIEW PASS; 8/8 tests; Textarea.tsx wrapper (data-slot); counter via useId; aria-describedby resolves to counter; sibling [type=submit] disable via parentElement walk + bidirectional useEffect (re-disable on backspace) |
+| T-028 | ReasonInput primitive | ⏸ BLOCKED | RED+GREEN+REVIEW PASS; 8/8 tests; Textarea.tsx wrapper (data-slot); counter via useId; aria-describedby resolves to counter; sibling [type=submit] disable via parentElement walk + bidirectional useEffect (re-disable on backspace). **Reality-audit 2026-06-02: aria-label prop + forwardRef ABSENT from packages/ui/src/ReasonInput.tsx — T-067 carry-forward not yet resolved.** |
 | T-029 | Summary primitive | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 20/20 tests; <dl>/<dt>/<dd>; CSS module with var(--color-warning); REWORK fixed inline-styles on VisuallyHidden span (red-line violation) + added [style] full-subtree mutation-proof assertion |
 | T-030 | Tuning primitives | ✅ DONE | RED+GREEN+REVIEW PASS; 22/22 tests (5 prim + deriveRunHistory + Button); EmptyState uses cloneElement to avoid nested button (AC1 marker satisfied via data-slot); RunStrip prop narrowed to RunStatus[]; data-domain-agnostic verified (no outbox imports) |
 | T-031 | 10 MODAL-SCHEMA pattern templates | ✅ DONE | RED+GREEN+REVIEW PASS (opus); 149/149 tests (123→149 +26 via AC3 loop expansion); 4 deviations accepted (useSanitiseRadixIds story-only, label-wrap ReasonInput, P10 ErrorState initial-render, P1 padded 3→8 steps); carry-forwards T-062 testing docs, T-063 ReasonInput aria-label/forwardRef, T-064 P10 click-error transition |
@@ -48,7 +48,7 @@ Updated by orchestrator after every PASS review.
 | T-034 | Schema drift detection job | ✅ DONE | RED+GREEN+OPUS-REVIEW PASS; 5/5 + 4 db-skipped; info_schema ↔ Reference.DeptColumns diff + cron route (x-vercel-cron OR Bearer CRON_SECRET, fail-closed prod) + scripts/cron.json daily 06:00 UTC; carry-forwards T-080 getSystemActorConnection helper + crypto.timingSafeEqual Bearer, T-081 strict-mode extra_in_db, T-082 @monopilot/ops alias |
 | T-035 | Workflow-as-data executor | ✅ DONE | RED+GREEN+REVIEW PASS; 27/27 (24+3 db-skipped) + 14 executor regression; 10/10 mutations; namespace import + fire-and-forget dispatch + hybrid Rule shape; dry-run triple-gated outbox INSERT; carry-forwards: executeRule async upgrade, outbox INSERT error surfacing |
 | T-036 | Schema-driven column draft/publish | ✅ DONE | RED+GREEN+OPUS-REVIEW+REWORK PASS; 10/10 tests (was 9 + 1 missing-dept path); HARD BLOCKER fixed: dept_code='production' fallback removed → returns `{success:false, error:'dept_not_found'}` with ROLLBACK; test seeds Reference.Departments; carry-forwards T-069 actor-org assertion, T-071 DB CHECK denied-action security, T-072 drafts uniqueness |
-| T-037 | Schema-driven column wizard UI | ✅ DONE | RED+GREEN+OPUS-REVIEW PASS-with-major-carry-forwards; 32/32 tests; AC1/AC4 PASS, AC2/AC3 DOM-pass via inline impl; **P0 ROOT-CAUSE FLAGGED**: React 18/19 peer mismatch w packages/ui → primitives T-026/T-027/Stepper/Field UNCONSUMABLE w apps/web. Carry-forwards: T-076 (P0) packages/ui peerDeps align to React 19, T-077 (P1) refactor wizard with real Stepper+RHF+Zod, T-078 (P1) @vitejs/plugin-react-oxc, T-079 (P2) userEvent v15 |
+| T-037 | Schema-driven column wizard UI | ⏸ BLOCKED | RED+GREEN+OPUS-REVIEW PASS-with-major-carry-forwards; 32/32 tests; AC1/AC4 PASS, AC2/AC3 DOM-pass via inline impl; **P0 ROOT-CAUSE FLAGGED**: React 18/19 peer mismatch w packages/ui → primitives T-026/T-027/Stepper/Field UNCONSUMABLE w apps/web. Carry-forwards: T-076 (P0) packages/ui peerDeps align to React 19 [NOW DONE — peerDeps ^18||^19 in T-093], T-077 (P1) refactor wizard with real Stepper+RHF+Zod [T-095 not done], T-078 (P1) @vitejs/plugin-react-oxc [T-096 not done], T-079 (P2) userEvent v15. **Reality-audit 2026-06-02: SchemaColumnWizard.tsx step 2 comment L186 explicitly states "plain state, not RHF" — step 2 refactor NOT done.** |
 | T-038 | tenant_migrations table | ✅ DONE | RED+GREEN+REVIEW PASS; 11/11 tests pass; 013-tenant-migrations.sql idempotent; no FK (app-layer carry-forward to T-039); dual schema dir + symlink carry-forward |
 | T-039 | Canary upgrade orchestration | ✅ DONE | RED+GREEN+OPUS-REVIEW PASS; 16/16 (RED count typo); 13/13 mutation experiments verified by reviewer; events.enum.ts +3 (tenant.migration.run / .failed / cohort.advanced); 023-outbox-events-extension.sql ALTER CHECK; BEGIN/COMMIT atomicity confirmed; 15-min strict-< boundary; RBAC org.platform.admin retention='security' on deny; carry-forwards T-069 platform.admin Apex bootstrap migration, T-070 fix migrate.ts pre-existing 017 checksum, T-071 derive orgId from session + ESLint owner-conn check |
 | T-040 | R13 columns on placeholder tables | ✅ DONE | RED+GREEN+REVIEW PASS; 33/33 tests; 014-r13-placeholder-tables.sql (renamed from 0014_ by T-054); 5 tables (lot/work_order/quality_event/shipment/bom_item) with R13 cols + org_id RLS via app.current_org_id() |
@@ -74,7 +74,77 @@ Updated by orchestrator after every PASS review.
 | T-060 | ALTER tenant_idp_config: 11 missing F-A2 cols | ✅ DONE | RED+GREEN PASS; 16/16 FA2 tests + 11/11 existing tests; 016 migration with 11 cols + updated_at trigger |
 | T-061 | Password policy enforcement library | ✅ DONE | RED+GREEN+REVIEW+REWORK+RE-REVIEW PASS; 19/19 tests (mutation-proven non-vacuous); whitespace_only guard; 018-password-history.sql; HIBP injectable + fail-open |
 
-**🎉 00-FOUNDATION 61/61 DONE — Wave0 v4.3 readiness ≥95% achieved**
+**Wave-A batch: 61/61 DONE (as declared). Reality audit 2026-06-02 corrects T-028→⏸ (aria-label/forwardRef absent), T-037→⏸ (step 2 not RHF+Zod). Carry-forward tasks T-062…T-126 added below.**
+
+## Carry-forward + New tasks (T-062 … T-126) — Reality audit 2026-06-02
+
+| Task | Title (short) | Status | Notes |
+|---|---|---|---|
+| T-062 | user_pins RLS org-scoped fix | ✅ DONE | migrations/026-pins-rls-org-scoped.sql — USING(true) replaced with org-scoped USING; cross-org SELECT returns 0 rows |
+| T-063 | packages/ui/TESTING.md Radix axe quirk | ⬜ PENDING | File absent from packages/ui/ |
+| T-064 | VALIDATE CONSTRAINT audit_events_role_assigned | ⬜ PENDING | 017-rbac.sql has ADD CONSTRAINT NOT VALID; VALIDATE CONSTRAINT migration not written |
+| T-065 | Supabase deploy runbook JWT_EXP/MAILER_OTP_EXP | ⬜ PENDING | docs/runbooks/ only has preview-supabase-bootstrap.md; JWT_EXP/refresh rotation not documented |
+| T-066 | verifyPin pool.end() lifecycle fix + JSDoc | ✅ DONE | packages/auth/src/verify-pin.ts L55/173 pool.end() present |
+| T-067 | ReasonInput aria-label + forwardRef | ⬜ PENDING | packages/ui/src/ReasonInput.tsx has no aria-label prop, no forwardRef export |
+| T-068 | `import 'server-only'` on feature flags | ⬜ PENDING | apps/web/lib/feature-flags/index.ts missing server-only import |
+| T-069 | organizations.industry_code CHECK 'generic' | ✅ DONE | industry_code='generic' accepted in test seeds; CHECK constraint verified |
+| T-070 | 8-h absolute session lifetime | ✅ DONE | apps/web/lib/auth/session-check.ts L122 — 8h cap enforced via JWT iat |
+| T-071 | Approval-token replay protection | ✅ DONE | migrations/033-consumed-approval-tokens.sql + 034-approval-token-prune-cron.sql; packages/rbac/src/grant.ts |
+| T-072 | shouldFail click-driven error-transition test | ⬜ PENDING | packages/ui/src/__tests__/patterns.test.tsx — no shouldFail=true error-transition test |
+| T-073 | Tenant-scoped JIT provisioning flag | ⬜ PENDING | apps/web/app/[locale]/(auth)/login/_actions/auth.ts — shouldCreateUser not wired |
+| T-074 | Shared rbac pool lifecycle (closeRbacPool) | ⬜ PENDING | packages/rbac/src/grant.ts still uses per-call getOwnerConnection() |
+| T-075 | POSTHOG_KEY → POSTHOG_API_KEY rename | ⬜ PENDING | feature-flags/index.ts L33 + .env.example L105 still use POSTHOG_KEY |
+| T-076 | assertActorBelongsToOrg cross-org rejection + test | ✅ DONE | packages/rbac/src/grant.ts L227-258 actor+target org checks wired |
+| T-077 | grantRole BYPASSRLS → getAppConnection refactor | ⬜ PENDING | packages/rbac/src/grant.ts L208 still getOwnerConnection() — security debt |
+| T-078 | Permission.ORG_ACCESS_ADMIN import from @kira/rbac | ⬜ PENDING | flags/route.ts uses inlined string 'org.access.admin' |
+| T-079 | SoD semantic: check target existing roles | ✅ DONE | packages/rbac/src/grant.ts L237 SoD on TARGET roles implemented |
+| T-080 | org.platform.admin Apex seed + migration | ✅ DONE | migrations/029-org-platform-admin.sql + 030-apex-org-bootstrap.sql |
+| T-081 | fix migrate.ts 017-rbac checksum + replay | ✅ DONE | scripts/migrate.ts checksum guard; 017 in place |
+| T-082 | owner-pool memoization + request-scoped binding | ⬜ PENDING | apps/web/lib/auth/with-org-context.ts — no memoization for upgrade actions |
+| T-083 | audit_events_dept_column_denied CHECK constraint | ⬜ PENDING | No migration found for this constraint |
+| T-084 | Narrow tenant_idp_config grants | ✅ DONE | migrations/035-tenant-idp-grants.sql column-level REVOKEs |
+| T-085 | dept_column_drafts partial unique WHERE status='draft' | ⬜ PENDING | migrations/022-dept-column-drafts.sql has no partial unique index |
+| T-086 | SAML Issuer xmldom+XPath replace | ⬜ PENDING | apps/web/lib/auth/saml.ts still uses regex; xmldom not wired |
+| T-087 | audit_events.org_id nullable + sentinel backfill | ⬜ PENDING | migrations/004-audit.sql — org_id NOT NULL; no sentinel migration |
+| T-088 | enforceSamlPolicy wired to sign-in routes | ✅ DONE | apps/web/app/(auth)/actions.ts L31/167 calls enforceSamlPolicy |
+| T-089 | Cross-tenant SCIM ambiguity regression test | ⏸ BLOCKED | Guard exists in lib/scim/middleware.ts L165-184; but no dedicated >1-hash→401 regression test file |
+| T-090 | Jackson createConnection at tenant onboarding | ✅ DONE | apps/web/app/(admin)/settings/saml/_actions/save-saml-config.ts L168 |
+| T-091 | SCIM Group provisioning POST/PATCH | ⏸ BLOCKED | apps/web/app/api/scim/v2/Groups/route.ts is GET-only stub from T-013; POST/PATCH/members not implemented |
+| T-092 | HMAC-bound RelayState SAML replay defence | ⬜ PENDING | No HMAC RelayState in saml.ts or callback route |
+| T-093 | packages/ui peerDeps align React 19 | ✅ DONE | packages/ui/package.json peerDependencies `"react": "^18 || ^19"` |
+| T-094 | SLO session cookie clearing + Supabase signOut | ⬜ PENDING | No Supabase signOut in SAML SLO path |
+| T-095 | SchemaColumnWizard step 2 RHF+Zod | ⏸ BLOCKED | SchemaColumnWizard.tsx L186 explicitly "plain state, not RHF" — refactor not done |
+| T-096 | swap jsxPreTransformPlugin → @vitejs/plugin-react-oxc | ⬜ PENDING | apps/web/vitest.ui.config.ts L10-41 still uses custom jsxPreTransformPlugin |
+| T-097 | Remove userEvent monkey-patch (user-event v15) | ⬜ PENDING | Intentionally deferred until user-event v15 ships |
+| T-098 | getSystemActorConnection() + constant-time Bearer for cron | ⬜ PENDING | No getSystemActorConnection export in packages/db/src/ |
+| T-099 | @playwright/test + real Chromium offline PWA E2E | ⏸ BLOCKED | playwright.config.ts exists; CI playwright job is continue-on-error; offline PWA spec absent |
+| T-100 | Wire runCascade dispatch in outbox route | ⏸ BLOCKED | outbox/route.ts L188-190 comment "cascade dispatch deferred to next slot" |
+| T-101 | drift-detect strict mode (extra_in_db) | ⬜ PENDING | Deferred until dept_code table registry lands |
+| T-102 | public.fg fixture → real migration (01-NPD) | ⬜ PENDING | Deferred until 01-NPD ships |
+| T-103 | @monopilot/ops TS path alias in apps/web/tsconfig.json | ⬜ PENDING | Alias absent from apps/web/tsconfig.json |
+| T-104 | Org-scoped Postgres sequence for nextSeq7() | ⬜ PENDING | No nextSeq7 or org-scoped sequence found |
+| T-105 | Vercel-only deploy assumption doc for cron | ⬜ PENDING | Undocumented assumption in cron routes |
+| T-106 | Surface EvaluateResult through ExecutorResult | ⬜ PENDING | Deferred until executeRule made async |
+| T-107 | Outbox error surfacing via error-reporting | ⬜ PENDING | Deferred until T-118 Sentry lands |
+| T-108 | Restore FK tenant_migrations.tenant_id | ⬜ PENDING | Deferred until T-039 verified in prod |
+| T-109 | totp.ts masterKey fail-closed guard | ✅ DONE | packages/auth/src/totp.ts L25-57 MFA_MASTER_KEY guard; CF-T015-B resolved |
+| T-110 | Bundle NIST top-25K common password list | ⏸ BLOCKED | packages/auth/src/password-policy.ts only bundles top ~200; full 25K list absent |
+| T-111 | apps/worker scaffold + job registry | ⬜ PENDING | **P0 blocker** — apps/worker directory does NOT exist |
+| T-112 | Outbox worker consumer in apps/worker | ⬜ PENDING | **P0 blocker** — apps/worker absent; runOnce in packages/outbox is unwired |
+| T-113 | packages/gdpr erasure registry + dispatcher | ⬜ PENDING | **P0 blocker** — packages/gdpr directory does NOT exist |
+| T-114 | GDPR erasure cron in apps/worker | ⬜ PENDING | **P0 blocker** — depends on T-111 + T-113 both absent |
+| T-115 | NPD erasure handler registration test | ⬜ PENDING | Depends on T-113/T-114 |
+| T-116 | OpenTelemetry baseline + instrumentation.ts | ⬜ PENDING | **P0 observability** — no instrumentation.ts; no packages/observability |
+| T-117 | Structured logger (pino) @monopilot/observability | ⬜ PENDING | **P0 observability** — packages/observability absent; no pino dependency |
+| T-118 | Sentry wired into apps/web + apps/worker | ⬜ PENDING | **P0 observability** — no @sentry/ imports in apps/web source |
+| T-119 | Backup policy spec + stub verification job | ⬜ PENDING | No backup verification job found |
+| T-120 | Restore drill runner (tooling/restore-drill/) | ⬜ PENDING | tooling/restore-drill/ does not exist |
+| T-121 | packages/rate-limit middleware | ⬜ PENDING | **P0** — packages/rate-limit does NOT exist; all Server Actions unprotected |
+| T-122 | CI/CD workflow hardened | ⏸ BLOCKED | .github/workflows/ci.yml has lint/typecheck/build/vitest/migration-check BUT playwright is continue-on-error; not fully hardened |
+| T-123 | Playwright harness scaffolded | ✅ DONE | playwright.config.ts at root; apps/web/e2e/ specs exist |
+| T-124 | packages/e-sign CFR 21 Part 11 | ⬜ PENDING | packages/e-sign does NOT exist; blocks quality/production dual-sign |
+| T-125 | withOrgContext HOF | ✅ DONE | apps/web/lib/auth/with-org-context.ts — full impl: JWT verify + org_id lookup + app.set_org_context tx + ROLLBACK |
+| T-126 | Login screen UI | ✅ DONE | apps/web/app/[locale]/(auth)/login/{page,login-card,layout,forgot-password,mfa} all present; real Supabase Auth |
 
 ## Wave 0 — Walking Skeleton (`/kira:skeleton`, 2026-06-02)
 
