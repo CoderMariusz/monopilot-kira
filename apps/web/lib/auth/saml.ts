@@ -21,6 +21,7 @@
 import type { JacksonOption, IOAuthController } from '@boxyhq/saml-jackson';
 import type pg from 'pg';
 import { Pool } from 'pg';
+import { parseSamlIssuer } from '../../../../packages/auth/src/saml/issuer-parser.js';
 import { createServerSupabaseClient } from './supabase-server';
 
 // ─── Slot F-4: memoised owner pool for enforceSamlPolicy DB lookups ─────────
@@ -243,43 +244,6 @@ export async function handleSamlCallback(
       expectedIssuerHosts.add(candidate);
     }
   }
-  if (expectedIssuerHosts.size > 0) {
-    const decodedXml = (() => {
-      try {
-        return Buffer.from(samlResponse, 'base64').toString('utf8');
-      } catch {
-        return '';
-      }
-    })();
-    const issuerMatch = decodedXml.match(/<saml:Issuer[^>]*>([^<]+)<\/saml:Issuer>/);
-    const issuerRaw = issuerMatch?.[1]?.trim();
-    let issuerHost: string | null = null;
-    if (issuerRaw) {
-      try {
-        issuerHost = new URL(issuerRaw).host;
-      } catch {
-        issuerHost = issuerRaw;
-      }
-    }
-    if (!issuerHost || !expectedIssuerHosts.has(issuerHost)) {
-      // Also accept substring matches for non-URL fallback values
-      let matched = false;
-      for (const expected of expectedIssuerHosts) {
-        if (issuerRaw && (issuerRaw.includes(expected) || expected.includes(issuerRaw))) {
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) {
-        return {
-          userCreated: false,
-          sessionEstablished: false,
-          error: `SAML Issuer mismatch: assertion is from a different IdP than the tenant's configured entity_id (cross-tenant assertion rejected)`,
-        };
-      }
-    }
-  }
-
   // ── 2. x509 signature verification (RED LINE #1) ──────────────────────────
   // We delegate signature verification to Jackson's oauthController.samlResponse
   // which throws on signature/cert mismatch. Jackson is configured with the
@@ -305,6 +269,42 @@ export async function handleSamlCallback(
       sessionEstablished: false,
       error: `SAML signature/x509 cert validation failed: ${msg}`,
     };
+  }
+
+  if (expectedIssuerHosts.size > 0) {
+    const decodedXml = Buffer.from(samlResponse, 'base64').toString('utf8');
+    let issuerRaw: string | undefined;
+    try {
+      issuerRaw = parseSamlIssuer(decodedXml);
+    } catch {
+      issuerRaw = undefined;
+    }
+
+    let issuerHost: string | null = null;
+    if (issuerRaw) {
+      try {
+        issuerHost = new URL(issuerRaw).host;
+      } catch {
+        issuerHost = issuerRaw;
+      }
+    }
+    if (!issuerHost || !expectedIssuerHosts.has(issuerHost)) {
+      // Also accept substring matches for non-URL fallback values
+      let matched = false;
+      for (const expected of expectedIssuerHosts) {
+        if (issuerRaw && (issuerRaw.includes(expected) || expected.includes(issuerRaw))) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        return {
+          userCreated: false,
+          sessionEstablished: false,
+          error: `SAML Issuer mismatch: assertion is from a different IdP than the tenant's configured entity_id (cross-tenant assertion rejected)`,
+        };
+      }
+    }
   }
 
   if (!profile?.email) {
