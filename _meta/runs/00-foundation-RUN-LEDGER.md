@@ -85,4 +85,4 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 - **Systemic Codex pattern:** creates dead code at stale scope paths (T-073/T-100/T-082/T-098). Pre-check the real integration point before dispatch.
 
 ## KNOWN ISSUES FOR SIGN-OFF (must resolve before module sign-off)
-- **Pre-existing auth DB-test failures on local Postgres:** `packages/auth/src/__tests__/totp.test.ts` (T-015) + `verify-pin.test.ts` (T-016) FAIL when run against the real local DB (fixture/seed drift + otlib-compat TS2724 mock). These tasks are marked DONE but violate G1 'tests run for real' on a real DB. Needs a fixture-fix task before sign-off (same drift class as T-091/T-124 fixtures — seed users with name+role_id, fix otplib mock).
+- **[RESOLVED 2026-06-03]** Pre-existing auth DB-test failures (totp/verify-pin) fixed — full auth suite 84/84 on real local Postgres (fixture seed name+role_id).
