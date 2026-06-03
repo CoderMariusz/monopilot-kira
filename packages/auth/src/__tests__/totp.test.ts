@@ -38,7 +38,7 @@
  *   - @simplewebauthn / WebAuthn API NEVER contacted in Phase 3 stub (red line).
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { authenticator } from 'otplib';
 import * as argon2 from 'argon2';
 import { getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
@@ -64,6 +64,8 @@ const skipIfNoDb = databaseUrl ? describe : describe.skip;
 const TEST_USER_ID = '00000000-0000-4000-a000-000000000015'; // deterministic UUID for T-015
 const MASTER_KEY = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; // 32 hex bytes × 2 = 64 chars
 const TENANT_ID = '00000000-0000-4000-b000-000000000001';
+const ORG_ID = '00000000-0000-4000-b000-000000000002';
+const ROLE_ID = '00000000-0000-4000-b000-000000000003';
 
 // ---------------------------------------------------------------------------
 // DB seed / teardown (only runs when databaseUrl is set)
@@ -77,32 +79,52 @@ beforeAll(async () => {
 
   // Seed prerequisite rows so FK constraints on mfa_secrets and recovery_codes pass.
   // Pattern follows audit.integration.test.ts and verify-pin.test.ts.
-  await ownerConn.query(`
+  await ownerConn.query(
+    `
     INSERT INTO public.tenants (id, name, region_cluster, data_plane_url)
-    VALUES ('${TENANT_ID}', 'T015 Tenant', 'eu', 'https://t015.test.invalid')
+    VALUES ($1, 'T015 Tenant', 'eu', 'https://t015.test.invalid')
     ON CONFLICT (id) DO NOTHING
-  `);
+  `,
+    [TENANT_ID],
+  );
 
-  await ownerConn.query(`
+  await ownerConn.query(
+    `
     INSERT INTO public.organizations (id, tenant_id, name, industry_code)
-    VALUES (
-      '00000000-0000-4000-b000-000000000002',
-      '${TENANT_ID}',
-      'T015 Org',
-      'generic'
-    )
+    VALUES ($1, $2, 'T015 Org', 'generic')
     ON CONFLICT (id) DO NOTHING
-  `);
+  `,
+    [ORG_ID, TENANT_ID],
+  );
 
-  await ownerConn.query(`
-    INSERT INTO public.users (id, org_id, email)
-    VALUES (
-      '${TEST_USER_ID}',
-      '00000000-0000-4000-b000-000000000002',
-      't015-test@example.invalid'
-    )
-    ON CONFLICT (id) DO NOTHING
-  `);
+  await ownerConn.query(
+    `
+    INSERT INTO public.roles (id, org_id, slug, system, code, name, permissions, is_system)
+    VALUES ($1, $2, 't015.fixture.user', false, 't015.fixture.user', 'T-015 Fixture User', '[]'::jsonb, false)
+    ON CONFLICT (id) DO UPDATE
+       SET org_id = excluded.org_id,
+           slug = excluded.slug,
+           system = excluded.system,
+           code = excluded.code,
+           name = excluded.name,
+           permissions = excluded.permissions,
+           is_system = excluded.is_system
+  `,
+    [ROLE_ID, ORG_ID],
+  );
+
+  await ownerConn.query(
+    `
+    INSERT INTO public.users (id, org_id, email, name, role_id)
+    VALUES ($1, $2, 't015-test@example.invalid', 'T-015 Test User', $3)
+    ON CONFLICT (id) DO UPDATE
+       SET org_id = excluded.org_id,
+           email = excluded.email,
+           name = excluded.name,
+           role_id = excluded.role_id
+  `,
+    [TEST_USER_ID, ORG_ID, ROLE_ID],
+  );
 });
 
 afterAll(async () => {
@@ -111,7 +133,8 @@ afterAll(async () => {
   await ownerConn.query(`DELETE FROM public.recovery_codes WHERE user_id = '${TEST_USER_ID}'`);
   await ownerConn.query(`DELETE FROM public.mfa_secrets WHERE user_id = '${TEST_USER_ID}'`);
   await ownerConn.query(`DELETE FROM public.users WHERE id = '${TEST_USER_ID}'`);
-  await ownerConn.query(`DELETE FROM public.organizations WHERE id = '00000000-0000-4000-b000-000000000002'`);
+  await ownerConn.query(`DELETE FROM public.roles WHERE id = '${ROLE_ID}'`);
+  await ownerConn.query(`DELETE FROM public.organizations WHERE id = '${ORG_ID}'`);
   await ownerConn.query(`DELETE FROM public.tenants WHERE id = '${TENANT_ID}'`);
   await ownerConn.end();
 });
@@ -121,6 +144,10 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 skipIfNoDb('AC1: TOTP 30-second window and 6-digit code', () => {
+  beforeEach(async () => {
+    await ownerConn.query(`DELETE FROM public.mfa_secrets WHERE user_id = $1`, [TEST_USER_ID]);
+  });
+
   it('verifyTotp returns true when code is verified within the 30-second window (T=0)', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -210,6 +237,10 @@ skipIfNoDb('AC1: TOTP 30-second window and 6-digit code', () => {
   });
 
   it('secret_encrypted column is not an empty string and looks like a base64 ciphertext', async () => {
+    await enrollTotp(TEST_USER_ID, {
+      masterKey: MASTER_KEY,
+      tenantId: TENANT_ID,
+    });
     const row = await ownerConn.query<{ secret_encrypted: string }>(
       `SELECT secret_encrypted FROM public.mfa_secrets WHERE user_id = $1`,
       [TEST_USER_ID],
@@ -457,6 +488,10 @@ describe('AC3: WebAuthn stub returns deferred response without external API cont
 // ---------------------------------------------------------------------------
 
 skipIfNoDb('T-062 hardening: TOTP code cannot be replayed within the same window', () => {
+  beforeEach(async () => {
+    await ownerConn.query(`DELETE FROM public.mfa_secrets WHERE user_id = $1`, [TEST_USER_ID]);
+  });
+
   it('verifyTotp(token) twice within the same 30s epoch — second call returns {ok:false, reason:"replay"}', async () => {
     // Mutation proof: WITHOUT the atomic claim on last_otp_window, the second
     // call would re-enter otplib.verifySync (still valid in the same epoch)
