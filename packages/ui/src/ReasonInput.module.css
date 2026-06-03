@@ -1,0 +1,6 @@
+/* ReasonInput primitive — character counter styling (no inline styles). */
+
+.reason-input-counter {
+  display: block;
+  text-align: right;
+}
