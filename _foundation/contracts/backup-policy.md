@@ -59,7 +59,18 @@ Verification failure is an alerting signal and must not throw from the cron hand
 
 ## Quarterly Restore Drill
 
-The quarterly restore drill runner and evidence capture are documented by T-120. T-119 only defines the backup policy and daily verification stub.
+T-120 implements the quarterly restore drill runner in `tooling/restore-drill/`.
+Operators or scheduled CI run `pnpm drill` from the repository root with
+`DRILL_DUMP_PATH` pointing at an out-of-band logical dump and
+`DRILL_DATABASE_URL` pointing at an ephemeral Postgres database, never a
+production database. The root script forwards to the restore-drill workspace,
+which restores the dump, runs `pnpm --filter @monopilot/db migrate` against the
+restored database, executes smoke queries, and writes a JSON evidence report to
+`./drill-reports/`.
+
+The intended automation cadence is a GitHub Actions schedule every quarter.
+Manual operator runs are valid when CI cannot access the backup object directly,
+provided the report is retained as audit evidence for the same quarter.
 
 ## Encryption At Rest
 

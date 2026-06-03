@@ -1,0 +1,19 @@
+{
+  "name": "@monopilot/restore-drill",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "drill": "tsx src/run-drill.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "pg": "8.16.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8"
+  }
+}
