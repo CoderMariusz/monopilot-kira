@@ -45,7 +45,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-105 | docs | Sonnet | low | cron docs | ⬜ |
 | T-106 | T2-api | Codex | low | executor | ⬜ (was deferred; executeRule async in-task) |
 | T-108 | T1-schema | Codex | high | migrations/* | ⬜ (T-039 done) |
-| T-110 | T5-seed | Codex | high | password-policy list | ⬜ |
+| T-110 | T5-seed | Codex | high | password-policy 25k list | ✅ merged |
 
 ### Layer 1
 | T-067 | UI prim | Opus | high | ←T-110 | ⬜ |
