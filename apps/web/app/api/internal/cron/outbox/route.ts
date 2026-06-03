@@ -55,6 +55,7 @@ import {
   type MessageHandler,
 } from '../../../../../../../packages/outbox/src/dispatch-queue';
 import { normalizeEventType } from '../../../../../../../packages/outbox/src/events.enum';
+import { dispatchCascade } from '../../../../../../../packages/rule-engine/src/dispatch';
 
 /**
  * Mirror of `runOnce()` from `packages/outbox/src/worker.ts`. Inlined here
@@ -183,23 +184,11 @@ export async function POST(req: Request): Promise<Response> {
   // TODO(post-A.7): swap LocalDispatchQueue for a real remote queue per env
   // config (Azure Service Bus or equivalent). Until then, in-process handlers
   // run synchronously at publish() time so cascade events are not dropped.
-  // Cascade handler stub: cascade rule wiring (FT-040) lives in the rule
-  // engine; here we observe the message at the dispatch boundary so the
-  // worker tick reports cascade traffic. A real cascade dispatch (calling
-  // runCascade with org_id + fg_id from payload) lands in the next slot —
-  // this slot only ensures the message is not dropped by the queue layer.
+  // Cascade rule wiring lives in the rule engine. The cron route keeps the
+  // owner-pool dispatch boundary; runCascade still filters all data access by
+  // org_id inside the rule-engine transaction.
   const cascadeHandler: MessageHandler = async (msg) => {
-    if (
-      msg.eventType.includes('manufacturing_operation') ||
-      msg.eventType.includes('cascade') ||
-      msg.eventType === 'fg.intermediate_code_changed'
-    ) {
-      console.info('[cron/outbox] cascade event observed', {
-        eventType: msg.eventType,
-        orgId: msg.orgId,
-        aggregateId: msg.aggregateId,
-      });
-    }
+    await dispatchCascade(msg, { pool });
   };
   const queue = new LocalDispatchQueue([cascadeHandler]);
 
