@@ -14,7 +14,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-111 | T2-api scaffold | Codex | high | apps/worker/* (creates) | ✅ merged |
 | T-113 | T2-api | Codex | high | packages/gdpr (new) | ✅ merged |
 | T-124 | T2-api | Codex | high | packages/e-sign +mig055 +schema | ✅ merged (1 rework) |
-| T-028 | UI prim | Opus(kira-ui) | high | packages/ui | ⬜ |
+| T-028 | UI prim | Opus(kira-ui) | high | ReasonInput +T-067 | ✅ merged |
 | T-037 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
 | T-095 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
 | T-096 | T4-test | Codex/Sonnet | low | apps/web/vitest.ui.config | ⬜ |
@@ -38,7 +38,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-092 | T2-api(logic) | Codex | high | HMAC RelayState | ✅ merged |
 | T-094 | T2-api | Codex | high | saml SLO | ⬜ |
 | T-098 | T2-api | Codex | high | system-actor-conn + wire drift/outbox | 🔄 rework (wire real routes) |
-| T-099 | T4-test | Codex | low | playwright + package.json | ⬜ |
+| T-099 | T4-test | Codex | low | playwright offline E2E | ✅ merged |
 | T-100 | T2-api | Codex | low | outbox route | ⬜ |
 | T-103 | T4-test | Haiku | low | apps/web/tsconfig | ✅ merged |
 | T-104 | T1-schema(logic) | Codex | high | migrations/* | ⬜ |
@@ -48,7 +48,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-110 | T5-seed | Codex | high | password-policy 25k list | ✅ merged |
 
 ### Layer 1
-| T-067 | UI prim | Opus | high | ←T-110 | ⬜ |
+| T-067 | UI prim | Opus | high | bundled w/ T-028 | ✅ merged |
 | T-112 | T2-api | Codex | high | outbox consumer +mig056 +DLQ | ✅ merged (1 rework) |
 | T-114 | T2-api | Codex | high | gdpr erasure cron +mig057 | ✅ merged |
 | T-116 | T2-api | Codex | high | observability+instrumentation | ✅ merged |
