@@ -59,6 +59,12 @@ alter table public.outbox_events
       'settings.machine.upserted',
       'settings.line.upserted',
       'settings.warehouse.deactivated',
+      'onboarding.step.advance',
+      'onboarding.step.back',
+      'onboarding.step.skip',
+      'onboarding.step.jump',
+      'onboarding.step.restart',
+      'onboarding.first_wo_recorded',
       'settings.notification_rule_updated',
       'settings.notification_channel_updated',
       'settings.notification_digest_updated'
