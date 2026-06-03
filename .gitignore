@@ -58,3 +58,4 @@ pipeline.log.md
 .env*.local
 .claude/scheduled_tasks.lock
 .pnpm-store/
+drill-reports/
