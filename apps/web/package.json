@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@boxyhq/saml-jackson": "^26.2.0",
+    "@sentry/nextjs": "^10.56.0",
     "@serwist/next": "^9.5.11",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",

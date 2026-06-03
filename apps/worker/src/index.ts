@@ -1,9 +1,11 @@
+import './sentry.js';
 import pg from 'pg';
 import { startNodeSdk } from '@monopilot/observability/sdk-node';
 
 import { env } from './env.js';
 import { createLogger } from './logger.js';
 import { JobRegistry } from './registry.js';
+import { captureJobException } from './sentry.js';
 
 export type WorkerRuntime = {
   registry: JobRegistry;
@@ -15,6 +17,22 @@ export type WorkerRuntimeOptions = {
   registry?: JobRegistry;
 };
 
+function captureRegistryJobFailures(registry: JobRegistry): JobRegistry {
+  const originalRegister = registry.register.bind(registry);
+  registry.register = (name, schedule, handler) => {
+    originalRegister(name, schedule, async (ctx) => {
+      try {
+        await handler(ctx);
+      } catch (err) {
+        captureJobException(err, name);
+        throw err;
+      }
+    });
+  };
+
+  return registry;
+}
+
 export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerRuntime {
   startNodeSdk({ serviceName: 'monopilot-worker' });
 
@@ -24,7 +42,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerR
     new pg.Pool({
       connectionString: env.DATABASE_URL,
     });
-  const registry = options.registry ?? new JobRegistry({ pool, logger });
+  const registry = captureRegistryJobFailures(options.registry ?? new JobRegistry({ pool, logger }));
 
   let shuttingDown: Promise<void> | undefined;
 
