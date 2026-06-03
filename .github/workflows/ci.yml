@@ -5,11 +5,43 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CI: true
   NODE_ENV: test
 
 jobs:
+  lint-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/actionlint@v1
+        with:
+          args: .github/workflows/*.yml
+
+  pr-labels:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const allowed = new Set(['feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'ops', 'prd']);
+            const labels = context.payload.pull_request.labels.map((label) => label.name.toLowerCase());
+            const hasAllowed = labels.some((label) => allowed.has(label));
+            const hasWip = labels.includes('wip');
+
+            if (!hasAllowed || hasWip) {
+              core.setFailed(
+                `PR must have one of ${Array.from(allowed).join('|')} and must not have wip. Current labels: ${labels.join(', ') || '(none)'}`,
+              );
+            }
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -36,9 +68,10 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web typecheck
+      - run: pnpm -r typecheck
 
   build:
+    needs: [lint, typecheck]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,47 +85,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-  storybook-build:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # Ensure Storybook configuration does not silently drift.
-      - run: pnpm --filter @monopilot/ui build-storybook
-        # Do not block CI if optional Storybook deps cannot be installed in
-        # constrained environments (Slot F-3 wires the config; full enablement
-        # comes in a later slot once @storybook/react-vite lands in lockfile).
-        continue-on-error: true
-
-  playwright:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-        continue-on-error: true
-      - run: pnpm exec playwright test --project=chromium
-        # Dev server / E2E suite is not yet provisioned in CI; the spec files
-        # exist for future enablement. Keep the job non-blocking until then.
-        continue-on-error: true
-
-  test:
+  vitest:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -104,13 +97,11 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U monopilot"
+          --health-cmd "pg_isready -U monopilot -d monopilot"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
     env:
-      CI: true
-      NODE_ENV: test
       DATABASE_URL: postgres://monopilot:monopilot@localhost:5432/monopilot
       DATABASE_URL_OWNER: postgres://monopilot:monopilot@localhost:5432/monopilot
       APP_USER_PASSWORD: app-user-test-password
@@ -125,5 +116,128 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
       - run: pnpm --filter @monopilot/db migrate
+      - name: Verify app_user was provisioned
+        run: psql "$DATABASE_URL" --command "select rolname from pg_roles where rolname = 'app_user'"
       - run: pnpm -r test
+
+  migration-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monopilot
+          POSTGRES_PASSWORD: monopilot
+          POSTGRES_DB: monopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monopilot -d monopilot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://monopilot:monopilot@localhost:5432/monopilot
+      DATABASE_URL_OWNER: postgres://monopilot:monopilot@localhost:5432/monopilot
+      APP_USER_PASSWORD: app-user-test-password
+      DATABASE_URL_APP: postgres://app_user:app-user-test-password@localhost:5432/monopilot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @monopilot/db migrate
+      - name: Verify app_user was provisioned
+        run: psql "$DATABASE_URL" --command "select rolname from pg_roles where rolname = 'app_user'"
+      - run: pnpm --filter @monopilot/db check:drift
+
+  playwright:
+    needs: [build, migration-check]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monopilot
+          POSTGRES_PASSWORD: monopilot
+          POSTGRES_DB: monopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monopilot -d monopilot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://monopilot:monopilot@localhost:5432/monopilot
+      DATABASE_URL_OWNER: postgres://monopilot:monopilot@localhost:5432/monopilot
+      APP_USER_PASSWORD: app-user-test-password
+      DATABASE_URL_APP: postgres://app_user:app-user-test-password@localhost:5432/monopilot
+      PORT: 3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @monopilot/db migrate
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm --filter web build
+      - name: Start built Next.js app
+        run: |
+          pnpm --filter web start > /tmp/monopilot-next.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/monopilot-next.log
+          exit 1
+      - run: pnpm --filter web exec playwright test e2e/**/*.spec.ts --trace on
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-traces
+          path: |
+            apps/web/test-results/**/trace.zip
+            apps/web/playwright-report/**
+            apps/web/e2e/artifacts/**/trace.zip
+          if-no-files-found: warn
+
+  storybook-build:
+    needs: [lint, typecheck, vitest, migration-check, playwright]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: storybook-deps
+        run: |
+          if pnpm --filter @monopilot/ui exec storybook --version >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - run: pnpm --filter @monopilot/ui build-storybook
+        continue-on-error: ${{ steps.storybook-deps.outputs.installed != 'true' }}

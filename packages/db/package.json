@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:integration": "vitest run",
     "migrate": "tsx scripts/migrate.ts",
+    "check:drift": "bash -c 'set -euo pipefail; tmp=$(mktemp /tmp/monopilot-schema.XXXXXX); pg_dump --schema-only --no-owner --no-privileges \"${DATABASE_URL:?DATABASE_URL is required}\" | sed \"/^-- Dumped from database version /d;/^-- Dumped by pg_dump version /d;/^\\\\\\\\restrict /d;/^\\\\\\\\unrestrict /d\" > \"$tmp\"; diff -u __expected__/schema.sql \"$tmp\"'",
     "lint": "eslint ."
   },
   "dependencies": {
