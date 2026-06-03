@@ -52,6 +52,19 @@ GATE must be serialized on the single local DB OR give each worktree its own DB
   CI check:drift); T-004 drop redundant 012 unique constraint; various add-negative-RLS-write tests.
 - Held migration numbers now free until reworks land: 077, 080, 086.
 
+### Wave A1 batch-2 IN FLIGHT (launched 2026-06-03 ~23:50, bk07794g5)
+T-080(088 risks+V18 trigger), T-083(089 compliance_docs), T-092(090 BOM SSOT). Reusable launcher
+`_meta/runs/launch-batch.sh a2 "T-080:088 T-083:089 T-092:090"`. Clone DBs monopilot_a2_t_*. Done-marker
+`.batch-a2-done`. ON COMPLETE: review → integration migrate → merge → then Wave B.
+
+### Wave B PLAN (after batch-2 merged) — mix Codex(schema, ≤4) + Sonnet(seeds, ≤8)
+- Codex (schema/api): T-015 (done-views), T-037 (fa_allergen_overrides), T-055 (GateChecklistTemplates),
+  T-063 (formulations+versions+ingredients), T-077-task (ApprovalChainTemplates), T-101 (npd permission
+  enum — AUTHORITATIVE; re-verify T-006 seed after), T-093 (BOM writer, needs T-092), T-007 (outbox fa.* emitter).
+- Sonnet (T5 seeds): T-016 (DeptColumns Apex seed), T-032 (BriefFieldMapping seed), T-050 (AlertThresholds
+  default seed), T-056 (G0-G4 GateChecklistTemplates seed — AFTER T-055, intra-wave edge → serialize).
+- Migration numbers allocate from 091+ in dep order. T-056 after T-055; T-093 after T-092.
+
 ### Wave A1 launch history (reference)
 12 parallel Codex, each in own worktree `../kira-wt/T-*` + own clone DB `monopilot_t_NNN` (cloned from
 canon@075). Launcher: `_meta/runs/launch-wave-a1-run.sh` (perl-alarm timeout 1800s; macOS has no `timeout`,
