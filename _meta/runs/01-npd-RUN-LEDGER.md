@@ -89,3 +89,13 @@ T-001,002,003,004,005,006,030,036,041,049,054,069,070,080,083,092. Integration m
 since pre-npd — settings 063-074 + all npd objects missing; CI check:drift); (2) T-004 drop redundant
 012 `mfg_ops_org_industry_suffix_unique`; (3) T-080 downgrade-guard vs T-009 reset_built interaction;
 (4) add ALLOW-path tests for V18 (T-080).
+
+### Wave B round-1 (2026-06-04)
+- Codex B1 IN FLIGHT (b6mzeq9nw): T-101(091 npd perm enum), T-055(092 GateChecklistTemplates),
+  T-063(093 formulations+versions+ingredients), T-037(094 fa_allergen_overrides). Clones monopilot_b1_t_*.
+- Sonnet seeds DONE (in worktrees, awaiting merge): T-016(095 DeptColumns Apex seed, 6/6, 69 rows),
+  T-050(096 AlertThresholds default seed, 9/9, matches T-049 threshold_key schema). Clones monopilot_b1seed_t_*.
+- ON B1 COMPLETE: review B1 (+ light cross-check seeds) → merge ALL round-1 (091-096) → integration migrate → then
+  round-2 Codex (T-015 views, T-077 ApprovalChainTemplates, T-093 BOM writer[needs T-092✓], T-007 outbox emitter,
+  T-032 BriefFieldMapping table+seed) + Sonnet T-056 (G0-G4 seed, after T-055 merged). Allocate migs 097+.
+- After T-101 merged: RE-VERIFY T-006 permission seed against T-101's final enum.
