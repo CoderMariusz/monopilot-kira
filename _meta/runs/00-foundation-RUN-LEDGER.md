@@ -13,7 +13,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 |---|---|---|---|---|---|
 | T-111 | T2-api scaffold | Codex | high | apps/worker/* (creates) | ✅ merged |
 | T-113 | T2-api | Codex | high | packages/gdpr (new) | ✅ merged |
-| T-124 | T2-api | Codex | high | packages/e-sign (new) | ⬜ |
+| T-124 | T2-api | Codex | high | packages/e-sign +mig055 +schema | 🔄 in-flight |
 | T-028 | UI prim | Opus(kira-ui) | high | packages/ui | ⬜ |
 | T-037 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
 | T-095 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
@@ -51,10 +51,10 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-067 | UI prim | Opus | high | ←T-110 | ⬜ |
 | T-112 | T2-api | Codex | high | ←T-111; apps/worker | ⬜ |
 | T-114 | T2-api | Codex | high | ←T-111,T-113; apps/worker | ⬜ |
-| T-116 | T2-api | Codex | high | ←T-111; packages/observability | ⬜ |
+| T-116 | T2-api | Codex | high | observability+instrumentation | ✅ merged |
 
 ### Layer 2
-| T-117 | T2-api | Codex | low | ←T-116; packages/observability (pino) | ⬜ |
+| T-117 | T2-api | Codex | low | pino logger + worker logger | 🔄 in-flight |
 
 ### Layer 3
 | T-118 | T2-api | Codex | high | ←T-111,T-117; Sentry | ⬜ |
