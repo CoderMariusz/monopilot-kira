@@ -1,0 +1,8 @@
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+**/trace.zip
+**/*.webm
+**/test-failed-*.png
+**/error-context.md
