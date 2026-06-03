@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { startNodeSdk } from '@monopilot/observability/sdk-node';
 
 import { env } from './env.js';
 import { createLogger } from './logger.js';
@@ -15,6 +16,8 @@ export type WorkerRuntimeOptions = {
 };
 
 export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerRuntime {
+  startNodeSdk({ serviceName: 'monopilot-worker' });
+
   const logger = createLogger(env.WORKER_LOG_LEVEL);
   const pool =
     options.pool ??
