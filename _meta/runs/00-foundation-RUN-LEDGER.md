@@ -21,7 +21,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-063 | T4-test | Sonnet | low | packages/ui/TESTING.md | ⬜ |
 | T-064 | T1-schema | Codex | high | migrations/* | ✅ merged |
 | T-065 | docs+script | kira-easy+Codex | low | runbook + verify script | ✅ merged |
-| T-068 | mech | Haiku | high | feature-flags | ⬜ |
+| T-068 | mech | Codex | high | server-only marker | ✅ merged |
 | T-072 | T4-test | Codex | low | error-transition test | ✅ merged |
 | T-073 | T2-api | Codex | high | login _actions | ✅ merged |
 | T-074 | T2-api | Codex | high | rbac pool lifecycle | ✅ merged |

@@ -86,7 +86,7 @@ Updated by orchestrator after every PASS review.
 | T-065 | Supabase deploy runbook JWT_EXP/MAILER_OTP_EXP | ✅ DONE | **DONE 2026-06-03** (run-module). docs/runbooks/supabase-deploy.md (JWT_EXP=900, MAILER_OTP_EXP=604800 [code, not contract's stale 420], refresh rotation) + scripts/verify-supabase-config.ts (assert deployed config, fail on drift/env-unset). verify 8/8. |
 | T-066 | verifyPin pool.end() lifecycle fix + JSDoc | ✅ DONE | packages/auth/src/verify-pin.ts L55/173 pool.end() present |
 | T-067 | ReasonInput aria-label + forwardRef | ✅ DONE | **DONE 2026-06-03** (run-module, kira-ui; bundled w/ T-028). aria-label prop forwarded to textarea + React.forwardRef ref→textarea; dev-warn on label+aria-label both. Tested (ref.focus()/value, getByLabelText, axe 0). |
-| T-068 | `import 'server-only'` on feature flags | ⬜ PENDING | apps/web/lib/feature-flags/index.ts missing server-only import |
+| T-068 | `import 'server-only'` on feature flags | ✅ DONE | **DONE 2026-06-03** (run-module). feature-flags/index.ts imports 'server-only' (fail-fast in client bundles); server-only dep + vitest __mocks__ stub so feature-flags.test.ts runs under node. 8/8, web tc 0. |
 | T-069 | organizations.industry_code CHECK 'generic' | ✅ DONE | industry_code='generic' accepted in test seeds; CHECK constraint verified |
 | T-070 | 8-h absolute session lifetime | ✅ DONE | apps/web/lib/auth/session-check.ts L122 — 8h cap enforced via JWT iat |
 | T-071 | Approval-token replay protection | ✅ DONE | migrations/033-consumed-approval-tokens.sql + 034-approval-token-prune-cron.sql; packages/rbac/src/grant.ts |
