@@ -1,3 +1,5 @@
+import 'server-only';
+
 /**
  * T-033 — PostHog feature flags (server-side only).
  *
