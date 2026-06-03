@@ -1,0 +1,109 @@
+{
+ "wave": 12,
+ "task_count": 4,
+ "serialize_files": {
+  "packages/events/src/shipping.ts": [
+   "T-023",
+   "T-029"
+  ],
+  "prototypes/design/Monopilot Design System/shipping/pack-screens.jsx [ref]": [
+   "T-021",
+   "T-022"
+  ],
+  "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]": [
+   "T-021",
+   "T-022"
+  ]
+ },
+ "tasks": [
+  {
+   "task_id": "T-021",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "09-quality/T-064",
+    "11-shipping/T-019",
+    "11-shipping/T-020",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-022",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "11-shipping/T-019",
+    "11-shipping/T-020",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-023",
+   "module": "11-shipping",
+   "task_type": "T2-api",
+   "writer": "impl-logic",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-124",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "11-shipping/T-018",
+    "11-shipping/T-020",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-029",
+   "module": "11-shipping",
+   "task_type": "T2-api",
+   "writer": "impl-standard",
+   "risk_tier": "high",
+   "reviewer": "opus:kira-codex-review",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-051",
+    "00-foundation/T-111",
+    "00-foundation/T-112",
+    "00-foundation/T-116",
+    "00-foundation/T-125",
+    "11-shipping/T-018",
+    "11-shipping/T-020",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}

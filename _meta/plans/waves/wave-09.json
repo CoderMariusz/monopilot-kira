@@ -1,0 +1,427 @@
+{
+ "wave": 9,
+ "task_count": 17,
+ "serialize_files": {
+  "packages/events/src/shipping.ts": [
+   "T-028",
+   "T-016"
+  ],
+  "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]": [
+   "T-008",
+   "T-005",
+   "T-014",
+   "T-010"
+  ],
+  "prototypes/design/Monopilot Design System/shipping/so-screens.jsx [ref]": [
+   "T-014",
+   "T-010"
+  ]
+ },
+ "tasks": [
+  {
+   "task_id": "T-062",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-057",
+    "01-npd/T-058",
+    "01-npd/T-059",
+    "01-npd/T-061",
+    "01-npd/T-095",
+    "01-npd/T-096",
+    "01-npd/T-097"
+   ]
+  },
+  {
+   "task_id": "T-112",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-111"
+   ]
+  },
+  {
+   "task_id": "T-126",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "high",
+   "reviewer": "opus:kira-codex-review",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-123",
+    "01-npd/T-124",
+    "01-npd/T-125"
+   ]
+  },
+  {
+   "task_id": "T-130",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-059",
+    "01-npd/T-128",
+    "01-npd/T-129"
+   ]
+  },
+  {
+   "task_id": "T-061",
+   "module": "04-planning-basic",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "04-planning-basic/T-030",
+    "04-planning-basic/T-037"
+   ]
+  },
+  {
+   "task_id": "T-062",
+   "module": "04-planning-basic",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "04-planning-basic/T-025",
+    "04-planning-basic/T-057"
+   ]
+  },
+  {
+   "task_id": "T-064",
+   "module": "04-planning-basic",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "04-planning-basic/T-025",
+    "04-planning-basic/T-057"
+   ]
+  },
+  {
+   "task_id": "T-055",
+   "module": "05-warehouse",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "05-warehouse/T-001",
+    "05-warehouse/T-002",
+    "05-warehouse/T-003",
+    "05-warehouse/T-004",
+    "05-warehouse/T-005",
+    "05-warehouse/T-006",
+    "05-warehouse/T-007",
+    "05-warehouse/T-008",
+    "05-warehouse/T-009",
+    "05-warehouse/T-010",
+    "05-warehouse/T-011",
+    "05-warehouse/T-012",
+    "05-warehouse/T-013",
+    "05-warehouse/T-014",
+    "05-warehouse/T-015",
+    "05-warehouse/T-016",
+    "05-warehouse/T-017",
+    "05-warehouse/T-018",
+    "05-warehouse/T-019",
+    "05-warehouse/T-020",
+    "05-warehouse/T-021",
+    "05-warehouse/T-022",
+    "05-warehouse/T-023",
+    "05-warehouse/T-024",
+    "05-warehouse/T-025",
+    "05-warehouse/T-026",
+    "05-warehouse/T-027",
+    "05-warehouse/T-028",
+    "05-warehouse/T-029",
+    "05-warehouse/T-030",
+    "05-warehouse/T-031",
+    "05-warehouse/T-032",
+    "05-warehouse/T-033",
+    "05-warehouse/T-034",
+    "05-warehouse/T-035",
+    "05-warehouse/T-036",
+    "05-warehouse/T-037",
+    "05-warehouse/T-038",
+    "05-warehouse/T-039",
+    "05-warehouse/T-040",
+    "05-warehouse/T-041",
+    "05-warehouse/T-042",
+    "05-warehouse/T-043",
+    "05-warehouse/T-044",
+    "05-warehouse/T-045",
+    "05-warehouse/T-046",
+    "05-warehouse/T-047",
+    "05-warehouse/T-048",
+    "05-warehouse/T-049",
+    "05-warehouse/T-050",
+    "05-warehouse/T-051",
+    "05-warehouse/T-052",
+    "05-warehouse/T-053",
+    "05-warehouse/T-054"
+   ]
+  },
+  {
+   "task_id": "T-057",
+   "module": "07-planning-ext",
+   "task_type": "docs",
+   "writer": "plan",
+   "risk_tier": "low",
+   "reviewer": "codex-review (spot)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "07-planning-ext/T-056"
+   ]
+  },
+  {
+   "task_id": "T-003",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "11-shipping/T-001",
+    "11-shipping/T-002",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-005",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "01-npd/T-001",
+    "11-shipping/T-002",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-008",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-124",
+    "01-npd/T-001",
+    "11-shipping/T-007",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-010",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "09-quality/T-010",
+    "09-quality/T-064",
+    "11-shipping/T-007",
+    "11-shipping/T-012",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-014",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "09-quality/T-064",
+    "11-shipping/T-012",
+    "11-shipping/T-013",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-016",
+   "module": "11-shipping",
+   "task_type": "T2-api",
+   "writer": "impl-standard",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-112",
+    "00-foundation/T-124",
+    "00-foundation/T-125",
+    "09-quality/T-010",
+    "09-quality/T-064",
+    "11-shipping/T-013",
+    "11-shipping/T-015",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-018",
+   "module": "11-shipping",
+   "task_type": "T1-schema",
+   "writer": "impl-logic",
+   "risk_tier": "high",
+   "reviewer": "opus:kira-codex-review",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "05-warehouse/T-002",
+    "11-shipping/T-006",
+    "11-shipping/T-015"
+   ]
+  },
+  {
+   "task_id": "T-028",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "02-settings/T-007",
+    "11-shipping/T-027",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,57 @@
+{
+ "wave": 11,
+ "task_count": 2,
+ "serialize_files": {},
+ "tasks": [
+  {
+   "task_id": "T-100",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-040",
+    "00-foundation/T-124",
+    "01-npd/T-058",
+    "01-npd/T-093",
+    "01-npd/T-095",
+    "01-npd/T-096",
+    "01-npd/T-097",
+    "01-npd/T-098"
+   ]
+  },
+  {
+   "task_id": "T-020",
+   "module": "11-shipping",
+   "task_type": "T2-api",
+   "writer": "impl-logic",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-112",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "05-warehouse/T-013",
+    "09-quality/T-010",
+    "09-quality/T-064",
+    "11-shipping/T-013",
+    "11-shipping/T-018",
+    "11-shipping/T-019",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}

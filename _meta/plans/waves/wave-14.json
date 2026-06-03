@@ -1,0 +1,44 @@
+{
+ "wave": 14,
+ "task_count": 1,
+ "serialize_files": {},
+ "tasks": [
+  {
+   "task_id": "T-032",
+   "module": "11-shipping",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-116",
+    "00-foundation/T-123",
+    "01-npd/T-001",
+    "05-warehouse/T-002",
+    "09-quality/T-010",
+    "09-quality/T-064",
+    "11-shipping/T-001",
+    "11-shipping/T-006",
+    "11-shipping/T-007",
+    "11-shipping/T-011",
+    "11-shipping/T-012",
+    "11-shipping/T-013",
+    "11-shipping/T-015",
+    "11-shipping/T-016",
+    "11-shipping/T-018",
+    "11-shipping/T-019",
+    "11-shipping/T-020",
+    "11-shipping/T-023",
+    "11-shipping/T-025",
+    "11-shipping/T-029",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}

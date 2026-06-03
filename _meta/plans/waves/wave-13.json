@@ -1,0 +1,78 @@
+{
+ "wave": 13,
+ "task_count": 3,
+ "serialize_files": {
+  "prototypes/design/Monopilot Design System/shipping/doc-screens.jsx [ref]": [
+   "T-025",
+   "T-024"
+  ]
+ },
+ "tasks": [
+  {
+   "task_id": "T-024",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-124",
+    "11-shipping/T-023",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-025",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "11-shipping/T-020",
+    "11-shipping/T-023",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-030",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "09-quality/T-064",
+    "11-shipping/T-013",
+    "11-shipping/T-029",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}

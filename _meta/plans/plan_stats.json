@@ -1,0 +1,52 @@
+{
+ "tasks": 1041,
+ "done": 126,
+ "pending": 915,
+ "waves": 14,
+ "critical_path_len": 16,
+ "critical_path": [
+  "11-shipping/T-032",
+  "11-shipping/T-025",
+  "11-shipping/T-023",
+  "11-shipping/T-020",
+  "11-shipping/T-019",
+  "11-shipping/T-018",
+  "11-shipping/T-015",
+  "11-shipping/T-011",
+  "11-shipping/T-006",
+  "11-shipping/T-001",
+  "00-foundation/T-125",
+  "00-foundation/T-011",
+  "00-foundation/T-010",
+  "00-foundation/T-006",
+  "00-foundation/T-002",
+  "00-foundation/T-001"
+ ],
+ "risk": {
+  "low": 365,
+  "high": 676
+ },
+ "writer": {
+  "impl-standard": 446,
+  "impl-ui": 339,
+  "impl-logic": 104,
+  "plan": 35,
+  "test": 117
+ },
+ "per_wave": {
+  "1": 202,
+  "2": 124,
+  "3": 114,
+  "4": 137,
+  "5": 119,
+  "6": 83,
+  "7": 69,
+  "8": 33,
+  "9": 17,
+  "10": 7,
+  "11": 2,
+  "12": 4,
+  "13": 3,
+  "14": 1
+ }
+}

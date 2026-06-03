@@ -1,0 +1,168 @@
+{
+ "wave": 10,
+ "task_count": 7,
+ "serialize_files": {
+  "prototypes/design/Monopilot Design System/shipping/modals.jsx [ref]": [
+   "T-017",
+   "T-004"
+  ]
+ },
+ "tasks": [
+  {
+   "task_id": "T-098",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-031",
+    "01-npd/T-056",
+    "01-npd/T-058",
+    "01-npd/T-062",
+    "01-npd/T-092",
+    "01-npd/T-093",
+    "01-npd/T-095",
+    "01-npd/T-096",
+    "01-npd/T-097",
+    "02-settings/T-126",
+    "03-technical/T-080"
+   ]
+  },
+  {
+   "task_id": "T-127",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "high",
+   "reviewer": "opus:kira-codex-review",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-123",
+    "01-npd/T-124",
+    "01-npd/T-125",
+    "01-npd/T-126"
+   ]
+  },
+  {
+   "task_id": "T-131",
+   "module": "01-npd",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "01-npd/T-128",
+    "01-npd/T-129",
+    "01-npd/T-130"
+   ]
+  },
+  {
+   "task_id": "T-057",
+   "module": "05-warehouse",
+   "task_type": "T4-wiring-test",
+   "writer": "test",
+   "risk_tier": "low",
+   "reviewer": "sonnet:kira-easy",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-selfcheck"
+   ],
+   "status": "pending",
+   "deps": [
+    "05-warehouse/T-048",
+    "05-warehouse/T-049",
+    "05-warehouse/T-050",
+    "05-warehouse/T-051",
+    "05-warehouse/T-052",
+    "05-warehouse/T-053",
+    "05-warehouse/T-054",
+    "05-warehouse/T-055",
+    "05-warehouse/T-056"
+   ]
+  },
+  {
+   "task_id": "T-004",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "00-foundation/T-125",
+    "01-npd/T-001",
+    "11-shipping/T-001",
+    "11-shipping/T-002",
+    "11-shipping/T-005",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-017",
+   "module": "11-shipping",
+   "task_type": "T3-ui",
+   "writer": "impl-ui",
+   "risk_tier": "high",
+   "reviewer": "codex-review (parity)",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G2-parity",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-123",
+    "11-shipping/T-015",
+    "11-shipping/T-016",
+    "11-shipping/T-031"
+   ]
+  },
+  {
+   "task_id": "T-019",
+   "module": "11-shipping",
+   "task_type": "T2-api",
+   "writer": "impl-logic",
+   "risk_tier": "high",
+   "reviewer": "opus:kira-codex-review",
+   "gates": [
+    "G1-test",
+    "G3-deps",
+    "G4-xprovider"
+   ],
+   "status": "pending",
+   "deps": [
+    "00-foundation/T-111",
+    "00-foundation/T-125",
+    "11-shipping/T-018",
+    "11-shipping/T-031"
+   ]
+  }
+ ]
+}
