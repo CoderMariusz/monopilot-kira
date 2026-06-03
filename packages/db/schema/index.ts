@@ -77,6 +77,25 @@ export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
 export { bomHeaders, bomLines } from './shared-bom.js';
 export type { BomHeader, BomLine, NewBomHeader, NewBomLine } from './shared-bom.js';
 export {
+  formulationAuditLog,
+  formulationCalcCache,
+  formulationIngredients,
+  formulations,
+  formulationVersions,
+} from './formulations.js';
+export type {
+  Formulation,
+  FormulationAuditLog,
+  FormulationCalcCache,
+  FormulationIngredient,
+  FormulationVersion,
+  NewFormulation,
+  NewFormulationAuditLog,
+  NewFormulationCalcCache,
+  NewFormulationIngredient,
+  NewFormulationVersion,
+} from './formulations.js';
+export {
   nutriScoreResults,
   nutritionAllergens,
   nutritionProfiles,
