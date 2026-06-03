@@ -70,6 +70,8 @@ export type {
   NewCostingBreakdown,
   NewCostingWaterfallStep,
 } from './costing.js';
+export { risks } from './risks.js';
+export type { NewRisk, Risk } from './risks.js';
 export {
   nutriScoreResults,
   nutritionAllergens,
