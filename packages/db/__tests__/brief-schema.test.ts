@@ -169,17 +169,10 @@ async function seedTrustedOrgContext(adminPool: pg.Pool, sessionToken: string, o
   );
 }
 
-async function createProjectAndBrief(adminPool: pg.Pool, orgId: string, userId: string, code: string) {
+async function createBrief(adminPool: pg.Pool, orgId: string, userId: string, code: string) {
   const projectId = randomUUID();
   const briefId = randomUUID();
 
-  await adminPool.query(
-    `
-      insert into public.npd_projects (id, org_id, code, name, type, created_by_user)
-      values ($1::uuid, $2::uuid, $3, $4, 'Recipe - Standard', $5::uuid)
-    `,
-    [projectId, orgId, code, `${code} project`, userId],
-  );
   await adminPool.query(
     `
       insert into public.brief (brief_id, org_id, npd_project_id, template, dev_code, status, product_name, volume, created_by_user)
@@ -227,13 +220,13 @@ runIntegrationTest('081 brief and brief_lines schema', () => {
     await adminPool?.end();
   });
 
-  it('creates brief, brief_lines, and the minimum npd_projects spine with forced RLS and no tenant_id leakage', async () => {
+  it('creates brief and brief_lines with forced RLS and no tenant_id leakage', async () => {
     const columns = await adminPool.query<{ table_name: string; column_name: string; is_nullable: 'YES' | 'NO' }>(
       `
         select table_name, column_name, is_nullable
         from information_schema.columns
         where table_schema = 'public'
-          and table_name in ('npd_projects', 'brief', 'brief_lines')
+          and table_name in ('brief', 'brief_lines')
       `,
     );
     const seen = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
@@ -245,17 +238,12 @@ runIntegrationTest('081 brief and brief_lines schema', () => {
       expect(seen.has(`brief_lines.${column}`), `brief_lines is missing ${column}`).toBe(true);
     }
 
-    expect(seen.has('npd_projects.id')).toBe(true);
-    expect(seen.has('npd_projects.org_id')).toBe(true);
-    expect(seen.has('npd_projects.code')).toBe(true);
     expect(seen.has('brief.tenant_id')).toBe(false);
     expect(seen.has('brief_lines.tenant_id')).toBe(false);
-    expect(seen.has('npd_projects.tenant_id')).toBe(false);
     expect(seen.has('brief.product_code')).toBe(false);
-    expect(seen.has('npd_projects.product_code')).toBe(false);
-    expect(columns.rows.find((row) => row.table_name === 'brief' && row.column_name === 'npd_project_id')?.is_nullable).toBe('NO');
+    expect(columns.rows.find((row) => row.table_name === 'brief' && row.column_name === 'npd_project_id')?.is_nullable).toBe('YES');
 
-    for (const table of ['npd_projects', 'brief', 'brief_lines']) {
+    for (const table of ['brief', 'brief_lines']) {
       const rls = await adminPool.query<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>(
         `
           select relrowsecurity, relforcerowsecurity
@@ -296,7 +284,7 @@ runIntegrationTest('081 brief and brief_lines schema', () => {
     );
     expect(fk.rows).toContainEqual({ confdeltype: 'c' });
 
-    const { briefId } = await createProjectAndBrief(adminPool, orgA, orgAUser, `DEV30-${randomUUID().slice(0, 8)}`);
+    const { briefId } = await createBrief(adminPool, orgA, orgAUser, `DEV30-${randomUUID().slice(0, 8)}`);
     await adminPool.query(
       `
         insert into public.brief_lines (
@@ -322,8 +310,8 @@ runIntegrationTest('081 brief and brief_lines schema', () => {
   it('isolates brief rows by org through app.set_org_context', async () => {
     const orgACode = `DEV30-A-${randomUUID().slice(0, 8)}`;
     const orgBCode = `DEV30-B-${randomUUID().slice(0, 8)}`;
-    await createProjectAndBrief(adminPool, orgA, orgAUser, orgACode);
-    await createProjectAndBrief(adminPool, orgB, orgBUser, orgBCode);
+    await createBrief(adminPool, orgA, orgAUser, orgACode);
+    await createBrief(adminPool, orgB, orgBUser, orgBCode);
 
     await expect(selectBriefsForOrg(appPool, adminPool, orgA)).resolves.toContainEqual({
       dev_code: orgACode,
@@ -339,20 +327,4 @@ runIntegrationTest('081 brief and brief_lines schema', () => {
     });
   });
 
-  it('links each brief to exactly one canonical npd_project without requiring product or D365 state', async () => {
-    const devCode = `DEV30-SPINE-${randomUUID().slice(0, 8)}`;
-    const { briefId, projectId } = await createProjectAndBrief(adminPool, orgA, orgAUser, devCode);
-
-    const joined = await adminPool.query<{ brief_id: string; project_id: string; code: string }>(
-      `
-        select b.brief_id, p.id as project_id, p.code
-        from public.brief b
-        join public.npd_projects p on p.id = b.npd_project_id
-        where b.brief_id = $1::uuid
-      `,
-      [briefId],
-    );
-
-    expect(joined.rows).toEqual([{ brief_id: briefId, project_id: projectId, code: devCode }]);
-  });
 });

@@ -18,7 +18,6 @@ const lookupTables = [
   { name: 'Lines_By_PackSize', pk: ['org_id', 'line'] },
   { name: 'Equipment_Setup_By_Line_Pack', pk: ['org_id', 'line', 'pack_size'] },
   { name: 'CloseConfirm', pk: ['org_id', 'value'] },
-  { name: 'AlertThresholds', pk: ['org_id', 'level'] },
 ] as const;
 
 async function seedOrg(pool: pg.Pool, orgId: string, name: string) {
@@ -108,7 +107,7 @@ runIntegrationTest('Reference lookup tables', () => {
     await ownerPool?.end();
   });
 
-  it('creates all six Reference lookup tables with org-scoped primary keys and forced RLS', async () => {
+  it('creates all five Reference lookup tables with org-scoped primary keys and forced RLS', async () => {
     for (const { name, pk } of lookupTables) {
       const table = await ownerPool.query<{ table_name: string }>(
         `
@@ -197,33 +196,4 @@ runIntegrationTest('Reference lookup tables', () => {
     expect(rows).toEqual([{ line: 'L1', supported_pack_sizes: ['250g', '500g'] }]);
   });
 
-  it('seeds AlertThresholds RED=10 and YELLOW=21 for existing orgs and scopes reads by app.current_org_id', async () => {
-    const orgAThresholds = await withOrgContext(appPool, ownerPool, orgA, async (client) => {
-      const result = await client.query<{ level: string; threshold_days: number }>(
-        `
-          select level, threshold_days
-          from "Reference"."AlertThresholds"
-          where level in ('RED', 'YELLOW')
-          order by level
-        `,
-      );
-      return result.rows;
-    });
-    const orgBRed = await withOrgContext(appPool, ownerPool, orgB, async (client) => {
-      const result = await client.query<{ threshold_days: number }>(
-        `
-          select threshold_days
-          from "Reference"."AlertThresholds"
-          where level = 'RED'
-        `,
-      );
-      return result.rows;
-    });
-
-    expect(orgAThresholds).toEqual([
-      { level: 'RED', threshold_days: 10 },
-      { level: 'YELLOW', threshold_days: 21 },
-    ]);
-    expect(orgBRed).toEqual([{ threshold_days: 10 }]);
-  });
 });
