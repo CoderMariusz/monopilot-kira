@@ -34,10 +34,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "plan",
+      "reviewer": "codex-review"
     },
     "prd_refs": [
       "coverage.md",
@@ -74,6 +72,7 @@
       "Do not add ACP-owned fields to task JSON."
     ],
     "prd_task_id": "T-057",
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution.",
+    "risk_tier": "low"
   }
 }

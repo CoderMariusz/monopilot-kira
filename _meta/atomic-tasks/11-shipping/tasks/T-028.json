@@ -48,9 +48,7 @@
     ],
     "dependencies": [
       "T-027",
-      "T-031",
-      "00-foundation/T-125",
-      "02-settings (tenant L2 config infra)"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-026",
@@ -60,7 +58,9 @@
     "cross_module_dependencies": [
       "02-settings/T-007 (tenant L2 config infrastructure)",
       "00-foundation/T-123 (Playwright)",
-      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "00-foundation/T-125",
+      "02-settings (tenant L2 config infra)"
     ],
     "acceptance_criteria": [
       "Given the page renders, when compared to prototypes/design/Monopilot Design System/shipping/doc-screens.jsx:536-648, then 4-tab layout + per-tab field sets match prototype (structural + visual parity checklist per UI-PROTOTYPE-PARITY-POLICY).",
@@ -113,13 +113,12 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "shipping_settings_page",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "high"
   }
 }

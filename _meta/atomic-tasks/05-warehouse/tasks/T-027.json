@@ -74,10 +74,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
@@ -108,6 +106,7 @@
         "module": "11-shipping",
         "contract": "downstream shelf_life_rules enforcement in Phase 2"
       }
-    ]
+    ],
+    "risk_tier": "low"
   }
 }

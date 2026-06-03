@@ -82,13 +82,12 @@
       ]
     },
     "routing_hints": {
-      "red": "n/a",
-      "implementation": "n/a",
-      "review": "n/a",
-      "close": "n/a"
+      "writer": "plan",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "npd_dashboard",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "low"
   }
 }

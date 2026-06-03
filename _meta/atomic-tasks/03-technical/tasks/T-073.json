@@ -37,10 +37,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prd_task_id": "T-073",
     "prd_refs": [
@@ -92,6 +90,7 @@
       "T-072"
     ],
     "description": "Shared BOM SSOT backend contract with released edit clone-on-write and Technical approval guards.",
-    "out_of_scope": []
+    "out_of_scope": [],
+    "risk_tier": "low"
   }
 }

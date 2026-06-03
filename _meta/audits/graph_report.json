@@ -1,0 +1,10 @@
+{
+ "nodes": 1041,
+ "edges": 2307,
+ "xmod_edges": 276,
+ "roots": 169,
+ "isolated": 84,
+ "cycles": [],
+ "dangling": [],
+ "prose_only_count": 239
+}

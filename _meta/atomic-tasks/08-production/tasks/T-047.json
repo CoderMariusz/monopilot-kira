@@ -118,10 +118,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "consumption_tab,output_tab,genealogy_tab,history_tab,scanner_modal",
@@ -142,6 +140,7 @@
         "task_id": "external-quality-contract",
         "reason": "QA hold badge on output_tab links to Quality module."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

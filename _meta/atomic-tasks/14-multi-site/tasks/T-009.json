@@ -1,6 +1,6 @@
 {
-  "title": "T-009 \u2014 to_state_machine_v1 IN_TRANSIT state extension + V-MS-09/12 guards (\u00a78.2, \u00a711.3)",
-  "prompt": "# T-009 \u2014 to_state_machine_v1 IN_TRANSIT extension + V-MS-09/12 guards\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a78.2 to_state_machine_v1 extension, \u00a711.3 V-MS-09 (cross-site requires IN_TRANSIT), V-MS-12 (same-site skip IN_TRANSIT)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nExtend the existing `to_state_machine_v1` rule (owned by 05-WH; rule body in rule_definitions per 02-SET \u00a77.8) to include an `IN_TRANSIT` state. Cross-site TOs (from_site_id != to_site_id) MUST transition via IN_TRANSIT; same-site TOs MUST NOT (V-MS-12 \u2014 keep direct shipped\u2192received path).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0047_to_state_machine_in_transit.sql`:\n   - UPDATE rule_definitions SET body = jsonb_set(...) WHERE name='to_state_machine_v1' \u2014 add IN_TRANSIT state node + transitions {draft\u2192planned\u2192shipped\u2192IN_TRANSIT\u2192received\u2192closed} for cross-site, {draft\u2192planned\u2192shipped\u2192received\u2192closed} for same-site.\n   - Version bump to v2; previous v1 retained for replay safety.\n2. New file `packages/domain/src/transfer-orders/state-machine.ts` exports `nextAllowedStates(currentState, isCrossSite)` and `canTransition(from, to, isCrossSite)` reading the rule body.\n3. Guard middleware `packages/domain/src/transfer-orders/transition-guard.ts` \u2014 Server Action wrapper that rejects illegal transitions with typed `InvalidStateTransition` error including reason.\n4. Tests: matrix of all transitions for both cross-site and same-site paths; V-MS-09 violation (cross-site shipped \u2192 received directly) rejected; V-MS-12 violation (same-site shipped \u2192 IN_TRANSIT) rejected.\n\n## Files\n- packages/db/migrations/0047_to_state_machine_in_transit.sql [create]\n- packages/domain/src/transfer-orders/state-machine.ts [create]\n- packages/domain/src/transfer-orders/transition-guard.ts [create]\n- packages/domain/__tests__/transfer-orders/state-machine.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given rule v2 is applied, when state-machine.ts is loaded, then nextAllowedStates('shipped', isCrossSite=true) === ['IN_TRANSIT'] and nextAllowedStates('shipped', isCrossSite=false) === ['received'].\n2. Given a cross-site TO in state='shipped', when transition-guard receives action 'received', then InvalidStateTransition is thrown with reason 'V-MS-09: cross-site TO must pass through IN_TRANSIT'.\n3. Given a same-site TO in state='shipped', when transition-guard receives action 'IN_TRANSIT', then InvalidStateTransition is thrown with reason 'V-MS-12: same-site TO must skip IN_TRANSIT'.\n4. Given the rule body is queried, when version is inspected, then v2 exists and v1 is retained (for replay) \u2014 v2 has IN_TRANSIT node, v1 does not.\n5. Given a cross-site TO in state='IN_TRANSIT', when transition-guard receives 'received', then transition is allowed and returns next_state='received'.\n\n## Test strategy\n- RED: assert all 6 state machine transitions in matrix form (cross-site and same-site) before state-machine.ts exists.\n- Run 'pnpm --filter @monopilot/domain test transfer-orders/state-machine'.\n\n## Risk red lines\n- Do not destroy v1 of the rule \u2014 append v2; replay/audit of historical TOs needs v1.\n- Do not encode transitions in TypeScript constants \u2014 read from rule_definitions so DSL stays canonical (02-SET \u00a77.8 source of truth).\n- Do not allow IN_TRANSIT for same-site TOs \u2014 V-MS-12 explicit guard.\n- Do not skip approval gate enforcement at this layer \u2014 T-010 owns approval gates; this task only owns state transitions.\n- Do not couple state machine to a specific TO database adapter \u2014 pure domain function.",
+  "title": "T-009 — to_state_machine_v1 IN_TRANSIT state extension + V-MS-09/12 guards (§8.2, §11.3)",
+  "prompt": "# T-009 — to_state_machine_v1 IN_TRANSIT extension + V-MS-09/12 guards\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §8.2 to_state_machine_v1 extension, §11.3 V-MS-09 (cross-site requires IN_TRANSIT), V-MS-12 (same-site skip IN_TRANSIT)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nExtend the existing `to_state_machine_v1` rule (owned by 05-WH; rule body in rule_definitions per 02-SET §7.8) to include an `IN_TRANSIT` state. Cross-site TOs (from_site_id != to_site_id) MUST transition via IN_TRANSIT; same-site TOs MUST NOT (V-MS-12 — keep direct shipped→received path).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0047_to_state_machine_in_transit.sql`:\n   - UPDATE rule_definitions SET body = jsonb_set(...) WHERE name='to_state_machine_v1' — add IN_TRANSIT state node + transitions {draft→planned→shipped→IN_TRANSIT→received→closed} for cross-site, {draft→planned→shipped→received→closed} for same-site.\n   - Version bump to v2; previous v1 retained for replay safety.\n2. New file `packages/domain/src/transfer-orders/state-machine.ts` exports `nextAllowedStates(currentState, isCrossSite)` and `canTransition(from, to, isCrossSite)` reading the rule body.\n3. Guard middleware `packages/domain/src/transfer-orders/transition-guard.ts` — Server Action wrapper that rejects illegal transitions with typed `InvalidStateTransition` error including reason.\n4. Tests: matrix of all transitions for both cross-site and same-site paths; V-MS-09 violation (cross-site shipped → received directly) rejected; V-MS-12 violation (same-site shipped → IN_TRANSIT) rejected.\n\n## Files\n- packages/db/migrations/0047_to_state_machine_in_transit.sql [create]\n- packages/domain/src/transfer-orders/state-machine.ts [create]\n- packages/domain/src/transfer-orders/transition-guard.ts [create]\n- packages/domain/__tests__/transfer-orders/state-machine.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given rule v2 is applied, when state-machine.ts is loaded, then nextAllowedStates('shipped', isCrossSite=true) === ['IN_TRANSIT'] and nextAllowedStates('shipped', isCrossSite=false) === ['received'].\n2. Given a cross-site TO in state='shipped', when transition-guard receives action 'received', then InvalidStateTransition is thrown with reason 'V-MS-09: cross-site TO must pass through IN_TRANSIT'.\n3. Given a same-site TO in state='shipped', when transition-guard receives action 'IN_TRANSIT', then InvalidStateTransition is thrown with reason 'V-MS-12: same-site TO must skip IN_TRANSIT'.\n4. Given the rule body is queried, when version is inspected, then v2 exists and v1 is retained (for replay) — v2 has IN_TRANSIT node, v1 does not.\n5. Given a cross-site TO in state='IN_TRANSIT', when transition-guard receives 'received', then transition is allowed and returns next_state='received'.\n\n## Test strategy\n- RED: assert all 6 state machine transitions in matrix form (cross-site and same-site) before state-machine.ts exists.\n- Run 'pnpm --filter @monopilot/domain test transfer-orders/state-machine'.\n\n## Risk red lines\n- Do not destroy v1 of the rule — append v2; replay/audit of historical TOs needs v1.\n- Do not encode transitions in TypeScript constants — read from rule_definitions so DSL stays canonical (02-SET §7.8 source of truth).\n- Do not allow IN_TRANSIT for same-site TOs — V-MS-12 explicit guard.\n- Do not skip approval gate enforcement at this layer — T-010 owns approval gates; this task only owns state transitions.\n- Do not couple state machine to a specific TO database adapter — pure domain function.",
   "labels": [
     "prd",
     "domain",
@@ -15,9 +15,9 @@
     "prd_task_id": "T-009",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a78.2",
-      "\u00a711.3 V-MS-09",
-      "\u00a711.3 V-MS-12"
+      "§8.2",
+      "§11.3 V-MS-09",
+      "§11.3 V-MS-12"
     ],
     "category": "domain",
     "subcategory": "state-machine",
@@ -25,8 +25,8 @@
     "parent_feature": "14-MULTI-SITE-b inter-site TO",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Extend the to_state_machine_v1 DSL rule with IN_TRANSIT state for cross-site TOs (from_site_id != to_site_id); same-site TOs skip IN_TRANSIT directly shipped\u2192received (V-MS-12 backward compat).",
-    "details": "Extend the to_state_machine_v1 DSL rule with IN_TRANSIT state for cross-site TOs (from_site_id != to_site_id); same-site TOs skip IN_TRANSIT directly shipped\u2192received (V-MS-12 backward compat). Scope: Extend the existing `to_state_machine_v1` rule (owned by 05-WH; rule body in rule_definitions per 02-SET \u00a77. Touches: packages/db/migrations/0047_to_state_machine_in_transit.sql, packages/domain/src/transfer-orders/state-machine.ts, packages/domain/src/transfer-orders/transition-guard.ts, packages/domain/__tests__/transfer-orders/state-machine.test.ts. Constraints: 1. Migration `packages/db/migrations/0047_to_state_machine_in_transit.sql`: - UPDATE rule_definitions SET body = jsonb_set(...) WHERE name='to_state_machine_v1' \u2014 add IN_TRANSIT state node + transitions {draft\u2192planned\u2192shipped\u2192IN_TRANSIT\u2192received\u2192closed} for cross-site, {draft\u2192planned\u2192shipped\u2192received\u2192closed} for same-site. - Version bump to v2; pre. Distinguished from sibling 14-multi-site tasks by its narrow state-machine focus against PRD \u00a78.2, \u00a711.3 V-MS-09, \u00a711.3 V-MS-12. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Extend the to_state_machine_v1 DSL rule with IN_TRANSIT state for cross-site TOs (from_site_id != to_site_id); same-site TOs skip IN_TRANSIT directly shipped→received (V-MS-12 backward compat).",
+    "details": "Extend the to_state_machine_v1 DSL rule with IN_TRANSIT state for cross-site TOs (from_site_id != to_site_id); same-site TOs skip IN_TRANSIT directly shipped→received (V-MS-12 backward compat). Scope: Extend the existing `to_state_machine_v1` rule (owned by 05-WH; rule body in rule_definitions per 02-SET §7. Touches: packages/db/migrations/0047_to_state_machine_in_transit.sql, packages/domain/src/transfer-orders/state-machine.ts, packages/domain/src/transfer-orders/transition-guard.ts, packages/domain/__tests__/transfer-orders/state-machine.test.ts. Constraints: 1. Migration `packages/db/migrations/0047_to_state_machine_in_transit.sql`: - UPDATE rule_definitions SET body = jsonb_set(...) WHERE name='to_state_machine_v1' — add IN_TRANSIT state node + transitions {draft→planned→shipped→IN_TRANSIT→received→closed} for cross-site, {draft→planned→shipped→received→closed} for same-site. - Version bump to v2; pre. Distinguished from sibling 14-multi-site tasks by its narrow state-machine focus against PRD §8.2, §11.3 V-MS-09, §11.3 V-MS-12. AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/db/migrations/0047_to_state_machine_in_transit.sql [create]",
       "packages/domain/src/transfer-orders/state-machine.ts [create]",
@@ -51,8 +51,8 @@
       },
       {
         "module": "02-settings",
-        "task_id": "\u00a77.8 rules registry",
-        "reason": "rule_definitions table per 02-SET \u00a77.8."
+        "task_id": "§7.8 rules registry",
+        "reason": "rule_definitions table per 02-SET §7.8."
       },
       {
         "module": "00-foundation",
@@ -74,11 +74,11 @@
       "Run 'pnpm --filter @monopilot/domain test transfer-orders/state-machine'."
     ],
     "risk_red_lines": [
-      "Do not destroy v1 \u2014 append v2; replay needs v1.",
-      "Do not hardcode transitions in TS \u2014 read rule_definitions (02-SET \u00a77.8 canonical).",
+      "Do not destroy v1 — append v2; replay needs v1.",
+      "Do not hardcode transitions in TS — read rule_definitions (02-SET §7.8 canonical).",
       "Do not allow IN_TRANSIT for same-site (V-MS-12).",
       "Do not enforce approval gates here (T-010 owns).",
-      "Do not couple to DB adapter \u2014 pure domain function."
+      "Do not couple to DB adapter — pure domain function."
     ],
     "skills": [
       "test-driven-development",
@@ -100,11 +100,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

@@ -46,9 +46,7 @@
     "dependencies": [
       "T-018",
       "T-020",
-      "T-031",
-      "00-foundation/T-125",
-      "00-foundation/T-124"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-022"
@@ -56,7 +54,9 @@
     "cross_module_dependencies": [
       "01-npd/T-001 (product.allergens for EU 1169/2011)",
       "02-settings (Supabase Storage bucket config)",
-      "00-foundation/T-124 (@monopilot/e-sign for P2 PIN)"
+      "00-foundation/T-124 (@monopilot/e-sign for P2 PIN)",
+      "00-foundation/T-125",
+      "00-foundation/T-124"
     ],
     "acceptance_criteria": [
       "Given generatePackingSlip for allergenic shipment, when PDF rendered, then each allergen appears bold per EU 1169/2011 + packing slip rows match SO lines.",
@@ -98,11 +98,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

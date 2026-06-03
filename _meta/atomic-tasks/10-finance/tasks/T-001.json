@@ -82,10 +82,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": false,
     "cross_module_dependencies": [
@@ -99,6 +97,7 @@
         "task_id": "T-002",
         "reason": "02-settings T-002 co-owns the permissions.enum extension surface (SETTINGS_DATA group); finance enum strings layer on top of the same file."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

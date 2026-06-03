@@ -48,9 +48,7 @@
     "dependencies": [
       "T-015",
       "T-013",
-      "T-031",
-      "00-foundation/T-125",
-      "00-foundation/T-112"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-020"
@@ -60,7 +58,9 @@
       "06-scanner-p1 (scan_event_id session contract)",
       "09-quality/T-010 (v_active_holds via T-013)",
       "00-foundation/T-124 (e-sign optional P1)",
-      "09-quality/T-064 (consume gate — executePick calls holdsGuard before LP pick; V-SHIP-PICK-03 hard block per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — executePick calls holdsGuard before LP pick; V-SHIP-PICK-03 hard block per 2026-05-14 audit)",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
     ],
     "acceptance_criteria": [
       "Given releaseWave for a wave with 3 SOs, when it runs, then pick_lists + pick_list_lines are created with pick_sequence sorted by route; AND given executePick without scan_event_id, when validator runs, then throws ManualLpEntryRejectedError (V-SHIP-PICK-01).",
@@ -102,11 +102,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

@@ -41,8 +41,7 @@
       "T-054",
       "T-063",
       "T-080",
-      "T-083",
-      "00-foundation/T-113"
+      "T-083"
     ],
     "parallel_safe_with": [
       "T-090",
@@ -84,17 +83,17 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
         "module": "00-foundation",
         "task_id": "T-113",
         "reason": "Registers `npd` domain handler with the centralized `@monopilot/gdpr` registry per `_foundation/contracts/gdpr.md`. Without this wire-up the foundation `runErasure(orgId, subjectId)` dispatch path skips NPD tables."
-      }
-    ]
+      },
+      "00-foundation/T-113"
+    ],
+    "risk_tier": "high"
   }
 }

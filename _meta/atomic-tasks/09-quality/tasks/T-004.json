@@ -1,7 +1,12 @@
 {
   "title": "T-004 — quality_holds + quality_hold_items schema + RLS (09-a-01)",
   "prompt": "# T-004 — quality_holds + quality_hold_items schema + RLS\n\nPRD: docs/prd/09-QUALITY-PRD.md §6.3 quality_holds DDL, §6.3 quality_hold_items, §9.1 RLS, §13.1 RBAC\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate the quality_holds and quality_hold_items physical tables with sequences, retention generated columns, RLS policies, and Drizzle schema entries. Foundation for entire 09-a hold/release sub-module.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0100_quality_holds.sql` per §6.3 verbatim DDL: quality_hold_seq SEQUENCE START 1000, quality_holds with hold_number GENERATED, retention_until GENERATED, all CHECK constraints, idx_holds_active and idx_holds_ref indexes; quality_hold_items with UNIQUE(hold_id, license_plate_id).\n2. ENABLE+FORCE ROW LEVEL SECURITY + policy `quality_holds_org_context` USING/WITH CHECK (`org_id = app.current_org_id()`) per §9.1 — the foundation function from `packages/db/migrations/002-rls-baseline.sql`; never `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC.\n3. Drizzle ORM schema files `packages/db/src/schema/qualityHolds.ts` + `qualityHoldItems.ts` with typed Insert/Select; export from schema index.\n\n## Files\n- packages/db/migrations/0100_quality_holds.sql [create]\n- packages/db/src/schema/qualityHolds.ts [create]\n- packages/db/src/schema/qualityHoldItems.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/quality-holds-schema.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0100 applied, when \\d quality_holds is run, then all columns from §6.3 exist (hold_number, hold_seq, reference_type CHECK, priority CHECK, hold_status CHECK, retention_until GENERATED), org_id is NOT NULL, and RLS+FORCE ROW LEVEL SECURITY are enabled\n2. Given two orgs A and B and the connection as `app_user` has called `app.set_org_context(session_token, org_A)`, when each inserts a quality_holds row and SELECTs under its own org session, then each sees only its own row (org isolation enforced via `app.current_org_id()`)\n3. Given a quality_holds row with id X, when 2 quality_hold_items are inserted with the same (hold_id=X, license_plate_id=L), then the second insert fails with UNIQUE violation\n4. Given pg_policies is inspected, when the quality_holds and quality_hold_items policies are listed, then qual/withcheck reference `app.current_org_id()` and contain no `current_setting('app.tenant_id'|'app.current_org_id')` GUC",
-  "labels": ["prd", "data", "schema-holds", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "schema-holds",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-004",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§6.3", "§9.1", "§13.1"],
+    "prd_refs": [
+      "§6.3",
+      "§9.1",
+      "§13.1"
+    ],
     "category": "data",
     "subcategory": "schema-holds",
     "task_type": "T1-schema",
@@ -31,7 +40,10 @@
       "Do not build CRUD API (T-006) or release flow (T-007)"
     ],
     "dependencies": [],
-    "parallel_safe_with": ["T-005", "T-014"],
+    "parallel_safe_with": [
+      "T-005",
+      "T-014"
+    ],
     "acceptance_criteria": [
       "Given migration 0100 applied, when \\d quality_holds runs, then all §6.3 columns exist (hold_number, hold_seq, reference_type CHECK, priority CHECK, hold_status CHECK, retention_until GENERATED), org_id NOT NULL, and RLS+FORCE ROW LEVEL SECURITY enabled",
       "Given two orgs A and B and app.set_org_context called per org as app_user, when each inserts a row and SELECTs under its own org session, then each sees only its own row (RLS via app.current_org_id())",
@@ -49,16 +61,29 @@
       "Do not change column names from §6.3 verbatim DDL (downstream consumers depend on names)",
       "Do not forget retention_until GENERATED column (BRCGS 7y)"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    }
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "risk_tier": "high"
   }
 }

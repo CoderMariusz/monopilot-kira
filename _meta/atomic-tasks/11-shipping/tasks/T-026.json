@@ -53,8 +53,7 @@
     ],
     "dependencies": [
       "T-006",
-      "T-031",
-      "00-foundation/T-125"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-027",
@@ -65,7 +64,8 @@
       "09-quality (create_hold action)",
       "02-settings (reason_codes ref table)",
       "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
-      "09-quality/T-064 (consume gate — processRMA disposition='quality_hold' consumes holdsGuard; per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — processRMA disposition='quality_hold' consumes holdsGuard; per 2026-05-14 audit)",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given migration runs, when DB inspected, then rma_requests + rma_lines exist with org_id NOT NULL + R13 + RLS + FORCE RLS; AND given createRMA succeeds, then rma_requests + rma_lines rows exist and outbox shipping.rma.created emitted.",
@@ -119,13 +119,12 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": true,
     "prototype_index_entry": "rma_list_page",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "low"
   }
 }

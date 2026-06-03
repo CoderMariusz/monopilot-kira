@@ -1,6 +1,6 @@
 {
-  "title": "T-031 \u2014 Add multi_site permission strings to enum (\u00a710A.5, \u00a710B RBAC tables, \u00a711.5)",
-  "prompt": "# T-031 \u2014 Add multi_site permission strings to enum\n\n## Goal\nAppend a delimited `MULTI-SITE` permission group to `packages/rbac/src/permissions.enum.ts` covering the 26 canonical RBAC strings declared by `docs/prd/14-MULTI-SITE-PRD.md` (\u00a710A.5 lane/rate-card RBAC, \u00a710B MS-101..110 admin/operational surfaces, \u00a711.5 activation, \u00a714.2 super-admin audit). Settings/Auth owns the enum file; this task only contributes a new namespaced section under `multi_site.*` prefix. Export `ALL_MULTI_SITE_PERMISSIONS` so the canonical permissions.enum owner (02-settings T-001) and the ESLint enum-lock guard (02-settings T-130) recognize the module group. Closes audit `_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md` MS-008 slice.\n\n## Implementation contract\n- File: `packages/rbac/src/permissions.enum.ts` \u2014 append entries to `Permission` const object with JSDoc citing PRD anchor. Do NOT remove or rename any existing string.\n- File: `packages/rbac/src/__tests__/permissions.test.ts` \u2014 extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_MULTI_SITE_PERMISSIONS` typed `readonly Permission[]` with length === 26.\n- File: `CODEOWNERS` \u2014 verify `/packages/rbac/src/permissions.enum.ts @monopilot/architect` line exists.\n\n## Permission strings (26)\n- `multi_site.site.view` \u2014 \u00a710B MS-101..104, \u00a710C MS-114\n- `multi_site.site.create` \u2014 \u00a710B MS-101, \u00a713.5 activation\n- `multi_site.site.edit` \u2014 \u00a710C MS-114, \u00a710C MS-115\n- `multi_site.site.decommission` \u2014 \u00a710B MS-104, V-MS-21\n- `multi_site.site_access.assign` \u2014 \u00a710B MS-101\n- `multi_site.site_access.revoke` \u2014 \u00a710B MS-101\n- `multi_site.site_access.bulk_assign` \u2014 \u00a710B MS-101\n- `multi_site.site_settings.override` \u2014 \u00a710B MS-102\n- `multi_site.site_settings.clear` \u2014 \u00a710B MS-102\n- `multi_site.ist.create` \u2014 \u00a710A.5 / 05-WH cross-ref\n- `multi_site.ist.amend` \u2014 \u00a710B MS-107, V-MS-23\n- `multi_site.ist.cancel` \u2014 \u00a710B MS-107\n- `multi_site.ist.approve` \u2014 \u00a711.3 V-MS-10/11\n- `multi_site.lane.create` \u2014 \u00a710A.5\n- `multi_site.lane.edit` \u2014 \u00a710A.5\n- `multi_site.lane.deactivate` \u2014 \u00a710A.5, V-MS-29\n- `multi_site.rate_card.upload` \u2014 \u00a710A.5\n- `multi_site.rate_card.approve` \u2014 \u00a710A.3.3 / \u00a710A.5\n- `multi_site.rate_card.delete` \u2014 \u00a710A.5\n- `multi_site.replication.retry` \u2014 \u00a710B MS-106, V-MS-22\n- `multi_site.replication.run_sync` \u2014 \u00a710B MS-106\n- `multi_site.conflict.resolve` \u2014 \u00a710B MS-103, V-MS-30\n- `multi_site.activation.start` \u2014 \u00a713.5 D-MS-14, V-MS-18\n- `multi_site.activation.rollback` \u2014 \u00a710B MS-108, V-MS-20\n- `multi_site.config.promote` \u2014 \u00a710B MS-105, D-MS-17\n- `multi_site.cross_site.read` \u2014 \u00a714.2 super-admin audit\n\n## Files in scope\n- `packages/rbac/src/permissions.enum.ts` [modify]\n- `packages/rbac/src/__tests__/permissions.test.ts` [modify]\n- `CODEOWNERS` [modify if missing entry]\n\n## Acceptance criteria\n<!-- AC count consolidated from 4\u21924 by Fixer F14a 2026-05-14 (no coverage lost) --> (Given-When-Then)\n- AC1 \u2014 Given the enum file is imported, when the consumer reads the new keys, then all 26 strings listed above are present exactly once.\n- AC2 \u2014 Given each new permission string is matched against regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, when tested, then every string passes and zero duplicates exist across `Object.values(Permission)`.\n- AC3 \u2014 Given the module export, when imported, then `ALL_MULTI_SITE_PERMISSIONS` is exported typed `readonly Permission[]` with length === 26.\n- AC4 \u2014 Given `CODEOWNERS` is read, when checked, then `packages/rbac/src/permissions.enum.ts` is architect-only (`@monopilot/architect`).\n\n## Test strategy (RED first, vitest)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with the four ACs. Run RED:\n   `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`\n   \u2014 must fail before any enum change.\n2. Implement minimum changes in `permissions.enum.ts`.\n3. Re-run vitest \u2014 must pass.\n4. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not weaken the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` or introduce a 4-segment / matrix permission model.\n- Do not introduce a parallel permission model (no per-module `*PermissionEnum` in another file).\n- Do not remove or rename existing strings (Settings/Foundation/01-NPD/03-Technical et al. strings stay intact).\n- Do not edit permission strings owned by other modules.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact RED\u2192GREEN test commands and outputs\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "title": "T-031 — Add multi_site permission strings to enum (§10A.5, §10B RBAC tables, §11.5)",
+  "prompt": "# T-031 — Add multi_site permission strings to enum\n\n## Goal\nAppend a delimited `MULTI-SITE` permission group to `packages/rbac/src/permissions.enum.ts` covering the 26 canonical RBAC strings declared by `docs/prd/14-MULTI-SITE-PRD.md` (§10A.5 lane/rate-card RBAC, §10B MS-101..110 admin/operational surfaces, §11.5 activation, §14.2 super-admin audit). Settings/Auth owns the enum file; this task only contributes a new namespaced section under `multi_site.*` prefix. Export `ALL_MULTI_SITE_PERMISSIONS` so the canonical permissions.enum owner (02-settings T-001) and the ESLint enum-lock guard (02-settings T-130) recognize the module group. Closes audit `_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md` MS-008 slice.\n\n## Implementation contract\n- File: `packages/rbac/src/permissions.enum.ts` — append entries to `Permission` const object with JSDoc citing PRD anchor. Do NOT remove or rename any existing string.\n- File: `packages/rbac/src/__tests__/permissions.test.ts` — extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_MULTI_SITE_PERMISSIONS` typed `readonly Permission[]` with length === 26.\n- File: `CODEOWNERS` — verify `/packages/rbac/src/permissions.enum.ts @monopilot/architect` line exists.\n\n## Permission strings (26)\n- `multi_site.site.view` — §10B MS-101..104, §10C MS-114\n- `multi_site.site.create` — §10B MS-101, §13.5 activation\n- `multi_site.site.edit` — §10C MS-114, §10C MS-115\n- `multi_site.site.decommission` — §10B MS-104, V-MS-21\n- `multi_site.site_access.assign` — §10B MS-101\n- `multi_site.site_access.revoke` — §10B MS-101\n- `multi_site.site_access.bulk_assign` — §10B MS-101\n- `multi_site.site_settings.override` — §10B MS-102\n- `multi_site.site_settings.clear` — §10B MS-102\n- `multi_site.ist.create` — §10A.5 / 05-WH cross-ref\n- `multi_site.ist.amend` — §10B MS-107, V-MS-23\n- `multi_site.ist.cancel` — §10B MS-107\n- `multi_site.ist.approve` — §11.3 V-MS-10/11\n- `multi_site.lane.create` — §10A.5\n- `multi_site.lane.edit` — §10A.5\n- `multi_site.lane.deactivate` — §10A.5, V-MS-29\n- `multi_site.rate_card.upload` — §10A.5\n- `multi_site.rate_card.approve` — §10A.3.3 / §10A.5\n- `multi_site.rate_card.delete` — §10A.5\n- `multi_site.replication.retry` — §10B MS-106, V-MS-22\n- `multi_site.replication.run_sync` — §10B MS-106\n- `multi_site.conflict.resolve` — §10B MS-103, V-MS-30\n- `multi_site.activation.start` — §13.5 D-MS-14, V-MS-18\n- `multi_site.activation.rollback` — §10B MS-108, V-MS-20\n- `multi_site.config.promote` — §10B MS-105, D-MS-17\n- `multi_site.cross_site.read` — §14.2 super-admin audit\n\n## Files in scope\n- `packages/rbac/src/permissions.enum.ts` [modify]\n- `packages/rbac/src/__tests__/permissions.test.ts` [modify]\n- `CODEOWNERS` [modify if missing entry]\n\n## Acceptance criteria\n<!-- AC count consolidated from 4→4 by Fixer F14a 2026-05-14 (no coverage lost) --> (Given-When-Then)\n- AC1 — Given the enum file is imported, when the consumer reads the new keys, then all 26 strings listed above are present exactly once.\n- AC2 — Given each new permission string is matched against regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, when tested, then every string passes and zero duplicates exist across `Object.values(Permission)`.\n- AC3 — Given the module export, when imported, then `ALL_MULTI_SITE_PERMISSIONS` is exported typed `readonly Permission[]` with length === 26.\n- AC4 — Given `CODEOWNERS` is read, when checked, then `packages/rbac/src/permissions.enum.ts` is architect-only (`@monopilot/architect`).\n\n## Test strategy (RED first, vitest)\n1. Extend `packages/rbac/src/__tests__/permissions.test.ts` with the four ACs. Run RED:\n   `pnpm --filter @monopilot/web vitest run packages/rbac/src/__tests__/permissions.test.ts`\n   — must fail before any enum change.\n2. Implement minimum changes in `permissions.enum.ts`.\n3. Re-run vitest — must pass.\n4. Run `pnpm typecheck` and `pnpm lint` in the changed package; both must pass.\n\n## Risk red lines\n- Do not weaken the regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$` or introduce a 4-segment / matrix permission model.\n- Do not introduce a parallel permission model (no per-module `*PermissionEnum` in another file).\n- Do not remove or rename existing strings (Settings/Foundation/01-NPD/03-Technical et al. strings stay intact).\n- Do not edit permission strings owned by other modules.\n- Do not commit secrets or vault keys.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact RED→GREEN test commands and outputs\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n",
   "labels": [
     "prd",
     "auth",
@@ -16,17 +16,17 @@
     "prd_task_id": "T-031",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a710A.5",
-      "\u00a710B MS-101",
-      "\u00a710B MS-102",
-      "\u00a710B MS-103",
-      "\u00a710B MS-104",
-      "\u00a710B MS-105",
-      "\u00a710B MS-106",
-      "\u00a710B MS-107",
-      "\u00a710B MS-108",
-      "\u00a710B MS-109",
-      "\u00a714.2"
+      "§10A.5",
+      "§10B MS-101",
+      "§10B MS-102",
+      "§10B MS-103",
+      "§10B MS-104",
+      "§10B MS-105",
+      "§10B MS-106",
+      "§10B MS-107",
+      "§10B MS-108",
+      "§10B MS-109",
+      "§14.2"
     ],
     "category": "auth",
     "subcategory": "permissions-enum",
@@ -34,8 +34,8 @@
     "parent_feature": "14-multi-site-rbac-enum-addition",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Append 26 multi_site.*.* permission strings to packages/rbac/src/permissions.enum.ts derived from \u00a710A.5 RBAC table + \u00a710B MS-101..110 RBAC + \u00a711.5/\u00a714.2 activation/audit + export ALL_MULTI_SITE_PERMISSIONS for ESLint enum-lock guard. Closes audit slice MS-008.",
-    "details": "Append 26 multi_site.*.* permission strings to packages/rbac/src/permissions.enum.ts derived from \u00a710A.5 RBAC table + \u00a710B MS-101..110 RBAC + \u00a711.5/\u00a714.2 activation/audit + export ALL_MULTI_SITE_PERMISSIONS for ESLint enum-lock guard. Closes audit slice MS-008. Scope: Append a delimited `MULTI-SITE` permission group to `packages/rbac/src/permissions. Touches: packages/rbac/src/permissions.enum.ts, packages/rbac/src/__tests__/permissions.test.ts, CODEOWNERS. Constraints: - File: `packages/rbac/src/permissions.enum.ts` \u2014 append entries to `Permission` const object with JSDoc citing PRD anchor. Do NOT remove or rename any existing string. - File: `packages/rbac/src/__tests__/permissions.test.ts` \u2014 extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_MULTI_SITE_PERMISSIONS` ty. Distinguished from sibling 14-multi-site tasks by its narrow permissions-enum focus against PRD \u00a710A.5, \u00a710B MS-101, \u00a710B MS-102, \u00a710B MS-103. AC count consolidated from 4\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Append 26 multi_site.*.* permission strings to packages/rbac/src/permissions.enum.ts derived from §10A.5 RBAC table + §10B MS-101..110 RBAC + §11.5/§14.2 activation/audit + export ALL_MULTI_SITE_PERMISSIONS for ESLint enum-lock guard. Closes audit slice MS-008.",
+    "details": "Append 26 multi_site.*.* permission strings to packages/rbac/src/permissions.enum.ts derived from §10A.5 RBAC table + §10B MS-101..110 RBAC + §11.5/§14.2 activation/audit + export ALL_MULTI_SITE_PERMISSIONS for ESLint enum-lock guard. Closes audit slice MS-008. Scope: Append a delimited `MULTI-SITE` permission group to `packages/rbac/src/permissions. Touches: packages/rbac/src/permissions.enum.ts, packages/rbac/src/__tests__/permissions.test.ts, CODEOWNERS. Constraints: - File: `packages/rbac/src/permissions.enum.ts` — append entries to `Permission` const object with JSDoc citing PRD anchor. Do NOT remove or rename any existing string. - File: `packages/rbac/src/__tests__/permissions.test.ts` — extend the suite to assert presence, regex `^[a-z_]+\\.[a-z_]+\\.[a-z_]+$`, uniqueness, and `ALL_MULTI_SITE_PERMISSIONS` ty. Distinguished from sibling 14-multi-site tasks by its narrow permissions-enum focus against PRD §10A.5, §10B MS-101, §10B MS-102, §10B MS-103. AC count consolidated from 4→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/rbac/src/permissions.enum.ts [modify]",
       "packages/rbac/src/__tests__/permissions.test.ts [modify]",
@@ -57,7 +57,7 @@
       {
         "module": "02-settings",
         "task_id": "T-130",
-        "reason": "ESLint enum-lock guard (`no-direct-permissions-enum-edit`) registered in packages/rbac/.eslintrc.cjs recognises module groups via ALL_<MODULE>_PERMISSIONS exports \u2014 this task adds ALL_MULTI_SITE_PERMISSIONS."
+        "reason": "ESLint enum-lock guard (`no-direct-permissions-enum-edit`) registered in packages/rbac/.eslintrc.cjs recognises module groups via ALL_<MODULE>_PERMISSIONS exports — this task adds ALL_MULTI_SITE_PERMISSIONS."
       }
     ],
     "parallel_safe_with": [
@@ -87,7 +87,7 @@
       "Do not remove or rename existing strings.",
       "Do not edit permission strings owned by other modules.",
       "Do not couple enum strings to specific UI components or table rows.",
-      "Do not merge before 02-settings T-130 (ESLint enum-lock guard) is GREEN \u2014 the guard is the mechanised governance gate; CODEOWNERS architect-lock on permissions.enum.ts remains the human gate."
+      "Do not merge before 02-settings T-130 (ESLint enum-lock guard) is GREEN — the guard is the mechanised governance gate; CODEOWNERS architect-lock on permissions.enum.ts remains the human gate."
     ],
     "skills": [
       "test-driven-development",
@@ -109,10 +109,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": false,
     "permission_strings": [
@@ -142,6 +140,7 @@
       "multi_site.activation.rollback",
       "multi_site.config.promote",
       "multi_site.cross_site.read"
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

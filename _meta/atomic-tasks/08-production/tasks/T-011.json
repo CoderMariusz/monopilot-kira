@@ -82,10 +82,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
@@ -98,6 +96,7 @@
         "task_id": "T-064",
         "reason": "Quality consume gate (v_active_holds) — every LP/WO consume operation must call holdsGuard(lpId, lotId) before mutating consumption/output state. Active hold returns 409 quality_hold_active and emits production.consume.blocked outbox event (PRD §16.4 V-PROD-02/V-PROD-16)."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

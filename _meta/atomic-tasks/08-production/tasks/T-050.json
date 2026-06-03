@@ -118,10 +118,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "shifts_screen,line_detail,analytics_screen,settings_screen,assign_crew_modal,shift_start_modal,shift_end_modal,oee_target_edit_modal",
@@ -137,6 +135,7 @@
         "task_id": "T-126",
         "reason": "RBAC role guard helpers for Prod Manager."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

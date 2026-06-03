@@ -100,10 +100,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "cross_module_dependencies": [
       {
@@ -118,6 +116,7 @@
       "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
     ],
     "prototype_match": true,
-    "prototype_label": "plan_supplier_list"
+    "prototype_label": "plan_supplier_list",
+    "risk_tier": "high"
   }
 }

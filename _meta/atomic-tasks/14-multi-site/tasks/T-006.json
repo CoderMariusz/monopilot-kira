@@ -1,6 +1,6 @@
 {
-  "title": "T-006 \u2014 site_access_policy_v1 DSL rule + site-scoped RLS variant generator (\u00a78, \u00a711.2 V-MS-08, \u00a714.1)",
-  "prompt": "# T-006 \u2014 site_access_policy_v1 DSL rule + RLS variant generator\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a78 (DSL rules registered via 02-SET \u00a77.8), \u00a711.2 V-MS-08, \u00a714.1 RLS policy management\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the rule-driven RLS variant generator so every operational table tagged `site_scoped` (the 20+ in \u00a79.8) gets a uniform RLS policy without per-table copy-paste DDL. This is the engineering enabler for T-030 (activation migration that applies the variant to all 20 tables).\n\n## Implementation contract\n1. Rule registration via 02-SET rules_registry seed migration `packages/db/migrations/0045_site_access_policy_v1_rule.sql`:\n   - INSERT INTO rule_definitions (id, name='site_access_policy_v1', version=1, body JSONB) describing the DSL: {policy_template: '(org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())', applies_to: 'tables_with_site_id_column', migration_lint_severity: 'warn'}.\n2. New module `packages/db/src/policies/site-access-policy-v1.ts` exports `buildSiteScopedPolicySql(tableName: string): string` returning the canonical CREATE POLICY DDL using the template above + FORCE ROW LEVEL SECURITY.\n3. Lint helper `packages/db/src/policies/lint-site-scoped.ts` exports `assertTableHasSiteScopedPolicy(client, tableName)` for use in 14-e regression tests + future migrations.\n4. Tests: round-trip a generated policy against a freshly migrated `_test_widgets(org_id, site_id, name)` table; verify SELECT under withOrgContext+withSiteContext returns expected rows; lint helper detects missing policy.\n\n## Files\n- packages/db/migrations/0045_site_access_policy_v1_rule.sql [create]\n- packages/db/src/policies/site-access-policy-v1.ts [create]\n- packages/db/src/policies/lint-site-scoped.ts [create]\n- packages/db/__tests__/site-access-policy-v1.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0045 applied, when rule_definitions table is queried, then a row name='site_access_policy_v1' version=1 exists with body JSONB containing policy_template, applies_to, migration_lint_severity keys.\n2. Given buildSiteScopedPolicySql('foo'), when output is inspected, then it is a single CREATE POLICY ... ON foo USING(...) WITH CHECK(...) ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY statement, and the USING expression text equals the rule's policy_template exactly.\n3. Given a test table _test_widgets(org_id, site_id, name) with the generated policy applied, when withOrgContext({orgId:A}) + withSiteContext({siteId:X}) wraps a SELECT, then only rows matching (org_id=A AND site_id=X) are returned.\n4. Given _test_widgets has the policy but FORCE ROW LEVEL SECURITY is not enabled, when assertTableHasSiteScopedPolicy is called, then it throws a typed error `MissingForceRowLevelSecurity`.\n5. Given the policy SQL is inspected, when grep'd for current_setting('app.tenant_id'|'app.current_org_id'|'app.current_site_id'), then zero matches \u2014 only function calls.\n\n## Test strategy\n- RED: write packages/db/__tests__/site-access-policy-v1.test.ts asserting all 5 ACs before generator exists.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-access-policy-v1'.\n\n## Risk red lines\n- Do not hardcode policy SQL into the migration for each table \u2014 that defeats D-MS-13 rule-driven uniformity.\n- Do not allow the template to omit org_id check \u2014 defense in depth (site_id alone is not enough; cross-org contamination via collisions impossible but org_id is also needed for index/index-only-scan correctness).\n- Do not skip FORCE ROW LEVEL SECURITY in generator output \u2014 V-MS-08 requires it.\n- Do not couple generator to a Drizzle-specific runtime \u2014 must be plain SQL string output usable from any migration tool.\n- Do not let lint helper false-positive on tables that legitimately stay org_scoped (master tables per \u00a79.8 'Master data' list).",
+  "title": "T-006 — site_access_policy_v1 DSL rule + site-scoped RLS variant generator (§8, §11.2 V-MS-08, §14.1)",
+  "prompt": "# T-006 — site_access_policy_v1 DSL rule + RLS variant generator\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §8 (DSL rules registered via 02-SET §7.8), §11.2 V-MS-08, §14.1 RLS policy management\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the rule-driven RLS variant generator so every operational table tagged `site_scoped` (the 20+ in §9.8) gets a uniform RLS policy without per-table copy-paste DDL. This is the engineering enabler for T-030 (activation migration that applies the variant to all 20 tables).\n\n## Implementation contract\n1. Rule registration via 02-SET rules_registry seed migration `packages/db/migrations/0045_site_access_policy_v1_rule.sql`:\n   - INSERT INTO rule_definitions (id, name='site_access_policy_v1', version=1, body JSONB) describing the DSL: {policy_template: '(org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())', applies_to: 'tables_with_site_id_column', migration_lint_severity: 'warn'}.\n2. New module `packages/db/src/policies/site-access-policy-v1.ts` exports `buildSiteScopedPolicySql(tableName: string): string` returning the canonical CREATE POLICY DDL using the template above + FORCE ROW LEVEL SECURITY.\n3. Lint helper `packages/db/src/policies/lint-site-scoped.ts` exports `assertTableHasSiteScopedPolicy(client, tableName)` for use in 14-e regression tests + future migrations.\n4. Tests: round-trip a generated policy against a freshly migrated `_test_widgets(org_id, site_id, name)` table; verify SELECT under withOrgContext+withSiteContext returns expected rows; lint helper detects missing policy.\n\n## Files\n- packages/db/migrations/0045_site_access_policy_v1_rule.sql [create]\n- packages/db/src/policies/site-access-policy-v1.ts [create]\n- packages/db/src/policies/lint-site-scoped.ts [create]\n- packages/db/__tests__/site-access-policy-v1.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0045 applied, when rule_definitions table is queried, then a row name='site_access_policy_v1' version=1 exists with body JSONB containing policy_template, applies_to, migration_lint_severity keys.\n2. Given buildSiteScopedPolicySql('foo'), when output is inspected, then it is a single CREATE POLICY ... ON foo USING(...) WITH CHECK(...) ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY statement, and the USING expression text equals the rule's policy_template exactly.\n3. Given a test table _test_widgets(org_id, site_id, name) with the generated policy applied, when withOrgContext({orgId:A}) + withSiteContext({siteId:X}) wraps a SELECT, then only rows matching (org_id=A AND site_id=X) are returned.\n4. Given _test_widgets has the policy but FORCE ROW LEVEL SECURITY is not enabled, when assertTableHasSiteScopedPolicy is called, then it throws a typed error `MissingForceRowLevelSecurity`.\n5. Given the policy SQL is inspected, when grep'd for current_setting('app.tenant_id'|'app.current_org_id'|'app.current_site_id'), then zero matches — only function calls.\n\n## Test strategy\n- RED: write packages/db/__tests__/site-access-policy-v1.test.ts asserting all 5 ACs before generator exists.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-access-policy-v1'.\n\n## Risk red lines\n- Do not hardcode policy SQL into the migration for each table — that defeats D-MS-13 rule-driven uniformity.\n- Do not allow the template to omit org_id check — defense in depth (site_id alone is not enough; cross-org contamination via collisions impossible but org_id is also needed for index/index-only-scan correctness).\n- Do not skip FORCE ROW LEVEL SECURITY in generator output — V-MS-08 requires it.\n- Do not couple generator to a Drizzle-specific runtime — must be plain SQL string output usable from any migration tool.\n- Do not let lint helper false-positive on tables that legitimately stay org_scoped (master tables per §9.8 'Master data' list).",
   "labels": [
     "prd",
     "data",
@@ -15,9 +15,9 @@
     "prd_task_id": "T-006",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a78 DSL Rules",
-      "\u00a711.2 V-MS-08",
-      "\u00a714.1"
+      "§8 DSL Rules",
+      "§11.2 V-MS-08",
+      "§14.1"
     ],
     "category": "data",
     "subcategory": "rls-policy-rule",
@@ -25,8 +25,8 @@
     "parent_feature": "14-MULTI-SITE-a core schema",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Register site_access_policy_v1 DSL rule in 02-SET \u00a77.8 rules registry + build migration generator that emits site-scoped RLS variant (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) for any table tagged site_scoped in \u00a79.8.",
-    "details": "Register site_access_policy_v1 DSL rule in 02-SET \u00a77.8 rules registry + build migration generator that emits site-scoped RLS variant (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) for any table tagged site_scoped in \u00a79.8. Scope: Build the rule-driven RLS variant generator so every operational table tagged `site_scoped` (the 20+ in \u00a79. Touches: packages/db/migrations/0045_site_access_policy_v1_rule.sql, packages/db/src/policies/site-access-policy-v1.ts, packages/db/src/policies/lint-site-scoped.ts, packages/db/__tests__/site-access-policy-v1.test.ts. Constraints: 1. Rule registration via 02-SET rules_registry seed migration `packages/db/migrations/0045_site_access_policy_v1_rule.sql`: - INSERT INTO rule_definitions (id, name='site_access_policy_v1', version=1, body JSONB) describing the DSL: {policy_template: '(org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_i. Distinguished from sibling 14-multi-site tasks by its narrow rls-policy-rule focus against PRD \u00a78 DSL Rules, \u00a711.2 V-MS-08, \u00a714.1. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Register site_access_policy_v1 DSL rule in 02-SET §7.8 rules registry + build migration generator that emits site-scoped RLS variant (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) for any table tagged site_scoped in §9.8.",
+    "details": "Register site_access_policy_v1 DSL rule in 02-SET §7.8 rules registry + build migration generator that emits site-scoped RLS variant (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) for any table tagged site_scoped in §9.8. Scope: Build the rule-driven RLS variant generator so every operational table tagged `site_scoped` (the 20+ in §9. Touches: packages/db/migrations/0045_site_access_policy_v1_rule.sql, packages/db/src/policies/site-access-policy-v1.ts, packages/db/src/policies/lint-site-scoped.ts, packages/db/__tests__/site-access-policy-v1.test.ts. Constraints: 1. Rule registration via 02-SET rules_registry seed migration `packages/db/migrations/0045_site_access_policy_v1_rule.sql`: - INSERT INTO rule_definitions (id, name='site_access_policy_v1', version=1, body JSONB) describing the DSL: {policy_template: '(org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_i. Distinguished from sibling 14-multi-site tasks by its narrow rls-policy-rule focus against PRD §8 DSL Rules, §11.2 V-MS-08, §14.1. AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/db/migrations/0045_site_access_policy_v1_rule.sql [create]",
       "packages/db/src/policies/site-access-policy-v1.ts [create]",
@@ -43,8 +43,8 @@
     "cross_module_dependencies": [
       {
         "module": "02-settings",
-        "task_id": "\u00a77.8 rules registry",
-        "reason": "Rule is stored in rule_definitions table owned by 02-SET \u00a77.8."
+        "task_id": "§7.8 rules registry",
+        "reason": "Rule is stored in rule_definitions table owned by 02-SET §7.8."
       },
       {
         "module": "00-foundation",
@@ -64,14 +64,14 @@
     "test_strategy": [
       "RED: write packages/db/__tests__/site-access-policy-v1.test.ts asserting all 5 ACs before generator exists.",
       "Run 'pnpm --filter @monopilot/db test:integration -- site-access-policy-v1'.",
-      "Verify source-grep: policy SQL must contain zero current_setting(...) matches \u2014 only function calls (original AC5)."
+      "Verify source-grep: policy SQL must contain zero current_setting(...) matches — only function calls (original AC5)."
     ],
     "risk_red_lines": [
-      "Do not hardcode policy SQL per-table \u2014 that defeats D-MS-13 uniformity.",
-      "Do not omit org_id check \u2014 defense-in-depth requires both.",
+      "Do not hardcode policy SQL per-table — that defeats D-MS-13 uniformity.",
+      "Do not omit org_id check — defense-in-depth requires both.",
       "Do not skip FORCE ROW LEVEL SECURITY (V-MS-08).",
-      "Do not couple generator to Drizzle runtime \u2014 plain SQL output.",
-      "Do not false-positive on master tables that stay org_scoped (\u00a79.8 master list)."
+      "Do not couple generator to Drizzle runtime — plain SQL output.",
+      "Do not false-positive on master tables that stay org_scoped (§9.8 master list)."
     ],
     "skills": [
       "test-driven-development",
@@ -94,11 +94,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

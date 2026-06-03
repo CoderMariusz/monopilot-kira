@@ -145,10 +145,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "test",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
@@ -182,6 +180,7 @@
     ],
     "prototype_match": true,
     "prototype_index_entry": "(all warehouse labels)",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "low"
   }
 }

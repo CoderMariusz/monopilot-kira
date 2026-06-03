@@ -1,6 +1,6 @@
 {
-  "title": "T-011 \u2014 Inter-site TO cost allocation (sender/receiver/split/none) + 10-FIN handoff (\u00a79.6, \u00a711.3 V-MS-13/14)",
-  "prompt": "# T-011 \u2014 Inter-site TO cost allocation + 10-FIN handoff\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.6, \u00a711.3 V-MS-13 (split requires split_ratio metadata), V-MS-14 (cost>0 + method='none' warn)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the cost allocation dispatcher invoked from the `transfer_order.received` outbox consumer. Allocates `transfer_cost` between from-site and to-site per `cost_allocation_method` and posts to 10-FIN `inventory_cost_layers` per site.\n\n## Implementation contract\n1. New module `packages/domain/src/transfer-orders/cost-allocation.ts`:\n   - `allocateTransferCost(to)` returns `{ from_site_allocation: number, to_site_allocation: number }` per method:\n     - 'sender' \u2192 {from: 100%, to: 0}.\n     - 'receiver' \u2192 {from: 0, to: 100%}.\n     - 'split' \u2192 reads `transfer_cost_metadata.split_ratio` JSONB ({from: 0.5, to: 0.5} default; refuse if missing per V-MS-13 warn-level escalated to error here).\n     - 'none' \u2192 {from: 0, to: 0}; if transfer_cost > 0 emit warning to observability (V-MS-14).\n2. Outbox consumer `apps/worker/src/handlers/inter-site-transfer-received.ts` (re-uses T-112 worker scaffold):\n   - On `transfer_order.received` event, call allocateTransferCost(to).\n   - Post to inventory_cost_layers per site via 10-FIN action `postInventoryCostLayer({org_id, site_id, layer_amount, source_to_id})` \u2014 idempotent on (source_to_id, site_id).\n3. Tests: matrix of 4 methods \u00d7 happy/edge paths; V-MS-13 missing split_ratio throws; V-MS-14 warn surfaces in observability (T-117 redact); idempotent posting (replay does not double-post).\n\n## Files\n- packages/domain/src/transfer-orders/cost-allocation.ts [create]\n- apps/worker/src/handlers/inter-site-transfer-received.ts [create]\n- packages/domain/__tests__/transfer-orders/cost-allocation.test.ts [create]\n- apps/worker/src/handlers/__tests__/inter-site-transfer-received.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given a TO with transfer_cost=1000 and method='sender', when allocateTransferCost runs, then result is {from:1000, to:0}.\n2. Given method='split' and transfer_cost_metadata.split_ratio={from:0.6,to:0.4}, when allocateTransferCost runs, then {from:600,to:400}.\n3. Given method='split' and split_ratio is missing, when allocateTransferCost runs, then SplitRatioMissing is thrown (V-MS-13).\n4. Given method='none' and transfer_cost=500, when allocateTransferCost runs, then result is {from:0,to:0} and a warn-level observability event 'V-MS-14-cost-with-none-method' is emitted.\n5. Given a transfer_order.received outbox event is consumed, when the handler completes, then two inventory_cost_layers rows (one per site, allocation amounts non-negative) are inserted in 10-FIN with source_to_id=to.id; replay of the same event does not duplicate.\n6. Given a transfer_order.received event with allocation = {0, 0}, when handler runs, then no inventory_cost_layers rows are inserted (zero-amount skipped).\n\n## Test strategy\n- RED: matrix of 4 methods \u00d7 happy/edge + V-MS-13 negative + V-MS-14 warn surfaces + idempotent replay before module exists.\n- Run 'pnpm --filter @monopilot/domain test transfer-orders/cost-allocation' + 'pnpm --filter @monopilot/web test inter-site-transfer-received'.\n\n## Risk red lines\n- Do not allow non-100% sums for split \u2014 split_ratio must satisfy from+to == 1.0 within float tolerance else throw.\n- Do not post to inventory_cost_layers without site_id \u2014 every row must be site-scoped per \u00a76.4. The withSiteContext HOF establishes session site context via app.current_site_id() which RLS on inventory_cost_layers uses as the site predicate; never read raw GUC directly.\n- Do not double-post on replay \u2014 idempotent on (source_to_id, site_id).\n- Do not silently skip V-MS-14 (cost>0 + method='none') \u2014 must surface to observability (T-117).\n- Do not couple cost allocation to a specific currency \u2014 currency comes from rate card / TO row (T-013).",
+  "title": "T-011 — Inter-site TO cost allocation (sender/receiver/split/none) + 10-FIN handoff (§9.6, §11.3 V-MS-13/14)",
+  "prompt": "# T-011 — Inter-site TO cost allocation + 10-FIN handoff\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §9.6, §11.3 V-MS-13 (split requires split_ratio metadata), V-MS-14 (cost>0 + method='none' warn)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nBuild the cost allocation dispatcher invoked from the `transfer_order.received` outbox consumer. Allocates `transfer_cost` between from-site and to-site per `cost_allocation_method` and posts to 10-FIN `inventory_cost_layers` per site.\n\n## Implementation contract\n1. New module `packages/domain/src/transfer-orders/cost-allocation.ts`:\n   - `allocateTransferCost(to)` returns `{ from_site_allocation: number, to_site_allocation: number }` per method:\n     - 'sender' → {from: 100%, to: 0}.\n     - 'receiver' → {from: 0, to: 100%}.\n     - 'split' → reads `transfer_cost_metadata.split_ratio` JSONB ({from: 0.5, to: 0.5} default; refuse if missing per V-MS-13 warn-level escalated to error here).\n     - 'none' → {from: 0, to: 0}; if transfer_cost > 0 emit warning to observability (V-MS-14).\n2. Outbox consumer `apps/worker/src/handlers/inter-site-transfer-received.ts` (re-uses T-112 worker scaffold):\n   - On `transfer_order.received` event, call allocateTransferCost(to).\n   - Post to inventory_cost_layers per site via 10-FIN action `postInventoryCostLayer({org_id, site_id, layer_amount, source_to_id})` — idempotent on (source_to_id, site_id).\n3. Tests: matrix of 4 methods × happy/edge paths; V-MS-13 missing split_ratio throws; V-MS-14 warn surfaces in observability (T-117 redact); idempotent posting (replay does not double-post).\n\n## Files\n- packages/domain/src/transfer-orders/cost-allocation.ts [create]\n- apps/worker/src/handlers/inter-site-transfer-received.ts [create]\n- packages/domain/__tests__/transfer-orders/cost-allocation.test.ts [create]\n- apps/worker/src/handlers/__tests__/inter-site-transfer-received.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 6→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given a TO with transfer_cost=1000 and method='sender', when allocateTransferCost runs, then result is {from:1000, to:0}.\n2. Given method='split' and transfer_cost_metadata.split_ratio={from:0.6,to:0.4}, when allocateTransferCost runs, then {from:600,to:400}.\n3. Given method='split' and split_ratio is missing, when allocateTransferCost runs, then SplitRatioMissing is thrown (V-MS-13).\n4. Given method='none' and transfer_cost=500, when allocateTransferCost runs, then result is {from:0,to:0} and a warn-level observability event 'V-MS-14-cost-with-none-method' is emitted.\n5. Given a transfer_order.received outbox event is consumed, when the handler completes, then two inventory_cost_layers rows (one per site, allocation amounts non-negative) are inserted in 10-FIN with source_to_id=to.id; replay of the same event does not duplicate.\n6. Given a transfer_order.received event with allocation = {0, 0}, when handler runs, then no inventory_cost_layers rows are inserted (zero-amount skipped).\n\n## Test strategy\n- RED: matrix of 4 methods × happy/edge + V-MS-13 negative + V-MS-14 warn surfaces + idempotent replay before module exists.\n- Run 'pnpm --filter @monopilot/domain test transfer-orders/cost-allocation' + 'pnpm --filter @monopilot/web test inter-site-transfer-received'.\n\n## Risk red lines\n- Do not allow non-100% sums for split — split_ratio must satisfy from+to == 1.0 within float tolerance else throw.\n- Do not post to inventory_cost_layers without site_id — every row must be site-scoped per §6.4. The withSiteContext HOF establishes session site context via app.current_site_id() which RLS on inventory_cost_layers uses as the site predicate; never read raw GUC directly.\n- Do not double-post on replay — idempotent on (source_to_id, site_id).\n- Do not silently skip V-MS-14 (cost>0 + method='none') — must surface to observability (T-117).\n- Do not couple cost allocation to a specific currency — currency comes from rate card / TO row (T-013).",
   "labels": [
     "prd",
     "domain",
@@ -15,9 +15,9 @@
     "prd_task_id": "T-011",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a79.6",
-      "\u00a711.3 V-MS-13",
-      "\u00a711.3 V-MS-14"
+      "§9.6",
+      "§11.3 V-MS-13",
+      "§11.3 V-MS-14"
     ],
     "category": "domain",
     "subcategory": "cost-allocation",
@@ -26,7 +26,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Implement cost_allocation_method dispatcher (sender/receiver/split/none) + V-MS-13 split_ratio metadata JSONB requirement + V-MS-14 warn when transfer_cost > 0 and method='none' + 10-FIN ledger posting (inventory_cost_layers per-site allocation on transfer_order.received outbox consumer).",
-    "details": "Implement cost_allocation_method dispatcher (sender/receiver/split/none) + V-MS-13 split_ratio metadata JSONB requirement + V-MS-14 warn when transfer_cost > 0 and method='none' + 10-FIN ledger posting (inventory_cost_layers per-site allocation on transfer_order.received outbox consumer). Scope: Build the cost allocation dispatcher invoked from the `transfer_order. Touches: packages/domain/src/transfer-orders/cost-allocation.ts, apps/worker/src/handlers/inter-site-transfer-received.ts, packages/domain/__tests__/transfer-orders/cost-allocation.test.ts, apps/worker/src/handlers/__tests__/inter-site-transfer-received.test.ts. Constraints: 1. New module `packages/domain/src/transfer-orders/cost-allocation.ts`: - `allocateTransferCost(to)` returns `{ from_site_allocation: number, to_site_allocation: number }` per method: - 'sender' \u2192 {from: 100%, to: 0}. - 'receiver' \u2192 {from: 0, to: 100%}. - 'split' \u2192 reads `transfer_cost_metadata.split_ratio` JSONB ({from: 0.5, to: 0.5} default; refu. Distinguished from sibling 14-multi-site tasks by its narrow cost-allocation focus against PRD \u00a79.6, \u00a711.3 V-MS-13, \u00a711.3 V-MS-14. AC count consolidated from 6\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "details": "Implement cost_allocation_method dispatcher (sender/receiver/split/none) + V-MS-13 split_ratio metadata JSONB requirement + V-MS-14 warn when transfer_cost > 0 and method='none' + 10-FIN ledger posting (inventory_cost_layers per-site allocation on transfer_order.received outbox consumer). Scope: Build the cost allocation dispatcher invoked from the `transfer_order. Touches: packages/domain/src/transfer-orders/cost-allocation.ts, apps/worker/src/handlers/inter-site-transfer-received.ts, packages/domain/__tests__/transfer-orders/cost-allocation.test.ts, apps/worker/src/handlers/__tests__/inter-site-transfer-received.test.ts. Constraints: 1. New module `packages/domain/src/transfer-orders/cost-allocation.ts`: - `allocateTransferCost(to)` returns `{ from_site_allocation: number, to_site_allocation: number }` per method: - 'sender' → {from: 100%, to: 0}. - 'receiver' → {from: 0, to: 100%}. - 'split' → reads `transfer_cost_metadata.split_ratio` JSONB ({from: 0.5, to: 0.5} default; refu. Distinguished from sibling 14-multi-site tasks by its narrow cost-allocation focus against PRD §9.6, §11.3 V-MS-13, §11.3 V-MS-14. AC count consolidated from 6→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/domain/src/transfer-orders/cost-allocation.ts [create]",
       "apps/worker/src/handlers/inter-site-transfer-received.ts [create]",
@@ -73,15 +73,15 @@
       "Given received event with allocation {0,0}, when handler runs, then no inventory_cost_layers rows inserted."
     ],
     "test_strategy": [
-      "RED: matrix of 4 methods \u00d7 paths + V-MS-13 + V-MS-14 + idempotent replay before module exists.",
+      "RED: matrix of 4 methods × paths + V-MS-13 + V-MS-14 + idempotent replay before module exists.",
       "Run 'pnpm --filter @monopilot/domain test transfer-orders/cost-allocation' + 'pnpm --filter @monopilot/web test inter-site-transfer-received'."
     ],
     "risk_red_lines": [
-      "Do not allow non-100% sums for split \u2014 from+to == 1.0 within float tolerance.",
-      "Do not post to inventory_cost_layers without site_id (\u00a76.4).",
-      "Do not double-post on replay \u2014 idempotent on (source_to_id, site_id).",
-      "Do not silently skip V-MS-14 \u2014 must surface to observability.",
-      "Do not couple to a hardcoded currency \u2014 comes from TO/rate card."
+      "Do not allow non-100% sums for split — from+to == 1.0 within float tolerance.",
+      "Do not post to inventory_cost_layers without site_id (§6.4).",
+      "Do not double-post on replay — idempotent on (source_to_id, site_id).",
+      "Do not silently skip V-MS-14 — must surface to observability.",
+      "Do not couple to a hardcoded currency — comes from TO/rate card."
     ],
     "skills": [
       "test-driven-development",
@@ -104,11 +104,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

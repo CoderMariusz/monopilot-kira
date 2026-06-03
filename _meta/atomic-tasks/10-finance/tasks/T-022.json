@@ -1,6 +1,6 @@
 {
-  "title": "T-022 \u2014 Register cost_method_selector_v1 + waste_cost_allocator_v1 + standard_cost_approval_v1 DSL rules (\u00a710.1-10.4, 02-SETTINGS \u00a77 delta)",
-  "prompt": "# T-022 \u2014 Register 10-FIN DSL rules in 02-SETTINGS rules_registry\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a710.1 cost_method_selector_v1; \u00a710.2 waste_cost_allocator_v1; \u00a710.3 standard_cost_approval_v1 (P1 stub); \u00a710.4 registry update to 02-SETTINGS \u00a77 delta (rules 13/14/15 of 15 total).\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nMigration that INSERTs 3 rules into the 02-SETTINGS `rules_registry` table (foundation T-018/T-035 DSL registry). Each rule has its YAML definition stored as JSONB. Rule definitions match PRD \u00a710.1, \u00a710.2, \u00a710.3 verbatim. P2 placeholder for standard_cost_approval_v1 stub (v2.0 dual sign-off deferred).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0059_register_finance_dsl_rules.sql` containing INSERTs into `rules_registry` (table schema per foundation T-018):\n   - `cost_method_selector_v1` \u2014 type='conditional', entity='inventory_cost_layers|material_consumption_costs', version='1.0', triggers=['lp.received','material.consumed'], evaluation=JSONB matching \u00a710.1 YAML lines 850-875, fallback_v0='wac', owner_module='10-FIN', status='active'.\n   - `waste_cost_allocator_v1` \u2014 type='conditional', entity='wo_waste_log \u2192 work_order_costs.waste_cost_actual', version='1.0', triggers=['waste.logged'], evaluation=JSONB matching \u00a710.2 lines 884-910, fallback_v0='full_loss', status='active'.\n   - `standard_cost_approval_v1` \u2014 type='gate + workflow_as_data', entity='standard_costs', version='1.0', triggers=['standard_cost.submitted'], evaluation=JSONB matching \u00a710.3 P1 simplified version (single_role_approve roles=[finance_manager, owner]), status='stub' (P2 evolution = v2.0 multi-level threshold rules).\n   - All rules: org_id NULL (system rules) \u2014 they apply globally per multi-tenant pattern.\n2. Rule evaluator hooks: `apps/web/app/finance/_lib/rules/evaluate.ts` exports `evaluateCostMethodSelector(orgId, event)` + `evaluateWasteCostAllocator(orgId, event)` server-side helpers. They read the rule JSONB from rules_registry at runtime (DSL = data-driven), apply the matching action, return outcome. Re-uses foundation rule-engine package if present.\n3. ON CONFLICT DO UPDATE \u2014 idempotent: re-running migration updates definition_jsonb to latest version (allows DSL evolution without down-migration).\n\n## Files\n- packages/db/migrations/0059_register_finance_dsl_rules.sql [create]\n- apps/web/app/finance/_lib/rules/evaluate.ts [create]\n- apps/web/app/finance/_lib/rules/__tests__/evaluate.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0059 ran, when SELECT rule_id FROM rules_registry WHERE owner_module='10-FIN', then 3 rows exist with the 3 rule_ids. AND given migration re-runs, when SELECT counts rows, then count is still 3 (idempotent ON CONFLICT DO NOTHING).\n- Given finance_settings.default_valuation_method='fifo' and lp.received event, when evaluateCostMethodSelector runs, then returns {action:'create_cost_layer', method:'fifo'}.\n- Given default_valuation_method='wac' and material.consumed event, when evaluator runs, then returns {action:'consume_at_wac', method:'wac'}.\n- Given waste.logged event with category.cost_allocation_method='full_loss', when evaluateWasteCostAllocator runs, then returns {waste_cost: qty*unit_cost, strategy:'full_loss'}.\n_(AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: evaluate.test.ts seeds rules + finance_settings + waste_categories fixtures; exercises FIFO and WAC paths + waste full_loss + standard_cost approval stub.\n- Run `pnpm --filter db migrate && pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/rules/__tests__/evaluate.test.ts`.\n\n## Risk red lines\n- Do not hardcode rule logic inside application code \u2014 DSL JSONB is the SoT; evaluator interprets it.\n- Do not modify rules_registry rows owned by other modules.\n- Do not omit fallback_v0 \u2014 rules must have a safe default.\n- Do not skip ON CONFLICT \u2014 re-running migration must be safe.\n- Do not introduce P2 logic for standard_cost_approval_v1 \u2014 P1 is single_role_approve stub only.\n",
+  "title": "T-022 — Register cost_method_selector_v1 + waste_cost_allocator_v1 + standard_cost_approval_v1 DSL rules (§10.1-10.4, 02-SETTINGS §7 delta)",
+  "prompt": "# T-022 — Register 10-FIN DSL rules in 02-SETTINGS rules_registry\n\nPRD: docs/prd/10-FINANCE-PRD.md §10.1 cost_method_selector_v1; §10.2 waste_cost_allocator_v1; §10.3 standard_cost_approval_v1 (P1 stub); §10.4 registry update to 02-SETTINGS §7 delta (rules 13/14/15 of 15 total).\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nMigration that INSERTs 3 rules into the 02-SETTINGS `rules_registry` table (foundation T-018/T-035 DSL registry). Each rule has its YAML definition stored as JSONB. Rule definitions match PRD §10.1, §10.2, §10.3 verbatim. P2 placeholder for standard_cost_approval_v1 stub (v2.0 dual sign-off deferred).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0059_register_finance_dsl_rules.sql` containing INSERTs into `rules_registry` (table schema per foundation T-018):\n   - `cost_method_selector_v1` — type='conditional', entity='inventory_cost_layers|material_consumption_costs', version='1.0', triggers=['lp.received','material.consumed'], evaluation=JSONB matching §10.1 YAML lines 850-875, fallback_v0='wac', owner_module='10-FIN', status='active'.\n   - `waste_cost_allocator_v1` — type='conditional', entity='wo_waste_log → work_order_costs.waste_cost_actual', version='1.0', triggers=['waste.logged'], evaluation=JSONB matching §10.2 lines 884-910, fallback_v0='full_loss', status='active'.\n   - `standard_cost_approval_v1` — type='gate + workflow_as_data', entity='standard_costs', version='1.0', triggers=['standard_cost.submitted'], evaluation=JSONB matching §10.3 P1 simplified version (single_role_approve roles=[finance_manager, owner]), status='stub' (P2 evolution = v2.0 multi-level threshold rules).\n   - All rules: org_id NULL (system rules) — they apply globally per multi-tenant pattern.\n2. Rule evaluator hooks: `apps/web/app/finance/_lib/rules/evaluate.ts` exports `evaluateCostMethodSelector(orgId, event)` + `evaluateWasteCostAllocator(orgId, event)` server-side helpers. They read the rule JSONB from rules_registry at runtime (DSL = data-driven), apply the matching action, return outcome. Re-uses foundation rule-engine package if present.\n3. ON CONFLICT DO UPDATE — idempotent: re-running migration updates definition_jsonb to latest version (allows DSL evolution without down-migration).\n\n## Files\n- packages/db/migrations/0059_register_finance_dsl_rules.sql [create]\n- apps/web/app/finance/_lib/rules/evaluate.ts [create]\n- apps/web/app/finance/_lib/rules/__tests__/evaluate.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0059 ran, when SELECT rule_id FROM rules_registry WHERE owner_module='10-FIN', then 3 rows exist with the 3 rule_ids. AND given migration re-runs, when SELECT counts rows, then count is still 3 (idempotent ON CONFLICT DO NOTHING).\n- Given finance_settings.default_valuation_method='fifo' and lp.received event, when evaluateCostMethodSelector runs, then returns {action:'create_cost_layer', method:'fifo'}.\n- Given default_valuation_method='wac' and material.consumed event, when evaluator runs, then returns {action:'consume_at_wac', method:'wac'}.\n- Given waste.logged event with category.cost_allocation_method='full_loss', when evaluateWasteCostAllocator runs, then returns {waste_cost: qty*unit_cost, strategy:'full_loss'}.\n_(AC count consolidated from 6→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: evaluate.test.ts seeds rules + finance_settings + waste_categories fixtures; exercises FIFO and WAC paths + waste full_loss + standard_cost approval stub.\n- Run `pnpm --filter db migrate && pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/rules/__tests__/evaluate.test.ts`.\n\n## Risk red lines\n- Do not hardcode rule logic inside application code — DSL JSONB is the SoT; evaluator interprets it.\n- Do not modify rules_registry rows owned by other modules.\n- Do not omit fallback_v0 — rules must have a safe default.\n- Do not skip ON CONFLICT — re-running migration must be safe.\n- Do not introduce P2 logic for standard_cost_approval_v1 — P1 is single_role_approve stub only.\n",
   "labels": [
     "prd",
     "data",
@@ -15,10 +15,10 @@
     "prd_task_id": "T-022",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a710.1",
-      "\u00a710.2",
-      "\u00a710.3",
-      "\u00a710.4"
+      "§10.1",
+      "§10.2",
+      "§10.3",
+      "§10.4"
     ],
     "category": "data",
     "subcategory": "dsl-rules-register",
@@ -27,7 +27,7 @@
     "context_budget": "45k",
     "estimated_effort": "2-3h",
     "description": "Register 3 finance DSL rules in 02-SETTINGS rules_registry (cost_method_selector_v1 + waste_cost_allocator_v1 + standard_cost_approval_v1 stub) + evaluator helpers.",
-    "details": "JSONB rule definitions match \u00a710.1/10.2/10.3 YAML. Evaluator reads from rules_registry at runtime so DSL upgrades don't require app code redeploy. Idempotent via ON CONFLICT DO UPDATE. P2 path for standard_cost_approval_v1 v2.0 (multi-level thresholds) is OUT-OF-SCOPE per stub. [AC count consolidated from 6\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "JSONB rule definitions match §10.1/10.2/10.3 YAML. Evaluator reads from rules_registry at runtime so DSL upgrades don't require app code redeploy. Idempotent via ON CONFLICT DO UPDATE. P2 path for standard_cost_approval_v1 v2.0 (multi-level thresholds) is OUT-OF-SCOPE per stub. [AC count consolidated from 6→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "packages/db/migrations/0059_register_finance_dsl_rules.sql [create]",
       "apps/web/app/finance/_lib/rules/evaluate.ts [create]",
@@ -58,7 +58,7 @@
       "Run pnpm --filter db migrate && pnpm --filter @monopilot/web vitest run apps/web/app/finance/_lib/rules/__tests__/evaluate.test.ts."
     ],
     "risk_red_lines": [
-      "Do not hardcode rule logic inside app code \u2014 JSONB is SoT.",
+      "Do not hardcode rule logic inside app code — JSONB is SoT.",
       "Do not modify other modules' rules_registry rows.",
       "Do not omit fallback_v0.",
       "Do not skip ON CONFLICT.",
@@ -84,11 +84,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

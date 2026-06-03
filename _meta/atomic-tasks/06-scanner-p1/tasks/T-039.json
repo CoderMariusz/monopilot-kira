@@ -80,16 +80,15 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": false,
     "cross_module_dependencies": [
       "04-planning-basic: WO and reservation contracts",
       "05-warehouse: FEFO, LP status, intermediate LP contracts",
       "08-production: WO execute and consumption contracts"
-    ]
+    ],
+    "risk_tier": "low"
   }
 }

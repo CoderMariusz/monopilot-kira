@@ -51,10 +51,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prd_refs": [
       "§17.1 PLE-003",
@@ -117,6 +115,7 @@
       "Axe (or equivalent) accessibility result, or a documented blocker with rationale.",
       "List of intentional deviations from the prototype/UX with reason (e.g. P2 gating, RBAC hide).",
       "Reference parity expectations in `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` and translation notes in `_meta/prototype-labels/translation-notes-planning-ext.md`."
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

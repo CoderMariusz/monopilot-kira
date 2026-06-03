@@ -88,15 +88,14 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_index_entry": "schema_column_wizard_screen",
     "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#schema_column_wizard_screen",
-    "prototype_path": "prototypes/design/Monopilot Design System/settings/schema-wizard.jsx:542-801"
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/schema-wizard.jsx:542-801",
+    "risk_tier": "high"
   }
 }

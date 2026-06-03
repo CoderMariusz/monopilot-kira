@@ -58,9 +58,8 @@
     ],
     "wave": "Fala 0",
     "routing_hints": {
-      "implementation": "sonnet",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "skills": [
       "acp-frontend",
@@ -78,6 +77,7 @@
         "axe_report",
         "deviation_log"
       ]
-    }
+    },
+    "risk_tier": "high"
   }
 }

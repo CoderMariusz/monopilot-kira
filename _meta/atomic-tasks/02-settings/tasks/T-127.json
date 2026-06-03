@@ -102,6 +102,11 @@
     },
     "prototype_index_entry": "tenant_variations_screen (closest pattern — has Authorization Policies card; no full SET-011b screen prototype)",
     "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#tenant_variations_screen",
-    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/tenant-variations.jsx:34-161"
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/tenant-variations.jsx:34-161",
+    "risk_tier": "high",
+    "routing_hints": {
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
+    }
   }
 }

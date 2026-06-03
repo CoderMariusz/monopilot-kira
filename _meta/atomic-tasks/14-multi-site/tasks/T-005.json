@@ -1,6 +1,6 @@
 {
-  "title": "T-005 \u2014 sites_hierarchy_config + site_capacity tables (\u00a79.4, \u00a79.5, D-MS-10)",
-  "prompt": "# T-005 \u2014 sites_hierarchy_config + site_capacity tables\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.4, \u00a79.5, D-MS-10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the two ancillary core tables: `sites_hierarchy_config` (one row per tenant defining hierarchy depth 2-5 and level_names per ADR-030) and `site_capacity` (per-site per-date available/utilized hours for P2B planning).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0044_hierarchy_capacity.sql`:\n   - CREATE TABLE sites_hierarchy_config per \u00a79.5: id, org_id UNIQUE, depth INT CHECK (BETWEEN 2 AND 5), level_names TEXT[] NOT NULL with CHECK (array_length(level_names,1) = depth), description, created_at. RLS org-scoped.\n   - CREATE TABLE site_capacity per \u00a79.4: id, org_id, site_id (FK sites), capacity_date, line_id NULL, available_hours NUMERIC(6,2) CHECK (>=0), utilized_hours NUMERIC(6,2) DEFAULT 0 CHECK (>=0), notes, UNIQUE(org_id, site_id, capacity_date, line_id). RLS site-scoped (via app.current_site_id()).\n2. Drizzle schemas + zod with level_names length === depth refinement.\n3. Foreign key sites.hierarchy_config_id \u2192 sites_hierarchy_config(id) added in this migration (DDL is forward-ref in T-002; this completes the cycle without altering T-002).\n\n## Files\n- packages/db/migrations/0044_hierarchy_capacity.sql [create]\n- packages/db/src/schema/sites-hierarchy-config.ts [create]\n- packages/db/src/schema/site-capacity.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/hierarchy-capacity.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0044 applied, when \\d sites_hierarchy_config inspected, then depth CHECK (2-5) + array_length(level_names) = depth CHECK both enforced, org_id UNIQUE.\n2. Given an insert with depth=3 and level_names=['site','plant'], when committed, then DB raises check_violation (length mismatch).\n3. Given migration 0044 applied, when \\d site_capacity inspected, then UNIQUE(org_id,site_id,capacity_date,line_id) + available_hours/utilized_hours CHECK (>=0) present + RLS+FORCE RLS enabled with site-scoped policy.\n4. Given two sites in same org, when app_user under withSiteContext(siteId=X) queries site_capacity, then only X's rows are returned (RLS isolation).\n5. Given pg_policies for site_capacity, when inspected, then policy references app.current_site_id() (site-scoped variant).\n\n## Test strategy\n- RED: assert level_names length check + depth CHECK + RLS site-scoped isolation + capacity CHECK constraints + pg_policies grep.\n- Run 'pnpm --filter @monopilot/db test:integration -- hierarchy-capacity'.\n\n## Risk red lines\n- Do not allow array_length mismatch \u2014 DB CHECK constraint must enforce (Postgres array_length on 1D array).\n- Do not org-scope site_capacity \u2014 it must be site-scoped per \u00a76.4.\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not couple Apex seed data to this migration \u2014 seed in T-023 activation wizard.",
+  "title": "T-005 — sites_hierarchy_config + site_capacity tables (§9.4, §9.5, D-MS-10)",
+  "prompt": "# T-005 — sites_hierarchy_config + site_capacity tables\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §9.4, §9.5, D-MS-10\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd the two ancillary core tables: `sites_hierarchy_config` (one row per tenant defining hierarchy depth 2-5 and level_names per ADR-030) and `site_capacity` (per-site per-date available/utilized hours for P2B planning).\n\n## Implementation contract\n1. Migration `packages/db/migrations/0044_hierarchy_capacity.sql`:\n   - CREATE TABLE sites_hierarchy_config per §9.5: id, org_id UNIQUE, depth INT CHECK (BETWEEN 2 AND 5), level_names TEXT[] NOT NULL with CHECK (array_length(level_names,1) = depth), description, created_at. RLS org-scoped.\n   - CREATE TABLE site_capacity per §9.4: id, org_id, site_id (FK sites), capacity_date, line_id NULL, available_hours NUMERIC(6,2) CHECK (>=0), utilized_hours NUMERIC(6,2) DEFAULT 0 CHECK (>=0), notes, UNIQUE(org_id, site_id, capacity_date, line_id). RLS site-scoped (via app.current_site_id()).\n2. Drizzle schemas + zod with level_names length === depth refinement.\n3. Foreign key sites.hierarchy_config_id → sites_hierarchy_config(id) added in this migration (DDL is forward-ref in T-002; this completes the cycle without altering T-002).\n\n## Files\n- packages/db/migrations/0044_hierarchy_capacity.sql [create]\n- packages/db/src/schema/sites-hierarchy-config.ts [create]\n- packages/db/src/schema/site-capacity.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/hierarchy-capacity.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0044 applied, when \\d sites_hierarchy_config inspected, then depth CHECK (2-5) + array_length(level_names) = depth CHECK both enforced, org_id UNIQUE.\n2. Given an insert with depth=3 and level_names=['site','plant'], when committed, then DB raises check_violation (length mismatch).\n3. Given migration 0044 applied, when \\d site_capacity inspected, then UNIQUE(org_id,site_id,capacity_date,line_id) + available_hours/utilized_hours CHECK (>=0) present + RLS+FORCE RLS enabled with site-scoped policy.\n4. Given two sites in same org, when app_user under withSiteContext(siteId=X) queries site_capacity, then only X's rows are returned (RLS isolation).\n5. Given pg_policies for site_capacity, when inspected, then policy references app.current_site_id() (site-scoped variant).\n\n## Test strategy\n- RED: assert level_names length check + depth CHECK + RLS site-scoped isolation + capacity CHECK constraints + pg_policies grep.\n- Run 'pnpm --filter @monopilot/db test:integration -- hierarchy-capacity'.\n\n## Risk red lines\n- Do not allow array_length mismatch — DB CHECK constraint must enforce (Postgres array_length on 1D array).\n- Do not org-scope site_capacity — it must be site-scoped per §6.4.\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not couple Apex seed data to this migration — seed in T-023 activation wizard.",
   "labels": [
     "prd",
     "data",
@@ -15,9 +15,9 @@
     "prd_task_id": "T-005",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a79.4",
-      "\u00a79.5",
-      "\u00a77 D-MS-10"
+      "§9.4",
+      "§9.5",
+      "§7 D-MS-10"
     ],
     "category": "data",
     "subcategory": "schema-hierarchy-capacity",
@@ -26,7 +26,7 @@
     "context_budget": "50k",
     "estimated_effort": "2-3h",
     "description": "Create sites_hierarchy_config (D-MS-10 L2 ADR-030 configurable hierarchy depth 2-5) + site_capacity (Phase 2B foundation) tables with RLS.",
-    "details": "Create sites_hierarchy_config (D-MS-10 L2 ADR-030 configurable hierarchy depth 2-5) + site_capacity (Phase 2B foundation) tables with RLS. Scope: Add the two ancillary core tables: `sites_hierarchy_config` (one row per tenant defining hierarchy depth 2-5 and level_names per ADR-030) and `site_capacity` (per-site per-date available/utilized hours for P2B planning). Touches: packages/db/migrations/0044_hierarchy_capacity.sql, packages/db/src/schema/sites-hierarchy-config.ts, packages/db/src/schema/site-capacity.ts, packages/db/src/schema/index.ts. Constraints: 1. Migration `packages/db/migrations/0044_hierarchy_capacity.sql`: - CREATE TABLE sites_hierarchy_config per \u00a79.5: id, org_id UNIQUE, depth INT CHECK (BETWEEN 2 AND 5), level_names TEXT[] NOT NULL with CHECK (array_length(level_names,1) = depth), description, created_at. RLS org-scoped. - CREATE TABLE site_capacity per \u00a79.4: id, org_id, site_id (FK. Distinguished from sibling 14-multi-site tasks by its narrow schema-hierarchy-capacity focus against PRD \u00a79.4, \u00a79.5, \u00a77 D-MS-10. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "details": "Create sites_hierarchy_config (D-MS-10 L2 ADR-030 configurable hierarchy depth 2-5) + site_capacity (Phase 2B foundation) tables with RLS. Scope: Add the two ancillary core tables: `sites_hierarchy_config` (one row per tenant defining hierarchy depth 2-5 and level_names per ADR-030) and `site_capacity` (per-site per-date available/utilized hours for P2B planning). Touches: packages/db/migrations/0044_hierarchy_capacity.sql, packages/db/src/schema/sites-hierarchy-config.ts, packages/db/src/schema/site-capacity.ts, packages/db/src/schema/index.ts. Constraints: 1. Migration `packages/db/migrations/0044_hierarchy_capacity.sql`: - CREATE TABLE sites_hierarchy_config per §9.5: id, org_id UNIQUE, depth INT CHECK (BETWEEN 2 AND 5), level_names TEXT[] NOT NULL with CHECK (array_length(level_names,1) = depth), description, created_at. RLS org-scoped. - CREATE TABLE site_capacity per §9.4: id, org_id, site_id (FK. Distinguished from sibling 14-multi-site tasks by its narrow schema-hierarchy-capacity focus against PRD §9.4, §9.5, §7 D-MS-10. AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/db/migrations/0044_hierarchy_capacity.sql [create]",
       "packages/db/src/schema/sites-hierarchy-config.ts [create]",
@@ -36,7 +36,7 @@
     ],
     "out_of_scope": [
       "Do not implement hierarchy edit UI here (BL-MS-07 wizard is Phase E P2).",
-      "Do not seed Apex hierarchy_config \u2014 activation wizard T-023.",
+      "Do not seed Apex hierarchy_config — activation wizard T-023.",
       "Do not couple site_capacity to WO planning (08-PROD consumer, P2)."
     ],
     "dependencies": [
@@ -65,10 +65,10 @@
       "Run 'pnpm --filter @monopilot/db test:integration -- hierarchy-capacity'."
     ],
     "risk_red_lines": [
-      "Do not allow level_names array_length \u2260 depth \u2014 DB CHECK must enforce.",
-      "Do not org-scope site_capacity \u2014 it is site-scoped per \u00a76.4.",
+      "Do not allow level_names array_length ≠ depth — DB CHECK must enforce.",
+      "Do not org-scope site_capacity — it is site-scoped per §6.4.",
       "Do not skip FORCE ROW LEVEL SECURITY.",
-      "Do not couple Apex seed data here \u2014 T-023 owns seed.",
+      "Do not couple Apex seed data here — T-023 owns seed.",
       "Do not introduce a TRIGGER instead of CHECK for hierarchy depth integrity."
     ],
     "skills": [
@@ -92,11 +92,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

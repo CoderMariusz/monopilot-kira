@@ -42,8 +42,7 @@
     ],
     "dependencies": [
       "T-054",
-      "T-057",
-      "T-095"
+      "T-057"
     ],
     "parallel_safe_with": [
       "T-059",
@@ -88,10 +87,9 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    }
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "risk_tier": "low"
   }
 }

@@ -1,6 +1,6 @@
 {
-  "title": "T-027 \u2014 finance_outbox_events + d365_finance_dlq schema (\u00a76.4, \u00a712.2, \u00a711.6)",
-  "prompt": "# T-027 \u2014 finance_outbox_events + d365_finance_dlq schema\n\nPRD: docs/prd/10-FINANCE-PRD.md \u00a76.4 finance_outbox_events DDL (lines 411-429) + d365_finance_dlq DDL (lines 431-446); \u00a712.2 event taxonomy; \u00a711.6 V-FIN-INT-01..07; \u00a75.2 BRCGS 7y retention.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Drizzle migration + ORM entries for `finance_outbox_events` (reuses 08-PROD \u00a712 pattern) and `d365_finance_dlq` per PRD \u00a76.4 verbatim. Enforce UNIQUE on idempotency_key (V-FIN-INT-01) and partial unique on (org_id, aggregate_id, event_type) to support at-most-once-per-aggregate semantics where applicable.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0061_finance_outbox.sql`:\n   - `CREATE TYPE outbox_status_enum AS ENUM ('pending','dispatching','delivered','failed','consolidated')` IF NOT EXISTS.\n   - `CREATE TABLE finance_outbox_events` per \u00a76.4 lines 411-429: id BIGSERIAL PK, event_id UUID UNIQUE DEFAULT gen_random_uuid(), org_id, event_type TEXT CHECK IN ('finance.standard_cost.approved','finance.cost_per_kg.changed','finance.wo_cost.closed','finance.wo_cost.reversed','finance.daily_journal.ready','finance.inventory_adjustment'), aggregate_id UUID, payload JSONB, target_system TEXT CHECK IN ('internal','d365_f&o'), target_payload JSONB, status outbox_status_enum DEFAULT 'pending', attempt_count INTEGER DEFAULT 0, next_retry_at TIMESTAMPTZ, last_error TEXT, delivered_at TIMESTAMPTZ, idempotency_key TEXT UNIQUE NOT NULL, enqueued_at TIMESTAMPTZ DEFAULT now(), retention_until DATE GENERATED ALWAYS AS (enqueued_at::date + INTERVAL '7 years') STORED.\n   - V-FIN-INT-01: idempotency_key UNIQUE constraint + CHECK regex `^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$` (UUID v7 format).\n   - V-FIN-INT-03: CHECK (jsonb_array_length(target_payload->'lines') > 0 OR target_system != 'd365_f&o') \u2014 non-empty lines for D365 dispatch.\n   - Indexes: `idx_outbox_pending ON finance_outbox_events (org_id, status, next_retry_at) WHERE status IN ('pending','failed')`; `idx_outbox_aggregate ON finance_outbox_events (org_id, aggregate_id, event_type, enqueued_at DESC)`.\n   - Partitioning: monthly by enqueued_at (NFR \u00a715.3).\n   - RLS via `app.current_org_id()`.\n   - `CREATE TABLE d365_finance_dlq` per \u00a76.4 lines 431-446: id UUID PK, org_id, source_outbox_event_id BIGINT FK, event_type, payload JSONB, last_error TEXT, error_category CHECK IN ('transient','permanent','schema','d365_validation'), attempt_count INTEGER, moved_to_dlq_at TIMESTAMPTZ DEFAULT now(), resolved_at, resolved_by FK\u2192users, resolution_notes, retention_until GENERATED.\n   - RLS via `app.current_org_id()`.\n2. Drizzle ORM entries + register in index.ts.\n\n## Files\n- packages/db/migrations/0061_finance_outbox.sql [create]\n- packages/db/src/schema/finance-outbox-events.ts [create]\n- packages/db/src/schema/d365-finance-dlq.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/finance-outbox-schema.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0061 ran, when \\d finance_outbox_events inspected, then idempotency_key has UNIQUE + UUID v7 CHECK regex. AND given INSERT with idempotency_key not matching UUID v7 regex, when run, then CHECK fails.\n- Given two INSERTs with same idempotency_key, when second runs, then UNIQUE violation (V-FIN-INT-01). AND given INSERT with target_system='d365_f&o' and lines=[], when run, then CHECK fails (V-FIN-INT-03 no empty dispatch).\n- Given finance_outbox_events partitioned by enqueued_at, when SELECT FROM pg_partitioned_table, then it is listed. AND given d365_finance_dlq error_category='unknown', when INSERT runs, then CHECK fails.\n- Given pg_policies on both tables, when listed, then references app.current_org_id().\n_(AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: finance-outbox-schema.test.ts asserts UNIQUE idempotency_key + CHECK regex + non-empty lines + partitioning + RLS.\n- Run `pnpm --filter db migrate && pnpm --filter db test finance-outbox-schema`.\n\n## Risk red lines\n- D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) \u2014 MUST NOT mutate `factory_release_state` or any other canonical Monopilot state.\n- Do not skip the UUID v7 regex CHECK \u2014 V-FIN-INT-01 + R14 contract.\n- Do not allow target_payload.lines=[] for d365_f&o dispatch (V-FIN-INT-03).\n- Do not omit partitioning \u2014 outbox volume at Phase 2 (5000 WOs/day \u00d7 4 event types = 20k events/day).\n- Do not weaken RLS / FORCE ROW LEVEL SECURITY.\n- Do not couple to packages/outbox internals \u2014 finance_outbox_events is a parallel namespaced table per PRD \u00a712.\n",
+  "title": "T-027 — finance_outbox_events + d365_finance_dlq schema (§6.4, §12.2, §11.6)",
+  "prompt": "# T-027 — finance_outbox_events + d365_finance_dlq schema\n\nPRD: docs/prd/10-FINANCE-PRD.md §6.4 finance_outbox_events DDL (lines 411-429) + d365_finance_dlq DDL (lines 431-446); §12.2 event taxonomy; §11.6 V-FIN-INT-01..07; §5.2 BRCGS 7y retention.\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate Drizzle migration + ORM entries for `finance_outbox_events` (reuses 08-PROD §12 pattern) and `d365_finance_dlq` per PRD §6.4 verbatim. Enforce UNIQUE on idempotency_key (V-FIN-INT-01) and partial unique on (org_id, aggregate_id, event_type) to support at-most-once-per-aggregate semantics where applicable.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0061_finance_outbox.sql`:\n   - `CREATE TYPE outbox_status_enum AS ENUM ('pending','dispatching','delivered','failed','consolidated')` IF NOT EXISTS.\n   - `CREATE TABLE finance_outbox_events` per §6.4 lines 411-429: id BIGSERIAL PK, event_id UUID UNIQUE DEFAULT gen_random_uuid(), org_id, event_type TEXT CHECK IN ('finance.standard_cost.approved','finance.cost_per_kg.changed','finance.wo_cost.closed','finance.wo_cost.reversed','finance.daily_journal.ready','finance.inventory_adjustment'), aggregate_id UUID, payload JSONB, target_system TEXT CHECK IN ('internal','d365_f&o'), target_payload JSONB, status outbox_status_enum DEFAULT 'pending', attempt_count INTEGER DEFAULT 0, next_retry_at TIMESTAMPTZ, last_error TEXT, delivered_at TIMESTAMPTZ, idempotency_key TEXT UNIQUE NOT NULL, enqueued_at TIMESTAMPTZ DEFAULT now(), retention_until DATE GENERATED ALWAYS AS (enqueued_at::date + INTERVAL '7 years') STORED.\n   - V-FIN-INT-01: idempotency_key UNIQUE constraint + CHECK regex `^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$` (UUID v7 format).\n   - V-FIN-INT-03: CHECK (jsonb_array_length(target_payload->'lines') > 0 OR target_system != 'd365_f&o') — non-empty lines for D365 dispatch.\n   - Indexes: `idx_outbox_pending ON finance_outbox_events (org_id, status, next_retry_at) WHERE status IN ('pending','failed')`; `idx_outbox_aggregate ON finance_outbox_events (org_id, aggregate_id, event_type, enqueued_at DESC)`.\n   - Partitioning: monthly by enqueued_at (NFR §15.3).\n   - RLS via `app.current_org_id()`.\n   - `CREATE TABLE d365_finance_dlq` per §6.4 lines 431-446: id UUID PK, org_id, source_outbox_event_id BIGINT FK, event_type, payload JSONB, last_error TEXT, error_category CHECK IN ('transient','permanent','schema','d365_validation'), attempt_count INTEGER, moved_to_dlq_at TIMESTAMPTZ DEFAULT now(), resolved_at, resolved_by FK→users, resolution_notes, retention_until GENERATED.\n   - RLS via `app.current_org_id()`.\n2. Drizzle ORM entries + register in index.ts.\n\n## Files\n- packages/db/migrations/0061_finance_outbox.sql [create]\n- packages/db/src/schema/finance-outbox-events.ts [create]\n- packages/db/src/schema/d365-finance-dlq.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/finance-outbox-schema.test.ts [create]\n\n## Acceptance criteria (Given-When-Then)\n- Given migration 0061 ran, when \\d finance_outbox_events inspected, then idempotency_key has UNIQUE + UUID v7 CHECK regex. AND given INSERT with idempotency_key not matching UUID v7 regex, when run, then CHECK fails.\n- Given two INSERTs with same idempotency_key, when second runs, then UNIQUE violation (V-FIN-INT-01). AND given INSERT with target_system='d365_f&o' and lines=[], when run, then CHECK fails (V-FIN-INT-03 no empty dispatch).\n- Given finance_outbox_events partitioned by enqueued_at, when SELECT FROM pg_partitioned_table, then it is listed. AND given d365_finance_dlq error_category='unknown', when INSERT runs, then CHECK fails.\n- Given pg_policies on both tables, when listed, then references app.current_org_id().\n_(AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost))_\n\n## Test strategy (RED first)\n- RED: finance-outbox-schema.test.ts asserts UNIQUE idempotency_key + CHECK regex + non-empty lines + partitioning + RLS.\n- Run `pnpm --filter db migrate && pnpm --filter db test finance-outbox-schema`.\n\n## Risk red lines\n- D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) — MUST NOT mutate `factory_release_state` or any other canonical Monopilot state.\n- Do not skip the UUID v7 regex CHECK — V-FIN-INT-01 + R14 contract.\n- Do not allow target_payload.lines=[] for d365_f&o dispatch (V-FIN-INT-03).\n- Do not omit partitioning — outbox volume at Phase 2 (5000 WOs/day × 4 event types = 20k events/day).\n- Do not weaken RLS / FORCE ROW LEVEL SECURITY.\n- Do not couple to packages/outbox internals — finance_outbox_events is a parallel namespaced table per PRD §12.\n",
   "labels": [
     "prd",
     "data",
@@ -15,10 +15,10 @@
     "prd_task_id": "T-027",
     "source_prd": "docs/prd/10-FINANCE-PRD.md",
     "prd_refs": [
-      "\u00a75.2",
-      "\u00a76.4",
-      "\u00a711.6",
-      "\u00a712.2"
+      "§5.2",
+      "§6.4",
+      "§11.6",
+      "§12.2"
     ],
     "category": "data",
     "subcategory": "outbox-dlq-schema",
@@ -27,7 +27,7 @@
     "context_budget": "50k",
     "estimated_effort": "3h",
     "description": "finance_outbox_events partitioned by enqueued_at with UUID v7 idempotency CHECK + d365_finance_dlq with error_category enum.",
-    "details": "Mirrors 08-PROD \u00a712 stage 2 pattern. UUID v7 CHECK enforces R14 contract. CHECK on target_payload.lines!=[] enforces V-FIN-INT-03 before dispatch. Monthly partitioning for NFR \u00a715.3. Reuses outbox_status_enum if defined by 08-PROD (CREATE TYPE IF NOT EXISTS). [AC count consolidated from 7\u21924 by Fixer F13 2026-05-14 (no coverage lost)]",
+    "details": "Mirrors 08-PROD §12 stage 2 pattern. UUID v7 CHECK enforces R14 contract. CHECK on target_payload.lines!=[] enforces V-FIN-INT-03 before dispatch. Monthly partitioning for NFR §15.3. Reuses outbox_status_enum if defined by 08-PROD (CREATE TYPE IF NOT EXISTS). [AC count consolidated from 7→4 by Fixer F13 2026-05-14 (no coverage lost)]",
     "scope_files": [
       "packages/db/migrations/0061_finance_outbox.sql [create]",
       "packages/db/src/schema/finance-outbox-events.ts [create]",
@@ -43,7 +43,7 @@
       "T-002"
     ],
     "cross_module_dependencies": [
-      "08-production:\u00a712 outbox pattern reference",
+      "08-production:§12 outbox pattern reference",
       "00-foundation:R14 UUID v7 idempotency"
     ],
     "parallel_safe_with": [
@@ -64,8 +64,8 @@
       "Do not allow target_payload.lines=[] for d365 dispatch.",
       "Do not omit partitioning.",
       "Do not weaken RLS.",
-      "Do not couple to packages/outbox internals \u2014 finance namespace is parallel.",
-      "D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) \u2014 MUST NOT mutate `factory_release_state` or any other canonical Monopilot state."
+      "Do not couple to packages/outbox internals — finance namespace is parallel.",
+      "D365 integration is strictly export-only (R15 anti-corruption contract per `_foundation/contracts/`) — MUST NOT mutate `factory_release_state` or any other canonical Monopilot state."
     ],
     "skills": [
       "test-driven-development",
@@ -88,11 +88,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

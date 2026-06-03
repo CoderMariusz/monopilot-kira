@@ -34,10 +34,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prd_task_id": "T-081",
     "prd_refs": [
@@ -90,6 +88,7 @@
       }
     ],
     "out_of_scope": [],
-    "parallel_safe_with": []
+    "parallel_safe_with": [],
+    "risk_tier": "low"
   }
 }

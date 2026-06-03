@@ -1,6 +1,6 @@
 {
-  "title": "T-004 \u2014 site_settings table + L2 override pattern (\u00a79.3, \u00a713.2, ADR-031)",
-  "prompt": "# T-004 \u2014 site_settings table + L2 override + RLS site-scoped variant\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.3, \u00a713.2 (ADR-031 schema variation per org)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `site_settings` backing L2 per-site config overrides (e.g., shift_pattern, fefo_strategy, default_currency, language). Site-scoped RLS using app.current_site_id() from T-001.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0043_site_settings.sql`:\n   - CREATE TABLE site_settings per \u00a79.3: id, org_id, site_id (FK sites), setting_key, setting_value JSONB, source CHECK ('default','l2_override'), updated_by, updated_at, UNIQUE(org_id, site_id, setting_key).\n   - ENABLE + FORCE ROW LEVEL SECURITY.\n   - Policy `site_settings_scope` USING (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) WITH CHECK same \u2014 site-scoped variant per \u00a76.4 + \u00a714.1.\n   - CREATE INDEX idx_site_settings_lookup ON site_settings(org_id, site_id, setting_key).\n2. Drizzle schema + types + zod schema with discriminated source enum.\n3. Helper `getSiteSetting(orgId, siteId, key)` reads override-or-L1-fallback (Settings org_config table fallback wired in T-026).\n\n## Files\n- packages/db/migrations/0043_site_settings.sql [create]\n- packages/db/src/schema/site-settings.ts [create]\n- packages/db/src/schema/site-settings.zod.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/site-settings.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0043 is applied, when \\d site_settings inspected, then all 8 cols + unique(org_id,site_id,setting_key) + RLS+FORCE RLS present + source CHECK constraint enforced.\n2. Given source value 'unknown' is inserted, when the row is committed, then DB raises check_violation.\n3. Given two sites X and Y in same org each have a setting_key='fefo_strategy', when app_user is in withSiteContext(siteId=X), then SELECT returns only X's row.\n4. Given super_admin context with app.current_site_id() IS NULL, when SELECT runs against site_settings, then both sites' rows are returned (ALL-sites mode for cross-site audit).\n5. Given pg_policies for site_settings, when inspected, then policy references both app.current_org_id() AND app.current_site_id() \u2014 proves site-scoping variant.\n\n## Test strategy\n- RED: assert source CHECK enforcement + site-scoped RLS isolation + super_admin ALL-mode + pg_policies dual-reference grep.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-settings'.\n\n## Risk red lines\n- Do not omit org_id from policy USING \u2014 RLS must check both org and site (defense-in-depth).\n- Always call app.current_site_id() helper \u2014 never read the raw GUC directly.\n- Do not allow source='l2_override' rows without a matching L1 default at org_config \u2014 validation deferred to T-026 UI; do not enforce here.\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not store secrets in setting_value JSONB; document this in scope notes.",
+  "title": "T-004 — site_settings table + L2 override pattern (§9.3, §13.2, ADR-031)",
+  "prompt": "# T-004 — site_settings table + L2 override + RLS site-scoped variant\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §9.3, §13.2 (ADR-031 schema variation per org)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nIntroduce `site_settings` backing L2 per-site config overrides (e.g., shift_pattern, fefo_strategy, default_currency, language). Site-scoped RLS using app.current_site_id() from T-001.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0043_site_settings.sql`:\n   - CREATE TABLE site_settings per §9.3: id, org_id, site_id (FK sites), setting_key, setting_value JSONB, source CHECK ('default','l2_override'), updated_by, updated_at, UNIQUE(org_id, site_id, setting_key).\n   - ENABLE + FORCE ROW LEVEL SECURITY.\n   - Policy `site_settings_scope` USING (org_id = app.current_org_id() AND (app.current_site_id() IS NULL OR site_id = app.current_site_id())) WITH CHECK same — site-scoped variant per §6.4 + §14.1.\n   - CREATE INDEX idx_site_settings_lookup ON site_settings(org_id, site_id, setting_key).\n2. Drizzle schema + types + zod schema with discriminated source enum.\n3. Helper `getSiteSetting(orgId, siteId, key)` reads override-or-L1-fallback (Settings org_config table fallback wired in T-026).\n\n## Files\n- packages/db/migrations/0043_site_settings.sql [create]\n- packages/db/src/schema/site-settings.ts [create]\n- packages/db/src/schema/site-settings.zod.ts [create]\n- packages/db/src/schema/index.ts [modify]\n- packages/db/__tests__/site-settings.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0043 is applied, when \\d site_settings inspected, then all 8 cols + unique(org_id,site_id,setting_key) + RLS+FORCE RLS present + source CHECK constraint enforced.\n2. Given source value 'unknown' is inserted, when the row is committed, then DB raises check_violation.\n3. Given two sites X and Y in same org each have a setting_key='fefo_strategy', when app_user is in withSiteContext(siteId=X), then SELECT returns only X's row.\n4. Given super_admin context with app.current_site_id() IS NULL, when SELECT runs against site_settings, then both sites' rows are returned (ALL-sites mode for cross-site audit).\n5. Given pg_policies for site_settings, when inspected, then policy references both app.current_org_id() AND app.current_site_id() — proves site-scoping variant.\n\n## Test strategy\n- RED: assert source CHECK enforcement + site-scoped RLS isolation + super_admin ALL-mode + pg_policies dual-reference grep.\n- Run 'pnpm --filter @monopilot/db test:integration -- site-settings'.\n\n## Risk red lines\n- Do not omit org_id from policy USING — RLS must check both org and site (defense-in-depth).\n- Always call app.current_site_id() helper — never read the raw GUC directly.\n- Do not allow source='l2_override' rows without a matching L1 default at org_config — validation deferred to T-026 UI; do not enforce here.\n- Do not skip FORCE ROW LEVEL SECURITY.\n- Do not store secrets in setting_value JSONB; document this in scope notes.",
   "labels": [
     "prd",
     "data",
@@ -15,8 +15,8 @@
     "prd_task_id": "T-004",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a79.3",
-      "\u00a713.2"
+      "§9.3",
+      "§13.2"
     ],
     "category": "data",
     "subcategory": "schema-site-settings",
@@ -24,8 +24,8 @@
     "parent_feature": "14-MULTI-SITE-a core schema",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "Create site_settings (L2 per-site overrides over L1 org defaults per ADR-031) with source check ('default','l2_override') + RLS site-scoped variant \u2014 depends on T-001 app.current_site_id helper.",
-    "details": "Create site_settings (L2 per-site overrides over L1 org defaults per ADR-031) with source check ('default','l2_override') + RLS site-scoped variant \u2014 depends on T-001 app.current_site_id helper. Scope: Introduce `site_settings` backing L2 per-site config overrides (e. Touches: packages/db/migrations/0043_site_settings.sql, packages/db/src/schema/site-settings.ts, packages/db/src/schema/site-settings.zod.ts, packages/db/src/schema/index.ts. Constraints: 1. Migration `packages/db/migrations/0043_site_settings.sql`: - CREATE TABLE site_settings per \u00a79.3: id, org_id, site_id (FK sites), setting_key, setting_value JSONB, source CHECK ('default','l2_override'), updated_by, updated_at, UNIQUE(org_id, site_id, setting_key). - ENABLE + FORCE ROW LEVEL SECURITY. - Policy `site_settings_scope` USING (org_id. Distinguished from sibling 14-multi-site tasks by its narrow schema-site-settings focus against PRD \u00a79.3, \u00a713.2. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "Create site_settings (L2 per-site overrides over L1 org defaults per ADR-031) with source check ('default','l2_override') + RLS site-scoped variant — depends on T-001 app.current_site_id helper.",
+    "details": "Create site_settings (L2 per-site overrides over L1 org defaults per ADR-031) with source check ('default','l2_override') + RLS site-scoped variant — depends on T-001 app.current_site_id helper. Scope: Introduce `site_settings` backing L2 per-site config overrides (e. Touches: packages/db/migrations/0043_site_settings.sql, packages/db/src/schema/site-settings.ts, packages/db/src/schema/site-settings.zod.ts, packages/db/src/schema/index.ts. Constraints: 1. Migration `packages/db/migrations/0043_site_settings.sql`: - CREATE TABLE site_settings per §9.3: id, org_id, site_id (FK sites), setting_key, setting_value JSONB, source CHECK ('default','l2_override'), updated_by, updated_at, UNIQUE(org_id, site_id, setting_key). - ENABLE + FORCE ROW LEVEL SECURITY. - Policy `site_settings_scope` USING (org_id. Distinguished from sibling 14-multi-site tasks by its narrow schema-site-settings focus against PRD §9.3, §13.2. AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/db/migrations/0043_site_settings.sql [create]",
       "packages/db/src/schema/site-settings.ts [create]",
@@ -35,8 +35,8 @@
     ],
     "out_of_scope": [
       "Do not implement the UI override modal here (T-026).",
-      "Do not seed L1 org_config defaults \u2014 owned by 02-SET \u00a79.",
-      "Do not implement config promotion across levels (T-019 covers replication retry; promotion is P2 \u00a710B MS-105)."
+      "Do not seed L1 org_config defaults — owned by 02-SET §9.",
+      "Do not implement config promotion across levels (T-019 covers replication retry; promotion is P2 §10B MS-105)."
     ],
     "dependencies": [
       "T-001",
@@ -60,7 +60,7 @@
     "acceptance_criteria": [
       "Given migration 0043 is applied, when \\\\d site_settings inspected, then all 8 cols + unique(org_id,site_id,setting_key) + RLS+FORCE RLS + source CHECK constraint present.",
       "Given source value 'unknown' is inserted, when the row is committed, then DB raises check_violation; AND given pg_policies for the table when inspected then policy references app.current_org_id() AND app.current_site_id() with no raw current_setting GUC reads.",
-      "Given two sites X and Y in same org each have a setting_key='fefo_strategy', when app_user is in withSiteContext(siteId=X), then SELECT returns only X's row; AND Given pg_policies for site_settings, when inspected, then policy references both app.current_org_id() AND app.current_site_id() \u2014 site-scoping variant.",
+      "Given two sites X and Y in same org each have a setting_key='fefo_strategy', when app_user is in withSiteContext(siteId=X), then SELECT returns only X's row; AND Given pg_policies for site_settings, when inspected, then policy references both app.current_org_id() AND app.current_site_id() — site-scoping variant.",
       "Given super_admin context with app.current_site_id() IS NULL, when SELECT runs against site_settings, then both sites' rows are returned (ALL-sites mode)."
     ],
     "test_strategy": [
@@ -68,9 +68,9 @@
       "Run 'pnpm --filter @monopilot/db test:integration -- site-settings'."
     ],
     "risk_red_lines": [
-      "Do not omit org_id from policy USING \u2014 RLS must check both (defense-in-depth).",
-      "Always call app.current_site_id() helper \u2014 never read the raw GUC directly.",
-      "Do not allow source='l2_override' rows without matching L1 default at org_config \u2014 UI validation deferred to T-026.",
+      "Do not omit org_id from policy USING — RLS must check both (defense-in-depth).",
+      "Always call app.current_site_id() helper — never read the raw GUC directly.",
+      "Do not allow source='l2_override' rows without matching L1 default at org_config — UI validation deferred to T-026.",
       "Do not skip FORCE ROW LEVEL SECURITY.",
       "Do not store secrets in setting_value JSONB."
     ],
@@ -95,11 +95,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

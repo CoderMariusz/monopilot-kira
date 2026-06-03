@@ -97,10 +97,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "cross_module_dependencies": [
       {
@@ -113,6 +111,7 @@
       "Playwright trace artifact for each happy path and blocked/error path exercised by the task.",
       "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
       "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

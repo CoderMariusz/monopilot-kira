@@ -1,7 +1,12 @@
 {
   "title": "T-009 — quality_audit_log table + audit triggers on quality_holds",
   "prompt": "# T-009 — quality_audit_log + audit triggers\n\nPRD: docs/prd/09-QUALITY-PRD.md §5.2 quality_audit_log DDL, §9.1 audit_hold_change trigger, §13.3 audit log completeness\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nCreate `quality_audit_log` table with retention_until and indexes per §5.2, plus the audit_hold_change trigger function and triggers on quality_holds (INSERT + UPDATE) per §9.1.\n\n## Implementation contract\n1. Drizzle migration `packages/db/migrations/0103_quality_audit_log.sql` creates quality_audit_log per §5.2 verbatim (BIGSERIAL PK, `org_id uuid NOT NULL`, occurred_at, table_name, record_id, operation, old_data, new_data, changed_fields, user_id, session_id, change_reason, ip_address, user_agent, request_id, retention_until GENERATED) plus idx_audit_record and idx_audit_user indexes; ENABLE+FORCE ROW LEVEL SECURITY with policy `quality_audit_log_org_context` USING (`org_id = app.current_org_id()`) WITH CHECK (`org_id = app.current_org_id()`) — the foundation function from `packages/db/migrations/002-rls-baseline.sql`; never `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC.\n2. CREATE OR REPLACE FUNCTION raise_immutable_error() per §9.1.\n3. CREATE OR REPLACE FUNCTION audit_hold_change() per §9.1: reads org via `app.current_org_id()` (foundation function) for the audit row's `org_id` and writes actor `user_id` from a session GUC (e.g. `current_setting('app.current_user_id', true)`); changed_fields computed via jsonb_each diff. `request_id` may use a GUC via `current_setting('app.request_id', true)`. NEVER use `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` — those have been replaced by the function.\n4. CREATE TRIGGER audit_hold_insert AFTER INSERT and audit_hold_update AFTER UPDATE on quality_holds FOR EACH ROW.\n\n## Files\n- packages/db/migrations/0103_quality_audit_log.sql [create]\n- packages/db/__tests__/quality-audit-log.test.ts [create]\n\n## Acceptance criteria\n1. Given migration 0103 applied, when \\d quality_audit_log runs, then all §5.2 columns exist (operation, old_data jsonb, new_data jsonb, changed_fields text[], retention_until GENERATED), org_id NOT NULL, and RLS+FORCE ROW LEVEL SECURITY enabled\n2. Given the connection as `app_user` has called `app.set_org_context(session_token, org_id)` and `SET LOCAL app.current_user_id = '<uuid>'`, when a quality_holds INSERT fires the trigger, then exactly 1 quality_audit_log row is appended with operation='INSERT', new_data set, old_data NULL, user_id matching the GUC, and org_id matching `app.current_org_id()`\n3. Given an existing quality_holds row, when UPDATE changes hold_status from 'open' to 'released', then 1 quality_audit_log row is appended with operation='UPDATE', changed_fields containing 'hold_status' and 'released_at'\n4. Given pg_policies and trigger function source are inspected, when grep'd, then they reference `app.current_org_id()` and contain no `current_setting('app.tenant_id')` or `current_setting('app.current_org_id')` GUC reads",
-  "labels": ["prd", "data", "audit-trigger", "T1-schema"],
+  "labels": [
+    "prd",
+    "data",
+    "audit-trigger",
+    "T1-schema"
+  ],
   "priority": 80,
   "max_attempts": 3,
   "pipeline_name": "kira_dev",
@@ -9,7 +14,11 @@
     "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
     "prd_task_id": "T-009",
     "source_prd": "docs/prd/09-QUALITY-PRD.md",
-    "prd_refs": ["§5.2", "§9.1", "§13.3"],
+    "prd_refs": [
+      "§5.2",
+      "§9.1",
+      "§13.3"
+    ],
     "category": "data",
     "subcategory": "audit-log",
     "task_type": "T1-schema",
@@ -27,8 +36,14 @@
       "Do not implement audit-export UI (T-058)",
       "Do not implement immutability triggers on signed records (T-040)"
     ],
-    "dependencies": ["T-004"],
-    "parallel_safe_with": ["T-006", "T-007", "T-008"],
+    "dependencies": [
+      "T-004"
+    ],
+    "parallel_safe_with": [
+      "T-006",
+      "T-007",
+      "T-008"
+    ],
     "acceptance_criteria": [
       "Given migration 0103 applied, when \\d quality_audit_log runs, then all §5.2 columns exist (operation, old_data jsonb, new_data jsonb, changed_fields text[], retention_until GENERATED), org_id NOT NULL, RLS+FORCE ROW LEVEL SECURITY enabled",
       "Given app_user has called app.set_org_context(session_token, org_id) and SET LOCAL app.current_user_id = '<uuid>', when a quality_holds INSERT fires the trigger, then exactly 1 quality_audit_log row appears with operation='INSERT', new_data populated, old_data NULL, user_id matching the GUC, and org_id matching app.current_org_id()",
@@ -46,16 +61,29 @@
       "Do not omit retention_until GENERATED 7y column (BRCGS Issue 10)",
       "Do not allow triggers to swallow errors silently (RAISE on missing app.current_user_id)"
     ],
-    "skills": ["test-driven-development", "requesting-code-review"],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
     "checkpoint_policy": {
-      "required_checkpoints": ["RED", "GREEN", "REVIEW", "CLOSEOUT"],
-      "closeout_requires": ["changed_files", "test_commands_and_results", "acceptance_criteria_status", "deviations_from_prd", "git_status"]
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    }
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "risk_tier": "high"
   }
 }

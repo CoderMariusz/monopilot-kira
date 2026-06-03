@@ -42,11 +42,7 @@
       "Do not enforce credit_limit (Phase 2 per §4.2).",
       "Do not seed allergen_families (02-SETTINGS owned)."
     ],
-    "dependencies": [
-      "00-foundation/T-125 (withOrgContext + app.current_org_id())",
-      "00-foundation/T-113 (@monopilot/gdpr registry)",
-      "02-settings (allergen_families reference table)"
-    ],
+    "dependencies": [],
     "parallel_safe_with": [
       "T-006",
       "T-018",
@@ -56,7 +52,10 @@
       "00-foundation/T-125",
       "00-foundation/T-113",
       "02-settings (allergen_families)",
-      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "00-foundation/T-125 (withOrgContext + app.current_org_id())",
+      "00-foundation/T-113 (@monopilot/gdpr registry)",
+      "02-settings (allergen_families reference table)"
     ],
     "acceptance_criteria": [
       "Given a fresh DB, when the migration runs, then \\d customers/customer_contacts/customer_addresses/customer_allergen_restrictions show all columns including org_id NOT NULL + R13 audit cols, and RLS + FORCE ROW LEVEL SECURITY enabled on all 4 tables.",
@@ -96,11 +95,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

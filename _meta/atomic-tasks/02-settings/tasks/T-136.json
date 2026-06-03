@@ -28,6 +28,12 @@
       "T-143",
       "T-144"
     ],
-    "executable": false
+    "executable": false,
+    "risk_tier": "low",
+    "routing_hints": {
+      "writer": "plan",
+      "reviewer": "codex-review"
+    },
+    "dependencies": []
   }
 }

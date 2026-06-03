@@ -71,16 +71,15 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
         "module": "02-settings",
         "contract": "Rules are registered in the Settings rule registry; 07 owns semantics, 02 owns registry plumbing."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

@@ -55,8 +55,7 @@
       "T-023",
       "T-025",
       "T-029",
-      "T-031",
-      "00-foundation/T-123"
+      "T-031"
     ],
     "parallel_safe_with": [],
     "cross_module_dependencies": [
@@ -65,7 +64,8 @@
       "09-quality/T-010 (v_active_holds)",
       "00-foundation/T-123 (Playwright harness)",
       "00-foundation/T-116 (OTel)",
-      "09-quality/T-064 (consume gate — spine test asserts holdsGuard is called for each LP mutation step; per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — spine test asserts holdsGuard is called for each LP mutation step; per 2026-05-14 audit)",
+      "00-foundation/T-123"
     ],
     "acceptance_criteria": [
       "Given the test runs via pnpm --filter @monopilot/web playwright test apps/web/e2e/shipping-spine.spec.ts, when the spine completes, then all steps pass: createDraftSO → allocateSO → releaseWave → executePick → closeBox → confirmShipment; SSCC reads organizations.gs1_company_prefix from 02-settings; AND given a critical quality_hold is introduced on the allocated LP before confirmShipment, then blocker_code='qa.critical_hold' returned (09-quality T-064 holdsGuard).",
@@ -119,12 +119,11 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "test",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": false,
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "low"
   }
 }

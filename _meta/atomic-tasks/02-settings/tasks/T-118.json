@@ -93,10 +93,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
     "prototype_reference": {
@@ -109,6 +107,7 @@
     "prototype_match": false,
     "prototype_index_entry": "flags_admin_screen (closest pattern — per-tenant boolean toggle; SET settings.flags.edit)",
     "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#flags_admin_screen",
-    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:355-413"
+    "prototype_closest_path": "prototypes/design/Monopilot Design System/settings/admin-screens.jsx:355-413",
+    "risk_tier": "high"
   }
 }

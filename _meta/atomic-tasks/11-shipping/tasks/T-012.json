@@ -43,9 +43,7 @@
     ],
     "dependencies": [
       "T-011",
-      "T-031",
-      "00-foundation/T-125",
-      "00-foundation/T-112"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-007",
@@ -55,7 +53,9 @@
       "05-warehouse/T-002 (license_plates state machine)",
       "09-quality/T-010 (v_active_holds)",
       "09-quality/T-011 (consumer of shipping.quality_hold.overridden)",
-      "09-quality/T-064 (consume gate — allocationOverride must verify holdsGuard before mutating allocation tables; per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — allocationOverride must verify holdsGuard before mutating allocation tables; per 2026-05-14 audit)",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
     ],
     "acceptance_criteria": [
       "Given a confirmed SO with 3 lines fully covered by FEFO LPs, when allocateSO runs, then allocations written + status='allocated' + outbox shipping.so.allocated; AND given partial allocation, when allocateSO runs, then status stays 'confirmed' and outbox shipping.so.partial_allocated emitted.",
@@ -97,11 +97,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

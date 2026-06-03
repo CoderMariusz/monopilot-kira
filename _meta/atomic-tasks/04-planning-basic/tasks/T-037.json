@@ -92,10 +92,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "cross_module_dependencies": [
       {
@@ -114,6 +112,7 @@
       "Desktop screenshots/artifacts for each implemented page/modal state compared against prototype line references.",
       "Attach artifact paths in CLOSEOUT with changed files, test commands/results, and acceptance criteria status."
     ],
-    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution."
+    "priority_normalization_note": "Priority normalized to ACP convention bands on 2026-05-03; lower number means earlier execution.",
+    "risk_tier": "high"
   }
 }

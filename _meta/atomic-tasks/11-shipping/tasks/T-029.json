@@ -55,11 +55,7 @@
     "dependencies": [
       "T-018",
       "T-020",
-      "T-031",
-      "00-foundation/T-111",
-      "00-foundation/T-112",
-      "00-foundation/T-116",
-      "00-foundation/T-125"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-027",
@@ -71,7 +67,11 @@
       "00-foundation/T-111 (apps/worker JobRegistry)",
       "00-foundation/T-116 (OTel)",
       "02-settings (D365_Constants from §11)",
-      "08-production (outbox_status_enum shared ENUM)"
+      "08-production (outbox_status_enum shared ENUM)",
+      "00-foundation/T-111",
+      "00-foundation/T-112",
+      "00-foundation/T-116",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given migration runs, when DB inspected, then shipping_outbox_events + shipping_push_dlq exist with org_id NOT NULL + RLS + FORCE RLS; AND given event enqueued with idempotency_key='ship::<id>::v1', when duplicate enqueue attempted, then UPSERT on event_type+idempotency_key prevents duplicate row.",
@@ -113,11 +113,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

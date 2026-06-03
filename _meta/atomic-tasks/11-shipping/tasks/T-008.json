@@ -47,8 +47,7 @@
     ],
     "dependencies": [
       "T-007",
-      "T-031",
-      "00-foundation/T-124"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-009",
@@ -57,7 +56,8 @@
     "cross_module_dependencies": [
       "01-npd/T-001 (product table for Combobox)",
       "00-foundation/T-123 (Playwright)",
-      "00-foundation/T-124 (@monopilot/e-sign for PIN)"
+      "00-foundation/T-124 (@monopilot/e-sign for PIN)",
+      "00-foundation/T-124"
     ],
     "acceptance_criteria": [
       "Given the wizard renders, when compared to prototypes/design/Monopilot Design System/shipping/modals.jsx:115-271 (so_create_wizard_modal), then each of the 4 steps matches the prototype field set and layout — RTL snapshot + Playwright per-step screenshot (parity checklist per UI-PROTOTYPE-PARITY-POLICY).",
@@ -110,13 +110,12 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "so_create_wizard_modal,allergen_override_modal,so_line_add_modal",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "high"
   }
 }

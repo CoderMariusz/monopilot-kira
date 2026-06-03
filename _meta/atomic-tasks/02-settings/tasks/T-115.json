@@ -94,10 +94,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
@@ -110,6 +108,7 @@
     },
     "prototype_index_entry": "manufacturing_op_history_screen",
     "prototype_index_ref": "_meta/prototype-labels/prototype-index-settings.json#manufacturing_op_history_screen",
-    "prototype_path": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx:271-404"
+    "prototype_path": "prototypes/design/Monopilot Design System/settings/manufacturing-ops.jsx:271-404",
+    "risk_tier": "high"
   }
 }

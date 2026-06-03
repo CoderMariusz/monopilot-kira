@@ -86,10 +86,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       "00-foundation:T-124",
@@ -97,6 +95,7 @@
       "08-production:T-003",
       "08-production:T-014",
       "09-quality:T-039"
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

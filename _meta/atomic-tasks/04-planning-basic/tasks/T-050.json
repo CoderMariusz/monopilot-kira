@@ -120,10 +120,9 @@
       "Prototype parity notes citing label/path/lines."
     ],
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
-    }
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
+    },
+    "risk_tier": "high"
   }
 }

@@ -74,10 +74,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
@@ -90,6 +88,7 @@
         "task_id": "T-112",
         "contract": "Outbox emitter must use foundation outbox table & dispatcher contract (T-112); do not invent a parallel outbox shape."
       }
-    ]
+    ],
+    "risk_tier": "low"
   }
 }

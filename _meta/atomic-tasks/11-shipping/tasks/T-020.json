@@ -50,9 +50,7 @@
       "T-018",
       "T-019",
       "T-013",
-      "T-031",
-      "00-foundation/T-125",
-      "00-foundation/T-112"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-016",
@@ -62,7 +60,9 @@
       "05-warehouse/T-013 (transition_lp DSL — reserved→shipped)",
       "01-npd/T-001 (product.variance_tolerance_pct for V-SHIP-PACK-04)",
       "09-quality/T-010 (v_active_holds via T-013)",
-      "09-quality/T-064 (consume gate — confirmShipment calls holdsGuard before shipping LP; per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — confirmShipment calls holdsGuard before shipping LP; per 2026-05-14 audit)",
+      "00-foundation/T-125",
+      "00-foundation/T-112"
     ],
     "acceptance_criteria": [
       "Given closeBox called for box with 0 contents, when validator runs, then throws V-SHIP-PACK-01; AND given actual_weight_kg outside product.variance_tolerance_pct, then throws V-SHIP-PACK-04.",
@@ -105,11 +105,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

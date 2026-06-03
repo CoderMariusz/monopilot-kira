@@ -46,11 +46,7 @@
     ],
     "dependencies": [
       "T-006",
-      "T-031",
-      "00-foundation/T-125",
-      "00-foundation/T-112",
-      "00-foundation/T-117",
-      "00-foundation/T-121"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-012",
@@ -60,7 +56,11 @@
       "09-quality/T-010 (v_active_holds — quality hold gate)",
       "01-npd/T-001 (product table — allergen cascade)",
       "00-foundation/T-124 (@monopilot/e-sign for allergen-override approver_pin)",
-      "09-quality/T-064 (consume gate — holdsGuard must be called before any LP mutation; shipping hold consumers per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — holdsGuard must be called before any LP mutation; shipping hold consumers per 2026-05-14 audit)",
+      "00-foundation/T-125",
+      "00-foundation/T-112",
+      "00-foundation/T-117",
+      "00-foundation/T-121"
     ],
     "acceptance_criteria": [
       "Given a draft SO with no shipping_address_id, when confirmSO is called, then it returns blocker_code='ship.so.address_missing' (V-SHIP-SO-02); AND given allergen conflicts with no override, then blocker_code='ship.so.allergen_conflict' (V-SHIP-SO-03); AND given an allocated LP has an active critical quality_hold (v_active_holds via 09-quality T-064), then blocker_code='qa.critical_hold' (D-SHP-13 hard gate) — holdsGuard called before any LP mutation.",
@@ -102,11 +102,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

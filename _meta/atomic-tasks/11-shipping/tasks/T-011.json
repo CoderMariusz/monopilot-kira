@@ -46,8 +46,7 @@
       "Do not consume in confirmSO logic (T-007)."
     ],
     "dependencies": [
-      "T-006",
-      "00-foundation/T-125"
+      "T-006"
     ],
     "parallel_safe_with": [
       "T-007",
@@ -58,7 +57,8 @@
       "09-quality/T-010 (v_active_holds)",
       "00-foundation/T-125 (app.current_org_id())",
       "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
-      "09-quality/T-064 (consume gate — allocate_fefo must call holdsGuard before reserving LP; per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — allocate_fefo must call holdsGuard before reserving LP; per 2026-05-14 audit)",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given a SO line with qty_ordered=100 and 3 LPs with expiry 2026-06-01/2026-05-15/2026-07-01 each qty_on_hand=50, when allocate_fefo runs, then LP expiring 2026-05-15 is allocated first (FEFO) and v_active_holds gate (09-quality T-064) is checked before reservation.",
@@ -100,11 +100,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

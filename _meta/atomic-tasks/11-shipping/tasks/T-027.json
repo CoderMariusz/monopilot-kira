@@ -48,8 +48,7 @@
       "Do not implement carrier API integration (P2)."
     ],
     "dependencies": [
-      "T-031",
-      "00-foundation/T-125"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-026",
@@ -57,7 +56,8 @@
     ],
     "cross_module_dependencies": [
       "00-foundation/T-123 (Playwright)",
-      "00-foundation/T-125 (app.current_org_id())"
+      "00-foundation/T-125 (app.current_org_id())",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given migration runs, when DB inspected, then carriers exists with org_id NOT NULL + R13 + RLS + FORCE RLS + UNIQUE(org_id, carrier_code).",
@@ -109,13 +109,12 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "prototype_match": true,
     "prototype_index_entry": "carriers_list_page,carrier_create_edit_modal",
-    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md"
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "risk_tier": "low"
   }
 }

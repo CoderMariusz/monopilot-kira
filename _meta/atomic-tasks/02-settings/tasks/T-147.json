@@ -60,6 +60,11 @@
         "axe_report",
         "deviation_log"
       ]
+    },
+    "risk_tier": "low",
+    "routing_hints": {
+      "writer": "test",
+      "reviewer": "review-codex-work"
     }
   }
 }

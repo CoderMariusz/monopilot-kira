@@ -45,9 +45,7 @@
     ],
     "dependencies": [
       "T-006",
-      "T-015",
-      "00-foundation/T-125",
-      "02-settings (organizations.gs1_company_prefix)"
+      "T-015"
     ],
     "parallel_safe_with": [
       "T-011",
@@ -57,7 +55,8 @@
       "02-settings (organizations.gs1_company_prefix)",
       "05-warehouse/T-002 (license_plates)",
       "00-foundation/T-125 (app.current_org_id())",
-      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)"
+      "01-npd/T-001 (product FG SSOT — variance_tolerance_pct + allergen attributes; coverage hygiene per R3 audit 2026-05-14)",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given a fresh DB, when migration runs, then 3 tables + status ENUM + sscc_counters + functions (next_sscc_serial, sscc_mod10_check, generate_sscc) exist with org_id NOT NULL + R13 + RLS + FORCE RLS.",
@@ -100,11 +99,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

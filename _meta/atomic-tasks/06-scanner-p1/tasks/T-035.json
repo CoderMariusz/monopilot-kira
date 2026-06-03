@@ -100,10 +100,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
     },
     "prototype_match": true,
     "prototype_index_entry": "move_screen",
@@ -122,6 +120,7 @@
     },
     "cross_module_dependencies": [
       "05-warehouse: LP lock, move, split, location contracts"
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

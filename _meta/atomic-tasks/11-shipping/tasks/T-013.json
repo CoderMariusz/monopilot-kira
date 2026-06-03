@@ -42,8 +42,7 @@
       "Do not duplicate v_active_holds in shipping schema."
     ],
     "dependencies": [
-      "T-031",
-      "00-foundation/T-125"
+      "T-031"
     ],
     "parallel_safe_with": [
       "T-012",
@@ -55,7 +54,8 @@
       "09-quality/T-010 (v_active_holds)",
       "09-quality/T-011 (consumer of shipping.quality_hold.overridden)",
       "00-foundation/T-112 (outbox)",
-      "09-quality/T-064 (consume gate — evaluateLpForShipping is the holdsGuard implementation; shipping depends on this gate per 2026-05-14 audit)"
+      "09-quality/T-064 (consume gate — evaluateLpForShipping is the holdsGuard implementation; shipping depends on this gate per 2026-05-14 audit)",
+      "00-foundation/T-125"
     ],
     "acceptance_criteria": [
       "Given an LP with critical hold, when evaluateLpForShipping (09-quality T-064 gate) runs, then returns { ok: false, severity: 'critical', holdId }; AND given major hold, returns { ok: true, severity: 'major', holdId } (warn only); AND given no active hold, returns { ok: true, severity: null }.",
@@ -97,11 +97,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "low"
   }
 }

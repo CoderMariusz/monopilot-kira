@@ -1,6 +1,6 @@
 {
-  "title": "T-027 \u2014 cross_site_summary materialized view + pg_cron hourly refresh (\u00a79.10, MS-001/003)",
-  "prompt": "# T-027 \u2014 cross_site_summary MV + pg_cron refresh\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md \u00a79.10 (MV def), \u00a710.1 MS-001/003, \u00a715.3 (refresh <10s for 10 sites)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPre-aggregated MV powering MS-001 Site Overview + MS-003 Cross-site Factory Aggregate dashboards.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0052_cross_site_summary_mv.sql` per \u00a79.10 DDL:\n   - CREATE MATERIALIZED VIEW cross_site_summary AS SELECT org_id, site_id, ... FROM sites s WHERE s.active.\n   - CREATE UNIQUE INDEX idx_css_pk ON cross_site_summary(org_id, site_id) \u2014 required for REFRESH CONCURRENTLY.\n   - RLS not directly on MVs \u2014 wrapping VIEW v_cross_site_summary with RLS-aware filter (org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_id()).\n2. pg_cron schedule: `SELECT cron.schedule('cross_site_summary_refresh', '0 * * * *', $$REFRESH MATERIALIZED VIEW CONCURRENTLY cross_site_summary$$);` (hourly).\n3. Tests: MV populates from sample sites/holds/WOs; refresh CONCURRENTLY succeeds; wrapping VIEW respects RLS isolation; performance benchmark < 10s for 10 sites with 1M WO rows (pgbench).\n\n## Files\n- packages/db/migrations/0052_cross_site_summary_mv.sql [create]\n- packages/db/src/schema/cross-site-summary.ts [create]\n- packages/db/__tests__/cross-site-summary.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0052 applied, when \\d cross_site_summary inspected, then 6 cols (org_id, site_id, as_of_date, wo_active, holds_active, inventory_value, avg_availability_7d) + unique idx on (org_id,site_id).\n2. Given pg_cron jobs are listed, when queried, then 'cross_site_summary_refresh' is scheduled hourly.\n3. Given 2 sites X and Y in org_A each have 1 active WO and 1 hold, when v_cross_site_summary is queried under withOrgContext(A) + withSiteContext(X), then only X's row is returned (RLS via wrapping view).\n4. Given REFRESH MATERIALIZED VIEW CONCURRENTLY runs, when settled, then no exclusive lock blocked concurrent SELECT (proven by parallel-query test).\n5. Given 10 sites with 100,000 work_orders each (seeded), when REFRESH runs, then duration < 10s (recorded via test harness measurement; failure logs runtime for tuning per \u00a715.3).\n\n## Test strategy\n- RED: integration test asserting MV existence + RLS via wrapping view + concurrent refresh + perf threshold before migration applied.\n- Run 'pnpm --filter @monopilot/db test:integration -- cross-site-summary'.\n\n## Risk red lines\n- Do not omit unique index on (org_id, site_id) \u2014 REFRESH CONCURRENTLY requires it.\n- Do not put RLS on the MV directly \u2014 Postgres does not support RLS on MVs; wrap with VIEW.\n- Do not exceed \u00a715.3 10s budget on cold cache \u2014 if perf fails, consider per-site refresh partitioning.\n- Do not schedule refresh more frequently than hourly without explicit perf review \u2014 pg_cron contention risk.\n- Do not let MV stale data exceed 1 hour for live dashboards \u2014 surface staleness via as_of_date column.",
+  "title": "T-027 — cross_site_summary materialized view + pg_cron hourly refresh (§9.10, MS-001/003)",
+  "prompt": "# T-027 — cross_site_summary MV + pg_cron refresh\n\nPRD: docs/prd/14-MULTI-SITE-PRD.md §9.10 (MV def), §10.1 MS-001/003, §15.3 (refresh <10s for 10 sites)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nPre-aggregated MV powering MS-001 Site Overview + MS-003 Cross-site Factory Aggregate dashboards.\n\n## Implementation contract\n1. Migration `packages/db/migrations/0052_cross_site_summary_mv.sql` per §9.10 DDL:\n   - CREATE MATERIALIZED VIEW cross_site_summary AS SELECT org_id, site_id, ... FROM sites s WHERE s.active.\n   - CREATE UNIQUE INDEX idx_css_pk ON cross_site_summary(org_id, site_id) — required for REFRESH CONCURRENTLY.\n   - RLS not directly on MVs — wrapping VIEW v_cross_site_summary with RLS-aware filter (org_id = app.current_org_id()) AND (app.current_site_id() IS NULL OR site_id = app.current_site_id()).\n2. pg_cron schedule: `SELECT cron.schedule('cross_site_summary_refresh', '0 * * * *', $$REFRESH MATERIALIZED VIEW CONCURRENTLY cross_site_summary$$);` (hourly).\n3. Tests: MV populates from sample sites/holds/WOs; refresh CONCURRENTLY succeeds; wrapping VIEW respects RLS isolation; performance benchmark < 10s for 10 sites with 1M WO rows (pgbench).\n\n## Files\n- packages/db/migrations/0052_cross_site_summary_mv.sql [create]\n- packages/db/src/schema/cross-site-summary.ts [create]\n- packages/db/__tests__/cross-site-summary.test.ts [create]\n\n## Acceptance criteria\n<!-- AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost) -->\n1. Given migration 0052 applied, when \\d cross_site_summary inspected, then 6 cols (org_id, site_id, as_of_date, wo_active, holds_active, inventory_value, avg_availability_7d) + unique idx on (org_id,site_id).\n2. Given pg_cron jobs are listed, when queried, then 'cross_site_summary_refresh' is scheduled hourly.\n3. Given 2 sites X and Y in org_A each have 1 active WO and 1 hold, when v_cross_site_summary is queried under withOrgContext(A) + withSiteContext(X), then only X's row is returned (RLS via wrapping view).\n4. Given REFRESH MATERIALIZED VIEW CONCURRENTLY runs, when settled, then no exclusive lock blocked concurrent SELECT (proven by parallel-query test).\n5. Given 10 sites with 100,000 work_orders each (seeded), when REFRESH runs, then duration < 10s (recorded via test harness measurement; failure logs runtime for tuning per §15.3).\n\n## Test strategy\n- RED: integration test asserting MV existence + RLS via wrapping view + concurrent refresh + perf threshold before migration applied.\n- Run 'pnpm --filter @monopilot/db test:integration -- cross-site-summary'.\n\n## Risk red lines\n- Do not omit unique index on (org_id, site_id) — REFRESH CONCURRENTLY requires it.\n- Do not put RLS on the MV directly — Postgres does not support RLS on MVs; wrap with VIEW.\n- Do not exceed §15.3 10s budget on cold cache — if perf fails, consider per-site refresh partitioning.\n- Do not schedule refresh more frequently than hourly without explicit perf review — pg_cron contention risk.\n- Do not let MV stale data exceed 1 hour for live dashboards — surface staleness via as_of_date column.",
   "labels": [
     "prd",
     "data",
@@ -15,10 +15,10 @@
     "prd_task_id": "T-027",
     "source_prd": "docs/prd/14-MULTI-SITE-PRD.md",
     "prd_refs": [
-      "\u00a79.10",
-      "\u00a710.1 MS-001",
-      "\u00a710.1 MS-003",
-      "\u00a715.3"
+      "§9.10",
+      "§10.1 MS-001",
+      "§10.1 MS-003",
+      "§15.3"
     ],
     "category": "data",
     "subcategory": "cross-site-mv",
@@ -26,8 +26,8 @@
     "parent_feature": "14-MULTI-SITE-f cross-site dashboards",
     "context_budget": "50k",
     "estimated_effort": "2-3h",
-    "description": "CREATE MATERIALIZED VIEW cross_site_summary with per-site KPIs (active WO, holds, inventory value, availability 7d) refreshed hourly via pg_cron \u2014 backs MS-001 Site Overview + MS-003 Factory Aggregate dashboards. Target refresh < 10s for 10 sites per \u00a715.3.",
-    "details": "CREATE MATERIALIZED VIEW cross_site_summary with per-site KPIs (active WO, holds, inventory value, availability 7d) refreshed hourly via pg_cron \u2014 backs MS-001 Site Overview + MS-003 Factory Aggregate dashboards. Target refresh < 10s for 10 sites per \u00a715.3. Scope: Pre-aggregated MV powering MS-001 Site Overview + MS-003 Cross-site Factory Aggregate dashboards. Touches: packages/db/migrations/0052_cross_site_summary_mv.sql, packages/db/src/schema/cross-site-summary.ts, packages/db/__tests__/cross-site-summary.test.ts. Constraints: 1. Migration `packages/db/migrations/0052_cross_site_summary_mv.sql` per \u00a79.10 DDL: - CREATE MATERIALIZED VIEW cross_site_summary AS SELECT org_id, site_id, ... FROM sites s WHERE s.active. - CREATE UNIQUE INDEX idx_css_pk ON cross_site_summary(org_id, site_id) \u2014 required for REFRESH CONCURRENTLY. - RLS not directly on MVs \u2014 wrapping VIEW v_cross_s. Distinguished from sibling 14-multi-site tasks by its narrow cross-site-mv focus against PRD \u00a79.10, \u00a710.1 MS-001, \u00a710.1 MS-003, \u00a715.3. AC count consolidated from 5\u21924 by Fixer F14a 2026-05-14 (no coverage lost)",
+    "description": "CREATE MATERIALIZED VIEW cross_site_summary with per-site KPIs (active WO, holds, inventory value, availability 7d) refreshed hourly via pg_cron — backs MS-001 Site Overview + MS-003 Factory Aggregate dashboards. Target refresh < 10s for 10 sites per §15.3.",
+    "details": "CREATE MATERIALIZED VIEW cross_site_summary with per-site KPIs (active WO, holds, inventory value, availability 7d) refreshed hourly via pg_cron — backs MS-001 Site Overview + MS-003 Factory Aggregate dashboards. Target refresh < 10s for 10 sites per §15.3. Scope: Pre-aggregated MV powering MS-001 Site Overview + MS-003 Cross-site Factory Aggregate dashboards. Touches: packages/db/migrations/0052_cross_site_summary_mv.sql, packages/db/src/schema/cross-site-summary.ts, packages/db/__tests__/cross-site-summary.test.ts. Constraints: 1. Migration `packages/db/migrations/0052_cross_site_summary_mv.sql` per §9.10 DDL: - CREATE MATERIALIZED VIEW cross_site_summary AS SELECT org_id, site_id, ... FROM sites s WHERE s.active. - CREATE UNIQUE INDEX idx_css_pk ON cross_site_summary(org_id, site_id) — required for REFRESH CONCURRENTLY. - RLS not directly on MVs — wrapping VIEW v_cross_s. Distinguished from sibling 14-multi-site tasks by its narrow cross-site-mv focus against PRD §9.10, §10.1 MS-001, §10.1 MS-003, §15.3. AC count consolidated from 5→4 by Fixer F14a 2026-05-14 (no coverage lost)",
     "scope_files": [
       "packages/db/migrations/0052_cross_site_summary_mv.sql [create]",
       "packages/db/src/schema/cross-site-summary.ts [create]",
@@ -65,18 +65,18 @@
       "Given migration 0052 applied, when \\\\d cross_site_summary inspected, then 6 cols + unique idx on (org_id,site_id).",
       "Given pg_cron jobs listed, when queried, then 'cross_site_summary_refresh' scheduled hourly.",
       "Given 2 sites X and Y in org_A each have 1 active WO + 1 hold, when v_cross_site_summary queried under withOrgContext(A)+withSiteContext(X), then only X's row returned.",
-      "Given REFRESH MATERIALIZED VIEW CONCURRENTLY runs, when settled, then no exclusive lock blocked concurrent SELECT; AND given 10 sites with 100,000 work_orders each when REFRESH runs then duration < 10s (\u00a715.3)."
+      "Given REFRESH MATERIALIZED VIEW CONCURRENTLY runs, when settled, then no exclusive lock blocked concurrent SELECT; AND given 10 sites with 100,000 work_orders each when REFRESH runs then duration < 10s (§15.3)."
     ],
     "test_strategy": [
       "RED: integration test MV + RLS via wrapping view + concurrent refresh + perf threshold before migration applied.",
       "Run 'pnpm --filter @monopilot/db test:integration -- cross-site-summary'."
     ],
     "risk_red_lines": [
-      "Do not omit unique index on (org_id, site_id) \u2014 CONCURRENT refresh needs it.",
-      "Do not put RLS on MV directly \u2014 Postgres lacks support; wrap with VIEW.",
-      "Do not exceed \u00a715.3 10s budget \u2014 consider per-site refresh partitioning if slow.",
+      "Do not omit unique index on (org_id, site_id) — CONCURRENT refresh needs it.",
+      "Do not put RLS on MV directly — Postgres lacks support; wrap with VIEW.",
+      "Do not exceed §15.3 10s budget — consider per-site refresh partitioning if slow.",
       "Do not schedule more than hourly without perf review.",
-      "Do not let staleness >1h be silent \u2014 surface via as_of_date column."
+      "Do not let staleness >1h be silent — surface via as_of_date column."
     ],
     "skills": [
       "test-driven-development",
@@ -99,11 +99,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }

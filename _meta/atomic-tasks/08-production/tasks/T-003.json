@@ -89,10 +89,8 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
     "cross_module_dependencies": [
       {
@@ -100,6 +98,7 @@
         "task_id": "T-005",
         "reason": "Planning-side schedule_outputs table is the upstream projection (2026-05-14 decision); 08-production T-003 owns the canonical wo_outputs and materializes schedule_outputs into wo_outputs on WO start, adding production-only columns (batch_number, qa_status, V-PROD-24, etc.)."
       }
-    ]
+    ],
+    "risk_tier": "high"
   }
 }

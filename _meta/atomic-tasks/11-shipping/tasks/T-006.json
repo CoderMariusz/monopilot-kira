@@ -42,9 +42,7 @@
       "Do not build UI (T-008/T-009/T-010)."
     ],
     "dependencies": [
-      "T-001",
-      "00-foundation/T-125",
-      "00-foundation/T-040 (audit_events)"
+      "T-001"
     ],
     "parallel_safe_with": [
       "T-011",
@@ -54,7 +52,9 @@
     "cross_module_dependencies": [
       "01-npd/T-001 (product FG SSOT)",
       "00-foundation/T-125 (app.current_org_id())",
-      "00-foundation/T-040 (audit_events R13)"
+      "00-foundation/T-040 (audit_events R13)",
+      "00-foundation/T-125",
+      "00-foundation/T-040 (audit_events)"
     ],
     "acceptance_criteria": [
       "Given a fresh DB, when migration runs, then so_status_enum has 12 values and the 4 tables exist with org_id NOT NULL, FORCE RLS enabled, and correct FK constraints.",
@@ -95,11 +95,10 @@
       ]
     },
     "routing_hints": {
-      "red": "hermes_gpt55",
-      "implementation": "hermes_gpt55",
-      "review": "opus_if_high_risk_or_ui_or_architecture",
-      "close": "spark_low_risk_else_opus"
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
     },
-    "prototype_match": false
+    "prototype_match": false,
+    "risk_tier": "high"
   }
 }
