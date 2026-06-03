@@ -59,7 +59,29 @@ const expectedWorkflowAuthorizationPermissions = [
   'technical.product_spec.approve',
 ] as const;
 
+const expectedNpdPermissions = [
+  'brief.create',
+  'npd.project.delete',
+  'npd.core.write',
+  'npd.dashboard.view',
+  'npd.d365_builder.execute',
+  'npd.closed_flag.unset',
+  'npd.schema.edit',
+  'npd.rule.edit',
+  'npd.risk.write',
+  'npd.compliance_doc.write',
+  'npd.formulation.create_draft',
+  'npd.formulation.lock',
+  'npd.recipe.submit_for_trial',
+  'npd.pilot.promote_to_bom',
+  'npd.gate.advance',
+  'npd.gate.approve',
+  'npd.bom.export',
+] as const;
+
 const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
+const npdPermissionPattern = /^[a-z_]+\.[a-z_]+\.[a-z_]+$/;
+const npdPermissionsOutsideLiteralPattern = ['brief.create', 'npd.d365_builder.execute'] as const;
 
 const expectedCanonicalPermissions = [
   'org.access.admin',
@@ -74,6 +96,7 @@ const expectedCanonicalPermissions = [
   'impersonate.org',
   ...expectedSettingsCorePermissions,
   ...expectedSettingsExtPermissions,
+  ...expectedNpdPermissions,
 ] as const;
 
 type PermissionsModule = {
@@ -82,6 +105,7 @@ type PermissionsModule = {
   ALL_PERMISSIONS: readonly string[];
   ALL_SETTINGS_CORE_PERMISSIONS: readonly string[];
   ALL_SETTINGS_EXT_PERMISSIONS: readonly string[];
+  ALL_NPD_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -162,6 +186,31 @@ describe('rbac permission source of truth', () => {
 
     expect(source).not.toMatch(/npd\.released_product_edit\.(?:request|authorize)\.[a-z_0-9]+/);
     expect(source).not.toMatch(/technical\.product_spec\.approve\.[a-z_0-9]+/);
+  });
+
+  it('exports the NPD permissions as a typed Permission array literal', async () => {
+    const { ALL_PERMISSIONS, ALL_NPD_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    expect(ALL_NPD_PERMISSIONS).toEqual(expectedNpdPermissions);
+    expect(ALL_NPD_PERMISSIONS).toHaveLength(17);
+    expect(new Set(ALL_NPD_PERMISSIONS).size).toBe(ALL_NPD_PERMISSIONS.length);
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+
+    for (const permission of ALL_NPD_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+    }
+
+    for (const permission of ALL_NPD_PERMISSIONS.filter(
+      (permission) => !npdPermissionsOutsideLiteralPattern.includes(permission as never),
+    )) {
+      expect(permission).toMatch(npdPermissionPattern);
+    }
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const npdExport = source.match(
+      /export\s+const\s+ALL_NPD_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(npdExport?.[0]).toContain('ALL_NPD_PERMISSIONS');
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {

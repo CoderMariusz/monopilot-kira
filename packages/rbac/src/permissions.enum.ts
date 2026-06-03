@@ -97,6 +97,42 @@ export const Permission = {
   NPD_RELEASED_PRODUCT_EDIT_REQUEST: 'npd.released_product_edit.request',
   NPD_RELEASED_PRODUCT_EDIT_AUTHORIZE: 'npd.released_product_edit.authorize',
   TECHNICAL_PRODUCT_SPEC_APPROVE: 'technical.product_spec.approve',
+
+  // NPD
+  /** NPD brief creation permission; PRD 01-NPD §2.2. */
+  BRIEF_CREATE: 'brief.create',
+  /** NPD project deletion permission; PRD 01-NPD §2.2. */
+  NPD_PROJECT_DELETE: 'npd.project.delete',
+  /** NPD core write permission; PRD 01-NPD §2.2. */
+  NPD_CORE_WRITE: 'npd.core.write',
+  /** NPD dashboard access permission; PRD 01-NPD §2.2. */
+  NPD_DASHBOARD_VIEW: 'npd.dashboard.view',
+  /** NPD D365 Builder execution permission; PRD 01-NPD §2.2, §18, §19. */
+  NPD_D365_BUILDER_EXECUTE: 'npd.d365_builder.execute',
+  /** NPD closed flag unset permission; PRD 01-NPD §2.2, §17.9. */
+  NPD_CLOSED_FLAG_UNSET: 'npd.closed_flag.unset',
+  /** NPD schema edit permission; PRD 01-NPD §2.2, §18. */
+  NPD_SCHEMA_EDIT: 'npd.schema.edit',
+  /** NPD rule edit permission; PRD 01-NPD §2.2, §18. */
+  NPD_RULE_EDIT: 'npd.rule.edit',
+  /** NPD risk write permission; PRD 01-NPD §2.2, §18. */
+  NPD_RISK_WRITE: 'npd.risk.write',
+  /** NPD compliance document write permission; PRD 01-NPD §2.2, §18. */
+  NPD_COMPLIANCE_DOC_WRITE: 'npd.compliance_doc.write',
+  /** NPD formulation draft creation permission; PRD 01-NPD §2.2, §18. */
+  NPD_FORMULATION_CREATE_DRAFT: 'npd.formulation.create_draft',
+  /** NPD formulation lock permission; PRD 01-NPD §2.2, §18. */
+  NPD_FORMULATION_LOCK: 'npd.formulation.lock',
+  /** NPD recipe trial submission permission; PRD 01-NPD §2.2, §18. */
+  NPD_RECIPE_SUBMIT_FOR_TRIAL: 'npd.recipe.submit_for_trial',
+  /** NPD pilot BOM promotion permission; PRD 01-NPD §2.2, §18. */
+  NPD_PILOT_PROMOTE_TO_BOM: 'npd.pilot.promote_to_bom',
+  /** NPD gate advancement permission; PRD 01-NPD §2.2, §17.9. */
+  NPD_GATE_ADVANCE: 'npd.gate.advance',
+  /** NPD gate approval permission; PRD 01-NPD §2.2, §17.9. */
+  NPD_GATE_APPROVE: 'npd.gate.approve',
+  /** NPD BOM export permission; PRD 01-NPD §2.2, §18, §19. */
+  NPD_BOM_EXPORT: 'npd.bom.export',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -144,6 +180,26 @@ export const ALL_SETTINGS_EXT_PERMISSIONS = [
   Permission.NPD_RELEASED_PRODUCT_EDIT_REQUEST,
   Permission.NPD_RELEASED_PRODUCT_EDIT_AUTHORIZE,
   Permission.TECHNICAL_PRODUCT_SPEC_APPROVE,
+] as readonly Permission[];
+
+export const ALL_NPD_PERMISSIONS = [
+  Permission.BRIEF_CREATE,
+  Permission.NPD_PROJECT_DELETE,
+  Permission.NPD_CORE_WRITE,
+  Permission.NPD_DASHBOARD_VIEW,
+  Permission.NPD_D365_BUILDER_EXECUTE,
+  Permission.NPD_CLOSED_FLAG_UNSET,
+  Permission.NPD_SCHEMA_EDIT,
+  Permission.NPD_RULE_EDIT,
+  Permission.NPD_RISK_WRITE,
+  Permission.NPD_COMPLIANCE_DOC_WRITE,
+  Permission.NPD_FORMULATION_CREATE_DRAFT,
+  Permission.NPD_FORMULATION_LOCK,
+  Permission.NPD_RECIPE_SUBMIT_FOR_TRIAL,
+  Permission.NPD_PILOT_PROMOTE_TO_BOM,
+  Permission.NPD_GATE_ADVANCE,
+  Permission.NPD_GATE_APPROVE,
+  Permission.NPD_BOM_EXPORT,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {
