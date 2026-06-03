@@ -1,0 +1,179 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { verifyPin } from '@monopilot/auth/src/verify-pin.js';
+import { z } from 'zod';
+
+import type { ESignReceipt, ESignTxOptions, SignEventInput } from './types.js';
+import { EPinFailedError, EReplayError } from './types.js';
+
+const signEventSchema = z.object({
+  signerUserId: z.string().uuid(),
+  pin: z.string().min(1),
+  intent: z.string().min(1),
+  subject: z.record(z.unknown()),
+  nonce: z.string().min(1).optional(),
+  reason: z.string().optional(),
+});
+
+function requireClient(): never {
+  throw new Error(
+    'e-sign requires options.client with active app.current_org_id() context; call signEvent inside withOrgContext/runWithOrgContext',
+  );
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+
+  return `{${entries
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`)
+    .join(',')}}`;
+}
+
+export function hashESignSubject(subject: unknown): string {
+  return createHash('sha256').update(canonicalJson(subject), 'utf8').digest('hex');
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
+}
+
+async function signEventInClient(
+  input: SignEventInput,
+  client: NonNullable<ESignTxOptions['client']>,
+  requestId?: string,
+): Promise<ESignReceipt> {
+  const parsed = signEventSchema.parse(input);
+  const pinResult = await verifyPin(parsed.signerUserId, parsed.pin);
+  if (pinResult !== true) {
+    throw new EPinFailedError();
+  }
+
+  const subjectHash = hashESignSubject(parsed.subject);
+  const nonce = parsed.nonce ?? randomUUID();
+  const replay = await client.query<{ exists: boolean }>(
+    `select exists (
+       select 1
+       from public.e_sign_log
+       where signer_user_id = $1::uuid
+         and subject_hash = $2
+         and intent = $3
+         and nonce = $4
+     ) as exists`,
+    [parsed.signerUserId, subjectHash, parsed.intent, nonce],
+  );
+  if (replay.rows[0]?.exists) {
+    throw new EReplayError();
+  }
+
+  const org = await client.query<{ org_id: string | null }>(
+    `select app.current_org_id() as org_id`,
+  );
+  const orgId = org.rows[0]?.org_id;
+  if (!orgId) {
+    throw new Error('e-sign requires an active app.current_org_id() context');
+  }
+
+  try {
+    const signature = await client.query<{
+      signature_id: string;
+      created_at: Date;
+    }>(
+      `insert into public.e_sign_log (
+         org_id,
+         signer_user_id,
+         intent,
+         subject_hash,
+         nonce,
+         reason
+       )
+       values ($1::uuid, $2::uuid, $3, $4, $5, $6)
+       returning signature_id, created_at`,
+      [orgId, parsed.signerUserId, parsed.intent, subjectHash, nonce, parsed.reason ?? null],
+    );
+
+    const signatureRow = signature.rows[0];
+    if (!signatureRow) {
+      throw new Error('e-sign insert did not return a signature row');
+    }
+
+    const audit = await client.query<{ id: number }>(
+      `insert into public.audit_events (
+         org_id,
+         occurred_at,
+         actor_user_id,
+         actor_type,
+         action,
+         resource_type,
+         resource_id,
+         before_state,
+         after_state,
+         request_id,
+         retention_class
+       )
+       values (
+         $1::uuid,
+         $2::timestamptz,
+         $3::uuid,
+         'user',
+         'e_sign.recorded',
+         'e_sign',
+         $4,
+         null,
+         $5::jsonb,
+         $6::uuid,
+         'security'
+       )
+       returning id`,
+      [
+        orgId,
+        signatureRow.created_at.toISOString(),
+        parsed.signerUserId,
+        signatureRow.signature_id,
+        JSON.stringify({
+          intent: parsed.intent,
+          reason: parsed.reason ?? null,
+          signedAt: signatureRow.created_at.toISOString(),
+          signerUserId: parsed.signerUserId,
+          subjectHash,
+          nonce,
+        }),
+        requestId ?? randomUUID(),
+      ],
+    );
+
+    const auditRow = audit.rows[0];
+    if (!auditRow) {
+      throw new Error('e-sign audit insert did not return an audit row');
+    }
+
+    return {
+      signatureId: signatureRow.signature_id,
+      signerUserId: parsed.signerUserId,
+      intent: parsed.intent,
+      subjectHash,
+      signedAt: signatureRow.created_at.toISOString(),
+      auditEventId: Number(auditRow.id),
+      nonce,
+    };
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new EReplayError();
+    }
+    throw error;
+  }
+}
+
+export async function signEvent(
+  input: SignEventInput,
+  options: ESignTxOptions = {},
+): Promise<ESignReceipt> {
+  if (options.client) {
+    return signEventInClient(input, options.client, options.requestId);
+  }
+
+  return requireClient();
+}
