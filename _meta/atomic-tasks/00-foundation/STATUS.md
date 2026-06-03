@@ -82,7 +82,7 @@ Updated by orchestrator after every PASS review.
 |---|---|---|---|
 | T-062 | user_pins RLS org-scoped fix | ✅ DONE | migrations/026-pins-rls-org-scoped.sql — USING(true) replaced with org-scoped USING; cross-org SELECT returns 0 rows |
 | T-063 | packages/ui/TESTING.md Radix axe quirk | ⬜ PENDING | File absent from packages/ui/ |
-| T-064 | VALIDATE CONSTRAINT audit_events_role_assigned | ⬜ PENDING | 017-rbac.sql has ADD CONSTRAINT NOT VALID; VALIDATE CONSTRAINT migration not written |
+| T-064 | VALIDATE CONSTRAINT audit_events_role_assigned | ✅ DONE | **DONE 2026-06-03** (run-module). Mig 052-validate-role-assigned-check.sql: pre-flight guard (raise 23514 if role.assigned w/ retention<>security) + VALIDATE CONSTRAINT. Validated on Supabase test proj: 0 violators, convalidated=true, violating insert→23514. Static+DB-gated tests. Codex impl, Opus review PASS. |
 | T-065 | Supabase deploy runbook JWT_EXP/MAILER_OTP_EXP | ⬜ PENDING | docs/runbooks/ only has preview-supabase-bootstrap.md; JWT_EXP/refresh rotation not documented |
 | T-066 | verifyPin pool.end() lifecycle fix + JSDoc | ✅ DONE | packages/auth/src/verify-pin.ts L55/173 pool.end() present |
 | T-067 | ReasonInput aria-label + forwardRef | ⬜ PENDING | packages/ui/src/ReasonInput.tsx has no aria-label prop, no forwardRef export |
@@ -91,12 +91,12 @@ Updated by orchestrator after every PASS review.
 | T-070 | 8-h absolute session lifetime | ✅ DONE | apps/web/lib/auth/session-check.ts L122 — 8h cap enforced via JWT iat |
 | T-071 | Approval-token replay protection | ✅ DONE | migrations/033-consumed-approval-tokens.sql + 034-approval-token-prune-cron.sql; packages/rbac/src/grant.ts |
 | T-072 | shouldFail click-driven error-transition test | ⬜ PENDING | packages/ui/src/__tests__/patterns.test.tsx — no shouldFail=true error-transition test |
-| T-073 | Tenant-scoped JIT provisioning flag | ⬜ PENDING | apps/web/app/[locale]/(auth)/login/_actions/auth.ts — shouldCreateUser not wired |
+| T-073 | Tenant-scoped JIT provisioning flag | ✅ DONE | **DONE 2026-06-03** (run-module). Live `(auth)/actions.ts signInWithMagicLink` reads `tenant_idp_config.jit_provisioning` (left join) → `shouldCreateUser = jit===true`, DENY-BY-DEFAULT. Codex round0 wrote dead helper→Opus REWORK→fixed into live path. 9/9 action tests, tc/lint 0. Column verified on Supabase. |
 | T-074 | Shared rbac pool lifecycle (closeRbacPool) | ⬜ PENDING | packages/rbac/src/grant.ts still uses per-call getOwnerConnection() |
-| T-075 | POSTHOG_KEY → POSTHOG_API_KEY rename | ⬜ PENDING | feature-flags/index.ts L33 + .env.example L105 still use POSTHOG_KEY |
+| T-075 | POSTHOG_KEY → POSTHOG_API_KEY rename | ✅ DONE | **DONE 2026-06-03** (mechanical batch). Renamed in .env.example + feature-flags/index.ts; whole-word grep clean. |
 | T-076 | assertActorBelongsToOrg cross-org rejection + test | ✅ DONE | packages/rbac/src/grant.ts L227-258 actor+target org checks wired |
 | T-077 | grantRole BYPASSRLS → getAppConnection refactor | ⬜ PENDING | packages/rbac/src/grant.ts L208 still getOwnerConnection() — security debt |
-| T-078 | Permission.ORG_ACCESS_ADMIN import from @kira/rbac | ⬜ PENDING | flags/route.ts uses inlined string 'org.access.admin' |
+| T-078 | Permission.ORG_ACCESS_ADMIN import from @kira/rbac | ✅ DONE | **DONE 2026-06-03** (mechanical). flags route imports `Permission.ORG_ACCESS_ADMIN` from rbac permissions.enum (repo uses relative paths; no rbac index). |
 | T-079 | SoD semantic: check target existing roles | ✅ DONE | packages/rbac/src/grant.ts L237 SoD on TARGET roles implemented |
 | T-080 | org.platform.admin Apex seed + migration | ✅ DONE | migrations/029-org-platform-admin.sql + 030-apex-org-bootstrap.sql |
 | T-081 | fix migrate.ts 017-rbac checksum + replay | ✅ DONE | scripts/migrate.ts checksum guard; 017 in place |
@@ -121,7 +121,7 @@ Updated by orchestrator after every PASS review.
 | T-100 | Wire runCascade dispatch in outbox route | ⏸ BLOCKED | outbox/route.ts L188-190 comment "cascade dispatch deferred to next slot" |
 | T-101 | drift-detect strict mode (extra_in_db) | ⬜ PENDING | Deferred until dept_code table registry lands |
 | T-102 | public.fg fixture → real migration (01-NPD) | ⬜ PENDING | Deferred until 01-NPD ships |
-| T-103 | @monopilot/ops TS path alias in apps/web/tsconfig.json | ⬜ PENDING | Alias absent from apps/web/tsconfig.json |
+| T-103 | @monopilot/ops TS path alias in apps/web/tsconfig.json | ✅ DONE | **DONE 2026-06-03** (mechanical, orchestrator-fixed). cron drift route imports `@monopilot/ops`; added packages/ops/src/index.ts (fixed broken main) + @monopilot/ops dep; removed redundant apps/web tsconfig paths block (base already provides @monopilot/*; local block broke baseUrl resolution). tc/lint 0. |
 | T-104 | Org-scoped Postgres sequence for nextSeq7() | ⬜ PENDING | No nextSeq7 or org-scoped sequence found |
 | T-105 | Vercel-only deploy assumption doc for cron | ⬜ PENDING | Undocumented assumption in cron routes |
 | T-106 | Surface EvaluateResult through ExecutorResult | ⬜ PENDING | Deferred until executeRule made async |
