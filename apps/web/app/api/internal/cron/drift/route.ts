@@ -21,24 +21,12 @@
  */
 
 import { detectDrift } from '@monopilot/ops';
-import pg from 'pg';
-import { timingSafeEqual } from 'node:crypto';
+import {
+  cronBearerMatches,
+  getSystemActorConnection,
+} from '@monopilot/db/system-actor-connection.js';
 
 const VERCEL_CRON_HEADER = 'x-vercel-cron';
-
-/**
- * Constant-time string compare. timingSafeEqual requires equal-length buffers,
- * so we short-circuit on length mismatch BEFORE the cryptographic compare.
- * The length check itself is not constant-time, but length is a low-entropy
- * attribute (CRON_SECRET length is fixed at deploy time) so a length oracle
- * is not a meaningful leak here.
- */
-function safeCompare(a: string, b: string): boolean {
-  const ab = Buffer.from(a, 'utf8');
-  const bb = Buffer.from(b, 'utf8');
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
 
 interface AuthDecision {
   ok: boolean;
@@ -61,7 +49,7 @@ function authorizeCron(req: Request): AuthDecision {
     const presented = authHeader.slice(7).trim();
     // T-062 hardening: constant-time comparison to defeat timing oracles
     // (a `===` compare on long secrets leaks a few bits per request).
-    if (cronSecret && safeCompare(presented, cronSecret)) {
+    if (cronBearerMatches(presented, cronSecret)) {
       return { ok: true };
     }
     // T-062 hardening: tighten the fallback so it ONLY fires on a developer
@@ -88,24 +76,16 @@ export async function GET(req: Request): Promise<Response> {
     });
   }
 
-  // Iterate organizations and run drift detection per-org. We use a single
-  // pool to avoid opening one connection per org. Owner-pool reads are
-  // acceptable here — the job runs as the system actor and only touches
-  // information_schema + Reference.DeptColumns + audit_events.
-  const connectionString = process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
-  if (!connectionString) {
+  let pool: ReturnType<typeof getSystemActorConnection>;
+  try {
+    pool = getSystemActorConnection();
+  } catch {
     return new Response(
       JSON.stringify({ error: 'database_not_configured' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
 
-  // T-058 lint exception: the cron route runs as the system actor and reads
-  // information_schema + writes audit_events with retention_class='operational'
-  // (T-009). The managed @monopilot/db app pool would be RLS-scoped to a
-  // single org context, which is incompatible with the per-org sweep.
-  // eslint-disable-next-line no-restricted-syntax
-  const pool = new pg.Pool({ connectionString });
   try {
     const orgs = await pool.query<{ id: string }>(`SELECT id FROM public.organizations`);
 
