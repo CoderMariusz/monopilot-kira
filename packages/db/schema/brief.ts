@@ -1,49 +1,13 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { check, date, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
 
-export const npdProjects = pgTable(
-  'npd_projects',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    code: text('code').notNull(),
-    name: text('name').notNull(),
-    type: text('type').notNull(),
-    currentGate: text('current_gate').notNull().default('G0'),
-    currentStage: text('current_stage').notNull().default('brief'),
-    prio: text('prio').notNull().default('normal'),
-    owner: text('owner'),
-    targetLaunch: date('target_launch'),
-    notes: text('notes'),
-    startFrom: text('start_from'),
-    cloneSource: text('clone_source'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    createdByUser: uuid('created_by_user').references(() => users.id),
-    createdByDevice: text('created_by_device'),
-    appVersion: text('app_version'),
-    modelPredictionId: uuid('model_prediction_id'),
-    epcisEventId: uuid('epcis_event_id'),
-    externalId: text('external_id'),
-    schemaVersion: integer('schema_version').notNull().default(1),
-  },
-  (table) => ({
-    orgCodeUnique: unique('npd_projects_org_code_unique').on(table.orgId, table.code),
-    orgStageGateIdx: index('npd_projects_org_stage_gate_idx').on(table.orgId, table.currentStage, table.currentGate),
-    currentGateCheck: check('npd_projects_current_gate_check', sql`${table.currentGate} in ('G0', 'G1', 'G2', 'G3', 'G4', 'Launched')`),
-    currentStageCheck: check(
-      'npd_projects_current_stage_check',
-      sql`${table.currentStage} in ('brief', 'recipe', 'trial', 'approval', 'handoff')`,
-    ),
-    prioCheck: check('npd_projects_prio_check', sql`${table.prio} in ('high', 'normal', 'low')`),
-    startFromCheck: check('npd_projects_start_from_check', sql`${table.startFrom} is null or ${table.startFrom} in ('blank', 'clone', 'template')`),
-    schemaVersionCheck: check('npd_projects_schema_version_check', sql`${table.schemaVersion} >= 1`),
-  }),
-);
+// NOTE: npd_projects is OWNED by T-054 (migration 085, schema npd-projects.ts), NOT here.
+// Removed from T-030 to resolve a sibling-migration collision (both created public.npd_projects).
+// brief.npd_project_id is a nullable uuid (a brief exists before conversion); the DB-level FK to
+// npd_projects is deferred to the convertBriefToFa flow (Wave C) — see run ledger.
 
 export const brief = pgTable(
   'brief',
@@ -52,9 +16,7 @@ export const brief = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    npdProjectId: uuid('npd_project_id')
-      .notNull()
-      .references(() => npdProjects.id, { onDelete: 'cascade' }),
+    npdProjectId: uuid('npd_project_id'),
     template: text('template').notNull(),
     devCode: text('dev_code').notNull(),
     status: text('status').notNull().default('draft'),
@@ -133,8 +95,6 @@ export const briefLines = pgTable(
   }),
 );
 
-export type NpdProject = InferSelectModel<typeof npdProjects>;
-export type NewNpdProject = InferInsertModel<typeof npdProjects>;
 export type Brief = InferSelectModel<typeof brief>;
 export type NewBrief = InferInsertModel<typeof brief>;
 export type BriefLine = InferSelectModel<typeof briefLines>;

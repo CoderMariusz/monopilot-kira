@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, pgSchema, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, pgSchema, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations } from './baseline.js';
@@ -90,22 +90,6 @@ export const closeConfirm = referenceSchema.table(
   }),
 );
 
-export const alertThresholds = referenceSchema.table(
-  'AlertThresholds',
-  {
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => organizations.id, { onDelete: 'cascade' }),
-    level: text('level').notNull(),
-    thresholdDays: integer('threshold_days').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.orgId, table.level] }),
-    orgIdx: index('alert_thresholds_org_id_idx').on(table.orgId),
-  }),
-);
-
 export type PackSize = InferSelectModel<typeof packSizes>;
 export type NewPackSize = InferInsertModel<typeof packSizes>;
 export type Template = InferSelectModel<typeof templates>;
@@ -116,5 +100,3 @@ export type EquipmentSetupByLinePack = InferSelectModel<typeof equipmentSetupByL
 export type NewEquipmentSetupByLinePack = InferInsertModel<typeof equipmentSetupByLinePack>;
 export type CloseConfirm = InferSelectModel<typeof closeConfirm>;
 export type NewCloseConfirm = InferInsertModel<typeof closeConfirm>;
-export type AlertThreshold = InferSelectModel<typeof alertThresholds>;
-export type NewAlertThreshold = InferInsertModel<typeof alertThresholds>;

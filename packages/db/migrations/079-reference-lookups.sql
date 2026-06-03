@@ -1,6 +1,9 @@
 -- Migration 079: 01-NPD reference lookup tables for cascade Chain 1.
 -- PRD: docs/prd/01-NPD-PRD.md §4.1, §6.1, §7.2, §11.3.
 -- Wave0 lock: org_id business scope; RLS via app.current_org_id().
+-- NOTE: AlertThresholds is OWNED by T-049 (migration 084), NOT here. Removed from T-005
+-- to resolve a sibling-migration collision (both created "Reference"."AlertThresholds"
+-- with different schemas). Default AlertThresholds seed is T-050.
 
 create schema if not exists "Reference";
 
@@ -47,16 +50,6 @@ create table if not exists "Reference"."CloseConfirm" (
   primary key (org_id, value)
 );
 
-create table if not exists "Reference"."AlertThresholds" (
-  org_id uuid not null references public.organizations(id) on delete cascade,
-  level text not null,
-  threshold_days integer not null,
-  created_at timestamptz not null default now(),
-  constraint alert_thresholds_allowed_level check (level in ('RED', 'YELLOW', 'GREEN')),
-  constraint alert_thresholds_nonnegative_days check (threshold_days >= 0),
-  primary key (org_id, level)
-);
-
 create index if not exists pack_sizes_org_id_idx
   on "Reference"."PackSizes" (org_id);
 
@@ -74,9 +67,6 @@ create index if not exists equipment_setup_by_line_pack_org_id_idx
 
 create index if not exists close_confirm_org_id_idx
   on "Reference"."CloseConfirm" (org_id);
-
-create index if not exists alert_thresholds_org_id_idx
-  on "Reference"."AlertThresholds" (org_id);
 
 alter table "Reference"."PackSizes" enable row level security;
 alter table "Reference"."PackSizes" force row level security;
@@ -133,30 +123,17 @@ create policy "CloseConfirm_org_context"
   using (org_id = app.current_org_id())
   with check (org_id = app.current_org_id());
 
-alter table "Reference"."AlertThresholds" enable row level security;
-alter table "Reference"."AlertThresholds" force row level security;
-
-drop policy if exists "AlertThresholds_org_context" on "Reference"."AlertThresholds";
-create policy "AlertThresholds_org_context"
-  on "Reference"."AlertThresholds"
-  for all
-  to app_user
-  using (org_id = app.current_org_id())
-  with check (org_id = app.current_org_id());
-
 revoke all on "Reference"."PackSizes" from public;
 revoke all on "Reference"."Templates" from public;
 revoke all on "Reference"."Lines_By_PackSize" from public;
 revoke all on "Reference"."Equipment_Setup_By_Line_Pack" from public;
 revoke all on "Reference"."CloseConfirm" from public;
-revoke all on "Reference"."AlertThresholds" from public;
 
 revoke all on "Reference"."PackSizes" from app_user;
 revoke all on "Reference"."Templates" from app_user;
 revoke all on "Reference"."Lines_By_PackSize" from app_user;
 revoke all on "Reference"."Equipment_Setup_By_Line_Pack" from app_user;
 revoke all on "Reference"."CloseConfirm" from app_user;
-revoke all on "Reference"."AlertThresholds" from app_user;
 
 grant usage on schema "Reference" to app_user;
 grant select, insert, update, delete on "Reference"."PackSizes" to app_user;
@@ -164,48 +141,3 @@ grant select, insert, update, delete on "Reference"."Templates" to app_user;
 grant select, insert, update, delete on "Reference"."Lines_By_PackSize" to app_user;
 grant select, insert, update, delete on "Reference"."Equipment_Setup_By_Line_Pack" to app_user;
 grant select, insert, update, delete on "Reference"."CloseConfirm" to app_user;
-grant select, insert, update, delete on "Reference"."AlertThresholds" to app_user;
-
-create or replace function "Reference".seed_reference_lookup_defaults_for_org(target_org_id uuid)
-returns void
-language sql
-security invoker
-as $$
-  insert into "Reference"."AlertThresholds" (org_id, level, threshold_days)
-  values
-    (target_org_id, 'RED', 10),
-    (target_org_id, 'YELLOW', 21),
-    (target_org_id, 'GREEN', 9999)
-  on conflict (org_id, level) do nothing;
-$$;
-
-insert into "Reference"."AlertThresholds" (org_id, level, threshold_days)
-select org.id, defaults.level, defaults.threshold_days
-from public.organizations org
-cross join (
-  values
-    ('RED'::text, 10),
-    ('YELLOW'::text, 21),
-    ('GREEN'::text, 9999)
-) as defaults(level, threshold_days)
-on conflict (org_id, level) do nothing;
-
-create or replace function "Reference".seed_reference_lookup_defaults_on_org_insert()
-returns trigger
-language plpgsql
-security invoker
-as $$
-begin
-  perform "Reference".seed_reference_lookup_defaults_for_org(new.id);
-  return new;
-end;
-$$;
-
-drop trigger if exists seed_reference_lookup_defaults_on_org_insert on public.organizations;
-create trigger seed_reference_lookup_defaults_on_org_insert
-  after insert on public.organizations
-  for each row
-  execute function "Reference".seed_reference_lookup_defaults_on_org_insert();
-
-revoke all on function "Reference".seed_reference_lookup_defaults_for_org(uuid) from public;
-revoke all on function "Reference".seed_reference_lookup_defaults_on_org_insert() from public;

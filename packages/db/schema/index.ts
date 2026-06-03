@@ -27,7 +27,6 @@ export type {
   NewManufacturingOperation,
 } from './manufacturing-operations.js';
 export {
-  alertThresholds,
   closeConfirm,
   equipmentSetupByLinePack,
   linesByPackSize,
@@ -35,11 +34,9 @@ export {
   templates,
 } from './reference-lookups.js';
 export type {
-  AlertThreshold,
   CloseConfirm,
   EquipmentSetupByLinePack,
   LineByPackSize,
-  NewAlertThreshold,
   NewCloseConfirm,
   NewEquipmentSetupByLinePack,
   NewLineByPackSize,
@@ -48,8 +45,8 @@ export type {
   PackSize,
   Template,
 } from './reference-lookups.js';
-export { brief, briefLines, npdProjects } from './brief.js';
-export type { Brief, BriefLine, NewBrief, NewBriefLine, NewNpdProject, NpdProject } from './brief.js';
+export { brief, briefLines } from './brief.js';
+export type { Brief, BriefLine, NewBrief, NewBriefLine } from './brief.js';
 export {
   referenceAllergens,
   referenceAllergensAddedByProcess,

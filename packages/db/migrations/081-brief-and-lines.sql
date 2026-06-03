@@ -2,66 +2,15 @@
 -- PRD: docs/prd/01-NPD-PRD.md §4.4, §9.1, §9.2.
 -- Wave0 lock: org_id business scope (NOT tenant_id); RLS via app.current_org_id().
 
-create table if not exists public.npd_projects (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references public.organizations(id) on delete cascade,
-  code text not null,
-  name text not null,
-  type text not null,
-  current_gate text not null default 'G0',
-  current_stage text not null default 'brief',
-  prio text not null default 'normal',
-  owner text,
-  target_launch date,
-  notes text,
-  start_from text,
-  clone_source text,
-  created_at timestamptz not null default now(),
-  created_by_user uuid references public.users(id),
-  created_by_device text,
-  app_version text,
-  model_prediction_id uuid,
-  epcis_event_id uuid,
-  external_id text,
-  schema_version integer not null default 1,
-  constraint npd_projects_org_code_unique unique (org_id, code),
-  constraint npd_projects_current_gate_check
-    check (current_gate in ('G0', 'G1', 'G2', 'G3', 'G4', 'Launched')),
-  constraint npd_projects_current_stage_check
-    check (current_stage in ('brief', 'recipe', 'trial', 'approval', 'handoff')),
-  constraint npd_projects_prio_check
-    check (prio in ('high', 'normal', 'low')),
-  constraint npd_projects_start_from_check
-    check (start_from is null or start_from in ('blank', 'clone', 'template')),
-  constraint npd_projects_schema_version_check
-    check (schema_version >= 1)
-);
-
-create index if not exists npd_projects_org_stage_gate_idx
-  on public.npd_projects (org_id, current_stage, current_gate);
-
-alter table public.npd_projects enable row level security;
-alter table public.npd_projects force row level security;
-
-drop policy if exists npd_projects_org_context on public.npd_projects;
-create policy npd_projects_org_context
-  on public.npd_projects
-  for all
-  to app_user
-  using (org_id = app.current_org_id())
-  with check (org_id = app.current_org_id());
-
-revoke all on public.npd_projects from public;
-revoke all on public.npd_projects from app_user;
-grant select, insert, update, delete on public.npd_projects to app_user;
-
-comment on table public.npd_projects
-  is 'T-030 minimum NPD Stage-Gate project spine. Brief owns this project before any FG/product mapping at G3.';
+-- NOTE: npd_projects is OWNED by T-054 (migration 085), NOT here. Removed from T-030 to resolve
+-- a sibling-migration collision (both created public.npd_projects with different columns).
+-- brief.npd_project_id is a nullable uuid (a brief exists before conversion); the DB-level FK to
+-- npd_projects is deferred to the convertBriefToFa flow (Wave C). See _meta/runs/01-npd-RUN-LEDGER.md.
 
 create table if not exists public.brief (
   brief_id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
-  npd_project_id uuid not null references public.npd_projects(id) on delete cascade,
+  npd_project_id uuid,
   template text not null,
   dev_code text not null,
   status text not null default 'draft',
