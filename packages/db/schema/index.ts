@@ -7,6 +7,8 @@ export { orgAuthorizationPolicies } from './settings-auth-policies.js';
 export { unitOfMeasure, uomCustomConversions } from './units.js';
 export { integrationSettings } from './integration-settings.js';
 export { d365SyncRuns } from './integrations-d365.js';
+export { d365Constants } from './d365-constants.js';
+export type { D365Constant, NewD365Constant } from './d365-constants.js';
 export { emailDeliveryLog } from './email-log.js';
 export { featureFlagsCore, notificationPreferences } from './flags-prefs.js';
 export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.js';
