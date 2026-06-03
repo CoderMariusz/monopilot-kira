@@ -59,3 +59,4 @@ pipeline.log.md
 .claude/scheduled_tasks.lock
 .pnpm-store/
 drill-reports/
+.playwright-mcp/
