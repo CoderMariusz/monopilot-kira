@@ -302,6 +302,41 @@ describe('AC2: P10 Preview-compare parity (modals.jsx:18-69, rule_dry_run_modal)
       // to satisfy the structural mutation guard.
       expect(errorEl).not.toBeNull();
     });
+
+    it('transitions to error state when shouldFail=true', async () => {
+      const user = userEvent.setup();
+      const errMod = P10PreviewCompare as unknown as {
+        ErrorState?: { render?: () => React.ReactElement };
+      };
+      const ErrorStory = errMod.ErrorState;
+      expect(ErrorStory).toBeTruthy();
+      expect(typeof ErrorStory!.render).toBe('function');
+
+      const { container } = render(ErrorStory!.render!());
+      const dryRunBtn = screen.getByRole('button', { name: /dry run/i });
+
+      await user.click(dryRunBtn);
+
+      await waitFor(() => {
+        expect(container.querySelector('[data-testid="dry-run-state-loading"]')).not.toBeNull();
+      });
+
+      await waitFor(
+        () => {
+          const errorEl = container.querySelector('[data-testid="dry-run-state-error"]');
+          expect(errorEl).not.toBeNull();
+          expect(errorEl).toBeVisible();
+        },
+        { timeout: 3000 },
+      );
+      expect(dryRunBtn).toBeEnabled();
+
+      await user.click(dryRunBtn);
+
+      await waitFor(() => {
+        expect(container.querySelector('[data-testid="dry-run-state-loading"]')).not.toBeNull();
+      });
+    });
   });
 });
 
