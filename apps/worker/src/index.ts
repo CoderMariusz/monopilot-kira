@@ -3,9 +3,14 @@ import pg from 'pg';
 import { startNodeSdk } from '@monopilot/observability/sdk-node';
 
 import { env } from './env.js';
+import { registerBackupVerificationCron } from './jobs/backup-verification-cron.js';
 import { createLogger } from './logger.js';
 import { JobRegistry } from './registry.js';
 import { captureJobException } from './sentry.js';
+
+type RegisteredJobRegistry = JobRegistry & {
+  has: (name: string) => boolean;
+};
 
 export type WorkerRuntime = {
   registry: JobRegistry;
@@ -17,9 +22,13 @@ export type WorkerRuntimeOptions = {
   registry?: JobRegistry;
 };
 
+let activeRegistry: RegisteredJobRegistry | undefined;
+
 function captureRegistryJobFailures(registry: JobRegistry): JobRegistry {
+  const registeredJobs = new Set<string>();
   const originalRegister = registry.register.bind(registry);
   registry.register = (name, schedule, handler) => {
+    registeredJobs.add(name);
     originalRegister(name, schedule, async (ctx) => {
       try {
         await handler(ctx);
@@ -30,7 +39,20 @@ function captureRegistryJobFailures(registry: JobRegistry): JobRegistry {
     });
   };
 
-  return registry;
+  Object.defineProperty(registry, 'has', {
+    configurable: true,
+    value: (name: string) => registeredJobs.has(name),
+  });
+
+  return registry as RegisteredJobRegistry;
+}
+
+export function getRegistry(): RegisteredJobRegistry {
+  if (!activeRegistry) {
+    throw new Error('Worker runtime has not been created.');
+  }
+
+  return activeRegistry;
 }
 
 export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerRuntime {
@@ -43,6 +65,8 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerR
       connectionString: env.DATABASE_URL,
     });
   const registry = captureRegistryJobFailures(options.registry ?? new JobRegistry({ pool, logger }));
+  registerBackupVerificationCron(registry);
+  activeRegistry = registry as RegisteredJobRegistry;
 
   let shuttingDown: Promise<void> | undefined;
 
