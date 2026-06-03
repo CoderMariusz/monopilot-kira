@@ -19,15 +19,25 @@
 import { Queue, type OutboxMessage } from './queue.js';
 
 export type MessageHandler = (msg: OutboxMessage) => Promise<void>;
+export type DispatchErrorReporter = (
+  err: unknown,
+  ctx: { event_id: string },
+) => void;
+
+export interface LocalDispatchQueueOptions {
+  reportError?: DispatchErrorReporter;
+}
 
 export class LocalDispatchQueue extends Queue {
   private readonly handlers: MessageHandler[];
+  private readonly reportError?: DispatchErrorReporter;
   public readonly processed: OutboxMessage[] = [];
   public readonly errors: Array<{ message: OutboxMessage; error: unknown }> = [];
 
-  constructor(handlers: MessageHandler[]) {
+  constructor(handlers: MessageHandler[], options: LocalDispatchQueueOptions = {}) {
     super();
     this.handlers = handlers;
+    this.reportError = options.reportError;
   }
 
   async publish(message: OutboxMessage): Promise<void> {
@@ -36,6 +46,11 @@ export class LocalDispatchQueue extends Queue {
         await handler(message);
       } catch (err) {
         this.errors.push({ message, error: err });
+        try {
+          this.reportError?.(err, { event_id: String(message.id) });
+        } catch {
+          // Error reporting must never mask the dispatch failure or alter retry semantics.
+        }
         // Re-throw so runOnce skips the consumed_at stamp for this row.
         // At-least-once: the row remains in outbox_events for the next tick.
         throw err;
