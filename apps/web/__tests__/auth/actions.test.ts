@@ -91,6 +91,7 @@ describe('FT-028 — signInWithMagicLink SAML enforcement', () => {
           tenant_id: '11111111-1111-4111-8111-111111111111',
           user_id: '22222222-2222-4222-8222-222222222222',
           is_admin: false,
+          jit_provisioning: false,
         },
       ],
     });
@@ -136,6 +137,7 @@ describe('FT-028 — signInWithMagicLink SAML enforcement', () => {
     // MUTATION-PROOF: if implementation also requires tenantRow to be present,
     // unknown emails would silently fail → assertion on signInWithOtp catches it.
     expect(_mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(_mockSignInWithOtp.mock.calls[0]![0].options.shouldCreateUser).toBe(false);
     expect(_mockEnforceSamlPolicy).not.toHaveBeenCalled();
     expect(result.error).toBeNull();
   });
@@ -147,6 +149,7 @@ describe('FT-028 — signInWithMagicLink SAML enforcement', () => {
           tenant_id: '11111111-1111-4111-8111-111111111111',
           user_id: '22222222-2222-4222-8222-222222222222',
           is_admin: false,
+          jit_provisioning: false,
         },
       ],
     });
@@ -161,6 +164,86 @@ describe('FT-028 — signInWithMagicLink SAML enforcement', () => {
     // MUTATION-PROOF: if signInWithMagicLink mistakenly inverts the allowed
     // boolean, the OTP send would be skipped → catches that too.
     expect(_mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(_mockSignInWithOtp.mock.calls[0]![0].options.shouldCreateUser).toBe(false);
+    expect(result.error).toBeNull();
+  });
+
+  it('SENDS magic link with shouldCreateUser=true when bound tenant enables JIT provisioning', async () => {
+    _mockPoolQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          tenant_id: '11111111-1111-4111-8111-111111111111',
+          user_id: '22222222-2222-4222-8222-222222222222',
+          is_admin: false,
+          jit_provisioning: true,
+        },
+      ],
+    });
+    _mockEnforceSamlPolicy.mockResolvedValueOnce({
+      allowed: true,
+      statusCode: 200,
+    });
+
+    const { signInWithMagicLink } = await import('../../app/(auth)/actions.js');
+    const result = await signInWithMagicLink('alice@example.com');
+
+    expect(_mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(_mockSignInWithOtp.mock.calls[0]![0].options.shouldCreateUser).toBe(true);
+    expect(result.error).toBeNull();
+
+    const policyArg = _mockEnforceSamlPolicy.mock.calls[0]![0] as { tenantId: string };
+    expect(policyArg.tenantId).toBe('11111111-1111-4111-8111-111111111111');
+
+    const lookupSql = _mockPoolQuery.mock.calls[0]![0] as string;
+    expect(lookupSql).toMatch(/join public\.organizations o on o\.id = u\.org_id/i);
+    expect(lookupSql).toMatch(/left join public\.tenant_idp_config tic on tic\.tenant_id = t\.id/i);
+  });
+
+  it('SENDS magic link with shouldCreateUser=false when bound tenant disables JIT provisioning', async () => {
+    _mockPoolQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          tenant_id: '11111111-1111-4111-8111-111111111111',
+          user_id: '22222222-2222-4222-8222-222222222222',
+          is_admin: false,
+          jit_provisioning: false,
+        },
+      ],
+    });
+    _mockEnforceSamlPolicy.mockResolvedValueOnce({
+      allowed: true,
+      statusCode: 200,
+    });
+
+    const { signInWithMagicLink } = await import('../../app/(auth)/actions.js');
+    const result = await signInWithMagicLink('alice@example.com');
+
+    expect(_mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(_mockSignInWithOtp.mock.calls[0]![0].options.shouldCreateUser).toBe(false);
+    expect(result.error).toBeNull();
+  });
+
+  it('SENDS magic link with shouldCreateUser=false when bound tenant has no tenant_idp_config row', async () => {
+    _mockPoolQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          tenant_id: '11111111-1111-4111-8111-111111111111',
+          user_id: '22222222-2222-4222-8222-222222222222',
+          is_admin: false,
+          jit_provisioning: null,
+        },
+      ],
+    });
+    _mockEnforceSamlPolicy.mockResolvedValueOnce({
+      allowed: true,
+      statusCode: 200,
+    });
+
+    const { signInWithMagicLink } = await import('../../app/(auth)/actions.js');
+    const result = await signInWithMagicLink('alice@example.com');
+
+    expect(_mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(_mockSignInWithOtp.mock.calls[0]![0].options.shouldCreateUser).toBe(false);
     expect(result.error).toBeNull();
   });
 
@@ -219,6 +302,7 @@ describe('FT-028 — signInWithMagicLink SAML enforcement', () => {
           tenant_id: '11111111-1111-4111-8111-111111111111',
           user_id: '22222222-2222-4222-8222-222222222222',
           is_admin: true,
+          jit_provisioning: false,
         },
       ],
     });

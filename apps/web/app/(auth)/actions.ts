@@ -10,8 +10,9 @@
  * Access token TTL (15 min / 900s): Controlled by Supabase GoTrue JWT_EXP=900.
  * Must be set in the Supabase project dashboard (Auth > Settings > JWT expiry).
  *
- * SECURITY: shouldCreateUser=true allows new users to sign up via magic link.
- * If invite-only is required, set shouldCreateUser=false.
+ * SECURITY: shouldCreateUser is tenant-scoped via
+ * tenant_idp_config.jit_provisioning. Unknown tenants / missing config deny
+ * by default.
  *
  * FT-028 — SAML enforcement on magic-link path:
  *   Before sending the magic-link email, look up the tenant the email belongs
@@ -77,6 +78,7 @@ interface TenantLookupRow {
   tenant_id: string;
   user_id: string;
   is_admin: boolean;
+  jit_provisioning: boolean | null;
 }
 
 /**
@@ -87,8 +89,8 @@ interface TenantLookupRow {
  *
  * Owner-pool only because pre-session email-→-tenant mapping has no
  * `app.current_org_id()` set, which is what RLS keys off. The query is
- * bounded to a single LIMIT 1 row of {tenant_id, user_id, is_admin} — no
- * secrets are returned.
+ * bounded to a single LIMIT 1 row of {tenant_id, user_id, is_admin,
+ * jit_provisioning} — no secrets are returned.
  */
 async function lookupTenantForEmail(email: string): Promise<TenantLookupRow | null> {
   // Slot F-4: pool is memoised at module scope (see getOwnerPool above) — we
@@ -101,6 +103,7 @@ async function lookupTenantForEmail(email: string): Promise<TenantLookupRow | nu
     const res = await pool.query<TenantLookupRow>(
       `select t.id as tenant_id,
               u.id as user_id,
+              tic.jit_provisioning,
               exists(
                 select 1 from public.user_roles ur
                   join public.roles r on r.id = ur.role_id
@@ -111,6 +114,7 @@ async function lookupTenantForEmail(email: string): Promise<TenantLookupRow | nu
          from public.users u
          join public.organizations o on o.id = u.org_id
          join public.tenants t on t.id = o.tenant_id
+         left join public.tenant_idp_config tic on tic.tenant_id = t.id
         where u.email = $1
         limit 1`,
       [email],
@@ -185,6 +189,7 @@ export async function signInWithMagicLink(email: string): Promise<MagicLinkResul
 
   // ── Existing T-011 magic-link send ────────────────────────────────────────
   const supabase = await createServerSupabaseClient();
+  const shouldCreateUser = tenantRow?.jit_provisioning === true;
 
   // Determine the redirect URL for the magic-link callback.
   // In production this should be derived from the request origin or env var.
@@ -199,7 +204,7 @@ export async function signInWithMagicLink(email: string): Promise<MagicLinkResul
     email,
     options: {
       emailRedirectTo,
-      shouldCreateUser: true,
+      shouldCreateUser,
       data: {
         // Application-layer TTL claim (7 days in seconds).
         // The actual OTP expiry window is configured in Supabase project settings.
