@@ -73,6 +73,16 @@ export type {
 } from './gate-checklist-templates.js';
 export { gateApprovals } from './gate-approvals.js';
 export type { GateApproval, NewGateApproval } from './gate-approvals.js';
+export {
+  approvalChainStepSchema,
+  approvalChainStepsSchema,
+  approvalChainTemplates,
+} from './approval-chain-templates.js';
+export type {
+  ApprovalChainStep,
+  ApprovalChainTemplate,
+  NewApprovalChainTemplate,
+} from './approval-chain-templates.js';
 export { costingBreakdowns, costingWaterfallSteps } from './costing.js';
 export type {
   CostingBreakdown,
