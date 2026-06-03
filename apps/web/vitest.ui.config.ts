@@ -58,6 +58,7 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: [
+      { find: 'server-only', replacement: path.resolve(__dirname, '__mocks__/server-only.ts') },
       { find: /^@monopilot\/ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ui/src/$1') },
       { find: /^@monopilot\/db\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/db/src/$1') },
       { find: '@monopilot/ui', replacement: path.resolve(__dirname, '../../packages/ui/src') },
