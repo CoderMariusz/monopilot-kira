@@ -135,7 +135,7 @@ Updated by orchestrator after every PASS review.
 | T-114 | GDPR erasure cron in apps/worker | ⬜ PENDING | **P0 blocker** — depends on T-111 + T-113 both absent |
 | T-115 | NPD erasure handler registration test | ⬜ PENDING | Depends on T-113/T-114 |
 | T-116 | OpenTelemetry baseline + instrumentation.ts | ✅ DONE | **DONE 2026-06-03** (run-module). @monopilot/observability: tracer/meter/sdk-node (startNodeSdk, OTEL_SDK_DISABLED no-op) + in-memory exporter. apps/web/instrumentation.ts register()→startNodeSdk(web) on nodejs; apps/worker startNodeSdk(worker) before JobRegistry. otel-smoke 3/3, worker 5/5, web tc 0. Unblocks T-117/T-118. |
-| T-117 | Structured logger (pino) @monopilot/observability | ⬜ PENDING | **P0 observability** — packages/observability absent; no pino dependency |
+| T-117 | Structured logger (pino) @monopilot/observability | ✅ DONE | **DONE 2026-06-03** (run-module). packages/observability/logger.ts pino + secret redaction (password/token/secret/authorization/api_key + DB-URL mask); apps/worker logger backed by it (T-111 console shim retired). observability 8/8 (incl redaction), worker 5/5, tc/lint 0. Unblocks T-118/T-121. |
 | T-118 | Sentry wired into apps/web + apps/worker | ⬜ PENDING | **P0 observability** — no @sentry/ imports in apps/web source |
 | T-119 | Backup policy spec + stub verification job | ⬜ PENDING | No backup verification job found |
 | T-120 | Restore drill runner (tooling/restore-drill/) | ⬜ PENDING | tooling/restore-drill/ does not exist |
