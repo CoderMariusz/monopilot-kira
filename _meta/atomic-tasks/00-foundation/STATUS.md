@@ -81,9 +81,9 @@ Updated by orchestrator after every PASS review.
 | Task | Title (short) | Status | Notes |
 |---|---|---|---|
 | T-062 | user_pins RLS org-scoped fix | ✅ DONE | migrations/026-pins-rls-org-scoped.sql — USING(true) replaced with org-scoped USING; cross-org SELECT returns 0 rows |
-| T-063 | packages/ui/TESTING.md Radix axe quirk | ⬜ PENDING | File absent from packages/ui/ |
+| T-063 | packages/ui/TESTING.md Radix axe quirk | ✅ DONE | **DONE 2026-06-03** (run-module, kira-easy). packages/ui/TESTING.md documents Radix colon-id axe-core quirk + useSanitiseRadixIds workaround; test JSDoc link. UI suite 140 pass. |
 | T-064 | VALIDATE CONSTRAINT audit_events_role_assigned | ✅ DONE | **DONE 2026-06-03** (run-module). Mig 052-validate-role-assigned-check.sql: pre-flight guard (raise 23514 if role.assigned w/ retention<>security) + VALIDATE CONSTRAINT. Validated on Supabase test proj: 0 violators, convalidated=true, violating insert→23514. Static+DB-gated tests. Codex impl, Opus review PASS. |
-| T-065 | Supabase deploy runbook JWT_EXP/MAILER_OTP_EXP | ⬜ PENDING | docs/runbooks/ only has preview-supabase-bootstrap.md; JWT_EXP/refresh rotation not documented |
+| T-065 | Supabase deploy runbook JWT_EXP/MAILER_OTP_EXP | 🔄 IN PROGRESS | docs/runbooks/supabase-deploy.md DONE (JWT_EXP=900, MAILER_OTP_EXP=604800 [code not contract's 420s], refresh rotation). Verification SCRIPT (scripts/verify-supabase-config.ts) → Codex in flight. |
 | T-066 | verifyPin pool.end() lifecycle fix + JSDoc | ✅ DONE | packages/auth/src/verify-pin.ts L55/173 pool.end() present |
 | T-067 | ReasonInput aria-label + forwardRef | ✅ DONE | **DONE 2026-06-03** (run-module, kira-ui; bundled w/ T-028). aria-label prop forwarded to textarea + React.forwardRef ref→textarea; dev-warn on label+aria-label both. Tested (ref.focus()/value, getByLabelText, axe 0). |
 | T-068 | `import 'server-only'` on feature flags | ⬜ PENDING | apps/web/lib/feature-flags/index.ts missing server-only import |
@@ -123,7 +123,7 @@ Updated by orchestrator after every PASS review.
 | T-102 | public.fg fixture → real migration (01-NPD) | ⬜ PENDING | Deferred until 01-NPD ships |
 | T-103 | @monopilot/ops TS path alias in apps/web/tsconfig.json | ✅ DONE | **DONE 2026-06-03** (mechanical, orchestrator-fixed). cron drift route imports `@monopilot/ops`; added packages/ops/src/index.ts (fixed broken main) + @monopilot/ops dep; removed redundant apps/web tsconfig paths block (base already provides @monopilot/*; local block broke baseUrl resolution). tc/lint 0. |
 | T-104 | Org-scoped Postgres sequence for nextSeq7() | ⬜ PENDING | No nextSeq7 or org-scoped sequence found |
-| T-105 | Vercel-only deploy assumption doc for cron | ⬜ PENDING | Undocumented assumption in cron routes |
+| T-105 | Vercel-only deploy assumption doc for cron | ✅ DONE | **DONE 2026-06-03** (run-module, kira-easy). docs/runbooks/cron-auth.md: x-vercel-cron Vercel-only assumption + non-Vercel migration (Bearer-only). (scope route.ts path stale; docs satisfy AC.) |
 | T-106 | Surface EvaluateResult through ExecutorResult | ⬜ PENDING | Deferred until executeRule made async |
 | T-107 | Outbox error surfacing via error-reporting | ⬜ PENDING | Deferred until T-118 Sentry lands |
 | T-108 | Restore FK tenant_migrations.tenant_id | ⬜ PENDING | Deferred until T-039 verified in prod |
