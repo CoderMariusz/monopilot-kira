@@ -33,6 +33,11 @@ describe('localized route parity', () => {
   });
 
   it('exposes settings/admin pages at locale-prefixed URLs instead of 404ing after proxy localization', () => {
+    // Structural consolidation (W4 / TASK-000563): the canonical browser-visible
+    // settings tree lives under [locale]/(app)/(admin)/settings/**. The retired
+    // non-localized (admin)/settings/** duplicates and the never-built middle
+    // [locale]/(admin)/settings/** shims have been eliminated, so parity is now
+    // asserted against the single canonical localized AppShell tree.
     for (const route of [
       'users',
       'invitations',
@@ -43,9 +48,8 @@ describe('localized route parity', () => {
       'schema/preview',
       'reference/manufacturing-operations',
     ]) {
-      const path = `[locale]/(admin)/settings/${route}`;
+      const path = `[locale]/(app)/(admin)/settings/${route}`;
       expect(pageExists(path), `missing localized settings route ${path}`).toBe(true);
-      expect(pageSource(path)).toContain(`(admin)/settings/${route}/page`);
     }
 
     expect(pageExists('[locale]/(admin)/schema/wizard')).toBe(true);

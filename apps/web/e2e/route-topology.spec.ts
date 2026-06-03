@@ -50,10 +50,19 @@ const conflictingOldLocaleRoutes = [
   '[locale]/(admin)/account/profile/page.tsx',
 ];
 
+// Structural consolidation (W4 / TASK-000563): the non-localized
+// (admin)/settings/** full-page duplicates were eliminated or reduced to redirect
+// shims; the canonical browser-visible screens live under
+// [locale]/(app)/(admin)/settings/**. Any non-localized settings route that still
+// exists must remain a redirect/shim only and never re-embed the duplicate UI.
 const legacyShimOnlyRoutes = [
   {
     path: '(admin)/settings/users/page.tsx',
     forbiddenUiToken: 'SettingsUsersScreen',
+  },
+  {
+    path: '(admin)/settings/security/page.tsx',
+    forbiddenUiToken: 'SecurityScreen',
   },
   {
     path: '(npd)/fa/[productCode]/page.tsx',

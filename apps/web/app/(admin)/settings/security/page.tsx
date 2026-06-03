@@ -1,33 +1,15 @@
-import React from 'react';
-import SecurityPageClient, { type SecurityPageProps } from './client';
+import { redirect } from 'next/navigation';
 
-type SecurityRouteProps = Record<string, never>;
-type SecurityPageInput = SecurityRouteProps & Partial<SecurityPageProps>;
-
-function isControlledSecurityPage(props: SecurityPageInput): boolean {
-  return (
-    'policy' in props ||
-    'sso' in props ||
-    'ipAllowlist' in props ||
-    'auditLogRows' in props ||
-    'canManageSecurity' in props ||
-    'state' in props ||
-    'saveSecurity' in props
-  );
-}
-
-const SecurityPageClientComponent = SecurityPageClient as React.ComponentType<Partial<SecurityPageProps>>;
-
-async function SecurityPageServer() {
-  const { loadSettingsSecurityPageProps } = await import('../../../../lib/settings/settings-page-loaders.js');
-  const loaded = await loadSettingsSecurityPageProps();
-  return React.createElement(SecurityPageClientComponent, loaded);
-}
-
-export default function SecurityPage(props: SecurityPageInput = {}) {
-  if (isControlledSecurityPage(props)) {
-    return React.createElement(SecurityPageClientComponent, props);
-  }
-
-  return React.createElement(SecurityPageServer);
+/**
+ * Legacy non-localized Security route.
+ *
+ * Structural consolidation (Class E): the canonical SET-012 Security screen now
+ * lives in the localized tree at
+ * `app/[locale]/(app)/(admin)/settings/security/page.tsx`, a Server Component
+ * loader that reads real org-scoped security policy / SSO / IP-allowlist / audit
+ * data via withOrgContext. This file is a thin redirect so the bare
+ * `/settings/security` URL keeps resolving to the canonical localized route.
+ */
+export default function LegacySettingsSecurityPage() {
+  redirect('/en/settings/security');
 }

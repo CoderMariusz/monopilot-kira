@@ -38,12 +38,15 @@ const WAVE_7_8_PAGES = [
   'app/onboarding/product/_components/product-client.tsx',
   'app/onboarding/warehouse/_components/warehouse-client.tsx',
   'app/onboarding/workorder/_components/workorder-client.tsx',
-  'app/(admin)/settings/users/page.tsx',
-  'app/(admin)/settings/invitations/page.tsx',
-  'app/(admin)/settings/roles/page.tsx',
-  'app/(admin)/settings/authorization/page.tsx',
-  'app/(admin)/settings/security/page.tsx',
-  'app/(admin)/settings/reference/manufacturing-operations/page.tsx',
+  // Structural consolidation (W4): the canonical browser-visible settings pages
+  // live in the localized AppShell tree. The non-localized (admin)/settings/**
+  // duplicates were reduced to redirect shims, so i18n consumption is asserted
+  // against the localized Server Components that actually render the screens.
+  'app/[locale]/(app)/(admin)/settings/users/page.tsx',
+  'app/[locale]/(app)/(admin)/settings/roles/page.tsx',
+  'app/[locale]/(app)/(admin)/settings/authorization/page.tsx',
+  'app/[locale]/(app)/(admin)/settings/security/page.tsx',
+  'app/[locale]/(app)/(admin)/settings/reference/manufacturing-operations/page.tsx',
 ];
 
 const REQUIRED_KEYS = [

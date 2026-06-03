@@ -23,6 +23,11 @@ const appRoot = resolve(__dirname, '../../..'); // apps/web/app
 const CANONICAL_PATHS: Record<string, string> = {
   'roles/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/roles/roles-screen.client.tsx'),
   'authorization/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/authorization/page.tsx'),
+  // Structural consolidation (W4): the non-localized Users/Security routes were
+  // reduced to redirect shims; the real production screens live in the localized
+  // tree. Guard the canonical sources so the assertions exercise live code.
+  'users/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/users/users-screen.client.tsx'),
+  'security/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/security/security-screen.client.tsx'),
 };
 
 function read(relativePath: string): string {
