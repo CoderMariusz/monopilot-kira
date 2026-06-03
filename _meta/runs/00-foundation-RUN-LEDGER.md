@@ -85,5 +85,8 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 - **Systemic Codex pattern:** creates dead code at stale scope paths (T-073/T-100/T-082/T-098). Pre-check the real integration point before dispatch.
 
 ## KNOWN ISSUES FOR SIGN-OFF
+- **[infra, low]** Repo-wide `pnpm lint` OOMs locally (recursive eslint across ~21 packages, 254 even at 8GB heap). Per-package lint is GREEN (web/db/auth/rbac/ui/... all 0). CI needs a heap bump or lint sharding. Not a code defect.
+- **[pre-existing, medium]** `@monopilot/db` FULL integration suite has ~10 failures when run against the shared local DB (testcontainers-isolation-dependent: app-role SET-ROLE, migrate-runner stale '12 migrations'+0014-RED+drizzle-migrate, schema-metadata/tenant-l2 data-state). Each foundation TASK's own DB test passes individually; cross-org RLS proven by T-091/T-113/T-124 green suites. Needs per-test DB isolation (testcontainers/CI) the local shared DB can't provide. NOT a run regression.
+
 - **[pre-existing, low]** packages/outbox `worker.e2e.test.ts` fails on real local DB with `type "citext" does not exist` — test creates tables in an isolated schema/search_path that excludes public (where citext lives); same class as ci_* isolation. Belongs to T-008 test infra; not a foundation-run regression. (must resolve before module sign-off)
 - **[RESOLVED 2026-06-03]** Pre-existing auth DB-test failures (totp/verify-pin) fixed — full auth suite 84/84 on real local Postgres (fixture seed name+role_id).
