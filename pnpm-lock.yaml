@@ -153,6 +153,9 @@ importers:
       '@monopilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@monopilot/gdpr':
+        specifier: workspace:*
+        version: link:../../packages/gdpr
       '@monopilot/observability':
         specifier: workspace:*
         version: link:../../packages/observability
