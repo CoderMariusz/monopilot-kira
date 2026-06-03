@@ -50,7 +50,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 ### Layer 1
 | T-067 | UI prim | Opus | high | ←T-110 | ⬜ |
 | T-112 | T2-api | Codex | high | outbox consumer +mig056 +DLQ | ✅ merged (1 rework) |
-| T-114 | T2-api | Codex | high | ←T-111,T-113; apps/worker | ⬜ |
+| T-114 | T2-api | Codex | high | gdpr erasure cron +mig057 | ✅ merged |
 | T-116 | T2-api | Codex | high | observability+instrumentation | ✅ merged |
 
 ### Layer 2
