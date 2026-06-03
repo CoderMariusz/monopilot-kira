@@ -91,6 +91,8 @@ const DEFAULT_LABELS = {
   action: 'Action',
   fieldDiff: 'Field diff',
   changedFields: 'Field diff',
+  ipColumn: 'IP',
+  ipUnavailable: '—',
   empty: 'No entries match the current filters.',
   error: 'Unable to load manufacturing operation audit history.',
   back: '← Back',
@@ -109,7 +111,8 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
 
 async function buildLabels(locale: string): Promise<Labels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.manufacturing_operation_history' });
+    const t = await getTranslations('settings.manufacturing_operation_history');
+    void locale;
     return LABEL_KEYS.reduce((labels, key) => {
       try {
         const translated = t(key);
@@ -395,6 +398,7 @@ function HistoryTable({ entries, labels }: { entries: OperationAuditEntry[]; lab
           <TableHead>{labels.user}</TableHead>
           <TableHead>{labels.action}</TableHead>
           <TableHead>{labels.changedFields}</TableHead>
+          <TableHead>{labels.ipColumn}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -427,6 +431,9 @@ function HistoryTable({ entries, labels }: { entries: OperationAuditEntry[]; lab
                   <Badge variant="muted" style={{ fontSize: 9 }}>+{entry.changes.length - 4}</Badge>
                 ) : null}
               </div>
+            </TableCell>
+            <TableCell style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>
+              {labels.ipUnavailable}
             </TableCell>
           </TableRow>
         ))}

@@ -319,6 +319,7 @@ export default async function RuleVersionDiffPage(propsInput: unknown) {
     {
       className: 'mx-auto max-w-7xl space-y-5 p-6',
       'data-prototype': 'rule_version_diff_screen',
+      'data-ux-source': 'SET-042',
       'data-testid': 'settings-rule-version-diff-screen',
     },
     h(

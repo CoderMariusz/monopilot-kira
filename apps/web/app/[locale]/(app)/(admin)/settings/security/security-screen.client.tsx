@@ -3,7 +3,10 @@
 import React, { useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@monopilot/ui/Button';
+import { Checkbox } from '@monopilot/ui/Checkbox';
 import Input from '@monopilot/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
+import { Switch } from '@monopilot/ui/Switch';
 
 export type AuditLogRow = {
   id: string;
@@ -186,14 +189,12 @@ function SwitchControl({
   onChange?: (checked: boolean) => void;
 }) {
   return (
-    <input
+    <Switch
       aria-label={label}
       checked={checked}
-      className="h-5 w-9 rounded-full border border-slate-300 accent-slate-900 disabled:opacity-60"
       disabled={disabled}
-      onChange={(event) => onChange?.(event.currentTarget.checked)}
-      role="switch"
-      type="checkbox"
+      name={label}
+      onCheckedChange={(next) => onChange?.(next)}
     />
   );
 }
@@ -211,7 +212,7 @@ function CheckboxControl({
 }) {
   return (
     <label className="flex items-center gap-2 text-sm text-slate-900">
-      <input aria-label={label} defaultChecked={checked} disabled={disabled} title={title} type="checkbox" />
+      <Checkbox aria-label={label} defaultChecked={checked} disabled={disabled} title={title} />
       <span>{label}</span>
     </label>
   );
@@ -229,19 +230,25 @@ function SelectControl<T extends string>({
   options: Array<{ value: T; label: string }>;
 }) {
   return (
-    <select
+    <Select
       aria-label={label}
-      className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
       defaultValue={value}
       disabled={disabled}
       name={label}
+      options={options}
+      className="w-full max-w-sm"
     >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

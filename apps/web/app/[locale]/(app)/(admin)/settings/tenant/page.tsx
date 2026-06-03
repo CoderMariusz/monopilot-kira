@@ -73,6 +73,7 @@ type Labels = {
   featureFlags: string;
   authorizationPolicies: string;
   editDeptTaxonomy: string;
+  edit: string;
   changeVariants: string;
   viewUpgradeHistory: string;
   openAuthorizationPolicies: string;
@@ -95,6 +96,7 @@ const DEFAULT_LABELS: Labels = {
   featureFlags: 'Feature flags (L2 local)',
   authorizationPolicies: 'Authorization policies',
   editDeptTaxonomy: 'Edit Dept Taxonomy',
+  edit: 'Edit',
   changeVariants: 'Change Variants',
   viewUpgradeHistory: 'View Upgrade History',
   openAuthorizationPolicies: 'Authorization Policies',
@@ -189,6 +191,37 @@ async function loadAuthorizationPolicies(labels: Labels): Promise<AuthorizationP
   }
 }
 
+type TenantUpgradeMetricsRow = {
+  schema_extensions_count?: number | string | null;
+  upgraded_at?: string | Date | null;
+};
+
+// Real-data read for the two KPIs that were previously hardcoded
+// (schemaExtensionsL3 = 0, lastUpgradeAt = null). Sources the live
+// tenant_variations.schema_extensions_count + upgraded_at columns
+// (migration 040-tenant-l2.sql) via withOrgContext / app.current_org_id().
+async function loadTenantUpgradeMetrics(): Promise<{ schemaExtensionsL3: number; lastUpgradeAt: string | null }> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const queryClient = client as QueryClient;
+      const { rows } = await queryClient.query<TenantUpgradeMetricsRow>(
+        `select schema_extensions_count, upgraded_at
+           from public.tenant_variations
+          where org_id = app.current_org_id()
+          limit 1`,
+      );
+      const row = rows[0] ?? {};
+      const count = Number(row.schema_extensions_count ?? 0);
+      return {
+        schemaExtensionsL3: Number.isFinite(count) && count > 0 ? count : 0,
+        lastUpgradeAt: normalizeOptionalDate(row.upgraded_at),
+      };
+    });
+  } catch {
+    return { schemaExtensionsL3: 0, lastUpgradeAt: null };
+  }
+}
+
 function summarizePolicy(row: AuthorizationPolicyRow | null, fallback: AuthorizationPolicySummary): AuthorizationPolicySummary {
   if (!row) return fallback;
   const enabled = row.is_enabled === true || row.enabled === true;
@@ -224,19 +257,26 @@ export default async function TenantVariationsDashboardPage(propsInput: unknown)
       }
     : await loadTenantDashboardData();
 
+  const effectiveState = props.state ?? loaded.state;
   const authorizationPolicies =
-    (props.state ?? loaded.state) === 'ready'
+    effectiveState === 'ready'
       ? props.authorizationPolicies ?? await loadAuthorizationPolicies(labels)
       : DEFAULT_AUTHORIZATION_POLICIES;
+
+  // Wire the previously-hardcoded KPIs from the live tenant_variations row when
+  // the caller did not inject deterministic test props.
+  const needsLiveMetrics =
+    effectiveState === 'ready' && props.schemaExtensionsL3 === undefined && props.lastUpgradeAt === undefined;
+  const liveMetrics = needsLiveMetrics ? await loadTenantUpgradeMetrics() : null;
 
   return (
     <TenantVariationsDashboardScreen
       labels={labels}
-      state={props.state ?? loaded.state}
+      state={effectiveState}
       deptOverrides={loaded.deptOverrides}
       ruleVariantOverrides={loaded.ruleVariantOverrides}
-      schemaExtensionsL3={props.schemaExtensionsL3 ?? 0}
-      lastUpgradeAt={props.lastUpgradeAt ?? null}
+      schemaExtensionsL3={props.schemaExtensionsL3 ?? liveMetrics?.schemaExtensionsL3 ?? 0}
+      lastUpgradeAt={props.lastUpgradeAt ?? liveMetrics?.lastUpgradeAt ?? null}
       authorizationPolicies={authorizationPolicies}
       featureFlags={loaded.featureFlags}
     />
@@ -269,6 +309,14 @@ function TenantVariationsDashboardScreen({
   const hasTenantData = deptOverrides.length > 0 || ruleVariantOverrides.length > 0 || featureFlags.length > 0;
   if (state === 'empty' || !hasTenantData) return <StatusShell labels={labels} message={labels.empty} tone="muted" />;
 
+  // Parity with tenant-variations.jsx:50-51 — "Rule variants" KPI shows the
+  // count of *customized* variants (current selection differs from the baseline
+  // first available variant), not the total configurable count.
+  const configurableCount = ruleVariantOverrides.length;
+  const customizedCount = ruleVariantOverrides.filter(
+    (row) => row.availableVariants.length > 0 && row.currentVariant !== row.availableVariants[0],
+  ).length;
+
   return (
     <main
       data-testid="settings-tenant-variations-screen"
@@ -292,8 +340,8 @@ function TenantVariationsDashboardScreen({
         <KpiCard label={labels.deptOverridesActive} value={deptOverrides.length} sub="Active L2 dept variants." accent="info" />
         <KpiCard
           label={labels.ruleVariantsCustomized}
-          value={ruleVariantOverrides.length}
-          sub={`${ruleVariantOverrides.length} configurable · ${ruleVariantOverrides.length} customized`}
+          value={customizedCount}
+          sub={`${configurableCount} configurable · ${customizedCount} customized`}
           accent="warning"
         />
         <KpiCard label={labels.schemaExtensionsL3} value={schemaExtensionsL3} sub="Org-specific column additions." accent="secondary" />
@@ -305,7 +353,7 @@ function TenantVariationsDashboardScreen({
         count={deptOverrides.length}
         action={<NavigationButton label={labels.editDeptTaxonomy} href="/settings/tenant/depts" />}
       >
-        <DeptOverridesTable rows={deptOverrides} />
+        <DeptOverridesTable rows={deptOverrides} editLabel={labels.edit} />
       </DashboardSection>
 
       <DashboardSection
@@ -400,7 +448,7 @@ function DashboardSection({
   );
 }
 
-function DeptOverridesTable({ rows }: { rows: DeptOverride[] }) {
+function DeptOverridesTable({ rows, editLabel }: { rows: DeptOverride[]; editLabel: string }) {
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">No tenant variations configured. Your organization uses the standard baseline.</p>;
   return (
     <Table>
@@ -411,6 +459,7 @@ function DeptOverridesTable({ rows }: { rows: DeptOverride[] }) {
           <TableHead>Columns affected</TableHead>
           <TableHead>Last modified</TableHead>
           <TableHead>By</TableHead>
+          <TableHead className="sr-only">{editLabel}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -421,6 +470,15 @@ function DeptOverridesTable({ rows }: { rows: DeptOverride[] }) {
             <TableCell className="font-mono">{row.columnCount}</TableCell>
             <TableCell className="font-mono text-xs text-muted-foreground">{formatDate(row.updatedAt, 'Never')}</TableCell>
             <TableCell>{row.updatedBy}</TableCell>
+            <TableCell className="text-right">
+              <a
+                className="text-sm font-medium text-blue-700 underline"
+                href={`/settings/tenant/depts?dept=${encodeURIComponent(row.source ?? row.targets[0] ?? '')}`}
+                aria-label={`${editLabel} ${row.source ?? row.targets.join(' ')}`}
+              >
+                {editLabel} →
+              </a>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

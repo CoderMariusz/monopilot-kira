@@ -1,5 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
+import { getD365FieldMapping } from '../../../../../../../../actions/d365/get-field-mapping';
+import { D365_FIELD_MAPPING_MANIFEST } from '../../../../../../../../actions/d365/field-mapping-manifest';
 import D365MappingScreen from './mapping-screen.client';
 
 export type D365Direction = 'incoming' | 'outgoing' | 'both';
@@ -52,40 +54,11 @@ export type D365MappingLabels = {
   close: string;
 };
 
-// CI-owned D365 field map used by the read-only production route when no
-// test harness injects rows. The prototype requires the mapping table surface;
-// these rows are product configuration, not illustrative prototype mock data.
-const DEFAULT_MAPPING_ROWS: D365FieldMapping[] = [
-  {
-    d365_field: 'InventTable.ItemId',
-    direction: 'incoming',
-    monopilot_field: 'products.sku',
-    type: 'text',
-    transform: 'none',
-  },
-  {
-    d365_field: 'VendTable.CurrencyCode',
-    direction: 'incoming',
-    monopilot_field: 'partners.currency',
-    type: 'enum',
-    transform: 'upper',
-  },
-  {
-    d365_field: 'SalesTable.SalesId',
-    direction: 'outgoing',
-    monopilot_field: 'planning.d365_so_ref',
-    type: 'text',
-    transform: 'prefix:SO-',
-  },
-  {
-    d365_field: 'Item.allergens[]',
-    direction: 'outgoing',
-    monopilot_field: 'products.allergens',
-    type: 'json',
-    transform: 'unmapped',
-    unmapped: true,
-  },
-];
+// CI/CD-deployed D365 field map (source of truth in actions/d365/field-mapping-manifest.ts).
+// The read-only route renders per-org reference_tables overrides when present and falls
+// back to this manifest. These rows are product configuration (the R15 anti-corruption
+// field map), not illustrative prototype mock data.
+const DEFAULT_MAPPING_ROWS: D365FieldMapping[] = D365_FIELD_MAPPING_MANIFEST.map((row) => ({ ...row }));
 
 function label(fullKey: string, translated: string, fallback: string) {
   return translated && translated !== fullKey && !translated.endsWith(`.${fullKey}`) ? translated : fallback;
@@ -172,6 +145,7 @@ export async function exportD365MappingCsv(input: { dir?: D365Filter; rows?: D36
 }
 
 export default async function D365MappingPage(propsInput: unknown) {
+  const props = (propsInput ?? {}) as D365MappingPageProps;
   const {
     params,
     searchParams,
@@ -179,20 +153,32 @@ export default async function D365MappingPage(propsInput: unknown) {
     rows = DEFAULT_MAPPING_ROWS,
     exportD365MappingCsv: exportAction = exportD365MappingCsv,
     testD365Connection,
-  } = (propsInput ?? {}) as D365MappingPageProps;
+  } = props;
   const labels = await labelsFor();
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
   const dir = resolvedSearchParams?.dir ?? 'all';
   const locale = resolvedParams?.locale ?? 'en';
 
+  // Real data: tests inject `rows` for deterministic rendering; the production
+  // route reads the org's mapping (reference_tables overrides → CI/CD manifest).
+  const rowsInjected = Object.prototype.hasOwnProperty.call(props, 'rows');
+  let resolvedRows = rows;
+  let resolvedState = state;
+  if (!rowsInjected && state === 'ready') {
+    const result = await getD365FieldMapping();
+    if (result.ok) resolvedRows = result.data;
+    else if (result.error === 'persistence_failed') resolvedState = 'error';
+    // 'forbidden' → render the empty/manifest table; route-level RBAC owns access.
+  }
+
   return (
     <D365MappingScreen
       labels={labels}
-      rows={rows}
+      rows={resolvedRows}
       dir={dir}
       locale={locale}
-      state={state}
+      state={resolvedState}
       exportAction={exportAction}
       testD365Connection={testD365Connection}
       includeRowsInExport={exportAction === exportD365MappingCsv}

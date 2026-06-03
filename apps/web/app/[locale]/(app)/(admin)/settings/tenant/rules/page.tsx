@@ -138,6 +138,35 @@ function asOverrides(value: unknown): Record<string, string> {
   ) as Record<string, string>;
 }
 
+type RuleVariantAuditRow = { rule_code: string; changed_at: string | Date | null };
+
+// Resilient read: pulls the most-recent change timestamp per rule_code from the
+// audit_log trail emitted by saveRuleVariantOverridesLive
+// (action = 'tenant_variations.rule_variant.batch_updated'). Any failure (e.g.
+// audit_log not present in a given test harness) degrades to an empty map so the
+// table still renders with `Never changed`.
+async function readLastChangedByCode(client: QueryClient): Promise<Record<string, string>> {
+  try {
+    const { rows } = await client.query<RuleVariantAuditRow>(
+      `select key as rule_code, max(created_at) as changed_at
+         from public.audit_log,
+              lateral jsonb_object_keys(coalesce(after_state->'rule_variant_overrides', '{}'::jsonb)) as key
+        where org_id = app.current_org_id()
+          and action = 'tenant_variations.rule_variant.batch_updated'
+        group by key`,
+    );
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      if (typeof row.rule_code !== 'string' || !row.changed_at) continue;
+      const iso = row.changed_at instanceof Date ? row.changed_at.toISOString() : String(row.changed_at);
+      map[row.rule_code] = iso;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | 'error' | 'permission_denied'; rows: RuleVariantRow[] }> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext) => {
@@ -163,6 +192,10 @@ async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | '
         grouped.set(row.rule_code, [...(grouped.get(row.rule_code) ?? []), row]);
       }
 
+      // Wire the previously-hardcoded `lastChangedAt` (always null) from the real
+      // audit_log batch-update trail emitted by saveRuleVariantOverridesLive.
+      const lastChangedByCode = await readLastChangedByCode(client);
+
       const rows = Array.from(grouped.entries()).map(([code, versions]): RuleVariantRow => {
         const active = versions.find((version) => version.active_to == null) ?? versions[versions.length - 1];
         const activeVariant = versionLabel(active.version);
@@ -177,7 +210,7 @@ async function readRuleVariantRows(locale: string): Promise<{ state: 'ready' | '
             technicalApprovalRequired: isTechnicalGate,
           })),
           currentVariant: overrides[code] ?? activeVariant,
-          lastChangedAt: null,
+          lastChangedAt: lastChangedByCode[code] ?? null,
           readOnly: isTechnicalGate,
           linkedAuthorizationPolicyHref: isTechnicalGate
             ? `/${locale}/settings/authorization?policy=technical_product_spec_approval`

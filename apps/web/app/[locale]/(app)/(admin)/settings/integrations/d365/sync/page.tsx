@@ -19,16 +19,28 @@ type D365SyncPageProps = {
   updateD365SyncConfig?: (input: UpdateD365SyncConfigInput) => Promise<{ ok: true } | { ok: false; message: string }>;
 };
 
-const fallbackConfig: D365SyncConfig = {
-  pull_cron: '0 2 * * *',
-  batch_size: 50,
-  max_attempts: 3,
-  retry_backoff_minutes: 15,
-  push_queue_enabled: true,
-  dlq_href: '/en/settings/integrations/d365/dead-letter',
-  last_applied_at: null,
-  applied_by_user: null,
-};
+// The worker-owned dead-letter queue tooling lives at the existing
+// settings/d365-dlq route. The previous '/integrations/d365/dead-letter' target
+// did not resolve to any page; point honestly at the route that exists.
+function dlqHrefForLocale(locale: string) {
+  return `/${locale}/settings/d365-dlq`;
+}
+
+// Defaults applied until a worker-owned D365 sync-config record exists for the
+// org. No d365 sync-config table is provisioned in this stage, so the screen
+// renders these honest defaults rather than implying a persisted config.
+function buildFallbackConfig(locale: string): D365SyncConfig {
+  return {
+    pull_cron: '0 2 * * *',
+    batch_size: 50,
+    max_attempts: 3,
+    retry_backoff_minutes: 15,
+    push_queue_enabled: true,
+    dlq_href: dlqHrefForLocale(locale),
+    last_applied_at: null,
+    applied_by_user: null,
+  };
+}
 
 function label(fullKey: string, translated: string, fallback: string) {
   return translated && translated !== fullKey ? translated : fallback;
@@ -50,11 +62,12 @@ function Forbidden({ labels }: { labels: D365SyncLabels }) {
 export default async function D365SyncPage({
   params,
   callerRole = 'viewer',
-  config = fallbackConfig,
+  config,
   updateD365SyncConfig,
 }: D365SyncPageProps) {
   const resolvedParams = await params;
   const locale = resolvedParams?.locale ?? 'en';
+  const fallbackConfig = buildFallbackConfig(locale);
   const t = await getTranslations('settings');
   const labels: D365SyncLabels = {
     title: label('d365.sync.title', t('d365.sync.title'), 'D365 sync config'),

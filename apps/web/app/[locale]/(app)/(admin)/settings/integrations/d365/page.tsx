@@ -2,6 +2,7 @@ import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { testD365Connection as testD365ConnectionAction } from '../../../../../../../actions/d365/test-connection';
+import { getD365Constants } from '../../../../../../../actions/d365/get';
 import D365TestConnectionModal from '../../../../../../../components/settings/modals/d365-test-connection-modal';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
@@ -12,9 +13,43 @@ import D365ConnectionForm, {
   type D365ConnectionActions,
   type D365ConnectionConfig,
   type D365ConnectionState,
+  type D365ConstantPreflight,
   type D365Environment,
   type D365Labels,
 } from './d365-connection-form.client';
+
+// P1 D365 reference constants that gate enablement (the five-constant preflight).
+// Mirrors actions/d365/get.ts and actions/d365/set-constant.ts.
+const D365_CONSTANT_KEYS = [
+  'PRODUCTIONSITEID',
+  'APPROVERPERSONNELNUMBER',
+  'CONSUMPTIONWAREHOUSEID',
+  'PRODUCTGROUPID',
+  'COSTINGOPERATIONRESOURCEID',
+] as const;
+
+/**
+ * Reads the five P1 D365 reference constants from `reference_tables`
+ * (via the T-030 getD365Constants action, withOrgContext / RLS-scoped) and
+ * derives the enable-gate preflight. Degrades to a fail-closed
+ * "all missing" gate when the data plane is unavailable so the screen still
+ * renders honestly rather than implying the integration may be enabled.
+ */
+async function readConstantPreflight(): Promise<D365ConstantPreflight> {
+  try {
+    const result = await getD365Constants();
+    if (!result.ok) {
+      return { complete: false, missing: [...D365_CONSTANT_KEYS] };
+    }
+    const missing = D365_CONSTANT_KEYS.filter((key) => {
+      const value = result.data[key];
+      return typeof value !== 'string' || value.trim().length === 0;
+    });
+    return { complete: missing.length === 0, missing };
+  } catch {
+    return { complete: false, missing: [...D365_CONSTANT_KEYS] };
+  }
+}
 
 type D365ConnectionPageProps = {
   params?: Promise<{ locale: string }>;
@@ -24,6 +59,7 @@ type D365ConnectionPageProps = {
 type D365ConnectionPageTestOverrides = D365ConnectionActions & {
   state?: D365ConnectionState;
   config?: D365ConnectionConfig | null;
+  preflight?: D365ConstantPreflight;
 };
 
 function label(fullKey: string, translated: string, fallback: string) {
@@ -219,6 +255,9 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     rotateD365ClientSecret,
     testD365Connection,
   } = props;
+  // Tests inject `config`/`preflight` directly for deterministic rendering; the
+  // production route supplies neither, which is the signal to query live data.
+  const configInjected = Object.prototype.hasOwnProperty.call(props, 'config');
   await params;
   const resolvedSearchParams = await searchParams;
   const initialTestConnectionOpen = resolvedSearchParams?.modal === 'd365Test';
@@ -239,6 +278,18 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     empty: label('settings.integrations.d365.connection.empty', t('settings.integrations.d365.connection.empty'), 'D365 connection is not configured.'),
     error: label('settings.integrations.d365.connection.error', t('settings.integrations.d365.connection.error'), 'Unable to load D365 connection.'),
   };
+  labels.preflight = {
+    incomplete: label(
+      'settings.integrations.d365.connection.preflightIncomplete',
+      t('settings.integrations.d365.connection.preflightIncomplete'),
+      'D365 cannot be enabled until all five reference constants are configured.',
+    ),
+    missingLabel: label(
+      'settings.integrations.d365.connection.preflightMissing',
+      t('settings.integrations.d365.connection.preflightMissing'),
+      'Missing D365 constants:',
+    ),
+  };
   const missingPrerequisites = label(
     'settings.integrations.d365.connection.missingPrerequisites',
     t('settings.integrations.d365.connection.missingPrerequisites'),
@@ -249,6 +300,13 @@ export default async function D365ConnectionPage(propsInput: unknown) {
     return <MissingPrerequisitesConnectionScreen labels={labels} missingPrerequisites={missingPrerequisites} />;
   }
 
+  // Real data: derive the five-constant enable gate from reference_tables.
+  // Tests injecting an explicit `preflight` keep their deterministic gate; the
+  // production path (no injected config) queries live constants via getD365Constants.
+  const preflight =
+    props.preflight ??
+    (!configInjected && state === 'ready' && config ? await readConstantPreflight() : undefined);
+
   return (
     <D365ConnectionForm
       state={state}
@@ -258,6 +316,7 @@ export default async function D365ConnectionPage(propsInput: unknown) {
       rotateD365ClientSecret={rotateD365ClientSecret}
       testD365Connection={testD365Connection ?? (config ? testRuntimeD365Connection : undefined)}
       initialTestConnectionOpen={initialTestConnectionOpen}
+      preflight={preflight}
     />
   );
 }

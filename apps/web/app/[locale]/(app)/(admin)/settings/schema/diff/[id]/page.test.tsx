@@ -7,6 +7,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -54,6 +55,27 @@ vi.mock('next-intl/server', () => ({
       revertToPrevious: 'Revert to Version N-1',
       backToSchemaBrowser: 'Back to schema browser',
       forbiddenTitle: '403 — Forbidden',
+      compare: 'Compare',
+      against: 'against',
+      tier: 'Tier',
+      path: 'Path',
+      before: 'before',
+      current: 'current',
+      change: 'Change',
+      selectVersionFrom: 'Compare version',
+      selectVersionAgainst: 'Against version',
+      versionOption: 'v{version} — {date} by {author}',
+      versionBeforeTitle: 'Version {version} (before)',
+      versionAfterTitle: 'Version {version} (current)',
+      revertToVersion: 'Revert to v{version}',
+      revertConfirmTitle: 'Revert {column} to v{version}?',
+      revertConfirmBody: 'This creates a new version restoring the JSON shape from v{version}.',
+      revertConfirmWarning: 'Reverting will increment the version to v{next}. The current v{current} is preserved.',
+      revertConfirm: 'Confirm revert',
+      revertCancel: 'Cancel',
+      revertUnavailableL1: 'L1 columns cannot be reverted from this screen.',
+      revertUnavailableWindow: 'Revert is available only for the last 3 versions.',
+      revertAvailable: 'Reverting will create a new version restoring the Before JSON.',
     };
     const template = labels[key] ?? key;
     return template.replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? `{${name}}`));
@@ -309,7 +331,9 @@ describe('SET-032 localized Schema Diff Viewer', () => {
     expect(within(diffTable).getByText(/presentation\.helpText/i).closest('tr')).toHaveTextContent(/added/i);
     expect(within(diffTable).getByText(/validation\.max/i).closest('tr')).toHaveTextContent(/removed/i);
     expect(within(diffTable).getByText(/required/i).closest('tr')).toHaveTextContent(/changed/i);
-    expect(screen.getByText(/schema-admin/i)).toBeInTheDocument();
+    // "schema-admin" now also appears inside the parity version-picker option labels,
+    // so assert at least one occurrence (metadata strip + selects).
+    expect(screen.getAllByText(/schema-admin/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/schema-v3/i)).toBeInTheDocument();
   });
 
@@ -321,5 +345,36 @@ describe('SET-032 localized Schema Diff Viewer', () => {
     expect(screen.getByText(/version 1|nothing to compare/i)).toBeInTheDocument();
     expect(screen.queryByRole('table', { name: /json deep diff/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /revert to version/i })).not.toBeInTheDocument();
+  });
+
+  it('exposes shadcn version SELECT pickers for arbitrary vN vs vM (parity: schema-diff.jsx:167-190) and recomputes the diff on change', async () => {
+    const user = userEvent.setup();
+    await renderSchemaDiff({ from: '2', to: '3' });
+
+    // Two comboboxes (shadcn Select), NOT static badges.
+    const fromSelect = screen.getByRole('combobox', { name: /compare version/i });
+    const againstSelect = screen.getByRole('combobox', { name: /against version/i });
+    expect(fromSelect).toBeInTheDocument();
+    expect(againstSelect).toBeInTheDocument();
+
+    // Switch the "compare" version from v2 to v1 and confirm the summary updates.
+    const v1Option = within(fromSelect.closest('[data-slot="select"]')!).getByRole('option', { name: /^v1 /i });
+    await user.click(v1Option);
+    expect(screen.getByText(/v1\s*→\s*v3/i)).toBeInTheDocument();
+  });
+
+  it('wires "Revert to vN" to a confirm dialog (parity: schema-diff.jsx:243-260) for revertable L2/L3 versions', async () => {
+    const user = userEvent.setup();
+    await renderSchemaDiff({ from: '2', to: '3' });
+
+    const revertButton = screen.getByRole('button', { name: /revert to v2/i });
+    expect(revertButton).toBeEnabled();
+    expect(screen.queryByRole('dialog', { name: /revert .*to v2/i })).not.toBeInTheDocument();
+
+    await user.click(revertButton);
+    const dialog = await screen.findByRole('dialog', { name: /revert .*to v2/i });
+    expect(dialog).toHaveTextContent(/restoring the json shape from v2/i);
+    expect(within(dialog).getByRole('button', { name: /confirm revert/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
 });

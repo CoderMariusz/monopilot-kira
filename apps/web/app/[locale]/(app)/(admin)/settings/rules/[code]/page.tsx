@@ -1,5 +1,4 @@
-import { getTranslations } from 'next-intl/server';
-
+import { runRuleDryRun } from '../../../../../../../actions/rules/dry-runs';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import RuleDetailScreen, {
   type RuleDetail,
@@ -101,15 +100,26 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof RuleDetailLabels>;
 const SETTINGS_RULES_VIEW = 'settings.rules.view';
 const FORBIDDEN = 'forbidden' as const;
 
+async function loadMessages(locale: string): Promise<Record<string, unknown>> {
+  switch (locale) {
+    case 'pl':
+      return (await import('../../../../../../../messages/pl/02-settings.json')).default;
+    case 'ro':
+      return (await import('../../../../../../../messages/ro/02-settings.json')).default;
+    case 'uk':
+      return (await import('../../../../../../../messages/uk/02-settings.json')).default;
+    default:
+      return (await import('../../../../../../../messages/en/02-settings.json')).default;
+  }
+}
+
 async function buildLabels(locale: string, overrides?: Partial<RuleDetailLabels>): Promise<RuleDetailLabels> {
   try {
-    const t = await getTranslations({ locale, namespace: 'settings.rule_detail' });
+    const messages = await loadMessages(locale);
+    const source = (messages.rule_detail ?? {}) as Partial<Record<keyof RuleDetailLabels, unknown>>;
     const translated = LABEL_KEYS.reduce((labels, key) => {
-      try {
-        labels[key] = t(key, key === 'dryRunResultsTab' ? { count: '{count}' } : undefined);
-      } catch {
-        labels[key] = DEFAULT_LABELS[key];
-      }
+      const value = source[key];
+      labels[key] = typeof value === 'string' ? value : DEFAULT_LABELS[key];
       return labels;
     }, {} as RuleDetailLabels);
     return { ...translated, ...overrides };
@@ -387,6 +397,7 @@ export default async function RuleDetailPage(propsInput: unknown) {
       auditLog={props.auditLog ?? loaded.auditLog}
       state={props.state ?? loaded.state}
       compareVersions={props.compareVersions ?? compareRuleVersions}
+      runDryRun={props.runDryRun ?? runRuleDryRun}
     />
   );
 }

@@ -218,11 +218,23 @@ describe('T-111 D365 sync localized AppShell route contract', () => {
   });
 });
 
+function readSettingsCatalog(locale: 'en' | 'pl'): unknown {
+  // Resolve regardless of the vitest runner cwd (repo root vs apps/web), mirroring
+  // the dual-candidate route resolution used elsewhere in this file.
+  const candidates = [
+    join(process.cwd(), 'apps/web/messages', locale, '02-settings.json'),
+    join(process.cwd(), 'messages', locale, '02-settings.json'),
+  ];
+  const path = candidates.find((candidate) => existsSync(candidate));
+  expect(path, `Expected ${locale}/02-settings.json to exist in the apps/web messages catalog`).toBeDefined();
+  return JSON.parse(readFileSync(path!, 'utf8'));
+}
+
 describe('R-W10W11-005 settings i18n message coverage', () => {
   it('defines added reference import and D365 sync/connection keys with exact EN/PL structural parity', () => {
     const catalogs = {
-      en: JSON.parse(readFileSync(join(process.cwd(), 'apps/web/messages/en/02-settings.json'), 'utf8')),
-      pl: JSON.parse(readFileSync(join(process.cwd(), 'apps/web/messages/pl/02-settings.json'), 'utf8')),
+      en: readSettingsCatalog('en'),
+      pl: readSettingsCatalog('pl'),
     } as const;
 
     for (const key of requiredAddedI18nKeys) {

@@ -8,6 +8,7 @@ export interface CheckboxProps {
   id?: string;
   name?: string;
   value?: string;
+  title?: string;
   className?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
@@ -22,6 +23,7 @@ export function Checkbox({
   id,
   name,
   value,
+  title,
   className,
   ...aria
 }: CheckboxProps) {
@@ -41,6 +43,7 @@ export function Checkbox({
       data-value={value}
       id={id}
       name={name}
+      title={title}
       disabled={disabled}
       onClick={() => {
         if (disabled) return;

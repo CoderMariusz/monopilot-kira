@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { getTenantVariations } from '../../../../../../../actions/tenant/get';
 import { setDepartmentOverride } from '../../../../../../../actions/tenant/set-dept';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import DeptTaxonomyScreen, {
   type Department,
   type DeptOverridePayload,
@@ -67,7 +68,10 @@ const LABEL_TRANSLATION_KEYS: Partial<Record<keyof DeptTaxonomyLabels, string>> 
   title: 'dept_taxonomy_title',
 };
 
-// Baseline Apex department taxonomy from SET-061; live tenant variations are merged over it at render time.
+// Fallback Apex department taxonomy used ONLY when reference_schemas has no
+// dept_code rows for this org yet. The live path reads distinct dept_code +
+// per-dept column counts from public.reference_schemas via withOrgContext, then
+// merges tenant_variations.dept_overrides over the result.
 const BASELINE_DEPARTMENTS: Department[] = [
   { code: 'core', name: 'Core', assignedColumnCount: 12, order: 10, provenance: 'baseline' },
   { code: 'technical', name: 'Technical', assignedColumnCount: 3, order: 20, provenance: 'baseline' },
@@ -78,12 +82,95 @@ const BASELINE_DEPARTMENTS: Department[] = [
   { code: 'price', name: 'Price', assignedColumnCount: 2, order: 70, provenance: 'baseline' },
 ];
 
-// Project-shaped fallback source columns until the schema metadata loader supplies live owner_department rows.
+// Fallback source columns used ONLY when reference_schemas exposes no live
+// column rows for the selected source department. The live path reads
+// column_code + dept_code from public.reference_schemas.
 const DEFAULT_SOURCE_COLUMNS: SourceColumn[] = [
   { code: 'tech.allergen_statement', label: 'Allergen statement', departmentCode: 'technical' },
   { code: 'tech.lab_release_rule', label: 'Lab release rule', departmentCode: 'technical' },
   { code: 'tech.food_safety_owner', label: 'Food safety owner', departmentCode: 'technical' },
 ];
+
+type QueryClient = {
+  query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+type ReferenceSchemaDeptRow = { dept_code: string | null; column_count: number | string | null };
+type ReferenceSchemaColumnRow = { column_code: string; dept_code: string | null; presentation_json: unknown };
+
+function titleizeDept(code: string): string {
+  return code
+    .split(/[-_]/)
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ');
+}
+
+// Live department taxonomy from reference_schemas: distinct dept_code values
+// with their assigned column counts. Empty result → null (caller falls back).
+async function readSchemaDepartments(client: QueryClient): Promise<Department[] | null> {
+  const { rows } = await client.query<ReferenceSchemaDeptRow>(
+    `select dept_code, count(*)::int as column_count
+       from public.reference_schemas
+      where org_id = app.current_org_id()
+        and dept_code is not null
+        and deprecated_at is null
+      group by dept_code
+      order by dept_code asc`,
+  );
+  const departments = rows
+    .filter((row): row is ReferenceSchemaDeptRow & { dept_code: string } => typeof row.dept_code === 'string' && row.dept_code.length > 0)
+    .map((row, index): Department => ({
+      code: row.dept_code,
+      name: titleizeDept(row.dept_code),
+      assignedColumnCount: Number(row.column_count ?? 0),
+      order: (index + 1) * 10,
+      provenance: 'baseline',
+    }));
+  return departments.length > 0 ? departments : null;
+}
+
+// Live source columns from reference_schemas for the selected source dept.
+async function readSchemaSourceColumns(client: QueryClient, deptCode: string): Promise<SourceColumn[] | null> {
+  const { rows } = await client.query<ReferenceSchemaColumnRow>(
+    `select column_code, dept_code, presentation_json
+       from public.reference_schemas
+      where org_id = app.current_org_id()
+        and dept_code = $1
+        and deprecated_at is null
+      order by coalesce((presentation_json->>'display_order')::int, 0), column_code asc`,
+    [deptCode],
+  );
+  const columns = rows
+    .filter((row) => typeof row.column_code === 'string' && row.column_code.length > 0)
+    .map((row): SourceColumn => ({
+      code: row.column_code,
+      label:
+        row.presentation_json && typeof row.presentation_json === 'object' && typeof (row.presentation_json as { label?: unknown }).label === 'string'
+          ? ((row.presentation_json as { label: string }).label)
+          : titleizeDept(row.column_code.replace(/^.*\./, '')),
+      departmentCode: row.dept_code ?? deptCode,
+    }));
+  return columns.length > 0 ? columns : null;
+}
+
+// Resilient combined live loader: returns null on any failure so the caller can
+// fall back to the deterministic constants without breaking the screen.
+async function loadSchemaTaxonomy(
+  selectedDeptCode: string,
+): Promise<{ departments: Department[] | null; sourceColumns: SourceColumn[] | null } | null> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const queryClient = client as QueryClient;
+      const [departments, sourceColumns] = await Promise.all([
+        readSchemaDepartments(queryClient),
+        readSchemaSourceColumns(queryClient, selectedDeptCode),
+      ]);
+      return { departments, sourceColumns };
+    });
+  } catch {
+    return null;
+  }
+}
 
 async function buildLabels(locale: string): Promise<DeptTaxonomyLabels> {
   try {
@@ -103,12 +190,16 @@ async function buildLabels(locale: string): Promise<DeptTaxonomyLabels> {
   }
 }
 
-async function loadDefaultDepartments(): Promise<{ departments: Department[]; state: PageState }> {
-  const result = await getTenantVariations();
+async function loadDefaultDepartments(
+  selectedDeptCode: string,
+): Promise<{ departments: Department[]; sourceColumns: SourceColumn[] | null; state: PageState }> {
+  const [result, schema] = await Promise.all([getTenantVariations(), loadSchemaTaxonomy(selectedDeptCode)]);
+  const baseDepartments = schema?.departments ?? BASELINE_DEPARTMENTS;
+  const sourceColumns = schema?.sourceColumns ?? null;
   if ('error' in result) {
-    return { departments: BASELINE_DEPARTMENTS, state: result.error === 'forbidden' ? 'permission_denied' : 'error' };
+    return { departments: baseDepartments, sourceColumns, state: result.error === 'forbidden' ? 'permission_denied' : 'error' };
   }
-  return { departments: mergeTenantDeptOverrides(BASELINE_DEPARTMENTS, result.data.deptOverrides), state: 'ready' };
+  return { departments: mergeTenantDeptOverrides(baseDepartments, result.data.deptOverrides), sourceColumns, state: 'ready' };
 }
 
 function mergeTenantDeptOverrides(base: Department[], deptOverrides: unknown): Department[] {
@@ -182,14 +273,17 @@ export default async function DeptTaxonomyPage(propsInput: unknown) {
   const props = (propsInput ?? {}) as DeptTaxonomyPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
   const labels = await buildLabels(locale);
-  const loaded = props.departments ? { departments: props.departments, state: props.state ?? 'ready' } : await loadDefaultDepartments();
+  const selectedDeptCode = props.selectedDeptCode ?? 'technical';
+  const loaded = props.departments
+    ? { departments: props.departments, sourceColumns: null as SourceColumn[] | null, state: props.state ?? 'ready' }
+    : await loadDefaultDepartments(selectedDeptCode);
 
   return (
     <DeptTaxonomyScreen
       labels={labels}
       departments={loaded.departments}
-      sourceColumns={props.sourceColumns ?? DEFAULT_SOURCE_COLUMNS}
-      selectedDeptCode={props.selectedDeptCode ?? 'technical'}
+      sourceColumns={props.sourceColumns ?? loaded.sourceColumns ?? DEFAULT_SOURCE_COLUMNS}
+      selectedDeptCode={selectedDeptCode}
       canEdit={props.canEdit ?? loaded.state !== 'permission_denied'}
       state={props.state ?? loaded.state}
       submitDeptOverrideAction={props.submitDeptOverride ?? defaultSubmitDeptOverride}

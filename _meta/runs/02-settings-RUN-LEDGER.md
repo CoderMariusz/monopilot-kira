@@ -100,7 +100,21 @@ Worktrees branch from `main` (8601fd90, 137 behind). Since touched files are bas
 - Pre-existing fails (out of scope, confirmed on baseline): wave7-8-i18n-consumption (non-localized (admin)/settings/users no next-intl), guard invitations @monopilot/ui import path, mfg-operations/page.test.tsx.
 - W2b ✅ MERGED. Baseline (e7778f1e, no W2b) UI suite = 70 failed/556. After W2b = 36 failed/584 → net -34 fails +28 tests, ZERO new regressions (verified via stash baseline). All 36 remaining fails are pre-existing in UNTOUCHED screens (tenant, rules, tenant/rules, tenant/depts, mfg-ops history, SET-055, npd, d365/sync) = W3/other-module targets. web typecheck=0. STATUS T-073/074/075/096/120/121/127/128 → 🔄. i18n 3-way delta-merged (roles from afb0ab preserved). units used shared test-setup.ui.ts fix (no regression confirmed) + local Dialog (works on HEAD React-19; revert to @monopilot/ui Modal is optional cleanup).
 
-## Remaining waves after W2b
+## W3 DISPATCHED (6 worktree Opus agents, parity-polish, target the 36 pre-existing failing tests)
+- A tenant suite (T-100/101/102/109) · B rules suite (T-063/064/108) · C schema-admin (T-097/098/099) · D reference+mfg-ops (T-067/077/115/114) · E d365 integrations (T-061/062/111/112 + the d365/sync EN/PL i18n parity test) · F users/company/security/invitations (T-059/058/060/119 + invitations SSR + @monopilot/ui import guard fix).
+- Real data mostly already wired on these — focus = prototype parity 1:1 + make failing page.test.tsx pass + remove residual partial-hardcode (tenant schemaExtensionsL3/lastUpgradeAt/lastChangedAt, BASELINE_DEPARTMENTS, d365 DEFAULT_MAPPING_ROWS, security passwordPolicy fallback).
+- Merge: same proven recipe (patch non-i18n, copy untracked, node 3-way i18n merge, consolidated verify vs baseline, commit, cleanup).
+
+## W3 merge notes (in progress)
+- i18n PATH DIVERGENCE: some W3 agents (e.g. D reference+mfg-ops) edit `apps/web/i18n/<locale>.json` (old structure in their stale main base) instead of canonical `messages/<locale>/02-settings.json` (HEAD). At merge, inspect each agent's actual changed i18n file and RELOCATE its settings.* additions into messages/<locale>/02-settings.json (top-level key = the subnamespace). Pages call getTranslations('settings.<ns>') which resolves from 02-settings.json on HEAD.
+- W3 done so far: D reference+mfg-ops (fixed mfg-operations route test + mfg-ops history namespace + IP column; 18/18+22/22; relocate manufacturing_operation_history i18n). Pending: A tenant, B rules, C schema, E d365, F users/company/security/invitations.
+
+## W3 ✅ MERGED (parity polish)
+6 worktree agents merged via proven recipe (patch non-i18n incl packages/ui Select/Checkbox [base==HEAD]; node 3-way i18n delta-merge for A/B/C/E messages + relocate D/F from i18n/<locale>.json; test-setup.ui.ts kept main's W2b version, agents' skipped). Consolidated verify: web typecheck=0; UI suite 17 failed/591 vs 36 failed/584 baseline → net -19, ZERO new regressions (stash A/B verified). W3 FIXED: tenant(21/21), rules(9/9), schema(22/22), d365(39+13), reference+mfg-ops(18/18+IP col), users/company/security/invitations(25/0 + invitations SSR + @monopilot/ui guard fix). New action/route/client files added. i18n: en/pl 43 / ro/uk 30 top-level keys (ro/uk grew via d365/reference/tenant namespaces).
+Remaining 17 fails = ALL pre-existing, out of W3 scope: npd dashboard (T-134, other module) ~8; notifications T-071 live-DB pg_catalog test (needs DB) 1; `[locale]/(admin)/settings/{flags,reference,rules}` MIDDLE-TREE parity test cruft (canonical (app)/(admin) versions pass) — fix/remove in W4.
+Screens now real-data + parity: ~28. Tasks advanced (set 🔄 in next STATUS reconcile): T-058/059/060/061/062/063/064/067/077/097/098/099/100/101/102/108/109/111/112/114/115/119.
+
+## Remaining waves after W3
 - W3 parity polish (real data OK, parity gaps): rules(T-063)+rule-detail(T-064)+diff(T-108), schema/new(T-097)+diff(T-098)+migrations(T-099), reference(T-067)+mfg-ops(T-077,115), users(T-059), company(T-058), security(T-060), invitations(T-119), d365 conn/mapping(T-061/062), tenant/*(T-100/101/102/109), modals SM-01..11, language picker(T-129), onboarding steps(T-041..046).
 - W4 structural cleanup: delete non-localized (admin)/settings orphans (users/client.tsx, profile/*), redirect dups; consolidate. (roles handled in W2b.)
 - W5 Class D build-now: boms/partners/processes (no owner) build in settings + seed; devices/shifts/labels/etc per ownership — hide nav OR build (user: build part now + seed). onboarding /onboarding stub→real wizard.

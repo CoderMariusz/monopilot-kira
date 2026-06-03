@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useState } from 'react';
 
-import { Button } from '../../../../../../packages/ui/src/Button';
+import { Button } from '@monopilot/ui/Button';
 
 type InvitationStatus = 'pending' | 'expired' | 'accepted';
 

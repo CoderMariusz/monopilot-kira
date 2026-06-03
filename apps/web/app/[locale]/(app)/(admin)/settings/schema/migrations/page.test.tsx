@@ -5,6 +5,7 @@
  * RED scope: tests only; production page is intentionally not implemented here.
  */
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -87,7 +88,51 @@ const migrations: SchemaMigrationRow[] = [
 ];
 
 vi.mock('next-intl/server', () => ({
-  getTranslations: vi.fn(async () => (key: string) => key),
+  getTranslations: vi.fn(async () => (key: string) => {
+    const labels: Record<string, string> = {
+      title: 'Schema Migrations Queue',
+      subtitle: 'Track L1 promotion requests from submission to completion.',
+      exportCsv: 'Export queue CSV',
+      statusFilter: 'Status filter',
+      migrationRequests: 'Migration requests',
+      migrationTableLabel: 'Schema migrations queue',
+      migrationId: 'Migration ID',
+      tableColumn: 'Table / Column',
+      action: 'Action',
+      requestedBy: 'Requested By',
+      requestedAt: 'Requested At',
+      approvedBy: 'Approved By',
+      status: 'Status',
+      actions: 'Actions',
+      expand: 'Expand row',
+      collapse: 'Collapse',
+      diff: 'Diff',
+      showAll: 'Show all',
+      viewMigrationScript: 'View migration script',
+      cancel: 'Cancel',
+      detail: 'Migration script detail',
+      resultNotes: 'Result notes',
+      statusTimeline: 'Status timeline',
+      noMigrationRequests: 'No migration requests.',
+      noFilteredMigrationRequests: 'No migration requests for the selected filter.',
+      loading: 'Loading schema migrations queue…',
+      error: 'Unable to load schema migrations queue.',
+      forbidden: 'Permission denied for schema migrations queue.',
+      countSummary: '{shown} of {total} migrations',
+      filter_all: 'All',
+      filter_pending: 'Pending',
+      filter_approved: 'Approved',
+      filter_running: 'Running',
+      filter_completed: 'Completed',
+      filter_failed: 'Failed',
+      filter_rolled_back: 'Rolled back',
+      provenance: 'Live rows are read from public.schema_migrations.',
+      requestedByFallback: 'Schema admin',
+      systemFallback: 'Schema migration runner',
+      none: '—',
+    };
+    return labels[key] ?? key;
+  }),
 }));
 
 async function loadSchemaMigrationsQueuePage(): Promise<SchemaMigrationsQueuePage> {
@@ -146,7 +191,7 @@ describe('SET-033 schema migrations queue UX contract', () => {
     cleanup();
   });
 
-  it('renders the spec-driven SettingsLayout queue, status filter, required columns, badges, and read-only actions', async () => {
+  it('renders the spec-driven SettingsLayout queue, 7 filter pills with counts, required columns, badges, per-row Diff link and read-only actions', async () => {
     await renderSchemaMigrationsQueue();
 
     const root = queueRoot();
@@ -155,14 +200,21 @@ describe('SET-033 schema migrations queue UX contract', () => {
     expect(root).toHaveAttribute('data-ux-source', 'SET-033');
     expect(screen.getByRole('heading', { name: /^Schema Migrations Queue$/i })).toBeInTheDocument();
 
-    const statusFilter = screen.getByRole('combobox', { name: /status filter/i });
-    for (const option of ['All', 'pending', 'approved', 'running', 'completed', 'failed', 'rolled_back']) {
-      expect(within(statusFilter).getByRole('option', { name: new RegExp(option, 'i') })).toBeInTheDocument();
+    // Parity: prototype renders 7 filter PILL buttons with count badges
+    // (schema-migrations.jsx:127-155), NOT a raw <select>.
+    const filterGroup = screen.getByRole('radiogroup', { name: /status filter/i });
+    for (const pill of ['All', 'Pending', 'Approved', 'Running', 'Completed', 'Failed', 'Rolled back']) {
+      expect(within(filterGroup).getByRole('radio', { name: new RegExp(`^${pill} `, 'i') })).toBeInTheDocument();
     }
+    expect(within(filterGroup).getAllByRole('radio')).toHaveLength(7);
+    expect(screen.queryByRole('combobox', { name: /status filter/i })).not.toBeInTheDocument();
+    // "All" pill carries the full count badge.
+    expect(within(filterGroup).getByRole('radio', { name: `All (${migrations.length})` })).toBeInTheDocument();
 
     expect(
       within(migrationsTable()).getAllByRole('columnheader').map((header) => header.textContent?.trim()),
     ).toEqual([
+      '',
       'Migration ID',
       'Table / Column',
       'Action',
@@ -178,12 +230,19 @@ describe('SET-033 schema migrations queue UX contract', () => {
     expect(screen.getByText('completed')).toHaveAttribute('data-status-tone', 'green');
     expect(screen.getByText('failed')).toHaveAttribute('data-status-tone', 'red');
     expect(screen.getAllByRole('button', { name: /view migration script/i })).toHaveLength(migrations.length);
+    // Parity: every row carries a Diff link to /settings/schema/diff/:id.
+    const diffLinks = screen.getAllByRole('link', { name: /diff/i });
+    expect(diffLinks).toHaveLength(migrations.length);
+    expect(diffLinks[0]).toHaveAttribute('href', `/en/settings/schema/diff/${migrations[0].migrationId}`);
     expect(screen.queryByRole('button', { name: /approve|execute|run migration|apply/i })).not.toBeInTheDocument();
     expect(root.querySelector('[data-screen="promotions"]')).not.toBeInTheDocument();
   });
 
-  it("filters status='pending' to pending rows only and keeps a read-only View migration script action on every row", async () => {
-    await renderSchemaMigrationsQueue({ searchParams: Promise.resolve({ status: 'pending' }) });
+  it('filters to pending rows only when the Pending pill is clicked and keeps a read-only View action on every row', async () => {
+    const user = userEvent.setup();
+    await renderSchemaMigrationsQueue();
+
+    await user.click(screen.getByRole('radio', { name: /^Pending /i }));
 
     const rows = tableRows();
     expect(rows).toHaveLength(1);
@@ -195,9 +254,10 @@ describe('SET-033 schema migrations queue UX contract', () => {
     expect(screen.queryByText('production_batch / allergen_risk_score')).not.toBeInTheDocument();
   });
 
-  it('opens row detail with migration_script in a read-only CodeMirror SQL view, result notes, and status timeline', async () => {
+  it('opens row detail with migration_script in a read-only line-numbered CodeMirror SQL view, result notes, and status timeline', async () => {
     const user = userEvent.setup();
-    await renderSchemaMigrationsQueue({ searchParams: Promise.resolve({ status: 'pending' }) });
+    await renderSchemaMigrationsQueue();
+    await user.click(screen.getByRole('radio', { name: /^Pending /i }));
 
     const pendingRow = rowContaining('main_table / shelf_life_days');
     expect(pendingRow).toBeTruthy();
@@ -209,6 +269,8 @@ describe('SET-033 schema migrations queue UX contract', () => {
     expect(codeMirror).toHaveAttribute('aria-readonly', 'true');
     expect(codeMirror).toHaveTextContent(/alter table public\.main_table add column shelf_life_days integer/i);
     expect(codeMirror).toHaveTextContent(/create index concurrently/i);
+    // Parity: line-numbered gutter (schema-migrations.jsx:66-73).
+    expect(codeMirror.querySelectorAll('[data-line-number]').length).toBeGreaterThanOrEqual(2);
     expect(within(detail).getByText(/Awaiting Monopilot superadmin review/i)).toBeInTheDocument();
     expect(within(detail).getByRole('list', { name: /status timeline/i })).toHaveTextContent(/pending/i);
     expect(within(detail).queryByRole('textbox')).not.toBeInTheDocument();
@@ -216,7 +278,7 @@ describe('SET-033 schema migrations queue UX contract', () => {
 
   it('keeps the detail panel closed until the operator chooses a specific row script and then shows that row SQL', async () => {
     const user = userEvent.setup();
-    await renderSchemaMigrationsQueue({ searchParams: Promise.resolve({ status: 'all' }) });
+    await renderSchemaMigrationsQueue();
 
     expect(screen.queryByRole('region', { name: /migration script detail/i })).not.toBeInTheDocument();
 
@@ -239,5 +301,35 @@ describe('SET-033 schema migrations queue UX contract', () => {
 
     await renderSchemaMigrationsQueue({ state: 'loading' });
     expect(screen.getByTestId('schema-migrations-queue-loading')).toBeInTheDocument();
+  });
+
+  it('defines the schema_migrations_queue namespace (including the 7 filter pill labels) for every supported locale', () => {
+    const requiredKeys = [
+      'title',
+      'statusFilter',
+      'migrationRequests',
+      'diff',
+      'collapse',
+      'showAll',
+      'countSummary',
+      'filter_all',
+      'filter_pending',
+      'filter_approved',
+      'filter_running',
+      'filter_completed',
+      'filter_failed',
+      'filter_rolled_back',
+    ];
+    for (const locale of ['en', 'pl', 'ro', 'uk']) {
+      const messages = JSON.parse(readFileSync(`${process.cwd()}/messages/${locale}/02-settings.json`, 'utf8')) as {
+        schema_migrations_queue?: Record<string, string>;
+      };
+      const ns = messages.schema_migrations_queue;
+      expect(ns, `${locale}/02-settings.json must define schema_migrations_queue for SET-033`).toBeDefined();
+      for (const key of requiredKeys) {
+        expect(ns?.[key], `${locale}/02-settings.json missing schema_migrations_queue.${key}`).toEqual(expect.any(String));
+        expect(ns?.[key]).not.toEqual('');
+      }
+    }
   });
 });

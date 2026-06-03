@@ -185,7 +185,7 @@ describe('SET-055 Manufacturing Operations list view', () => {
   it('is wired to the localized Settings Reference route as a Server Component with a client leaf and next-intl labels', async () => {
     await loadLocalizedManufacturingOperationsPage();
 
-    const dir = path.join(process.cwd(), 'app/[locale]/(admin)/settings/reference/manufacturing-operations');
+    const dir = __dirname;
     const pageSource = await fs.readFile(path.join(dir, 'page.tsx'), 'utf8');
     const clientSource = await fs.readFile(path.join(dir, 'manufacturing-operations-screen.client.tsx'), 'utf8');
 

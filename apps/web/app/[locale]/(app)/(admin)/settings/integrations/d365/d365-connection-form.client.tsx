@@ -65,6 +65,22 @@ export type D365Labels = {
     testTitle?: string;
     close?: string;
   };
+  preflight?: {
+    incomplete?: string;
+    missingLabel?: string;
+  };
+};
+
+/**
+ * Five-constant enable gate. The D365 export adapter requires all five P1
+ * reference constants (PRODUCTIONSITEID, APPROVERPERSONNELNUMBER,
+ * CONSUMPTIONWAREHOUSEID, PRODUCTGROUPID, COSTINGOPERATIONRESOURCEID) to be set
+ * before the integration may be enabled. `missing` lists the constant keys that
+ * are still unset; when non-empty the enable toggle is fail-closed.
+ */
+export type D365ConstantPreflight = {
+  complete: boolean;
+  missing: string[];
 };
 
 type D365ConnectionFormProps = D365ConnectionActions & {
@@ -72,6 +88,7 @@ type D365ConnectionFormProps = D365ConnectionActions & {
   config: D365ConnectionConfig | null;
   labels: D365Labels;
   initialTestConnectionOpen?: boolean;
+  preflight?: D365ConstantPreflight;
 };
 
 const prototypeSource = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:27-103';
@@ -242,10 +259,12 @@ function ReadyD365ConnectionForm({
   rotateD365ClientSecret,
   testD365Connection,
   initialTestConnectionOpen = false,
+  preflight,
 }: D365ConnectionActions & {
   config: D365ConnectionConfig;
   labels: D365Labels;
   initialTestConnectionOpen?: boolean;
+  preflight?: D365ConstantPreflight;
 }) {
   const [baseUrl, setBaseUrl] = React.useState(config.baseUrl);
   const [environment, setEnvironment] = React.useState<D365Environment>(config.environment);
@@ -280,7 +299,19 @@ function ReadyD365ConnectionForm({
     }
   }
 
+  // Five-constant enable gate: the integration cannot be enabled until all five
+  // P1 D365 reference constants are present. The pre-flight test modal still
+  // opens, but the toggle itself stays fail-closed when constants are missing.
+  const constantsIncomplete = Boolean(preflight && !preflight.complete);
+  const preflightWarning =
+    labels.preflight?.incomplete ??
+    'D365 cannot be enabled until all five reference constants are configured.';
+
   function onEnabledChange(next: boolean) {
+    if (next && constantsIncomplete) {
+      setDialogOpen(true);
+      return;
+    }
     if (next) setDialogOpen(true);
     setEnabled(next);
   }
@@ -375,8 +406,25 @@ function ReadyD365ConnectionForm({
               style={{ width: 200 }}
             />
           </Field>
-          <Field field="enabled" label="Integration enabled" htmlFor="d365-enabled" hint="Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle.">
-            <Switch id="d365-enabled" aria-label="Integration enabled" checked={enabled} onCheckedChange={onEnabledChange} />
+          <Field
+            field="enabled"
+            label="Integration enabled"
+            htmlFor="d365-enabled"
+            hint="Mirrors `integration.d365.enabled` flag. Pre-flight runs on toggle."
+            error={constantsIncomplete ? preflightWarning : null}
+          >
+            <Switch
+              id="d365-enabled"
+              aria-label="Integration enabled"
+              checked={enabled}
+              onCheckedChange={onEnabledChange}
+              disabled={constantsIncomplete}
+            />
+            {constantsIncomplete && preflight ? (
+              <p data-testid="d365-constant-preflight" className="mt-2 text-xs text-amber-700">
+                {(labels.preflight?.missingLabel ?? 'Missing D365 constants:')} {preflight.missing.join(', ')}
+              </p>
+            ) : null}
           </Field>
         </Section>
 
@@ -419,6 +467,7 @@ export default function D365ConnectionForm({
   rotateD365ClientSecret,
   testD365Connection,
   initialTestConnectionOpen,
+  preflight,
 }: D365ConnectionFormProps) {
   if (state === 'error') return <StateCard labels={labels} state="error" />;
   if (state === 'loading') return <StateCard labels={labels} state="loading" />;
@@ -432,6 +481,7 @@ export default function D365ConnectionForm({
       rotateD365ClientSecret={rotateD365ClientSecret}
       testD365Connection={testD365Connection}
       initialTestConnectionOpen={initialTestConnectionOpen}
+      preflight={preflight}
     />
   );
 }

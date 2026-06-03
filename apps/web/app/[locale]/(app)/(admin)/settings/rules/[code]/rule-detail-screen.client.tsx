@@ -7,7 +7,7 @@ import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardDescription } from '@monopilot/ui/Card';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-import { RuleDryRunModal } from '../../../../../../../components/settings/modals/rule-dry-run-modal';
+import { RuleDryRunModal, type RuleDryRunResult } from '../../../../../../../components/settings/modals/rule-dry-run-modal';
 
 export type RuleVersion = {
   version: number;
@@ -101,6 +101,11 @@ export type RuleDetailScreenProps = {
   consumers: string[];
   auditLog: Array<{ when: string; actor: string; action: string; deployRef: string; notes: string }>;
   compareVersions?: (input: { ruleCode: string; fromVersion: number; toVersion: number }) => Promise<RuleDiffResult>;
+  runDryRun?: (input: { ruleCode: string; sampleInput: Record<string, unknown> }) => Promise<
+    | { ok: true; data: RuleDryRunResult }
+    | { ok: false; error: string }
+    | RuleDryRunResult
+  >;
   state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 };
 
@@ -138,6 +143,7 @@ export default function RuleDetailScreen({
   consumers,
   auditLog,
   compareVersions,
+  runDryRun,
   state = 'ready',
 }: RuleDetailScreenProps) {
   const [tab, setTab] = React.useState<TabId>(initialTabFromHash);
@@ -155,6 +161,20 @@ export default function RuleDetailScreen({
 
   const openDryRun = () => setDryRunOpen(true);
   const currentVersion = rule.version;
+
+  const runSharedDryRun = async (
+    input: { ruleCode: string; sampleInput: Record<string, unknown> },
+  ): Promise<RuleDryRunResult> => {
+    if (!runDryRun) {
+      throw new Error('Dry-run action is unavailable.');
+    }
+    const result = await runDryRun(input);
+    if (result && typeof result === 'object' && 'ok' in result) {
+      if (result.ok) return result.data;
+      throw new Error(result.error);
+    }
+    return result as RuleDryRunResult;
+  };
 
   async function runDiff(version: number) {
     if (!compareVersions || version === currentVersion) return;
@@ -188,13 +208,8 @@ export default function RuleDetailScreen({
         <RuleDryRunModal
           defaultOpen
           rule={{ code: rule.code, description: rule.description }}
-          initialSampleInput={{ rule: rule.code, sample: true }}
-          runDryRun={async () => ({
-            status: 'pass',
-            warnings: [],
-            trace: ['sample input evaluated'],
-            evaluatedAt: new Date().toISOString(),
-          })}
+          initialSampleInput={{ ruleCode: rule.code, dryRunScope: 'detail' }}
+          runDryRun={runSharedDryRun}
           onOpenChange={setDryRunOpen}
         />
       ) : null}

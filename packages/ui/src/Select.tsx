@@ -107,6 +107,8 @@ export function SelectTrigger({ className, children, ...aria }: SelectTriggerPro
       aria-disabled={ctx?.disabled || undefined}
       data-slot="select-trigger"
       data-state="closed"
+      data-value={ctx?.value || undefined}
+      value={ctx?.value ?? ''}
       className={['select__trigger', className].filter(Boolean).join(' ')}
       disabled={ctx?.disabled}
       {...aria}

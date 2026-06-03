@@ -1,11 +1,11 @@
 import { getTranslations } from 'next-intl/server';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+import { Card, CardContent } from '@monopilot/ui/Card';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
+import { DiffViewer } from './diff-viewer.client';
+import type { DiffVersion } from './diff-viewer.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,11 +95,23 @@ type Labels = {
   change: string;
   settingsCrumb: string;
   schemaBrowserCrumb: string;
+  selectVersionFrom: string;
+  selectVersionAgainst: string;
+  versionOption: string;
+  versionBeforeTitle: string;
+  versionAfterTitle: string;
+  revertToVersion: string;
+  revertConfirmTitle: string;
+  revertConfirmBody: string;
+  revertConfirmWarning: string;
+  revertConfirm: string;
+  revertCancel: string;
+  revertUnavailableL1: string;
+  revertUnavailableWindow: string;
+  revertAvailable: string;
 };
 
 type JsonRecord = Record<string, unknown>;
-type DiffStatus = 'added' | 'removed' | 'changed' | 'unchanged';
-type DiffRow = { path: string; before: unknown; after: unknown; status: DiffStatus };
 
 const DEFAULT_LABELS: Labels = {
   title: 'Schema diff',
@@ -131,6 +143,20 @@ const DEFAULT_LABELS: Labels = {
   change: 'Change',
   settingsCrumb: 'Settings',
   schemaBrowserCrumb: 'Schema browser',
+  selectVersionFrom: 'Compare version',
+  selectVersionAgainst: 'Against version',
+  versionOption: 'v{version} — {date} by {author}',
+  versionBeforeTitle: 'Version {version} (before)',
+  versionAfterTitle: 'Version {version} (current)',
+  revertToVersion: 'Revert to v{version}',
+  revertConfirmTitle: 'Revert {column} to v{version}?',
+  revertConfirmBody: 'This creates a new version restoring the JSON shape from v{version}. Existing rows are not migrated.',
+  revertConfirmWarning: 'Reverting will increment the version to v{next}. The current v{current} is preserved in history.',
+  revertConfirm: 'Confirm revert',
+  revertCancel: 'Cancel',
+  revertUnavailableL1: 'L1 columns cannot be reverted from this screen. Use the L1 promotion flow to roll back.',
+  revertUnavailableWindow: 'Revert is available only for the last 3 versions.',
+  revertAvailable: 'Reverting will create a new version restoring the "Before" JSON.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof Labels>;
@@ -160,56 +186,8 @@ function normalizeJson(value: unknown): JsonRecord {
   return isRecord(value) ? value : {};
 }
 
-function formatJson(value: unknown) {
-  if (value === undefined) return '—';
-  if (typeof value === 'string') return value;
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') return JSON.stringify(value);
-  return JSON.stringify(value, null, 2);
-}
-
-function jsonEqual(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function diffJson(before: unknown, after: unknown, prefix = ''): DiffRow[] {
-  const beforeRecord = isRecord(before) ? before : null;
-  const afterRecord = isRecord(after) ? after : null;
-  if (!beforeRecord || !afterRecord) {
-    return jsonEqual(before, after) ? [] : [{ path: prefix || '$', before, after, status: 'changed' }];
-  }
-
-  const keys = Array.from(new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)])).sort();
-  return keys.flatMap((key) => {
-    const path = prefix ? `${prefix}.${key}` : key;
-    const hasBefore = Object.prototype.hasOwnProperty.call(beforeRecord, key);
-    const hasAfter = Object.prototype.hasOwnProperty.call(afterRecord, key);
-    if (!hasBefore) return [{ path, before: undefined, after: afterRecord[key], status: 'added' as const }];
-    if (!hasAfter) return [{ path, before: beforeRecord[key], after: undefined, status: 'removed' as const }];
-    if (isRecord(beforeRecord[key]) && isRecord(afterRecord[key])) return diffJson(beforeRecord[key], afterRecord[key], path);
-    return jsonEqual(beforeRecord[key], afterRecord[key]) ? [] : [{ path, before: beforeRecord[key], after: afterRecord[key], status: 'changed' as const }];
-  });
-}
-
-function countRows(rows: DiffRow[]) {
-  return rows.reduce(
-    (acc, row) => ({ ...acc, [row.status]: acc[row.status] + 1 }),
-    { added: 0, removed: 0, changed: 0, unchanged: 0 } satisfies Record<DiffStatus, number>,
-  );
-}
-
-function labelCount(template: string, count: number) {
-  return template.includes('{count}') ? template.replace('{count}', String(count)) : `${count} ${template}`;
-}
-
 function interpolate(template: string, values: Record<string, string>) {
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template);
-}
-
-function badgeVariant(status: DiffStatus) {
-  if (status === 'added') return 'success' as const;
-  if (status === 'removed') return 'danger' as const;
-  if (status === 'changed') return 'warning' as const;
-  return 'muted' as const;
 }
 
 function mapRow(row: SchemaVersionRow, routeId: string): SchemaVersion {
@@ -314,41 +292,6 @@ function StateCard({ role, title, body }: { role: 'status' | 'alert'; title: str
   );
 }
 
-function DiffValue({ value, status, side }: { value: unknown; status: DiffStatus; side: 'before' | 'after' }) {
-  const removed = status === 'removed' && side === 'before';
-  const addedOrChanged = (status === 'added' || status === 'changed') && side === 'after';
-  return (
-    <code className={[
-      'settings-schema-diff__value',
-      removed ? 'bg-red-50 text-red-800 line-through' : '',
-      addedOrChanged ? 'bg-green-50 text-green-900' : '',
-    ].filter(Boolean).join(' ')}>
-      {formatJson(value)}
-    </code>
-  );
-}
-
-function VersionPanel({ title, version, rows, side }: { title: string; version: number; rows: DiffRow[]; side: 'before' | 'after' }) {
-  return (
-    <Card className="settings-schema-diff__panel">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <Badge variant={side === 'before' ? 'muted' : 'success'}>v{version}</Badge>
-      </CardHeader>
-      <CardContent>
-        <dl className="settings-schema-diff__json-list">
-          {rows.map((row) => (
-            <div key={`${side}-${row.path}`} className="settings-schema-diff__json-row">
-              <dt>{row.path}</dt>
-              <dd><DiffValue value={side === 'before' ? row.before : row.after} status={row.status} side={side} /></dd>
-            </div>
-          ))}
-        </dl>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default async function SchemaDiffPage(propsInput: PageProps) {
   const props = propsInput ?? {};
   const { locale = 'en', id = '' } = props.params ? await props.params : { locale: 'en', id: '' };
@@ -372,11 +315,18 @@ export default async function SchemaDiffPage(propsInput: PageProps) {
     ? versions.find((version) => version.version === (fromVersionParam || current.version - 1))
       ?? versions.filter((version) => version.version < current.version).at(-1)
     : undefined;
-  const showNoPrior = state === 'ready' && (!current || current.version <= 1 || !before);
-  const diffRows = state === 'ready' && current && before ? diffJson(before.json, current.json) : [];
-  const counts = countRows(diffRows);
-  const canRevert = current && before && current.tier !== 'L1' && versions.length >= 2 && current.version - before.version <= 3;
   const titleColumn = current?.columnCode ?? before?.columnCode ?? routeId;
+  const diffVersions: DiffVersion[] = versions.map((version) => ({
+    version: version.version,
+    json: version.json,
+    changedBy: version.changedBy,
+    changedAt: version.changedAt,
+    deployRef: version.deployRef,
+  }));
+  const initialTo = current?.version ?? (versions.at(-1)?.version ?? 1);
+  const initialFrom = before?.version ?? Math.max(1, initialTo - 1);
+  const tier = current?.tier ?? before?.tier ?? 'L3';
+  const tableCode = current?.tableCode ?? before?.tableCode ?? routeId;
 
   return (
     <main
@@ -405,78 +355,15 @@ export default async function SchemaDiffPage(propsInput: PageProps) {
       {state === 'empty' ? <StateCard role="status" title={labels.unavailableTitle} body={interpolate(labels.noVersionsBody, { id: routeId })} /> : null}
 
       {state === 'ready' && current ? (
-        <>
-          <section className="sg-section settings-schema-diff__selector" aria-label="Version comparison">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="muted text-sm">{labels.compare}</span>
-              <Badge variant="muted">v{before?.version ?? Math.max(1, current.version - 1)}</Badge>
-              <span className="muted text-sm">{labels.against}</span>
-              <Badge variant="success">v{current.version}</Badge>
-              <span>{`v${before?.version ?? Math.max(1, current.version - 1)} → v${current.version}`}</span>
-              <span className="muted mono text-xs">{current.tableCode} / {current.columnCode}</span>
-            </div>
-            {!showNoPrior ? (
-              <div className="settings-schema-diff__badges flex flex-wrap gap-2" aria-label="Diff summary">
-                <Badge variant="success">+ {labelCount(labels.added, counts.added)}</Badge>
-                <Badge variant="danger">− {labelCount(labels.removed, counts.removed)}</Badge>
-                <Badge variant="warning">~ {labelCount(labels.changed, counts.changed)}</Badge>
-                <Badge variant="muted">{labelCount(labels.unchanged, counts.unchanged)}</Badge>
-              </div>
-            ) : null}
-          </section>
-
-          {showNoPrior ? (
-            <StateCard role="status" title={labels.noPriorVersion} body={labels.noPriorVersionBody} />
-          ) : before ? (
-            <>
-              <section className="settings-schema-diff__panels grid gap-3 md:grid-cols-2" aria-label="Side by side JSON panels">
-                <VersionPanel title={`Version ${before.version} (before)`} version={before.version} rows={diffRows} side="before" />
-                <VersionPanel title={`Version ${current.version} (current)`} version={current.version} rows={diffRows} side="after" />
-              </section>
-
-              <Card className="settings-schema-diff__metadata">
-                <CardContent className="grid gap-3 md:grid-cols-4">
-                  <div><div className="muted">{labels.changedBy}</div><strong>{current.changedBy}</strong></div>
-                  <div><div className="muted">{labels.changedAt}</div><span className="mono">{current.changedAt}</span></div>
-                  <div><div className="muted">{labels.tier}</div><Badge variant={current.tier === 'L1' ? 'info' : 'success'}>{current.tier}</Badge></div>
-                  <div><div className="muted">{labels.deployRef}</div><span className="mono">{current.deployRef}</span></div>
-                </CardContent>
-              </Card>
-
-              <section data-region="primary-content" aria-labelledby="settings-schema-diff-table-title">
-                <Card>
-                  <CardHeader>
-                    <CardTitle id="settings-schema-diff-table-title">{labels.unifiedDiff}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table aria-label={labels.unifiedDiff}>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead scope="col">{labels.path}</TableHead>
-                          <TableHead scope="col">v{before.version} / {labels.before}</TableHead>
-                          <TableHead scope="col">v{current.version} / {labels.current}</TableHead>
-                          <TableHead scope="col">{labels.change}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {diffRows.map((row) => (
-                          <TableRow key={row.path}>
-                            <TableCell><code>{row.path}</code></TableCell>
-                            <TableCell><DiffValue value={row.before} status={row.status} side="before" /></TableCell>
-                            <TableCell><DiffValue value={row.after} status={row.status} side="after" /></TableCell>
-                            <TableCell><Badge variant={badgeVariant(row.status)}>{row.status}</Badge></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </section>
-
-              {canRevert ? <Button type="button" className="btn-secondary">↺ {labels.revertToPrevious}</Button> : null}
-            </>
-          ) : null}
-        </>
+        <DiffViewer
+          versions={diffVersions}
+          initialFrom={initialFrom}
+          initialTo={initialTo}
+          tier={tier}
+          tableCode={tableCode}
+          columnCode={current.columnCode}
+          labels={labels}
+        />
       ) : null}
     </main>
   );

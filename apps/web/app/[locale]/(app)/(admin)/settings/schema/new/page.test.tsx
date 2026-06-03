@@ -11,6 +11,7 @@ import React from 'react';
 import { readFileSync } from 'node:fs';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -49,6 +50,23 @@ vi.mock('next-intl/server', () => ({
       concurrentEditTitle: 'Concurrent edit detected',
       concurrentEditBody: 'Another admin published a newer version while you were editing. Review the diff and republish.',
       provenance: 'tenant_variations.dept_overrides',
+      typeText: 'Text', typeTextDesc: 'Free text, short or long',
+      typeNumber: 'Number', typeNumberDesc: 'Integer or decimal, supports range validation',
+      typeDate: 'Date', typeDateDesc: 'Date or date-time value',
+      typeEnum: 'Enum', typeEnumDesc: 'Fixed list of options (dropdown)',
+      typeFormula: 'Formula', typeFormulaDesc: 'Calculated from other fields',
+      typeRelation: 'Relation', typeRelationDesc: 'Reference to another table row',
+      valRequired: 'Required', valRequiredHint: 'Cannot be saved empty.',
+      valUnique: 'Unique per org', valUniqueHint: 'No two rows in this org may share the same value.',
+      valRegex: 'Regex pattern', valRegexHint: 'JavaScript-style regex. Test it below before publishing.',
+      valRegexPlaceholder: 'Test string…',
+      valRegexMatch: 'match', valRegexFail: 'fail', valRegexInvalid: 'invalid regex',
+      valRange: 'Range (min / max)',
+      valRangeAvailable: 'Available for number and date types.',
+      valRangeUnavailable: 'Not available — choose a number or date type in step 3.',
+      valRangeMin: 'min', valRangeMax: 'max', valRangeTo: 'to',
+      valDropdown: 'Dropdown source', valDropdownHint: 'Bind values to a reference table.',
+      valDropdownPlaceholder: '— Select a reference table —',
     };
     return labels[key] ?? key;
   }),
@@ -264,5 +282,79 @@ describe('SET-031 Schema Column Edit Wizard localized AppShell route', () => {
     expect(source).not.toMatch(/\buseState\b|\bsetState\b|onClick=|onChange=/);
     expect(source).toMatch(/async function publishColumnAction/);
     expect(source).toMatch(/CONCURRENT_EDIT/);
+  });
+
+  it('renders Step 3 as the 6 rich data-type CARDS with icon + description (parity: schema-wizard.jsx:58-65), not a flat radio list', async () => {
+    await renderColumnWizard({ table: 'main_table', dept: 'core', step: '3' });
+
+    const typeGroup = screen.getByRole('radiogroup', { name: /data type/i });
+    for (const [label, desc] of [
+      ['Text', 'Free text'],
+      ['Number', 'Integer or decimal'],
+      ['Date', 'Date or date-time'],
+      ['Enum', 'Fixed list of options'],
+      ['Formula', 'Calculated from other fields'],
+      ['Relation', 'Reference to another table row'],
+    ]) {
+      const card = within(typeGroup).getByText(label).closest('label');
+      expect(card, `type card for ${label}`).toBeTruthy();
+      expect(card).toHaveTextContent(new RegExp(desc, 'i'));
+    }
+    expect(within(typeGroup).getAllByRole('radio')).toHaveLength(6);
+  });
+
+  it('renders Step 4 rich validators — unique_per_org, regex live-preview, range, and dropdown_source (parity: schema-wizard.jsx:82-105 / 211-310)', async () => {
+    const user = userEvent.setup();
+    await renderColumnWizard({ table: 'main_table', dept: 'core', type: 'number', step: '4' });
+
+    expect(screen.getByRole('switch', { name: /required/i })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /unique per org/i })).toBeInTheDocument();
+
+    // Regex toggle reveals pattern + test inputs with a live match/fail badge.
+    const regexSwitch = screen.getByRole('switch', { name: /regex pattern/i });
+    await user.click(regexSwitch);
+    const patternInput = screen.getByPlaceholderText('^[A-Z]{3}-\\d{4}$');
+    await user.type(patternInput, '^[0-9]+$');
+    const testInput = screen.getByPlaceholderText(/test string/i);
+    await user.type(testInput, '123');
+    expect(screen.getByText(/match/i)).toBeInTheDocument();
+    await user.clear(testInput);
+    await user.type(testInput, 'abc');
+    expect(screen.getByText(/^✕ fail$|fail/i)).toBeInTheDocument();
+
+    // Range available because type=number; dropdown_source selector present.
+    const rangeSwitch = screen.getByRole('switch', { name: /range/i });
+    expect(rangeSwitch).toBeEnabled();
+    await user.click(rangeSwitch);
+    expect(screen.getByPlaceholderText('min')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('max')).toBeInTheDocument();
+
+    const dropdownSwitch = screen.getByRole('switch', { name: /dropdown source/i });
+    await user.click(dropdownSwitch);
+    expect(screen.getByRole('combobox', { name: /dropdown source/i })).toBeInTheDocument();
+  });
+
+  it('disables the Step 4 range validator for non-numeric/date types (parity: schema-wizard.jsx:271-277)', async () => {
+    await renderColumnWizard({ table: 'main_table', dept: 'core', type: 'text', step: '4' });
+    expect(screen.getByRole('switch', { name: /range/i })).toBeDisabled();
+    expect(screen.getByText(/choose a number or date type/i)).toBeInTheDocument();
+  });
+
+  it('defines the Step 3/4 rich-control i18n keys for every supported locale', () => {
+    const requiredKeys = [
+      'typeText', 'typeTextDesc', 'typeNumber', 'typeRelation', 'typeRelationDesc',
+      'valUnique', 'valRegex', 'valRegexMatch', 'valRegexFail', 'valRange', 'valDropdown',
+    ];
+    for (const locale of ['en', 'pl', 'ro', 'uk']) {
+      const messages = JSON.parse(readFileSync(`${process.cwd()}/messages/${locale}/02-settings.json`, 'utf8')) as {
+        schema_column_wizard?: Record<string, string>;
+      };
+      const ns = messages.schema_column_wizard;
+      expect(ns, `${locale} schema_column_wizard`).toBeDefined();
+      for (const key of requiredKeys) {
+        expect(ns?.[key], `${locale}/02-settings.json missing schema_column_wizard.${key}`).toEqual(expect.any(String));
+        expect(ns?.[key]).not.toEqual('');
+      }
+    }
   });
 });

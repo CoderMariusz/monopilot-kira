@@ -1,28 +1,19 @@
 import { getTranslations } from 'next-intl/server';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
+import { Card, CardContent } from '@monopilot/ui/Card';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { MigrationsQueue } from './migrations-queue.client';
+import type { SchemaMigrationRow as ClientMigrationRow } from './migrations-queue.client';
 
 export const dynamic = 'force-dynamic';
 
 type MigrationStatus = 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'rolled_back';
 type MigrationAction = 'promote_l2_to_l1' | 'add' | 'edit' | 'deprecate' | string;
 
-type SchemaMigrationRow = {
-  migrationId: string;
-  tableCode: string;
-  columnCode: string | null;
+type SchemaMigrationRow = ClientMigrationRow & {
   action: MigrationAction;
-  requestedByName: string;
-  requestedAt: string;
-  approvedByName: string | null;
-  status: MigrationStatus;
-  migrationScript: string;
-  resultNotes: string | null;
-  timeline: Array<{ status: MigrationStatus; at: string; actor: string }>;
 };
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
@@ -50,24 +41,7 @@ type MigrationDbRow = {
 
 type QueueLabels = Record<string, string>;
 
-const STATUS_OPTIONS: Array<{ value: 'all' | MigrationStatus; label: string }> = [
-  { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'running', label: 'Running' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'rolled_back', label: 'rolled_back' },
-];
-
-const STATUS_TONES: Record<MigrationStatus, { tone: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'muted' }> = {
-  pending: { tone: 'amber', variant: 'warning' },
-  approved: { tone: 'blue', variant: 'info' },
-  running: { tone: 'blue', variant: 'info' },
-  completed: { tone: 'green', variant: 'success' },
-  failed: { tone: 'red', variant: 'danger' },
-  rolled_back: { tone: 'gray', variant: 'muted' },
-};
+const ROW_STATUSES: MigrationStatus[] = ['approved', 'running', 'completed', 'failed', 'rolled_back'];
 
 const DEFAULT_LABELS = {
   title: 'Schema Migrations Queue',
@@ -84,6 +58,10 @@ const DEFAULT_LABELS = {
   approvedBy: 'Approved By',
   status: 'Status',
   actions: 'Actions',
+  expand: 'Expand row',
+  collapse: 'Collapse ↑',
+  diff: 'Diff',
+  showAll: 'Show all',
   viewMigrationScript: 'View migration script',
   cancel: 'Cancel',
   detail: 'Migration script detail',
@@ -94,6 +72,14 @@ const DEFAULT_LABELS = {
   loading: 'Loading schema migrations queue…',
   error: 'Unable to load schema migrations queue.',
   forbidden: 'Permission denied for schema migrations queue.',
+  countSummary: '{shown} of {total} migrations',
+  filter_all: 'All',
+  filter_pending: 'Pending',
+  filter_approved: 'Approved',
+  filter_running: 'Running',
+  filter_completed: 'Completed',
+  filter_failed: 'Failed',
+  filter_rolled_back: 'Rolled back',
   provenance:
     'Live rows are read from public.schema_migrations; requester names fall back to Schema admin until requester metadata is available.',
   requestedByFallback: 'Schema admin',
@@ -101,16 +87,8 @@ const DEFAULT_LABELS = {
   none: '—',
 } as const;
 
-function one(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function normalizeStatus(value: string | undefined): 'all' | MigrationStatus {
-  return STATUS_OPTIONS.some((option) => option.value === value) ? (value as 'all' | MigrationStatus) : 'all';
-}
-
 function normalizeRowStatus(value: string): MigrationStatus {
-  if (value === 'approved' || value === 'running' || value === 'completed' || value === 'failed' || value === 'rolled_back') return value;
+  if ((ROW_STATUSES as string[]).includes(value)) return value as MigrationStatus;
   return 'pending';
 }
 
@@ -119,20 +97,6 @@ function toIsoDate(value: string | Date | null | undefined) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toISOString();
-}
-
-function toDisplayDate(value: string) {
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return value;
-  return new Date(parsed).toISOString().slice(0, 10);
-}
-
-function shortId(value: string) {
-  return value.split('-')[0] || value;
-}
-
-function formatTableColumn(row: SchemaMigrationRow) {
-  return `${row.tableCode} / ${row.columnCode ?? '—'}`;
 }
 
 function labelValue(labels: QueueLabels, key: keyof QueueLabels, translated: string) {
@@ -227,8 +191,6 @@ async function readSchemaMigrations(labels: QueueLabels): Promise<{ state: Schem
 export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
   const props = (propsInput ?? {}) as SchemaMigrationsQueueProps;
   const { locale = 'en' } = props.params ? await props.params : { locale: 'en' };
-  const query = props.searchParams ? await props.searchParams : {};
-  const selectedStatus = normalizeStatus(one(query.status));
   const labels = await buildLabels(locale);
   let state = props.state ?? 'ready';
   let migrations = props.migrations;
@@ -240,7 +202,6 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
   }
 
   const rows = migrations ?? [];
-  const filtered = selectedStatus === 'all' ? rows : rows.filter((row) => row.status === selectedStatus);
 
   return (
     <main
@@ -251,7 +212,6 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
       aria-labelledby="settings-schema-migrations-title"
       className="settings-page settings-schema-migrations-queue space-y-4"
     >
-      <style>{`.settings-schema-migrations-queue__detail-row:not([open]) .settings-schema-migrations-queue__detail{display:none;}`}</style>
       <header data-region="page-head" className="settings-page__head">
         <div>
           <h1 id="settings-schema-migrations-title">{labels.title}</h1>
@@ -265,28 +225,6 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
       <div className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900" role="note">
         {labels.provenance}
       </div>
-
-      <section aria-label={labels.statusFilter} data-region="schema-migration-filters" className="settings-schema-migrations-queue__filters">
-        <label htmlFor="schema-migrations-status-filter" className="text-xs font-semibold">
-          {labels.statusFilter}
-        </label>
-        <select
-          id="schema-migrations-status-filter"
-          name="status"
-          aria-label={labels.statusFilter}
-          defaultValue={selectedStatus}
-          className="select__trigger min-w-44"
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <span className="muted text-xs" aria-live="polite">
-          {filtered.length} of {rows.length} migrations
-        </span>
-      </section>
 
       {state === 'loading' ? (
         <Card aria-busy="true" data-testid="schema-migrations-queue-loading">
@@ -313,96 +251,8 @@ export default async function SchemaMigrationsQueuePage(propsInput: unknown) {
       ) : null}
 
       {state === 'ready' && rows.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{labels.migrationRequests}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filtered.length === 0 ? (
-              <div role="status" className="settings-schema-migrations-queue__empty-filter">
-                {labels.noFilteredMigrationRequests}
-              </div>
-            ) : (
-              <div role="table" aria-label={labels.migrationTableLabel} className="table settings-schema-migrations-queue__table">
-                <div role="rowgroup" className="table__header">
-                  <div role="row" className="table__row settings-schema-migrations-queue__header-row">
-                    <span role="columnheader" className="table__head">{labels.migrationId}</span>
-                    <span role="columnheader" className="table__head">{labels.tableColumn}</span>
-                    <span role="columnheader" className="table__head">{labels.action}</span>
-                    <span role="columnheader" className="table__head">{labels.requestedBy}</span>
-                    <span role="columnheader" className="table__head">{labels.requestedAt}</span>
-                    <span role="columnheader" className="table__head">{labels.approvedBy}</span>
-                    <span role="columnheader" className="table__head">{labels.status}</span>
-                    <span role="columnheader" className="table__head">{labels.actions}</span>
-                  </div>
-                </div>
-                <div role="rowgroup" className="table__body">
-                  {filtered.map((row) => (
-                    <details key={row.migrationId} className="settings-schema-migrations-queue__detail-row">
-                      <summary role="row" className="table__row" aria-label={`${labels.detail}: ${formatTableColumn(row)}`}>
-                        <span role="cell" className="table__cell mono">{shortId(row.migrationId)}</span>
-                        <span role="cell" className="table__cell mono">{formatTableColumn(row)}</span>
-                        <span role="cell" className="table__cell"><Badge variant="secondary">{row.action}</Badge></span>
-                        <span role="cell" className="table__cell">{row.requestedByName}</span>
-                        <span role="cell" className="table__cell mono muted">{toDisplayDate(row.requestedAt)}</span>
-                        <span role="cell" className="table__cell">{row.approvedByName ?? labels.none}</span>
-                        <span role="cell" className="table__cell"><StatusBadge status={row.status} /></span>
-                        <span role="cell" className="table__cell settings-schema-migrations-queue__actions">
-                          <span role="button" tabIndex={0} className="btn btn-ghost btn-sm" aria-label={labels.viewMigrationScript}>
-                            👁 {labels.viewMigrationScript}
-                          </span>
-                          {row.status === 'pending' ? (
-                            <Button type="button" className="btn-ghost btn-sm" disabled aria-disabled="true">
-                              {labels.cancel}
-                            </Button>
-                          ) : null}
-                        </span>
-                      </summary>
-                      <MigrationDetail row={row} labels={labels} />
-                    </details>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <MigrationsQueue locale={locale} rows={rows} labels={labels} />
       ) : null}
     </main>
-  );
-}
-
-function StatusBadge({ status, label = status }: { status: MigrationStatus; label?: string }) {
-  const tone = STATUS_TONES[status];
-  return (
-    <Badge variant={tone.variant} data-status-tone={tone.tone} data-status={status} className={status === 'running' ? 'animate-pulse' : undefined}>
-      {label}
-    </Badge>
-  );
-}
-
-function MigrationDetail({ row, labels }: { row: SchemaMigrationRow; labels: QueueLabels }) {
-  return (
-    <section role="region" aria-label={labels.detail} className="settings-schema-migrations-queue__detail">
-      <h2>{labels.viewMigrationScript}</h2>
-      <pre
-        data-testid="migration-script-codemirror"
-        data-language="sql"
-        aria-readonly="true"
-        className="cm-editor cm-sql mono rounded-md border bg-slate-950 p-3 text-xs text-slate-50"
-      >
-        <code>{row.migrationScript}</code>
-      </pre>
-      <div>
-        <h3>{labels.resultNotes}</h3>
-        <p>{row.resultNotes ?? labels.none}</p>
-      </div>
-      <ol aria-label={labels.statusTimeline}>
-        {row.timeline.map((event) => (
-          <li key={`${event.status}-${event.at}-${event.actor}`}>
-            <StatusBadge status={event.status} label={event.status.toUpperCase()} /> <time dateTime={event.at}>{toDisplayDate(event.at)}</time> · {event.actor}
-          </li>
-        ))}
-      </ol>
-    </section>
   );
 }

@@ -64,6 +64,7 @@ const DEFAULT_LABELS = {
   title: 'Migration History',
   subtitle: 'Read-only tenant_migrations audit list for L2 upgrade history. Snapshots show raw before/after JSON only.',
   exportDisabled: 'Export filtered results',
+  exportCsv: 'Export CSV',
   orgNotice: 'Showing tenant_migrations rows scoped to your organization. Cross-tenant viewing is not available on this screen.',
   statusFilter: 'Status filter',
   dateRangeFilter: 'Date range filter',
@@ -425,9 +426,14 @@ export default async function TenantMigrationHistoryPage(propsInput: unknown) {
           <h1 id="settings-tenant-migration-history-title" className="text-2xl font-semibold text-slate-950">{labels.title}</h1>
           <p className="text-sm text-slate-600">{labels.subtitle}</p>
         </div>
-        <button type="button" className="btn btn-secondary btn-sm" disabled aria-disabled="true">
-          {labels.exportDisabled}
-        </button>
+        <a
+          href={`/${locale}/settings/tenant/migrations/export?status=${encodeURIComponent(selectedStatus)}&date_range=${encodeURIComponent(selectedDateRange)}`}
+          className="btn btn-secondary btn-sm"
+          data-testid="tenant-migration-export"
+          download
+        >
+          {labels.exportCsv}
+        </a>
       </header>
 
       <div className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900" role="note">

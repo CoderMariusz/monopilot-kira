@@ -5,8 +5,26 @@ import { getTranslations } from 'next-intl/server';
 import { getTenantVariations } from '../../../../../../../actions/tenant/get';
 import { addColumn } from '../../../../../../../actions/schema/add-column';
 import { editColumn } from '../../../../../../../actions/schema/edit-column';
+import { TypeCards, ValidationRules } from './wizard-steps.client';
+import type { ValidationLabels } from './wizard-steps.client';
 
 export const dynamic = 'force-dynamic';
+
+// Reference-table codes for the Step 4 dropdown-source selector
+// (parity: schema-wizard.jsx:38-44).
+const REF_CODES = [
+  'reference.pack_sizes',
+  'reference.templates',
+  'reference.processes',
+  'reference.allergens_reference',
+  'reference.alert_thresholds',
+  'reference.d365_constants',
+  'reference.email_config',
+  'reference.dieset_by_line_pack',
+  'reference.lines_by_pack_size',
+  'reference.close_confirm',
+  'reference.tax_codes',
+] as const;
 
 type PageSearchParams = Record<string, string | string[] | undefined>;
 type PageProps = {
@@ -121,6 +139,65 @@ async function buildLabels(locale: string): Promise<WizardLabels> {
   } catch {
     return { ...DEFAULT_LABELS };
   }
+}
+
+type TypeCardLabels = {
+  text: string; textDesc: string;
+  number: string; numberDesc: string;
+  date: string; dateDesc: string;
+  enum: string; enumDesc: string;
+  formula: string; formulaDesc: string;
+  relation: string; relationDesc: string;
+};
+
+const TYPE_CARD_DEFAULTS: Record<string, [keyof TypeCardLabels, string]> = {
+  typeText: ['text', 'Text'], typeTextDesc: ['textDesc', 'Free text, short or long'],
+  typeNumber: ['number', 'Number'], typeNumberDesc: ['numberDesc', 'Integer or decimal, supports range validation'],
+  typeDate: ['date', 'Date'], typeDateDesc: ['dateDesc', 'Date or date-time value'],
+  typeEnum: ['enum', 'Enum'], typeEnumDesc: ['enumDesc', 'Fixed list of options (dropdown)'],
+  typeFormula: ['formula', 'Formula'], typeFormulaDesc: ['formulaDesc', 'Calculated from other fields'],
+  typeRelation: ['relation', 'Relation'], typeRelationDesc: ['relationDesc', 'Reference to another table row'],
+};
+
+const VALIDATION_DEFAULTS: Record<keyof ValidationLabels, string> = {
+  valRequired: 'Required', valRequiredHint: 'Cannot be saved empty.',
+  valUnique: 'Unique per org', valUniqueHint: 'No two rows in this org may share the same value.',
+  valRegex: 'Regex pattern', valRegexHint: 'JavaScript-style regex. Test it below before publishing.',
+  valRegexPlaceholder: 'Test string…',
+  valRegexMatch: 'match', valRegexFail: 'fail', valRegexInvalid: 'invalid regex',
+  valRange: 'Range (min / max)',
+  valRangeAvailable: 'Available for number and date types.',
+  valRangeUnavailable: 'Not available — choose a number or date type in step 3.',
+  valRangeMin: 'min', valRangeMax: 'max', valRangeTo: 'to',
+  valDropdown: 'Dropdown source', valDropdownHint: 'Bind values to a reference table.',
+  valDropdownPlaceholder: '— Select a reference table —',
+};
+
+async function buildStepLabels(locale: string): Promise<{ types: TypeCardLabels; validation: ValidationLabels }> {
+  let t: ((key: string) => string) | null = null;
+  try {
+    t = await getTranslations({ locale, namespace: 'settings.schema_column_wizard' });
+  } catch {
+    t = null;
+  }
+  const read = (key: string, fallback: string): string => {
+    if (!t) return fallback;
+    try {
+      const value = t(key);
+      return value && value !== key ? value : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const types = {} as TypeCardLabels;
+  for (const [msgKey, [field, fallback]] of Object.entries(TYPE_CARD_DEFAULTS)) {
+    types[field] = read(msgKey, fallback);
+  }
+  const validation = {} as ValidationLabels;
+  for (const key of Object.keys(VALIDATION_DEFAULTS) as Array<keyof ValidationLabels>) {
+    validation[key] = read(key, VALIDATION_DEFAULTS[key]);
+  }
+  return { types, validation };
 }
 
 async function loadDeptOptions(): Promise<DeptLoadState> {
@@ -359,6 +436,7 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
   const { locale = 'en' } = props.params ? await props.params : { locale: 'en' };
   const searchParams = props.searchParams ? await props.searchParams : {};
   const labels = await buildLabels(locale);
+  const stepLabels = await buildStepLabels(locale);
   const deptState = await loadDeptOptions();
   const wizard = wizardStateFromParams(searchParams);
   const step = stepFromParams(searchParams, wizard);
@@ -395,7 +473,7 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
           <div className="schema-column-wizard__progress" aria-hidden="true">
             {STEPS.map((key, index) => <span key={key} className={step === index + 1 ? 'is-current' : ''}>{index + 1}</span>)}
           </div>
-          {viewState === 'loading' ? <LoadingStepCard /> : <WizardStep locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />}
+          {viewState === 'loading' ? <LoadingStepCard /> : <WizardStep locale={locale} labels={labels} stepLabels={stepLabels} deptState={deptState} step={step} wizard={wizard} />}
           <WizardFooter locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />
         </section>
       </div>
@@ -426,20 +504,68 @@ function LoadingStepCard() {
   );
 }
 
-function WizardStep({ locale, labels, deptState, step, wizard }: { locale: string; labels: WizardLabels; deptState: DeptLoadState; step: number; wizard: WizardState }) {
+type StepLabels = { types: TypeCardLabels; validation: ValidationLabels };
+
+function StepForm({ locale, wizard, nextStep, omit = [], children }: { locale: string; wizard: WizardState; nextStep: number; omit?: string[]; children: React.ReactNode }) {
+  return (
+    <form id="schema-column-wizard-step-form" method="get" action={`/${locale}/settings/schema/new`}>
+      <HiddenWizardFields locale={locale} wizard={wizard} step={nextStep} omit={omit} />
+      {children}
+    </form>
+  );
+}
+
+function WizardStep({ locale, labels, stepLabels, deptState, step, wizard }: { locale: string; labels: WizardLabels; stepLabels: StepLabels; deptState: DeptLoadState; step: number; wizard: WizardState }) {
   switch (step) {
     case 2:
       return <DeptStep locale={locale} labels={labels} deptState={deptState} wizard={wizard} />;
     case 3:
-      return <WizardRegion title={labels.step3} question={labels.dataTypeQuestion}>{['text', 'number', 'date', 'enum', 'formula', 'relation'].map((type) => <label key={type}><input type="radio" name="dataType" defaultChecked={wizard.type === type} value={type} /> {type}</label>)}</WizardRegion>;
+      return (
+        <StepForm locale={locale} wizard={wizard} nextStep={4} omit={['dataType']}>
+          <WizardRegion title={labels.step3} question={labels.dataTypeQuestion}>
+            <TypeCards name="dataType" defaultValue={wizard.type} labels={stepLabels.types} />
+          </WizardRegion>
+        </StepForm>
+      );
     case 4:
-      return <WizardRegion title={labels.step4} question={labels.validationQuestion}><label><input type="checkbox" name="validationRequired" /> Required</label><label><input type="checkbox" name="validationUnique" /> Unique per org</label><label>Regex pattern <input type="text" name="regexPattern" aria-label="Regex pattern" /></label></WizardRegion>;
+      return (
+        <StepForm locale={locale} wizard={wizard} nextStep={5}>
+          <WizardRegion title={labels.step4} question={labels.validationQuestion}>
+            <ValidationRules dataType={wizard.type} refTables={[...REF_CODES]} labels={stepLabels.validation} />
+          </WizardRegion>
+        </StepForm>
+      );
     case 5:
-      return <WizardRegion title={labels.step5} question={labels.blockingQuestion}>{['none', 'core_done', 'pack_size_filled', 'line_filled', 'core_production_done'].map((rule) => <label key={rule}><input type="radio" name="blockingRule" defaultChecked={wizard.blocking === rule} value={rule} /> {rule}</label>)}</WizardRegion>;
+      return (
+        <StepForm locale={locale} wizard={wizard} nextStep={6} omit={['blockingRule']}>
+          <WizardRegion title={labels.step5} question={labels.blockingQuestion}>
+            {['none', 'core_done', 'pack_size_filled', 'line_filled', 'core_production_done'].map((rule) => (
+              <label key={rule}>
+                <input type="radio" name="blockingRule" defaultChecked={wizard.blocking === rule} value={rule} /> {rule}
+              </label>
+            ))}
+          </WizardRegion>
+        </StepForm>
+      );
     case 6:
-      return <WizardRegion title={labels.step6} question={labels.doneQuestion}><label><input type="checkbox" name="requiredForDone" defaultChecked={wizard.doneRequired} /> When ON, this field appears in the Done checklist and blocks completion if empty.</label></WizardRegion>;
+      return (
+        <StepForm locale={locale} wizard={wizard} nextStep={7} omit={['requiredForDone']}>
+          <WizardRegion title={labels.step6} question={labels.doneQuestion}>
+            <label>
+              <input type="checkbox" name="requiredForDone" defaultChecked={wizard.doneRequired} /> When ON, this field appears in the Done checklist and blocks completion if empty.
+            </label>
+          </WizardRegion>
+        </StepForm>
+      );
     case 7:
-      return <WizardRegion title={labels.step7} question={labels.presentationQuestion}><label>Section label in form <input name="presentationSection" defaultValue={wizard.presentationSection} /></label><label>Order within section <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} /></label></WizardRegion>;
+      return (
+        <StepForm locale={locale} wizard={wizard} nextStep={8} omit={['presentationSection', 'presentationOrder']}>
+          <WizardRegion title={labels.step7} question={labels.presentationQuestion}>
+            <label>Section label in form <input name="presentationSection" defaultValue={wizard.presentationSection} /></label>
+            <label>Order within section <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} /></label>
+          </WizardRegion>
+        </StepForm>
+      );
     case 8:
       return <PreviewStep labels={labels} wizard={wizard} />;
     default:
