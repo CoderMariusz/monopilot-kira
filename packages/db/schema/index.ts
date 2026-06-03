@@ -15,3 +15,8 @@ export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
 export { prodDetail } from './prod-detail.js';
 export type { NewProdDetail, ProdDetail } from './prod-detail.js';
+export { manufacturingOperations, referenceSchema } from './manufacturing-operations.js';
+export type {
+  ManufacturingOperation,
+  NewManufacturingOperation,
+} from './manufacturing-operations.js';

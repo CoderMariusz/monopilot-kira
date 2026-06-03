@@ -1,74 +1,41 @@
--- Seed: Reference.ManufacturingOperations [APEX-CONFIG] per PRD §9.1 (ADR-028)
--- T-020 — 16 operations across 4 industries for the Apex org.
+-- Seed: Reference.ManufacturingOperations [APEX-CONFIG] per PRD §4.5 + Appendix A.
+-- T-004 — per-org industry defaults for Bakery / Pharmacy / FMCG only.
 --
--- Pre-condition: public.organizations row with external_id = 'apex' must exist.
--- This seed is idempotent via ON CONFLICT (org_id, industry_code, process_suffix) DO NOTHING.
---
--- Seed strategy: all 16 rows seeded to the single Apex org (external_id = 'apex').
--- UNIQUE (org_id, industry_code, process_suffix) allows bakery-MX and fmcg-MX
--- to coexist because they differ on industry_code. Each industry block seeds
--- cleanly with no silent drops.
+-- This seed is idempotent and intentionally derives org_id from
+-- public.organizations.
 
-do $$
-declare
-  v_apex_org_id uuid;
-begin
-  -- Deterministically pick the canonical (earliest-created) Apex org so that
-  -- transient test fixtures inserting additional rows with external_id='apex'
-  -- cannot redirect the seed to an unintended org.
-  select id into v_apex_org_id
-  from public.organizations
-  where external_id = 'apex'
-  order by created_at asc, id asc
-  limit 1;
-
-  if v_apex_org_id is null then
-    raise exception
-      'Apex org not found (external_id = ''apex''). Run baseline org seed first.';
-  end if;
-
-  -- ── bakery industry ─────────────────────────────────────────────────────────
-  insert into "Reference"."ManufacturingOperations"
-    (org_id, operation_name, process_suffix, description, operation_seq,
-     industry_code, is_active, marker)
+insert into "Reference"."ManufacturingOperations"
+  (org_id, operation_name, process_suffix, description, operation_seq,
+   industry_code, is_active, marker)
+select org.id,
+       seed.operation_name,
+       seed.process_suffix,
+       seed.description,
+       seed.operation_seq,
+       seed.industry_code,
+       true,
+       'APEX-CONFIG'
+from public.organizations org
+join (
   values
-    (v_apex_org_id, 'Mix',   'MX', 'Ingredient mixing stage',       1, 'bakery', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Knead', 'KN', 'Dough kneading stage',          2, 'bakery', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Proof', 'PR', 'Dough proofing / fermentation',  3, 'bakery', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Bake',  'BK', 'Oven baking stage',              4, 'bakery', true, 'APEX-CONFIG')
-  on conflict (org_id, industry_code, process_suffix) do nothing;
-
-  -- ── pharma industry ─────────────────────────────────────────────────────────
-  insert into "Reference"."ManufacturingOperations"
-    (org_id, operation_name, process_suffix, description, operation_seq,
-     industry_code, is_active, marker)
-  values
-    (v_apex_org_id, 'Synthesis',      'SY', 'API synthesis reaction',           1, 'pharma', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Separation',     'SE', 'Phase separation / extraction',    2, 'pharma', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Crystallization','CZ', 'Crystallization and filtration',   3, 'pharma', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Drying',         'DR', 'Final drying and sizing',           4, 'pharma', true, 'APEX-CONFIG')
-  on conflict (org_id, industry_code, process_suffix) do nothing;
-
-  -- ── fmcg industry ───────────────────────────────────────────────────────────
-  insert into "Reference"."ManufacturingOperations"
-    (org_id, operation_name, process_suffix, description, operation_seq,
-     industry_code, is_active, marker)
-  values
-    (v_apex_org_id, 'Mix',   'MX', 'Blending and mixing',         1, 'fmcg', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Fill',  'FL', 'Container filling',           2, 'fmcg', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Seal',  'SL', 'Container sealing / capping', 3, 'fmcg', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Label', 'LB', 'Label application',           4, 'fmcg', true, 'APEX-CONFIG')
-  on conflict (org_id, industry_code, process_suffix) do nothing;
-
-  -- ── generic industry ────────────────────────────────────────────────────────
-  insert into "Reference"."ManufacturingOperations"
-    (org_id, operation_name, process_suffix, description, operation_seq,
-     industry_code, is_active, marker)
-  values
-    (v_apex_org_id, 'Process_A', 'PA', 'Generic processing step A', 1, 'generic', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Process_B', 'PB', 'Generic processing step B', 2, 'generic', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Process_C', 'PC', 'Generic processing step C', 3, 'generic', true, 'APEX-CONFIG'),
-    (v_apex_org_id, 'Process_D', 'PD', 'Generic processing step D', 4, 'generic', true, 'APEX-CONFIG')
-  on conflict (org_id, industry_code, process_suffix) do nothing;
-
-end $$;
+    ('bakery', 'Mix', 'MX', 'Ingredient mixing stage', 1),
+    ('bakery', 'Knead', 'KN', 'Dough kneading stage', 2),
+    ('bakery', 'Proof', 'PR', 'Dough proofing / fermentation', 3),
+    ('bakery', 'Bake', 'BK', 'Oven baking stage', 4),
+    ('pharma', 'Synthesis', 'SY', 'API synthesis reaction', 1),
+    ('pharma', 'Separation', 'SE', 'Phase separation / extraction', 2),
+    ('pharma', 'Crystallization', 'CZ', 'Crystallization and filtration', 3),
+    ('pharma', 'Drying', 'DR', 'Final drying and sizing', 4),
+    ('fmcg', 'Mix', 'MX', 'Blending and mixing', 1),
+    ('fmcg', 'Fill', 'FL', 'Container filling', 2),
+    ('fmcg', 'Seal', 'SL', 'Container sealing / capping', 3),
+    ('fmcg', 'Label', 'LB', 'Label application', 4)
+) as seed(industry_code, operation_name, process_suffix, description, operation_seq)
+  on seed.industry_code = org.industry_code
+on conflict (org_id, operation_name) do update
+  set process_suffix = excluded.process_suffix,
+      description = excluded.description,
+      operation_seq = excluded.operation_seq,
+      industry_code = excluded.industry_code,
+      is_active = true,
+      marker = 'APEX-CONFIG';
