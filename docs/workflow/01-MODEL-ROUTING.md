@@ -26,11 +26,21 @@ separate provider, not a Claude subagent).
 | `research-audit` | Claude **Sonnet** (`kira-research`, parallel) | Phase-0 reality classification + module research reads (needs judgment) |
 | `research-synth` | Claude **Opus** | synthesizing fan-out results into a judgment |
 | `mechanical` | Claude **Haiku** (`kira-mechanical`) | renames, lint/codemod fixes, i18n key moves, string extraction, file moves |
-| `impl-easy` | Claude **Sonnet** (`kira-easy`) | ONLY trivial work: a single CRUD action, a simple seed/fixture, a simple test |
-| `impl-standard` | **Codex** (`/codex:rescue`, `--model gpt-5.5`) | the bulk of implementation: T1-schema, T2-api, T5-seed |
-| `impl-logic` | **Codex** (`/codex:rescue`, `--model gpt-5.5`) | algorithm/logic-heavy code: MRP, allocation, FIFO/WAC, SSCC mod-10, DSL executors, scheduling/cycle detection |
+| `impl-easy` | Claude **Sonnet** (`kira-easy`) | **EASY tier (~35% of the former Codex load — moved to Sonnet to cut Codex token burn).** Low-risk, low-ambiguity impl: simple seeds/fixtures (T5), single-statement migrations (one CHECK / GRANT / index / column-add / VALIDATE CONSTRAINT — no multi-table or complex-RLS logic), test authoring (T4), docs, trivial **additive** helpers + config (no auth/RLS/money/regulatory/canonical-owner). |
+| `impl-standard` | **Codex** (`codex exec --model gpt-5.5`) | **MEDIUM tier — the MAIN FLOW (stays Codex).** The bulk of real implementation: T1-schema with RLS policies / audit triggers / multi-table migrations, T2-api Server Actions (zod validation, outbox dispatch, rate-limit, RLS-scoped), org-scoped CRUD with real invariants, moderate logic. When in doubt between easy and hard, it's medium → Codex. |
+| `impl-hard` | Claude **Opus 4.8** (`kira-ui` profile or direct) | **HARD tier (now implemented by Opus, not just reviewed).** Algorithmic cores (MRP netting, FIFO/WAC + variance, SSCC-18 mod-10, WO scheduling + cycle detection, FEFO/LP-transition, DSL/rule executors), regulatory crypto (e-sign CFR-21, RBAC HMAC + SoD), cross-org / canonical-owner / security-critical RLS changes, architecture / cross-cutting refactors. (Former `impl-logic` folds here **when genuinely hard**; medium logic stays `impl-standard`/Codex.) |
 | `impl-ui` | Claude **Opus** (`kira-ui`) | T3-ui and UI-flow T4 — prototype-parity translation is architectural (per `MON-t3-ui`) |
 | `test` | Claude **Sonnet** (`kira-easy`); **Codex** if complex | T4-wiring-test, Playwright/Vitest authoring |
+
+> **Cost-tiering rule (2026-06-03, user directive):** Codex (gpt-5.5) burns tokens fast, so route by
+> difficulty into THREE impl tiers — **Sonnet = easy (~35% of what Codex used to do)**, **Codex =
+> medium and the main flow**, **Opus 4.8 = hard**. Classify by `risk_tier` + complexity signals: a task is
+> EASY only if it is **low-risk AND low-ambiguity AND additive** (single-statement migration, simple
+> seed/test/doc, trivial helper). It is HARD if it has an **algorithmic core, regulatory/crypto math,
+> cross-org/canonical-owner/security-critical surface, or architectural ambiguity**. Everything else is
+> MEDIUM → Codex. Cross-provider review still holds (writer never reviews own work): Sonnet→Codex review,
+> Codex→Opus(high)/Sonnet(low), Opus→Codex review. If an easy task turns out non-trivial mid-flight, bump
+> it to Codex; if a medium Codex task turns out architectural, bump to Opus — don't let the cheaper tier guess.
 | `review-codex-work` | Claude **Opus** (`kira-codex-review`, high-risk) / **Sonnet** (low) | Claude reviewing Codex-written code |
 | `decompose` | Claude **Opus** | `prd-decompose-hybrid` (Opus-only — Haiku fails tech-stack accuracy) |
 | `plan` / `orchestrate` | Claude **Opus** | wave planning, consolidation, audit synthesis, this orchestrator |
@@ -43,38 +53,45 @@ separate provider, not a Claude subagent).
 
 ## Writer → reviewer pairing (cross-provider)
 
-The model that wrote the code never signs off on it. Since **Codex writes most
-code**, Claude does most reviewing; the one inverted lane is UI (Opus writes,
-Codex reviews). Pairing depends on risk tier (see `02-QUALITY-GATES.md`):
+The model that wrote the code never signs off on it. With the 3-tier split, work
+is distributed across Sonnet (easy) / Codex (medium) / Opus (hard + UI); each is
+reviewed by a *different* provider. Pairing depends on risk tier (see `02-QUALITY-GATES.md`):
 
 | Writer | High-risk reviewer | Low-risk reviewer |
 |---|---|---|
-| **Codex** (`impl-standard`, `impl-logic`) | **Claude Opus** (`kira-codex-review`) | Claude Sonnet (`kira-easy`) |
-| Claude **Opus** (`impl-ui`) | **Codex** `/codex:review` (or `/codex:adversarial-review`) | Codex `/codex:review` |
-| Claude **Sonnet** (`impl-easy`, `test`) | **Codex** `/codex:review` | Codex `/codex:review` |
+| **Codex** (`impl-standard`, medium) | **Claude Opus** (`kira-codex-review`) | Claude Sonnet (`kira-easy`) |
+| Claude **Opus** (`impl-hard`, `impl-ui`) | **Codex** `codex exec review` (or `adversarial-review`) | Codex `codex exec review` |
+| Claude **Sonnet** (`impl-easy`, `test`) | **Codex** `codex exec review` | Codex `codex exec review` |
 | Claude **Haiku** (`mechanical`) | n/a — diff is trivial | Sonnet spot-check |
+
+> The inverted lane (Claude writes → Codex reviews) now covers BOTH Opus UI and
+> Opus hard-impl. Keep `codex exec review` for those so the cross-provider gate is
+> never skipped just because Claude wrote the hard code.
 
 ## Default routing by `task_type`
 
 | `task_type` | Writer | Reviewer (high-risk) | Notes |
 |---|---|---|---|
-| T1-schema | **Codex** (`impl-standard`) | Claude Opus (RLS/security always high-risk) | migrations, Drizzle, RLS, audit triggers |
-| T2-api | **Codex** (`impl-standard`/`impl-logic`) | Claude Opus (high) / Sonnet (low) | Server Actions, validation, outbox, rate-limit |
+| T1-schema | **Sonnet** (`impl-easy`) if single-statement (CHECK/GRANT/index/column/VALIDATE); **Codex** (`impl-standard`) for RLS policies / audit triggers / multi-table; **Opus** (`impl-hard`) if security-critical or cross-org | Claude Opus (RLS/security always high-risk) | route migrations by complexity, not blanket-Codex |
+| T2-api | **Codex** (`impl-standard`) default; **Sonnet** for trivial additive helpers; **Opus** (`impl-hard`) for algorithmic / regulatory / cross-org / canonical-owner | Claude Opus (high) / Sonnet (low) | Server Actions, validation, outbox, rate-limit |
 | T3-ui | `impl-ui` (Opus) | Codex review **+** screenshot/axe parity gate | parity is non-negotiable; the inverted lane |
-| T4-wiring-test | `test` (Sonnet; Codex if complex) | Codex | E2E + integration |
-| T4-e2e | `test` | Codex | Playwright only |
-| T5-seed | **Codex** (`impl-standard`); `impl-easy` if trivial | Sonnet | inserts/fixtures |
-| T0-root / docs | `plan` (Opus) | Opus self + Codex spot | policy/ADR/contract |
+| T4-wiring-test | `test` (**Sonnet**; Codex if complex) | Codex | E2E + integration — mostly Sonnet now |
+| T4-e2e | `test` (**Sonnet**) | Codex | Playwright only |
+| T5-seed | **Sonnet** (`impl-easy`) default; Codex only if logic-heavy | Sonnet / Codex | inserts/fixtures are mostly the EASY tier |
+| impl-logic families | **Opus** (`impl-hard`) when hard / **Codex** when medium | cross-provider (the other one) | MRP, FIFO/WAC, SSCC-18, DSL/scheduling, cycle-detection, e-sign/RBAC crypto (see §"impl-logic families per module") |
+| T0-root / docs | **Sonnet** (`impl-easy`) for plain docs/runbooks; **Opus** (`plan`) for policy/ADR/contract | Opus self + Codex spot | route docs by stakes |
 
-## `impl-logic` task families per module → route to Codex
+## `impl-logic` task families per module → HARD tier = Opus 4.8
 
-Both `impl-standard` and `impl-logic` go to Codex now; this list flags the
-**algorithmic cores** that additionally deserve a careful **Opus** review (money,
-ordering/graph constraints, regulatory math). When in doubt, anything with
-non-trivial edge cases → Codex writes, Opus reviews.
+These are the **algorithmic / regulatory cores** (money, ordering/graph constraints,
+regulatory math, crypto). Under the 3-tier split these are the HARD tier → **Opus 4.8
+implements** them (`impl-hard`), and **Codex reviews** (the inverted lane). Codex still
+writes the surrounding MEDIUM work (the migrations, plumbing, CRUD, plain Server Actions)
+around these cores. Rule of thumb: the *engine* (the list below) → Opus; the *wiring* → Codex.
+A genuinely simple item that happens to live in a "logic" module still drops to Sonnet if it's
+single-statement/additive.
 
-
-| Module | `impl-logic` families (Codex implements) |
+| Module | hard `impl-logic` families (**Opus** implements, Codex reviews) |
 |---|---|
 | 00-foundation | workflow-as-data / rule-DSL executor, rule cascade, idempotency canonical-stringify, GS1 mod-10 + check-digit parsers, RBAC HMAC + SoD, e-sign crypto (T-124), sync-queue backoff/dedup, schema-drift diff |
 | 01-npd | BOM explosion + versioning, recipe/spec computation, cost roll-up inputs |
@@ -92,20 +109,23 @@ non-trivial edge cases → Codex writes, Opus reviews.
 | 14-multi-site | site-scope propagation (`app.current_site_id()`), cross-site allocation |
 | 15-oee | **OEE = Availability × Performance × Quality**, MV refresh logic, DSL rule definitions, drilldown aggregation |
 
-UI for these modules still goes to `impl-ui` (Opus) — Codex writes the engine,
-Opus writes the screen that drives it, each reviewed by the other.
+UI for these modules goes to `impl-ui` (Opus). So Opus now owns the screen AND the
+hard engine; Codex owns the medium wiring between them; Sonnet owns the easy edges
+(seeds, single-statement migrations, tests, docs) — each reviewed by a different provider.
 
 ## Cost note (agentmaxxing economics)
 
-Codex is now the implementation workhorse, so most volume lands there. Codex
-Cloud delegation does not consume local resources, so the orchestrator may run a
-few local Claude worktrees (Opus UI, Sonnet easy/review, Haiku mechanical)
-alongside many Codex Cloud implementation tasks concurrently. Give Codex
-**worker/implementation** tasks a cheaper profile and reserve `gpt-5.5` for
-high-risk implementation + reviews (see `04-CODEX-INTEGRATION.md` → profiles).
-All parity/architecture judgment and review of Codex's high-risk work stay on
-**Opus**; Sonnet is for trivial work + low-risk review; Haiku for mechanics + fast
-lookups only.
+Codex (gpt-5.5) is the most expensive token sink, so the 3-tier split deliberately
+**caps Codex at the MEDIUM band**: the easy ~35% drops to **Sonnet** and the hard
+cores rise to **Opus 4.8**, leaving Codex the medium main-flow. Net effect: fewer
+Codex tokens without losing the cross-provider gate. Target mix per wave (rough):
+**~35% Sonnet (easy) · ~45% Codex (medium) · ~20% Opus (hard + UI)** — tune to the
+actual `risk_tier`/complexity distribution of the wave. Sonnet (Claude subagent) and
+Opus run as local worktrees; Codex runs via `codex exec`. Reviews: Codex reviews
+Opus's hard+UI work and Sonnet's easy work; Opus reviews Codex's high-risk medium
+work; Sonnet does low-risk review of Codex. Haiku stays mechanics + fast lookups only.
+If Codex token burn is still high, shift the easy/medium boundary further toward Sonnet
+before touching the medium→Opus boundary (keep the medium main-flow on Codex per the directive).
 
 ## Escalation
 

@@ -1,6 +1,9 @@
 # MonoPilot Kira — Execution Plan (Phase 2, 2026-06-02)
 Generated from the consolidated acyclic DAG. **1041 tasks** (126 ✅ done / 915 pending) across **14 dependency waves**.
 > Waves = the **global dependency layering** (done prerequisites pinned to Wave 0). Actual execution is **module-by-module** in the rollout order below (`/kira:run-module`), each module running its tasks in wave order, ≤7 concurrent worktrees, cross-module deps gated by other modules' STATUS. A wave is a dependency layer, **not** a 'run 159 tasks at once' instruction.
+
+> **Routing update (2026-06-03):** the per-task `Writer` column below is now a *starting hint*, re-interpreted at dispatch via the **3-tier cost rule** in `docs/workflow/01-MODEL-ROUTING.md` — easy→**Sonnet**, medium→**Codex** (main flow), hard→**Opus 4.8**. `impl-standard` splits easy/medium; `impl-logic` splits medium/hard. Classify each task by `risk_tier` + complexity at run time; don't take the column literally.
+
 ## Wave 0 — Walking Skeleton (DONE ✅)
 Login (Supabase Auth) + app shell + nav + DB-backed pages are live; `pnpm build` green (Phase 0 `SKELETON-REALITY.md`). The 126 done tasks (foundation 77, settings 48, +misc) are pinned to Wave 0 and skipped by Phase 4 brownfield. Residual skeleton follow-ups (T-129 RLS, T-130 RBAC-nav) are scheduled below, not in Wave 0.
 ## The four gates (per `02-QUALITY-GATES.md`)
