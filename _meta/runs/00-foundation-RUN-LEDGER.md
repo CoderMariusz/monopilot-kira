@@ -1,4 +1,6 @@
-# 00-foundation — Module Run Ledger (live)
+# 00-foundation — Module Run Ledger — ✅ MODULE SIGN-OFF (2026-06-03, awaiting human review)
+
+**Consensus: Claude(Opus) YES + Codex SIGN-OFF (round 2). Buildable scope COMPLETE: 123 done, 4 deferred, 2 external (01-npd). See _meta/runs/00-foundation-SIGNOFF.md.**
 
 Run started 2026-06-03 via `/kira:run-module 00-foundation`. Integration branch `kira/long-run`.
 Writer routing per `docs/workflow/01-MODEL-ROUTING.md` (Codex = primary impl; Opus = UI + review).
