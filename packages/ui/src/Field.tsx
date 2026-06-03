@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
-import Input from './Input';
+import Input from './Input.js';
 
 export interface FieldProps {
   name: string;

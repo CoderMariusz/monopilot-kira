@@ -25,7 +25,7 @@ function VisuallyHidden({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Summary({ rows, emptyState }: SummaryProps): JSX.Element {
+export default function Summary({ rows, emptyState }: SummaryProps): React.JSX.Element {
   if (rows.length === 0) {
     if (emptyState !== undefined) {
       return <>{emptyState}</>;

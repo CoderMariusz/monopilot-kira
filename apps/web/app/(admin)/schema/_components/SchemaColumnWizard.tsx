@@ -1,7 +1,8 @@
 /**
  * T-037 — Schema-driven column wizard UI
+ * T-095 — step 2 refactor: React-Hook-Form + Zod resolver via @monopilot/ui.
  *
- * 5-step wizard composing Stepper + Summary.
+ * 5-step wizard composing the real @monopilot/ui <Stepper/> + <Field/> + <Summary/>.
  * URL state: ?step=1..5 via useSearchParams.
  * Server Actions: upsertDeptColumnDraft → publishDeptColumnDraft chain.
  *
@@ -9,30 +10,29 @@
  * after variable initialisation in test environments (avoids TDZ issue
  * caused by vi.mock hoisting).
  *
- * Note: The Stepper structure is implemented inline here to avoid the
- * React version mismatch issue between packages/ui (zustand@react18)
- * and apps/web (react@19). The inline implementation produces the same
- * DOM contract that tests check for (role="tablist", role="tab",
- * aria-current="step", data-testid="stepper-footer", etc.).
+ * Step 2 (validation rules) is now driven by react-hook-form + zodResolver
+ * (schemaColumnValidationSchema). The earlier "plain state, not RHF" shortcut
+ * — a hold-over from the T-037 carry-forward while React-19 peerDeps were
+ * unaligned (FT-033 / T-093) — has been removed. The Stepper's Next button is
+ * gated on RHF formState; an attempted advance with no rule set runs the RHF
+ * validation pass, surfaces the error, and moves focus to the first invalid
+ * field (regex).
  */
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm, FormProvider, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import Stepper, { type StepDef } from '@monopilot/ui/Stepper';
+import Field from '@monopilot/ui/Field';
 import Summary from '@monopilot/ui/Summary';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type FieldType = 'string' | 'number' | 'date' | 'enum' | 'formula' | 'relation';
-
-interface ValidationRules {
-  required: boolean;
-  unique: boolean;
-  regex: string;
-  min: string;
-  max: string;
-}
 
 interface PresentationFlags {
   layoutGroup: string;
@@ -52,12 +52,43 @@ interface SchemaColumnWizardProps {
   sampleRow?: Record<string, unknown>;
 }
 
-// ─── Step definitions ─────────────────────────────────────────────────────────
+// ─── Step 2 — Zod schema (T-095) ───────────────────────────────────────────────
+// Validation rules DSL for §6 step 2. The cross-field rule requires at least one
+// rule to be set; its message is attached to `regex` so RHF focuses that field
+// first (matching the prototype field order: regex is the first text control).
 
-interface StepDef {
-  id: string;
-  label: string;
-}
+const schemaColumnValidationSchema = z
+  .object({
+    required: z.boolean(),
+    unique: z.boolean(),
+    regex: z.string(),
+    min: z.string(),
+    max: z.string(),
+  })
+  .refine(
+    (v) =>
+      v.required ||
+      v.unique ||
+      v.regex.trim().length > 0 ||
+      v.min.trim().length > 0 ||
+      v.max.trim().length > 0,
+    {
+      message: 'Set at least one validation rule before continuing.',
+      path: ['regex'],
+    },
+  );
+
+type ValidationRules = z.infer<typeof schemaColumnValidationSchema>;
+
+const VALIDATION_DEFAULTS: ValidationRules = {
+  required: false,
+  unique: false,
+  regex: '',
+  min: '',
+  max: '',
+};
+
+// ─── Step definitions ─────────────────────────────────────────────────────────
 
 const WIZARD_STEPS: StepDef[] = [
   { id: 'field-type',   label: 'Field Type' },
@@ -84,89 +115,6 @@ async function getDraftActions(): Promise<DraftActions> {
   return import('../../../../app/(settings)/schema/_actions/draft.js');
 }
 
-// ─── Inline Stepper (React-19-compatible, no zustand dependency) ──────────────
-// Produces same DOM contract as @monopilot/ui Stepper:
-//   - role="tablist" with role="tab" children
-//   - aria-current="step" on current tab
-//   - data-testid="stepper-root"
-//   - data-testid="stepper-body"
-//   - data-testid="stepper-footer" with Back / Next buttons
-
-interface InlineStepperProps {
-  steps: StepDef[];
-  currentStep: number;
-  onChange: (step: number) => void;
-  hasErrors?: boolean;
-  children?: React.ReactNode;
-}
-
-function InlineStepper({
-  steps,
-  currentStep,
-  onChange,
-  hasErrors = false,
-  children,
-}: InlineStepperProps) {
-  const isBackDisabled = currentStep === 0;
-  const isNextDisabled = hasErrors;
-
-  function handleBack() {
-    if (isBackDisabled) return;
-    onChange(currentStep - 1);
-  }
-
-  function handleNext() {
-    if (isNextDisabled) return;
-    if (currentStep < steps.length - 1) {
-      onChange(currentStep + 1);
-    }
-  }
-
-  return (
-    <div data-testid="stepper-root">
-      <div role="tablist" aria-label="Wizard steps">
-        {steps.map((step, index) => {
-          const isCurrent = index === currentStep;
-          return (
-            <button
-              key={step.id}
-              role="tab"
-              aria-current={isCurrent ? 'step' : undefined}
-              aria-selected={isCurrent}
-              type="button"
-              onClick={() => onChange(index)}
-            >
-              {step.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div data-testid="stepper-body">
-        {children}
-      </div>
-
-      <div data-testid="stepper-footer">
-        <button
-          type="button"
-          aria-disabled={isBackDisabled ? 'true' : undefined}
-          onClick={handleBack}
-        >
-          Back
-        </button>
-
-        <button
-          type="button"
-          aria-disabled={isNextDisabled ? 'true' : undefined}
-          onClick={handleNext}
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: SchemaColumnWizardProps) {
@@ -183,21 +131,22 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
   // ── Step 1: field type picker ─────────────────────────────────────────────
   const [selectedFieldType, setSelectedFieldType] = useState<FieldType>('string');
 
-  // ── Step 2: validation rules (plain state, not RHF) ───────────────────────
-  const [validationRules, setValidationRules] = useState<ValidationRules>({
-    required: false,
-    unique: false,
-    regex: '',
-    min: '',
-    max: '',
+  // ── Step 2: validation rules — React-Hook-Form + Zod resolver (T-095) ─────
+  const form = useForm<ValidationRules>({
+    resolver: zodResolver(schemaColumnValidationSchema),
+    mode: 'onChange',
+    defaultValues: VALIDATION_DEFAULTS,
   });
+  const { control, watch, getValues, trigger, setFocus } = form;
 
+  // Subscribe to changes so `hasAnyRule` re-derives on every keystroke/toggle.
+  const watched = watch();
   const hasAnyRule =
-    validationRules.required ||
-    validationRules.unique ||
-    validationRules.regex.trim().length > 0 ||
-    validationRules.min.trim().length > 0 ||
-    validationRules.max.trim().length > 0;
+    watched.required ||
+    watched.unique ||
+    watched.regex.trim().length > 0 ||
+    watched.min.trim().length > 0 ||
+    watched.max.trim().length > 0;
 
   // ── Step 3: presentation flags ────────────────────────────────────────────
   const [presentationFlags, setPresentationFlags] = useState<PresentationFlags>({
@@ -212,20 +161,54 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
 
   // ─── Navigation ───────────────────────────────────────────────────────────
 
-  function navigateToStep(step: number) {
-    // step is 0-based internally; URL is 1-based
-    router.push(`/admin/schema/wizard?step=${step + 1}`);
-  }
+  const navigateToStep = useCallback(
+    (step: number) => {
+      // step is 0-based internally; URL is 1-based
+      router.push(`/admin/schema/wizard?step=${step + 1}`);
+    },
+    [router],
+  );
 
-  // ─── hasErrors logic per step ─────────────────────────────────────────────
+  // ─── hasErrors logic per step (drives Stepper Next aria-disabled) ──────────
 
   function getHasErrors(): boolean {
     if (currentStep === 1) {
-      // Validation step: Next disabled until ≥1 rule set
+      // Validation step: Next gated until ≥1 rule set.
       return !hasAnyRule;
     }
     return false;
   }
+
+  // ─── RHF validation-on-Next interceptor (T-095) ────────────────────────────
+  // The @monopilot/ui Stepper owns its Next button and short-circuits when
+  // aria-disabled, so it never fires a callback we could validate inside. We
+  // catch the click in the CAPTURE phase on a wrapping element — this runs
+  // before the Stepper's bubble-phase onClick — and, while on the validation
+  // step, run the RHF/Zod pass: surface the error + focus the first invalid
+  // field. This keeps the disabled-Next contract (no step advance) while making
+  // the failure observable, which the plain-state impl could not do.
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (currentStep !== 1) return;
+      const target = e.target as HTMLElement;
+      const btn = target.closest('button');
+      if (!btn) return;
+      // Only react to the footer Next button.
+      const footer = btn.closest('[data-testid="stepper-footer"]');
+      if (!footer) return;
+      if (!/next/i.test(btn.textContent ?? '')) return;
+
+      // Run RHF validation. If invalid, surface error + focus first invalid field.
+      void trigger().then((valid) => {
+        if (!valid) {
+          setFocus('regex');
+        }
+      });
+    },
+    [currentStep, trigger, setFocus],
+  );
 
   // ─── Save handler ─────────────────────────────────────────────────────────
 
@@ -243,16 +226,17 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
 
       const { upsertDeptColumnDraft, publishDeptColumnDraft } = await getDraftActions();
 
+      const rules = getValues();
       const formData = new FormData();
       formData.set('deptId', deptId);
       formData.set('columnKey', selectedFieldType);
       formData.set('fieldType', selectedFieldType);
       formData.set('validationJson', JSON.stringify({
-        required: validationRules.required,
-        unique: validationRules.unique,
-        ...(validationRules.regex ? { regex: validationRules.regex } : {}),
-        ...(validationRules.min ? { min: Number(validationRules.min) } : {}),
-        ...(validationRules.max ? { max: Number(validationRules.max) } : {}),
+        required: rules.required,
+        unique: rules.unique,
+        ...(rules.regex ? { regex: rules.regex } : {}),
+        ...(rules.min ? { min: Number(rules.min) } : {}),
+        ...(rules.max ? { max: Number(rules.max) } : {}),
       }));
       formData.set('presentationJson', JSON.stringify(presentationFlags));
 
@@ -262,9 +246,7 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
         throw new Error('SchemaColumnWizard: upsertDeptColumnDraft returned no draftId');
       }
 
-      // publishDeptColumnDraft signature is (draftId: string) — was previously
-      // mis-called as `({ draftId } as unknown as string)`, which silently
-      // passed an object the Server Action would reject at runtime.
+      // publishDeptColumnDraft signature is (draftId: string).
       await publishDeptColumnDraft(draftId);
 
       setSaveSuccess(true);
@@ -284,8 +266,8 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
     {
       label: 'validation',
       after: JSON.stringify({
-        required: validationRules.required,
-        unique: validationRules.unique,
+        required: watched.required,
+        unique: watched.unique,
       }),
     },
     ...(sampleRow
@@ -299,170 +281,161 @@ export default function SchemaColumnWizard({ deptId: deptIdProp, sampleRow }: Sc
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <InlineStepper
-      steps={WIZARD_STEPS}
-      currentStep={currentStep}
-      onChange={navigateToStep}
-      hasErrors={getHasErrors()}
-    >
-      {/* Step 1: Field type picker */}
-      {currentStep === 0 && (
-        <fieldset>
-          <legend>Select field type</legend>
-          {FIELD_TYPES.map((ft) => {
-            const id = `field-type-${ft}`;
-            return (
-              <div key={ft}>
-                <input
-                  type="radio"
-                  id={id}
-                  name="fieldType"
-                  value={ft}
-                  checked={selectedFieldType === ft}
-                  onChange={() => setSelectedFieldType(ft)}
+    <FormProvider {...form}>
+      <div ref={rootRef} onClickCapture={handleCaptureClick}>
+        <Stepper
+          wizardId="schema-column-wizard"
+          steps={WIZARD_STEPS}
+          currentStep={currentStep}
+          onChange={navigateToStep}
+          hasErrors={getHasErrors()}
+        >
+          {/* Step 1: Field type picker */}
+          {currentStep === 0 && (
+            <fieldset>
+              <legend>Select field type</legend>
+              {FIELD_TYPES.map((ft) => {
+                const id = `field-type-${ft}`;
+                return (
+                  <div key={ft}>
+                    <input
+                      type="radio"
+                      id={id}
+                      name="fieldType"
+                      value={ft}
+                      checked={selectedFieldType === ft}
+                      onChange={() => setSelectedFieldType(ft)}
+                    />
+                    <label htmlFor={id}>{ft}</label>
+                  </div>
+                );
+              })}
+            </fieldset>
+          )}
+
+          {/* Step 2: Validation rules — RHF + Zod (T-095) */}
+          {currentStep === 1 && (
+            <div>
+              {/* required — boolean toggle (Controller; checkboxes need `checked`) */}
+              <div>
+                <label htmlFor="validation-required">required</label>
+                <Controller
+                  name="required"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      id="validation-required"
+                      type="checkbox"
+                      name={field.name}
+                      ref={field.ref}
+                      checked={field.value}
+                      onBlur={field.onBlur}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                  )}
                 />
-                <label htmlFor={id}>{ft}</label>
               </div>
-            );
-          })}
-        </fieldset>
-      )}
 
-      {/* Step 2: Validation rules */}
-      {currentStep === 1 && (
-        <div>
-          <div>
-            <label htmlFor="validation-required">required</label>
-            <input
-              id="validation-required"
-              type="checkbox"
-              checked={validationRules.required}
-              onChange={(e) =>
-                setValidationRules((prev) => ({ ...prev, required: e.target.checked }))
-              }
-            />
-          </div>
+              {/* unique — boolean toggle */}
+              <div>
+                <label htmlFor="validation-unique">unique</label>
+                <Controller
+                  name="unique"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      id="validation-unique"
+                      type="checkbox"
+                      name={field.name}
+                      ref={field.ref}
+                      checked={field.value}
+                      onBlur={field.onBlur}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                    />
+                  )}
+                />
+              </div>
 
-          <div>
-            <label htmlFor="validation-unique">unique</label>
-            <input
-              id="validation-unique"
-              type="checkbox"
-              checked={validationRules.unique}
-              onChange={(e) =>
-                setValidationRules((prev) => ({ ...prev, unique: e.target.checked }))
-              }
-            />
-          </div>
+              {/* regex / min / max — text + number via the @monopilot/ui Field
+                  primitive, which composes RHF Controller + the shared Input. */}
+              <Field name="regex" label="regex" type="text" />
+              <Field name="min" label="min" type="number" />
+              <Field name="max" label="max" type="number" />
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="validation-regex">regex</label>
-            <input
-              id="validation-regex"
-              type="text"
-              value={validationRules.regex}
-              onChange={(e) =>
-                setValidationRules((prev) => ({ ...prev, regex: e.target.value }))
-              }
-            />
-          </div>
+          {/* Step 3: Presentation flags */}
+          {currentStep === 2 && (
+            <div>
+              <div>
+                <label htmlFor="presentation-layout-group">Layout group</label>
+                <input
+                  id="presentation-layout-group"
+                  type="text"
+                  value={presentationFlags.layoutGroup}
+                  onChange={(e) =>
+                    setPresentationFlags((prev) => ({ ...prev, layoutGroup: e.target.value }))
+                  }
+                />
+              </div>
 
-          <div>
-            <label htmlFor="validation-min">min</label>
-            <input
-              id="validation-min"
-              type="number"
-              value={validationRules.min}
-              onChange={(e) =>
-                setValidationRules((prev) => ({ ...prev, min: e.target.value }))
-              }
-            />
-          </div>
+              <div>
+                <label htmlFor="presentation-list-visibility">List column visibility</label>
+                <input
+                  id="presentation-list-visibility"
+                  type="checkbox"
+                  checked={presentationFlags.listColumnVisibility}
+                  onChange={(e) =>
+                    setPresentationFlags((prev) => ({
+                      ...prev,
+                      listColumnVisibility: e.target.checked,
+                    }))
+                  }
+                />
+              </div>
 
-          <div>
-            <label htmlFor="validation-max">max</label>
-            <input
-              id="validation-max"
-              type="number"
-              value={validationRules.max}
-              onChange={(e) =>
-                setValidationRules((prev) => ({ ...prev, max: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-      )}
+              <div>
+                <label htmlFor="presentation-export-flag">Export flag</label>
+                <input
+                  id="presentation-export-flag"
+                  type="checkbox"
+                  checked={presentationFlags.exportFlag}
+                  onChange={(e) =>
+                    setPresentationFlags((prev) => ({ ...prev, exportFlag: e.target.checked }))
+                  }
+                />
+              </div>
+            </div>
+          )}
 
-      {/* Step 3: Presentation flags */}
-      {currentStep === 2 && (
-        <div>
-          <div>
-            <label htmlFor="presentation-layout-group">Layout group</label>
-            <input
-              id="presentation-layout-group"
-              type="text"
-              value={presentationFlags.layoutGroup}
-              onChange={(e) =>
-                setPresentationFlags((prev) => ({ ...prev, layoutGroup: e.target.value }))
-              }
-            />
-          </div>
+          {/* Step 4: Summary preview */}
+          {currentStep === 3 && (
+            <div>
+              <Summary rows={summaryRows} />
+              <button type="button" onClick={handleSave} disabled={isSaving}>
+                Save
+              </button>
+              {saveSuccess && <p role="status">Saved successfully</p>}
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="presentation-list-visibility">List column visibility</label>
-            <input
-              id="presentation-list-visibility"
-              type="checkbox"
-              checked={presentationFlags.listColumnVisibility}
-              onChange={(e) =>
-                setPresentationFlags((prev) => ({
-                  ...prev,
-                  listColumnVisibility: e.target.checked,
-                }))
-              }
-            />
-          </div>
-
-          <div>
-            <label htmlFor="presentation-export-flag">Export flag</label>
-            <input
-              id="presentation-export-flag"
-              type="checkbox"
-              checked={presentationFlags.exportFlag}
-              onChange={(e) =>
-                setPresentationFlags((prev) => ({ ...prev, exportFlag: e.target.checked }))
-              }
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Summary preview */}
-      {currentStep === 3 && (
-        <div>
-          <Summary rows={summaryRows} />
-          <button type="button" onClick={handleSave} disabled={isSaving}>
-            Save
-          </button>
-          {saveSuccess && <p role="status">Saved successfully</p>}
-        </div>
-      )}
-
-      {/* Step 5: Save */}
-      {currentStep === 4 && (
-        <div>
-          <p>Review and save your column configuration.</p>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            aria-disabled={isSaving ? 'true' : undefined}
-          >
-            Save
-          </button>
-          {saveSuccess && <p role="status">Saved successfully</p>}
-        </div>
-      )}
-    </InlineStepper>
+          {/* Step 5: Save */}
+          {currentStep === 4 && (
+            <div>
+              <p>Review and save your column configuration.</p>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                aria-disabled={isSaving ? 'true' : undefined}
+              >
+                Save
+              </button>
+              {saveSuccess && <p role="status">Saved successfully</p>}
+            </div>
+          )}
+        </Stepper>
+      </div>
+    </FormProvider>
   );
 }
