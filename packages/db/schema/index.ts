@@ -65,3 +65,19 @@ export type {
   NewCostingBreakdown,
   NewCostingWaterfallStep,
 } from './costing.js';
+export {
+  nutriScoreResults,
+  nutritionAllergens,
+  nutritionProfiles,
+  referenceNutrients,
+} from './nutrition.js';
+export type {
+  NewNutriScoreResult,
+  NewNutritionAllergen,
+  NewNutritionProfile,
+  NewReferenceNutrient,
+  NutriScoreResult,
+  NutritionAllergen,
+  NutritionProfile,
+  ReferenceNutrient,
+} from './nutrition.js';
