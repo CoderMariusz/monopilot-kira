@@ -49,7 +49,7 @@ type MyNotificationsPageProps = {
 
 type MyNotificationsPage = (props: MyNotificationsPageProps) => React.ReactNode | Promise<React.ReactNode>;
 
-const pagePath = resolve(process.cwd(), 'app/[locale]/(admin)/account/notifications/page.tsx');
+const pagePath = resolve(process.cwd(), 'app/[locale]/(app)/(admin)/account/notifications/page.tsx');
 
 const basePreferences: NotificationPreferences = {
   notification_badges: true,
@@ -336,5 +336,58 @@ describe('SET-102 notification preference mutations', () => {
     expect(await screen.findByText(/user_preferences updated/i)).toBeInTheDocument();
     expect(await screen.findByText(/quiet_hours_from=22:00/i)).toBeInTheDocument();
     expect(await screen.findByText(/quiet_hours_to=07:00/i)).toBeInTheDocument();
+  });
+});
+
+describe('SET-102 real preferences fetch (no injected props)', () => {
+  it('reads the signed-in user\'s REAL preferences via readMyNotificationPreferences and uses the REAL userId (never current-user)', async () => {
+    vi.resetModules();
+    const readMyNotificationPreferences = vi.fn().mockResolvedValue({
+      state: 'ready',
+      userId: 'real-user-uuid',
+      preferences: {
+        notification_badges: true,
+        browser_push: true,
+        sound_on_alert: true, // stored real value differs from the prototype default (false)
+        work_order_assigned: true,
+        approval_requested: true,
+        daily_plant_summary: true,
+        weekly_npd_digest: false,
+        product_updates_tips: false,
+        quiet_hours_enabled: false,
+        quiet_hours_from: '20:00',
+        quiet_hours_to: '07:00',
+      },
+    });
+    const saveNotificationPreferencesAction = vi.fn().mockResolvedValue({ ok: true });
+
+    vi.doMock('./notifications-data', async () => {
+      const actual = await vi.importActual<typeof import('./notifications-data')>('./notifications-data');
+      return { ...actual, readMyNotificationPreferences, saveNotificationPreferencesAction };
+    });
+
+    const mod = await import('./page');
+    const node = await (mod.default as (props?: unknown) => Promise<React.ReactNode>)({});
+    render(React.createElement(React.Fragment, null, node));
+
+    // Server Component performed the REAL preferences read (no injected props).
+    expect(readMyNotificationPreferences).toHaveBeenCalledTimes(1);
+    // The REAL stored value (sound_on_alert=true) is reflected — not the
+    // hardcoded prototype default of false.
+    expect(screen.getByRole('switch', { name: /^Sound on alert$/i })).toBeChecked();
+
+    // Saving uses the REAL signed-in userId, never the old 'current-user' literal.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: /^Enable quiet hours$/i }));
+    await user.click(screen.getByRole('button', { name: /^Save changes$/i }));
+    expect(saveNotificationPreferencesAction).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'real-user-uuid' }),
+    );
+    expect(saveNotificationPreferencesAction).not.toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'current-user' }),
+    );
+
+    vi.doUnmock('./notifications-data');
+    vi.resetModules();
   });
 });

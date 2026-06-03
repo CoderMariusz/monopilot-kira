@@ -1,38 +1,16 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
+import { ImportWizard, type ImportWizardProps, type InjectedPreview, type InjectedCommit } from './import-wizard.client';
+import { previewImportAction } from './_actions/previewImport';
+import { commitImportAction } from './_actions/commitImport';
+
 export const dynamic = 'force-dynamic';
 
 type ReferenceColumn = {
   code: string;
   label: string;
   required?: boolean;
-};
-
-type PreviewRow = {
-  rowNumber: number;
-  action: 'insert' | 'update' | 'skip' | 'error';
-  values: Record<string, string>;
-  message?: string;
-};
-
-type ImportPreview = {
-  parsedRows: number;
-  insertCount: number;
-  updateCount: number;
-  skipCount: number;
-  errorCount: number;
-  rows: PreviewRow[];
-  headerMismatch?: { expected: string[]; received: string[] };
-};
-
-type CommitResult = {
-  status: 'processing' | 'complete';
-  inserted: number;
-  updated: number;
-  skipped: number;
-  errors: number;
-  errorRowsDownloadHref?: string;
 };
 
 type ReferenceTable = {
@@ -46,17 +24,6 @@ type PageProps = {
   params?: Promise<{ locale: string; code: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
   [key: string]: unknown;
-};
-
-type ReferenceImportOverrides = {
-  initialStep?: 'upload' | 'preview' | 'commit';
-};
-
-type ReferenceImportLabels = {
-  title: string;
-  subtitle: string;
-  dropzone: string;
-  downloadTemplate: string;
 };
 
 type QueryClient = {
@@ -84,14 +51,8 @@ const FALLBACK_TABLES: Record<string, Omit<ReferenceTable, 'parentHref'>> = {
   },
 };
 
-function translatedLabel(fullKey: string, translated: string, fallback: string) {
-  return translated && translated !== fullKey ? translated : fallback;
-}
-
 function humanize(value: string) {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function labelFromPresentation(row: SchemaColumnRow) {
@@ -106,6 +67,10 @@ function normalizeTableCode(value: string) {
   return value.startsWith('reference.') ? value.slice('reference.'.length) : value;
 }
 
+// REAL Supabase read (T-022 pattern): reference_schemas columns under
+// app.current_org_id() RLS via withOrgContext. Kept intact per the audit
+// finding (readReferenceTable was already real); only the commit pipeline was
+// dead and is now wired below to previewImportAction / commitImportAction.
 async function readReferenceTable(code: string, locale: string): Promise<ReferenceTable> {
   const fallback = FALLBACK_TABLES[code] ?? {
     code,
@@ -139,17 +104,6 @@ async function readReferenceTable(code: string, locale: string): Promise<Referen
   });
 }
 
-function statusPill(label: string, variant: 'success' | 'warning' | 'danger' | 'muted' | 'info') {
-  return h('span', { className: `badge badge--${variant}`, 'data-variant': variant }, label);
-}
-
-function actionVariant(action: PreviewRow['action']) {
-  if (action === 'insert') return 'success';
-  if (action === 'update') return 'warning';
-  if (action === 'error') return 'danger';
-  return 'muted';
-}
-
 function expectedImportHeaders(columns: ReferenceColumn[]) {
   const columnCodes = columns.map((column) => column.code);
   return columnCodes.includes('row_key') ? columnCodes : ['row_key', ...columnCodes];
@@ -160,221 +114,82 @@ function resolveStepFromSearchParams(searchParams: Record<string, string | strin
   return raw === 'preview' || raw === 'commit' || raw === 'upload' ? raw : undefined;
 }
 
-function Stepper({ activeStep }: { activeStep: 'upload' | 'preview' | 'commit' }) {
-  const steps = [
-    ['upload', 'Upload'],
-    ['preview', 'Preview'],
-    ['commit', 'Commit'],
-  ] as const;
-  return h(
-    'ol',
-    { 'aria-label': 'Import steps', className: 'flex flex-wrap gap-2 text-sm' },
-    ...steps.map(([key, label], index) => h(
-      'li',
-      { key, 'aria-current': activeStep === key ? 'step' : undefined, className: 'rounded-full border bg-white px-3 py-2' },
-      h('span', { className: 'font-semibold' }, String(index + 1)),
-      ' ',
-      label,
-    )),
-  );
-}
-
-function UploadStep({ table, labels }: { table: ReferenceTable; labels: ReferenceImportLabels }) {
-  const expectedHeaders = expectedImportHeaders(table.columns).join(', ');
-  return h(
-    'section',
-    { role: 'region', 'aria-labelledby': 'reference-import-upload-heading', className: 'space-y-4' },
-    h('h2', { id: 'reference-import-upload-heading' }, 'Step 1 — Upload'),
-    h(
-      'div',
-      { className: 'rounded-lg border-2 border-dashed bg-slate-50 p-8 text-center' },
-      h('div', { className: 'mb-2 text-2xl', 'aria-hidden': 'true' }, '📄'),
-      h('p', { className: 'font-medium' }, labels.dropzone),
-      h('p', { className: 'text-sm text-slate-600' }, 'Accepted: .csv only · Max 5MB'),
-      h('label', { htmlFor: 'reference-csv-file', className: 'sr-only' }, 'CSV file'),
-      h('input', { id: 'reference-csv-file', name: 'reference-csv-file', 'aria-label': 'CSV file', type: 'file', accept: '.csv,text/csv', className: 'mt-4' }),
-    ),
-    h('p', { className: 'text-sm text-slate-700' }, `First row must contain column headers matching: ${expectedHeaders}`),
-    h(
-      'div',
-      { className: 'flex flex-wrap items-center justify-between gap-3' },
-      h('a', { className: 'btn btn-secondary', href: `${table.parentHref}/import/template.csv` }, labels.downloadTemplate),
-      h('a', { className: 'btn', href: `${table.parentHref}/import?step=preview` }, 'Preview CSV'),
-    ),
-  );
-}
-
-function PreviewStep({ preview, columns }: { preview?: ImportPreview; columns: ReferenceColumn[] }) {
-  const expectedHeaders = expectedImportHeaders(columns);
-  const rows = preview?.rows ?? [];
-  const summary = preview
-    ? `Parsed ${preview.parsedRows} rows. ${preview.insertCount} to insert, ${preview.updateCount} to update, ${preview.skipCount} to skip, ${preview.errorCount} errors.`
-    : 'Parsed 0 rows. 0 to insert, 0 to update, 0 to skip, 0 errors.';
-  const commitDisabled = Boolean(preview?.headerMismatch) || !preview;
-
-  return h(
-    'section',
-    { role: 'region', 'aria-labelledby': 'reference-import-preview-heading', className: 'space-y-4' },
-    h('h2', { id: 'reference-import-preview-heading' }, 'Step 2 — Preview'),
-    h(
-      'div',
-      { className: 'rounded-md border bg-white p-3', 'aria-label': 'Preview summary' },
-      h('span', null, summary),
-      ' ',
-      statusPill(`${preview?.insertCount ?? 0} insert`, 'success'),
-      ' ',
-      statusPill(`${preview?.updateCount ?? 0} update`, 'warning'),
-      ' ',
-      statusPill(`${preview?.skipCount ?? 0} skip`, 'muted'),
-      ' ',
-      statusPill(`${preview?.errorCount ?? 0} errors`, 'danger'),
-    ),
-    preview?.headerMismatch
-      ? h('div', { role: 'alert', className: 'rounded-md border border-red-200 bg-red-50 p-3 text-red-900' }, `Header mismatch — expected: ${preview.headerMismatch.expected.join(', ')}`)
-      : null,
-    h(
-      'div',
-      { className: 'flex flex-wrap items-center justify-between gap-3' },
-      h('button', { className: 'btn', type: 'button' }, 'Show errors only'),
-      h(
-        'div',
-        { className: 'flex gap-2' },
-        h('button', { className: 'btn', type: 'button' }, 'Cancel'),
-        h('button', { className: 'btn', type: 'button', disabled: commitDisabled }, 'Commit Import'),
-      ),
-    ),
-    h(
-      'table',
-      { className: 'table', 'aria-label': 'CSV preview rows' },
-      h(
-        'thead',
-        null,
-        h(
-          'tr',
-          null,
-          h('th', { scope: 'col' }, 'Row'),
-          h('th', { scope: 'col' }, 'Action'),
-          ...expectedHeaders.map((column) => h('th', { scope: 'col', key: column }, column)),
-          h('th', { scope: 'col' }, 'Validation'),
-        ),
-      ),
-      h(
-        'tbody',
-        null,
-        ...(rows.length
-          ? rows.map((row) => h(
-            'tr',
-            { key: `${row.rowNumber}-${row.action}` },
-            h('td', null, String(row.rowNumber)),
-            h('td', null, statusPill(row.action, actionVariant(row.action))),
-            ...expectedHeaders.map((column) => h('td', { key: column }, row.values[column] ?? '—')),
-            h('td', null, row.message ?? '—'),
-          ))
-          : [h('tr', { key: 'empty' }, h('td', { colSpan: expectedHeaders.length + 3 }, 'No preview rows yet. Upload a CSV to validate headers and rows.'))]),
-      ),
-    ),
-  );
-}
-
-function CommitStep({ table, commitResult }: { table: ReferenceTable; commitResult?: CommitResult }) {
-  const complete = commitResult?.status === 'complete';
-  const progress = complete ? 100 : commitResult ? 50 : 0;
-  const inserted = commitResult?.inserted ?? 0;
-  const updated = commitResult?.updated ?? 0;
-  const skipped = commitResult?.skipped ?? 0;
-  const errors = commitResult?.errors ?? 0;
-
-  return h(
-    'section',
-    { role: 'region', 'aria-labelledby': 'reference-import-commit-heading', className: 'space-y-4' },
-    h('h2', { id: 'reference-import-commit-heading' }, 'Step 3 — Commit'),
-    h('div', {
-      role: 'progressbar',
-      'aria-label': 'Import progress',
-      'aria-valuemin': 0,
-      'aria-valuemax': 100,
-      'aria-valuenow': progress,
-      className: 'h-3 overflow-hidden rounded-full bg-slate-200',
-    }, h('div', { className: 'h-full bg-blue-600', style: { width: `${progress}%` } })),
-    h(
-      'div',
-      { className: 'card rounded-md border bg-white p-4' },
-      h('h3', null, complete ? 'Commit summary' : 'Import pending'),
-      h('p', null, complete
-        ? `Import complete. ${inserted} inserted, ${updated} updated, ${skipped} skipped, ${errors} errors.`
-        : 'Import is ready to process after preview validation.'),
-      h('div', { className: 'mt-3 flex flex-wrap gap-2' },
-        statusPill(`${inserted} inserted`, 'success'),
-        statusPill(`${updated} updated`, 'warning'),
-        statusPill(`${skipped} skipped`, 'muted'),
-        statusPill(`${errors} errors`, errors > 0 ? 'danger' : 'info')),
-    ),
-    h(
-      'div',
-      { className: 'flex flex-wrap gap-3' },
-      h('a', { className: 'btn btn-primary', href: table.parentHref }, 'Return to Table'),
-      commitResult?.errorRowsDownloadHref ? h('a', { href: commitResult.errorRowsDownloadHref }, 'Download error rows') : null,
-    ),
-  );
-}
-
 export default async function ReferenceCsvImportPage(props: PageProps) {
   const referenceTable = props.referenceTable as ReferenceTable | undefined;
   const searchParams = props.searchParams ? await props.searchParams : undefined;
-  const initialStep = (props.initialStep as ReferenceImportOverrides['initialStep'] | undefined) ?? resolveStepFromSearchParams(searchParams) ?? 'upload';
-  const preview = props.preview as ImportPreview | undefined;
-  const commitResult = props.commitResult as CommitResult | undefined;
+  const initialStep =
+    (props.initialStep as ImportWizardProps['initialStep'] | undefined) ?? resolveStepFromSearchParams(searchParams) ?? 'upload';
+  const preview = props.preview as InjectedPreview | undefined;
+  const commitResult = props.commitResult as InjectedCommit | undefined;
   const resolvedParams = await (props.params ?? Promise.resolve({ locale: 'en', code: referenceTable?.code ?? 'allergens_reference' }));
-  const table: ReferenceTable = referenceTable ?? await readReferenceTable(resolvedParams.code, resolvedParams.locale);
+  const table: ReferenceTable = referenceTable ?? (await readReferenceTable(resolvedParams.code, resolvedParams.locale));
+  const expectedHeaders = expectedImportHeaders(table.columns);
+
   const t = await getTranslations('settings');
-  const labels: ReferenceImportLabels = {
-    title: translatedLabel('reference.import.title', t('reference.import.title'), 'CSV Import Wizard'),
-    subtitle: translatedLabel(
-      'reference.import.subtitle',
-      t('reference.import.subtitle'),
-      'Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.',
-    ),
-    dropzone: translatedLabel(
-      'reference.import.dropzone',
-      t('reference.import.dropzone'),
-      'Drop your CSV file here or click to browse.',
-    ),
-    downloadTemplate: translatedLabel(
-      'reference.import.downloadTemplate',
-      t('reference.import.downloadTemplate'),
-      'Download Template CSV',
-    ),
+  // next-intl returns the resolved string when a key exists; when missing, both
+  // the real provider and the test mock echo a key form. Treat a returned value
+  // that equals either the namespaced (`settings.reference.import.<key>`) or the
+  // relative (`reference.import.<key>`) key as "unresolved" and fall back.
+  const tr = (key: string, fallback: string) => {
+    const relativeKey = `reference.import.${key}`;
+    const resolved = t(relativeKey);
+    if (resolved === relativeKey || resolved === `settings.${relativeKey}`) return fallback;
+    return resolved;
   };
 
-  return h(
-    'main',
-    {
-      'data-testid': 'settings-reference-csv-import-wizard',
-      'data-screen': 'reference-csv-import-wizard',
-      'data-route': `/settings/reference/${table.code}/import`,
-      'data-ux-source': 'SET-053',
-      'aria-labelledby': 'reference-csv-import-heading',
-      className: 'mx-auto max-w-3xl space-y-5',
-    },
-    h(
-      'header',
-      { 'data-region': 'page-head', className: 'space-y-2' },
-      h('p', { className: 'text-sm text-slate-500' }, `Settings / Reference tables / ${table.name}`),
-      h('h1', { id: 'reference-csv-import-heading' }, labels.title),
-      h('p', { className: 'text-sm text-slate-600' }, labels.subtitle),
+  const labels: ImportWizardProps['labels'] = {
+    title: tr('title', 'CSV Import Wizard'),
+    subtitle: tr('subtitle', 'Guided 3-step CSV import with schema header validation, row preview, and audited commit summary.'),
+    dropzone: tr('dropzone', 'Drop your CSV file here or click to browse.'),
+    downloadTemplate: tr('downloadTemplate', 'Download Template CSV'),
+    previewCta: tr('previewCta', 'Preview CSV'),
+    accepted: tr('accepted', 'Accepted: .csv only · Max 5MB'),
+    headerGuidance: tr('headerGuidance', 'First row must contain column headers matching:'),
+    stepUpload: tr('stepUpload', 'Step 1 — Upload'),
+    stepPreview: tr('stepPreview', 'Step 2 — Preview'),
+    stepCommit: tr('stepCommit', 'Step 3 — Commit'),
+    stepperUpload: tr('stepperUpload', 'Upload'),
+    stepperPreview: tr('stepperPreview', 'Preview'),
+    stepperCommit: tr('stepperCommit', 'Commit'),
+    uploading: tr('uploading', 'Validating CSV…'),
+    committing: tr('committing', 'Committing…'),
+    commitImport: tr('commitImport', 'Commit Import'),
+    cancel: tr('cancel', 'Cancel'),
+    showErrorsOnly: tr('showErrorsOnly', 'Show errors only'),
+    showAll: tr('showAll', 'Show all'),
+    returnToTable: tr('returnToTable', 'Return to Table'),
+    downloadErrorRows: tr('downloadErrorRows', 'Download error rows'),
+    importComplete: tr('importComplete', 'Import complete.'),
+    importPending: tr('importPending', 'Import is ready to process after preview validation.'),
+    commitSummary: tr('commitSummary', 'Commit summary'),
+    headerMismatchPrefix: tr('headerMismatchPrefix', 'Header mismatch — expected: '),
+    emptyRows: tr('emptyRows', 'No preview rows yet. Upload a CSV to validate headers and rows.'),
+    errorForbidden: tr('errorForbidden', 'You do not have permission to import reference data.'),
+    errorGeneric: tr('errorGeneric', 'The CSV could not be processed. Check the file and try again.'),
+    colRow: tr('colRow', 'Row'),
+    colAction: tr('colAction', 'Action'),
+    colValidation: tr('colValidation', 'Validation'),
+    insertLabel: tr('insertLabel', 'insert'),
+    updateLabel: tr('updateLabel', 'update'),
+    skipLabel: tr('skipLabel', 'skip'),
+    errorsLabel: tr('errorsLabel', 'errors'),
+    parsedSummary: tr('parsedSummary', 'Parsed'),
+    completeSummary: tr('completeSummary', 'Import complete.'),
+    safeguards: tr(
+      'safeguards',
+      'Loading state uses the upload/preview pending panel, empty state shows no preview rows, errors fail closed before commit, and unauthorized imports are blocked by the server action permission gate.',
     ),
-    h(Stepper, { activeStep: initialStep }),
-    h(
-      'div',
-      { className: 'card rounded-lg border bg-white p-4' },
-      initialStep === 'upload' ? h(UploadStep, { table, labels }) : null,
-      initialStep === 'preview' ? h(PreviewStep, { preview, columns: table.columns }) : null,
-      initialStep === 'commit' ? h(CommitStep, { table, commitResult }) : null,
-    ),
-    h(
-      'section',
-      { role: 'note', 'aria-label': 'CSV import safeguards', className: 'rounded-md border bg-slate-50 p-3 text-sm text-slate-700' },
-      'Loading state uses the upload/preview pending panel, empty state shows no preview rows, errors fail closed before commit, and unauthorized imports must be blocked by the server action permission gate.',
-    ),
-  );
+    breadcrumb: tr('breadcrumb', 'Settings / Reference tables /'),
+  };
+
+  return h(ImportWizard, {
+    table,
+    labels,
+    expectedHeaders,
+    previewAction: previewImportAction,
+    commitAction: commitImportAction,
+    initialStep,
+    preview,
+    commitResult,
+  });
 }

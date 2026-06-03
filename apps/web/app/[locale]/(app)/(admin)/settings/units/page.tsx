@@ -1,11 +1,11 @@
 import { getTranslations } from 'next-intl/server';
 
 import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { UnitsManager, type UnitsManagerLabels } from './_components/UnitsManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,12 +49,20 @@ type UnitsLabels = {
   loading: string;
   error: string;
   permissionDenied: string;
-  capabilityMatrix: string;
-  unitCrudCapability: string;
-  conversionCrudCapability: string;
-  deferredReadOnly: string;
-  deferredReadOnlyDescription: string;
   saveUnit: string;
+  cancel: string;
+  category: string;
+  label: string;
+  fromUnit: string;
+  toUnit: string;
+  saveConversion: string;
+  categoryMass: string;
+  categoryVolume: string;
+  categoryCount: string;
+  errorAlreadyExists: string;
+  errorForbidden: string;
+  errorInvalidInput: string;
+  errorGeneric: string;
 };
 
 type UnitsPageProps = {
@@ -106,13 +114,20 @@ const DEFAULT_LABELS: UnitsLabels = {
   loading: 'Loading units…',
   error: 'Unable to load units.',
   permissionDenied: 'You do not have permission to manage units.',
-  capabilityMatrix: 'Units capability matrix',
-  unitCrudCapability: 'Units CRUD',
-  conversionCrudCapability: 'Custom conversions CRUD',
-  deferredReadOnly: 'Read-only / deferred',
-  deferredReadOnlyDescription:
-    'Unit and conversion maintenance is deferred until the editable reference schema and RBAC action are available. Live rows are displayed read-only; no mock fallback data is used.',
   saveUnit: 'Save unit',
+  cancel: 'Cancel',
+  category: 'Category',
+  label: 'Label',
+  fromUnit: 'From unit',
+  toUnit: 'To unit',
+  saveConversion: 'Save conversion',
+  categoryMass: 'Mass',
+  categoryVolume: 'Volume',
+  categoryCount: 'Count',
+  errorAlreadyExists: 'A unit or conversion with that code already exists.',
+  errorForbidden: 'You do not have permission to manage units.',
+  errorInvalidInput: 'Please check the values and try again.',
+  errorGeneric: 'Could not save. Please try again.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof UnitsLabels>;
@@ -197,11 +212,13 @@ function mapConversionRow(row: ConversionRow): CustomConversion | null {
   return { id: String(row.id), label, from, to, factor: toNumber(row.factor) };
 }
 
+const MANAGE_PERMISSION = 'settings.units.manage';
+
 async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversions: CustomConversion[]; canEdit: boolean; state: PageState }> {
   try {
-    return await withOrgContext(async ({ client }) => {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
       const queryClient = client as QueryClient;
-      const [unitResult, conversionResult] = await Promise.all([
+      const [unitResult, conversionResult, permissionResult] = await Promise.all([
         queryClient.query<UnitRow>(
           `select id,
                   category,
@@ -225,12 +242,25 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
               and deleted_at is null
             order by label asc`,
         ),
+        // Real RBAC: canEdit derives from the seeded `settings.units.manage`
+        // permission (owner/admin/org_admin), never a hardcoded flag.
+        queryClient.query<{ ok: boolean }>(
+          `select true as ok
+             from public.user_roles ur
+             join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+             join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+            where ur.user_id = $1::uuid
+              and ur.org_id = $2::uuid
+            limit 1`,
+          [userId, orgId, MANAGE_PERMISSION],
+        ),
       ]);
       const units = unitResult.rows.map(mapUnitRow).filter((row): row is UnitOfMeasure => row !== null);
       const customConversions = conversionResult.rows
         .map(mapConversionRow)
         .filter((row): row is CustomConversion => row !== null);
-      return { units, customConversions, canEdit: false, state: units.length ? 'ready' : 'empty' };
+      const canEdit = permissionResult.rows.length > 0;
+      return { units, customConversions, canEdit, state: units.length ? 'ready' : 'empty' };
     });
   } catch (error) {
     console.error('[settings/units] load_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
@@ -238,62 +268,30 @@ async function readUnitsData(): Promise<{ units: UnitOfMeasure[]; customConversi
   }
 }
 
-function AddUnitDisclosure({ labels }: { labels: UnitsLabels }) {
-  return (
-    <details open className="relative">
-      <summary className="list-none [&::-webkit-details-marker]:hidden">
-        <Button type="button" aria-controls="settings-units-add-unit" data-modal-id="SM-UOM-ADD">
-          {labels.addUnit}
-        </Button>
-      </summary>
-      <div
-        id="settings-units-add-unit"
-        role="dialog"
-        aria-label={labels.addUnit.replace(/^\+\s*/, '')}
-        aria-modal="false"
-        className="absolute right-0 z-10 mt-2 w-80 rounded-xl border bg-white p-4 text-sm shadow-lg"
-      >
-        <form className="space-y-3">
-          <label className="block font-medium text-slate-700">
-            {labels.code}
-            <input tabIndex={-1} name="code" className="mt-1 w-full rounded-md border px-3 py-2 font-mono" />
-          </label>
-          <label className="block font-medium text-slate-700">
-            {labels.name}
-            <input tabIndex={-1} name="name" className="mt-1 w-full rounded-md border px-3 py-2" />
-          </label>
-          <label className="block font-medium text-slate-700">
-            {labels.factorToBase}
-            <input tabIndex={-1} name="factorToBase" inputMode="decimal" className="mt-1 w-full rounded-md border px-3 py-2" />
-          </label>
-          <input tabIndex={-1} type="submit" value={labels.saveUnit} className="rounded-md bg-blue-600 px-3 py-2 text-white" />
-        </form>
-      </div>
-    </details>
-  );
-}
-
-function UnitCapabilityMatrix({ labels }: { labels: UnitsLabels }) {
-  return (
-    <Card role="region" aria-label={labels.capabilityMatrix} className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
-      <CardHeader className="space-y-1 border-b border-amber-200 px-6 py-4">
-        <h2 className="text-lg font-semibold tracking-tight text-amber-950">{labels.capabilityMatrix}</h2>
-        <CardDescription className="text-sm text-amber-900">{labels.deferredReadOnlyDescription}</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table aria-label={labels.capabilityMatrix}>
-          <TableBody>
-            {[labels.unitCrudCapability, labels.conversionCrudCapability].map((capability) => (
-              <TableRow key={capability}>
-                <TableCell className="font-medium">{capability}</TableCell>
-                <TableCell className="text-amber-900">{labels.deferredReadOnly}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
+function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
+  return {
+    addUnit: labels.addUnit,
+    addCustomConversion: labels.addCustomConversion,
+    code: labels.code,
+    name: labels.name,
+    factorToBase: labels.factorToBase,
+    category: labels.category,
+    base: labels.base,
+    baseQuestion: labels.baseQuestion,
+    saveUnit: labels.saveUnit,
+    cancel: labels.cancel,
+    label: labels.label,
+    fromUnit: labels.fromUnit,
+    toUnit: labels.toUnit,
+    saveConversion: labels.saveConversion,
+    categoryMass: labels.categoryMass,
+    categoryVolume: labels.categoryVolume,
+    categoryCount: labels.categoryCount,
+    errorAlreadyExists: labels.errorAlreadyExists,
+    errorForbidden: labels.errorForbidden,
+    errorInvalidInput: labels.errorInvalidInput,
+    errorGeneric: labels.errorGeneric,
+  };
 }
 
 function UnitsSection({ category, units, labels }: { category: UnitCategory; units: UnitOfMeasure[]; labels: UnitsLabels }) {
@@ -342,7 +340,25 @@ function UnitsSection({ category, units, labels }: { category: UnitCategory; uni
   );
 }
 
-function CustomConversionsSection({ conversions, labels }: { conversions: CustomConversion[]; labels: UnitsLabels }) {
+function CustomConversionsSection({
+  conversions,
+  labels,
+  canEdit,
+  unitCodes,
+}: {
+  conversions: CustomConversion[];
+  labels: UnitsLabels;
+  canEdit: boolean;
+  unitCodes: string[];
+}) {
+  const addConversionCta = canEdit ? (
+    <UnitsManager labels={toManagerLabels(labels)} unitCodes={unitCodes} variant="conversion" />
+  ) : (
+    <a href="#add-custom-conversion" className="font-medium text-blue-600 underline-offset-4 hover:underline">
+      {labels.addCustomConversion}
+    </a>
+  );
+
   return (
     <Card role="region" aria-label={labels.customConversions} className="rounded-xl border bg-white shadow-sm">
       <CardHeader className="space-y-1 border-b px-6 py-4">
@@ -351,19 +367,19 @@ function CustomConversionsSection({ conversions, labels }: { conversions: Custom
       </CardHeader>
       <CardContent className="px-6 py-4 text-sm text-muted-foreground">
         {conversions.length > 0 ? (
-          <ul className="space-y-2">
-            {conversions.map((conversion) => (
-              <li key={conversion.id}>
-                <span className="font-medium text-slate-900">{conversion.label}</span>: {conversion.from} → {conversion.to} × {formatFactor(conversion.factor)}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            <ul className="space-y-2">
+              {conversions.map((conversion) => (
+                <li key={conversion.id}>
+                  <span className="font-medium text-slate-900">{conversion.label}</span>: {conversion.from} → {conversion.to} × {formatFactor(conversion.factor)}
+                </li>
+              ))}
+            </ul>
+            <p>{addConversionCta}</p>
+          </div>
         ) : (
           <p>
-            {labels.noCustomConversions}{' '}
-            <a href="#add-custom-conversion" className="font-medium text-blue-600 underline-offset-4 hover:underline">
-              {labels.addCustomConversion}
-            </a>
+            {labels.noCustomConversions} {addConversionCta}
           </p>
         )}
       </CardContent>
@@ -412,6 +428,8 @@ export default async function UnitsPage(propsInput: unknown) {
   const visibleCategories = CATEGORY_ORDER.filter((category) => groups[category].length > 0).sort(
     (left, right) => categoryOrder(left) - categoryOrder(right),
   );
+  const unitCodes = units.map((unit) => unit.code);
+  const managerLabels = toManagerLabels(labels);
 
   return (
     <main data-screen="settings-units" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
@@ -420,22 +438,22 @@ export default async function UnitsPage(propsInput: unknown) {
           <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
-        {canEdit ? <AddUnitDisclosure labels={labels} /> : null}
+        {canEdit ? <UnitsManager labels={managerLabels} unitCodes={unitCodes} variant="unit" /> : null}
       </header>
-
-      {!canEdit ? <UnitCapabilityMatrix labels={labels} /> : null}
 
       {state === 'ready' ? (
         <>
           {visibleCategories.map((category) => (
             <UnitsSection key={category} category={category} units={groups[category]} labels={labels} />
           ))}
-          <CustomConversionsSection conversions={customConversions} labels={labels} />
+          <CustomConversionsSection conversions={customConversions} labels={labels} canEdit={canEdit} unitCodes={unitCodes} />
         </>
       ) : (
         <>
           <StateMessage state={state} labels={labels} />
-          {state === 'empty' ? <CustomConversionsSection conversions={customConversions} labels={labels} /> : null}
+          {state === 'empty' ? (
+            <CustomConversionsSection conversions={customConversions} labels={labels} canEdit={canEdit} unitCodes={unitCodes} />
+          ) : null}
         </>
       )}
     </main>

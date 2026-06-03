@@ -230,7 +230,7 @@ describe('SET-011b Authorization Policies layout', () => {
   it('keeps the App Router page as a Server Component and moves interactivity to the client leaf', async () => {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
-    const dir = path.join(process.cwd(), 'app/[locale]/(admin)/settings/authorization');
+    const dir = path.join(process.cwd(), 'app/[locale]/(app)/(admin)/settings/authorization');
     const pageSource = await fs.readFile(path.join(dir, 'page.tsx'), 'utf8');
     const clientSource = await fs.readFile(path.join(dir, 'authorization-screen.client.tsx'), 'utf8');
 

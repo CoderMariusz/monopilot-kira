@@ -21,7 +21,8 @@
  */
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
-import enMessages from './i18n/en.json';
+import enBaseMessages from './i18n/en.json';
+import enSettingsMessages from './messages/en/02-settings.json';
 
 // Wave 7+8 fix: pages now consume next-intl via useTranslations. Existing RTL
 // tests render Client Components directly without wrapping in
@@ -31,6 +32,31 @@ import enMessages from './i18n/en.json';
 // previously asserted on, while production routes still go through the real
 // provider configured in app/layout.tsx.
 type MsgTree = { [k: string]: string | MsgTree };
+
+// Mirror i18n/request.ts: the 02-settings bundle is merged under the `settings`
+// namespace at runtime. The mock must merge it the same way so `settings.*`
+// keys (e.g. settings.units.*) resolve to their real EN copy instead of leaking
+// the dotted key string into the rendered DOM.
+function mergeMsgTrees(...trees: MsgTree[]): MsgTree {
+  const merged: MsgTree = {};
+  for (const tree of trees) {
+    for (const [key, value] of Object.entries(tree)) {
+      const current = merged[key];
+      merged[key] =
+        current && typeof current === 'object' && value && typeof value === 'object' && !Array.isArray(value)
+          ? mergeMsgTrees(current as MsgTree, value as MsgTree)
+          : (value as string | MsgTree);
+    }
+  }
+  return merged;
+}
+
+const enMessages: MsgTree = mergeMsgTrees(enBaseMessages as MsgTree, {
+  settings: mergeMsgTrees(
+    enSettingsMessages as MsgTree,
+    ((enBaseMessages as MsgTree).settings as MsgTree | undefined) ?? {},
+  ),
+});
 
 function lookup(tree: MsgTree, dotted: string): string | undefined {
   const parts = dotted.split('.');
@@ -49,7 +75,19 @@ function formatICU(template: string, values?: Record<string, unknown>): string {
   });
 }
 
-function createTranslator(namespace?: string) {
+// next-intl exposes two namespace-arg forms:
+//   useTranslations('settings.units')          → string
+//   getTranslations({ locale, namespace })      → object (RSC form)
+// Normalize both so the object form does not stringify to `[object Object]`
+// and leak into the dotted key prefix.
+function resolveNamespace(arg?: string | { namespace?: string; locale?: string }): string | undefined {
+  if (typeof arg === 'string') return arg;
+  if (arg && typeof arg === 'object') return arg.namespace;
+  return undefined;
+}
+
+function createTranslator(arg?: string | { namespace?: string; locale?: string }) {
+  const namespace = resolveNamespace(arg);
   const t = (key: string, values?: Record<string, unknown>) => {
     const full = namespace ? `${namespace}.${key}` : key;
     const resolved = lookup(enMessages as MsgTree, full);
@@ -71,7 +109,7 @@ vi.mock('next-intl/server', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('next-intl/server');
   return {
     ...actual,
-    getTranslations: async (namespace?: string) => createTranslator(namespace),
+    getTranslations: async (arg?: string | { namespace?: string; locale?: string }) => createTranslator(arg),
     getMessages: async () => enMessages,
     getLocale: async () => 'en',
   };

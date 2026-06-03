@@ -95,7 +95,7 @@ const sessions: UserSession[] = [
   },
 ];
 
-const pagePath = resolve(process.cwd(), 'app/[locale]/(admin)/account/profile/page.tsx');
+const pagePath = resolve(process.cwd(), 'app/[locale]/(app)/(admin)/account/profile/page.tsx');
 
 async function loadMyProfilePage(): Promise<MyProfilePage> {
   if (!existsSync(pagePath)) {
@@ -366,5 +366,52 @@ describe('SET-101 profile mutations', () => {
     expect(await screen.findByText(/user_sessions row deleted/i)).toBeInTheDocument();
     expect(await screen.findByText(/session token invalidated/i)).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/raw-session-token|refresh-token|access_token/i);
+  });
+});
+
+describe('SET-101 real signed-in user fetch (no injected props)', () => {
+  it('resolves the signed-in user server-side via readMyProfile and renders the REAL public.users data', async () => {
+    vi.resetModules();
+    const readMyProfile = vi.fn().mockResolvedValue({
+      state: 'ready',
+      user: {
+        id: 'real-user-uuid',
+        initials: 'AB',
+        fullName: 'Anna Bąk',
+        displayName: 'A. Bąk',
+        email: 'a.bak@apex.pl',
+        phone: '',
+      },
+      preferences: { language: 'pl', timezone: 'Europe/Warsaw' },
+      sessions: [],
+      mfa: { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' },
+      canEditProfile: true,
+    });
+    const saveProfileAction = vi.fn();
+    const updatePasswordAction = vi.fn();
+    const updateLanguagePreferenceAction = vi.fn();
+    const revokeSessionAction = vi.fn();
+    const logoutEverywhereAction = vi.fn();
+
+    vi.doMock('./profile-data', () => ({
+      readMyProfile,
+      saveProfileAction,
+      updatePasswordAction,
+      updateLanguagePreferenceAction,
+      revokeSessionAction,
+      logoutEverywhereAction,
+    }));
+
+    const mod = await import('./page');
+    const node = await (mod.default as MyProfilePage)({} as MyProfilePageProps);
+    render(React.createElement(React.Fragment, null, node));
+
+    // The Server Component performed the REAL data fetch (no injected user).
+    expect(readMyProfile).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(/^Full name$/i)).toHaveValue('Anna Bąk');
+    expect(screen.getByLabelText(/^Email$/i)).toHaveValue('a.bak@apex.pl');
+
+    vi.doUnmock('./profile-data');
+    vi.resetModules();
   });
 });

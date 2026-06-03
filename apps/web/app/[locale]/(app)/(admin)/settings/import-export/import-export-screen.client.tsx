@@ -41,7 +41,7 @@ export type ExportSettingsEntity = (
 ) => Promise<{ ok: true; downloadHref: string } | { ok: false; message: string }>;
 
 export type PreflightAuthorizationPolicyImport = (
-  input: { fileName: string; auditReason: string },
+  input: { fileName: string; csvText: string; auditReason: string },
 ) => Promise<{ ok: true; dryRunId: string } | { ok: false; blockers: string[] }>;
 
 export type ImportExportLabels = {
@@ -211,6 +211,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   const initialEntityKey = visibleEntities[0]?.key ?? entities[0]?.key ?? 'users';
   const [selectedEntityKey, setSelectedEntityKey] = React.useState<EntityKey>(initialEntityKey);
   const [fileName, setFileName] = React.useState<string>('');
+  const [fileText, setFileText] = React.useState<string>('');
   const [format, setFormat] = React.useState<ExportFormat>('csv');
   const [auditReason, setAuditReason] = React.useState('');
   const [dryRunId, setDryRunId] = React.useState('');
@@ -229,13 +230,25 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   const stateMessage = statusText(props.state, labels);
 
   if (!selectedEntity || visibleEntities.length === 0) {
+    // Loading / error / empty are distinct from permission-denied: when the
+    // loader reports one of those non-ready states (with no visible entities),
+    // surface the matching state message; otherwise the caller lacks permission.
+    const isErrorOrLoading = props.state === 'error' || props.state === 'loading';
+    const emptyOrDeniedMessage = props.state === 'empty' ? stateMessage ?? labels.permissionDenied : labels.permissionDenied;
+    const earlyMessage = isErrorOrLoading ? stateMessage ?? labels.permissionDenied : emptyOrDeniedMessage;
+    const earlyTone = props.state === 'error'
+      ? 'border-red-200 bg-red-50 text-red-800'
+      : props.state === 'loading'
+        ? 'border-blue-200 bg-blue-50 text-blue-800'
+        : 'border-amber-200 bg-amber-50 text-amber-950';
     return (
       <main
         data-testid="settings-import-export-screen"
         data-route="/settings/import-export"
         data-ux-source="SET-029"
-        data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
+        data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:263-384"
         className="space-y-4 p-6 text-slate-950"
+        aria-busy={props.state === 'loading'}
       >
         <header data-region="page-head" className="flex flex-col gap-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">{labels.eyebrow}</p>
@@ -244,8 +257,8 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
             {labels.subtitle}
           </p>
         </header>
-        <section role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          {labels.permissionDenied}
+        <section role="status" className={`rounded-lg border p-3 text-sm ${earlyTone}`}>
+          {earlyMessage}
         </section>
       </main>
     );
@@ -259,6 +272,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   function updateEntity(nextKey: EntityKey) {
     setSelectedEntityKey(nextKey);
     setFileName('');
+    setFileText('');
     setAuditReason('');
     setDryRunId('');
     setDryRunError('');
@@ -283,7 +297,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
 
     const preflightAuthorizationPolicyImport = props.preflightAuthorizationPolicyImport;
     if (typeof preflightAuthorizationPolicyImport !== 'function') return;
-    const result = await preflightAuthorizationPolicyImport({ fileName, auditReason: auditReason.trim() });
+    const result = await preflightAuthorizationPolicyImport({ fileName, csvText: fileText, auditReason: auditReason.trim() });
     if (result.ok === true && result.dryRunId === 'preflight_unavailable') {
       setDryRunId('');
       setDryRunError(labels.importCard.preflightUnavailable);
@@ -324,7 +338,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
       data-testid="settings-import-export-screen"
       data-route="/settings/import-export"
       data-ux-source="SET-029"
-      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:247-383"
+      data-prototype-source="prototypes/design/Monopilot Design System/settings/ops-screens.jsx:263-384"
       className="space-y-4 p-6 text-slate-950"
       aria-busy={props.state === 'loading'}
     >
@@ -416,9 +430,14 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
                 accept=".csv,text/csv"
                 className="sr-only"
                 onChange={(event) => {
-                  setFileName(event.currentTarget.files?.[0]?.name ?? '');
+                  const selectedFile = event.currentTarget.files?.[0];
+                  setFileName(selectedFile?.name ?? '');
+                  setFileText('');
                   setDryRunId('');
                   setDryRunError('');
+                  if (selectedFile && typeof selectedFile.text === 'function') {
+                    void selectedFile.text().then((text) => setFileText(text)).catch(() => setFileText(''));
+                  }
                 }}
               />
             </label>

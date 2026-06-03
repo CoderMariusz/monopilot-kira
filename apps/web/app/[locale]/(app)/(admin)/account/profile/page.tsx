@@ -1,34 +1,27 @@
 import React from 'react';
 
 import MyProfileClient from '../../../../../(admin)/account/profile/page';
+import {
+  logoutEverywhereAction,
+  readMyProfile,
+  revokeSessionAction,
+  saveProfileAction,
+  updateLanguagePreferenceAction,
+  updatePasswordAction,
+  type MyProfileData,
+  type MyProfileUser,
+  type SaveProfileInput,
+  type UserPreferences,
+  type UserSession,
+} from './profile-data';
 
-type MyProfileUser = {
-  id: string;
-  initials: string;
-  fullName: string;
-  displayName: string;
-  email: string;
-  phone: string;
-};
-
-type UserPreferences = {
-  language: 'en' | 'pl' | 'de';
-  timezone: 'Europe/Warsaw' | 'Europe/Berlin' | 'Europe/London';
-};
-
-type UserSession = {
-  id: string;
-  deviceIcon: 'desktop' | 'mobile';
-  device: string;
-  fingerprint: string;
-  location: string;
-  lastActive: string;
-  current: boolean;
-};
-
-type SaveProfileInput = Pick<MyProfileUser, 'fullName' | 'displayName' | 'phone'> & UserPreferences;
+export const dynamic = 'force-dynamic';
 
 type MyProfilePageProps = {
+  params?: Promise<{ locale: string }> | { locale: string };
+  // Test seam only: production resolves the signed-in user in this Server
+  // Component via readMyProfile(). These typed overrides keep RTL parity tests
+  // focused without reintroducing an unsafe unknown prop bag.
   user?: MyProfileUser;
   preferences?: UserPreferences;
   sessions?: UserSession[];
@@ -52,71 +45,73 @@ type MyProfilePageProps = {
   logoutEverywhere?: () => Promise<unknown> | unknown;
 };
 
-const blockedPreferences: UserPreferences = {
-  language: 'en',
-  timezone: 'Europe/Warsaw',
-};
-
-const blockedSessions: UserSession[] = [];
-
-async function saveProfileAction(_input: SaveProfileInput) {
-  'use server';
-  return { ok: false, error: 'PROFILE_ACTION_NOT_CONFIGURED' };
-}
-
-async function updatePasswordAction(_input: { currentPassword: string; newPassword: string; confirmNew: string }) {
-  'use server';
-  return { ok: false, error: 'PASSWORD_ACTION_NOT_CONFIGURED' };
-}
-
-async function updateLanguagePreferenceAction(_input: { userId: string; language: UserPreferences['language'] }) {
-  'use server';
-  return { ok: false, userPreferencesRowUpdated: false, error: 'LANGUAGE_ACTION_NOT_CONFIGURED' };
-}
-
-async function revokeSessionAction(_input: { sessionId: string }) {
-  'use server';
-  return { ok: false, deletedSessionId: undefined, invalidatedSessionToken: false, error: 'REVOKE_SESSION_NOT_CONFIGURED' };
-}
-
-async function logoutEverywhereAction() {
-  'use server';
-  return { ok: false, error: 'LOGOUT_EVERYWHERE_NOT_CONFIGURED' };
-}
-
-export default async function MyProfilePage(props: MyProfilePageProps = {}) {
-  if (!props.user) {
-    const state = props.state ?? 'permission-denied';
-    const message = state === 'loading'
+function nonInteractiveShell(state: 'loading' | 'empty' | 'error' | 'permission-denied') {
+  const message =
+    state === 'loading'
       ? 'Loading my profile…'
       : state === 'empty'
         ? 'No profile data is available for the current user.'
         : state === 'error'
           ? 'My profile could not be loaded.'
           : 'Permission denied. Sign in to edit this profile.';
-    const role = state === 'loading' || state === 'empty' ? 'status' : 'alert';
+  const role = state === 'loading' || state === 'empty' ? 'status' : 'alert';
 
+  return (
+    <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
+      <h1 id="my-profile-heading">My profile</h1>
+      <p role={role}>{message}</p>
+    </main>
+  );
+}
+
+export default async function MyProfilePage(props: MyProfilePageProps = {}) {
+  // Test seam: when a `user` is injected we render exactly that (parity tests),
+  // delegating ALL state handling (loading/empty/error/permission-denied) to
+  // the client which owns the prototype-faithful per-state shells.
+  // Production resolves the signed-in user from real Supabase + public.users.
+  if (props.user) {
     return (
-      <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
-        <h1 id="my-profile-heading">My profile</h1>
-        <p role={role}>{message}</p>
-      </main>
+      <MyProfileClient
+        user={props.user}
+        preferences={props.preferences ?? { language: 'en', timezone: 'Europe/Warsaw' }}
+        sessions={props.sessions ?? []}
+        mfa={props.mfa ?? { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' }}
+        canEditProfile={props.canEditProfile ?? true}
+        state={props.state ?? 'ready'}
+        saveProfile={props.saveProfile ?? saveProfileAction}
+        updatePassword={props.updatePassword ?? updatePasswordAction}
+        updateLanguagePreference={props.updateLanguagePreference ?? updateLanguagePreferenceAction}
+        revokeSession={props.revokeSession ?? revokeSessionAction}
+        logoutEverywhere={props.logoutEverywhere ?? logoutEverywhereAction}
+      />
     );
+  }
+
+  // No injected user, explicit non-ready override (parity tests for the
+  // server-resolved shells).
+  if (props.state && props.state !== 'ready') {
+    return nonInteractiveShell(props.state);
+  }
+
+  const data: MyProfileData = await readMyProfile();
+
+  if (data.state !== 'ready' || !data.user) {
+    return nonInteractiveShell(data.state === 'ready' ? 'empty' : data.state);
   }
 
   return (
     <MyProfileClient
-      user={props.user}
-      preferences={props.preferences ?? blockedPreferences}
-      sessions={props.sessions ?? blockedSessions}
-      mfa={props.mfa ?? { enabled: false, deviceLabel: 'Authenticator app', addedAt: '' }}
-      canEditProfile={props.canEditProfile ?? false}
-      state={props.state ?? 'ready'}
-      saveProfile={props.saveProfile ?? saveProfileAction}
-      updatePassword={props.updatePassword ?? updatePasswordAction}
-      updateLanguagePreference={props.updateLanguagePreference ?? updateLanguagePreferenceAction}
-      revokeSession={props.revokeSession ?? revokeSessionAction}
-      logoutEverywhere={props.logoutEverywhere ?? logoutEverywhereAction}
+      user={data.user}
+      preferences={data.preferences}
+      sessions={data.sessions}
+      mfa={data.mfa}
+      canEditProfile={data.canEditProfile}
+      state="ready"
+      saveProfile={saveProfileAction}
+      updatePassword={updatePasswordAction}
+      updateLanguagePreference={updateLanguagePreferenceAction}
+      revokeSession={revokeSessionAction}
+      logoutEverywhere={logoutEverywhereAction}
     />
   );
 }

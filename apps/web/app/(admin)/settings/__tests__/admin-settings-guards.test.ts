@@ -14,9 +14,20 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const settingsRoot = resolve(__dirname, '..');
+const appRoot = resolve(__dirname, '../../..'); // apps/web/app
+
+// Structural consolidation (Class E): the canonical Roles & Authorization
+// screens now live in the localized tree under
+// `app/[locale]/(app)/(admin)/settings/**`. These guards follow the real source
+// of truth instead of the retired non-localized duplicates.
+const CANONICAL_PATHS: Record<string, string> = {
+  'roles/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/roles/roles-screen.client.tsx'),
+  'authorization/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/authorization/page.tsx'),
+};
 
 function read(relativePath: string): string {
-  return readFileSync(resolve(settingsRoot, relativePath), 'utf8');
+  const canonical = CANONICAL_PATHS[relativePath];
+  return readFileSync(canonical ?? resolve(settingsRoot, relativePath), 'utf8');
 }
 
 const SETTINGS_PAGES = [
@@ -88,5 +99,62 @@ describe('admin/settings no production fixture defaults', () => {
     const source = read('reference/manufacturing-operations/page.tsx');
     expect(source).toMatch(/settings-manufacturing-operations-unavailable/);
     expect(source).toMatch(/operationsUnavailable/);
+  });
+});
+
+describe('settings roles/authorization read REAL Supabase data (no FALLBACK fixtures)', () => {
+  // The canonical localized server loaders for SET-011 / SET-011b. These read
+  // org-scoped data via withOrgContext and MUST NOT fall back to seed/fixture
+  // arrays when the DB returns empty (honest empty/missing-seed/error states).
+  const rolesServerLoader = resolve(
+    appRoot,
+    '[locale]/(app)/(admin)/settings/roles/page.tsx',
+  );
+  const authorizationServerLoader = resolve(
+    appRoot,
+    '[locale]/(app)/(admin)/settings/authorization/page.tsx',
+  );
+  const rolesScreen = resolve(
+    appRoot,
+    '[locale]/(app)/(admin)/settings/roles/roles-screen.client.tsx',
+  );
+
+  it('roles canonical loader + screen carry no FALLBACK_* fixture arrays and read via withOrgContext', () => {
+    const loader = readFileSync(rolesServerLoader, 'utf8');
+    const screen = readFileSync(rolesScreen, 'utf8');
+    expect(loader, 'roles loader must not seed FALLBACK_ROLES').not.toMatch(/\bFALLBACK_ROLES\b/);
+    expect(loader, 'roles loader must not seed FALLBACK_USERS').not.toMatch(/\bFALLBACK_USERS\b/);
+    expect(loader, 'roles loader must read real data via withOrgContext').toMatch(/withOrgContext/);
+    expect(loader, 'roles loader must query the real public.roles table').toMatch(/public\.roles/);
+    expect(loader, 'roles loader must query the real public.user_roles table').toMatch(/public\.user_roles/);
+    expect(screen, 'roles screen must not seed FALLBACK_ROLES').not.toMatch(/\bFALLBACK_ROLES\b/);
+    expect(screen, 'roles screen must not seed FALLBACK_USERS').not.toMatch(/\bFALLBACK_USERS\b/);
+    expect(screen, 'roles screen must not import the retired non-localized duplicate').not.toMatch(
+      /\(admin\)\/settings\/roles\/page/,
+    );
+  });
+
+  it('localized roles loader does not depend on the non-localized (admin)/settings duplicate', () => {
+    const loader = readFileSync(rolesServerLoader, 'utf8');
+    expect(loader, 'localized roles loader must import RolesScreen from the local client island').toMatch(
+      /from\s+['"]\.\/roles-screen\.client['"]/,
+    );
+    expect(loader, 'localized roles loader must NOT import from the non-localized (admin)/settings tree').not.toMatch(
+      /\(admin\)\/settings\/roles\/page/,
+    );
+  });
+
+  it('authorization canonical loader reads real org_authorization_policies via withOrgContext (no SERVER_DEFAULT fixtures)', () => {
+    const loader = readFileSync(authorizationServerLoader, 'utf8');
+    expect(loader, 'authorization loader must read real data via withOrgContext').toMatch(/withOrgContext/);
+    expect(loader, 'authorization loader must read real policy rows via readAuthorizationPolicy').toMatch(
+      /readAuthorizationPolicy/,
+    );
+    expect(loader, 'authorization loader must not ship a SERVER_DEFAULT_POLICIES fixture').not.toMatch(
+      /\bSERVER_DEFAULT_POLICIES\b/,
+    );
+    expect(loader, 'authorization loader must not ship a SERVER_DEFAULT_ROLES fixture').not.toMatch(
+      /\bSERVER_DEFAULT_ROLES\b/,
+    );
   });
 });

@@ -31,6 +31,31 @@ type DraftColumn = {
   validationJson?: Record<string, unknown>;
 };
 
+/**
+ * Raw shape returned by the draft-store query. Mirrors the columns the
+ * publish path (publishDeptColumnDraft) reads from:
+ *   public.dept_column_drafts  → id, dept_id, column_key, field_type,
+ *                                 validation_json, presentation_json, status
+ *   "Reference"."Departments"  → dept_code (code), dept display_name
+ *   "Reference"."DeptColumns"  → current schema_version (what publish bumps)
+ */
+type DraftRow = {
+  id: string;
+  dept_id: string;
+  column_key: string;
+  field_type: string;
+  validation_json: Record<string, unknown> | null;
+  presentation_json: Record<string, unknown> | null;
+  dept_code: string | null;
+  dept_display_name: string | null;
+  current_schema_version: number | null;
+};
+
+type DraftLoadResult =
+  | { status: 'ok'; drafts: DraftColumn[] }
+  | { status: 'empty' }
+  | { status: 'error' };
+
 type PreviewLabels = Record<keyof typeof DEFAULT_LABELS, string>;
 
 type PublishResult = {
@@ -84,6 +109,9 @@ const DEFAULT_LABELS = {
   schemaGenerationErrorTitle: 'Schema generation error',
   schemaGenerationError:
     'Could not generate runtime schema for the selected draft column. No data was saved or published.',
+  draftLoadErrorTitle: 'Could not load draft columns',
+  draftLoadError:
+    'The draft columns could not be loaded from the schema store. No data was saved or published. Try again.',
   publishRejected: 'Publish was rejected by the existing schema publish path.',
   publishSuccessPrefix: 'Published column to schema version',
   concurrentEditPrefix: 'Concurrent edit detected',
@@ -96,59 +124,107 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LAB
 const SUPPORTED_LOCALES = new Set(['en', 'pl', 'ro', 'uk']);
 const SCHEMA_SHADOW_PUBLISH_PERMISSION = 'org.schema.admin';
 
-const SHADOW_PREVIEW_DRAFTS: DraftColumn[] = [
-  {
-    id: 'draft-allergen-risk',
-    label: 'Allergen Risk Score',
-    key: 'allergen_risk_score',
-    table: 'production_batch',
-    type: 'number',
-    tier: 'L2',
-    dept: 'QC',
-    required: false,
-    sampleValue: '42',
-    schemaVersion: 7,
-    validationJson: { range: { min: 1, max: 100 } },
-  },
-  {
-    id: 'draft-inline-ph',
-    label: 'Inline pH',
-    key: 'inline_ph',
-    table: 'production_batch',
-    type: 'number',
-    tier: 'L2',
-    dept: 'QC',
-    required: false,
-    sampleValue: '7.2',
-    schemaVersion: 8,
-    validationJson: { range: { min: 0, max: 14 } },
-  },
-  {
-    id: 'draft-service-window',
-    label: 'Service Window',
-    key: 'service_window',
-    table: 'partners',
-    type: 'text',
-    tier: 'L3',
-    dept: 'Procurement',
-    required: true,
-    sampleValue: 'Dinner',
-    schemaVersion: 4,
-    validationJson: { length: { min: 1 } },
-  },
-  {
-    id: 'draft-cert-expiry',
-    label: 'Supplier cert expiry',
-    key: 'supplier_cert_expiry',
-    table: 'partners',
-    type: 'date',
-    tier: 'L3',
-    dept: 'Procurement',
-    required: true,
-    sampleValue: '2026-06-15',
-    schemaVersion: 4,
-  },
-];
+/**
+ * Real draft store loader (replaces the former hardcoded in-memory draft
+ * array). Reads the SAME source the publish path mutates:
+ *   public.dept_column_drafts WHERE status = 'draft' (org-scoped via RLS).
+ *
+ * Joins "Reference"."Departments" to resolve the human dept code/name (the
+ * publish path keys DeptColumns on dept_code), and LEFT JOINs
+ * "Reference"."DeptColumns" to surface the CURRENT schema_version — i.e. the
+ * version publishDeptColumnDraft will bump from. Runs inside withOrgContext so
+ * RLS scopes every row to app.current_org_id(); no cross-org leakage.
+ */
+async function loadShadowDrafts(ctx: OrgContext): Promise<DraftColumn[]> {
+  const { rows } = await ctx.client.query<DraftRow>(
+    `select
+        d.id,
+        d.dept_id,
+        d.column_key,
+        d.field_type,
+        d.validation_json,
+        d.presentation_json,
+        dep.code          as dept_code,
+        dep.display_name  as dept_display_name,
+        dc.schema_version as current_schema_version
+       from public.dept_column_drafts d
+       left join "Reference"."Departments" dep
+         on dep.id = d.dept_id and dep.org_id = d.org_id
+       left join "Reference"."DeptColumns" dc
+         on dc.org_id = d.org_id
+        and dc.dept_code = dep.code
+        and dc.column_key = d.column_key
+      where d.status = 'draft'
+      order by d.created_at desc, d.id desc`,
+  );
+
+  return rows.map(toDraftColumn);
+}
+
+const DRAFT_TYPE_BY_FIELD_TYPE: Record<string, DraftColumn['type']> = {
+  number: 'number',
+  date: 'date',
+  string: 'text',
+  enum: 'text',
+  formula: 'text',
+  relation: 'text',
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Map a raw draft row to the DraftColumn shape the renderer consumes. All
+ * presentation hints (label, table, tier, sampleValue) come from the draft's
+ * presentation_json — authored by the Column Edit Wizard — with safe
+ * fallbacks. No hardcoded per-draft data.
+ */
+function toDraftColumn(row: DraftRow): DraftColumn {
+  const presentation = asRecord(row.presentation_json);
+  const validation = asRecord(row.validation_json);
+  const type = DRAFT_TYPE_BY_FIELD_TYPE[row.field_type] ?? 'text';
+  const tier = asString(presentation.tier) === 'L3' ? 'L3' : 'L2';
+  const deptLabel = asString(row.dept_display_name) ?? asString(row.dept_code) ?? row.dept_id;
+
+  return {
+    id: row.id,
+    label: asString(presentation.label) ?? row.column_key,
+    key: row.column_key,
+    // The publish path keys DeptColumns on dept_code, not a free table name;
+    // the runtime-schema helper only needs a stable tableCode for caching, so
+    // we prefer an explicit presentation.table hint and fall back to dept code.
+    table: asString(presentation.table) ?? asString(row.dept_code) ?? 'dept_column_draft',
+    type,
+    tier,
+    dept: deptLabel,
+    required: requiredFlag(validation, presentation),
+    sampleValue: asString(presentation.sampleValue) ?? defaultSampleValue(type),
+    // Current published schema_version for this column (0 when never published).
+    // publishDeptColumnDraft bumps from this value by exactly 1.
+    schemaVersion: typeof row.current_schema_version === 'number' ? row.current_schema_version : 0,
+    validationJson: validation,
+  };
+}
+
+function requiredFlag(
+  validation: Record<string, unknown>,
+  presentation: Record<string, unknown>,
+): boolean {
+  if (typeof validation.required === 'boolean') return validation.required;
+  if (typeof presentation.required === 'boolean') return presentation.required;
+  return false;
+}
+
+function defaultSampleValue(type: DraftColumn['type']): string {
+  if (type === 'number') return '0';
+  if (type === 'date') return new Date().toISOString().slice(0, 10);
+  return 'sample';
+}
 
 async function buildLabels(locale: string): Promise<PreviewLabels> {
   try {
@@ -223,11 +299,29 @@ async function hasSchemaShadowPublishPermission({ client, orgId, userId }: OrgCo
   return rows.length > 0;
 }
 
+/**
+ * Load draft columns from the real draft store (RLS-scoped via withOrgContext).
+ * Distinguishes empty (no drafts authored) from error (query/connection
+ * failure) so the UI can render an honest empty-state vs an error-state — never
+ * a hardcoded fallback list.
+ */
+async function loadDraftColumns(): Promise<DraftLoadResult> {
+  try {
+    const drafts = await withOrgContext(async (ctx) => loadShadowDrafts(ctx));
+    if (drafts.length === 0) return { status: 'empty' };
+    return { status: 'ok', drafts };
+  } catch (err) {
+    console.error('[schema-shadow-preview] failed to load draft columns', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { status: 'error' };
+  }
+}
+
 export default async function SchemaShadowPreviewPage({ params, searchParams }: PreviewPageProps) {
   const { locale } = await params;
   const query: PreviewSearchParams = searchParams ? await searchParams : {};
   const labels = await buildLabels(locale);
-  const selectedDraft = SHADOW_PREVIEW_DRAFTS.find((draft) => draft.id === query.draftId) ?? SHADOW_PREVIEW_DRAFTS[0]!;
 
   return (
     <main aria-labelledby="schema-shadow-preview-title" className="settings-page settings-page--schema-preview">
@@ -236,12 +330,14 @@ export default async function SchemaShadowPreviewPage({ params, searchParams }: 
         <p>{labels.subtitle}</p>
       </header>
 
-      {await renderState(query, labels, selectedDraft, locale)}
+      {await renderState(query, labels, locale)}
     </main>
   );
 }
 
-async function renderState(query: PreviewSearchParams, labels: PreviewLabels, selectedDraft: DraftColumn, locale: string) {
+async function renderState(query: PreviewSearchParams, labels: PreviewLabels, locale: string) {
+  // Forced-state previews (used by parity screenshots / e2e) short-circuit the
+  // data load — they assert the chrome without hitting the DB.
   if (query.state === 'loading') {
     return (
       <>
@@ -279,6 +375,27 @@ async function renderState(query: PreviewSearchParams, labels: PreviewLabels, se
     return <SchemaGenerationError labels={labels} />;
   }
 
+  // Real data: read the draft store (RLS-scoped). Honest empty + error states.
+  const load = await loadDraftColumns();
+
+  if (load.status === 'error') {
+    return <DraftLoadError labels={labels} />;
+  }
+
+  if (load.status === 'empty') {
+    return (
+      <>
+        <PreviewNotice labels={labels} />
+        <Card>
+          <CardContent role="status">{labels.noDrafts}</CardContent>
+        </Card>
+      </>
+    );
+  }
+
+  const drafts = load.drafts;
+  const selectedDraft = drafts.find((draft) => draft.id === query.draftId) ?? drafts[0]!;
+
   let runtimeSchemaText: string;
   try {
     const runtimeSchema = await getZodRuntimeSchema({
@@ -310,7 +427,7 @@ async function renderState(query: PreviewSearchParams, labels: PreviewLabels, se
               <form method="get" aria-label={labels.selectDraft}>
                 <label htmlFor="draft-column-select">{labels.selectDraft}</label>
                 <select id="draft-column-select" name="draftId" defaultValue={selectedDraft.id} aria-label={labels.draftColumn}>
-                  {SHADOW_PREVIEW_DRAFTS.map((draft) => (
+                  {drafts.map((draft) => (
                     <option key={draft.id} value={draft.id}>
                       {draft.label}
                     </option>
@@ -408,6 +525,22 @@ function PreviewNotice({ labels, asAlert = true }: { labels: PreviewLabels; asAl
     <div className="alert alert-blue" role={asAlert ? 'alert' : 'note'}>
       <strong>{labels.previewOnlyLead}</strong> {labels.previewOnlyBody} {labels.previewOnlySaved}
     </div>
+  );
+}
+
+function DraftLoadError({ labels }: { labels: PreviewLabels }) {
+  return (
+    <>
+      <PreviewNotice labels={labels} asAlert={false} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{labels.draftLoadErrorTitle}</CardTitle>
+        </CardHeader>
+        <CardContent role="alert" aria-label={labels.draftLoadErrorTitle}>
+          {labels.draftLoadError}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

@@ -98,14 +98,14 @@
 | T-070 | Promotions screen (SET-063) | 🔄 | W2a 2026-06-03: REAL callerAccess via withOrgContext + real tenant_migrations; authored submitPromotion/previewPromotion actions; removed always-403 default; 9/9 UI tests. Playwright/axe pending W6 |
 | T-071 | Notifications screen (SET-092) | ⏸ | Page exists; no parity evidence |
 | T-072 | Features screen (SET-070) | 🔄 | W2a 2026-06-03: REAL organization_modules+modules via withOrgContext; removed DEFAULT_FEATURES/MODULE_DESCRIPTIONS/activeSessionCount=28; descriptions from catalog (migration 069 adds modules.description); 16 UI tests (shared w/ T-103). Playwright/axe pending W6 |
-| T-073 | Units (UoM) screen | ⏸ | Page + parity spec + artifact present |
-| T-074 | My Profile screen (SET-101) | ⏸ | Page exists; no parity evidence |
-| T-075 | My Notifications preferences screen | ⏸ | Page exists; no parity evidence |
+| T-073 | Units (UoM) screen | 🔄 | W2b 2026-06-03: REAL read of unit_of_measure+uom_custom_conversions (064); canEdit from real settings.units.manage RBAC; working add/conversion/soft-delete Server Actions; removed deferred read-only deviation; 9/9 UI tests. Playwright/axe pending W6 |
+| T-074 | My Profile screen (SET-101) | 🔄 | W2b 2026-06-03: REAL signed-in user via withOrgContext (public.users); password/logout via Supabase Auth; removed NOT_CONFIGURED stubs; 15 data + 11 RTL tests. Gaps: no user_sessions table (SESSIONS_BACKEND_UNAVAILABLE), no users.phone. Playwright/axe pending W6 |
+| T-075 | My Notifications preferences screen | 🔄 | W2b 2026-06-03: REAL read/write notification_preferences (049) + outbox; removed hardcoded defaults + 'current-user'; new Server Component wrapper. Gap: quiet-hours times not stored (boolean-channel schema). Playwright/axe pending W6 |
 | T-076 | Integrations catalog screen (SET-110) | 🔄 | W2a 2026-06-03: REAL loader via withOrgContext (d365_constants, email_config, scim_tokens, d365_sync_runs); interactive accordion; removed EMPTY_CATEGORIES; 9 UI tests. SSO derived via SCIM (tenant_idp_config is control-plane). Playwright/axe pending W6 |
 | T-077 | Manufacturing Operations List screen (SET-055) | ⏸ | Page + parity_report present; completeness unverified |
 | T-078 | Manufacturing Operation Edit modal (SET-056) | ⏸ | Modal + test exist; no parity evidence |
 | T-079 | Audit log viewer screen (SET-013) | 🔄 | W2a 2026-06-03: REAL loader — callerAccess + partition-aware audit_log query via withOrgContext (real EXPLAIN partition names); removed forbidden-by-default + empty fallback; 9/9 UI tests. IP column null (table has none). Playwright/axe pending W6 |
-| T-096 | Reference CSV Import Wizard screen (SET-053) | ⏸ | 380-line page exists; no parity evidence |
+| T-096 | Reference CSV Import Wizard screen (SET-053) | 🔄 | W2b 2026-06-03: dead commit pipeline WIRED — Upload→preview via previewReferenceCsvImport, Commit via real commit action (T-022); 15/15 UI tests. SET-053 has no JSX (UX-spec). Playwright/axe pending W6 |
 | T-097 | Schema Column Edit Wizard screen (SET-031, 8-step) | ⏸ | `schema/new/page.tsx` 577 lines; `schema-wizard/` redirects here; no parity evidence |
 | T-098 | Schema Diff Viewer screen (SET-032) | ⏸ | `schema/diff/[id]/page.tsx` 483 lines; no parity evidence |
 | T-099 | Schema Migrations Queue screen (SET-033) | ⏸ | `schema/migrations/page.tsx` 408 lines; no parity evidence |
@@ -126,10 +126,10 @@
 | T-115 | Manufacturing Operation Audit Trail screen (SET-057) | ⏸ | `manufacturing-ops/[operation_id]/history/page.tsx`; no parity evidence |
 | T-118 | UI: Settings toggle for require_grn_qc_inspection | ⏸ | Page + component + action exist; T-117 migration gap; no parity evidence |
 | T-119 | Pending Invitations screen (SET-010) | ⏸ | Route re-exports from (admin); parity_report present with verdict "?" |
-| T-120 | Roles and Permissions screen (SET-011) | ⏸ | Page exists; no dedicated parity evidence |
-| T-121 | Global Import / Export screen (SET-029) | ⏸ | Page exists; no parity evidence |
-| T-127 | Authorization Policies screen (SET-011b) | ⏸ | 296-line page; parity_report present; **saves fail at runtime** (T-122 table missing) |
-| T-128 | Schema Shadow Preview screen (SET-034) | ⏸ | `schema/preview/page.tsx` 549 lines; no parity evidence |
+| T-120 | Roles and Permissions screen (SET-011) | 🔄 | W2b 2026-06-03: removed FALLBACK_ROLES/FALLBACK_USERS hardcode → real user_roles/roles via withOrgContext, honest empty-state; RolesScreen migrated INTO localized tree (roles-screen.client.tsx), non-localized now thin re-export; guard test fixed (17/18, 1 pre-existing). Playwright/axe pending W6 |
+| T-121 | Global Import / Export screen (SET-029) | 🔄 | W2b 2026-06-03: REAL loader (T-125 listImportExportCapabilities + import_export_jobs via withOrgContext); export/import-dry-run wired to real actions; removed injection-only placeholder; 24 UI tests. Playwright/axe pending W6 |
+| T-127 | Authorization Policies screen (SET-011b) | 🔄 | W2b 2026-06-03: org_authorization_policies table now exists (063) → renders REAL policy data; removed SERVER_DEFAULT_POLICIES error-only fallback; save via T-126. Runtime bomb cleared. Playwright/axe pending W6 |
+| T-128 | Schema Shadow Preview screen (SET-034) | 🔄 | W2b 2026-06-03: removed hardcoded SHADOW_PREVIEW_DRAFTS → REAL dept_column_drafts query via withOrgContext (same store publish writes); 11/11 UI tests. SET-034 no JSX (spec-driven). Playwright/axe pending W6 |
 | T-129 | User Menu Language Picker (SET-100) | ⏸ | Component exists + parity contract inline; parity_report in `e2e/parity-evidence/SET-100/` |
 
 ## T4-wiring-test — E2E / Integration tests

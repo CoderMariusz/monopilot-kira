@@ -9,45 +9,15 @@ import {
   type QueryClient,
 } from '../../../../../../actions/authorization/preflight';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
-import RolesScreen from '../../../../../(admin)/settings/roles/page';
+import RolesScreen, {
+  type AssignableUser,
+  type PermissionStatus,
+  type RoleCode,
+  type RolePermission,
+  type SystemRole,
+} from './roles-screen.client';
 
 export const dynamic = 'force-dynamic';
-
-type RoleCode =
-  | 'owner'
-  | 'admin'
-  | 'npd_manager'
-  | 'module_admin'
-  | 'planner'
-  | 'production_lead'
-  | 'quality_lead'
-  | 'warehouse_operator'
-  | 'auditor'
-  | 'viewer';
-
-type SystemRole = {
-  code: RoleCode;
-  name: string;
-  usersAssigned: number;
-  scope: 'Full system' | 'Module-scoped' | 'Workflow-scoped' | 'Read-only';
-};
-
-type PermissionStatus = 'enabled' | 'disabled_by_org_policy' | 'misconfigured_policy';
-
-type RolePermission = {
-  name: string;
-  group: 'Settings' | 'NPD workflow authorization' | 'Technical approval';
-  directlyGrantedBySeed: boolean;
-  status: PermissionStatus;
-  policySummary?: string;
-};
-
-type AssignableUser = {
-  id: string;
-  name: string;
-  email: string;
-  currentRoleCode: RoleCode;
-};
 
 type AssignRoleInput = { userId: string; roleCode: RoleCode; reason: string };
 
@@ -100,24 +70,6 @@ const ROLE_CODES = [
 
 const ROLE_MANAGE_PERMISSIONS = ['settings.roles.assign', 'settings.roles.manage'] as const;
 const ROLE_VIEW_PERMISSIONS = ['settings.roles.view', ...ROLE_MANAGE_PERMISSIONS, 'owner', 'admin'] as const;
-
-const FALLBACK_ROLES: SystemRole[] = [
-  { code: 'owner', name: 'Owner', usersAssigned: 1, scope: 'Full system' },
-  { code: 'admin', name: 'Admin', usersAssigned: 2, scope: 'Full system' },
-  { code: 'npd_manager', name: 'NPD Manager', usersAssigned: 3, scope: 'Workflow-scoped' },
-  { code: 'module_admin', name: 'Module Admin', usersAssigned: 4, scope: 'Module-scoped' },
-  { code: 'planner', name: 'Planner', usersAssigned: 5, scope: 'Module-scoped' },
-  { code: 'production_lead', name: 'Production Lead', usersAssigned: 6, scope: 'Module-scoped' },
-  { code: 'quality_lead', name: 'Quality Lead', usersAssigned: 7, scope: 'Module-scoped' },
-  { code: 'warehouse_operator', name: 'Warehouse Operator', usersAssigned: 8, scope: 'Module-scoped' },
-  { code: 'auditor', name: 'Auditor', usersAssigned: 9, scope: 'Read-only' },
-  { code: 'viewer', name: 'Viewer', usersAssigned: 10, scope: 'Read-only' },
-];
-
-const FALLBACK_USERS: AssignableUser[] = [
-  { id: 'user-nora', name: 'Nora NPD', email: 'nora.npd@example.test', currentRoleCode: 'viewer' },
-  { id: 'user-ada', name: 'Ada Admin', email: 'ada.admin@example.test', currentRoleCode: 'admin' },
-];
 
 const STATE_COPY = {
   loading: { title: 'Roles & Permissions', body: 'Loading roles and permissions…' },
@@ -227,38 +179,6 @@ function buildPermissionsByRole(
   }, {} as Record<RoleCode, RolePermission[]>);
 }
 
-function fallbackSeededPermissions(): Map<RoleCode, Set<string>> {
-  const map = new Map<RoleCode, Set<string>>();
-  for (const role of FALLBACK_ROLES) {
-    map.set(role.code, new Set(role.code === 'npd_manager'
-      ? ['settings.roles.view', 'npd.released_product_edit.request', 'npd.released_product_edit.authorize', 'technical.product_spec.approve']
-      : ['settings.roles.view']));
-  }
-  return map;
-}
-
-function fallbackPermissionsByRole(): Record<RoleCode, RolePermission[]> {
-  return buildPermissionsByRole(FALLBACK_ROLES, fallbackSeededPermissions(), {
-    npd: {
-      policy_code: NPD_POST_RELEASE_EDIT_POLICY,
-      is_enabled: true,
-      enabled: true,
-      request_permissions: ['npd.released_product_edit.request'],
-      authorize_permissions: ['npd.released_product_edit.authorize'],
-      approver_role_codes: ['owner'],
-      min_approvers: 1,
-    },
-    technical: {
-      policy_code: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
-      is_enabled: true,
-      enabled: true,
-      authorize_permissions: ['technical.product_spec.approve'],
-      approver_role_codes: [],
-      min_approvers: 0,
-    },
-  });
-}
-
 async function hasAnyPermission(client: QueryClient, userId: string, orgId: string, permissions: readonly string[]): Promise<boolean> {
   const { rows, rowCount } = await client.query<PermissionCheckRow>(
     `select true as ok
@@ -295,10 +215,6 @@ async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[];
     [ROLE_CODES],
   );
 
-  if (rows.length === 0) {
-    return { roles: FALLBACK_ROLES, seededPermissions: fallbackSeededPermissions() };
-  }
-
   const seededPermissions = new Map<RoleCode, Set<string>>();
   const byCode = new Map<RoleCode, SystemRole>();
   for (const row of rows) {
@@ -312,7 +228,10 @@ async function readRoleRows(client: QueryClient): Promise<{ roles: SystemRole[];
     seededPermissions.set(row.code, new Set(row.permissions ?? []));
   }
 
-  const roles = ROLE_CODES.map((code) => byCode.get(code) ?? FALLBACK_ROLES.find((role) => role.code === code)).filter(Boolean) as SystemRole[];
+  // Real data only — render exactly the org-scoped roles returned by RLS, in
+  // canonical order. No seed/fixture fallback. An empty DB resolves to an
+  // honest empty-state in readRolesScreenData.
+  const roles = ROLE_CODES.map((code) => byCode.get(code)).filter((role): role is SystemRole => role !== undefined);
   return { roles, seededPermissions };
 }
 
@@ -330,13 +249,15 @@ async function readAssignableUsers(client: QueryClient): Promise<AssignableUser[
       limit 50`,
   );
 
-  const users = rows.map((row): AssignableUser => ({
+  // Real data only — no demo/fixture users. An org with no members resolves to
+  // an empty assignable-users list (the Assign-role listbox shows an honest
+  // empty state).
+  return rows.map((row): AssignableUser => ({
     id: row.id,
     name: row.name ?? row.email ?? 'User',
     email: row.email ?? '',
     currentRoleCode: isRoleCode(row.current_role_code) ? row.current_role_code : 'viewer',
   }));
-  return users.length > 0 ? users : FALLBACK_USERS;
 }
 
 async function readRolesScreenData(): Promise<RolesScreenReadResult> {
@@ -388,13 +309,15 @@ function hasInjectedRolesProps(props: PageProps | RolesPageProps): props is Role
 function renderRolesScreen(props: RolesPageProps) {
   const state = props.state ?? 'ready';
   if (state !== 'ready') return <StateShell state={state} />;
+  // Pass real injected data through verbatim — no seed/fixture fallback. If a
+  // caller omits `roles`, RolesScreen renders its honest unavailable-state.
   return (
     <RolesScreen
-      roles={props.roles ?? FALLBACK_ROLES}
-      permissionsByRole={props.permissionsByRole ?? fallbackPermissionsByRole()}
-      assignableUsers={props.assignableUsers ?? FALLBACK_USERS}
-      canManageRoles={props.canManageRoles ?? true}
-      assignRole={props.assignRole ?? (() => ({ ok: true, auditAction: 'settings.role_assignment.updated' }))}
+      roles={props.roles}
+      permissionsByRole={props.permissionsByRole}
+      assignableUsers={props.assignableUsers}
+      canManageRoles={props.canManageRoles}
+      assignRole={props.assignRole}
     />
   );
 }

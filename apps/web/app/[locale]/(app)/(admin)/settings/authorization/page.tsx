@@ -38,47 +38,18 @@ type AuthorizationScreenReadResult =
   | { state: 'ready'; roles: RoleOption[]; policies: NonNullable<AuthorizationPageProps['policies']>; canEditAuthorization: boolean }
   | { state: 'missing_seed'; roles: RoleOption[]; policies: { npd: NpdPolicy | null; technical: TechnicalPolicy | null }; canEditAuthorization: boolean }
   | { state: 'permission_denied'; roles: RoleOption[]; policies: NonNullable<AuthorizationPageProps['policies']>; canEditAuthorization: false }
-  | { state: 'error'; roles: RoleOption[]; policies: NonNullable<AuthorizationPageProps['policies']>; canEditAuthorization: false };
+  | { state: 'error'; roles: RoleOption[]; policies: { npd: NpdPolicy | null; technical: TechnicalPolicy | null }; canEditAuthorization: false };
 
 const SETTINGS_AUTHORIZATION_EDIT = 'settings.authorization.edit';
 const AUTHORIZATION_AUDIT_HREF = '/en/settings/audit?action=authorization_policy_update';
 
-const SERVER_DEFAULT_ROLES: RoleOption[] = [
-  { code: 'owner', label: 'owner' },
-  { code: 'admin', label: 'admin' },
-  { code: 'npd_manager', label: 'npd_manager' },
-  { code: 'quality_lead', label: 'quality_lead' },
-];
-
-const SERVER_DEFAULT_POLICIES: NonNullable<AuthorizationPageProps['policies']> = {
-  npd: {
-    policyCode: NPD_POST_RELEASE_EDIT_POLICY,
-    enabled: true,
-    status: 'Enabled',
-    requestPermission: 'npd.released_product_edit.request',
-    authorizePermission: 'npd.released_product_edit.authorize',
-    authorizedRoleCodes: ['owner'],
-    minApprovers: 1,
-    requireSegregationOfDuties: true,
-    requiresNewVersion: true,
-    reasonRequired: true,
-    version: 1,
-    blockers: [],
-  },
-  technical: {
-    policyCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY,
-    required: true,
-    status: 'Enabled',
-    approvalPermission: 'technical.product_spec.approve',
-    approverRoleCodes: ['quality_lead'],
-    minApprovers: 1,
-    requireDualSignOff: true,
-    blockFactoryUseUntilApproved: true,
-    approvalGateRuleCode: TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE,
-    version: 1,
-    blockers: [],
-  },
-};
+// Per-field numeric coalescing defaults applied only when a REAL policy row
+// exists but carries a null/invalid numeric column. These are NOT a policy
+// fixture/fallback — when no row exists at all the page renders missing_seed,
+// and on a read failure it renders the error state with null policies.
+const DEFAULT_MIN_APPROVERS = 1;
+const DEFAULT_POLICY_VERSION = 1;
+const DEFAULT_REQUIRE_DUAL_SIGN_OFF = true;
 
 const AUTHORIZATION_LABEL_KEYS: CopyKey[] = [
   'auditLink',
@@ -175,7 +146,9 @@ async function readRoles(client: QueryClient): Promise<RoleOption[]> {
       where org_id = app.current_org_id()
       order by case code when 'owner' then 0 when 'admin' then 1 else 2 end, name nulls last, code`,
   );
-  return rows.length > 0 ? rows.map((row) => ({ code: row.code, label: row.label ?? row.code })) : SERVER_DEFAULT_ROLES;
+  // Real org-scoped roles only — no seed/fixture fallback. An org with no role
+  // rows resolves to an empty option list.
+  return rows.map((row) => ({ code: row.code, label: row.label ?? row.code }));
 }
 
 function toNumber(value: number | string | null | undefined, fallback: number): number {
@@ -222,11 +195,11 @@ function mapNpdPolicy(row: AuthorizationPolicyRow, labels: AuthorizationScreenLa
     requestPermission: firstPermission(row.request_permissions, 'npd.released_product_edit.request') as NpdPolicy['requestPermission'],
     authorizePermission: firstPermission(row.authorize_permissions, 'npd.released_product_edit.authorize') as NpdPolicy['authorizePermission'],
     authorizedRoleCodes: [...(row.approver_role_codes ?? [])],
-    minApprovers: toNumber(row.min_approvers, SERVER_DEFAULT_POLICIES.npd!.minApprovers),
+    minApprovers: toNumber(row.min_approvers, DEFAULT_MIN_APPROVERS),
     requireSegregationOfDuties: row.require_segregation_of_duties !== false,
     requiresNewVersion: true,
     reasonRequired: true,
-    version: toNumber(row.version, SERVER_DEFAULT_POLICIES.npd!.version),
+    version: toNumber(row.version, DEFAULT_POLICY_VERSION),
     blockers,
   };
 }
@@ -240,11 +213,11 @@ function mapTechnicalPolicy(row: AuthorizationPolicyRow, labels: AuthorizationSc
     status: statusFrom(required, blockers),
     approvalPermission: firstPermission(row.authorize_permissions, 'technical.product_spec.approve') as TechnicalPolicy['approvalPermission'],
     approverRoleCodes: [...(row.approver_role_codes ?? [])],
-    minApprovers: toNumber(row.min_approvers, SERVER_DEFAULT_POLICIES.technical!.minApprovers),
-    requireDualSignOff: Boolean(row.settings_json?.require_dual_sign_off ?? SERVER_DEFAULT_POLICIES.technical!.requireDualSignOff),
+    minApprovers: toNumber(row.min_approvers, DEFAULT_MIN_APPROVERS),
+    requireDualSignOff: Boolean(row.settings_json?.require_dual_sign_off ?? DEFAULT_REQUIRE_DUAL_SIGN_OFF),
     blockFactoryUseUntilApproved: true,
     approvalGateRuleCode: (row.approval_gate_rule_code ?? TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE) as TechnicalPolicy['approvalGateRuleCode'],
-    version: toNumber(row.version, SERVER_DEFAULT_POLICIES.technical!.version),
+    version: toNumber(row.version, DEFAULT_POLICY_VERSION),
     blockers,
   };
 }
@@ -268,7 +241,8 @@ async function readAuthorizationScreenData(labels: AuthorizationScreenLabels): P
       return { state: 'ready' as const, roles, policies: { npd, technical }, canEditAuthorization };
     });
   } catch {
-    return { state: 'error', roles: SERVER_DEFAULT_ROLES, policies: SERVER_DEFAULT_POLICIES, canEditAuthorization: false };
+    // Read failure — surface a loud error state with NO fabricated policy data.
+    return { state: 'error', roles: [], policies: { npd: null, technical: null }, canEditAuthorization: false };
   }
 }
 
@@ -282,15 +256,23 @@ export default async function AuthorizationPoliciesPage({ params }: PageProps) {
   const labels = await buildLabels(locale);
   const result = await readAuthorizationScreenData(labels);
 
+  // Honest unavailable-state: when neither real policy row resolved (read
+  // failure or unseeded org) we render the loud missing/error state and tag the
+  // wrapper for the production-honesty guard. There is NO fabricated policy data
+  // behind this — the screen shows missingSeed/error copy only.
+  const policiesNotWired = result.policies.npd === null && result.policies.technical === null;
+
   return (
-    <AuthorizationPoliciesScreen
-      auditLogHref={`/${locale}${AUTHORIZATION_AUDIT_HREF.slice(3)}`}
-      canEditAuthorization={result.canEditAuthorization}
-      labels={labels}
-      policies={result.policies}
-      roles={result.roles}
-      screenState={result.state}
-      updateAuthorizationPolicy={saveAuthorizationPolicy}
-    />
+    <div data-testid={policiesNotWired ? 'settings-authorization-unavailable' : undefined}>
+      <AuthorizationPoliciesScreen
+        auditLogHref={`/${locale}${AUTHORIZATION_AUDIT_HREF.slice(3)}`}
+        canEditAuthorization={result.canEditAuthorization}
+        labels={labels}
+        policies={result.policies}
+        roles={result.roles}
+        screenState={result.state}
+        updateAuthorizationPolicy={saveAuthorizationPolicy}
+      />
+    </div>
   );
 }

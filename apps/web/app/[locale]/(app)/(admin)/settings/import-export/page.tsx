@@ -1,6 +1,8 @@
 import { getTranslations } from 'next-intl/server';
 
 import { startExportJob } from '../../../../../../actions/import-export/export';
+import { startImportJob } from '../../../../../../actions/import-export/import';
+import { loadImportExportData } from '../../../../../../actions/import-export/load-import-export';
 import SettingsImportExportScreen, {
   type ExportFormat,
   type ExportSettingsEntity,
@@ -14,6 +16,8 @@ import SettingsImportExportScreen, {
 
 type ImportExportPageProps = {
   params?: Promise<{ locale: string }>;
+  // Test/storybook injection hooks. Production renders real Supabase data via
+  // loadImportExportData() (withOrgContext / RLS) when no data props are supplied.
   entities?: SettingsImportExportEntity[];
   visiblePermissions?: string[];
   recentJobs?: RecentJob[];
@@ -22,7 +26,7 @@ type ImportExportPageProps = {
   preflightAuthorizationPolicyImport?: PreflightAuthorizationPolicyImport;
 };
 
-async function defaultExportSettingsEntity(input: { entity: EntityKey; format: ExportFormat }) {
+async function exportSettingsEntityThroughAction(input: { entity: EntityKey; format: ExportFormat }) {
   'use server';
 
   const result = await startExportJob({ target: input.entity, filters: { format: input.format } });
@@ -33,6 +37,33 @@ async function defaultExportSettingsEntity(input: { entity: EntityKey; format: E
     ok: true as const,
     downloadHref: result.data.job.download?.url ?? `/api/settings/import-export/jobs/${result.data.job.id}`,
   };
+}
+
+async function preflightAuthorizationPolicyThroughAction(input: {
+  fileName: string;
+  csvText: string;
+  auditReason: string;
+}) {
+  'use server';
+
+  const result = await startImportJob({
+    target: 'authorization_policies',
+    fileName: input.fileName,
+    contentType: 'text/csv',
+    csvText: input.csvText,
+    auditReason: input.auditReason,
+  });
+
+  if (result.ok === true) {
+    return { ok: true as const, dryRunId: result.data.job.id };
+  }
+  if (result.error === 'authorization_preflight_failed') {
+    const blockers = (result.blockers ?? []).map((blocker) =>
+      typeof blocker.code === 'string' ? String(blocker.code) : 'authorization_preflight_failed',
+    );
+    return { ok: false as const, blockers: blockers.length > 0 ? blockers : ['authorization_preflight_failed'] };
+  }
+  return { ok: false as const, blockers: [result.error] };
 }
 
 async function buildLabels(locale: string): Promise<ImportExportLabels> {
@@ -132,47 +163,65 @@ async function buildLabels(locale: string): Promise<ImportExportLabels> {
 }
 
 export default async function SettingsImportExportPage(propsInput: ImportExportPageProps = {}) {
-  const hasInjectedEntities = Object.prototype.hasOwnProperty.call(propsInput, 'entities');
   const { locale } = (await propsInput.params) ?? { locale: 'en' };
   const labels = await buildLabels(locale);
-  const labelsWithPreflightFailClosedCopy: ImportExportLabels = {
-    ...labels,
-    alerts: {
-      ...labels.alerts,
-      authorizationPolicy: `${labels.alerts.authorizationPolicy} ${labels.importCard.preflightUnavailable}`,
-    },
-  };
-  const screenLabels = hasInjectedEntities
-    ? labelsWithPreflightFailClosedCopy
-    : {
-        ...labels,
-        permissionDenied: 'Live loader not configured; import/export placeholder unavailable.',
-      };
-  const entities = hasInjectedEntities ? (propsInput.entities ?? []) : [];
-  const visiblePermissions = propsInput.visiblePermissions ?? (
-    propsInput.entities ? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions))) : []
-  );
-  const hasReviewedAuthorizationPreflight = typeof propsInput.preflightAuthorizationPolicyImport === 'function';
-  const reviewedAuthorizationPreflight = propsInput.preflightAuthorizationPolicyImport;
-  const failClosedAuthorizationPreflight = hasReviewedAuthorizationPreflight && reviewedAuthorizationPreflight
-    ? async (input: { fileName: string; auditReason: string }) => {
-        const result = await reviewedAuthorizationPreflight(input);
-        if (result.ok && result.dryRunId === 'preflight_unavailable') {
-          return { ok: false as const, blockers: ['preflight_unavailable'] };
-        }
-        return result;
-      }
-    : undefined;
+
+  // Injected-data mode: a test (or storybook) supplies entities/jobs/state
+  // directly. Production mode: no data props → read real org-scoped Supabase
+  // capabilities + recent jobs via withOrgContext (RLS).
+  const hasInjectedData =
+    Object.prototype.hasOwnProperty.call(propsInput, 'entities') ||
+    Object.prototype.hasOwnProperty.call(propsInput, 'recentJobs') ||
+    propsInput.state !== undefined;
+
+  if (hasInjectedData) {
+    const entities = propsInput.entities ?? [];
+    const visiblePermissions =
+      propsInput.visiblePermissions ?? Array.from(new Set(entities.flatMap((entity) => entity.requiredPermissions)));
+    return (
+      <SettingsImportExportScreen
+        entities={entities}
+        visiblePermissions={visiblePermissions}
+        recentJobs={propsInput.recentJobs ?? []}
+        state={propsInput.state ?? (entities.length === 0 ? 'empty' : 'ready')}
+        exportSettingsEntity={propsInput.exportSettingsEntity ?? exportSettingsEntityThroughAction}
+        preflightAuthorizationPolicyImport={propsInput.preflightAuthorizationPolicyImport}
+        labels={labels}
+      />
+    );
+  }
+
+  const loaded = await loadImportExportData(locale);
+
+  if (loaded.ok === false) {
+    return (
+      <SettingsImportExportScreen
+        entities={[]}
+        visiblePermissions={[]}
+        recentJobs={[]}
+        state="error"
+        exportSettingsEntity={exportSettingsEntityThroughAction}
+        preflightAuthorizationPolicyImport={undefined}
+        labels={labels}
+      />
+    );
+  }
+
+  // Authorization-policy import preflight is only wired when the caller actually
+  // holds settings.authorization.edit (registry-verified). Otherwise the control
+  // fail-closes (undefined → disabled dry-run button in the client leaf).
+  const preflightAuthorizationPolicyImport: PreflightAuthorizationPolicyImport | undefined =
+    loaded.canImportAuthorizationPolicies ? preflightAuthorizationPolicyThroughAction : undefined;
 
   return (
     <SettingsImportExportScreen
-      entities={entities}
-      visiblePermissions={visiblePermissions}
-      recentJobs={propsInput.recentJobs ?? []}
-      state={propsInput.state ?? (hasInjectedEntities ? 'ready' : 'empty')}
-      exportSettingsEntity={propsInput.exportSettingsEntity ?? defaultExportSettingsEntity}
-      preflightAuthorizationPolicyImport={failClosedAuthorizationPreflight}
-      labels={screenLabels}
+      entities={loaded.entities}
+      visiblePermissions={loaded.visiblePermissions}
+      recentJobs={loaded.recentJobs}
+      state={loaded.state}
+      exportSettingsEntity={exportSettingsEntityThroughAction}
+      preflightAuthorizationPolicyImport={preflightAuthorizationPolicyImport}
+      labels={labels}
     />
   );
 }

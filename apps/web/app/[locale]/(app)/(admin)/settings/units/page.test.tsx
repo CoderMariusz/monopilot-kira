@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
   createServerSupabaseClient: vi.fn(),
   getUser: vi.fn(),
   withOrgContext: vi.fn(),
+  createUnit: vi.fn(),
+  createCustomConversion: vi.fn(),
+  softDeleteUnit: vi.fn(),
+  refresh: vi.fn(),
   topbarCalls: [] as Array<Record<string, unknown>>,
   sidebarCalls: [] as Array<Record<string, unknown>>,
 }));
@@ -27,8 +31,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({
   redirect: mocks.redirect,
   usePathname: () => '/en/settings/units',
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: mocks.refresh }),
   useSearchParams: () => new URLSearchParams(),
+}));
+
+// The Add-unit / Add-conversion dialogs call these real Server Actions
+// (apps/web/app/.../settings/units/_actions/manage-units.ts). Mock the module so
+// the RTL test can assert the working CTA invokes the action without a live DB.
+vi.mock('./_actions/manage-units', () => ({
+  createUnit: mocks.createUnit,
+  createCustomConversion: mocks.createCustomConversion,
+  softDeleteUnit: mocks.softDeleteUnit,
 }));
 
 vi.mock('../../../../../../lib/auth/supabase-server', () => ({
@@ -176,6 +189,10 @@ describe('SET-094 Units (UoM) screen parity', () => {
     mocks.topbarCalls.length = 0;
     mocks.sidebarCalls.length = 0;
     mocks.withOrgContext.mockReset();
+    mocks.createUnit.mockReset();
+    mocks.createCustomConversion.mockReset();
+    mocks.softDeleteUnit.mockReset();
+    mocks.refresh.mockReset();
     setAuthenticatedShellUser();
   });
 
@@ -327,5 +344,99 @@ describe('SET-094 Units (UoM) screen parity', () => {
     expect(screen.queryByRole('row', { name: /g gram 0\.001/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^\+ add unit$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent(/unable|unavailable|permission|read-only|deferred/i);
+  });
+
+  // ── Wave 2b: real read + canEdit-from-RBAC + working add ──────────────────
+
+  type FakeRow = Record<string, unknown>;
+  type DbScript = { units: FakeRow[]; conversions: FakeRow[]; canManage: boolean };
+
+  // Drives the REAL readUnitsData() path: withOrgContext invokes the page
+  // callback with a fake app-role client whose query() answers by SQL shape,
+  // mirroring the live unit_of_measure / uom_custom_conversions / role_permissions
+  // reads (migration 064). No props are injected, so the page reads live data.
+  function wireLiveRead(script: DbScript) {
+    mocks.withOrgContext.mockImplementation(
+      async (action: (ctx: { userId: string; orgId: string; sessionToken: string; client: unknown }) => Promise<unknown>) => {
+        const client = {
+          query: async (sql: string) => {
+            if (/from\s+public\.unit_of_measure/i.test(sql)) {
+              return { rows: script.units, rowCount: script.units.length };
+            }
+            if (/from\s+public\.uom_custom_conversions/i.test(sql)) {
+              return { rows: script.conversions, rowCount: script.conversions.length };
+            }
+            if (/public\.role_permissions/i.test(sql) && /settings\.units\.manage|\$3/i.test(sql)) {
+              return script.canManage ? { rows: [{ ok: true }], rowCount: 1 } : { rows: [], rowCount: 0 };
+            }
+            return { rows: [], rowCount: 0 };
+          },
+        };
+        return action({ userId: 'set-094-user', orgId: 'org-set-094', sessionToken: 'tok', client });
+      },
+    );
+  }
+
+  const liveUnitRows: FakeRow[] = [
+    { id: 'u-kg', category: 'mass', code: 'kg', name: 'Kilogram', factor_to_base: '1', is_base: true },
+    { id: 'u-g', category: 'mass', code: 'g', name: 'Gram', factor_to_base: '0.001', is_base: false },
+  ];
+
+  it('reads units from the live unit_of_measure table via withOrgContext (no injected props, no mocks)', async () => {
+    wireLiveRead({ units: liveUnitRows, conversions: [], canManage: true });
+
+    await renderUnitsPage({ units: undefined, customConversions: undefined, canEdit: undefined, state: undefined });
+
+    expect(mocks.withOrgContext, 'page must read through the org-scoped HOF, not a hardcoded array').toHaveBeenCalled();
+    const massTable = screen.getByRole('table', { name: /mass units/i });
+    expect(within(massTable).getByRole('row', { name: /kg kilogram 1 base/i })).toBeInTheDocument();
+    expect(within(massTable).getByRole('row', { name: /g gram 0\.001/i })).toBeInTheDocument();
+  });
+
+  it('derives canEdit from the real settings.units.manage permission, not a hardcoded false', async () => {
+    // With permission → editable affordances render.
+    wireLiveRead({ units: liveUnitRows, conversions: [], canManage: true });
+    await renderUnitsPage({ units: undefined, customConversions: undefined, canEdit: undefined, state: undefined });
+    expect(
+      screen.getByRole('button', { name: /^\+ add unit$/i }),
+      'a caller holding settings.units.manage must see the Add unit CTA',
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /capability matrix/i })).not.toBeInTheDocument();
+    cleanup();
+
+    // Without permission → CTA hidden (no render-then-disable info leak).
+    wireLiveRead({ units: liveUnitRows, conversions: [], canManage: false });
+    await renderUnitsPage({ units: undefined, customConversions: undefined, canEdit: undefined, state: undefined });
+    expect(
+      screen.queryByRole('button', { name: /^\+ add unit$/i }),
+      'a caller lacking settings.units.manage must NOT see the Add unit CTA',
+    ).not.toBeInTheDocument();
+  });
+
+  it('Add unit dialog submits to the real createUnit Server Action with the typed payload', async () => {
+    mocks.createUnit.mockResolvedValue({ ok: true, data: { id: 'u-new', code: 'lb', category: 'mass' } });
+    const user = userEvent.setup();
+
+    await renderUnitsPage({
+      units: [{ id: 'u-kg', category: 'mass', code: 'kg', name: 'Kilogram', factorToBase: 1, isBase: true }],
+      customConversions: [],
+      canEdit: true,
+      state: 'ready',
+    });
+
+    await user.click(screen.getByRole('button', { name: /^\+ add unit$/i }));
+    const dialog = screen.getByRole('dialog', { name: /add unit/i });
+
+    await user.type(within(dialog).getByLabelText(/code/i), 'lb');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Pound');
+    const factor = within(dialog).getByLabelText(/factor to base/i);
+    await user.clear(factor);
+    await user.type(factor, '0.453592');
+    await user.click(within(dialog).getByRole('button', { name: /save unit/i }));
+
+    expect(mocks.createUnit, 'clicking Save must call the real createUnit action').toHaveBeenCalledTimes(1);
+    expect(mocks.createUnit).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'mass', code: 'lb', name: 'Pound', factorToBase: 0.453592 }),
+    );
   });
 });

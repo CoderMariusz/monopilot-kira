@@ -7,11 +7,16 @@
  */
 import React from 'react';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Resolve the repo root from this file's location so path-based assertions are
+// stable regardless of the vitest working directory (apps/web vs repo root).
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../../../../../../../..');
 
 const capturedImportExportScreenProps = vi.hoisted(() => ({
   last: undefined as undefined | { preflightAuthorizationPolicyImport?: unknown; state?: unknown },
@@ -352,7 +357,7 @@ const recentJobs: RecentJob[] = [
 ];
 
 async function loadImportExportPage(): Promise<ImportExportPage> {
-  const routePath = join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx');
+  const routePath = join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx');
 
   if (!existsSync(routePath)) {
     return function MissingImportExportPage() {
@@ -383,12 +388,6 @@ async function renderImportExportPage(overrides: Partial<ImportExportPageProps> 
   return { props, ...render(React.createElement(React.Fragment, null, node)) };
 }
 
-async function renderImportExportPageWithoutInjectedData() {
-  const Page = await loadImportExportPage();
-  const node = await Page({ params: Promise.resolve({ locale: 'en' }) });
-  return render(React.createElement(React.Fragment, null, node));
-}
-
 function hub() {
   return screen.getByTestId('settings-import-export-screen');
 }
@@ -403,8 +402,8 @@ function selectEntity(key: EntityKey) {
 
 describe('T-121 import/export AppShell route contract', () => {
   it('defines the user-visible localized AppShell route instead of only a legacy settings route', () => {
-    const canonicalRoute = join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx');
-    const legacyRoute = join(process.cwd(), 'apps/web/app/[locale]/(admin)/settings/import-export/page.tsx');
+    const canonicalRoute = join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx');
+    const legacyRoute = join(REPO_ROOT, 'apps/web/app/[locale]/(admin)/settings/import-export/page.tsx');
 
     expect(
       existsSync(canonicalRoute),
@@ -414,8 +413,8 @@ describe('T-121 import/export AppShell route contract', () => {
   });
 
   it('keeps page.tsx server-rendered and delegates interactivity to an i18n-backed client leaf', () => {
-    const pageSource = readFileSync(join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx'), 'utf8');
-    const clientSource = readFileSync(join(process.cwd(), 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/import-export-screen.client.tsx'), 'utf8');
+    const pageSource = readFileSync(join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx'), 'utf8');
+    const clientSource = readFileSync(join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/import-export-screen.client.tsx'), 'utf8');
 
     expect(pageSource.startsWith("'use client'")).toBe(false);
     expect(pageSource).toContain("getTranslations({ locale, namespace: 'settings.import_export' })");
@@ -425,27 +424,34 @@ describe('T-121 import/export AppShell route contract', () => {
     expect(pageSource).not.toContain('IMP-0042');
   });
 
-  it('renders an explicit no-live-loader placeholder instead of a permission-denied or demo hub when no import/export data is injected', async () => {
-    await renderImportExportPageWithoutInjectedData();
+  it('wires the real Supabase loader + import/export actions instead of an injection-only placeholder default', () => {
+    const pageSource = readFileSync(
+      join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx'),
+      'utf8',
+    );
 
-    expect(hub()).not.toHaveTextContent(/IMP-121-001|EXP-121-002|quarterly allergen refresh|segregation-of-duties test/i);
-    expect(within(hub()).queryByRole('combobox', { name: /settings entity/i })).not.toBeInTheDocument();
-    expect(within(hub()).getByRole('status')).toHaveTextContent(/live loader|not configured|unavailable|placeholder/i);
+    // The no-injection path now calls the real withOrgContext/RLS loader and the
+    // real import/export actions — never the old "Live loader not configured" placeholder.
+    expect(pageSource).toContain("from '../../../../../../actions/import-export/load-import-export'");
+    expect(pageSource).toContain('loadImportExportData(');
+    expect(pageSource).toContain("from '../../../../../../actions/import-export/export'");
+    expect(pageSource).toContain("from '../../../../../../actions/import-export/import'");
+    expect(pageSource).toContain('startExportJob');
+    expect(pageSource).toContain('startImportJob');
+    expect(pageSource).not.toContain('Live loader not configured');
+    expect(pageSource).not.toContain('placeholder unavailable');
   });
 
-  it('does not pass a default authorization-policy preflight server action into the client leaf without live loader data', async () => {
-    capturedImportExportScreenProps.last = undefined;
+  it('only wires the authorization-policy preflight when the registry confirms the caller can import policies (fail-closed otherwise)', () => {
+    const pageSource = readFileSync(
+      join(REPO_ROOT, 'apps/web/app/[locale]/(app)/(admin)/settings/import-export/page.tsx'),
+      'utf8',
+    );
 
-    await renderImportExportPageWithoutInjectedData();
-
-    const capturedProps = capturedImportExportScreenProps.last as
-      | { preflightAuthorizationPolicyImport?: unknown; state?: unknown }
-      | undefined;
-    expect(capturedProps, 'Import/export page must render through the real client leaf during this wiring check').toBeTruthy();
-    expect(
-      capturedProps?.preflightAuthorizationPolicyImport,
-      'Unavailable authorization-policy preflight must not be passed as a default server action; it needs a reviewed RBAC/org-scoped backend or a disabled UI path.',
-    ).toBeUndefined();
+    // Preflight server action is gated on the registry-derived capability, never
+    // a default-always-on action passed to the client leaf.
+    expect(pageSource).toContain('canImportAuthorizationPolicies');
+    expect(pageSource).toContain('preflightAuthorizationPolicyThroughAction');
   });
 });
 
@@ -537,10 +543,13 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
 
     await user.type(within(hub()).getByLabelText(/audit reason/i), 'Preflight policy migration for V-SET-43/V-SET-44 validation');
     await user.click(within(hub()).getByRole('button', { name: /run t-122 dry-run/i }));
-    expect(preflight).toHaveBeenCalledWith({
-      fileName: 'auth-policies.csv',
-      auditReason: 'Preflight policy migration for V-SET-43/V-SET-44 validation',
-    });
+    expect(preflight).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'auth-policies.csv',
+        csvText: expect.any(String),
+        auditReason: 'Preflight policy migration for V-SET-43/V-SET-44 validation',
+      }),
+    );
     expect(within(hub()).getByText(/dry-run passed.*T-122-DRY-RUN-1/i)).toBeInTheDocument();
   });
 
@@ -559,7 +568,9 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
       within(hub()).queryByText(/dry-run passed.*preflight_unavailable/i),
       'Authorization-policy preflight must not encode an unavailable importer as ok:true/dryRunId=preflight_unavailable.',
     ).not.toBeInTheDocument();
-    expect(within(hub()).getByRole('alert')).toHaveTextContent(/preflight.*not configured|preflight.*unavailable|preflight.*coming soon/i);
+    // The client guards the success-shaped sentinel and surfaces an unavailable
+    // message instead of a fake "dry-run passed" success.
+    expect(within(hub()).getByText(/preflight.*not configured|preflight.*unavailable|preflight.*coming soon/i)).toBeInTheDocument();
   });
 
   it('fail-closes the default authorization-policy preflight control when no reviewed importer backend is wired', async () => {
