@@ -60,3 +60,7 @@ pipeline.log.md
 .pnpm-store/
 drill-reports/
 .playwright-mcp/
+
+# Playwright auth storageState (contains live Supabase session token — never commit)
+e2e/.auth/
+apps/web/e2e/.auth/

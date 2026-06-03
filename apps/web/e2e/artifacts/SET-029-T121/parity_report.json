@@ -1,0 +1,16 @@
+{
+  "task_id": "SET-029-T121",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/prototypes/design/Monopilot Design System/settings/ops-screens.jsx:263-384",
+  "target_route": "/en/settings/import-export",
+  "parity_matrix": {
+    "structural": "captured_selector_import_export_cards_jobs_table",
+    "visual": "captured_target_vs_prototype_screenshot_pair",
+    "console_network": "fail_browser_failures_present"
+  },
+  "artifacts": {
+    "prototype_screenshot": "apps/web/e2e/artifacts/SET-029-T121/prototype-import-export-desktop-1440x900.png",
+    "target_screenshot": "apps/web/e2e/artifacts/SET-029-T121/target-import-export-desktop-1440x900.png",
+    "dom_diff_json": "apps/web/e2e/artifacts/SET-029-T121/dom-diff.json"
+  },
+  "status": "FAIL"
+}

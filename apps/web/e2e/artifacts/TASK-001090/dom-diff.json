@@ -1,0 +1,211 @@
+{
+  "task_id": "TASK-001090",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+  "prototype_route": "http://127.0.0.1:61572/settings/settings.html",
+  "target_route": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/email",
+  "viewport": "desktop-1440x900",
+  "region_selectors": {
+    "email_templates_screen": "main[data-screen=\"email_templates_screen\"]",
+    "provider_section": "[data-region=\"provider-section\"]",
+    "templates_section": "[data-region=\"templates-section\"]",
+    "variables_reference": "[data-region=\"variables-reference\"]",
+    "email_template_edit_modal": "[role=\"dialog\"]"
+  },
+  "prototype_regions": {
+    "email_templates_screen": {
+      "selector": "main[data-screen=\"email_templates_screen\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "provider_section": {
+      "selector": "[data-region=\"provider-section\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "templates_section": {
+      "selector": "[data-region=\"templates-section\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "variables_reference": {
+      "selector": "[data-region=\"variables-reference\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "email_template_edit_modal": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    }
+  },
+  "target_regions": {
+    "email_templates_screen": {
+      "selector": "main[data-screen=\"email_templates_screen\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Email templates Trigger-driven transactional templates consumed by Planning, Shipping, QA. Email test send unavailable: provider backend is not configured yet. Test send… + New template Email test send unavailable: provider backend is not configured yet."
+    },
+    "provider_section": {
+      "selector": "[data-region=\"provider-section\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "templates_section": {
+      "selector": "[data-region=\"templates-section\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "variables_reference": {
+      "selector": "[data-region=\"variables-reference\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    },
+    "email_template_edit_modal": {
+      "selector": "[role=\"dialog\"]",
+      "count": 0,
+      "visibleCount": 0,
+      "textSample": ""
+    }
+  },
+  "browser_events": [
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/.well-known/vercel/jwe net::ERR_ABORTED"
+    },
+    {
+      "category": "console.error",
+      "message": "The script has an unsupported MIME type ('text/html')."
+    },
+    {
+      "category": "console.error",
+      "message": "[RegisterSW] Service worker registration failed: SecurityError: Failed to register a ServiceWorker for scope ('https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/') with script ('https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/sw.js'): The script has an unsupported MIME type ('text/html')."
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/production?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "HEAD https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/email net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/devices?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/security?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/boms?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/processes?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/infra/warehouses?_rsc=huk9q net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/integrations?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/features?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/notifications?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/users?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/import-export?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/partners?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/reference/manufacturing-operations?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/boms?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/processes?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/shifts?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/infra/lines?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/reporting?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/oee?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/npd?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/technical?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/shipping?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/quality?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/warehouse?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/production?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/dashboard?_rsc=1n75y net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings?_rsc=1n75y net::ERR_ABORTED"
+    }
+  ],
+  "target_http_status": 200,
+  "target_final_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/email",
+  "modal_evidence": "not_opened",
+  "anchors": {
+    "email_templates_screen": "  return (\n    <>\n      <PageHead title=\"Email templates\" sub=\"Trigger-driven transactional templates consumed by Planning, Shipping, QA.\"\n        actions={<><button className=\"btn btn-secondary\">Test send…</button><button className=\"btn btn-primary\" onClick={()=>openModal(\"emailTemplateEdit\")}>+ New template</button></>} />\n\n      <Section title=\"Provider\" sub=\"SMTP / API provider used to send all Monopilot transactional mail.\">\n        <SRow label=\"Provider\">\n          <select defaultValue=\"Resend\"><option>Resend</option><option>Postmark</option><option>SES</option></select>\n        </SRow>\n        <SRow label=\"API key\"><input type=\"password\" defaultValue=\"●●●●●●●●●●●●\" readOnly style={{width:200}}/><button className=\"btn btn-secondary btn-sm\" style={{marginLeft:8}}>Rotate</button></SRow>\n        <SRow label=\"From email\"><input type=\"email\" defaultValue=\"no-reply@monopilot.apex.pl\" style={{width:300}}/></SRow>\n        <SRow label=\"From name\"><input defaultValue=\"Apex Foods · Monopilot\" style={{width:300}}/></SRow>\n      </Section>\n\n      <Section title={`Templates (${tpl.length})`}>\n        {tpl.length === 0 ? (\n          <EmptyState icon=\"✉️\" title=\"No email templates yet\"\n            body=\"Create a template to customize the emails Monopilot sends for POs, approvals, overdue reminders, and more.\"\n            action={{label:\"＋ New template\", onClick:()=>openModal(\"emailTemplateEdit\")}} />\n        ) : (\n          <table>\n            <thead><tr><th>Trigger code</th><th>Name</th><th>Consumer</th><th>Subject preview</th><th>Active</th><th></th></tr></thead>\n            <tbody>\n              {tpl.map(t => (\n                <tr key={t.code}>\n                  <td className=\"mono\" style={{fontWeight:600}}>{t.code}</td>\n                  <td>{t.name}</td>\n                  <td className=\"muted\" style={{fontSize:11}}>{t.consumer}</td>\n                  <td className=\"muted\" style={{fontSize:12, fontStyle:\"italic\", maxWidth:260}}>{t.subject}</td>\n                  <td>{t.ac",
+    "email_template_edit_modal": "const EmailTemplateEditModal = ({ open, onClose, data }) => {\n  const tpl = data?.tpl || { code: \"\", name: \"\", subject: \"\", body: \"\", active: true, activeTo: [] };\n  const [step,  setStep]  = React.useState(\"meta\");\n  const [done,  setDone]  = React.useState(new Set());\n  const [code,  setCode]  = React.useState(tpl.code);\n  const [name,  setName]  = React.useState(tpl.name);\n  const [subject, setSubject] = React.useState(tpl.subject);\n  const [body,  setBody]  = React.useState(tpl.body);\n  const [to,    setTo]    = React.useState((tpl.activeTo || []).join(\"; \"));\n  const [submitting, setSubmitting] = React.useState(false);\n\n  const steps = [\n    { key: \"meta\", label: \"Metadata\" },\n    { key: \"body\", label: \"Subject + body\" },\n    { key: \"review\", label: \"Review\" }\n  ];\n\n  const vMeta = /^[a-z0-9_]{3,}$/.test(code) && name.length >= 3;\n  const vBody = subject.length >= 3 && body.length >= 10;\n\n  const next = () => {\n    setDone(new Set([...done, step]));\n    setStep(step === \"meta\" ? \"body\" : step === \"body\" ? \"review\" : \"review\");\n  };\n  const back = () => setStep(step === \"review\" ? \"body\" : \"meta\");\n\n  const insertVar = (v) => setBody(body + v);\n\n  const submit = async () => {\n    setSubmitting(true);\n    await new Promise(r => setTimeout(r, 500));\n    setSubmitting(false);\n    onClose();\n  };\n\n  return (\n    <Modal open={open} onClose={onClose}\n      title={tpl.code ? \"Edit template — \" + tpl.code : \"New email template\"}\n      size=\"wide\"\n      foot={step === \"meta\" ? <>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disabled={!vMeta} onClick={next}>Next →</button>\n      </> : step === \"body\" ? <>\n        <button className=\"btn btn-ghost btn-sm\" onClick={back}>← Back</button>\n        <span className=\"spacer\" style={{flex:1}}></span>\n        <button className=\"btn btn-secondary btn-sm\" onClick={onClose}>Cancel</button>\n        <button className=\"btn btn-primary btn-sm\" disa"
+  }
+}

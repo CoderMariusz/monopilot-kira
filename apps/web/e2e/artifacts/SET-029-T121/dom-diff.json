@@ -1,0 +1,147 @@
+{
+  "task_id": "SET-029-T121",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/prototypes/design/Monopilot Design System/settings/ops-screens.jsx",
+  "prototype_route": "http://127.0.0.1:61573/settings/settings.html",
+  "target_route": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/import-export",
+  "viewport": "desktop-1440x900",
+  "region_selectors": {
+    "import_export_screen": "[data-testid=\"settings-import-export-screen\"]",
+    "entity_selector": "#settings-import-export-entity",
+    "import_card": "[aria-labelledby=\"settings-import-card-title\"]",
+    "export_card": "[aria-labelledby=\"settings-export-card-title\"]",
+    "recent_jobs_table": "table[aria-label=\"Recent import and export jobs\"]"
+  },
+  "target_regions": {
+    "import_export_screen": {
+      "selector": "[data-testid=\"settings-import-export-screen\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "SETTINGS · SET-029 Import / Export Bulk import and export for Settings entities. Imports are audited, permission-gated, and fail closed for unsupported entities. Settings entity Users Export only settings.org.read Sync No template Roles Export only settings.org.read Sync No template Invitations Export only settings.org.read Sync No template Reference tables Import + export settings.reference.view Sync Template T-096/T-022 handoff Infrastructure Export only settings.infra.view Async No template F"
+    },
+    "entity_selector": {
+      "selector": "#settings-import-export-entity",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Users Export only settings.org.read Sync No template Roles Export only settings.org.read Sync No template Invitations Export only settings.org.read Sync No template Reference tables Import + export settings.reference.view Sync Template T-096/T-022 handoff Infrastructure Export only settings.infra.view Async No template Feature flags Export only settings.flags.view Async No template Authorization policies Import + export settings.authorization.view Async Template Audit + dry-run required"
+    },
+    "import_card": {
+      "selector": "[aria-labelledby=\"settings-import-card-title\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Import Settings entities Upload CSV files, download templates, and route specialized imports through their owned preview flows. Export only REQUIRED PERMISSION settings.org.read PROCESSING Synchronous AUDIT Audit event required TEMPLATE No template Start import"
+    },
+    "export_card": {
+      "selector": "[aria-labelledby=\"settings-export-card-title\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "Export Settings entities Read-only exports use the selected global Settings entity and requested output format. Export supported Export format CSV XLSX Export now"
+    },
+    "recent_jobs_table": {
+      "selector": "table[aria-label=\"Recent import and export jobs\"]",
+      "count": 1,
+      "visibleCount": 1,
+      "textSample": "JOB ID ENTITY TYPE STATUS ROWS AUDIT REASON No job rows to display."
+    }
+  },
+  "browser_events": [
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/.well-known/vercel/jwe net::ERR_ABORTED"
+    },
+    {
+      "category": "console.error",
+      "message": "The script has an unsupported MIME type ('text/html')."
+    },
+    {
+      "category": "console.error",
+      "message": "[RegisterSW] Service worker registration failed: SecurityError: Failed to register a ServiceWorker for scope ('https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/') with script ('https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/sw.js'): The script has an unsupported MIME type ('text/html')."
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/technical?_rsc=1aphj net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/shipping?_rsc=1aphj net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "HEAD https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/import-export net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings?_rsc=1aphj net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/maintenance?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/finance?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/quality?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/warehouse?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/production?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/devices?_rsc=1aphj net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/shifts?_rsc=1aphj net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/labels?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/features?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/audit?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/security?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/import-export?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/partners?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/reference/manufacturing-operations?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/shifts?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/company?_rsc=1b1uo net::ERR_ABORTED"
+    },
+    {
+      "category": "requestfailed",
+      "message": "GET https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/infra/lines?_rsc=1b1uo net::ERR_ABORTED"
+    }
+  ],
+  "target_http_status": 200,
+  "target_final_url": "https://monopilot-kira-git-kira-long-run-codermariuszs-projects.vercel.app/en/settings/import-export",
+  "anchor": "const GlobalImportExportScreen = () => {\n  const [tab, setTab] = React.useState(\"import\");\n  const [entity, setEntity] = React.useState(IMPORT_EXPORT_ENTITIES[0].key);\n  const [file, setFile] = React.useState(null);\n  const sel = IMPORT_EXPORT_ENTITIES.find(e => e.key === entity);\n  const isAuthPolicy = entity === \"auth_policy\";\n  return (\n    <>\n      <PageHead title=\"Import / Export\" sub=\"Bulk import and export for Settings entities. All mutations are audited.\" />\n\n      <div className=\"pills\" style={{ marginBottom: 14 }}>\n        <button className={`pill ${tab === \"import\" ? \"on\" : \"\"}`} onClick={() => setTab(\"import\")}>⬆ Import</button>\n        <button className={`pill ${tab === \"export\" ? \"on\" : \"\"}`} onClick={() => setTab(\"export\")}>⬇ Export</button>\n      </div>\n\n      {tab === \"import\" && (\n        <>\n          {isAuthPolicy && (\n            <div className=\"alert alert-amber\" style={{ fontSize: 12, marginBottom: 12 }}>\n              <strong>Authorization policy import</strong> requires <code>settings.authorization.edit</code>, an audit reason, and a successful dry-run before committing. V-SET-43 / V-SET-44 cannot be bypassed.\n            </div>\n          )}\n          <Section title=\"Select entity to import\">\n            <SRow label=\"Entity\">\n              <select value={entity} onChange={e => setEntity(e.target.value)}>\n                {IMPORT_EXPORT_ENTITIES.filter(e => e.import).map(e => (\n                  <option key={e.key} value={e.key}>{e.label}</option>\n                ))}\n              </select>\n            </SRow>\n            <SRow label=\"Required permission\" hint=\"You must hold this permission to complete the import.\">\n              <code style={{ fontSize: 12, background: \"var(--gray-100)\", padding: \"2px 6px\", borderRadius: 4 }}>{sel.perm}</code>\n            </SRow>\n            <SRow label=\"Processing\">\n              <span className={`badge ${sel.async ? \"badge-amber\" : \"badge-green\"}`} style={{ fontSize: 11 }}>\n                {sel.async ? \"⏳ Async job — you will be notified\" : \"⚡ Synchronous\"}\n              </span>\n            </SRow>\n            <SRow label=\"Template\">\n              <button className=\"btn btn-secondary btn-sm\">⬇ Download CSV template</button>\n            </SRow>\n          </Section>\n\n          <Section title=\"Upload file\">\n            <div style={{ border: \"2px dashed var(--border)\", borderRadius: 8, padding: 32, textAlign: \"center\", background: file ? \"var(--green-050)\" : \"var(--gray-050)\", cursor: \"pointer\" }}\n                 onClick={() => setFile(file ? null : \"entities.csv\")}>\n              {file ? (\n                <>\n                  <div style={{ fontSize: 22, marginBottom: 6 }}>✓</div>\n                  <div style={{ fontWeight: 600 }}>{file}</div>\n                  <div className=\"muted\" style={{ fontSize: 12, marginTop: 4 }}>Click to remove</div>\n                </>\n              ) : (\n                <>\n                  <div style={{ fontSize: 22, marginBottom: 6 }}>📄</div>\n                  <div style={{ fontWeight: 500 }}>Drag & drop CSV or click to browse</div>\n                  <div className=\"muted\" style={{ fontSize: 12, marginTop: 4 }}>Max 10 MB · UTF-8 CSV only</div>\n                </>\n              )}\n            </div>\n            {file && (\n              <div style={{ display: \"flex\", justifyContent: \"flex-end\", gap: 8, marginTop: 12 }}>\n                {isAuthPolicy && <button className=\"btn btn-secondary\">Run dry-run preflight</button>}\n                <button className=\"btn btn-primary\">Start import →</button>\n              </div>\n            )}\n          </Section>\n        </>\n      )}\n\n      {tab === \"export\" && (\n        <Section title=\"Export entity\">\n          <SRow label=\"Entity\">\n            <select value={entity} onChange={e => setEntity(e.target.value)}>\n              {IMPORT_EXPORT_ENTITIES.filter(e => e.export).map(e => (\n                <option key={e.key} value={e.key}>{e.label}</option>\n              ))}\n            </select>\n          </SRow>"
+}

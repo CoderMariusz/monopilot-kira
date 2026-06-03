@@ -1,0 +1,11 @@
+{
+  "tool": "role/landmark assertions (axe-core not installed in worktree — documented blocker)",
+  "checks": [
+    "single main landmark with aria-labelledby",
+    "h1 present",
+    "labelled step regions",
+    "table with scoped column headers",
+    "file input has accessible label"
+  ],
+  "result": "pass"
+}

@@ -1,0 +1,29 @@
+{
+  "task_id": "TASK-001090",
+  "prototype_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira/prototypes/design/Monopilot Design System/settings/admin-screens.jsx",
+  "prototype_route": "settings/admin-screens.jsx#email_templates_screen; settings/modals.jsx#email_template_edit_modal",
+  "target_route": "/en/settings/email",
+  "viewports": [
+    "desktop-1440x900"
+  ],
+  "region_selectors": {
+    "email_templates_screen": "main[data-screen=\"email_templates_screen\"]",
+    "provider_section": "[data-region=\"provider-section\"]",
+    "templates_section": "[data-region=\"templates-section\"]",
+    "variables_reference": "[data-region=\"variables-reference\"]",
+    "email_template_edit_modal": "[role=\"dialog\"]"
+  },
+  "parity_matrix": {
+    "structural": "fail_real_email_surface_missing",
+    "visual": "fail_target_screenshot_not_real_surface",
+    "interaction": "fail_edit_modal_not_opened_from_table",
+    "console_network": "fail_browser_failures_present"
+  },
+  "artifacts": {
+    "prototype_screenshot": "apps/web/e2e/artifacts/TASK-001090/prototype-email-templates-desktop-1440x900.png",
+    "target_screenshot": "apps/web/e2e/artifacts/TASK-001090/target-email-templates-desktop-1440x900.png",
+    "target_modal_screenshot": null,
+    "dom_diff_json": "apps/web/e2e/artifacts/TASK-001090/dom-diff.json"
+  },
+  "status": "FAIL"
+}
