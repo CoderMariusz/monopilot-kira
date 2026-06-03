@@ -27,7 +27,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-013 | Cascade Chain 4: Template → ApplyTemplate to ProdDetail | ⬜ PENDING | Blocked by T-001, T-002, T-005, T-011 |
 | T-014 | Schema-driven Zod runtime from Reference.DeptColumns | ⬜ PENDING | Blocked by T-003, T-005 |
 | T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ⬜ PENDING | Blocked by T-001, T-003 |
-| T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ⬜ PENDING | Blocked by T-003 |
+| T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
 | T-017 | Server Action closeDeptSection | ⬜ PENDING | Blocked by T-001, T-006, T-007, T-015 |
 | T-018 | Autofilter logic + reopenDeptSection Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-017 |
 | T-019 | UI: FA list page (fa_list prototype) | ⬜ PENDING | Blocked by T-001, T-018; no fa/page.tsx |
@@ -48,7 +48,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
 | T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
-| T-037 | fa_allergen_overrides table + audit chain | ⬜ PENDING | Blocked by T-001, T-036 |
+| T-037 | fa_allergen_overrides table + audit chain | ✅ DONE | DONE 2026-06-04 (Wave B). fa_allergen_overrides + append-only audit chain (mig 094) — Codex+rework (revoke UPD/DEL, SECURITY DEFINER supersede trigger, 9/9), merged |
 | T-038 | Allergen cascade engine + fa_allergen_cascade view | ⬜ PENDING | Blocked by T-001, T-002, T-036, T-037 |
 | T-039 | Server Actions: setAllergenOverride + V07 validator | ⬜ PENDING | Blocked by T-006, T-037, T-038 |
 | T-040 | UI: Allergen Cascade widget + Override modal | ⬜ PENDING | Blocked by T-026, T-038, T-039 |
@@ -61,12 +61,12 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-047 | Wizard step Server Actions (validate/dataPreview/build) | ⬜ PENDING | Blocked by T-042, T-043, T-044, T-045, T-080, T-081 |
 | T-048 | dashboard_summary + launch_alerts + missing_requirements view | ⬜ PENDING | Blocked by T-001, T-049 |
 | T-049 | Reference.AlertThresholds + d365_import_cache tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.AlertThresholds + d365_import_cache (mig 084) — merged (canonical AlertThresholds owner) |
-| T-050 | Reference.AlertThresholds default seed | ⬜ PENDING | Blocked by T-049 |
+| T-050 | Reference.AlertThresholds default seed | ✅ DONE | DONE 2026-06-04 (Wave B). AlertThresholds default seed (mig 096, Sonnet, 9/9, matches T-049 threshold_key) — merged |
 | T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ⬜ PENDING | Blocked by T-048, T-049, T-050 |
 | T-052 | ROOT: NPD Dashboard page group | ⏸ BLOCKED | dashboard-counters.tsx + dashboard-pipeline-preview.tsx exist as stubs; no dashboard page.tsx; no real data |
 | T-053 | E2E: dashboard refresh + alert thresholds smoke | ⬜ PENDING | Blocked by T-051, T-052 |
 | T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
-| T-055 | Reference.GateChecklistTemplates table | ⬜ PENDING | Blocked by T-054 |
+| T-055 | Reference.GateChecklistTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.GateChecklistTemplates (mig 092) — merged |
 | T-056 | Default G0-G4 GateChecklistTemplates seed | ⬜ PENDING | Blocked by T-055 |
 | T-057 | createProject + listProjects + getProject Server Actions | ⬜ PENDING | Blocked by T-054, T-055, T-056 |
 | T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ⬜ PENDING | Blocked by T-054, T-057, T-095 |
@@ -74,7 +74,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-060 | ROOT: Pipeline views group | ⬜ PENDING | Blocked by T-057, T-059 |
 | T-061 | ROOT: Gate screen components group | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-062 | E2E: project create → advance G0..G2 → approve G3 | ⬜ PENDING | Blocked by T-057, T-058, T-059, T-061, T-095, T-096, T-097 |
-| T-063 | formulations + formulation_versions + formulation_ingredients tables | ⬜ PENDING | Blocked by T-001, T-054 |
+| T-063 | formulations + formulation_versions + formulation_ingredients tables | ✅ DONE | DONE 2026-06-04 (Wave B). formulations+versions+ingredients+audit+cache (mig 093, 5 tables, NUMERIC, DEFERRABLE circular FK) — merged. Nit: audit_log org-link FK (T-064 follow) |
 | T-064 | Formulation lifecycle Server Actions | ⬜ PENDING | Blocked by T-063 |
 | T-065 | Formulation pure-function compute (cost/nutrition/allergen) | ⬜ PENDING | Blocked by T-063 |
 | T-066 | UI: FormulationEditor (RecipeScreen prototype) | ⬜ PENDING | Blocked by T-064 |
@@ -112,7 +112,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-098 | Full Brief→Project→G3 FG→G4 release→Technical E2E | ⬜ PENDING | Blocked by most of the above |
 | T-099 | Allergens cascade bulk-rebuild worker | ⬜ PENDING | Blocked by T-011, T-012, T-013 |
 | T-100 | Stage-Gate G4 Launched closeout + Trial/Pilot/Handover | ⬜ PENDING | Blocked by T-058, T-093, T-095, T-096, T-097, T-098 |
-| T-101 | Add npd permission strings to enum | ⏸ BLOCKED | Partial: FG_CREATE/FG_EDIT/BRIEF_CONVERT_TO_NPD_PROJECT/NPD_RELEASED_PRODUCT_EDIT_* exist; missing 20+ NPD-specific permissions |
+| T-101 | Add npd permission strings to enum | ✅ DONE | DONE 2026-06-04 (Wave B). npd.* permission enum + eslint baseline (no migration — code) — 10/10; T-006 seed verified FULLY consistent. merged |
 | T-102 | UI: FA Procurement tab | ⬜ PENDING | Tab button in fa-tabs.tsx; no content component; blocked by T-009, T-014, T-016, T-020 |
 | T-103 | UI: FA Commercial tab | ⬜ PENDING | Same situation as T-102 |
 | T-104 | UI: FA Planning tab | ⬜ PENDING | Same situation as T-102 |
