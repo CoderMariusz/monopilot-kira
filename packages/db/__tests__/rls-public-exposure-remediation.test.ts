@@ -260,12 +260,14 @@ describe('migration 051 — RLS public-exposure remediation (static SQL contract
 runTestcontainerSuite('T-129 SEC-RLS public exposure remediation', () => {
   beforeAll(async () => {
     container = await startPostgres16();
+    // eslint-disable-next-line no-restricted-syntax -- testcontainer needs a raw pool bound to the ephemeral container URI; the managed @monopilot/db pool reads env, not the container connection string.
     ownerPool = new pg.Pool({ connectionString: container.getConnectionUri() });
 
     await createSupabaseRoles(ownerPool);
     await applyMigrations(ownerPool);
     await seedOrgScopedRows(ownerPool);
 
+    // eslint-disable-next-line no-restricted-syntax -- testcontainer app-role pool bound to the ephemeral container URI (see above).
     appPool = new pg.Pool({ connectionString: appConnectionUri(container.getConnectionUri()) });
   });
 
