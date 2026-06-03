@@ -507,3 +507,81 @@ describe('AC4: Save chain — upsertDeptColumnDraft AND publishDeptColumnDraft b
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('T-095: step 2 is React-Hook-Form + Zod (no plain-state shortcut)', () => {
+  // T-095 contract: replace the plain-state step-2 impl with useForm + zodResolver.
+  // Validation: when the user clicks Next with NO rule set, RHF must surface a
+  // form-level error AND move focus to the first invalid field (regex input).
+  // A valid step-2 submission persists state and advances to step 3.
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockImplementation((key: string) => (key === 'step' ? '2' : null));
+  });
+
+  it('clicking Next with 0 rules surfaces an RHF validation error (role="alert")', async () => {
+    const user = userEvent.setup();
+    renderWizard(2);
+
+    const footer = screen.getByTestId('stepper-footer');
+    const nextButton = within(footer).getByRole('button', { name: /next/i });
+
+    // aria-disabled is the visual gate; clicking still triggers the RHF
+    // validation pass which must report at least one error.
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      // RHF/Zod must emit an error node. Plain-state impl renders no alert.
+      const alert = screen.queryByRole('alert');
+      expect(alert).not.toBeNull();
+    });
+
+    // Mutation guard: step must NOT have advanced (no router push to step 3).
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('clicking Next with 0 rules moves focus to the first invalid field (regex)', async () => {
+    const user = userEvent.setup();
+    renderWizard(2);
+
+    const footer = screen.getByTestId('stepper-footer');
+    const nextButton = within(footer).getByRole('button', { name: /next/i });
+
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      const regexInput = screen.getByRole('textbox', { name: /regex/i });
+      // RHF setFocus / focus-management must land on the first invalid control.
+      expect(document.activeElement).toBe(regexInput);
+    });
+  });
+
+  it('a valid step-2 entry (regex filled) advances to step 3 on Next', async () => {
+    const user = userEvent.setup();
+    renderWizard(2);
+
+    const regexInput = screen.getByRole('textbox', { name: /regex/i });
+    await user.type(regexInput, '^[A-Z]+$');
+
+    const footer = screen.getByTestId('stepper-footer');
+    const nextButton = within(footer).getByRole('button', { name: /next/i });
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      // step is 0-based internally; URL is 1-based → step index 2 == ?step=3
+      expect(mockPush).toHaveBeenCalledWith('/admin/schema/wizard?step=3');
+    });
+  });
+
+  it('regex input is registered with RHF (changes are reflected via the form)', async () => {
+    const user = userEvent.setup();
+    renderWizard(2);
+
+    const regexInput = screen.getByRole('textbox', { name: /regex/i });
+    await user.type(regexInput, 'abc');
+
+    // RHF-controlled value round-trips through the form state.
+    expect(regexInput).toHaveValue('abc');
+  });
+});

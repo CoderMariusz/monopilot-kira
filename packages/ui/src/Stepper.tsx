@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { useStepperStore } from './stepper-store';
+import { useStepperStore } from './stepper-store.js';
 
 export interface StepDef {
   id: string;
@@ -29,7 +29,7 @@ function Stepper({
   onEscape,
   children,
 }: StepperProps) {
-  const setStep = useStepperStore((s) => s.setStep);
+  const setStep = useStepperStore((s: { setStep: (wizardId: string, step: number) => void }) => s.setStep);
 
   // Seed store whenever currentStep prop changes
   useEffect(() => {
