@@ -57,6 +57,11 @@ export {
   referenceAllergensAddedByProcess,
   referenceAllergensByRm,
 } from './allergens.js';
+export { faAllergenOverrideAction, faAllergenOverrides } from './fa-allergen-overrides.js';
+export type {
+  FaAllergenOverride,
+  NewFaAllergenOverride,
+} from './fa-allergen-overrides.js';
 export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
 export { gateChecklistItems } from './gate-checklist-items.js';
