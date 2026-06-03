@@ -1,64 +1,99 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+import { installBrowserErrorSpies } from './_helpers/shell-parity';
 
 /**
- * SET-034 / T-128 — Schema Shadow Preview parity evidence (Playwright stub).
+ * SET-034 / T-128 — Schema Shadow Preview parity evidence.
  *
  * SET-034 has NO JSX prototype: it is document/spec-driven. The nearest
  * reusable design language (per UI-PROTOTYPE-PARITY-POLICY.md §1.2) is the
- * settings data screens (settings/data-screens.jsx + settings/data.jsx) and
- * the existing schema admin page structure — and this task did NOT alter that
- * structure. It only swapped the draft data source from a hardcoded in-memory
- * array to a real RLS-scoped query against public.dept_column_drafts.
+ * settings schema admin screens (settings/admin-screens.jsx:414-469) + the
+ * existing schema admin page structure.
  *
- * This spec is a STUB (test.skip): the full parity harness
- * (startLocalShellParityHarness) needs a live authenticated Next dev server
- * backed by a provisioned Supabase, which is not available in this worktree
- * (base = older main; the run forbids db:test/migrate, and no playwright.config
- * is present here). The runnable REAL evidence for this task is the RTL suite
+ * Previously this spec was an unconditional `test.skip(true)` stub. Wave 6
+ * un-skips it: it now RUNS for real when an authenticated preview is provided
+ * (PLAYWRIGHT_BASE_URL + PLAYWRIGHT_AUTH_STORAGE) and captures per-state
+ * screenshots + a parity report against the real route. When that infra is
+ * absent it `test.skip(...)`s honestly with a BLOCKED_AUTH note instead of
+ * faking artifacts. The RTL suite
  *   app/[locale]/(app)/(admin)/settings/schema/preview/page.test.tsx
- * (11 passing) which exercises all 5 UI states, the real draft-store query, the
- * server-side RBAC publish gate, and i18n-backed labels.
- *
- * When run in a DB-backed env (with playwright.config + auth harness), this
- * stub should be un-skipped to capture per-state screenshots, a trace.zip, and
- * an axe report at apps/web/e2e/parity-evidence/SET-034/.
+ * remains the real 5-state + real-data unit evidence.
  */
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const webRoot = path.join(repoRoot, 'apps/web');
 const evidenceDir = path.join(webRoot, 'e2e/parity-evidence/SET-034');
 const targetRoute = '/en/settings/schema/preview';
+const prototypeAnchor = 'prototypes/design/Monopilot Design System/settings/admin-screens.jsx:414-469';
+const viewport = { width: 1440, height: 1000 };
+
+function resolveAuth(): { baseURL?: string; authStorage?: string } {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL;
+  const explicit = process.env.PLAYWRIGHT_AUTH_STORAGE ?? process.env.PLAYWRIGHT_AUTH_STORAGE_STATE;
+  const candidates = [
+    explicit,
+    path.join(webRoot, 'e2e/.auth/user.json'),
+    path.join(webRoot, 'e2e/auth-storage.json'),
+    path.join(webRoot, 'playwright/.auth/user.json'),
+  ].filter((v): v is string => Boolean(v));
+  return { baseURL, authStorage: candidates.find((c) => existsSync(c)) };
+}
+
+async function shot(page: Page, name: string) {
+  await page.screenshot({ path: path.join(evidenceDir, name), fullPage: true });
+}
 
 test.describe('SET-034 schema shadow preview parity evidence', () => {
-  test.skip(
-    true,
-    'Requires a live authenticated dev server + Supabase (not available in this worktree). RTL suite provides the real 5-state + real-data evidence; see parity_report.json.',
-  );
-
-  test('captures per-state screenshots, trace, axe, and dom-diff against the real route', async ({ browser }) => {
-    mkdirSync(evidenceDir, { recursive: true });
-
-    // Intentionally unreached while skipped — documents the captured artifacts
-    // the DB-backed run must produce.
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-    const page = await context.newPage();
-    const response = await page.goto(targetRoute, { waitUntil: 'domcontentloaded' });
-    expect(response?.status()).toBeLessThan(500);
-
-    await page.screenshot({ path: path.join(evidenceDir, 'target-default-desktop.png'), fullPage: true });
-    await page.goto(`${targetRoute}?state=loading`, { waitUntil: 'domcontentloaded' });
-    await page.screenshot({ path: path.join(evidenceDir, 'target-loading-desktop.png'), fullPage: true });
-    await page.goto(`${targetRoute}?state=no-drafts`, { waitUntil: 'domcontentloaded' });
-    await page.screenshot({ path: path.join(evidenceDir, 'target-empty-desktop.png'), fullPage: true });
-    await page.goto(`${targetRoute}?state=permission-denied`, { waitUntil: 'domcontentloaded' });
-    await page.screenshot({ path: path.join(evidenceDir, 'target-permission-denied-desktop.png'), fullPage: true });
-
-    writeFileSync(
-      path.join(evidenceDir, 'dom_diff.json'),
-      `${JSON.stringify({ target_route: targetRoute, captured_at: new Date().toISOString() }, null, 2)}\n`,
+  test('captures per-state screenshots and a parity report against the real route', async ({ browser }) => {
+    const { baseURL, authStorage } = resolveAuth();
+    test.skip(
+      !baseURL || !authStorage,
+      'BLOCKED_AUTH: SET-034 schema shadow preview parity needs PLAYWRIGHT_BASE_URL + PLAYWRIGHT_AUTH_STORAGE for an authenticated admin session on the live preview. RTL suite (page.test.tsx, 5 states) is the unit-level real evidence; screenshot capture is deferred to the live-preview run.',
     );
+
+    mkdirSync(evidenceDir, { recursive: true });
+    const context = await browser.newContext({ viewport, storageState: authStorage });
+    const page = await context.newPage();
+    const spy = installBrowserErrorSpies(page);
+    spy.setRoute(targetRoute);
+
+    try {
+      const response = await page.goto(`${baseURL}${targetRoute}`, { waitUntil: 'domcontentloaded' });
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+      await shot(page, 'target-default-desktop.png');
+
+      // Spec-driven query-param states the page understands.
+      for (const state of ['loading', 'no-drafts', 'permission-denied'] as const) {
+        await page.goto(`${baseURL}${targetRoute}?state=${state}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
+        await shot(page, `target-${state}-desktop.png`);
+      }
+
+      const finalPathname = new URL(page.url()).pathname;
+      const browserFailures = spy.failuresFor(targetRoute);
+      const report = {
+        task_id: 'SET-034',
+        prototype_anchor: prototypeAnchor,
+        spec_driven: true,
+        target_route: targetRoute,
+        base_url: baseURL,
+        viewport: 'desktop-1440x1000',
+        generated_at: new Date().toISOString(),
+        target_http_status: response?.status() ?? null,
+        final_pathname: finalPathname,
+        browser_failures: browserFailures,
+        states_captured: ['default', 'loading', 'no-drafts', 'permission-denied'],
+        status: browserFailures.length === 0 ? 'CAPTURED' : 'FAIL',
+      };
+      writeFileSync(path.join(evidenceDir, 'parity_report.json'), `${JSON.stringify(report, null, 2)}\n`);
+
+      expect(response?.status() ?? 500).toBeLessThan(500);
+      expect(browserFailures, 'schema preview route must not emit console/network/page errors').toEqual([]);
+    } finally {
+      await context.close();
+    }
   });
 });

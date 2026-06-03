@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --exclude '**/*.test.tsx' --exclude '**/smoke.test.ts' --exclude '**/e2e/**' && vitest run --config vitest.ui.config.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts \"app/(admin)/schema/_components/__tests__/SchemaColumnWizard.test.tsx\"",
-    "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts"
+    "test:smoke": "vitest run --config ../../vitest.config.ts app/__tests__/smoke.test.ts",
+    "e2e:auth": "playwright test --config=e2e/settings/playwright.auth-setup.config.ts",
+    "e2e:settings-parity": "playwright test --config=../../playwright.config.ts e2e/settings --trace on",
+    "e2e:settings-flows": "playwright test --config=../../playwright.config.ts e2e/onboarding-wizard.spec.ts e2e/invite-accept.spec.ts e2e/reference-csv.spec.ts e2e/d365-toggle.spec.ts e2e/users-categories.spec.ts --trace on"
   },
   "dependencies": {
     "@boxyhq/saml-jackson": "^26.2.0",

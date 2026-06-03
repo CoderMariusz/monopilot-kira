@@ -2,7 +2,6 @@ import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeF
 import http, { type Server } from 'node:http';
 import path from 'node:path';
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { installBrowserErrorSpies } from './_helpers/shell-parity';
@@ -146,6 +145,14 @@ test.describe('T-076 settings integrations parity evidence', () => {
       await targetPage.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
       await targetPage.screenshot({ path: path.join(evidenceDir, 'target-integrations-grid-desktop-1440x900.png'), fullPage: true });
 
+      // Optional dependency (declared by packages/ui). Import dynamically with a
+      // non-literal specifier so the spec stays loadable/listable and typechecks
+      // even when the dep is not linked in this checkout; the live-preview run
+      // has it installed.
+      type AxeAnalysis = { violations: Array<{ id: string; impact?: string | null }> };
+      type AxeBuilderCtor = new (opts: { page: typeof targetPage }) => { analyze(): Promise<AxeAnalysis> };
+      const axeSpecifier = '@axe-core/playwright';
+      const { default: AxeBuilder } = (await import(axeSpecifier)) as { default: AxeBuilderCtor };
       const axe = await new AxeBuilder({ page: targetPage }).analyze();
       writeFileSync(path.join(evidenceDir, 'axe-report.json'), `${JSON.stringify(axe, null, 2)}\n`);
 
