@@ -59,7 +59,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 ### Layer 3
 | T-118 | T2-api | Codex | high | Sentry (web+worker+obs) | ✅ merged |
 | T-119 | T2-api | Codex | high | ←T-111,T-117; backup | ⬜ |
-| T-121 | T2-api | Codex | high | rate-limit → proxy.ts (edge) | 🔄 in-flight |
+| T-121 | T2-api | Codex | high | rate-limit → proxy.ts (edge) | ✅ merged |
 | T-107 | T2-api | Codex | low | ←T-118 (outbox error→Sentry) | ⬜ |
 
 ### Layer 4

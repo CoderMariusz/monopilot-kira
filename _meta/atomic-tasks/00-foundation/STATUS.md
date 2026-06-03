@@ -139,7 +139,7 @@ Updated by orchestrator after every PASS review.
 | T-118 | Sentry wired into apps/web + apps/worker | ✅ DONE | **DONE 2026-06-03** (run-module). sentry.{client,server,edge}.config + withSentryConfig; worker sentry.ts init before JobRegistry + captureRegistryJobFailures; observability redactBeforeSend (recursive PII/secret redaction). No-op when SENTRY_DSN unset. sentry-redact 3/3, worker 8/8, obs 8/8, tc 0. |
 | T-119 | Backup policy spec + stub verification job | ⬜ PENDING | No backup verification job found |
 | T-120 | Restore drill runner (tooling/restore-drill/) | ⬜ PENDING | tooling/restore-drill/ does not exist |
-| T-121 | packages/rate-limit middleware | ⬜ PENDING | **P0** — packages/rate-limit does NOT exist; all Server Actions unprotected |
+| T-121 | packages/rate-limit middleware | ✅ DONE | **DONE 2026-06-03** (run-module). Edge-safe Store iface: InMemoryStore (Map sliding-window/token-bucket, default) + UpstashStore (Redis distributed prod). Integrated into apps/web/proxy.ts (Next16 middleware, NOT dead middleware.ts) → 429+Retry-After; auth presets. No node-only imports (edge). rate-limit 6/6, proxy-rate-limit 1/1, web tc 0. |
 | T-122 | CI/CD workflow hardened | ⏸ BLOCKED | .github/workflows/ci.yml has lint/typecheck/build/vitest/migration-check BUT playwright is continue-on-error; not fully hardened |
 | T-123 | Playwright harness scaffolded | ✅ DONE | playwright.config.ts at root; apps/web/e2e/ specs exist |
 | T-124 | packages/e-sign CFR 21 Part 11 | ⬜ PENDING | packages/e-sign does NOT exist; blocks quality/production dual-sign |
