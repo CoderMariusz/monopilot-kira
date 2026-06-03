@@ -61,3 +61,10 @@ export { gateChecklistItems } from './gate-checklist-items.js';
 export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
 export { gateApprovals } from './gate-approvals.js';
 export type { GateApproval, NewGateApproval } from './gate-approvals.js';
+export { costingBreakdowns, costingWaterfallSteps } from './costing.js';
+export type {
+  CostingBreakdown,
+  CostingWaterfallStep,
+  NewCostingBreakdown,
+  NewCostingWaterfallStep,
+} from './costing.js';
