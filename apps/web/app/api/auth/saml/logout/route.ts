@@ -10,7 +10,10 @@
  * the operational SLO surface that production IdPs will call.
  */
 
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+
+import { handleVerifiedSloResponse } from '../../../../../../../packages/auth/src/saml/slo.js';
+import { createServerSupabaseClient } from '../../../../../lib/auth/supabase-server';
 
 async function getJackson() {
   const mod = (await import('@boxyhq/saml-jackson')) as unknown as {
@@ -63,11 +66,47 @@ async function handle(request: NextRequest): Promise<Response> {
     };
 
     if (samlResponse && jackson.logoutController?.handleResponse) {
-      await jackson.logoutController.handleResponse({
-        SAMLResponse: samlResponse,
-        RelayState: relayState ?? '',
+      const supabase = await createServerSupabaseClient();
+      const response = NextResponse.redirect(new URL('/login', request.url), {
+        status: 302,
       });
-      return new Response(null, { status: 302, headers: { location: '/login' } });
+
+      await handleVerifiedSloResponse({
+        cookies: response.cookies,
+        supabaseAuthAdmin: (supabase.auth as any).admin,
+        verifySloResponse: () =>
+          jackson.logoutController.handleResponse?.({
+            SAMLResponse: samlResponse,
+            RelayState: relayState ?? '',
+          }) as Promise<unknown>,
+        resolveLocalSession: async () => {
+          const { data, error } = await supabase.auth.getUser();
+          if (error) {
+            throw new Error(`slo_user_id_resolution_failed: ${error.message}`);
+          }
+          const userId = data.user?.id;
+          if (!userId) {
+            return { userId };
+          }
+
+          const sessionResult = await supabase.auth.getSession();
+          if (sessionResult.error) {
+            throw new Error(
+              `slo_session_resolution_failed: ${sessionResult.error.message}`,
+            );
+          }
+          const session = sessionResult.data.session;
+          if (session?.user?.id && session.user.id !== userId) {
+            throw new Error('slo_session_user_mismatch');
+          }
+
+          return {
+            sessionJwt: session?.access_token,
+            userId,
+          };
+        },
+      });
+      return response;
     }
     if (samlRequest && jackson.logoutController?.handleRequest) {
       const out = (await jackson.logoutController.handleRequest({
