@@ -5,7 +5,7 @@
     "build": "pnpm --filter web build",
     "test:smoke": "pnpm --filter web test:smoke",
     "lint": "node scripts/lint-no-hardcoded-strings.mjs && pnpm -r lint",
-    "typecheck": "pnpm --filter web typecheck",
+    "typecheck": "pnpm -r typecheck",
     "ci": "pnpm build && pnpm test:smoke && pnpm lint",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
