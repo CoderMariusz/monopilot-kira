@@ -4767,6 +4767,14 @@ ALTER TABLE ONLY public.tenant_migrations
 
 
 --
+-- Name: tenant_migrations_legacy_t038 tenant_migrations_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_migrations_legacy_t038
+    ADD CONSTRAINT tenant_migrations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: tenant_variations tenant_variations_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
