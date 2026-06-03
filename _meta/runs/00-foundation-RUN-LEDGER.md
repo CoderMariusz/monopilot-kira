@@ -20,7 +20,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-096 | T4-test | Codex/Sonnet | low | apps/web/vitest.ui.config | ⬜ |
 | T-063 | T4-test | Sonnet | low | packages/ui/TESTING.md | ⬜ |
 | T-064 | T1-schema | Codex | high | migrations/* | ✅ merged |
-| T-065 | docs | Sonnet | low | docs/runbooks | ⬜ |
+| T-065 | docs+script | kira-easy+Codex | low | runbook + verify script | ✅ merged |
 | T-068 | mech | Haiku | high | feature-flags | ⬜ |
 | T-072 | T4-test | Sonnet | low | packages/ui __tests__ | ⬜ |
 | T-073 | T2-api | Codex | high | login _actions | ✅ merged |
