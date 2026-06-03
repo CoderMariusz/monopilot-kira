@@ -91,10 +91,10 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-077 | Reference.ApprovalChainTemplates table | ⬜ PENDING | Blocked by T-001, T-054 |
 | T-078 | Approval criteria (C1-C7) evaluator Server Action | ⬜ PENDING | Blocked by T-064, T-072, T-073, T-077 |
 | T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
-| T-080 | risks table + V18 built-blocker trigger | ⬜ PENDING | Blocked by T-001 |
+| T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
 | T-081 | risks CRUD + lifecycle Server Actions | ⬜ PENDING | Blocked by T-080 |
 | T-082 | UI: RiskRegisterScreen + RiskAddModal | ⬜ PENDING | Blocked by T-081 |
-| T-083 | compliance_docs table + storage policy | ⬜ PENDING | Blocked by T-001 |
+| T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
 | T-084 | Compliance docs upload + signed URL + soft-delete | ⬜ PENDING | Blocked by T-083 |
 | T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ⬜ PENDING | Blocked by T-083 |
 | T-086 | UI: ComplianceDocsScreen + DocUploadModal | ⬜ PENDING | Blocked by T-084 |
@@ -103,7 +103,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-089 | GDPR right-to-erasure function | ⬜ PENDING | Blocked by T-001, T-054, T-063, T-080, T-083; also needs 00-foundation/T-113 |
 | T-090 | d365_import_cache_meta view + scheduled sync worker | ⬜ PENDING | Blocked by T-049 |
 | T-091 | E2E: dashboard interactive controls | ⬜ PENDING | Blocked by T-052, T-051 |
-| T-092 | Shared BOM SSOT schema | ⬜ PENDING | No schema file |
+| T-092 | Shared BOM SSOT schema | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). Shared BOM SSOT bom_headers+bom_lines (mig 090, NUMERIC-exact, versioned) — Codex+rework (INSERT immutability guard), merged. Existing bom_item(014) is R13 placeholder, no collision |
 | T-093 | API/backfill: NPD Builder writes initial shared BOM | ⬜ PENDING | Blocked by T-092 |
 | T-094 | FG canonical terminology compatibility pass (UI/i18n) | ⬜ PENDING | Blocked by T-056, T-058, T-095 |
 | T-095 | G3 create/map FG candidate for NPD project | ⬜ PENDING | Blocked by T-031, T-054, T-057, T-058 |

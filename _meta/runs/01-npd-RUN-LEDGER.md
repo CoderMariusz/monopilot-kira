@@ -82,3 +82,10 @@ order → STATUS+ledger → drop clone DB + remove worktree. Then batch-2 (T-080
 - **Sensory build shape TBD** (§17.11.4 "Decision pending D4") — T-071/T-076 deferred to 03-technical.
 - **D365 Builder (T-042) mappings TBD**: QUANTITY (recipe calc), PROCESSTIME/PROCESSQUANTITY (from Rate),
   LOADPERCENTAGE (from Resource_Requirement), PRODUCTGROUPID_PR constant — need a decision before T-042.
+
+### Wave A COMPLETE (2026-06-04) — 16/16 schema tasks merged, canon DB @090
+T-001,002,003,004,005,006,030,036,041,049,054,069,070,080,083,092. Integration migrate clean (88 applied).
+**Deferred to MODULE-CLOSE:** (1) regenerate `packages/db/__expected__/schema.sql` drift snapshot (stale
+since pre-npd — settings 063-074 + all npd objects missing; CI check:drift); (2) T-004 drop redundant
+012 `mfg_ops_org_industry_suffix_unique`; (3) T-080 downgrade-guard vs T-009 reset_built interaction;
+(4) add ALLOW-path tests for V18 (T-080).
