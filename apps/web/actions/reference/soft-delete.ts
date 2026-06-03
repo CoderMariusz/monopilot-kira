@@ -144,13 +144,20 @@ async function buildReferencedBySchemaWarning(
   tableCode: string,
   rowKey: string,
 ): Promise<FkReferenceWarning | undefined> {
+  // dropdown_source values are stored namespaced (e.g. 'reference.pack_sizes')
+  // while the deleted tableCode arrives bare ('pack_sizes'). Match both forms,
+  // and include universal (org_id IS NULL) schema rows alongside org overrides
+  // so cross-table FK warnings defined at L1 are not silently dropped.
+  const dropdownSources = tableCode.startsWith('reference.')
+    ? [tableCode, tableCode.slice('reference.'.length)]
+    : [tableCode, `reference.${tableCode}`];
   const { rows: schemaRows } = await client.query<SchemaReference>(
     `select table_code, column_code, dropdown_source
        from public.reference_schemas
-      where org_id = app.current_org_id()
-        and dropdown_source = $1
+      where dropdown_source = any($1::text[])
+        and (org_id = app.current_org_id() or org_id is null)
         and deprecated_at is null`,
-    [tableCode],
+    [dropdownSources],
   );
   if (schemaRows.length === 0) return undefined;
 

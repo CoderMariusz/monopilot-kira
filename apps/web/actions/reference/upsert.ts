@@ -185,14 +185,26 @@ async function hasPermission(ctx: OrgActionContext, permission: string): Promise
 }
 
 async function loadGeneratedSchema(client: QueryClient, tableCode: string): Promise<ReferenceSchemaColumn[]> {
+  // reference_tables DATA rows use a bare table_code (e.g. 'processes'); the
+  // reference_schemas SCHEMA rows live under the 'reference.<code>' namespace
+  // (T-093 convention). Accept both so the bare code the UI passes still
+  // resolves the schema.
+  const schemaTableCodes = tableCode.startsWith('reference.')
+    ? [tableCode, tableCode.slice('reference.'.length)]
+    : [tableCode, `reference.${tableCode}`];
+
+  // Universal L1 schemas are seeded with org_id IS NULL and must be visible to
+  // every org's write validation. Match BOTH org-scoped overrides and universal
+  // rows; dedupe per column_code preferring the org-scoped override (org_id not
+  // null sorts before null via `nulls last`).
   const { rows } = await client.query<ReferenceSchemaColumn>(
-    `select column_code, data_type, required_for_done, validation_json
+    `select distinct on (column_code) column_code, data_type, required_for_done, validation_json
        from public.reference_schemas
-      where org_id = app.current_org_id()
-        and table_code = $1
+      where table_code = any($1::text[])
+        and (org_id = app.current_org_id() or org_id is null)
         and deprecated_at is null
-      order by column_code`,
-    [tableCode],
+      order by column_code, org_id nulls last`,
+    [schemaTableCodes],
   );
   return rows;
 }
