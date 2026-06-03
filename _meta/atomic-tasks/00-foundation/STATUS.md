@@ -129,7 +129,7 @@ Updated by orchestrator after every PASS review.
 | T-108 | Restore FK tenant_migrations.tenant_id | ⬜ PENDING | Deferred until T-039 verified in prod |
 | T-109 | totp.ts masterKey fail-closed guard | ✅ DONE | packages/auth/src/totp.ts L25-57 MFA_MASTER_KEY guard; CF-T015-B resolved |
 | T-110 | Bundle NIST top-25K common password list | ⏸ BLOCKED | packages/auth/src/password-policy.ts only bundles top ~200; full 25K list absent |
-| T-111 | apps/worker scaffold + job registry | ⬜ PENDING | **P0 blocker** — apps/worker directory does NOT exist |
+| T-111 | apps/worker scaffold + job registry | ✅ DONE | **DONE 2026-06-03** (run-module). Codex impl + Opus review. `@monopilot/worker`: JobRegistry (register/start/runOnceForTest/draining shutdown) + zod env (prod fail-closed) + structured logger (T-117 hook) + entrypoint w/ shared pg.Pool + SIGTERM drain. 5/5 vitest, typecheck 0, lint 0. **Carry-forward:** `registry.start()` skips `cron` schedule (warn) — T-114 must add cron eval or use interval. Unblocks T-112/114/116/118/119. |
 | T-112 | Outbox worker consumer in apps/worker | ⬜ PENDING | **P0 blocker** — apps/worker absent; runOnce in packages/outbox is unwired |
 | T-113 | packages/gdpr erasure registry + dispatcher | ⬜ PENDING | **P0 blocker** — packages/gdpr directory does NOT exist |
 | T-114 | GDPR erasure cron in apps/worker | ⬜ PENDING | **P0 blocker** — depends on T-111 + T-113 both absent |
