@@ -11,3 +11,5 @@ export { emailDeliveryLog } from './email-log.js';
 export { featureFlagsCore, notificationPreferences } from './flags-prefs.js';
 export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.js';
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
+export { product } from './product.js';
+export type { NewProduct, Product } from './product.js';
