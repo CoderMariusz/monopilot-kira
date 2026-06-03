@@ -28,6 +28,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { getOwnerConnection, getAppConnection } from '@monopilot/db/test-utils/test-pool.js';
 import type pg from 'pg';
 
@@ -47,6 +48,9 @@ const skipIfNoDb = databaseUrl ? describe : describe.skip;
 const TEST_USER_ID = '00000000-0000-4000-a000-000000000016'; // deterministic UUID for T-016
 const VALID_PIN = '123456';
 const WRONG_PIN = '000000';
+const TENANT_ID = '00000000-0000-4000-b000-000000000016';
+const ORG_ID = '00000000-0000-4000-c000-000000000016';
+const ROLE_ID = '00000000-0000-4000-d000-000000000016';
 
 // ---------------------------------------------------------------------------
 // DB helpers: apply migration + seed user before tests, tear down after
@@ -54,6 +58,45 @@ const WRONG_PIN = '000000';
 
 let ownerConn: pg.Pool;
 let appConn: pg.Pool;
+
+async function runWithOrgContext<T>(
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const sessionToken = randomUUID();
+  await ownerConn.query(
+    `INSERT INTO app.session_org_contexts (session_token, org_id)
+     VALUES ($1::uuid, $2::uuid)
+     ON CONFLICT (session_token) DO UPDATE SET org_id = excluded.org_id`,
+    [sessionToken, ORG_ID],
+  );
+
+  const client = await appConn.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT app.set_org_context($1::uuid, $2::uuid)', [sessionToken, ORG_ID]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await ownerConn.query(`DELETE FROM app.session_org_contexts WHERE session_token = $1::uuid`, [
+      sessionToken,
+    ]);
+  }
+}
+
+async function readPinHash(): Promise<string | undefined> {
+  return runWithOrgContext(async (client) => {
+    const { rows } = await client.query<{ pin_hash: string }>(
+      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
+      [TEST_USER_ID],
+    );
+    return rows[0]?.pin_hash;
+  });
+}
 
 beforeAll(async () => {
   if (!databaseUrl) return;
@@ -71,24 +114,50 @@ beforeAll(async () => {
     BEGIN
       -- Minimal seed: insert test tenant, org, user if not present
       INSERT INTO public.tenants (id, name, region_cluster, data_plane_url)
-        VALUES ('00000000-0000-4000-b000-000000000016', 't016-tenant', 'eu', 'https://t016.test.invalid')
+        VALUES ('${TENANT_ID}', 't016-tenant', 'eu', 'https://t016.test.invalid')
         ON CONFLICT (id) DO NOTHING;
 
       INSERT INTO public.organizations (id, tenant_id, name, industry_code)
         VALUES (
-          '00000000-0000-4000-c000-000000000016',
-          '00000000-0000-4000-b000-000000000016',
+          '${ORG_ID}',
+          '${TENANT_ID}',
           'T016 Org', 'generic'
         )
         ON CONFLICT (id) DO NOTHING;
 
-      INSERT INTO public.users (id, org_id, email)
+      INSERT INTO public.roles (id, org_id, slug, system, code, name, permissions, is_system)
         VALUES (
-          '00000000-0000-4000-a000-000000000016',
-          '00000000-0000-4000-c000-000000000016',
-          'pin-test-user@t016.test'
+          '${ROLE_ID}',
+          '${ORG_ID}',
+          't016.fixture.user',
+          false,
+          't016.fixture.user',
+          'T-016 Fixture User',
+          '[]'::jsonb,
+          false
         )
-        ON CONFLICT (id) DO NOTHING;
+        ON CONFLICT (id) DO UPDATE
+          SET org_id = excluded.org_id,
+              slug = excluded.slug,
+              system = excluded.system,
+              code = excluded.code,
+              name = excluded.name,
+              permissions = excluded.permissions,
+              is_system = excluded.is_system;
+
+      INSERT INTO public.users (id, org_id, email, name, role_id)
+        VALUES (
+          '${TEST_USER_ID}',
+          '${ORG_ID}',
+          'pin-test-user@t016.test',
+          'T-016 Test User',
+          '${ROLE_ID}'
+        )
+        ON CONFLICT (id) DO UPDATE
+          SET org_id = excluded.org_id,
+              email = excluded.email,
+              name = excluded.name,
+              role_id = excluded.role_id;
     END
     $$;
   `);
@@ -106,6 +175,20 @@ afterAll(async () => {
     `DELETE FROM public.users WHERE id = $1`,
     [TEST_USER_ID],
   );
+  await ownerConn.query(
+    `DELETE FROM public.roles WHERE id = $1`,
+    [ROLE_ID],
+  );
+  await ownerConn.query(
+    `DELETE FROM public.organizations WHERE id = $1`,
+    [ORG_ID],
+  );
+  await ownerConn.query(
+    `DELETE FROM public.tenants WHERE id = $1`,
+    [TENANT_ID],
+  );
+  await appConn?.end();
+  await ownerConn.end();
 });
 
 beforeEach(async () => {
@@ -139,25 +222,18 @@ skipIfNoDb('AC1: setPin stores argon2id hash; verifyPin returns true for correct
     await setPin(TEST_USER_ID, VALID_PIN);
 
     // Direct SELECT via app connection proves no plaintext was persisted
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
+    const pinHash = await readPinHash();
 
-    expect(rows).toHaveLength(1);
     // AC1 mutation guard: if implementation stores plaintext this assertion fails
-    expect(rows[0].pin_hash).toMatch(/^\$argon2id\$/);
+    expect(pinHash).toMatch(/^\$argon2id\$/);
   });
 
   it('pin_hash column does NOT equal the plaintext PIN', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
+    const pinHash = await readPinHash();
 
-    expect(rows[0].pin_hash).not.toBe(VALID_PIN);
+    expect(pinHash).not.toBe(VALID_PIN);
   });
 });
 
@@ -266,28 +342,22 @@ skipIfNoDb('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
   it('stored hash encodes $argon2id$ variant, v=19, m=65536, t=3, p=1', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
-
-    const hash = rows[0].pin_hash;
+    const hash = await readPinHash();
+    expect(hash).toBeDefined();
+    const hashValue = hash!;
 
     // Format: $argon2id$v=19$m=65536,t=3,p=1$<salt>$<hash>
     // Mutation guard: m=4096 → regex fails on m=65536 segment
-    expect(hash).toMatch(/^\$argon2id\$v=19\$m=65536,t=3,p=1\$/);
+    expect(hashValue).toMatch(/^\$argon2id\$v=19\$m=65536,t=3,p=1\$/);
   });
 
   it('parsed memory_cost equals 65536 (64 MiB)', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
-
-    const hash = rows[0].pin_hash;
-    const mMatch = hash.match(/\$m=(\d+)/);
+    const hash = await readPinHash();
+    expect(hash).toBeDefined();
+    const hashValue = hash!;
+    const mMatch = hashValue.match(/\$m=(\d+)/);
     expect(mMatch).not.toBeNull();
     // Mutation guard: m=4096 → parseInt('4096') !== 65536
     expect(parseInt(mMatch![1], 10)).toBe(65536);
@@ -296,13 +366,10 @@ skipIfNoDb('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
   it('parsed time_cost equals 3', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
-
-    const hash = rows[0].pin_hash;
-    const tMatch = hash.match(/,t=(\d+)/);
+    const hash = await readPinHash();
+    expect(hash).toBeDefined();
+    const hashValue = hash!;
+    const tMatch = hashValue.match(/,t=(\d+)/);
     expect(tMatch).not.toBeNull();
     expect(parseInt(tMatch![1], 10)).toBe(3);
   });
@@ -310,13 +377,10 @@ skipIfNoDb('AC3: argon2id hash parameters m=65536 (64MiB), t=3, p=1', () => {
   it('parsed parallelism equals 1', async () => {
     await setPin(TEST_USER_ID, VALID_PIN);
 
-    const { rows } = await appConn.query<{ pin_hash: string }>(
-      `SELECT pin_hash FROM public.user_pins WHERE user_id = $1`,
-      [TEST_USER_ID],
-    );
-
-    const hash = rows[0].pin_hash;
-    const pMatch = hash.match(/,p=(\d+)/);
+    const hash = await readPinHash();
+    expect(hash).toBeDefined();
+    const hashValue = hash!;
+    const pMatch = hashValue.match(/,p=(\d+)/);
     expect(pMatch).not.toBeNull();
     expect(parseInt(pMatch![1], 10)).toBe(1);
   });
