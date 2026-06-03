@@ -35,3 +35,5 @@ export class InMemoryQueue extends Queue {
     this.messages.push(message);
   }
 }
+
+export default Queue;

@@ -5,4 +5,4 @@
 export { getAppConnection } from './clients.js';
 export { getFaStatusOverall } from './queries/status-overall.js';
 export type { FaStatusOverallRow, StatusOverall } from './queries/status-overall.js';
-export { tenantMigrations } from '../schema/index.js';
+export { outboxEvents, tenantMigrations } from '../schema/index.js';

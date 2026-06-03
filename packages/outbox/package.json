@@ -6,13 +6,17 @@
   "main": "./src/worker.ts",
   "scripts": {
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@monopilot/db": "workspace:*",
+    "drizzle-orm": "0.40.0",
     "pg": "8.16.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/pg": "^8.11.10",
     "@typescript-eslint/parser": "^8.59.1",
     "eslint": "^9.39.4",
     "typescript": "^5.8.2",

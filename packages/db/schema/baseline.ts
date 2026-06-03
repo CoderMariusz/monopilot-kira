@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -86,12 +87,13 @@ export const users = pgTable(
 export const outboxEvents = pgTable(
   'outbox_events',
   {
-    id: bigint('id', { mode: 'number' }).primaryKey(),
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),
     orgId: uuid('org_id').notNull(),
     eventType: text('event_type').notNull(),
     aggregateType: text('aggregate_type').notNull(),
-    aggregateId: uuid('aggregate_id').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
     payload: jsonb('payload').notNull(),
+    dedupKey: text('dedup_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     appVersion: text('app_version').notNull(),
@@ -106,18 +108,21 @@ export const outboxEvents = pgTable(
     retryPendingIdx: index('outbox_events_retry_pending_idx')
       .on(table.orgId, table.createdAt)
       .where(sql`${table.consumedAt} is null and ${table.deadLetteredAt} is null`),
+    dedupKeyUnique: uniqueIndex('outbox_events_org_dedup_key_unique')
+      .on(table.orgId, table.dedupKey)
+      .where(sql`${table.dedupKey} is not null`),
   }),
 );
 
 export const outboxDeadLetter = pgTable(
   'outbox_dead_letter',
   {
-    id: bigint('id', { mode: 'number' }).primaryKey(),
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),
     outboxEventId: bigint('outbox_event_id', { mode: 'number' }).notNull().unique(),
     orgId: uuid('org_id').notNull(),
     eventType: text('event_type').notNull(),
     aggregateType: text('aggregate_type').notNull(),
-    aggregateId: uuid('aggregate_id').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
     payload: jsonb('payload').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
