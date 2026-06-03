@@ -31,7 +31,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-082 | T2-api | Codex | high | with-org-context | ✅ obsolete (superseded T-125) |
 | T-083 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-085 | T1-schema | Codex | high | migrations/* | ⬜ |
-| T-086 | T2-api | Codex | high | lib/auth/saml | ⬜ |
+| T-086 | T2-api | Codex | high | saml issuer-parser xmldom | ✅ merged |
 | T-087 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-089 | T4-test | Codex | high | scim __tests__ | ⬜ |
 | T-091 | T2-api | Codex | high | scim v2/Groups +mig053 +rbac revokeRole | ✅ merged (3 rounds) |
@@ -83,3 +83,6 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 - **Local Postgres** at 127.0.0.1:5432 fully migrated (001-052 + 054; anon/authenticated/service_role roles created). Owner=`mariuszkrawczyk` (superuser), app=`monopilot` (member of app_user). Run DB-gated tests: `DATABASE_URL=postgres://monopilot:monopilot@127.0.0.1:5432/monopilot DATABASE_URL_OWNER=postgres://mariuszkrawczyk@127.0.0.1:5432/monopilot pnpm --filter <pkg> test`. **This is the real Gate-1 for DB tasks** — orchestrator runs integration suites here before merge (Codex reported 'no DB' falsely).
 - **Migration numbering:** 052=T-064(merged), 053=T-091(scim-groups, pending), 054=audit-seq-grant(merged), 055=next free (T-124 e-sign).
 - **Systemic Codex pattern:** creates dead code at stale scope paths (T-073/T-100/T-082/T-098). Pre-check the real integration point before dispatch.
+
+## KNOWN ISSUES FOR SIGN-OFF (must resolve before module sign-off)
+- **Pre-existing auth DB-test failures on local Postgres:** `packages/auth/src/__tests__/totp.test.ts` (T-015) + `verify-pin.test.ts` (T-016) FAIL when run against the real local DB (fixture/seed drift + otlib-compat TS2724 mock). These tasks are marked DONE but violate G1 'tests run for real' on a real DB. Needs a fixture-fix task before sign-off (same drift class as T-091/T-124 fixtures — seed users with name+role_id, fix otplib mock).

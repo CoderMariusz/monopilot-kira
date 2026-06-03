@@ -104,7 +104,7 @@ Updated by orchestrator after every PASS review.
 | T-083 | audit_events_dept_column_denied CHECK constraint | ⬜ PENDING | No migration found for this constraint |
 | T-084 | Narrow tenant_idp_config grants | ✅ DONE | migrations/035-tenant-idp-grants.sql column-level REVOKEs |
 | T-085 | dept_column_drafts partial unique WHERE status='draft' | ⬜ PENDING | migrations/022-dept-column-drafts.sql has no partial unique index |
-| T-086 | SAML Issuer xmldom+XPath replace | ⬜ PENDING | apps/web/lib/auth/saml.ts still uses regex; xmldom not wired |
+| T-086 | SAML Issuer xmldom+XPath replace | ✅ DONE | **DONE 2026-06-03** (run-module). packages/auth/src/saml/issuer-parser.ts: @xmldom/xmldom DOMParser + XPath //saml:Issuer[1] w SAML2 namespace (namespace-robust); wired into apps/web/lib/auth/saml.ts (regex removed). issuer-parser 6/6, web tc 0. |
 | T-087 | audit_events.org_id nullable + sentinel backfill | ⬜ PENDING | migrations/004-audit.sql — org_id NOT NULL; no sentinel migration |
 | T-088 | enforceSamlPolicy wired to sign-in routes | ✅ DONE | apps/web/app/(auth)/actions.ts L31/167 calls enforceSamlPolicy |
 | T-089 | Cross-tenant SCIM ambiguity regression test | ⏸ BLOCKED | Guard exists in lib/scim/middleware.ts L165-184; but no dedicated >1-hash→401 regression test file |
