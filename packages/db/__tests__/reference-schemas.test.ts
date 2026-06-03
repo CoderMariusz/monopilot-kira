@@ -14,6 +14,7 @@ const expectedReferenceTableCodes = [
   'reference.templates',
   'reference.email_config',
   'reference.processes',
+  'reference.partners',
   'reference.close_confirm',
   'reference.alert_thresholds',
   'reference.allergens_reference',
@@ -164,8 +165,8 @@ describe('reference_schemas universal seed (T-093 RED)', () => {
     const distinctCodes = [...new Set(rows.map((row) => row.tableCode))].sort();
 
     expect(distinctCodes).toEqual([...expectedReferenceTableCodes].sort());
-    expect(distinctCodes).toHaveLength(25);
-    expect(rows.length, 'each reference table must have at least one schema column').toBeGreaterThanOrEqual(25);
+    expect(distinctCodes).toHaveLength(26);
+    expect(rows.length, 'each reference table must have at least one schema column').toBeGreaterThanOrEqual(26);
     expect(rows.every((row) => /^null\b/i.test(row.orgIdSql)), 'all baseline reference_schemas rows must use org_id IS NULL universal L1 scope').toBe(true);
     expect(rows.every((row) => row.tier === 'L1'), 'baseline seed rows must be L1').toBe(true);
     expect(sql).not.toMatch(/tenant_id|current_setting\s*\(\s*['"]app\.(?:tenant_id|current_org_id)['"]/i);

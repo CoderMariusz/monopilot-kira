@@ -616,7 +616,18 @@
       },
       "onboarding": {
         "title": "Onboarding wizard",
-        "description": "Onboarding route is connected; setup flow screens remain available while the full admin wizard is wired."
+        "description": "Onboarding route is connected; setup flow screens remain available while the full admin wizard is wired.",
+        "eyebrow": "Guided setup",
+        "panelDescription": "Launch or resume the guided setup wizard. Progress below reflects your organization's real onboarding state.",
+        "statusLabel": "Status",
+        "statusComplete": "Onboarding complete",
+        "statusInProgress": "Onboarding in progress",
+        "statusUnknown": "Onboarding status unavailable",
+        "progressLabel": "Steps completed",
+        "startedLabel": "Started",
+        "completedLabel": "Completed",
+        "launchCta": "Open onboarding wizard",
+        "reviewCta": "Review onboarding"
       },
       "d365_dlq": {
         "title": "D365 DLQ",
@@ -652,6 +663,18 @@
       "add_operation": "Dodaj nową operację",
       "reset_seed": "Przywróć dane początkowe",
       "delete_inactive": "Usuń nieaktywne wiersze"
+    },
+    "processes": {
+      "title": "Process steps",
+      "subtitle": "Schema-driven manufacturing process-step reference data.",
+      "addRow": "+ Add process",
+      "empty": "No process steps configured yet."
+    },
+    "partners": {
+      "title": "Suppliers & customers",
+      "subtitle": "Schema-driven business-partner reference data (suppliers, customers).",
+      "addRow": "+ Add partner",
+      "empty": "No business partners configured yet."
     }
   },
   "navigation": {

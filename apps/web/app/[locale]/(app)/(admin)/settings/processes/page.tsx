@@ -1,5 +1,34 @@
-import { SettingsRouteStub } from '../_components/settings-route-stub';
+import {
+  SingleReferenceScreen,
+  type SingleReferenceScreenConfig,
+} from '../_components/single-reference-screen';
 
-export default function ProcessesSettingsPage() {
-  return <SettingsRouteStub stubKey="processes" />;
+export const dynamic = 'force-dynamic';
+
+type PageProps = {
+  params: Promise<{ locale: string }>;
+};
+
+// Schema-driven process steps reference (reference.processes — seeded by
+// seeds/reference-schemas.sql T-093). Parity source: the shared reference-data
+// screen at settings/reference (admin-screens.jsx:561-621 reference_data_screen).
+const PROCESSES_CONFIG: SingleReferenceScreenConfig = {
+  tableCode: 'processes',
+  labelNamespace: 'processes',
+  definition: {
+    code: 'processes',
+    name: 'Process steps',
+    desc: 'Schema-driven manufacturing process-step reference data.',
+    marker: 'TENANT',
+  },
+  fallbackColumns: [
+    { key: 'process_code', label: 'Process code', type: 'badge' },
+    { key: 'name', label: 'Name', type: 'text' },
+    { key: 'category', label: 'Category', type: 'badge' },
+  ],
+};
+
+export default async function ProcessesSettingsPage({ params }: PageProps) {
+  const { locale } = await params;
+  return SingleReferenceScreen({ locale, config: PROCESSES_CONFIG });
 }

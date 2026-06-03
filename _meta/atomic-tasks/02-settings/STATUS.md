@@ -187,5 +187,30 @@
 | T-141 | ROOT: Infra/Security/Integrations UI | ⏸ | UI pages exist; no parity evidence |
 | T-142 | ROOT: System utilities | ⏸ | T-122 ⬜; T-123 ⬜; T-130 ⬜ block closure |
 
+## Wave 5 — Class D build-now (dead settings stubs → real / honest)
+
+Decision (Q1): build NOW the no-owner settings-shaped routes via the existing
+schema-driven `reference_tables` infra (T-008/T-093); record the rest as gaps.
+All built routes read REAL Supabase data via `withOrgContext` (no mocks) and
+reuse the reference-data screen + `upsertReferenceRow`/`softDeleteReferenceRow`
+actions. Parity source: `settings/reference` (admin-screens.jsx:561-621).
+
+| Route | Decision | Status | Note |
+|---|---|---|---|
+| processes | BUILT real | ✅ | `reference.processes` schema (T-093) extended with `name`+`category`; page reads `reference_tables` (code `processes`) via shared `SingleReferenceScreen`. 6 baseline food-process rows seeded for Apex org. Stub removed. UI test: `processes/page.test.tsx` (2 ✓). |
+| partners | BUILT real | ✅ | New `reference.partners` schema (partner_code/name/partner_type/status) added to `seeds/reference-schemas.sql`; page reads `reference_tables` (code `partners`). NOT owned by 11-shipping/03-technical (no partner master table exists — verified). 2 baseline rows (supplier+customer) seeded. Stub removed. UI test: `partners/page.test.tsx` (2 ✓). |
+| onboarding | REAL entry point | ✅ | Dead stub replaced with panel reading REAL onboarding state via `loadOnboardingContext` (org `onboarding_completed_at`/`onboarding_started_at` + `completedSteps`), links to wizard `/{locale}/onboarding/profile`. UI test: `onboarding/page.test.tsx` (3 ✓). |
+| boms | HONEST STUB + gap | ⏸ | NOT settings-shaped (product-structure entity). No real BOM/recipe table exists anywhere (only `bom_item` identity placeholder, migration 014). Kept honest stub; i18n already states "the Technical module wave owns the versioned BOM list and recipe workflow". See External gaps below. |
+
+**New artifacts (Wave 5):**
+- Migration `073-settings-reference-processes-partners.sql` — idempotent; applied + verified on local Postgres (schema rows inserted, baseline rows seed for Apex org, re-apply clean). Guarantees seed reaches Supabase on deploy (deploy-migration runner does NOT apply `seeds/*.sql`).
+- `seeds/reference-rows-settings.sql` — baseline process/partner rows (idempotent, Apex-scoped; mirrors 073 for the `setup-dev.sh` path).
+- `_components/single-reference-screen.tsx` — shared single-table schema-driven reference screen (reuses reference-data client + actions).
+- T-093 updated: `reference-schemas.sql` now seeds 26 reference table codes (was 25); test updated.
+
+**External gaps recorded (Wave 5):**
+- BOMs & recipes (settings/boms) → **03-technical / 08-production**. Bill-of-Materials + recipe versioning is product-structure data, not settings reference data. No owning table exists yet (`bom_item` is an identity placeholder only). Feature gap, not a settings task. Build the versioned BOM list + recipe workflow in the Technical module wave.
+
 ---
 _Last audited: 2026-06-02 by reality-audit agent (read-only)_
+_Wave 5 (Class D build-now) appended 2026-06-03._
