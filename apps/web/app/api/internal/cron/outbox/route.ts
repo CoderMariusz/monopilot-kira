@@ -44,8 +44,11 @@
  *   - NODE_ENV, VERCEL_ENV (auth fallback gating)
  */
 
-import pg from 'pg';
-import { timingSafeEqual } from 'node:crypto';
+import type pg from 'pg';
+import {
+  cronBearerMatches,
+  getSystemActorConnection,
+} from '@monopilot/db/system-actor-connection.js';
 import {
   type OutboxMessage,
   type Queue,
@@ -114,17 +117,6 @@ async function runOnce(client: pg.PoolClient, queue: Queue): Promise<void> {
 
 const VERCEL_CRON_HEADER = 'x-vercel-cron';
 
-/**
- * Constant-time string compare. timingSafeEqual requires equal-length buffers,
- * so we short-circuit on length mismatch BEFORE the cryptographic compare.
- */
-function safeCompare(a: string, b: string): boolean {
-  const ab = Buffer.from(a, 'utf8');
-  const bb = Buffer.from(b, 'utf8');
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
-
 interface AuthDecision {
   ok: boolean;
   reason?: string;
@@ -141,7 +133,7 @@ function authorizeCron(req: Request): AuthDecision {
     req.headers.get('authorization') ?? req.headers.get('Authorization');
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     const presented = authHeader.slice(7).trim();
-    if (cronSecret && safeCompare(presented, cronSecret)) {
+    if (cronBearerMatches(presented, cronSecret)) {
       return { ok: true };
     }
     if (
@@ -166,20 +158,15 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  const connectionString =
-    process.env.DATABASE_URL_OWNER ?? process.env.DATABASE_URL;
-  if (!connectionString) {
+  let pool: ReturnType<typeof getSystemActorConnection>;
+  try {
+    pool = getSystemActorConnection();
+  } catch {
     return new Response(
       JSON.stringify({ error: 'database_not_configured' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
-
-  // CONTROL PLANE: outbox dispatcher runs as the system actor, sweeps every
-  // org's unconsumed events, and stamps `consumed_at`. RLS-scoped app pool
-  // cannot fan out across orgs, so an owner-pool client is required by design.
-  // eslint-disable-next-line no-restricted-syntax
-  const pool = new pg.Pool({ connectionString });
 
   // TODO(post-A.7): swap LocalDispatchQueue for a real remote queue per env
   // config (Azure Service Bus or equivalent). Until then, in-process handlers

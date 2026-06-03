@@ -46,7 +46,19 @@ export default [
                 'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
             },
             {
+              name: './clients.js',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
+            },
+            {
               name: '../clients',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
+            },
+            {
+              name: '../clients.js',
               importNames: ['getOwnerConnection'],
               message:
                 'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
@@ -62,6 +74,75 @@ export default [
               importNames: ['getOwnerConnection'],
               message:
                 'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
+            },
+            {
+              name: '@monopilot/db/clients.js',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/migrations/** and scripts/migrate.ts. Use getAppConnection() instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // T-098 exception: this helper is the canonical system-actor owner connection
+  // boundary for control-plane jobs. It may import getOwnerConnection directly;
+  // the .js-suffixed bypass forms remain blocked.
+  {
+    files: ['src/system-actor-connection.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@radix-ui/react-dialog',
+              message:
+                'Import Modal from @monopilot/ui instead of using @radix-ui/react-dialog directly.',
+            },
+            {
+              name: '@monopilot/db',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to packages/db migration paths. Use getAppConnection() instead.',
+            },
+            {
+              name: './clients.js',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts. Import ./clients in src/system-actor-connection.ts.',
+            },
+            {
+              name: '../clients',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts.',
+            },
+            {
+              name: '../clients.js',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts.',
+            },
+            {
+              name: '../../src/clients',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts.',
+            },
+            {
+              name: '@monopilot/db/clients',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts.',
+            },
+            {
+              name: '@monopilot/db/clients.js',
+              importNames: ['getOwnerConnection'],
+              message:
+                'getOwnerConnection is restricted to src/system-actor-connection.ts, src/migrations/**, and scripts/migrate.ts.',
             },
           ],
         },
