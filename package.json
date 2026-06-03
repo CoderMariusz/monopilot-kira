@@ -4,6 +4,7 @@
   "scripts": {
     "build": "pnpm --filter web build",
     "test:smoke": "pnpm --filter web test:smoke",
+    "test:e2e:pwa": "PLAYWRIGHT_WEB_SERVER=1 pnpm exec playwright test apps/web/e2e/pwa.spec.ts --project=chromium",
     "lint": "node scripts/lint-no-hardcoded-strings.mjs && pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "ci": "pnpm build && pnpm test:smoke && pnpm lint",
