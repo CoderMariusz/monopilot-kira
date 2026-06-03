@@ -20,6 +20,7 @@
  */
 
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import type { Pool } from 'pg';
 import { getOwnerConnection } from '../../db/src/clients.js';
 import { LegacyPermissionAlias, SOD_EXCLUSIVE_PAIRS } from './permissions.enum.js';
 
@@ -64,6 +65,21 @@ export interface GenerateApprovalTokenInput {
   orgId: string;
   targetUserId: string;
   roleSlug: string;
+}
+
+let pool: Pool | null = null;
+
+function getRbacPool(): Pool {
+  pool ??= getOwnerConnection();
+  return pool;
+}
+
+export async function closeRbacPool(): Promise<void> {
+  const currentPool = pool;
+  pool = null;
+  if (currentPool) {
+    await currentPool.end();
+  }
 }
 
 // ─── HMAC helpers ─────────────────────────────────────────────────────────────
@@ -227,7 +243,7 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     return { success: false, error: 'sod_violation' };
   }
 
-  const pool = getOwnerConnection();
+  const pool = getRbacPool();
   const client = await pool.connect();
 
   try {
@@ -365,7 +381,6 @@ export async function grantRole(input: GrantRoleInput): Promise<GrantRoleResult>
     throw err;
   } finally {
     client.release();
-    await pool.end();
   }
 }
 
@@ -383,7 +398,7 @@ export async function revokeRole(input: RevokeRoleInput): Promise<RevokeRoleResu
     return { success: false, error: 'db_unavailable' };
   }
 
-  const pool = getOwnerConnection();
+  const pool = getRbacPool();
   const client = await pool.connect();
 
   try {
@@ -424,6 +439,5 @@ export async function revokeRole(input: RevokeRoleInput): Promise<RevokeRoleResu
     throw err;
   } finally {
     client.release();
-    await pool.end();
   }
 }
