@@ -21,6 +21,11 @@ export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
 export { prodDetail } from './prod-detail.js';
 export type { NewProdDetail, ProdDetail } from './prod-detail.js';
+export { referenceDeptColumns } from './reference-dept-columns.js';
+export type {
+  NewReferenceDeptColumn,
+  ReferenceDeptColumn,
+} from './reference-dept-columns.js';
 export { manufacturingOperations, referenceSchema } from './manufacturing-operations.js';
 export type {
   ManufacturingOperation,
