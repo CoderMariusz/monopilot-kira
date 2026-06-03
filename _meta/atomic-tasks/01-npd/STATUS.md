@@ -14,10 +14,10 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 |---|---|---|---|
 | T-001 | product table + fa compat view DDL | ✅ DONE | **DONE 2026-06-03** (run-module Wave A0). mig **075** (renamed from stale 0010). product table (69 cols+ext/private jsonb+schema_version+R13 audit), org_id Wave0 scope, RLS `app.current_org_id()`+FORCE RLS, partial idx WHERE built=false. fa view security_invoker=true + INSTEAD OF trigger = structurally read-only. Codex impl → Opus review (REWORK: fake read-only AC / orphan src/schema shim / index drift) → fixed → 4/4 green on local canon DB. Merged 5253a0f4. Unblocks all downstream T1-schema. |
 | T-002 | prod_detail table + indexes | ✅ DONE | DONE 2026-06-03 (Wave A1). prod_detail (mig 076) — Codex→Opus, merged |
-| T-003 | Reference.DeptColumns metadata table | 🔄 IN PROGRESS | REWORK in flight (mig 077): P0 collision w/ existing 009 "Reference"."DeptColumns" — extend existing table, not new |
+| T-003 | Reference.DeptColumns metadata table | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). Reference.DeptColumns EXTENDED (mig 077 ALTER of existing 009 table, not a new one) + Drizzle pgSchema(Reference); 2/2 green — merged |
 | T-004 | Reference.ManufacturingOperations table | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.ManufacturingOperations reshape (mig 078) — merged; nit: drop redundant 012 unique (wave-close) |
 | T-005 | Reference lookup tables (PackSizes, Templates, LineTypes) | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference lookups PackSizes/Templates/Lines/Equip/CloseConfirm (mig 079) — merged; AlertThresholds removed (owned by T-049) |
-| T-006 | Reference.RolePermissions schema + Apex seed | 🔄 IN PROGRESS | REWORK in flight (mig 080): permission strings → npd.* namespace per T-101 |
+| T-006 | Reference.RolePermissions schema + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). RolePermissions seed → npd.* namespace per T-101 + legacy-string cleanup; matrix per PRD §2.2; merged. NOTE: re-verify vs T-101 final enum when T-101 built |
 | T-007 | outbox_events emitter wrapper for fa.* events | ⏸ BLOCKED | Partial: events.enum.ts has FG_CREATED alias; no emitFaEvent wrapper function |
 | T-008 | Server Action createFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
 | T-009 | Server Action updateFaCell + reset_built trigger | ⬜ PENDING | Blocked by T-001, T-003, T-006, T-007 |
@@ -80,7 +80,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-066 | UI: FormulationEditor (RecipeScreen prototype) | ⬜ PENDING | Blocked by T-064 |
 | T-067 | ROOT: FormulationEditor live panels | ⬜ PENDING | Blocked by T-065, T-066 |
 | T-068 | E2E: formulation edit → submit-for-trial → lock | ⬜ PENDING | Blocked by T-064, T-065, T-066, T-067 |
-| T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | 🔄 IN PROGRESS | REWORK in flight (mig 086): unique nulls-not-distinct fix |
+| T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). nutrition + unique NULLS NOT DISTINCT fix (mig 086); 6/6 green — merged |
 | T-070 | costing_breakdowns + costing_waterfall_steps tables | ✅ DONE | DONE 2026-06-03 (Wave A1). costing_breakdowns + waterfall_steps (mig 087, NUMERIC-exact) — merged |
 | T-071 | DEFERRED/CROSS-MODULE: Sensory schema (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-072 | Nutrition computation Server Action + Nutri-Score | ⬜ PENDING | Blocked by T-069 |
