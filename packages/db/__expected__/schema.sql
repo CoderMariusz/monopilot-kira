@@ -786,7 +786,7 @@ ALTER TABLE ONLY public.allergens FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public.audit_events (
     id bigint NOT NULL,
-    org_id uuid NOT NULL,
+    org_id uuid,
     occurred_at timestamp with time zone DEFAULT now() NOT NULL,
     actor_user_id uuid,
     actor_type text,
@@ -800,6 +800,7 @@ CREATE TABLE public.audit_events (
     user_agent text,
     request_id uuid NOT NULL,
     retention_class text DEFAULT 'standard'::text NOT NULL,
+    is_unauthenticated boolean DEFAULT false NOT NULL,
     CONSTRAINT audit_events_actor_type_check CHECK (((actor_type IS NULL) OR (actor_type = ANY (ARRAY['user'::text, 'system'::text, 'scim'::text, 'impersonation'::text])))),
     CONSTRAINT audit_events_retention_class_check CHECK ((retention_class = ANY (ARRAY['security'::text, 'standard'::text, 'operational'::text, 'ephemeral'::text]))),
     CONSTRAINT audit_events_role_assigned_security_check CHECK (((action <> 'role.assigned'::text) OR (retention_class = 'security'::text)))

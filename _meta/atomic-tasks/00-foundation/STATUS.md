@@ -105,7 +105,7 @@ Updated by orchestrator after every PASS review.
 | T-084 | Narrow tenant_idp_config grants | ✅ DONE | migrations/035-tenant-idp-grants.sql column-level REVOKEs |
 | T-085 | dept_column_drafts partial unique WHERE status='draft' | ✅ DONE | **DONE 2026-06-03** (run-module). mig 059 partial UNIQUE (one active draft per org/dept/column; draft+published coexist). 4/4 real DB (dup→23505). |
 | T-086 | SAML Issuer xmldom+XPath replace | ✅ DONE | **DONE 2026-06-03** (run-module). packages/auth/src/saml/issuer-parser.ts: @xmldom/xmldom DOMParser + XPath //saml:Issuer[1] w SAML2 namespace (namespace-robust); wired into apps/web/lib/auth/saml.ts (regex removed). issuer-parser 6/6, web tc 0. |
-| T-087 | audit_events.org_id nullable + sentinel backfill | ⬜ PENDING | migrations/004-audit.sql — org_id NOT NULL; no sentinel migration |
+| T-087 | audit_events.org_id nullable + sentinel backfill | ✅ DONE | **DONE 2026-06-03** (run-module). mig 060: org_id DROP NOT NULL (NULL-org platform/security events); RLS recreated (NULL-org hidden from tenant queries by construction). 4/4 real DB. |
 | T-088 | enforceSamlPolicy wired to sign-in routes | ✅ DONE | apps/web/app/(auth)/actions.ts L31/167 calls enforceSamlPolicy |
 | T-089 | Cross-tenant SCIM ambiguity regression test | ⏸ BLOCKED | Guard exists in lib/scim/middleware.ts L165-184; but no dedicated >1-hash→401 regression test file |
 | T-090 | Jackson createConnection at tenant onboarding | ✅ DONE | apps/web/app/(admin)/settings/saml/_actions/save-saml-config.ts L168 |
