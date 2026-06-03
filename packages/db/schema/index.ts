@@ -44,3 +44,8 @@ export type {
 } from './reference-lookups.js';
 export { brief, briefLines, npdProjects } from './brief.js';
 export type { Brief, BriefLine, NewBrief, NewBriefLine, NewNpdProject, NpdProject } from './brief.js';
+export {
+  referenceAllergens,
+  referenceAllergensAddedByProcess,
+  referenceAllergensByRm,
+} from './allergens.js';
