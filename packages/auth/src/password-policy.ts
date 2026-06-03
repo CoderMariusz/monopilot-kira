@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import * as argon2 from 'argon2';
 import type pg from 'pg';
 
@@ -30,193 +31,12 @@ export interface ValidateNewPasswordOpts {
 }
 
 // ---------------------------------------------------------------------------
-// Bundled common-password list (top ~200 most common passwords from NIST data).
-// This list is intentionally small and offline. The HIBP check catches the rest.
+// Bundled common-password list, loaded once at module initialization.
 // ---------------------------------------------------------------------------
-const COMMON_PASSWORDS: ReadonlySet<string> = new Set([
-  'password',
-  'password1',
-  'password123',
-  'password1234',
-  'password12345',
-  'password123456',
-  '123456',
-  '1234567',
-  '12345678',
-  '123456789',
-  '1234567890',
-  '12345678901',
-  '123456789012',
-  '1234567890123',
-  '12345',
-  '1234',
-  '123',
-  '111111',
-  '1111111',
-  '11111111',
-  '000000',
-  '0000000',
-  '00000000',
-  'qwerty',
-  'qwerty123',
-  'qwertyuiop',
-  'qwertyuiop123',
-  'asdfghjkl',
-  'asdfgh',
-  'zxcvbn',
-  'zxcvbnm',
-  'abc123',
-  'abc1234',
-  'abcdefg',
-  'abcdefgh',
-  'abcdefghi',
-  'abcdefghij',
-  'iloveyou',
-  'iloveyou1',
-  'monkey',
-  'monkey1',
-  'dragon',
-  'dragon1',
-  'master',
-  'master1',
-  'letmein',
-  'letmein1',
-  'welcome',
-  'welcome1',
-  'login',
-  'login1',
-  'sunshine',
-  'sunshine1',
-  'princess',
-  'princess1',
-  'football',
-  'football1',
-  'baseball',
-  'baseball1',
-  'superman',
-  'superman1',
-  'batman',
-  'batman1',
-  'shadow',
-  'shadow1',
-  'michael',
-  'michael1',
-  'jessica',
-  'jessica1',
-  'charlie',
-  'charlie1',
-  'donald',
-  'donald1',
-  'access',
-  'access1',
-  'hello',
-  'hello123',
-  'trustno1',
-  'admin',
-  'admin1',
-  'admin123',
-  'pass',
-  'pass1',
-  'pass12',
-  'pass123',
-  'pass1234',
-  'test',
-  'test1',
-  'test12',
-  'test123',
-  'test1234',
-  'guest',
-  'guest1',
-  'guest123',
-  'user',
-  'user1',
-  'user123',
-  'root',
-  'root1',
-  'root123',
-  '696969',
-  '123321',
-  '654321',
-  '987654321',
-  '000000000000',
-  '111111111111',
-  '222222222222',
-  '333333333333',
-  '444444444444',
-  '555555555555',
-  '666666666666',
-  '777777777777',
-  '888888888888',
-  '999999999999',
-  'aaaaaaaaaaaa',
-  'bbbbbbbbbbbb',
-  'cccccccccccc',
-  'dddddddddddd',
-  'eeeeeeeeeeee',
-  'ffffffffffff',
-  'gggggggggggg',
-  'hhhhhhhhhhhh',
-  'iiiiiiiiiiii',
-  'jjjjjjjjjjjj',
-  'kkkkkkkkkkkk',
-  'llllllllllll',
-  'mmmmmmmmmmmm',
-  'nnnnnnnnnnnn',
-  'oooooooooooo',
-  'pppppppppppp',
-  'qqqqqqqqqqqq',
-  'rrrrrrrrrrrr',
-  'ssssssssssss',
-  'tttttttttttt',
-  'uuuuuuuuuuuu',
-  'vvvvvvvvvvvv',
-  'wwwwwwwwwwww',
-  'xxxxxxxxxxxx',
-  'yyyyyyyyyyyy',
-  'zzzzzzzzzzzz',
-  'passwordpassword',
-  'monkey123',
-  'ninja',
-  'ninja1',
-  'wizard',
-  'hunter',
-  'hunter2',
-  'ferrari',
-  'pokemon',
-  'starwars',
-  'starwars1',
-  'flower',
-  'flower1',
-  'whatever',
-  'ranger',
-  'ranger1',
-  'cowboy',
-  'cowboy1',
-  'summer',
-  'summer1',
-  'winter',
-  'winter1',
-  'autumn',
-  'spring',
-  'january',
-  'february',
-  'march',
-  'april',
-  'june',
-  'july',
-  'august',
-  'september',
-  'october',
-  'november',
-  'december',
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-]);
+const COMMON_PASSWORDS_PATH = new URL('../data/common-passwords-25k.txt', import.meta.url);
+const COMMON_PASSWORDS: ReadonlySet<string> = new Set(
+  readFileSync(COMMON_PASSWORDS_PATH, 'utf8').split('\n').filter(Boolean),
+);
 
 // ---------------------------------------------------------------------------
 // HIBP k-anonymity check
@@ -370,21 +190,22 @@ export async function validateNewPassword(
   // Check 1: Minimum length (NIST SP 800-63B §5.1.1)
   if (newPassword.length < 12) {
     reasons.push('too_short');
-    // Return early — no point running other checks on very short passwords
-    // (also avoids noisy argon2/HIBP calls on clearly invalid input)
-    return { ok: false, reasons };
   }
 
   // Check 1b: Whitespace-only guard (NIST SP 800-63B §5.1.1.2 SHOULD).
   // A password of 12+ spaces passes the length check but provides no entropy.
   if (newPassword.trim().length === 0) {
     reasons.push('whitespace_only');
-    return { ok: false, reasons };
   }
 
   // Check 2: Common password list (offline, fast)
   if (COMMON_PASSWORDS.has(newPassword.toLowerCase())) {
     reasons.push('too_common');
+  }
+
+  if (reasons.length > 0 && (newPassword.length < 12 || newPassword.trim().length === 0)) {
+    // Avoid noisy argon2/HIBP calls on clearly invalid local-only failures.
+    return { ok: false, reasons };
   }
 
   // Check 3: HIBP k-anonymity (network, with 2s timeout, fail-open)
