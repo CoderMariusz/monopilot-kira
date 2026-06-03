@@ -70,6 +70,8 @@ export type {
   NewCostingBreakdown,
   NewCostingWaterfallStep,
 } from './costing.js';
+export { bomHeaders, bomLines } from './shared-bom.js';
+export type { BomHeader, BomLine, NewBomHeader, NewBomLine } from './shared-bom.js';
 export {
   nutriScoreResults,
   nutritionAllergens,
