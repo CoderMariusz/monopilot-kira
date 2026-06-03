@@ -57,7 +57,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-117 | T2-api | Codex | low | pino logger + worker logger | ✅ merged |
 
 ### Layer 3
-| T-118 | T2-api | Codex | high | Sentry (web+worker+obs) | 🔄 in-flight |
+| T-118 | T2-api | Codex | high | Sentry (web+worker+obs) | ✅ merged |
 | T-119 | T2-api | Codex | high | ←T-111,T-117; backup | ⬜ |
 | T-121 | T2-api | Codex | high | rate-limit → proxy.ts (edge) | 🔄 in-flight |
 | T-107 | T2-api | Codex | low | ←T-118 (outbox error→Sentry) | ⬜ |
