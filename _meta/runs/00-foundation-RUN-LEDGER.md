@@ -33,7 +33,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-085 | T1-schema | Codex | high | dept-drafts unique mig059 | ✅ merged |
 | T-086 | T2-api | Codex | high | saml issuer-parser xmldom | ✅ merged |
 | T-087 | T1-schema | Codex | high | audit org_id nullable mig060 | ✅ merged |
-| T-089 | T4-test | Codex | high | scim __tests__ | ⬜ |
+| T-089 | T4-test | Codex | high | scim ambiguity test | ✅ merged |
 | T-091 | T2-api | Codex | high | scim v2/Groups +mig053 +rbac revokeRole | ✅ merged (3 rounds) |
 | T-092 | T2-api(logic) | Codex | high | HMAC RelayState | ✅ merged |
 | T-094 | T2-api | Codex | high | SLO + Supabase signOut | ✅ merged |
