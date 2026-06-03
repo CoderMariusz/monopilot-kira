@@ -15,8 +15,8 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-113 | T2-api | Codex | high | packages/gdpr (new) | ✅ merged |
 | T-124 | T2-api | Codex | high | packages/e-sign +mig055 +schema | ✅ merged (1 rework) |
 | T-028 | UI prim | Opus(kira-ui) | high | ReasonInput +T-067 | ✅ merged |
-| T-037 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
-| T-095 | T3-ui | Opus(kira-ui) | high | apps/web wizard | ⬜ |
+| T-037 | T3-ui | Opus(kira-ui) | high | wizard (bundled T-095) | ✅ merged |
+| T-095 | T3-ui | Opus(kira-ui) | high | wizard RHF+Zod +ui React19 | ✅ merged |
 | T-096 | T4-test | Codex/Sonnet | low | apps/web/vitest.ui.config | ⬜ |
 | T-063 | T4-test | Sonnet | low | packages/ui/TESTING.md | ⬜ |
 | T-064 | T1-schema | Codex | high | migrations/* | ✅ merged |
