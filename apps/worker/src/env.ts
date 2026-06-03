@@ -10,6 +10,7 @@ const envSchema = z
     DATABASE_URL: z.string().url().optional(),
     BACKUP_VERIFICATION_MODE: z.enum(['postgres', 'supabase', 'stub']).default('postgres'),
     BACKUP_MAX_AGE_HOURS: z.coerce.number().positive().default(25),
+    OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(5_000),
     WORKER_INTERVAL_MS_DEFAULT: z.coerce.number().int().positive().default(30_000),
     WORKER_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

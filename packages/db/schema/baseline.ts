@@ -2,8 +2,10 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   customType,
+  bigint,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -78,5 +80,53 @@ export const users = pgTable(
   (table) => ({
     orgIdIdx: index('users_org_id_idx').on(table.orgId),
     orgEmailUnique: unique('users_org_id_email_unique').on(table.orgId, table.email),
+  }),
+);
+
+export const outboxEvents = pgTable(
+  'outbox_events',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey(),
+    orgId: uuid('org_id').notNull(),
+    eventType: text('event_type').notNull(),
+    aggregateType: text('aggregate_type').notNull(),
+    aggregateId: uuid('aggregate_id').notNull(),
+    payload: jsonb('payload').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    appVersion: text('app_version').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    deadLetteredAt: timestamp('dead_lettered_at', { withTimezone: true }),
+    lastErrorText: text('last_error_text'),
+  },
+  (table) => ({
+    unconsumedIdx: index('outbox_events_unconsumed_idx')
+      .on(table.orgId, table.createdAt)
+      .where(sql`${table.consumedAt} is null`),
+    retryPendingIdx: index('outbox_events_retry_pending_idx')
+      .on(table.orgId, table.createdAt)
+      .where(sql`${table.consumedAt} is null and ${table.deadLetteredAt} is null`),
+  }),
+);
+
+export const outboxDeadLetter = pgTable(
+  'outbox_dead_letter',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey(),
+    outboxEventId: bigint('outbox_event_id', { mode: 'number' }).notNull().unique(),
+    orgId: uuid('org_id').notNull(),
+    eventType: text('event_type').notNull(),
+    aggregateType: text('aggregate_type').notNull(),
+    aggregateId: uuid('aggregate_id').notNull(),
+    payload: jsonb('payload').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    appVersion: text('app_version').notNull(),
+    attempts: integer('attempts').notNull(),
+    failedAt: timestamp('failed_at', { withTimezone: true }).notNull().defaultNow(),
+    lastErrorText: text('last_error_text').notNull(),
+  },
+  (table) => ({
+    attemptsCheck: check('outbox_dead_letter_attempts_check', sql`${table.attempts} >= 0`),
   }),
 );
