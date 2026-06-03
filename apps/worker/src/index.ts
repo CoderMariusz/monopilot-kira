@@ -4,6 +4,7 @@ import { startNodeSdk } from '@monopilot/observability/sdk-node';
 
 import { env } from './env.js';
 import { registerBackupVerificationCron } from './jobs/backup-verification-cron.js';
+import { registerGdprErasureCron } from './jobs/gdpr-erasure-cron.js';
 import { registerOutboxConsumer } from './jobs/outbox-consumer.js';
 import { createLogger } from './logger.js';
 import { JobRegistry } from './registry.js';
@@ -68,6 +69,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerR
   const registry = captureRegistryJobFailures(options.registry ?? new JobRegistry({ pool, logger }));
   registerBackupVerificationCron(registry);
   registerOutboxConsumer(registry, { everyMs: env.OUTBOX_INTERVAL_MS });
+  registerGdprErasureCron(registry);
   activeRegistry = registry as RegisteredJobRegistry;
 
   let shuttingDown: Promise<void> | undefined;
