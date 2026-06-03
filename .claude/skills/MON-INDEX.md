@@ -38,6 +38,7 @@
 
 | Module folder | Domain skill | Critical invariants |
 |---|---|---|
+| 02-settings | [[MON-domain-settings]] | HEAVY UI: prototype parity + real Supabase data (NO hardcode) per screen; consolidate the dual settings route trees onto `[locale]/(app)/(admin)/settings` |
 | 04-planning-basic + 07-planning-ext | [[MON-domain-planning]] | `schedule_outputs` NOT `wo_outputs`; V-PLAN-WO-CYCLE rule |
 | 05-warehouse | [[MON-domain-warehouse]] | LP universal unit; FEFO; consume gate cross |
 | 08-production | [[MON-domain-production]] | `wo_outputs` CANONICAL owner; `oee_snapshots` PRIMARY producer |
