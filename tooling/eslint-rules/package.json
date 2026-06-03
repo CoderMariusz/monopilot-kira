@@ -1,0 +1,23 @@
+{
+  "name": "@monopilot/eslint-rules",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./no-direct-permissions-enum-edit": "./rules/no-direct-permissions-enum-edit.mjs"
+  },
+  "scripts": {
+    "snapshot": "node scripts/generate-snapshot.mjs",
+    "test": "vitest run",
+    "vitest": "vitest run"
+  },
+  "dependencies": {
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^9.39.4"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.5"
+  }
+}

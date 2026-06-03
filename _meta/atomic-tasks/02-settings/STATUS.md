@@ -48,7 +48,7 @@
 | T-031 | Server Actions: email_config CRUD + Resend test send | ✅ | `actions/email/upsert-config.ts`, `test-provider.ts` + test |
 | T-032 | Server Actions: org_security_policies upsert + MFA enrollment trigger | ✅ | `actions/security/upsert-policy.ts`, `force-mfa.ts` + test |
 | T-033 | Server Actions + route handlers: SSO config (SAML Entra) + test | ✅ | `actions/sso/upsert-config.ts`, `disable.ts`; route handlers at `app/api/auth/saml/` + behavior test |
-| T-034 | SCIM 2.0 endpoints (Users + Groups) + token CRUD | ⏸ | Routes exist; token CRUD exists but token verifier join not wired (scim_tokens vs tenant_idp_config) — tokens created here won't authenticate SCIM API calls |
+| T-034 | SCIM 2.0 endpoints (Users + Groups) + token CRUD | ✅ | W7 2026-06-03: verifier join CONFIRMED wired — `apps/web/lib/scim/middleware.ts` `verifyScimBearer` does the UNION ALL bridge over `scim_tokens.org_id` ↔ `tenant_idp_config.tenant_id` (filters `revoked_at is null`). Real integration test added `apps/web/__tests__/scim/bearer.integration.test.ts` (4 AC, DATABASE_URL-guarded): valid argon2 scim_token authenticates + resolves owning org + registers a usable session token; wrong bearer → null → 401; revoked token → null → 401; missing/malformed header → null → 401. Run for real on a fully-migrated local PG: 4/4 PASS. The legacy `scim.test.ts` keeps its mocked seat-limit + PATCH-ops coverage (4/4) — the bearer path is no longer mocked away. Run: `DATABASE_URL=… APP_USER_PASSWORD=app-user-test-password pnpm exec vitest run apps/web/__tests__/scim/bearer.integration.test.ts` |
 | T-035 | Edge middleware: IP allowlist + onboarding redirect guard + idle timeout | ✅ | `proxy.ts` + `lib/auth/edge-middleware-policy.ts` + test |
 | T-036 | Server Actions: admin_ip_allowlist CRUD with overlap-0.0.0.0/0 reject | ✅ | `actions/security/ip-allowlist-*.ts` + behavior test |
 | T-037 | Server Actions: onboarding state machine (next/back/skip/restart/jump) | ✅ | `actions/onboarding/advance.ts`, `back.ts`, `jump.ts`, `restart.ts`, `complete-step.ts` + test |
@@ -139,7 +139,7 @@
 | T-080 | E2E: 6-step onboarding wizard | ⬜ | No dedicated E2E spec; route-topology.spec.ts only checks file existence |
 | T-081 | E2E: invite → accept → first login flow | ⬜ | No dedicated spec |
 | T-082 | E2E: SSO SAML round-trip with mock Entra IdP | ⬜ | No Playwright SAML spec |
-| T-083 | Integration test: SCIM PATCH ops + bearer auth + seat-limit | ⬜ | scim.test.ts exists but SCIM bearer auth is broken (T-034 gap) |
+| T-083 | Integration test: SCIM PATCH ops + bearer auth + seat-limit | ✅ | W7 2026-06-03: bearer auth now covered by a REAL (non-mocked) integration test — `apps/web/__tests__/scim/bearer.integration.test.ts` exercises `verifyScimBearer` against a live PG via the `scim_tokens` bridge (4/4 PASS). PATCH-replace/add/remove ops + seat-limit-before-insert remain covered by `apps/web/app/api/scim/scim.test.ts` (4/4 PASS). T-034 gap closed. |
 | T-084 | E2E: schema admin wizard happy path | ⬜ | No wizard E2E spec |
 | T-085 | E2E: reference CSV import → preview → commit | ⬜ | settings-reference.spec.ts does not cover CSV wizard |
 | T-086 | E2E: D365 connection toggle gated by 5 constants | ⬜ | No D365 E2E spec |

@@ -5,6 +5,7 @@ export { eSignLog } from './e-sign.js';
 export { gdprErasureRequests } from './gdpr.js';
 export { orgAuthorizationPolicies } from './settings-auth-policies.js';
 export { unitOfMeasure, uomCustomConversions } from './units.js';
+export { integrationSettings } from './integration-settings.js';
 export { d365SyncRuns } from './integrations-d365.js';
 export { emailDeliveryLog } from './email-log.js';
 export { featureFlagsCore, notificationPreferences } from './flags-prefs.js';
