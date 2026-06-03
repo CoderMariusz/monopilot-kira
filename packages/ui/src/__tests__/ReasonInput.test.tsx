@@ -7,9 +7,10 @@
  *   (FlagEditModal — "Audit reason" field with ReasonInput)
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe } from 'jest-axe';
 import React from 'react';
 import ReasonInput from '../ReasonInput';
 
@@ -239,5 +240,119 @@ describe('AC3: 11 chars typed with minLength=10 → submit is enabled', () => {
     // Delete 2 chars → back to 9 (below minLength)
     await user.type(textarea, '{Backspace}{Backspace}');
     expect(submitBtn).toHaveAttribute('aria-disabled', 'true');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-067 (FT-007): aria-label prop + forwardRef
+//   - aria-label forwarded to the underlying textarea
+//   - ref points to the underlying textarea (focus() / value via ref)
+//   - existing counter + aria-describedby still work alongside aria-label
+//   - both label + aria-label → dev-only console.warn fires once
+//   - zero axe-core violations
+// ─────────────────────────────────────────────────────────────────────────────
+describe('T-067: aria-label prop + forwardRef', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('applies aria-label to the underlying textarea and exposes it via getByLabelText', () => {
+    render(<ReasonInput name="reason" minLength={10} aria-label="Audit reason" />);
+
+    const labelled = screen.getByLabelText('Audit reason');
+    expect(labelled.tagName.toLowerCase()).toBe('textarea');
+
+    // Same element is the textbox role
+    expect(labelled).toBe(screen.getByRole('textbox'));
+  });
+
+  it('forwards a ref to the underlying textarea (focus + value work via ref)', async () => {
+    const user = userEvent.setup();
+    const ref = React.createRef<HTMLTextAreaElement>();
+
+    render(<ReasonInput ref={ref} name="reason" minLength={10} aria-label="Audit reason" />);
+
+    // Ref resolves to the raw textarea node
+    expect(ref.current).not.toBeNull();
+    expect(ref.current!.tagName.toLowerCase()).toBe('textarea');
+
+    // Focus restoration through the ref
+    act(() => {
+      ref.current!.focus();
+    });
+    expect(ref.current).toBe(document.activeElement);
+
+    // Value reflects controlled input typed into the focused element
+    await user.keyboard('reason text here');
+    expect(ref.current!.value).toBe('reason text here');
+  });
+
+  it('keeps aria-describedby (counter) working when aria-label is set', () => {
+    render(<ReasonInput name="reason" minLength={10} aria-label="Audit reason" />);
+
+    const textarea = screen.getByRole('textbox');
+    const describedById = textarea.getAttribute('aria-describedby');
+    expect(describedById).toBeTruthy();
+
+    const counterEl = document.getElementById(describedById!);
+    expect(counterEl).not.toBeNull();
+    expect(counterEl!.textContent).toMatch(/^0\/10\+$/);
+
+    // aria-label coexists with the counter wiring
+    expect(textarea).toHaveAttribute('aria-label', 'Audit reason');
+  });
+
+  it('warns once (dev-only) when both label and aria-label are provided', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    render(
+      <ReasonInput
+        name="reason"
+        minLength={10}
+        label="Audit reason"
+        aria-label="Audit reason"
+      />
+    );
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/aria-label/i);
+  });
+
+  it('renders a visible label when label is provided and prefers it for the accessible name', () => {
+    render(<ReasonInput name="reason" minLength={10} label="Audit reason" />);
+
+    // Visible label resolves the textbox by accessible name
+    const textarea = screen.getByLabelText('Audit reason');
+    expect(textarea.tagName.toLowerCase()).toBe('textarea');
+  });
+
+  it('has zero axe-core violations with aria-label set (a11y holds)', async () => {
+    const { container } = render(
+      <div>
+        <ReasonInput name="reason" minLength={10} aria-label="Audit reason" />
+        <button type="submit">Save change</button>
+      </div>
+    );
+
+    const results = await axe(container);
+    expect(
+      results.violations,
+      results.violations.map((v) => v.id).join(', ')
+    ).toEqual([]);
+  });
+
+  it('has zero axe-core violations with a visible label set (a11y holds)', async () => {
+    const { container } = render(
+      <div>
+        <ReasonInput name="reason" minLength={10} label="Audit reason" />
+        <button type="submit">Save change</button>
+      </div>
+    );
+
+    const results = await axe(container);
+    expect(
+      results.violations,
+      results.violations.map((v) => v.id).join(', ')
+    ).toEqual([]);
   });
 });

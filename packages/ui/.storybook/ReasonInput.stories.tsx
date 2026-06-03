@@ -1,84 +1,100 @@
 /**
- * T-028 — ReasonInput stories
- * Story: 'ReasonInput/min-10-default'
+ * T-028 / T-067 — ReasonInput stories
+ * Story group: 'ReasonInput/min-10-default'
  *
- * Covers the four UI states from the FlagEditModal prototype
- * (modals.jsx:72-108): idle, typing (below min), met-min, exceeded.
+ * Prototype source:
+ *   prototypes/design/Monopilot Design System/settings/modals.jsx:72-108  (FlagEditModal)
+ *   prototypes/design/Monopilot Design System/_shared/modals.jsx:73-85     (ReasonInput def)
+ *
+ * Covers the relevant states:
+ *   1. idle (0 chars, submit disabled, counter 0/10+)
+ *   2. typing — below min
+ *   3. met-min (exactly 10 chars)
+ *   4. exceeded (>10 chars)
+ *   5. aria-label-only (no visible label — label supplied by external wrap)
+ *   + visible-label variant (T-067)
  */
 
-import React, { useState } from 'react';
+import React from 'react';
+import type { Meta, StoryObj } from '@storybook/react';
 import ReasonInput from '../src/ReasonInput';
 
-export default {
+const meta: Meta<typeof ReasonInput> = {
   title: 'ReasonInput/min-10-default',
   component: ReasonInput,
-};
-
-// ── Idle ──────────────────────────────────────────────────────────────────────
-// No text entered; submit disabled; counter shows 0/10+
-export const Idle = () => (
-  <div style={{ maxWidth: 480, padding: '1rem' }}>
-    <h3 style={{ marginBottom: '0.5rem' }}>Idle (0 chars)</h3>
-    <div>
-      <ReasonInput name="reason" minLength={10} placeholder="Enter a reason…" />
-      <button type="submit" style={{ marginTop: '0.5rem' }}>
-        Save change
-      </button>
-    </div>
-  </div>
-);
-
-// ── Typing (below min) ────────────────────────────────────────────────────────
-// Pre-filled with 5 chars; submit should be aria-disabled; counter 5/10+
-export const Typing = () => {
-  const [value, setValue] = useState('Hello');
-  return (
-    <div style={{ maxWidth: 480, padding: '1rem' }}>
-      <h3 style={{ marginBottom: '0.5rem' }}>Typing — below min (5 chars)</h3>
-      <div>
-        {/* ReasonInput manages its own state; value shown for clarity only */}
-        <ReasonInput name="reason" minLength={10} placeholder="Enter a reason…" />
-        <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-          (Pre-fill the textarea manually to see the below-min state)
-        </p>
-        <button type="submit" style={{ marginTop: '0.5rem' }}>
-          Save change
-        </button>
+  tags: ['autodocs'],
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 480, padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
+        <Story />
       </div>
+    ),
+  ],
+};
+export default meta;
+
+type Story = StoryObj<typeof ReasonInput>;
+
+// ── Idle (0 chars) — submit disabled, counter 0/10+ ─────────────────────────────
+export const Idle: Story = {
+  render: () => (
+    <div>
+      <ReasonInput name="reason" minLength={10} aria-label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
     </div>
-  );
+  ),
 };
 
-// ── Met min ───────────────────────────────────────────────────────────────────
-// Exactly 10 chars; submit should be enabled; counter 10/10+
-export const MetMin = () => (
-  <div style={{ maxWidth: 480, padding: '1rem' }}>
-    <h3 style={{ marginBottom: '0.5rem' }}>Met minimum (10 chars)</h3>
-    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-      Type exactly 10 characters in the textarea to see the enabled state.
-    </p>
+// ── Typing (below min) — type <10 chars to see the disabled state ────────────────
+export const Typing: Story = {
+  render: () => (
     <div>
-      <ReasonInput name="reason" minLength={10} placeholder="Enter a reason…" />
-      <button type="submit" style={{ marginTop: '0.5rem' }}>
-        Save change
-      </button>
+      <p>Type fewer than 10 characters to see the below-min (disabled) state.</p>
+      <ReasonInput name="reason" minLength={10} aria-label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
     </div>
-  </div>
-);
+  ),
+};
 
-// ── Exceeded ──────────────────────────────────────────────────────────────────
-// More than 10 chars; submit enabled; counter > 10/10+
-export const Exceeded = () => (
-  <div style={{ maxWidth: 480, padding: '1rem' }}>
-    <h3 style={{ marginBottom: '0.5rem' }}>Exceeded minimum (&gt;10 chars)</h3>
-    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-      Type more than 10 characters in the textarea to see the counter exceed the min.
-    </p>
+// ── Met min (exactly 10 chars) — submit enabled, counter 10/10+ ──────────────────
+export const MetMin: Story = {
+  render: () => (
     <div>
-      <ReasonInput name="reason" minLength={10} placeholder="Enter a reason…" />
-      <button type="submit" style={{ marginTop: '0.5rem' }}>
-        Save change
-      </button>
+      <p>Type exactly 10 characters to see the enabled state.</p>
+      <ReasonInput name="reason" minLength={10} aria-label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
     </div>
-  </div>
-);
+  ),
+};
+
+// ── Exceeded (>10 chars) — submit enabled, counter exceeds min ───────────────────
+export const Exceeded: Story = {
+  render: () => (
+    <div>
+      <p>Type more than 10 characters; the counter exceeds the minimum.</p>
+      <ReasonInput name="reason" minLength={10} aria-label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
+    </div>
+  ),
+};
+
+// ── aria-label only (T-067) — accessible name supplied externally, no visible label
+export const AriaLabelOnly: Story = {
+  render: () => (
+    <div>
+      <p>No visible label; the textarea is named via the aria-label prop.</p>
+      <ReasonInput name="reason" minLength={10} aria-label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
+    </div>
+  ),
+};
+
+// ── visible label (T-067) — renders a wired <label> above the textarea ───────────
+export const WithVisibleLabel: Story = {
+  render: () => (
+    <div>
+      <ReasonInput name="reason" minLength={10} label="Audit reason" placeholder="Why is this changing? (audit-logged)" />
+      <button type="submit">Save change</button>
+    </div>
+  ),
+};
