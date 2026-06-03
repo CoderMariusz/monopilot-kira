@@ -57,3 +57,4 @@ pipeline.log.md
 .vercel
 .env*.local
 .claude/scheduled_tasks.lock
+.pnpm-store/
