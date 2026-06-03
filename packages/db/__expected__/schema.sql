@@ -3385,6 +3385,13 @@ CREATE INDEX consumed_approval_tokens_org_idx ON public.consumed_approval_tokens
 
 
 --
+-- Name: dept_column_drafts_active_draft_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX dept_column_drafts_active_draft_uq ON public.dept_column_drafts USING btree (org_id, dept_id, column_key) WHERE (status = 'draft'::text);
+
+
+--
 -- Name: dept_column_drafts_org_dept_idx; Type: INDEX; Schema: public; Owner: -
 --
 

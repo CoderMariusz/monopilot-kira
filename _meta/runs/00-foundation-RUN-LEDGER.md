@@ -30,7 +30,7 @@ Legend: ⬜ pending · 🔄 in-flight · 🧪 gates-running · 👀 review · �
 | T-078 | mech | Haiku | low | flags/route | ✅ merged |
 | T-082 | T2-api | Codex | high | with-org-context | ✅ obsolete (superseded T-125) |
 | T-083 | T1-schema | Codex | high | dept-denied CHECK mig058 | ✅ merged |
-| T-085 | T1-schema | Codex | high | migrations/* | ⬜ |
+| T-085 | T1-schema | Codex | high | dept-drafts unique mig059 | ✅ merged |
 | T-086 | T2-api | Codex | high | saml issuer-parser xmldom | ✅ merged |
 | T-087 | T1-schema | Codex | high | migrations/* | ⬜ |
 | T-089 | T4-test | Codex | high | scim __tests__ | ⬜ |
