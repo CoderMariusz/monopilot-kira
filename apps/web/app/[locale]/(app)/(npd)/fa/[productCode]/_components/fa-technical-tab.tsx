@@ -2,7 +2,18 @@
 
 /**
  * T-026 — FaTechnicalTab (SCR-03e FA detail Technical tab) — schema-driven
- * Technical dept form + reserved allergen-widget slot.
+ * Technical dept form + allergen-widget slot.
+ *
+ * ALLERGEN REACHABILITY (module-close gap fix): the reserved allergen slot now
+ * accepts a server-rendered `allergenSlot` node. The FA-detail loader
+ * ([locale]/(app)/(npd)/fa/[productCode]/page.tsx) builds the T-040
+ * AllergenCascadeWidget with REAL org-scoped cascade data (read-model VIEW
+ * public.fa_allergen_cascade via readAllergenCascade) and server-resolved RBAC
+ * (npd.allergen.write), then injects it here — so the built allergen cascade
+ * (declared + may-contain), Refresh (re-run the T-038 engine), and the override
+ * entry point are reachable from the canonical locale tree. When no node is
+ * injected (standalone tests) the original placeholder is rendered so the slot is
+ * never lost.
  *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:656-743 (fa_technical_tab)
@@ -136,6 +147,14 @@ export type FaTechnicalTabProps = {
   state?: FaTechnicalTabState;
   /** Test/wiring seam: override the write path (defaults to T-009 updateFaCell). */
   onPersistCell?: (productCode: string, columnKey: string, value: unknown) => Promise<unknown>;
+  /**
+   * Server-rendered allergen cascade widget (REAL, org-scoped data + RBAC resolved
+   * server-side in the FA-detail loader). When provided it REPLACES the reserved
+   * "Allergens loading…" placeholder, making the built allergen feature reachable
+   * inside the Technical tab. When omitted (e.g. standalone tests) the placeholder
+   * is rendered so the slot is never lost.
+   */
+  allergenSlot?: React.ReactNode;
 };
 
 // ---------------------------------------------------------------------------
@@ -350,6 +369,7 @@ export function FaTechnicalTab({
   labels,
   state = 'ready',
   onPersistCell,
+  allergenSlot,
 }: FaTechnicalTabProps) {
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
 
@@ -506,9 +526,12 @@ export function FaTechnicalTab({
         </CardContent>
       </Card>
 
-      {/* Reserved allergen-widget slot (NPD-c). Rendered for every form state so
-          the slot is never lost — task red line: do not skip slot reservation. */}
-      <TechnicalAllergenSlot labels={labels} />
+      {/* Allergen cascade slot. Rendered for every form state so the slot is never
+          lost — task red line: do not skip slot reservation. When the FA-detail
+          loader injects the server-rendered AllergenCascadeWidget (REAL data +
+          server-resolved RBAC) it REPLACES the placeholder, making the built
+          allergen feature reachable inside the Technical tab. */}
+      {allergenSlot ?? <TechnicalAllergenSlot labels={labels} />}
 
       <span className="sr-only">{productCode}</span>
     </section>

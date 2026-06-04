@@ -126,7 +126,12 @@ describe('T-136 FA detail page — parity + real-data header', () => {
   it('renders the FA core row (code, name, status, built) read via withOrgContext', async () => {
     await renderPage();
 
-    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+    // Two org-scoped reads run through the withOrgContext boundary on the ready
+    // path: (1) the FA core row + dept columns + history (loadFaDetail), and
+    // (2) the allergen cascade read-model (readAllergenCascade, reused T-040
+    // action) that feeds the Technical-tab allergen slot. Both go through RLS as
+    // app_user — the client never re-queries or trusts a client permission flag.
+    expect(withOrgContextMock).toHaveBeenCalledTimes(2);
 
     const header = screen
       .getByRole('heading', { name: 'Smoked Almond Yoghurt' })
