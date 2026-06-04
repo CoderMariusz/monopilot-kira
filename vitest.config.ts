@@ -8,6 +8,7 @@ export default defineConfig({
       { find: /^@monopilot\/db\/(.*)$/, replacement: path.resolve(__dirname, 'packages/db/src/$1') },
       { find: /^@monopilot\/ui\/(.*)$/, replacement: path.resolve(__dirname, 'packages/ui/src/$1') },
       { find: '@monopilot/ui', replacement: path.resolve(__dirname, 'packages/ui/src') },
+      { find: '@monopilot/domain', replacement: path.resolve(__dirname, 'packages/domain/src/index.ts') },
     ],
   },
   test: {
