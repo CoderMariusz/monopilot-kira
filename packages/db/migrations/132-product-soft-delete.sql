@@ -1,0 +1,97 @@
+-- T-029: FA soft delete with audit/outbox support.
+-- Wave0 lock: org_id remains the business scope; product RLS already uses app.current_org_id().
+
+alter table public.product
+  add column if not exists deleted_at timestamptz;
+
+create index if not exists product_org_active_idx
+  on public.product (org_id, product_code)
+  where deleted_at is null;
+
+create or replace view public.fa
+  with (security_invoker = true)
+as
+select * from public.product
+where deleted_at is null;
+
+revoke all on public.fa from public;
+revoke all on public.fa from app_user;
+grant select on public.fa to app_user;
+
+alter table public.outbox_events drop constraint if exists outbox_events_event_type_check;
+alter table public.outbox_events add constraint outbox_events_event_type_check check (
+    event_type in (
+      'audit.recorded',
+      'bom.initial_version_created',
+      'bom.version_submitted',
+      'brief.converted',
+      'brief.created',
+      'compliance_doc.deleted',
+      'compliance_doc.expired',
+      'compliance_doc.expiring',
+      'compliance_doc.uploaded',
+      'd365.cache.refreshed',
+      'fa.allergens_changed',
+      'fa.built',
+      'fa.built_reset',
+      'fa.cascade',
+      'fa.core_closed',
+      'fa.created',
+      'fa.deleted',
+      'fa.dept_closed',
+      'fa.intermediate_code_changed',
+      'fa.recipe_changed',
+      'fg.allergens_changed',
+      'fg.bom.released',
+      'fg.created',
+      'fg.intermediate_code_changed',
+      'fg.release_blocked',
+      'fg.released_to_factory',
+      'formulation.locked',
+      'formulation.submitted_for_trial',
+      'lp.received',
+      'npd.builder.released_records_created',
+      'npd.project.created',
+      'npd.project.release_requested',
+      'onboarding.first_wo_recorded',
+      'onboarding.step.advance',
+      'onboarding.step.back',
+      'onboarding.step.jump',
+      'onboarding.step.restart',
+      'onboarding.step.skip',
+      'org.created',
+      'quality.recorded',
+      'risk.created',
+      'role.assigned',
+      'rule.deployed',
+      'settings.line.upserted',
+      'settings.location.upserted',
+      'settings.machine.upserted',
+      'settings.module.toggled',
+      'settings.notification_channel_updated',
+      'settings.notification_digest_updated',
+      'settings.notification_rule_updated',
+      'settings.org.created',
+      'settings.org.updated',
+      'settings.reference.row_updated',
+      'settings.role.assigned',
+      'settings.rule.deployed',
+      'settings.schema.migration_requested',
+      'settings.scim.token_created',
+      'settings.sso.config_changed',
+      'settings.user.accepted',
+      'settings.user.deactivated',
+      'settings.user.invited',
+      'settings.warehouse.deactivated',
+      'shipment.created',
+      'technical.factory_spec.approved',
+      'tenant.cohort.advanced',
+      'tenant.migration.run',
+      'tenant.migration.run.failed',
+      'user.invited',
+      'wo.ready'
+    )
+  );
+
+comment on constraint outbox_events_event_type_check on public.outbox_events
+  is 'T-029: includes fa.deleted while preserving migration 130 accepted outbox event types.';
