@@ -21,6 +21,12 @@ export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
 export { faStatusOverall } from './fa-status-overall.js';
 export type { FaStatusOverall } from './fa-status-overall.js';
+export { dashboardSummary, launchAlerts, missingRequiredCols } from './dashboard-views.js';
+export type {
+  DashboardSummary,
+  LaunchAlert,
+  MissingRequiredCols,
+} from './dashboard-views.js';
 export { prodDetail } from './prod-detail.js';
 export type { NewProdDetail, ProdDetail } from './prod-detail.js';
 export { referenceDeptColumns } from './reference-dept-columns.js';
