@@ -1,0 +1,16 @@
+{
+  "task": "T-129",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server, and the view-switcher route wiring is T-130). RTL role/landmark checks below substitute per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "hasH1": true,
+  "hasBreadcrumbNav": true,
+  "hasMainLandmark": true,
+  "listRegionLabelled": true,
+  "detailRegionLabelled": true,
+  "listboxFocusable": true,
+  "optionsHaveSelectedState": true,
+  "tableHeadersScoped": true,
+  "progressBarsHaveAria": true,
+  "prioBadgesHaveText": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true
+}

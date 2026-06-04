@@ -1,0 +1,77 @@
+{
+  "task": "T-129",
+  "anchor": "prototypes/design/Monopilot Design System/npd/pipeline.jsx:89-131",
+  "anchor_status": "@deprecated BL-NPD-02 (legacy R&D pipeline) — translated to the production Stage-Gate model; SplitView region is the canonical detail-view pattern.",
+  "mapping": [
+    {
+      "prototype": "SplitView .split (line 94) — 2-column layout",
+      "production": "CSS grid xl:grid-cols-[1fr_380px] gap-4 (no ResizablePanelGroup primitive in @monopilot/ui; prototype split is itself a static grid)",
+      "lines": "94"
+    },
+    {
+      "prototype": "<TableView ... selectedId onSelect> (line 95)",
+      "production": "left compact selection list: shadcn Table, role=listbox/region, selected row bg-blue-50 + aria-selected",
+      "lines": "54-88, 95"
+    },
+    {
+      "prototype": "selId React.useState (line 91)",
+      "production": "URL ?selected=<projectId> (shareable) via router.replace + useSearchParams; default = first project",
+      "lines": "91"
+    },
+    {
+      "prototype": "sticky detail Card position:sticky top:100 (line 96)",
+      "production": "ProjectDetailPanel <aside role=region> lg:sticky lg:top-16, shadcn Card",
+      "lines": "96"
+    },
+    {
+      "prototype": "card-head: code (mono) + name (title) + prioBadge (lines 97-103)",
+      "production": "CardHeader: font-mono code + CardTitle + shadcn Badge (prio→variant, text-paired)",
+      "lines": "97-103"
+    },
+    {
+      "prototype": "2-col field grid Owner/Stage/Created/Target/cost/margin (lines 106-115)",
+      "production": "dl grid-cols-2: Type/Owner/Gate/Target launch (Stage→Gate G0..Launched; cost/margin not on merged ProjectSummary → replaced by Recent activity)",
+      "lines": "106-115",
+      "deviation": "cost/margin fields absent from production ProjectSummary; \"Stage\" legacy model → Stage-Gate \"Gate\""
+    },
+    {
+      "prototype": "detail progress bar (lines 117-123)",
+      "production": "role=progressbar with aria-valuenow/min/max",
+      "lines": "117-123"
+    },
+    {
+      "prototype": "notes block (lines 125-126)",
+      "production": "folded into \"Recent activity\" section (getProject approvalsTimeline source; empty-feed placeholder in this slice)",
+      "lines": "125-126",
+      "deviation": "notes → Recent activity feed (richer, real-data backed)"
+    },
+    {
+      "prototype": "btn btn-primary \"Open project →\" (line 128)",
+      "production": "next/link → /pipeline/[id] styled as full-width .btn",
+      "lines": "128"
+    },
+    {
+      "prototype": "(no keyboard nav in prototype)",
+      "production": "ArrowUp/ArrowDown move active row, Enter/Space commit ?selected= (a11y + task contract)",
+      "lines": "n/a",
+      "deviation": "added keyboard navigation per task T-129 acceptance criterion 2"
+    },
+    {
+      "prototype": "(no responsive fallback in prototype)",
+      "production": "< 1280 px → matchMedia drops the detail aside, degrades to the selection list (§17.12 breakpoint)",
+      "lines": "n/a",
+      "deviation": "added the §17.12 1280px TableView fallback contract"
+    }
+  ],
+  "shadcn_translation": {
+    ".split layout": "CSS grid xl:grid-cols-[1fr_380px]",
+    "TableView selection list": "Table + TableRow role=option (@monopilot/ui)",
+    "sticky detail .card": "aside + Card/CardHeader/CardContent (lg:sticky lg:top-16)",
+    "span.badge prio": "Badge (danger/warning/muted)",
+    "div progress bar": "role=progressbar (aria-valuenow/min/max)",
+    "window.NPD_PROJECTS": "listProjects() → ProjectSummary (REAL Supabase via withOrgContext, supplied by parent RSC)",
+    "sel detail": "getProject() → ProjectSummary (REAL, org-scoped)",
+    "onOpen(p.id)": "next/link → /pipeline/[id]",
+    "selId state": "URL ?selected= (useSearchParams + router.replace)"
+  }
+}
