@@ -1190,6 +1190,30 @@
         "deleted": "Deleted"
       }
     },
+    "approvalHistory": {
+      "title": "Approval History",
+      "subtitle": "{count, plural, =0 {No approvals recorded} one {# approval recorded} other {# approvals recorded}}",
+      "statusApproved": "APPROVED",
+      "statusRejected": "REJECTED",
+      "eSignedTag": "E-signed",
+      "eSignedIconLabel": "E-signed entry",
+      "sigShow": "View signature details",
+      "sigHide": "Hide signature details",
+      "sigPanelTitle": "E-Signature Details",
+      "sigSigner": "Signer",
+      "sigRole": "Role",
+      "sigTimestamp": "Timestamp",
+      "sigCertId": "Certificate ID",
+      "sigVerification": "Verification",
+      "sigValid": "Valid — Signature verified",
+      "approvedIconLabel": "Approved",
+      "rejectedIconLabel": "Rejected",
+      "loading": "Loading approval history…",
+      "empty": "No approvals recorded yet for this project",
+      "emptyBody": "Gate approvals will appear here as the project advances.",
+      "error": "Unable to load approval history.",
+      "forbidden": "You do not have permission to view this approval history."
+    },
     "faDetail": {
       "eyebrow": "Factory Article",
       "subtitle": "Department workspace · close each department to complete the FA",

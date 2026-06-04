@@ -1,0 +1,95 @@
+{
+  "task": "T-110",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/gate-screens.jsx:525-616 (ApprovalHistoryTimeline)",
+    "prototype-index-npd.json#approval_history_timeline"
+  ],
+  "data_source": "REAL public.gate_approvals (project-scoped) via packages/queries listApprovalHistory(projectId) — org-scoped through app.current_org_id()/RLS; NO mocks",
+  "generated_at": "2026-06-04T07:55:36.403Z",
+  "states": {
+    "loading": {
+      "section": true,
+      "card": true,
+      "heading": "Approval History",
+      "rows": 0,
+      "approvedRows": 0,
+      "rejectedRows": 0,
+      "icons": 0,
+      "badges": 0,
+      "signatureDisclosures": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1,
+      "timeElements": 0,
+      "connector": 0
+    },
+    "empty": {
+      "section": true,
+      "card": true,
+      "heading": "Approval History",
+      "rows": 0,
+      "approvedRows": 0,
+      "rejectedRows": 0,
+      "icons": 0,
+      "badges": 0,
+      "signatureDisclosures": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1,
+      "timeElements": 0,
+      "connector": 1
+    },
+    "error": {
+      "section": true,
+      "card": true,
+      "heading": "Approval History",
+      "rows": 0,
+      "approvedRows": 0,
+      "rejectedRows": 0,
+      "icons": 0,
+      "badges": 0,
+      "signatureDisclosures": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "timeElements": 0,
+      "connector": 0
+    },
+    "permission_denied": {
+      "section": true,
+      "card": true,
+      "heading": "Approval History",
+      "rows": 0,
+      "approvedRows": 0,
+      "rejectedRows": 0,
+      "icons": 0,
+      "badges": 0,
+      "signatureDisclosures": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "timeElements": 0,
+      "connector": 0
+    },
+    "ready": {
+      "section": true,
+      "card": true,
+      "heading": "Approval History",
+      "rows": 2,
+      "approvedRows": 1,
+      "rejectedRows": 1,
+      "icons": 2,
+      "badges": 2,
+      "signatureDisclosures": 1,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "timeElements": 2,
+      "connector": 1
+    },
+    "signature_open": {
+      "panel": true,
+      "hash": true
+    }
+  }
+}

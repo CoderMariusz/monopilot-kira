@@ -1190,6 +1190,30 @@
         "deleted": "Șters"
       }
     },
+    "approvalHistory": {
+      "title": "Istoric aprobări",
+      "subtitle": "{count, plural, =0 {Nicio aprobare înregistrată} one {# aprobare înregistrată} few {# aprobări înregistrate} other {# de aprobări înregistrate}}",
+      "statusApproved": "APROBAT",
+      "statusRejected": "RESPINS",
+      "eSignedTag": "Semnat electronic",
+      "eSignedIconLabel": "Intrare semnată electronic",
+      "sigShow": "Vezi detaliile semnăturii",
+      "sigHide": "Ascunde detaliile semnăturii",
+      "sigPanelTitle": "Detalii semnătură electronică",
+      "sigSigner": "Semnatar",
+      "sigRole": "Rol",
+      "sigTimestamp": "Marcaj temporal",
+      "sigCertId": "ID certificat",
+      "sigVerification": "Verificare",
+      "sigValid": "Valid — semnătură verificată",
+      "approvedIconLabel": "Aprobat",
+      "rejectedIconLabel": "Respins",
+      "loading": "Se încarcă istoricul aprobărilor…",
+      "empty": "Nicio aprobare înregistrată încă pentru acest proiect",
+      "emptyBody": "Aprobările de poartă vor apărea aici pe măsură ce proiectul avansează.",
+      "error": "Nu se poate încărca istoricul aprobărilor.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza acest istoric al aprobărilor."
+    },
     "faDetail": {
       "eyebrow": "Articol de fabrică",
       "subtitle": "Spațiu de lucru pe departamente · închide fiecare departament pentru a finaliza AF",

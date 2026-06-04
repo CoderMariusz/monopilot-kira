@@ -1190,6 +1190,30 @@
         "deleted": "Usunięto"
       }
     },
+    "approvalHistory": {
+      "title": "Historia zatwierdzeń",
+      "subtitle": "{count, plural, =0 {Brak zarejestrowanych zatwierdzeń} one {Zarejestrowano # zatwierdzenie} few {Zarejestrowano # zatwierdzenia} many {Zarejestrowano # zatwierdzeń} other {Zarejestrowano # zatwierdzeń}}",
+      "statusApproved": "ZATWIERDZONE",
+      "statusRejected": "ODRZUCONE",
+      "eSignedTag": "Podpisane elektronicznie",
+      "eSignedIconLabel": "Wpis podpisany elektronicznie",
+      "sigShow": "Pokaż szczegóły podpisu",
+      "sigHide": "Ukryj szczegóły podpisu",
+      "sigPanelTitle": "Szczegóły podpisu elektronicznego",
+      "sigSigner": "Podpisujący",
+      "sigRole": "Rola",
+      "sigTimestamp": "Znacznik czasu",
+      "sigCertId": "Identyfikator certyfikatu",
+      "sigVerification": "Weryfikacja",
+      "sigValid": "Ważny — podpis zweryfikowany",
+      "approvedIconLabel": "Zatwierdzone",
+      "rejectedIconLabel": "Odrzucone",
+      "loading": "Ładowanie historii zatwierdzeń…",
+      "empty": "Brak zarejestrowanych zatwierdzeń dla tego projektu",
+      "emptyBody": "Zatwierdzenia bram pojawią się tutaj wraz z postępem projektu.",
+      "error": "Nie można załadować historii zatwierdzeń.",
+      "forbidden": "Nie masz uprawnień do wyświetlenia tej historii zatwierdzeń."
+    },
     "faDetail": {
       "eyebrow": "Artykuł fabryczny",
       "subtitle": "Przestrzeń działów · zamknij każdy dział, aby ukończyć AF",
