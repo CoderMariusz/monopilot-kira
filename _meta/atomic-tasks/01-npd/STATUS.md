@@ -46,12 +46,12 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
 | T-033 | Server Action convertBriefToFa | ✅ DONE | DONE 2026-06-04 (Wave C). convertBriefToFa Server Action (mig 137 brief-to-fa-audit) + brief.completed_for_project event + V08 mapping validator — REAL integration test. merged |
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
-| T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
+| T-035 | UI: Brief Create + Brief Convert modals | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). Brief Create + Complete modals — createBrief(T-031)+convertBriefToFa(T-033), ?modal= host (T-119 pattern), parity (modals.jsx:46-140), RTL, tsc0, i18n npd.briefModals. kira-ui |
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
 | T-037 | fa_allergen_overrides table + audit chain | ✅ DONE | DONE 2026-06-04 (Wave B). fa_allergen_overrides + append-only audit chain (mig 094) — Codex+rework (revoke UPD/DEL, SECURITY DEFINER supersede trigger, 9/9), merged |
 | T-038 | Allergen cascade engine + fa_allergen_cascade view | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade ENGINE + fa_allergen_cascade view (mig 114) — Opus+rework (product.allergens/may_contain cols, update_fa_allergen_set fn+action, may_contain separate, conditional only-confirmed, fa.allergens_changed event-on-change, 18 tests). Codex review. NEW perm npd.allergen.write needs seed (module-close) |
 | T-039 | Server Actions: setAllergenOverride + V07 validator | ✅ DONE | DONE 2026-06-04 (Wave C). setAllergenOverride + V07 validator (packages/validation) + REAL action integration test — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
-| T-040 | UI: Allergen Cascade widget + Override modal | ⬜ PENDING | Blocked by T-026, T-038, T-039 |
+| T-040 | UI: Allergen Cascade widget + Override modal | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). Allergen Cascade widget + Override modal — real fa_allergen_cascade view (T-038) derived/published/may_contain, override via T-039, EU14 badges, parity (allergen-screens.jsx:5-118 + modals.jsx:389-428), RTL, tsc0, i18n npd.allergenWidget. kira-ui |
 | T-041 | Reference.D365_Constants table + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.D365_Constants + Apex seed (mig 083) — merged |
 | T-042 | exceljs Builder generator: 8 tabs per FA | ⬜ PENDING | Blocked by T-001, T-002, T-041 |
 | T-043 | fa_builder_outputs storage + signed URL service | ✅ DONE | DONE 2026-06-04 (Wave C). fa_builder_outputs storage + signed URL (mig 112, packages/storage) — merged |
@@ -70,14 +70,14 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-056 | Default G0-G4 GateChecklistTemplates seed | ✅ DONE | DONE 2026-06-04 (Wave B). Default G0-G4 GateChecklistTemplates seed (mig 101, Sonnet, 9/9 idempotent) — merged |
 | T-057 | createProject + listProjects + getProject Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). createProject/list/get Server Actions + npd.project.created event (mig 103) — Codex+rework (typecheck fix, code constraint→(org_id,code) fixing T-054 global-unique bug, real integration tests). merged |
 | T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ✅ DONE | DONE 2026-06-04 (parallel ramp). advanceProjectGate/approveProjectGate/rollbackGate (mig 143) — gate transitions + checklist gating + e-sign G3/G4 + rollback. Codex+Opus review PASS-WITH-NITS. REAL integration 6/6. merged |
-| T-059 | UI: Pipeline Kanban view | ⬜ PENDING | Blocked by T-057, T-058 |
+| T-059 | UI: Pipeline Kanban view | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). Pipeline Kanban (G0-G4 columns) — real npd_projects via T-057, advance via T-058, parity (pipeline.jsx:19-52), RTL, tsc0, i18n npd.pipelineKanban. kira-ui |
 | T-060 | ROOT: Pipeline views group | ⬜ PENDING | Blocked by T-057, T-059 |
 | T-061 | ROOT: Gate screen components group | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-062 | E2E: project create → advance G0..G2 → approve G3 | ⬜ PENDING | Blocked by T-057, T-058, T-059, T-061, T-095, T-096, T-097 |
 | T-063 | formulations + formulation_versions + formulation_ingredients tables | ✅ DONE | DONE 2026-06-04 (Wave B). formulations+versions+ingredients+audit+cache (mig 093, 5 tables, NUMERIC, DEFERRABLE circular FK) — merged. Nit: audit_log org-link FK (T-064 follow) |
 | T-064 | Formulation lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation lifecycle actions (draft/trial/lock) + mig 104 (formulation.* outbox events + locked-ingredient immutability trigger) — Codex+rework (replaced mock-only tests with REAL DB integration). merged |
 | T-065 | Formulation pure-function compute (cost/nutrition/allergen) | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation pure compute (cost/nutrition/allergen) @monopilot/domain + recompute/compare actions — Opus impl-hard + rework (nutrition load via NEW Reference.RawMaterials mig 107, money string-only, version existence checks, seq-keyed diff). Codex review. NUMERIC-exact. merged |
-| T-066 | UI: FormulationEditor (RecipeScreen prototype) | ⬜ PENDING | Blocked by T-064 |
+| T-066 | UI: FormulationEditor (RecipeScreen prototype) | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). FormulationEditor (RecipeScreen) — real formulation+ingredients (T-063), saveDraft(T-064)+recompute(T-065), debounced, NUMERIC-exact, parity (recipe.jsx:124-264), RTL, tsc0, i18n npd.formulationEditor. kira-ui. panels=slots(T-113-115) |
 | T-067 | ROOT: FormulationEditor live panels | ⬜ PENDING | Blocked by T-065, T-066 |
 | T-068 | E2E: formulation edit → submit-for-trial → lock | ⬜ PENDING | Blocked by T-064, T-065, T-066, T-067 |
 | T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). nutrition + unique NULLS NOT DISTINCT fix (mig 086); 6/6 green — merged |
@@ -118,7 +118,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-104 | UI: FA Planning tab | ⬜ PENDING | Same situation as T-102 |
 | T-105 | WIRING: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101, T-102, T-103, T-104 |
 | T-106 | PARITY: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101–T-105 |
-| T-107 | UI: GateChecklistPanel | ⬜ PENDING | Blocked by T-057, T-058 |
+| T-107 | UI: GateChecklistPanel | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). GateChecklistPanel — real gate_checklist_items via T-057, per-gate progress, toggle via T-058, parity (gate-screens.jsx:106-258), RTL, tsc0, i18n npd.gateChecklist. kira-ui |
 | T-108 | UI: AdvanceGateModal | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-109 | UI: GateApprovalModal | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-110 | UI: ApprovalHistoryTimeline | ⬜ PENDING | Blocked by T-057, T-058 |
@@ -147,7 +147,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-133 | UI: Dashboard Pipeline preview region | ⏸ BLOCKED | dashboard-pipeline-preview.tsx exists but same gaps as T-132 |
 | T-134 | WIRING: NPD Dashboard page assembly | ⬜ PENDING | Blocked by T-132, T-133 |
 | T-135 | PARITY: NPD Dashboard Playwright + axe | ⬜ PENDING | Blocked by T-132–T-134 |
-| T-136 | UI: FA detail page shell + tabs container | ⏸ BLOCKED | fa/[productCode]/page.tsx + fa-tabs.tsx exist but all content "deferred-empty"; no prototype parity |
+| T-136 | UI: FA detail page shell + tabs container | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). FA detail shell + tabs container — real product core (composite PK), 8 dept tabs, history tab preserved (T-027), parity (fa-screens.jsx:300-401), RTL, tsc0, i18n npd.faDetail. kira-ui |
 | T-137 | UI: FA right panel sidebar | ⏸ BLOCKED | fa-right-panel.tsx exists with mock data; no real data; no modal wiring; no parity evidence |
 | T-138 | WIRING: FA detail shell + right panel + tabs layout | ⬜ PENDING | Blocked by T-136, T-137; page.tsx does not compose fa-right-panel |
 | T-139 | PARITY: FA detail shell Playwright + axe | ⬜ PENDING | Blocked by T-136–T-138 |
