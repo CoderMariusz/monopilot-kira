@@ -339,6 +339,23 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.machine.upserted')).toBe(true);
   });
 
+  it('creates an UNPLACED machine when no locationId is provided (fresh org has zero locations) without touching V-SET-61', async () => {
+    const upsertMachine = await loadAction<
+      (input: { id?: string; code: string; name: string; machineType: string; locationId?: string | null }) => Promise<{ ok: boolean; error?: string; data?: { locationId: string | null } }>
+    >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
+
+    // Omitted locationId → machine created unplaced (location_id null), no location lookup.
+    const omitted = await upsertMachine({ id: MACHINE_ID, code: 'MIX-02', name: 'Mixer 2', machineType: 'mixer' });
+    expect(omitted).toMatchObject({ ok: true, data: { locationId: null } });
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.machine.upserted')).toBe(true);
+    // V-SET-61 was NOT evaluated → no locations table lookup for placement.
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().includes('from public.locations'))).toBe(false);
+
+    // Empty-string locationId is normalized to null (unplaced), not an invalid_input rejection.
+    const emptyString = await upsertMachine({ id: MACHINE_ID, code: 'MIX-03', name: 'Mixer 3', machineType: 'mixer', locationId: '' });
+    expect(emptyString).toMatchObject({ ok: true, data: { locationId: null } });
+  });
+
   it('V-SET-62/V-SET-63 block empty line activation and require force to deactivate warehouses with active WOs', async () => {
     const upsertLine = await loadAction<
       (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
@@ -366,6 +383,28 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const forced = await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true });
     expect(forced).toMatchObject({ ok: true, data: { isActive: false }, warning: { code: 'ACTIVE_WO_REFERENCES', activeWorkOrders: 2 } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.warehouse.deactivated')).toBe(true);
+  });
+
+  it('creates a DRAFT line with zero machines and writes line_machines (delete-then-insert with sequence) when machines are assigned', async () => {
+    const upsertLine = await loadAction<
+      (input: { id?: string; code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: boolean; error?: string; data?: { status: string } }>
+    >('line.ts', 'upsertLine', () => import(`${__dirname}/line.ts`) as Promise<Record<string, unknown>>);
+
+    // Draft line with no machines is allowed (machine is only required at activation, V-SET-62).
+    const draft = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [] });
+    expect(draft).toMatchObject({ ok: true, data: { status: 'draft' } });
+    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([]);
+    // delete-then-insert: line_machines cleared even with zero machines.
+    expect(currentClient.calls.some((call) => call.sql.toLowerCase().startsWith('delete from public.line_machines'))).toBe(true);
+
+    // Assigning a machine writes line_machines with a sequence.
+    const assigned = await upsertLine({ id: LINE_ID, code: 'LINE-DRAFT', name: 'Draft line', status: 'draft', machineIds: [MACHINE_ID] });
+    expect(assigned).toMatchObject({ ok: true });
+    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([MACHINE_ID]);
+    const insertCall = currentClient.calls.find((call) => call.sql.toLowerCase().startsWith('insert into public.line_machines'));
+    expect(insertCall, 'line_machines insert must include a sequence column + value').toBeTruthy();
+    expect(insertCall?.sql.toLowerCase()).toContain('sequence');
+    expect(insertCall?.params).toContain(1);
   });
 
   it('Outbox on mutations persists only event types accepted by outbox_events_event_type_check', async () => {

@@ -22,11 +22,11 @@ type ParsedMachineInput = {
   code: string;
   name: string;
   machineType: string;
-  locationId: string;
+  locationId: string | null;
 };
 
 export type UpsertMachineResult =
-  | { ok: true; data: { id: string; locationId: string; status: string } }
+  | { ok: true; data: { id: string; locationId: string | null; status: string } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'invalid_location' | 'location_must_be_bin_level' | 'persistence_failed' };
 
 const EDIT_PERMISSION = 'settings.infra.update';
@@ -38,7 +38,10 @@ const MachineInput = z.object({
   code: MachineCodeInput,
   name: z.string().trim().min(1).max(128),
   machineType: MachineCodeInput,
-  locationId: UuidInput,
+  // Optional: a fresh org has zero locations, so a machine can be created
+  // unplaced (machines.location_id is nullable). V-SET-61 bin-level check
+  // still applies when a location IS provided.
+  locationId: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
 });
 
 export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineResult> {
@@ -49,9 +52,13 @@ export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineRes
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<UpsertMachineResult> => {
       if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
-      const location = await getLocation(client, input.locationId);
-      if (!location) return { ok: false, error: 'invalid_location' };
-      if (location.level !== 4) return { ok: false, error: 'location_must_be_bin_level' };
+      // V-SET-61 only applies when a location is provided. An unplaced machine
+      // (null location_id) is allowed so fresh orgs can build infra bottom-up.
+      if (input.locationId) {
+        const location = await getLocation(client, input.locationId);
+        if (!location) return { ok: false, error: 'invalid_location' };
+        if (location.level !== 4) return { ok: false, error: 'location_must_be_bin_level' };
+      }
 
       const { rows } = await client.query<MachineRow>(
         `insert into public.machines
@@ -66,7 +73,7 @@ export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineRes
         [input.id, input.code, input.name, input.machineType, input.locationId],
       );
       const row = rows[0];
-      if (!row?.location_id) return { ok: false, error: 'persistence_failed' };
+      if (!row) return { ok: false, error: 'persistence_failed' };
 
       await writeOutbox(client, {
         orgId,
@@ -91,7 +98,7 @@ function parseMachineInput(raw: unknown): ParsedMachineInput | null {
     code: parsed.data.code,
     name: parsed.data.name,
     machineType: parsed.data.machineType,
-    locationId: parsed.data.locationId,
+    locationId: parsed.data.locationId ?? null,
   };
 }
 

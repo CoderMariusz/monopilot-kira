@@ -17,6 +17,7 @@ export type LocationRow = {
   warehouseId: string;
   path: string;
   name: string;
+  level?: number;
 };
 
 export type MachineRow = {
@@ -31,10 +32,12 @@ export type MachineRow = {
 };
 
 export type MachineActionInput = { machineId: string };
-export type CreateMachineInput = { code: string; name: string; machineType: string; locationId: string };
+export type CreateMachineInput = { code: string; name: string; machineType: string; locationId: string | null };
 export type CreateMachineResult =
-  | { ok: true; data: { id: string; locationId: string; status: string } }
+  | { ok: true; data: { id: string; locationId: string | null; status: string } }
   | { ok: false; error?: string };
+
+const UNPLACED_LOCATION = '__unplaced__';
 export type MachineActionResult = {
   ok: boolean;
   data?: { machineId: string; deactivated_at?: string | null };
@@ -69,6 +72,7 @@ export type MachinesLabels = {
   fieldName: string;
   fieldMachineType: string;
   fieldLocation: string;
+  locationUnplaced: string;
   createMachine: string;
   createMachinePending: string;
   cancel: string;
@@ -115,12 +119,13 @@ export const DEFAULT_MACHINE_LABELS: MachinesLabels = {
   fieldName: 'Name',
   fieldMachineType: 'Machine type',
   fieldLocation: 'Location',
+  locationUnplaced: 'Unplaced (no location)',
   createMachine: 'Create machine',
   createMachinePending: 'Creating…',
   cancel: 'Cancel',
   createMachineSuccess: 'Machine created.',
   createMachineFailed: 'Machine could not be created.',
-  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
+  noLocationsAvailable: 'No bin-level locations yet — the machine will be created unplaced. Add locations later to assign it.',
   deactivated: 'Deactivated',
   selectMachine: 'Select {name}',
   insufficientPermission:
@@ -225,7 +230,11 @@ export default function MachinesListScreen({
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [createPending, setCreatePending] = React.useState(false);
   const [createStatus, setCreateStatus] = React.useState<string | null>(null);
-  const [newMachine, setNewMachine] = React.useState<CreateMachineInput>({ code: '', name: '', machineType: '', locationId: locations[0]?.id ?? '' });
+  const binLocations = React.useMemo(
+    () => locations.filter((location) => location.level === undefined || location.level === 4),
+    [locations],
+  );
+  const [newMachine, setNewMachine] = React.useState<CreateMachineInput>({ code: '', name: '', machineType: '', locationId: binLocations[0]?.id ?? null });
 
   const warehouseOptions = React.useMemo(() => {
     const byWarehouse = new Map<string, string>();
@@ -309,20 +318,25 @@ export default function MachinesListScreen({
           code: newMachine.code.trim().toLowerCase(),
           name: newMachine.name.trim(),
           warehouseId: location?.warehouseId ?? '',
-          locationId: result.data.locationId,
+          locationId: result.data.locationId ?? '',
           locationPath: location?.path ?? '',
           specs: { status: result.data.status },
           deactivated_at: null,
         },
         ...current.filter((row) => row.id !== result.data.id),
       ]);
-      setNewMachine({ code: '', name: '', machineType: '', locationId: locations[0]?.id ?? '' });
+      setNewMachine({ code: '', name: '', machineType: '', locationId: binLocations[0]?.id ?? null });
       setCreateStatus(labels.createMachineSuccess);
       setCreateDialogOpen(false);
     } finally {
       setCreatePending(false);
     }
   }
+
+  // An initial 'empty' state flips to 'ready' once a machine is created
+  // client-side (e.g. the first machine on a fresh org), so the new row shows
+  // immediately instead of staying behind the empty placeholder.
+  const effectiveState: PageState = state === 'empty' && rows.length > 0 ? 'ready' : state;
 
   const disabledReason = canUpdateInfra ? undefined : labels.insufficientPermission;
   const bulkDisabled = !canUpdateInfra || selected.size === 0 || pendingAction !== null;
@@ -456,22 +470,25 @@ export default function MachinesListScreen({
               </label>
               <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <span id="new-machine-location-label">{labels.fieldLocation}</span>
-                {locations.length > 0 ? (
-                  <Select value={newMachine.locationId} onValueChange={(value) => setNewMachine((current) => ({ ...current, locationId: value }))}>
-                    <SelectTrigger aria-label={labels.fieldLocation}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>{location.path || location.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : <p className="text-sm text-slate-600">{labels.noLocationsAvailable}</p>}
+                <Select
+                  value={newMachine.locationId ?? UNPLACED_LOCATION}
+                  onValueChange={(value) => setNewMachine((current) => ({ ...current, locationId: value === UNPLACED_LOCATION ? null : value }))}
+                >
+                  <SelectTrigger aria-label={labels.fieldLocation}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNPLACED_LOCATION}>{labels.locationUnplaced}</SelectItem>
+                    {binLocations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>{location.path || location.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {binLocations.length === 0 ? <p className="text-sm text-slate-600">{labels.noLocationsAvailable}</p> : null}
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending || locations.length === 0} aria-label={canUpdateInfra ? labels.createMachine : `${labels.createMachine} — ${labels.insufficientPermission}`}>
+                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createMachine : `${labels.createMachine} — ${labels.insufficientPermission}`}>
                   {createPending ? labels.createMachinePending : labels.createMachine}
                 </Button>
               </div>
@@ -482,7 +499,7 @@ export default function MachinesListScreen({
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="machine-list-title">
         <h2 id="machine-list-title" className="sr-only">{labels.sectionTitle}</h2>
-        {state === 'ready' ? (
+        {effectiveState === 'ready' ? (
           visibleRows.length > 0 ? (
             <Table aria-label={labels.title} className="w-full border-collapse text-left text-sm">
               <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -524,7 +541,7 @@ export default function MachinesListScreen({
             <div role="status" className="p-4">{labels.empty}</div>
           )
         ) : (
-          <div className="p-4"><StateNotice state={state} labels={labels} /></div>
+          <div className="p-4"><StateNotice state={effectiveState} labels={labels} /></div>
         )}
       </section>
     </main>

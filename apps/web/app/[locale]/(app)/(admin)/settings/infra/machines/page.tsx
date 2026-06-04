@@ -57,6 +57,7 @@ type LocationLoaderRow = {
   warehouse_id: string;
   path: string;
   name: string;
+  level: number | null;
 };
 
 const DEFAULT_MACHINE_LABELS: MachinesLabels = {
@@ -88,12 +89,13 @@ const DEFAULT_MACHINE_LABELS: MachinesLabels = {
   fieldName: 'Name',
   fieldMachineType: 'Machine type',
   fieldLocation: 'Location',
+  locationUnplaced: 'Unplaced (no location)',
   createMachine: 'Create machine',
   createMachinePending: 'Creating…',
   cancel: 'Cancel',
   createMachineSuccess: 'Machine created.',
   createMachineFailed: 'Machine could not be created.',
-  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
+  noLocationsAvailable: 'No bin-level locations yet — the machine will be created unplaced. Add locations later to assign it.',
   deactivated: 'Deactivated',
   selectMachine: 'Select {name}',
   insufficientPermission:
@@ -166,6 +168,7 @@ function toLocationRow(row: LocationLoaderRow): LocationRow {
     warehouseId: row.warehouse_id,
     path: row.path,
     name: row.name,
+    level: row.level ?? undefined,
   };
 }
 
@@ -199,7 +202,7 @@ async function readMachinesPageData(): Promise<LoaderResult> {
             order by m.name asc`,
         ),
         ctx.client.query<LocationLoaderRow>(
-          `select id, warehouse_id, path, name
+          `select id, warehouse_id, path, name, level
              from public.locations
             where org_id = app.current_org_id()
             order by level asc, path asc`,

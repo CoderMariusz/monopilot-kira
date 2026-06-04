@@ -37,12 +37,13 @@ const labels: Record<string, string> = {
   fieldName: 'Name',
   fieldMachineType: 'Machine type',
   fieldLocation: 'Location',
+  locationUnplaced: 'Unplaced (no location)',
   createMachine: 'Create machine',
   createMachinePending: 'Creating…',
   cancel: 'Cancel',
   createMachineSuccess: 'Machine created.',
   createMachineFailed: 'Machine could not be created.',
-  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
+  noLocationsAvailable: 'No bin-level locations yet — the machine will be created unplaced. Add locations later to assign it.',
   deactivated: 'Deactivated',
   insufficientPermission:
     'Insufficient permissions: settings.infra.update is required to activate or deactivate machines.',
@@ -83,6 +84,7 @@ const REQUIRED_MACHINE_LABEL_KEYS = Object.freeze([
   'createMachineSuccess',
   'createMachineFailed',
   'noLocationsAvailable',
+  'locationUnplaced',
   'deactivated',
   'selectMachine',
   'insufficientPermission',
@@ -110,6 +112,7 @@ type LocationRow = {
   warehouseId: string;
   path: string;
   name: string;
+  level?: number;
 };
 
 type MachineRow = {
@@ -135,7 +138,7 @@ type MachinesPageProps = {
   machines?: MachineRow[];
   locations?: LocationRow[];
   canUpdateInfra?: boolean;
-  createMachine?: (input: { code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: true; data: { id: string; locationId: string; status: string } } | { ok: false; error?: string }>;
+  createMachine?: (input: { code: string; name: string; machineType: string; locationId: string | null }) => Promise<{ ok: true; data: { id: string; locationId: string | null; status: string } } | { ok: false; error?: string }>;
   deactivateMachine?: (input: MachineActionInput) => Promise<MachineActionResult>;
   activateMachine?: (input: MachineActionInput) => Promise<MachineActionResult>;
 };
@@ -484,5 +487,36 @@ describe('SET-016 machine list behavior', () => {
       locationId: locations[3].id,
     }));
     expect(rowFor(/filler 99.*mc-fill-99.*active/i)).toBeInTheDocument();
+  });
+
+  it('creates an UNPLACED machine on a fresh org with zero locations (the create-line/create-machine bootstrap bug)', async () => {
+    const user = userEvent.setup();
+    const createMachine = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'machine-bootstrap-01', locationId: null, status: 'active' },
+    }));
+    await renderMachinesPage({ machines: [], locations: [], createMachine, state: 'empty' });
+
+    await user.click(screen.getByRole('button', { name: /^add machine$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /^add machine$/i });
+
+    // No bin-level locations exist, yet creation is NOT blocked — the location
+    // Select defaults to "Unplaced" and Create machine stays enabled.
+    const createButton = within(dialog).getByRole('button', { name: /^create machine$/i });
+    expect(createButton).toBeEnabled();
+    expect(within(dialog).getByText(/will be created unplaced/i)).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'MX-01');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Mixer 01');
+    await user.type(within(dialog).getByLabelText(/^machine type$/i), 'mixer');
+    await user.click(createButton);
+
+    await waitFor(() => expect(createMachine).toHaveBeenCalledWith({
+      code: 'MX-01',
+      name: 'Mixer 01',
+      machineType: 'mixer',
+      locationId: null,
+    }));
+    expect(rowFor(/mixer 01.*mx-01.*active/i)).toBeInTheDocument();
   });
 });
