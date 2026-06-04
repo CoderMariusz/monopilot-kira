@@ -133,6 +133,10 @@ export const Permission = {
   NPD_GATE_APPROVE: 'npd.gate.approve',
   /** NPD BOM export permission; PRD 01-NPD §2.2, §18, §19. */
   NPD_BOM_EXPORT: 'npd.bom.export',
+
+  // GDPR
+  /** GDPR Art.17 right-to-erasure execution (admin); PRD 01-NPD §15 Compliance + Foundation §15 GDPR. Gates the redact-user Server Action (T-089). */
+  GDPR_ERASURE_EXECUTE: 'gdpr.erasure.execute',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -200,6 +204,7 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_GATE_ADVANCE,
   Permission.NPD_GATE_APPROVE,
   Permission.NPD_BOM_EXPORT,
+  Permission.GDPR_ERASURE_EXECUTE,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {

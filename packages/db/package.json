@@ -20,6 +20,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@monopilot/gdpr": "workspace:*",
     "drizzle-kit": "0.31.1",
     "drizzle-orm": "0.40.0",
     "pg": "8.16.0",

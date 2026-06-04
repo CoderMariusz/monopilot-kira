@@ -281,6 +281,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@monopilot/gdpr':
+        specifier: workspace:*
+        version: link:../gdpr
       drizzle-kit:
         specifier: 0.31.1
         version: 0.31.1

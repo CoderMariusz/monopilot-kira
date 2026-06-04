@@ -77,6 +77,7 @@ const expectedNpdPermissions = [
   'npd.gate.advance',
   'npd.gate.approve',
   'npd.bom.export',
+  'gdpr.erasure.execute',
 ] as const;
 
 const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
@@ -192,7 +193,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_NPD_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_NPD_PERMISSIONS).toEqual(expectedNpdPermissions);
-    expect(ALL_NPD_PERMISSIONS).toHaveLength(17);
+    expect(ALL_NPD_PERMISSIONS).toHaveLength(18);
     expect(new Set(ALL_NPD_PERMISSIONS).size).toBe(ALL_NPD_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 

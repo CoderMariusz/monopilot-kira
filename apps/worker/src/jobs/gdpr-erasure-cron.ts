@@ -101,6 +101,17 @@ async function getDefaultAppPool(): Promise<pg.Pool> {
 }
 
 async function getDefaultErasureRunner(): Promise<ErasureRunner> {
+  // Register every @monopilot/db-owned GDPR erasure domain handler with the
+  // foundation registry BEFORE resolving runErasure. runErasure() only invokes
+  // handlers present in the in-process registry, so without this the `npd` domain
+  // is silently skipped in production and NPD PII is never erased (T-089 HIGH-1).
+  // This runs on the real production tick path (the cron's default runner); the
+  // aggregator is idempotent under `force`, so repeated ticks are safe.
+  const dbErasure = (await import(['@monopilot', 'db', 'erasure', 'register-all.js'].join('/'))) as {
+    registerErasureHandlers: (opts?: { force?: boolean }) => void;
+  };
+  dbErasure.registerErasureHandlers({ force: true });
+
   const gdpr = (await import(['@monopilot', 'gdpr'].join('/'))) as {
     runErasure: ErasureRunner;
   };
