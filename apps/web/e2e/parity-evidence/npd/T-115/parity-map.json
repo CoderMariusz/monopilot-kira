@@ -1,0 +1,42 @@
+{
+  "task": "T-115",
+  "anchors": [
+    "prototypes/design/Monopilot Design System/npd/recipe.jsx:103-122"
+  ],
+  "mapping": [
+    {
+      "prototype": "card-title \"Allergens\" (recipe.jsx:107)",
+      "production": "Card + CardHeader/CardTitle (i18n npd.allergenPanel.title) + subtitle"
+    },
+    {
+      "prototype": "window.NPD_ALLERGENS.map → span.allergen-chip {on} (recipe.jsx:108-112)",
+      "production": "ul[data-testid=allergen-panel-grid] → li per EU14 code + Badge chip"
+    },
+    {
+      "prototype": "binary .on highlight",
+      "production": "three-state token: present→Badge danger, trace→Badge warning, absent→Badge muted (deviation D3)"
+    },
+    {
+      "prototype": "alert alert-amber \"N allergen(s) detected: … Must be declared on label.\" (recipe.jsx:113-116)",
+      "production": "div[role=alert] detectedHeading (ICU plural) + names + mustDeclare"
+    },
+    {
+      "prototype": "muted \"No allergens detected …\" (recipe.jsx:117-119)",
+      "production": "p[data-testid=allergen-panel-empty] noneDetected"
+    }
+  ],
+  "shadcn_translation": {
+    "div.card / card-title": "Card / CardHeader / CardTitle (@monopilot/ui)",
+    "span.allergen-chip": "Badge (@monopilot/ui) variant by status",
+    "div.alert.alert-amber": "div[role=\"alert\"] (no Alert primitive in @monopilot/ui — T-040 convention, deviation D2)",
+    "window.NPD_ALLERGENS (11-item PRD partial)": "EU14_ALLERGEN_CODES constant (14, EU FIC 1169/2011, deviation D1)",
+    "calc.allergens (window mock)": "AllergenStatus[] prop ← T-117 maps RecomputeResult.allergens (T-065) + fa_allergen_cascade (T-038)"
+  },
+  "deviations": [
+    "D1 — EU14 (14) rendered, superset of prototype window.NPD_ALLERGENS (11); prototype data.jsx flags its allergen list as a PRD partial belonging to 09-QUALITY/03-TECHNICAL. Task contract + EU FIC 1169/2011 mandate EU14.",
+    "D2 — role=\"alert\" region instead of shadcn Alert: @monopilot/ui has no Alert primitive; follows the T-040 AllergenCascadeWidget convention. AC (\"role=alert\") satisfied.",
+    "D3 — three-state status (absent/trace/present) instead of the prototype binary on/off, per the task contract AllergenStatus shape; trace → amber.",
+    "D4 — Playwright pixel screenshots + jest-axe deferred (editor wiring T-117, Playwright parity T-118, jest-axe not a dep / out of STRICT SCOPE). RTL DOM-snapshot + role/aria fallback provided per AC5.",
+    "D5 — loading/error/permission-denied owned by parent editor (T-117); panel is controlled synchronous presentation, states captured as presence permutations."
+  ]
+}

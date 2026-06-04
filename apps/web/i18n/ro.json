@@ -873,6 +873,17 @@
     "save_failed": "Profilul organizației nu a putut fi salvat."
   },
   "npd": {
+    "allergenPanel": {
+      "title": "Alergeni",
+      "subtitle": "Cei 14 alergeni obligatorii UE · prezență din rețetă",
+      "present": "Prezent",
+      "trace": "Urme",
+      "absent": "Absent",
+      "detectedHeading": "{count, plural, one {# alergen detectat:} few {# alergeni detectați:} other {# de alergeni detectați:}}",
+      "mustDeclare": "Trebuie declarat pe etichetă.",
+      "noneDetected": "Niciun alergen detectat din ingredientele curente.",
+      "statusLabel": "{name} — {status}"
+    },
     "deptClose": {
       "titleClose": "Închide secțiunea {dept}",
       "subtitle": "FA {faCode} · {productName}",
