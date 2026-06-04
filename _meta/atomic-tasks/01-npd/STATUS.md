@@ -39,22 +39,22 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-025 | ROOT: FA planning/commercial tabs group | ⬜ PENDING | Blocked by T-009, T-014, T-016, T-020 |
 | T-026 | UI: FA Technical tab shell | ⬜ PENDING | Blocked by T-014, T-020, T-025 |
 | T-027 | UI: FA History tab + audit_events timeline | ⬜ PENDING | Blocked by T-001, T-007, T-020 |
-| T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ⬜ PENDING | Blocked by T-001, T-005 |
+| T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ✅ DONE | DONE 2026-06-04 (Wave C). V03/V04 validators (mig 111, packages/validation) — merged |
 | T-029 | Server Action deleteFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
 | T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
-| T-031 | Server Actions: createBrief + saveBriefDraft | ⬜ PENDING | Blocked by T-006, T-007, T-030, T-054 |
+| T-031 | Server Actions: createBrief + saveBriefDraft | ✅ DONE | DONE 2026-06-04 (Wave C). createBrief + saveBriefDraft Server Actions — Codex+rework (mock→REAL integration tests, transactional idempotency-resume). merged |
 | T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
 | T-033 | Server Action convertBriefToFa | ⬜ PENDING | Blocked by T-001, T-002, T-008, T-030, T-031, T-032 |
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
 | T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
 | T-037 | fa_allergen_overrides table + audit chain | ✅ DONE | DONE 2026-06-04 (Wave B). fa_allergen_overrides + append-only audit chain (mig 094) — Codex+rework (revoke UPD/DEL, SECURITY DEFINER supersede trigger, 9/9), merged |
-| T-038 | Allergen cascade engine + fa_allergen_cascade view | ⬜ PENDING | Blocked by T-001, T-002, T-036, T-037 |
+| T-038 | Allergen cascade engine + fa_allergen_cascade view | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade ENGINE + fa_allergen_cascade view (mig 114) — Opus+rework (product.allergens/may_contain cols, update_fa_allergen_set fn+action, may_contain separate, conditional only-confirmed, fa.allergens_changed event-on-change, 18 tests). Codex review. NEW perm npd.allergen.write needs seed (module-close) |
 | T-039 | Server Actions: setAllergenOverride + V07 validator | ⬜ PENDING | Blocked by T-006, T-037, T-038 |
 | T-040 | UI: Allergen Cascade widget + Override modal | ⬜ PENDING | Blocked by T-026, T-038, T-039 |
 | T-041 | Reference.D365_Constants table + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.D365_Constants + Apex seed (mig 083) — merged |
 | T-042 | exceljs Builder generator: 8 tabs per FA | ⬜ PENDING | Blocked by T-001, T-002, T-041 |
-| T-043 | fa_builder_outputs storage + signed URL service | ⬜ PENDING | Blocked by T-001 |
+| T-043 | fa_builder_outputs storage + signed URL service | ✅ DONE | DONE 2026-06-04 (Wave C). fa_builder_outputs storage + signed URL (mig 112, packages/storage) — merged |
 | T-044 | Server Action buildD365/export | ⬜ PENDING | Blocked by T-006, T-007, T-039, T-042, T-043, T-080, T-081 |
 | T-045 | fa_bom_view + bom_export_csv Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-028 |
 | T-046 | ROOT: D365 integration UI group | ⬜ PENDING | Blocked by T-044 |
@@ -83,7 +83,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). nutrition + unique NULLS NOT DISTINCT fix (mig 086); 6/6 green — merged |
 | T-070 | costing_breakdowns + costing_waterfall_steps tables | ✅ DONE | DONE 2026-06-03 (Wave A1). costing_breakdowns + waterfall_steps (mig 087, NUMERIC-exact) — merged |
 | T-071 | DEFERRED/CROSS-MODULE: Sensory schema (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
-| T-072 | Nutrition computation Server Action + Nutri-Score | ⬜ PENDING | Blocked by T-069 |
+| T-072 | Nutrition computation Server Action + Nutri-Score | ✅ DONE | DONE 2026-06-04 (Wave C). Nutrition compute Server Action + Nutri-Score (mig 110, @monopilot/domain) — Codex, REAL integration tests, NUMERIC-exact. merged. Nit: Nutri-Score fiber/FVN=0 (RM schema lacks cols, deviation) |
 | T-073 | Costing 9-step waterfall + scenario Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Costing 9-step waterfall + scenario action (apps/web/lib/costing) + mig 108 (scenario params jsonb) — Opus impl-hard + rework (exact margin gate, persist params, bounds). Codex review. NUMERIC-exact. merged |
 | T-074 | UI: NutritionScreen | ⬜ PENDING | Blocked by T-072 |
 | T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
@@ -100,7 +100,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-086 | UI: ComplianceDocsScreen + DocUploadModal | ⬜ PENDING | Blocked by T-084 |
 | T-087 | E2E: V18 built-blocker (high-risk → cannot build) | ⬜ PENDING | Blocked by T-080, T-081, T-082 |
 | T-088 | E2E: compliance doc upload → expiry job → dashboard | ⬜ PENDING | Blocked by T-084, T-085, T-086 |
-| T-089 | GDPR right-to-erasure function | ⬜ PENDING | Blocked by T-001, T-054, T-063, T-080, T-083; also needs 00-foundation/T-113 |
+| T-089 | GDPR right-to-erasure function | ✅ DONE | DONE 2026-06-04 (Wave C). NPD GDPR right-to-erasure (mig 115/116) — Opus+rework (production cron registration, gdpr.erasure.execute enum+baseline+seed, prod_detail branch). Codex review. SATISFIES foundation T-115 |
 | T-090 | d365_import_cache_meta view + scheduled sync worker | ⬜ PENDING | Blocked by T-049 |
 | T-091 | E2E: dashboard interactive controls | ⬜ PENDING | Blocked by T-052, T-051 |
 | T-092 | Shared BOM SSOT schema | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). Shared BOM SSOT bom_headers+bom_lines (mig 090, NUMERIC-exact, versioned) — Codex+rework (INSERT immutability guard), merged. Existing bom_item(014) is R13 placeholder, no collision |
