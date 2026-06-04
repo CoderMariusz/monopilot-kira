@@ -142,3 +142,36 @@ product code (multi-tenant defect, same class as the npd_projects.code bug fixed
 needed: are product codes globally unique by design (SKU-like) or per-org? If per-org, migrate PK→(org_id,
 product_code) + update all FKs (prod_detail, compliance_docs, factory_release_status, etc. reference
 product(product_code)). Flagged by T-008 review. Do NOT silently change — affects many FKs.
+
+## ============ RUN PAUSED 2026-06-04 ~04:10 (overnight long-run boundary) ============
+**64/139 tasks merged to kira/long-run. Canon local DB @ mig 141. Clean state: 0 worktrees, 0 clone DBs, web+packages typecheck 0 errors, every integration migrate green.**
+
+### Done by wave
+- **Wave A (16/16 schema)** ✅ — product+fa view, prod_detail, reference (DeptColumns/ManufacturingOps/lookups/RolePermissions/D365Constants/AlertThresholds/Allergens), brief, npd_projects+gates, nutrition, costing, risks+V18, compliance_docs, BOM SSOT.
+- **Wave B (12/12)** ✅ — perm enum(T-101), gate-templates, formulations, allergen-overrides(append-only), views(status-overall), approval-chains, BOM-writer, brief-mapping, seeds(DeptColumns/AlertThresholds/G0-G4), outbox emitter.
+- **Wave C (~26 done, ~10 remain)** — DONE: createProject, formulation lifecycle+compute(@monopilot/domain), risks CRUD, dashboard views+actions, costing 9-step waterfall, nutrition compute, validators(V01-V08), builder storage, createBrief(real tests), convertBriefToFa, allergen cascade ENGINE(materialize+events), GDPR erasure(→foundation T-115), cascade chains 1-4(@monopilot/cascade-engine), createFa, deleteFa, closeDeptSection, reopenDept, approval-criteria, allergen-bulk-rebuild, compliance upload+expiry-cron, d365-import-sync, factory-release read-model, updateFaCell+reset_built(V18-reconciled), schema-driven-Zod-runtime. REMAINING: T-042 exceljs builder(OPUS; D365 mappings PRD-TBD), T-044 buildD365, T-047 wizard, T-058 advanceGate, T-095 G3-FG, T-096 release-to-factory, T-100 G4-closeout (gate+D365 coupled clusters — build sequentially), T-016/032/050/053/062/068/087/088/091/098 E2E specs.
+- **Wave D (3 done, ~27 remain)** — DONE pilots: T-019 FA list, T-074 NutritionScreen, T-082 RiskRegisterScreen (kira-ui, prototype parity, real data, tsc0). REMAINING: ~27 UI screens/modals/wiring/parity (T-021-027, T-034-035, T-040, T-052, T-059-061, T-066-067, T-075-076, T-079, T-086, T-102-139 UI/WIRING/PARITY).
+- **Wave E (0 done)** — E2E + wiring specs (T-053, T-062, T-068, T-087, T-088, T-091, T-098, etc.).
+- **Deferred (cross-module):** T-071, T-076 (Sensory → 03-technical).
+
+### Process learnings (durable)
+1. Per-task clone DBs miss SIBLING collisions → run fresh-DB integration migrate of ALL wave migs BEFORE merge. (Caught AlertThresholds, npd_projects, multiple.)
+2. Outbox event_type CHECK is a serialization point — each event-adding task recreates it from a blind clone → **6 reconciliation migrations** (109/121/126/130/135 + 141 cumulative). Pattern: after any event-adding batch, regen a union migration.
+3. **Codex writes mock-only tests for T2-api server actions** (T-064, T-031) → vacuous green hides real bugs. Mandate real integration tests (recompute.integration.test.ts pattern); always Opus-review server actions.
+4. **integration-migrate (DB) does NOT catch TS errors** — vitest/esbuild transpile without type-checking. ALWAYS run `pnpm --filter web exec tsc --noEmit` + touched-package tsc after merges. (Caught chain3/chain4/v07/v08/emit-bulk-changed.)
+5. Parallel tasks scaffolding the SAME new package (cascade-engine, @monopilot/domain) conflict on package.json/index.ts — union index.ts + restore dropped deps.
+6. cascade-engine "1 failed" in parallel = 40P01 deadlock flake on shared DB → run tests --no-file-parallelism.
+
+### MODULE-CLOSE TODO (before sign-off)
+1. Regenerate `packages/db/__expected__/schema.sql` drift snapshot (absent on branch; CI check:drift). 
+2. T-004: drop redundant 012 `mfg_ops_org_industry_suffix_unique`.
+3. **product_code GLOBAL-PK (T-001)** — multi-tenant defect (two orgs can't share a code). HUMAN DECISION: global SKU vs per-org? If per-org, migrate PK→(org_id,product_code)+all FKs. (T-057 already fixed the analogous npd_projects.code.)
+4. T-054 test `npd-projects-and-gates.test.ts` constraint-name assertion drift (T-057 renamed to org_code_unique).
+5. `npd.allergen.write` permission (T-038 action) needs enum+seed (mirror 116 gdpr.erasure.execute pattern).
+6. Consolidate pure compute: @monopilot/domain (T-065 formulation, T-072 nutrition) vs apps/web/lib/costing (T-073) — unify.
+7. Reconcile MON-domain-npd skill: allergen cascade is "derived" AND now materializes to product.allergens/may_contain + emits fa.allergens_changed.
+8. UI tasks: live Playwright + axe deferred to Gate-5 (env had no browser); capture at module-level live verification.
+9. PRD-TBD blocking T-042/044: D365 mappings QUANTITY/PROCESSTIME/LOADPERCENTAGE/PRODUCTGROUPID_PR.
+
+### RESUME RECIPE
+Local gate DB: rebuild via `psql .../postgres -c "drop database monopilot" -c "create database monopilot owner mariuszkrawczyk"` then `DATABASE_URL=postgres://mariuszkrawczyk@127.0.0.1:5432/monopilot DATABASE_URL_OWNER=same pnpm --filter @monopilot/db exec tsx scripts/migrate.ts`. Codex lane: `bash _meta/runs/launch-batch.sh <tag> "T-xxx:mig ..."`. UI lane: kira-ui subagent. Cross-review: kira-codex-review (Opus) for Codex work; `codex exec` review for Opus work. Migrations continue from 142. NOT YET DONE: consensus gate (step 4), Gate-5 live (Vercel+Supabase), sign-off report _meta/runs/01-npd-SIGNOFF.md, human STOP.
