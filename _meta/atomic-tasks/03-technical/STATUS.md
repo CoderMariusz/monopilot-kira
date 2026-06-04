@@ -29,7 +29,7 @@
 | T-022 | API: Routings + routing_operations CRUD | ✅ | technical/routings/_actions; V-TEC-60/61/62/63 |
 | T-023 | API: Routing cost preview | ✅ | routings/_actions/cost-preview.ts |
 | T-024 | Wiring: Allergen cascade rule deployment | ✅ | mig 170 rule_definitions + lib/technical/allergens/cascade.ts |
-| T-025 | Wiring: BOM snapshot at WO creation | ⬜ | snapshot service absent (lib/technical/bom/snapshot.ts); 08-production dep — RISK |
+| T-025 | Wiring: BOM snapshot at WO creation | ✅ | BOM-snapshot service lib/technical/bom/snapshot.ts + test (commit d642fb7c) |
 | T-026 | Wiring: ATP swab auto-fail trigger | ✅ | ATP auto-fail trigger mig 187 + outbox event; 8 tests |
 | T-027 | Wiring: Schema-driven L3 extension propagation | ⬜ | items schema-cache listener absent |
 | T-028 | API + worker: D365 sync job | ✅ | lib/integrations/d365/pull.ts + idempotency + cron route |
@@ -59,9 +59,9 @@
 | T-052 | UI: TEC-062 Routing Cost Preview + Resource Util | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-053 | UI: TEC-087 Tooling/Equipment Setup List | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
 | T-054 | UI: TEC-088 Maintenance Cross-Link Panel | ⬜ | absent; cross-dep 13-maintenance |
-| T-055 | UI: TEC-070 D365 Sync Dashboard + Manual Trigger | ⏸ | built+tested under /settings/integrations/d365/sync; D-1 namespace unresolved |
-| T-056 | UI: TEC-072 D365 Sync Audit Log | ⏸ | built+tested under /settings/integrations/d365/audit; D-1 unresolved |
-| T-057 | UI: TEC-090 D365 Field Mapping admin | ⏸ | built+tested under /settings/integrations/d365/mapping; D-1 unresolved |
+| T-055 | UI: TEC-070 D365 Sync Dashboard + Manual Trigger | 🔄 | D365 sync UI at settings/ (D-1 resolved); pending live Gate-5 |
+| T-056 | UI: TEC-072 D365 Sync Audit Log | 🔄 | D365 audit UI at settings/ (D-1 resolved); pending live Gate-5 |
+| T-057 | UI: TEC-090 D365 Field Mapping admin | 🔄 | D365 mapping UI at settings/ (D-1 resolved); pending live Gate-5 |
 | T-058 | UI: TEC-073 DLQ Manager | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-059 | UI: TEC-091 D365 Drift Resolution | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-060 | UI: TEC-085 factory_specs Review modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
@@ -79,7 +79,7 @@
 | T-072 | Docs gap: supplier_specs governance brief | ✅ | supplier_specs Phase1 brief |
 | T-073 | Shared BOM SSOT + clone-on-write enforcement | ✅ | mig 168 bom_request_version_edit + state-machine triggers |
 | T-074 | RM usability validation shared decision service | ✅ | lib/technical/rm-usability.ts; 7-check chain + tests |
-| T-075 | supplier_specs Phase 1 governance migration | ✅ | mig 174; review/lifecycle status + approve/reject fns |
+| T-075 | supplier_specs Phase 1 governance migration | ⏸ | mig 174 DB governance done BUT apps/web/actions/technical/supplier-specs/ API absent (AC5 unmet) |
 | T-076 | PO actuals NC trigger contract | ⬜ | absent; cross-dep 05-warehouse PO actuals (also unbuilt) — RISK |
 | T-077 | TO actuals NC trigger contract | ⬜ | absent; cross-dep 05-warehouse TO actuals — RISK |
 | T-078 | UX red-lines: factory_spec, BOM SSOT, RM usability | ⏸ | prototypes/design/03-TECHNICAL-UX.md exists; no "applied/signed-off" evidence |
