@@ -687,6 +687,12 @@ importers:
 
   packages/schema-runtime:
     dependencies:
+      '@monopilot/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: 0.40.0
+        version: 0.40.0(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(better-sqlite3@12.8.0)(mysql2@3.20.0(@types/node@20.19.39))(pg@8.16.0)
       json-schema-to-zod:
         specifier: ^2.8.1
         version: 2.8.1

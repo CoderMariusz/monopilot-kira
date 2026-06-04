@@ -9,6 +9,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@monopilot/db": "workspace:*",
+    "drizzle-orm": "0.40.0",
     "zod": "^3.22.0",
     "json-schema-to-zod": "^2.8.1",
     "pg": "8.16.0"

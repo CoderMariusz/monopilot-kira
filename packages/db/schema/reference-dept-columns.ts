@@ -23,6 +23,7 @@ export const referenceDeptColumns = referencePgSchema.table(
       .references(() => organizations.id, { onDelete: 'cascade' }),
     deptCode: text('dept_code').notNull(),
     columnKey: text('column_key').notNull(),
+    dataType: text('data_type'),
     fieldType: text('field_type').notNull(),
     isRequired: boolean('is_required').notNull().default(false),
     validationDsl: jsonb('validation_dsl'),
