@@ -16,7 +16,7 @@ export interface RecipeSyncDiff {
   ingredientCodes: string;
 }
 
-interface ProdDetailRow {
+interface ProdDetailRow extends pg.QueryResultRow {
   id: string;
   intermediate_code: string;
   component_index: number;
