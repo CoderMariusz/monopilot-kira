@@ -45,7 +45,7 @@ type NavCard = { key: string; href: string };
 const NAV_CARDS: NavCard[] = [
   { key: 'items', href: '/technical/items' },
   { key: 'bom', href: '/technical/bom' },
-  { key: 'allergen', href: '/technical/allergen' },
+  { key: 'allergen', href: '/technical/allergens-config' },
   { key: 'cost', href: '/technical/cost' },
   { key: 'routings', href: '/technical/routings' },
   { key: 'factorySpecs', href: '/technical/factory-specs' },
