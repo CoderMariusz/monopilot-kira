@@ -1,0 +1,201 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+import { withOrgContext } from '../../../../lib/auth/with-org-context';
+
+const DEPT_CONFIG = {
+  Core: { permission: 'npd.core.write', closedColumn: 'closed_core' },
+  Planning: { permission: 'npd.planning.write', closedColumn: 'closed_planning' },
+  Commercial: { permission: 'npd.commercial.write', closedColumn: 'closed_commercial' },
+  Production: { permission: 'npd.production.write', closedColumn: 'closed_production' },
+  Technical: { permission: 'npd.technical.write', closedColumn: 'closed_technical' },
+  MRP: { permission: 'npd.mrp.write', closedColumn: 'closed_mrp' },
+  Procurement: { permission: 'npd.procurement.write', closedColumn: 'closed_procurement' },
+} as const;
+
+const DEPT_VALUES = Object.keys(DEPT_CONFIG) as [Dept, ...Dept[]];
+const FA_DEPT_CLOSED_EVENT = 'fa.dept_closed';
+const APP_VERSION = 'close-dept-section-v1';
+
+type Dept = keyof typeof DEPT_CONFIG;
+
+type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = {
+  userId: string;
+  orgId: string;
+  client: QueryClient;
+};
+
+type RequiredColumnRow = {
+  physical_column: string;
+  field_value: string | null;
+};
+
+export type CloseDeptSectionResult = {
+  dept: Dept;
+  closedAt: string;
+};
+
+const inputSchema = z.object({
+  productCode: z.string().trim().min(1),
+  dept: z.enum(DEPT_VALUES),
+});
+
+export async function closeDeptSection(
+  productCode: string,
+  dept: string,
+): Promise<CloseDeptSectionResult> {
+  const parsed = inputSchema.safeParse({ productCode, dept });
+  if (!parsed.success) {
+    throw new ValidationError('INVALID_INPUT', 'Invalid product code or department');
+  }
+
+  return withOrgContext<CloseDeptSectionResult>(async (ctx) => {
+    const context = ctx as OrgContextLike;
+    const config = DEPT_CONFIG[parsed.data.dept];
+
+    if (!(await hasPermission(context, config.permission))) {
+      throw new AuthError('FORBIDDEN', `${config.permission} is required to close ${parsed.data.dept}`);
+    }
+
+    const { rows: gateRows } = await context.client.query<{ ready: boolean }>(
+      `select public.is_all_required_filled($1, $2) as ready`,
+      [parsed.data.productCode, parsed.data.dept],
+    );
+    if (gateRows[0]?.ready !== true) {
+      throw new DepartmentNotReadyError(
+        parsed.data.dept,
+        await listMissingRequiredColumns(context, parsed.data.productCode, parsed.data.dept),
+      );
+    }
+
+    const closedAt = new Date().toISOString();
+    const { rowCount } = await context.client.query(
+      `update public.product
+          set ${config.closedColumn} = 'Yes'
+        where org_id = app.current_org_id()
+          and product_code = $1`,
+      [parsed.data.productCode],
+    );
+    if (rowCount !== 1) {
+      throw new ValidationError('PRODUCT_NOT_FOUND', 'Product is not visible in the current organization');
+    }
+
+    await writeOutbox(context, parsed.data.productCode, parsed.data.dept);
+    safeRevalidatePath('/npd/fa');
+
+    return { dept: parsed.data.dept, closedAt };
+  });
+}
+
+async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (
+          rp.permission is not null
+          or coalesce(r.permissions, '[]'::jsonb) ? $3
+        )
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return rows.length > 0;
+}
+
+async function listMissingRequiredColumns(
+  ctx: OrgContextLike,
+  productCode: string,
+  dept: Dept,
+): Promise<string[]> {
+  const { rows } = await ctx.client.query<RequiredColumnRow>(
+    `with product_row as (
+       select to_jsonb(p.*) as product_json
+         from public.product p
+        where p.org_id = app.current_org_id()
+          and p.product_code = $1
+        limit 1
+     ),
+     required_columns as (
+       select lower(dc.column_key) as physical_column,
+              dc.display_order,
+              dc.column_key
+         from "Reference"."DeptColumns" dc
+        where dc.org_id = app.current_org_id()
+          and lower(dc.dept_code) = lower($2)
+          and dc.required_for_done = true
+     )
+     select rc.physical_column,
+            pr.product_json ->> rc.physical_column as field_value
+       from required_columns rc
+       cross join product_row pr
+      where not (pr.product_json ? rc.physical_column)
+         or nullif(btrim(pr.product_json ->> rc.physical_column), '') is null
+      order by rc.display_order nulls last, rc.column_key`,
+    [productCode, dept],
+  );
+  return rows.map((row) => row.physical_column);
+}
+
+async function writeOutbox(ctx: OrgContextLike, productCode: string, dept: Dept): Promise<void> {
+  await ctx.client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values
+       (app.current_org_id(), $1, 'fa', $2, $3::jsonb, $4)`,
+    [FA_DEPT_CLOSED_EVENT, productCode, JSON.stringify({ dept }), APP_VERSION],
+  );
+}
+
+function safeRevalidatePath(path: string): void {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
+export class AuthError extends Error {
+  code: string;
+
+  constructor(code: string, message = code) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+  }
+}
+
+export class ValidationError extends Error {
+  code: string;
+
+  constructor(code: string, message = code) {
+    super(message);
+    this.name = 'ValidationError';
+    this.code = code;
+  }
+}
+
+export class DepartmentNotReadyError extends Error {
+  code = 'DEPARTMENT_NOT_READY';
+  dept: Dept;
+  missingColumns: string[];
+
+  constructor(dept: Dept, missingColumns: string[]) {
+    super(
+      missingColumns.length > 0
+        ? `${dept} is missing required fields: ${missingColumns.join(', ')}`
+        : `${dept} is not ready to close`,
+    );
+    this.name = 'DepartmentNotReadyError';
+    this.dept = dept;
+    this.missingColumns = missingColumns;
+  }
+}
