@@ -1372,6 +1372,34 @@
       "forbidden": "Nu aveți permisiunea de a edita această rețetă.",
       "locked": "Această versiune este blocată și nu poate fi editată.",
       "noAllergen": "—"
+    },
+    "gateChecklist": {
+      "title": "Listă de verificare poartă",
+      "currentGate": "Poarta curentă:",
+      "overallProgress": "Progres general",
+      "current": "Curentă",
+      "blockingBadge": "{count} blocante",
+      "notStarted": "Neînceput",
+      "completedBy": "Finalizat de {by} · {at}",
+      "required": "Obligatoriu",
+      "optional": "Opțional",
+      "blocking": "Blocant",
+      "attach": "Atașează",
+      "catTechnical": "Tehnic",
+      "catBusiness": "Comercial",
+      "catCompliance": "Conformitate",
+      "blockerAlert": "{count} element(e) blocant(e) trebuie finalizate înainte de a avansa la {gate}: {gateLabel}.",
+      "readyAlert": "Toate elementele obligatorii pentru {gate} sunt finalizate. Gata de avansare la {nextLabel}.",
+      "advance": "Avansează la {gate}: {nextLabel} →",
+      "requestApproval": "Solicită aprobarea →",
+      "markLaunched": "Marchează ca lansat ✓",
+      "expand": "Extinde poarta",
+      "collapse": "Restrânge poarta",
+      "loading": "Se încarcă lista de verificare a porții…",
+      "empty": "Încă nu există elemente de verificare",
+      "emptyBody": "Acest proiect nu are încă elemente de verificare a porții configurate.",
+      "error": "Nu se poate încărca lista de verificare a porții. Încercați din nou.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza această listă de verificare a porții."
     }
   }
 }
