@@ -1190,6 +1190,35 @@
         "deleted": "Usunięto"
       }
     },
+    "faDetail": {
+      "eyebrow": "Artykuł fabryczny",
+      "subtitle": "Przestrzeń działów · zamknij każdy dział, aby ukończyć AF",
+      "built": "Zbudowany",
+      "loading": "Wczytywanie artykułu fabrycznego…",
+      "empty": "Nie znaleziono artykułu fabrycznego",
+      "emptyBody": "Żaden artykuł fabryczny nie pasuje do tego kodu w Twojej organizacji.",
+      "forbidden": "Nie masz uprawnień do wyświetlenia tego artykułu fabrycznego.",
+      "error": "Nie można wczytać tego artykułu fabrycznego.",
+      "deferred": "Zawartość zakładki w przygotowaniu",
+      "deferredBody": "Ta przestrzeń działu zostanie dostarczona w późniejszym etapie.",
+      "status": {
+        "Pending": "Oczekuje",
+        "InProgress": "W toku",
+        "Alert": "Alert",
+        "Complete": "Ukończony",
+        "Built": "Zbudowany"
+      },
+      "tabs": {
+        "core": "Podstawowe",
+        "planning": "Planowanie",
+        "commercial": "Handlowe",
+        "production": "Produkcja",
+        "technical": "Techniczne",
+        "mrp": "MRP",
+        "procurement": "Zakupy",
+        "history": "Historia"
+      }
+    },
     "dashboard": {
       "alertAmber": "Bursztynowy",
       "alertGreen": "Zielony",
