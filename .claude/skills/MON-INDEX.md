@@ -4,6 +4,7 @@
 
 **Generated:** 2026-05-14 — after Master Aggregate Report (Phase 5/Wave 7) closeout.
 **Refreshed:** 2026-06-03 — Phase 3 skills-overhaul (post Phase-0 audit + Phase-1 consolidation).
+**Refreshed:** 2026-06-04 — side-car: encoded this session's recurring live-bug learnings (dropdown two-gaps, orphaned-schema-no-CRUD, shared-primitive fix, free-text→FK) into `MON-t3-ui` + the 4 next-module domain skills (planning/warehouse/production/quality) + `MON-domain-technical` + `docs/workflow/02-QUALITY-GATES.md` Gate-5 (classes 9-12). Prepped next-module skills against the merged 03-technical Wave-A schema (migs 153,156-167). **Note:** `_meta/atomic-tasks/03-technical/STATUS.md` is STALE (still shows T-001/T-002/T-003 ⬜ though migs 153/159/160 shipped via commits `3420ffad`/`e9f30796`) — needs a `/kira:audit` reality re-pass; T-080/T-081 (bundle approval + release adapter) remain genuinely PENDING (Wave-B), which 04-planning hard-depends on.
 
 > **Phase 3 notes (2026-06-03):**
 > - **Routing tokens normalized.** Legacy `hermes_gpt55` / `spark_low_risk_else_opus` /
@@ -165,14 +166,13 @@ MON-project-overview  (entry point)
 | MON-domain-planning | 174 | opus | domain |
 | MON-domain-maintenance | 163 | opus | domain |
 | MON-domain-oee | 129 | opus | domain |
-| MON-domain-technical | 175 | opus | domain |
+| MON-domain-technical | ~210 | opus | domain |
+| MON-domain-npd | — | opus | domain |
+| MON-domain-settings | — | opus | domain |
 | prd-decompose-hybrid (legacy) | 154 | opus | meta |
 | prototype-labeling (legacy) | 304 | haiku | meta |
 
-**Total:** 19 skills, ~4,000 lines.
-
-> Note: `MON-domain-npd` and `MON-domain-settings` also exist (authored at their module-run kickoffs) but
-> predate this inventory table refresh; add their rows on next overhaul.
+**Total:** 21 skills, ~4,400 lines (MON-domain-npd / MON-domain-settings line counts pending a precise re-count on next overhaul).
 
 ---
 

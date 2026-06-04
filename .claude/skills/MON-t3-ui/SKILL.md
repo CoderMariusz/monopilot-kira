@@ -131,6 +131,14 @@ All 5 states **must** be exercised by either RTL or Playwright tests. Skeleton p
 - Locale files: `apps/web/i18n/en.json`, `pl.json`, `ro.json`, `uk.json`. **All four** must contain every new key (CI fails on missing-key drift).
 - **i18n completeness is a live-bug class:** every `t('key')` you reference MUST have a value in ALL FOUR files. A missing key does not throw — next-intl renders the **raw key string** ("settings.users.invite") in the UI, so buttons show garbage labels and the screen looks broken live while vitest/tsc stay green. Never ship a `t('...')` call without adding its value to en/pl/ro/uk. After authoring, grep your new `t('` calls and confirm each resolves in all four locale files.
 - Key format: `<module>.<feature>.<element>`, e.g. `maintenance.dashboard.kpi.mwo_open.title`.
+
+## Heavy-UI recurring live-bugs (green local, broken live — verify on the live screen)
+
+These shipped GREEN locally while the deployed screen was broken. Full list: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist (classes 9-12).
+
+- **Empty schema-driven dropdown = TWO gaps, check BOTH.** A reference-fed `<Select>` that renders empty is almost never one bug: (a) the page actually queries `Reference.<source>` and passes the result (NOT `dropdowns={{}}`) — canonical loader is `readDropdowns(ctx, columns)` in `apps/web/app/[locale]/(app)/(npd)/fa/[productCode]/page.tsx:243`; AND (b) the lookup table is **seeded for the org** (org-insert trigger + backfill, e.g. `packages/db/migrations/156-reference-lookups-seed.sql`). A page can wire the loader perfectly and still show an empty list because the org has zero rows. DoD for any `dropdown_source`-fed Select = both wiring AND seed confirmed on the live screen.
+- **Systemic shared-component bug = fix the primitive, not each page.** When a defect appears in "every X" (e.g. `packages/ui/src/Select.tsx` rendering its options regardless of open state), fix the shared primitive + add a primitive-level RTL test in `packages/ui`. A per-page workaround leaves the next page broken and still passes review.
+- **Free-text where a real FK/picker is required.** A field that references a master record (component/ingredient/material → `items`) must be an **item picker bound to an FK**, never a free-text code. Pattern fix: `packages/db/migrations/157-prod-detail-item-fk.sql` adds `item_id → public.items(id)` on `prod_detail`/`formulation_ingredients`. Require the picker + FK in the AC for any code/component/ingredient input.
 - Server Components: `import { getTranslations } from 'next-intl/server'`; pass strings down as props, do **not** call `useTranslations` in RSC.
 - Client Components: `useTranslations('<module>.<feature>')`.
 - **Never inline strings in JSX** — every visible string goes through next-intl, including button labels, empty-state copy, and error messages.

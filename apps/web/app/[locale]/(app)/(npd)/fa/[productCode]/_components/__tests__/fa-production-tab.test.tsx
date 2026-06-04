@@ -449,4 +449,61 @@ describe('FaProductionTab — Lane-B add/remove component (real item picker)', (
     expect(onRemoveComponent).toHaveBeenCalledWith({ productCode: 'FA-1001', prodDetailId: 'row-1' });
     expect(onMutated).toHaveBeenCalled();
   });
+
+  it('renders the empty-state CTA body + add affordance with canWrite=true && !locked', () => {
+    // The live Gate-5 bug: with the org admin (canWrite=true) on an unlocked FG
+    // the "+ Add production component" affordance must render AND the empty CTA
+    // body must be a REAL string (not the raw i18n key).
+    renderReady({ labels: ADD_LABELS, canWrite: true, packSizeFilled: true, state: 'empty', rows: [] });
+    expect(screen.getByTestId('item-picker-trigger')).toBeInTheDocument();
+    const ctaBody = screen.getByText(ADD_LABELS.emptyCtaBody);
+    expect(ctaBody).toBeInTheDocument();
+    // Regression guard: the literal i18n key must never reach the DOM.
+    expect(ctaBody.textContent).not.toMatch(/^npd\.faProductionTab\./);
+    expect(screen.queryByText('npd.faProductionTab.emptyCtaBody')).not.toBeInTheDocument();
+  });
+});
+
+// Live-only regression: the deployed bug was a MISSING locale key (the raw key
+// `npd.faProductionTab.emptyCtaBody` rendered) — not a component bug. Assert the
+// real locale JSON files carry the full faProductionTab add/picker vocabulary as
+// real strings (never the bare key, never the fully-qualified path) for ALL four
+// supported locales.
+describe('FaProductionTab — locale completeness (live Gate-5 regression)', () => {
+  const SCALAR_KEYS = ['addComponent', 'emptyCtaBody', 'removeComponent', 'removeError'] as const;
+  const PICKER_KEYS = ['searchLabel', 'searchPlaceholder', 'loading', 'empty', 'cancel', 'error'] as const;
+  const LOCALES = ['en', 'pl', 'ro', 'uk'] as const;
+
+  const trees: Record<string, Record<string, unknown>> = {
+    en: require('../../../../../../../../i18n/en.json'),
+    pl: require('../../../../../../../../i18n/pl.json'),
+    ro: require('../../../../../../../../i18n/ro.json'),
+    uk: require('../../../../../../../../i18n/uk.json'),
+  };
+
+  function prodTab(locale: string): Record<string, unknown> {
+    const npd = (trees[locale] as { npd?: Record<string, unknown> }).npd ?? {};
+    return (npd as { faProductionTab?: Record<string, unknown> }).faProductionTab ?? {};
+  }
+
+  function isRealString(value: unknown, key: string): boolean {
+    return (
+      typeof value === 'string' &&
+      value.trim() !== '' &&
+      value !== key &&
+      value !== `npd.faProductionTab.${key}` &&
+      value !== `npd.faProductionTab.picker.${key}`
+    );
+  }
+
+  it.each(LOCALES)('%s carries every add/picker key as a real string', (locale) => {
+    const p = prodTab(locale);
+    for (const key of SCALAR_KEYS) {
+      expect(isRealString(p[key], key), `${locale}.${key}`).toBe(true);
+    }
+    const picker = (p.picker ?? {}) as Record<string, unknown>;
+    for (const key of PICKER_KEYS) {
+      expect(isRealString(picker[key], key), `${locale}.picker.${key}`).toBe(true);
+    }
+  });
 });

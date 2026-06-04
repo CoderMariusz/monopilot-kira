@@ -155,6 +155,38 @@ describe('SM-06 UserInviteModal prototype parity', () => {
   });
 });
 
+describe('SM-06 UserInviteModal scrollable layout (no overlap, body scrolls)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('caps the dialog height and renders a scrollable body so every field + submit is reachable', async () => {
+    await renderUserInviteModal();
+
+    const dialog = screen.getByRole('dialog', { name: /invite team member/i });
+
+    // Dialog is a bounded flex column: header/footer stay pinned, body scrolls.
+    expect(dialog.style.display).toBe('flex');
+    expect(dialog.style.flexDirection).toBe('column');
+    expect(dialog.style.maxHeight).toBe('86vh');
+
+    // The body is the scroll region (overflow-y:auto, flex:1) so the lower
+    // fields and the submit button never get clipped on small screens.
+    const body = within(dialog).getByTestId('modal-body');
+    expect(body.style.overflowY).toBe('auto');
+    expect(body.style.flex).toContain('1');
+
+    // Distinct, non-overlapping fields: each resolves to its own role/control
+    // (regression guard for the "nachodzące na siebie pola" overlap bug).
+    expect(within(dialog).getByRole('textbox', { name: /email address/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: /full name \(optional\)/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('combobox', { name: /^role/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: /custom message \(optional\)/i })).toBeInTheDocument();
+    // The submit button at the bottom is rendered (reachable in the footer).
+    expect(within(dialog).getByRole('button', { name: /^send invitation$/i })).toBeInTheDocument();
+  });
+});
+
 describe('SM-06 UserInviteModal validation and server-action errors', () => {
   beforeEach(() => {
     vi.clearAllMocks();

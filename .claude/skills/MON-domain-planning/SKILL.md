@@ -115,6 +115,8 @@ All emissions go through the foundation outbox (T-112) — never write directly 
 | **01-NPD** | FG SSOT, factory release read model, allergen cascade snapshot | T-018 (WO create), T-052 (wo_create_wizard), 07-PE T-055 (factory-release input guard) |
 | **02-settings** | Work calendars, status/field visibility, planning_settings, DSL rule registry | 04-PB T-006, T-007, T-028, T-029; 07-PE T-008, T-025..T-027 |
 | **03-technical** | BOM (active version pinned at WO create), routings, equipment, items, cost-per-kg | 04-PB T-018, T-019, T-052; 07-PE T-026 (allergen optimizer reads taxonomy) |
+
+> **⚠️ 03-technical dependency status (2026-06-04):** the Technical **Wave-A schema** is MERGED — `items` (mig 153), shared BOM SSOT + `item_id` FK + `bom_co_products`/`bom_snapshots` (mig 159), routings (mig 163), `item_cost_history` (mig 160) all EXIST. BUT planning's hard-dep on **T-080 (FactorySpec+BOM bundle approval API)** and **T-081 (Technical release adapter for NPD T-097)** is **still PENDING — those are Wave-B**, not yet implemented (see `_meta/atomic-tasks/03-technical/STATUS.md` T-080/T-081 ⬜). Per Gate-3, no 04-PB WO-create task that pins an active/approved BOM via the release path may start until T-080/T-081 are ✅ DONE. (Note: the 03-technical STATUS.md header is **stale** — it still shows T-001/T-002/T-003 as ⬜ though migs 153/159/160 shipped; trust the migrations + commit `e9f30796`/`3420ffad`, not that STATUS row, until it is re-audited.)
 | **05-warehouse** | LP availability, on-hand inventory, disposition source | 04-PB T-021..T-024, T-049, T-056; 07-PE T-053 (disposition bridge P2) |
 | **09-quality** | Lab lead times (inspections + sampling plans), spec approval, hold blocking before scheduling | 04-PB T-025, T-057, T-064; 07-PE T-053 |
 | **11-shipping** | SO demand (D365 SO pull), customer due dates | 04-PB T-030, T-031, T-037, T-061; 07-PE T-019 (forecast) |
@@ -159,6 +161,15 @@ Fixer F1 corrected 6 broken PRD anchors in 07-PE on 2026-05-14. Real headings: �
 04-PB also had 2 anchor corrections: T-033 (§3.2/§3.3 → §3) and T-045 (§MRP-gap → §4).
 
 **Always verify §X.Y exists in the PRD before citing it.** Use `grep -E '^### §?[0-9.]+ ' docs/prd/07-PLANNING-EXT-PRD.md` (or the basic PRD) to enumerate real headings. See [[MON-project-overview]] §"Wave0 + critical locks" for the broader anchor-discipline policy.
+
+## Recurring live-bugs (pass vitest+tsc, break live — full checklist: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist)
+
+Before any 04/07 sign-off, run the canonical Gate-5 checklist (classes 1-12). Planning-specific traps:
+1. **RBAC seed (class 1, #1 live bug).** Ship a wave-1 P0 `NNN-planning-permission-seed.sql` granting `planning.*` / `scheduler.*` to the org-admin family (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin`) AND planner roles, in BOTH `role_permissions` + legacy jsonb, with org-insert trigger + backfill. The page-CHECK strings must byte-match the seed-GRANT strings. Model on `packages/db/migrations/149-npd-permissions-org-admin-seed.sql`.
+2. **Outbox enum (class 5).** Every `planning.*`/`scheduler.*` event MUST be in `packages/outbox/src/events.enum.ts` + CHECK before emit; pass `check-drift.test.ts`.
+3. **Canonical owner (class 8).** NEVER create/write `wo_outputs` here — use `schedule_outputs` (08-production owns `wo_outputs`). See Forbidden patterns #1/#3.
+4. **Schema task names its consumer (class 10).** A `schedule_outputs`/`scheduler_runs` migration is not "done" until its consuming WO-create/run-dispatch Server Action + UI ship.
+5. **Regenerate `__expected__/schema.sql` after each migration; never edit an applied migration; 3-digit name ≥ HEAD (class 4).**
 
 ## Cross-links
 

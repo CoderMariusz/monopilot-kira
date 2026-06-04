@@ -2097,6 +2097,18 @@
       "emptyBody": "Ten produkt nie ma jeszcze komponentów ProdDetail.",
       "error": "Nie można załadować sekcji produkcji.",
       "forbidden": "Nie masz uprawnień do edycji sekcji produkcji.",
+      "addComponent": "+ Dodaj komponent produkcyjny",
+      "emptyCtaBody": "Dodaj komponent produkcyjny z kartoteki materiałów lub edytuj recepturę Core.",
+      "removeComponent": "Usuń komponent",
+      "removeError": "Nie udało się usunąć komponentu.",
+      "picker": {
+        "searchLabel": "Wyszukaj pozycje",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie…",
+        "loading": "Wyszukiwanie…",
+        "empty": "Brak pasujących pozycji",
+        "cancel": "Anuluj",
+        "error": "Wyszukiwanie pozycji nie powiodło się."
+      },
       "fields": {
         "manufacturing_operation_1": "Proces 1",
         "manufacturing_operation_2": "Proces 2",

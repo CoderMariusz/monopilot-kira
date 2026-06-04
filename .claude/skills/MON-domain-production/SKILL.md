@@ -160,6 +160,15 @@ Violation = immediate revert / red-line in review.
 - T3-ui tasks (T-046..T-051) require `prototype_match: true`, literal `prototypes/design/Monopilot Design System/production/*.jsx:line-range` anchor in prompt header, `prototype_index_entry` from `_meta/prototype-labels/prototype-index-production.json`, `ui_evidence_policy` reference, `frontend-design` skill, screenshots + Playwright traces in closeout. See [[MON-t3-ui]].
 - T4-e2e closeouts (T-052..T-055) require `ui_evidence_policy` attached.
 
+## Recurring live-bugs (pass vitest+tsc, break live — full checklist: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist)
+
+Before any 08-production sign-off, run the canonical Gate-5 checklist (classes 1-12). Production-specific traps:
+1. **RBAC seed (class 1, #1 live bug).** Ship a wave-1 P0 `NNN-production-permission-seed.sql` granting `production.*` to the org-admin family (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin`) AND operator/supervisor roles, in BOTH `role_permissions` + legacy jsonb, with org-insert trigger + backfill. Page-CHECK strings must byte-match seed-GRANT strings. Model on `packages/db/migrations/149-npd-permissions-org-admin-seed.sql`.
+2. **Canonical owner (class 8) — 08 IS the producer.** 08 is the sole owner of `wo_outputs` + `oee_snapshots` (D-OEE-1): never let 04/07 or 15-oee write them (Forbidden patterns above). 08's runtime is the *single* writer.
+3. **Outbox enum (class 5).** Every `production.*` event (consume/output/waste/downtime/blocked) MUST be in `packages/outbox/src/events.enum.ts` + CHECK; outbox INSERT inside the state-change txn. D365 dispatch is async outbox + DLQ only.
+4. **Schema task names its consumer (class 10).** A `wo_outputs`/`wo_events`/`downtime_events` migration is not "done" until its consuming WO-lifecycle Server Action + execution UI ship.
+5. **Regenerate `__expected__/schema.sql` after each migration; 3-digit name ≥ HEAD; never edit an applied migration (class 4).**
+
 ## Cross-links
 
 - [[MON-project-overview]] — repo map, tech stack, module glossary (read first)

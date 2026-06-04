@@ -2097,6 +2097,18 @@
       "emptyBody": "This product has no ProdDetail components yet.",
       "error": "Unable to load the Production section.",
       "forbidden": "You do not have permission to edit the Production section.",
+      "addComponent": "+ Add production component",
+      "emptyCtaBody": "Add a production component from the items master, or edit the Core recipe.",
+      "removeComponent": "Remove component",
+      "removeError": "Could not remove the component.",
+      "picker": {
+        "searchLabel": "Search items",
+        "searchPlaceholder": "Search by code or name…",
+        "loading": "Searching…",
+        "empty": "No matching items",
+        "cancel": "Cancel",
+        "error": "Item search failed."
+      },
       "fields": {
         "manufacturing_operation_1": "Process 1",
         "manufacturing_operation_2": "Process 2",

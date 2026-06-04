@@ -2097,6 +2097,18 @@
       "emptyBody": "Acest produs nu are încă componente ProdDetail.",
       "error": "Secțiunea de producție nu a putut fi încărcată.",
       "forbidden": "Nu aveți permisiunea de a edita secțiunea de producție.",
+      "addComponent": "+ Adăugați o componentă de producție",
+      "emptyCtaBody": "Adăugați o componentă de producție din nomenclatorul de articole sau editați rețeta Core.",
+      "removeComponent": "Eliminați componenta",
+      "removeError": "Componenta nu a putut fi eliminată.",
+      "picker": {
+        "searchLabel": "Căutați articole",
+        "searchPlaceholder": "Căutați după cod sau nume…",
+        "loading": "Se caută…",
+        "empty": "Niciun articol corespunzător",
+        "cancel": "Anulați",
+        "error": "Căutarea articolelor a eșuat."
+      },
       "fields": {
         "manufacturing_operation_1": "Proces 1",
         "manufacturing_operation_2": "Proces 2",

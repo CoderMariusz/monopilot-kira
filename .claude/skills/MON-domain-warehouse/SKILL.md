@@ -197,6 +197,15 @@ Implications:
 | 12 | Quarantine auto-moves the LP to a quarantine location | D18 baseline: quarantine is a status, not a physical move | T-025 |
 | 13 | ZPL real backend on browser preview | BL-WH-04: HTML preview only, ZPL stays server-side | T-043 / T-054 |
 
+## Recurring live-bugs (pass vitest+tsc, break live — full checklist: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist)
+
+Before any 05-warehouse sign-off, run the canonical Gate-5 checklist (classes 1-12). Warehouse-specific traps:
+1. **RBAC seed (class 1, #1 live bug).** Ship a wave-1 P0 `NNN-warehouse-permission-seed.sql` granting `warehouse.*` (LP/GRN/FEFO/transition/stock) to the org-admin family (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin`) AND operator/scanner roles, in BOTH `role_permissions` + legacy jsonb, with org-insert trigger + backfill. Page-CHECK strings must byte-match seed-GRANT strings. Model on `packages/db/migrations/149-npd-permissions-org-admin-seed.sql`.
+2. **Reference/DSL seed = both halves (class 9).** The LP/FEFO state-machine DSL (`lp_state_machine_v1`, `fefo_strategy_v1`, `fefo_deviation_rules_v1`) and any `Reference.*`-fed Select must be BOTH wired (loader queries the table) AND seeded (org-insert trigger + backfill). A registry that ships the schema but seeds zero rows for the org = empty transition picker / "no allowed transitions" live, all tests green (this is exactly the 156-class bug from NPD).
+3. **Outbox enum (class 5).** `wh.lp.*`/`wh.material.*` events MUST be in `packages/outbox/src/events.enum.ts` + CHECK before emit; outbox INSERT inside the state-change txn (Forbidden #10).
+4. **Schema task names its consumer (class 10).** An LP/genealogy/reservation migration is not "done" until its consuming transition Server Action + scanner/FEFO UI ship.
+5. **Regenerate `__expected__/schema.sql` after each migration; 3-digit name ≥ HEAD; never edit an applied migration (class 4).**
+
 ## Cross-links
 
 - `[[MON-project-overview]]` — repo map, tech stack, module glossary

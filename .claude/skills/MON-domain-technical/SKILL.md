@@ -183,6 +183,16 @@ deployed PREVIEW (`/en/login`) and Playwright-click EVERY technical route, captu
 `get_runtime_logs` server error for any ERROR. Detail: `docs/workflow/02-QUALITY-GATES.md` Gate 5. The grant
 seed (T-093) is what makes the org-admin click-through pass — verify it specifically.
 
+## Recurring live-bugs (heavy-UI — pass vitest+tsc, break live; full list: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist classes 1-12)
+
+03-technical is HEAVY UI (item master, BOM detail, allergen, factory specs) — every class below was hit on the NPD/Settings runs:
+1. **RBAC seed (class 1, #1 live bug).** The `technical.*` grant seed (T-093 / mig `154-technical-permission-seed.sql`) MUST grant to the org-admin family + page-CHECK strings must byte-match seed-GRANT strings — see §RBAC above. Without it every technical page 403s at Gate-5.
+2. **Schema-driven dropdown = TWO gaps (class 9).** Item-type/category/UoM/allergen Selects fed by `dropdown_source` need BOTH the `readDropdowns`-style loader AND a seeded `Reference.*` (org-insert trigger + backfill, model `mig 156`). Wiring without seed = empty list live, all tests green.
+3. **Orphaned schema with no CRUD (class 10).** Wave-A landed the tables (items mig 153, BOM/coproducts/snapshots mig 159, routings 163, cost-history 160, allergen 161, factory_specs 165) — those are INVISIBLE until the consuming Server Action + UI (item CRUD T-009..T-011/T-032..T-035, BOM T-012..T-016/T-037..T-043, etc.) ship. Each schema task's DoD names its consumer; do not mark a table "done" for the user before its CRUD/UI lands.
+4. **Free-text → FK picker (class 12).** BOM lines / components / ingredients must be an **item picker bound to `item_id → public.items(id)`**, never free text (pattern `mig 157`). Required in the AC for any component/ingredient/material input.
+5. **Shared-primitive fix (class 11).** A Select/picker defect that appears across item/BOM/allergen screens → fix `packages/ui/src/Select.tsx` + add a `packages/ui` RTL test, not a per-page patch.
+6. **Outbox enum (class 5).** `technical.factory_spec.approved` already exists in the enum; any NEW `item.*`/`technical.*` event MUST be added to `packages/outbox/src/events.enum.ts` + CHECK and pass `check-drift.test.ts` (there are currently NO `item.*` events). Regenerate `__expected__/schema.sql` after every migration (done @167 — keep it).
+
 ## Cross-links
 - [[MON-project-overview]] — repo map, tech stack, glossary (read first)
 - [[MON-multi-tenant-site]] — `org_id` LAW, `app.current_org_id()` RLS, `withOrgContext`/`withSiteContext`, ESLint enum-lock

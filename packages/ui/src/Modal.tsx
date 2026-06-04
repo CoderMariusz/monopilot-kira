@@ -43,7 +43,15 @@ interface ModalBodyProps {
 
 function ModalBody({ children }: ModalBodyProps) {
   return (
-    <div data-testid="modal-body">
+    <div
+      data-testid="modal-body"
+      // The body is the scroll region: it grows to fill the space between the
+      // (fixed) header and footer and scrolls when the form is taller than the
+      // viewport, so the last fields + submit stay reachable on small screens.
+      // Mirrors prototype `.modal-body { overflow-y: auto; flex: 1; }`
+      // (prototypes/design/Monopilot Design System/_shared/shared.css:12).
+      style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}
+    >
       {children}
     </div>
   );
@@ -127,7 +135,18 @@ function Modal({ open, onOpenChange, size = 'md', modalId, dismissible = true, c
         data-focus-trap="radix-dialog"
         data-size={size}
         data-modal-id={modalId}
-        style={{ maxWidth: sizeVar }}
+        // Constrain height to the viewport and lay the dialog out as a column so
+        // the header/footer stay pinned while Modal.Body scrolls. Without this
+        // the content (e.g. the Invite-user form) overflowed past the viewport
+        // with no scroll, hiding the lower fields + submit. Mirrors prototype
+        // `.modal-box { max-height: 86vh; display: flex; flex-direction: column; }`
+        // (prototypes/design/Monopilot Design System/_shared/shared.css:7).
+        style={{
+          maxWidth: sizeVar,
+          maxHeight: '86vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
         onEscapeKeyDown={handleEscapeKeyDown}
         onPointerDownOutside={handlePointerDownOutside}
       >

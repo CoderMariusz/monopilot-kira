@@ -164,6 +164,15 @@ All emission via outbox (T-112), never direct queue writes. See [[MON-foundation
 9. **SECURITY DEFINER on `v_active_holds`** — RLS would be bypassed; SECURITY INVOKER only (T-064 red line).
 10. **Inventing prototype labels** — only the 32 labels in `_meta/prototype-labels/prototype-index-quality.json` are valid `prototype_index_entry` values. See F3 audit for the 14 pre-existing mappings.
 
+## Recurring live-bugs (pass vitest+tsc, break live — full checklist: `docs/workflow/02-QUALITY-GATES.md` §Recurring live-bug checklist)
+
+Before any 09-quality sign-off, run the canonical Gate-5 checklist (classes 1-12). Quality-specific traps:
+1. **RBAC seed (class 1, #1 live bug).** Ship a wave-1 P0 `NNN-quality-permission-seed.sql` granting `quality.*` to the org-admin family (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin`) AND QA/lab roles, in BOTH `role_permissions` + legacy jsonb, with org-insert trigger + backfill. Page-CHECK strings must byte-match seed-GRANT strings. Model on `packages/db/migrations/149-npd-permissions-org-admin-seed.sql`.
+2. **`'use server'` export rule (class 2).** `holdsGuard` and e-sign helpers: keep shared error classes/consts in a non-`'use server'` sibling — a `'use server'` module may only export async functions or `next build` breaks (tsc/vitest miss it).
+3. **Outbox enum (class 5).** Every `quality.ncr.*`/`quality.calibration.*`/`quality.hold.*` event MUST be in `packages/outbox/src/events.enum.ts` + CHECK before emit; all auto-NCR/hold paths route through the single Server Action (Forbidden #1/#7).
+4. **Schema task names its consumer (class 10).** A `quality_holds`/`ncr_reports`/`haccp_*` migration is not "done" until its consuming Server Action + UI ship; `v_active_holds` stays SECURITY INVOKER (Forbidden #9).
+5. **i18n 4-locale parity (class 6) + regenerate `__expected__/schema.sql`; 3-digit migration ≥ HEAD; never edit an applied migration (class 4).**
+
 ## Cross-links
 
 - [[MON-project-overview]] — repo map, tech stack, module glossary

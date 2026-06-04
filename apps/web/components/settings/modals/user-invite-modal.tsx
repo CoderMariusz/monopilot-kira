@@ -174,11 +174,21 @@ export function UserInviteModal({
       data-focus-trap="radix-dialog"
       ref={dialogRef}
       onKeyDown={handleDialogKeyDown}
-      style={{ maxWidth: 'var(--modal-size-md-width)' }}
+      // Cap to the viewport and lay out as a column so the title + footer stay
+      // pinned while the field list scrolls — previously the fields overlapped
+      // and the bottom (Role, Custom message, submit) was unreachable on small
+      // screens. Mirrors prototype `.modal-box { max-height: 86vh; flex column }`
+      // (prototypes/design/Monopilot Design System/_shared/shared.css:7).
+      style={{
+        maxWidth: 'var(--modal-size-md-width)',
+        maxHeight: '86vh',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
       <h2 id="sm-06-invite-title" style={{ margin: 0 }}>Invite team member</h2>
-      <form onSubmit={handleSubmit} noValidate>
-        <div data-testid="modal-body">
+      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 }}>
+        <div data-testid="modal-body" style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
           <div style={{ display: 'grid', gap: 12 }}>
             <div>
               <label htmlFor="sm-06-invite-email">

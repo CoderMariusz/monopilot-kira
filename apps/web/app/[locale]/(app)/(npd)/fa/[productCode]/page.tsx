@@ -661,7 +661,14 @@ async function pickerFor(locale: string, namespace: string): Promise<Picker> {
     return (key: string, fallback: string) => {
       try {
         const value = t(key);
-        return value === key ? fallback : value;
+        // next-intl (no custom getMessageFallback) returns the FULL namespaced
+        // path for a missing message — e.g. `npd.faProductionTab.emptyCtaBody` —
+        // NOT the bare key. A bare `value === key` guard therefore lets that raw
+        // path leak onto the screen (the live "emptyCtaBody key shows" bug). Treat
+        // both the bare key AND the fully-qualified `${namespace}.${key}` path as a
+        // miss, so a future un-seeded key always falls back to the English string.
+        if (value === key || value === `${namespace}.${key}`) return fallback;
+        return value;
       } catch {
         return fallback;
       }

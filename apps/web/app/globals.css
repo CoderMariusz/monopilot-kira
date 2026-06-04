@@ -181,3 +181,36 @@ a {
 .btn-danger:hover:not(:disabled) {
   background: #991b1b;
 }
+
+/* ============ Table system ============
+   The shared @monopilot/ui <Table> primitive (packages/ui/src/Table.tsx) emits
+   BEM classes (.table / .table__head / .table__cell …) but shipped no CSS, so
+   cells rendered through these classes had ZERO padding and content (e.g. the
+   unit codes on Settings → Units) sat directly on the gridlines / overflowed
+   them. Mirror the prototype table spacing (prototypes/design/Monopilot Design
+   System/settings/settings-v4.css:118-121 — th/td padding 8px, bottom border).
+   Cell-level utility classes (e.g. font-mono, tabular-nums) still compose on
+   top because they only set typography, not padding. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table__head {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.table__cell {
+  padding: 0.5rem 0.75rem;
+  font-size: 13px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+.table__row:last-child .table__cell {
+  border-bottom: 0;
+}
