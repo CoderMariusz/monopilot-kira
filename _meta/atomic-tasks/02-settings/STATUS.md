@@ -181,7 +181,7 @@ data plane verified live on Vercel+Supabase". Per-wave summary + commit SHAs:
 | T-121 | Global Import / Export screen (SET-029) | 🔄 | W2b 2026-06-03: REAL loader (T-125 listImportExportCapabilities + import_export_jobs via withOrgContext); export/import-dry-run wired to real actions; removed injection-only placeholder; 24 UI tests. Playwright/axe pending W6 |
 | T-127 | Authorization Policies screen (SET-011b) | 🔄 | W2b 2026-06-03: org_authorization_policies table now exists (063) → renders REAL policy data; removed SERVER_DEFAULT_POLICIES error-only fallback; save via T-126. Runtime bomb cleared. Playwright/axe pending W6 |
 | T-128 | Schema Shadow Preview screen (SET-034) | 🔄 | W2b 2026-06-03: removed hardcoded SHADOW_PREVIEW_DRAFTS → REAL dept_column_drafts query via withOrgContext (same store publish writes); 11/11 UI tests. SET-034 no JSX (spec-driven). Playwright/axe pending W6 |
-| T-129 | User Menu Language Picker (SET-100) | ⏸ | Component exists + parity contract inline; parity_report in `e2e/parity-evidence/SET-100/` |
+| T-129 | User Menu Language Picker (SET-100) | ✅ | language picker live in user-menu (verified) |
 
 ## T4-wiring-test — E2E / Integration tests
 

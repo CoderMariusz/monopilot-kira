@@ -50,6 +50,13 @@ const NAV_CARDS: NavCard[] = [
   { key: 'routings', href: '/technical/routings' },
   { key: 'factorySpecs', href: '/technical/factory-specs' },
   { key: 'sensory', href: '/technical/sensory' },
+  { key: 'compliance', href: '/technical/compliance' },
+  { key: 'labResults', href: '/technical/lab-results' },
+  { key: 'costImport', href: '/technical/costs/d365-import' },
+  { key: 'shelfLife', href: '/technical/shelf-life' },
+  { key: 'tooling', href: '/technical/tooling' },
+  { key: 'bulkImport', href: '/technical/items/import' },
+  { key: 'bomSnapshots', href: '/technical/boms/snapshots' },
   { key: 'd365', href: '/settings/integrations/d365' },
 ];
 

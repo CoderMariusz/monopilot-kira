@@ -4,11 +4,19 @@ import { getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@monopilot/ui/Card';
 
 import {
+  loadD365SyncConfig,
+  updateD365SyncConfig as updateD365SyncConfigAction,
+} from '../../../../../../../../actions/d365/sync-config';
+import {
   D365SyncConfigForm,
   type D365SyncConfig,
   type D365SyncLabels,
   type UpdateD365SyncConfigInput,
 } from './d365-sync-config-form.client';
+
+// The save round-trip reads/writes real Supabase data via withOrgContext; the
+// route must never be statically cached.
+export const dynamic = 'force-dynamic';
 
 type CallerRole = 'owner' | 'admin' | 'planner' | 'viewer';
 
@@ -59,15 +67,36 @@ function Forbidden({ labels }: { labels: D365SyncLabels }) {
   );
 }
 
-export default async function D365SyncPage({
-  params,
-  callerRole = 'viewer',
-  config,
-  updateD365SyncConfig,
-}: D365SyncPageProps) {
+export default async function D365SyncPage(propsInput: D365SyncPageProps = {}) {
+  const { params, callerRole, config, updateD365SyncConfig } = propsInput;
   const resolvedParams = await params;
   const locale = resolvedParams?.locale ?? 'en';
   const fallbackConfig = buildFallbackConfig(locale);
+
+  // Tests inject `config` / `callerRole` / `updateD365SyncConfig` for
+  // deterministic rendering. The production route injects none of these, which
+  // is the signal to query real Supabase data via withOrgContext.
+  const injected =
+    Object.prototype.hasOwnProperty.call(propsInput, 'config') ||
+    Object.prototype.hasOwnProperty.call(propsInput, 'callerRole') ||
+    Object.prototype.hasOwnProperty.call(propsInput, 'updateD365SyncConfig');
+
+  let resolvedConfig: D365SyncConfig | null | undefined = config;
+  let canEdit = callerRole === 'owner';
+  let saveAction = updateD365SyncConfig;
+
+  if (!injected) {
+    saveAction = updateD365SyncConfigAction;
+    const loaded = await loadD365SyncConfig(locale);
+    if (loaded.ok) {
+      resolvedConfig = loaded.config;
+      canEdit = loaded.canEdit;
+    } else {
+      resolvedConfig = fallbackConfig;
+      canEdit = false;
+    }
+  }
+
   const t = await getTranslations('settings');
   const labels: D365SyncLabels = {
     title: label('d365.sync.title', t('d365.sync.title'), 'D365 sync config'),
@@ -97,13 +126,13 @@ export default async function D365SyncPage({
     },
   };
 
-  if (callerRole !== 'owner') return <Forbidden labels={labels} />;
+  if (!canEdit) return <Forbidden labels={labels} />;
   return (
     <D365SyncConfigForm
-      config={config ?? fallbackConfig}
+      config={resolvedConfig ?? fallbackConfig}
       labels={labels}
       locale={locale}
-      updateD365SyncConfig={updateD365SyncConfig}
+      updateD365SyncConfig={saveAction}
     />
   );
 }

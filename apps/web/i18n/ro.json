@@ -2332,6 +2332,34 @@
         "d365": {
           "title": "Integrare D365",
           "desc": "Sarcini de sincronizare, mapare de coduri și coadă de erori (în Setări)."
+        },
+        "compliance": {
+          "title": "Conformitate de reglementare",
+          "desc": "Stare portofoliu FG față de reglementări active (doar direcționare)."
+        },
+        "labResults": {
+          "title": "Jurnal rezultate lab",
+          "desc": "Rezultate lab Quality doar pentru citire în context Tehnic."
+        },
+        "costImport": {
+          "title": "Import costuri D365",
+          "desc": "Preluare opțională costuri D365 — istoricul local rămâne sursa de adevăr."
+        },
+        "shelfLife": {
+          "title": "Shelf life",
+          "desc": "Shelf-life config & overrides"
+        },
+        "tooling": {
+          "title": "Tooling & equipment",
+          "desc": "Equipment setups from routings"
+        },
+        "bulkImport": {
+          "title": "Bulk import",
+          "desc": "Import items from CSV"
+        },
+        "bomSnapshots": {
+          "title": "BOM snapshots",
+          "desc": "View immutable WO BOM snapshots"
         }
       },
       "resourceType": {
@@ -2747,6 +2775,369 @@
       "error": "Nu s-a putut încărca acest BOM. Încearcă din nou.",
       "notFound": "BOM negăsit.",
       "forbidden": "Nu ai permisiunea de a vizualiza acest BOM."
+    },
+    "bomDelete": {
+      "title": "Șterge versiunea BOM",
+      "subtitle": "Ireversibil — deteriorează instantaneele WO istorice care referă această versiune.",
+      "warning": "Versiunea {version} va fi eliminată permanent. Instantaneele WO de planificare care referă această versiune vor apărea ca „orfane”.",
+      "blockedBySnapshots": "Blocat: {count} instantaneu(e) de comandă referă {version}. Ștergeți mai întâi instantaneele.",
+      "blockedByStatus": "Se pot șterge doar versiunile ciornă. Versiunile active sau aprobate nu sunt niciodată eliminate.",
+      "confirmLabel": "Tastați {version} pentru confirmare",
+      "cancel": "Anulează",
+      "delete": "Șterge versiunea"
+    },
+    "bomGraph": {
+      "intro": "Flux de materiale: materii prime → sub-BOM-uri → proces → produs finit.",
+      "directionLabel": "Direcție",
+      "directionDown": "Desfășoară (în jos)",
+      "directionUp": "Unde este folosit (în sus)",
+      "layerRaw": "Materii prime",
+      "layerSub": "Sub-BOM-uri",
+      "layerProcess": "Proces",
+      "layerOutput": "Produs finit",
+      "layerParents": "Folosit în (BOM-uri părinte)",
+      "emptyComponents": "Această versiune BOM nu are linii de componente pentru grafic.",
+      "emptyParents": "Acest produs finit (FG) nu este folosit ca o componentă în niciun alt BOM.",
+      "legendRaw": "Materie primă",
+      "legendSub": "Sub-BOM",
+      "legendProcess": "Pas de proces",
+      "legendOutput": "Produs finit"
+    },
+    "bomRecipe": {
+      "print": "Printează",
+      "subhead": "BOM {code} · v{version} · Randament {yield}% · {approved}",
+      "ingredientsTitle": "Ingrediente",
+      "processTitle": "Proces",
+      "notesTitle": "Alergeni și note",
+      "colCode": "Cod",
+      "colName": "Ingredient",
+      "colQty": "Cant.",
+      "colPct": "%",
+      "emptyLines": "Această versiune BOM nu are linii de ingrediente.",
+      "approvedBy": "Aprobat de",
+      "pendingApproval": "În așteptarea aprobării",
+      "bakeryIngredientsTitle": "Ingredientele rețetei",
+      "bakeryProcessTitle": "Metodă",
+      "pharmaIngredientsTitle": "Formulare",
+      "pharmaProcessTitle": "Procedură de fabricație"
+    },
+    "bomHistory": {
+      "title": "Istoricul modificărilor",
+      "subtitle": "Cronologie de audit imuabilă a fiecărei modificări a acestui BOM — versiuni, aprobări și lansări.",
+      "filterActorLabel": "Autor",
+      "filterAllActors": "Toți autorii",
+      "empty": "Încă nu există istoric pentru acest BOM.",
+      "emptyFiltered": "Nicio modificare făcută de autorul selectat.",
+      "tagCreated": "Creat",
+      "tagApprove": "Aprobat",
+      "tagRelease": "Lansat",
+      "tagOther": "Modificare",
+      "versionChip": "v{version}",
+      "unknownActor": "Sistem"
+    },
+    "compliance": {
+      "title": "Tablou de conformitate de reglementare",
+      "subtitle": "Stare la prima vedere a portofoliului FG față de reglementările active. Doar direcționare și remediere — nu consultanță juridică.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "compliance": "Conformitate"
+      },
+      "routingNotice": "Doar direcționare. Acest tablou evidențiază lacunele și le direcționează către modulul proprietar (09-Quality pentru ciclul lab/NCR, Tehnic pentru refacerea specificației/etichetei). Nu înlocuiește revizuirea juridică sau judecata echipei HACCP.",
+      "coverage": {
+        "title": "Acoperire pe reglementare"
+      },
+      "gaps": "{count, plural, =0 {Nicio lacună deschisă} one {# lacună deschisă} few {# lacune deschise} other {# de lacune deschise}}",
+      "flags": {
+        "title": "Semnalări pe FG · {count}",
+        "hint": "Faceți clic pe Direcționează pentru a trimite către modulul proprietar — nu se rezolvă automat aici.",
+        "route": "Direcționează →",
+        "empty": "Nicio semnalare de conformitate deschisă pentru portofoliul FG activ.",
+        "col": {
+          "fg": "Produs finit",
+          "regulation": "Reglementare",
+          "issue": "Problemă",
+          "severity": "Gravitate",
+          "action": ""
+        }
+      },
+      "empty": {
+        "title": "Niciun produs finit încă",
+        "body": "Creați articole FG active în registrul de articole pentru a urmări aici acoperirea lor de reglementare."
+      },
+      "error": "Nu se poate încărca tabloul de conformitate. Încercați din nou.",
+      "regulation": {
+        "eu_1169_2011": {
+          "label": "EU 1169/2011",
+          "scope": "Etichetare FIC"
+        },
+        "fsma_204": {
+          "label": "FSMA 204",
+          "scope": "Regulă de trasabilitate (US)"
+        },
+        "brcgs_v9": {
+          "label": "BRCGS v9",
+          "scope": "Bază audit GFSI"
+        },
+        "iso_22000": {
+          "label": "ISO 22000",
+          "scope": "FSMS / HACCP"
+        },
+        "eu_2023_915": {
+          "label": "EU 2023/915",
+          "scope": "Contaminanți în alimente"
+        }
+      },
+      "severity": {
+        "high": "ridicată",
+        "medium": "medie",
+        "low": "scăzută"
+      },
+      "issue": {
+        "allergen_declaration_missing": {
+          "label": "Declarație de alergeni lipsă",
+          "remediation": "Adăugați un profil de alergeni în registrul de articole, apoi reemiteți eticheta."
+        },
+        "factory_spec_unapproved": {
+          "label": "Specificație de fabrică neaprobată pentru utilizare",
+          "remediation": "Aprobați pachetul FactorySpec + BOM în Specificații de fabrică."
+        },
+        "shelf_life_missing": {
+          "label": "Configurare termen de valabilitate lipsă",
+          "remediation": "Setați zilele/modul de valabilitate în registrul de articole."
+        },
+        "supplier_spec_missing": {
+          "label": "Nicio specificație de furnizor activă",
+          "remediation": "Activați o specificație de furnizor în administrarea specificațiilor de furnizor."
+        },
+        "lab_result_failing": {
+          "label": "Rezultat de laborator eșuat sau în așteptare",
+          "remediation": "Direcționați către 09-Quality — Tehnic afișează doar linkul de remediere."
+        }
+      }
+    },
+    "labResults": {
+      "title": "Jurnal rezultate de laborator (doar citire)",
+      "subtitle": "Model de citire lab_results deținut de Quality, afișat în Tehnic pentru context FG/specificație. Tehnic nu scrie niciodată rezultate — introducerea, ciclul NCR și aprobarea sunt în 09-Quality.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "labResults": "Rezultate lab"
+      },
+      "readOnlyNotice": "Doar citire aici. Pentru a introduce, edita, retesta, aproba, ridica un NCR sau atașa un CoA, deschideți",
+      "openInQa": "Deschide în QA →",
+      "searchPlaceholder": "Filtrează după FG / comandă / id lab",
+      "sourceNote": "Sursă: proiecția lab_results deținută de Quality. Specificațiile Tehnic leagă rezultatele doar pentru context de citire.",
+      "empty": "Niciun rezultat de laborator nu corespunde filtrului curent.",
+      "invalidFilter": "Valoare de filtru nevalidă pentru {field}.",
+      "error": "Nu se pot încărca rezultatele de laborator. Încercați din nou.",
+      "rluUnit": "RLU",
+      "threshold": "prag {value} RLU",
+      "qualitative": "n/a (calitativ)",
+      "verdict": {
+        "all": "Toate",
+        "pass": "Reușit",
+        "fail": "Eșuat",
+        "inconclusive": "Neconcludent",
+        "pending": "În așteptare",
+        "hold": "Reținut"
+      },
+      "testType": {
+        "atp_swab": "Test ATP RLU",
+        "allergen_elisa": "Alergen ELISA",
+        "micro_apc": "Micro APC",
+        "nutrition": "Nutriție",
+        "sensory": "Senzorial"
+      },
+      "col": {
+        "labId": "ID lab",
+        "taken": "Prelevat",
+        "fgLot": "FG / comandă",
+        "test": "Test",
+        "reading": "Citire",
+        "verdict": "Verdict",
+        "action": ""
+      }
+    },
+    "costImport": {
+      "title": "Import costuri din D365",
+      "subtitle": "Sursă de integrare opțională — istoricul local al costurilor rămâne sursa de adevăr. Starea D365 dezactivată păstrează această suprafață doar pentru citire și nu blochează niciodată eliberarea în fabrică.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "costs": "Costuri",
+        "d365Import": "Import D365"
+      },
+      "disabledBanner": "Conectorul D365 dezactivat pentru această organizație. Importul de costuri este indisponibil. Istoricul local al costurilor rămâne sursa de adevăr și este editabil din Tehnic › Costuri.",
+      "settingsLink": "Setări › Integrări",
+      "sourceOfTruthNote": "Istoricul local al costurilor este sursa de adevăr. Importul din D365 adaugă o intrare de cost nouă etichetată source=d365_sync; nu suprascrie niciodată pe loc. Articolele cu |Δ| ≥ 5% necesită aprobare Tehnic.",
+      "kpi": {
+        "connector": "Conector",
+        "connectorValue": "OK",
+        "pulled": "Articole preluate",
+        "changed": "Modificate",
+        "over5": "|Δ| ≥ 5%"
+      },
+      "signoff": {
+        "label": "Motiv aprobare",
+        "help": "Înregistrat în audit împreună cu importul. Necesar când |Δ| ≥ 5% pe orice rând (min. 10 caractere).",
+        "placeholder": "ex. reîmprospătare costuri Q2 aprobată de Controlling 2026-04-30."
+      },
+      "apply": "Aplică importul",
+      "applying": "Se aplică…",
+      "applied": "Import pus în coadă (sarcina {jobId}).",
+      "duplicate": "Import deja pus în coadă pentru azi (fără efect).",
+      "triggerForbidden": "Nu aveți permisiunea de a declanșa un import D365.",
+      "triggerError": "Nu se poate declanșa importul. Încercați din nou.",
+      "empty": "Nicio diferență de cost D365 de revizuit.",
+      "noChange": "fără modificare",
+      "error": "Nu se poate încărca importul de costuri D365. Încercați din nou.",
+      "col": {
+        "code": "Cod",
+        "name": "Nume",
+        "current": "Curent",
+        "incoming": "Primit",
+        "delta": "Δ %",
+        "source": "Sursă"
+      }
+    },
+    "tooling": {
+      "title": "Tooling & equipment setups",
+      "subtitle": "Equipment and tooling setups derived from routing operations — each operation that binds a line or machine with a setup time.",
+      "error": "Unable to load tooling setups. Please try again.",
+      "empty": {
+        "title": "No tooling setups yet",
+        "body": "No routing operations bind a line or machine in this organization yet.",
+        "bodyCanWrite": "Author a routing with line/machine-bound operations to populate the equipment setup list."
+      },
+      "list": {
+        "searchPlaceholder": "Search setups",
+        "createCta": "Author in routings",
+        "filter": {
+          "all": "All",
+          "machine": "Machine",
+          "line": "Line"
+        },
+        "col": {
+          "code": "Code",
+          "name": "Name",
+          "type": "Type",
+          "resource": "Resource",
+          "item": "Item",
+          "setup": "Setup",
+          "costPerHour": "Cost / hr",
+          "updated": "Updated",
+          "status": "Status"
+        },
+        "noMatches": "No setups match the current filter.",
+        "type": {
+          "machine": "Machine",
+          "line": "Line"
+        },
+        "setupUnit": "min"
+      }
+    },
+    "bulkImport": {
+      "breadcrumb": "Technical › Items › Import",
+      "title": "Bulk import (CSV)",
+      "subtitle": "Org-scoped wizard for FG / WIP / RM / supplier_specs rows. No D365 dependency.",
+      "permissionDenied": "You do not have permission to import items.",
+      "steps": {
+        "upload": "Upload",
+        "validate": "Validate rows",
+        "diff": "Diff preview",
+        "confirm": "Confirm + audit"
+      },
+      "scope": {
+        "label": "Import scope",
+        "fg": "FG catalog (FG-codes only)",
+        "wip": "WIP / intermediates",
+        "rm": "RM (raw materials)",
+        "rmSupplier": "RM + supplier_specs (combined)"
+      },
+      "file": {
+        "label": "CSV file",
+        "placeholder": "filename.csv"
+      },
+      "orgScopedNote": "Imports are org-scoped — only the active organization's catalog is touched. No D365 dependency.",
+      "cta": {
+        "validate": "Validate rows",
+        "diff": "Diff preview",
+        "confirm": "Confirm + audit",
+        "apply": "Apply import",
+        "back": "Back",
+        "cancel": "Cancel"
+      },
+      "kpi": {
+        "rowsInFile": "Rows in file",
+        "errors": "Errors",
+        "warnings": "Warnings",
+        "create": "Create",
+        "update": "Update",
+        "noop": "No-op"
+      },
+      "col": {
+        "row": "Row",
+        "severity": "Severity",
+        "column": "Column",
+        "issue": "Issue",
+        "code": "Code",
+        "op": "Op",
+        "field": "Field",
+        "change": "Before → After"
+      },
+      "noIssues": "No validation issues.",
+      "reason": {
+        "label": "Audit note",
+        "placeholder": "e.g. Q2 refresh — supplier swap S-101→S-202.",
+        "help": "Recorded in the import audit trail; min 10 characters."
+      },
+      "applied": "Import applied",
+      "forbidden": "You do not have permission to import items.",
+      "parseFailed": "Could not parse the CSV. Check the header row and try again.",
+      "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it."
+    },
+    "bomSnapshots": {
+      "breadcrumb": "Technical › BOMs › Snapshots",
+      "title": "BOM snapshots",
+      "subtitle": "Immutable Planning work-order snapshots of shared BOM versions. Read-only — snapshots never mutate the canonical BOM.",
+      "error": "Unable to load BOM snapshots. Please try again.",
+      "empty": {
+        "title": "No BOM snapshots yet",
+        "body": "Snapshots are captured when a work order is released against a BOM version."
+      },
+      "immutableBanner": "Immutable. A snapshot is the BOM frozen at work-order release. Editing a snapshot is forbidden — propose an ECO on the canonical BOM and trigger a clone-on-write on the next work order.",
+      "orphanedNote": "Orphaned = the canonical BOM version was deleted; the snapshot stays read-only for audit/traceability. Open the diff to see the frozen line-set.",
+      "searchPlaceholder": "Filter by WO-#####",
+      "filter": {
+        "all": "All",
+        "inUse": "In use",
+        "closed": "Closed",
+        "orphaned": "Orphaned"
+      },
+      "col": {
+        "snapshot": "Snapshot ID",
+        "version": "Ver.",
+        "wo": "WO",
+        "fg": "Finished good",
+        "lines": "Lines",
+        "taken": "Taken",
+        "status": "Status"
+      },
+      "diffCta": "Diff vs current →",
+      "noMatches": "No snapshots match the current filter.",
+      "noWo": "—",
+      "modal": {
+        "title": "Snapshot diff",
+        "readOnly": "Read-only. Snapshot is immutable. To apply the current canonical BOM, trigger clone-on-write on the next work-order release — never mutate this snapshot.",
+        "col": {
+          "kind": "Kind",
+          "path": "Path",
+          "frozen": "Snapshot (frozen)",
+          "current": "Current BOM"
+        },
+        "loading": "Computing diff…",
+        "error": "Could not compute the diff. Please try again.",
+        "empty": "No differences between this snapshot and the current canonical BOM.",
+        "close": "Close"
+      }
     }
   },
   "Technical": {

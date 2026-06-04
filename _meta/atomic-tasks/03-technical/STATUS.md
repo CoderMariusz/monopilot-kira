@@ -30,12 +30,12 @@
 | T-023 | API: Routing cost preview | ✅ | routings/_actions/cost-preview.ts |
 | T-024 | Wiring: Allergen cascade rule deployment | ✅ | mig 170 rule_definitions + lib/technical/allergens/cascade.ts |
 | T-025 | Wiring: BOM snapshot at WO creation | ⬜ | snapshot service absent (lib/technical/bom/snapshot.ts); 08-production dep — RISK |
-| T-026 | Wiring: ATP swab auto-fail trigger | ⬜ | trigger + lib/technical/lab/atp-fail.ts absent |
+| T-026 | Wiring: ATP swab auto-fail trigger | ✅ | ATP auto-fail trigger mig 187 + outbox event; 8 tests |
 | T-027 | Wiring: Schema-driven L3 extension propagation | ⬜ | items schema-cache listener absent |
 | T-028 | API + worker: D365 sync job | ✅ | lib/integrations/d365/pull.ts + idempotency + cron route |
 | T-029 | Wiring: D365 push worker + DLQ retry | ✅ | push.ts + dlq/[id]/retry route; backoff 1s/5s/25s |
 | T-030 | API: D365 connection test + feature flag | ✅ | gate.ts assertD365Enabled (V-TEC-70/72/73) + test-connection.ts |
-| T-031 | API: Variance tracking nightly job | ⬜ | catch-weight variance cron absent |
+| T-031 | API: Variance tracking nightly job | ✅ | catch-weight variance daily mig 188 + cron; 9 tests |
 | T-032 | UI: TEC-010 Item List page | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-033 | UI: TEC-011 Item Create Wizard modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-034 | UI: TEC-012 Item Detail page | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
@@ -46,10 +46,10 @@
 | T-039 | UI: TEC-022 BOM Edit modals | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-040 | UI: TEC-023 BOM Version Diff | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-041 | UI: TEC-024 BOM Generator modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
-| T-042 | UI: TEC-082 BOM Version Delete modal | ⬜ | absent |
-| T-043 | UI: TEC-083 BOM Graph (where-used) | ⬜ | absent |
-| T-044 | UI: TEC-084 Recipe Sheet print view | ⬜ | absent |
-| T-045 | UI: TEC-089 BOM Change History timeline | ⬜ | absent |
+| T-042 | UI: TEC-082 BOM Version Delete modal | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-043 | UI: TEC-083 BOM Graph (where-used) | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-044 | UI: TEC-084 Recipe Sheet print view | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-045 | UI: TEC-089 BOM Change History timeline | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
 | T-046 | UI: TEC-030 Shelf Life Config | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-047 | UI: TEC-040 Allergen Profile Editor | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-048 | UI: TEC-042 Manufacturing Op Allergen Additions | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
@@ -57,7 +57,7 @@
 | T-050 | UI: TEC-050 Cost History + Cost Edit | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-051 | UI: TEC-060 Routing List + Edit modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-052 | UI: TEC-062 Routing Cost Preview + Resource Util | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
-| T-053 | UI: TEC-087 Tooling/Equipment Setup List | ⬜ | absent |
+| T-053 | UI: TEC-087 Tooling/Equipment Setup List | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
 | T-054 | UI: TEC-088 Maintenance Cross-Link Panel | ⬜ | absent; cross-dep 13-maintenance |
 | T-055 | UI: TEC-070 D365 Sync Dashboard + Manual Trigger | ⏸ | built+tested under /settings/integrations/d365/sync; D-1 namespace unresolved |
 | T-056 | UI: TEC-072 D365 Sync Audit Log | ⏸ | built+tested under /settings/integrations/d365/audit; D-1 unresolved |
@@ -68,15 +68,15 @@
 | T-061 | UI: TEC-093 Nutrition Panel (cross-tagged NPD) | ⬜ | absent; cross-dep 01-NPD |
 | T-062 | UI: TEC-094 Recipe Costing preview (cross-tagged Finance) | ⬜ | absent; cross-dep 10-finance |
 | T-063 | UI: TEC-095 Traceability Search foundation | ⬜ | absent; cross-dep 05-warehouse |
-| T-064 | Docs: TEC-014 Bulk Import CSV gap brief | ⬜ | no artifact |
-| T-065 | Docs: TEC-025 BOM Snapshots Viewer gap brief | ⬜ | no artifact |
-| T-066 | Docs: TEC-031 Regulatory Compliance Dashboard gap brief | ⬜ | no artifact |
-| T-067 | Docs: TEC-045 Lab Results Log gap brief | ⬜ | no artifact |
-| T-068 | Docs: TEC-052 Cost Import from D365 gap brief | ⬜ | no artifact |
-| T-069 | Docs: TEC-092 ECO Phase-2 marker | ⬜ | no artifact |
-| T-070 | Seed: manufacturing_operations + alert_thresholds + iso4217 | ⏸ | mig 167 covers alert_thresholds+iso4217; mfg_ops in seeds/; named scope file absent, no test |
-| T-071 | Docs: ADR-002/008/028/029 cross-reference note | ⬜ | note artifact absent |
-| T-072 | Docs gap: supplier_specs governance brief | ⬜ | no artifact |
+| T-064 | Docs: TEC-014 Bulk Import CSV gap brief | ✅ | design/specs/TEC-014 brief |
+| T-065 | Docs: TEC-025 BOM Snapshots Viewer gap brief | ✅ | design/specs/TEC-025 brief |
+| T-066 | Docs: TEC-031 Regulatory Compliance Dashboard gap brief | ✅ | design/specs/TEC-031 brief |
+| T-067 | Docs: TEC-045 Lab Results Log gap brief | ✅ | design/specs/TEC-045 brief |
+| T-068 | Docs: TEC-052 Cost Import from D365 gap brief | ✅ | design/specs/TEC-052 brief |
+| T-069 | Docs: TEC-092 ECO Phase-2 marker | ✅ | design/specs/TEC-092 brief |
+| T-070 | Seed: manufacturing_operations + alert_thresholds + iso4217 | ✅ | seed-baseline.test.ts added (8 tests) |
+| T-071 | Docs: ADR-002/008/028/029 cross-reference note | ✅ | ADR cross-ref note |
+| T-072 | Docs gap: supplier_specs governance brief | ✅ | supplier_specs Phase1 brief |
 | T-073 | Shared BOM SSOT + clone-on-write enforcement | ✅ | mig 168 bom_request_version_edit + state-machine triggers |
 | T-074 | RM usability validation shared decision service | ✅ | lib/technical/rm-usability.ts; 7-check chain + tests |
 | T-075 | supplier_specs Phase 1 governance migration | ✅ | mig 174; review/lifecycle status + approve/reject fns |
@@ -89,11 +89,11 @@
 | T-082 | NonConformance event contract for Technical triggers | ⬜ | absent; blocked by T-076/077 |
 | T-083 | Local UI prototype copy red-lines | ⏸ | 03-TECHNICAL-UX.md red-lines exist; no formal applied/sign-off |
 | T-084 | Technical sensory evaluation contract/read model | ✅ | mig 166 + lib/technical/sensory/sensory-read-model.ts |
-| T-085 | UI: TEC-014 Bulk Import CSV spec-driven | ⬜ | absent; blocked by T-064 |
-| T-086 | UI: TEC-025 BOM Snapshots Viewer spec-driven | ⬜ | absent; blocked by T-065 + T-025 |
-| T-087 | UI: TEC-031 Regulatory Compliance Dashboard | ⬜ | absent |
-| T-088 | UI: TEC-045 Lab Results Log spec-driven | ⬜ | absent; blocked by T-067 |
-| T-089 | UI: TEC-052 Cost Import from D365 spec-driven | ⬜ | absent (T-028 import API exists) |
+| T-085 | UI: TEC-014 Bulk Import CSV spec-driven | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-086 | UI: TEC-025 BOM Snapshots Viewer spec-driven | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-087 | UI: TEC-031 Regulatory Compliance Dashboard | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-088 | UI: TEC-045 Lab Results Log spec-driven | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
+| T-089 | UI: TEC-052 Cost Import from D365 spec-driven | 🔄 | 2026-06-04 gap-fill: UI built+RTL, pending live Gate-5 |
 | T-090 | UI: FactorySpec+BOM bundle approval panel | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-091 | Add technical permission strings to enum (p0-blocker) | ✅ | permissions.enum.ts ALL_TECHNICAL_PERMISSIONS (11 strings) |
 | T-092 | UI: TEC Sensory Evaluation screen (consumes T-084) | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |

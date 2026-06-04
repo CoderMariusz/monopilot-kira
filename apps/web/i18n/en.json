@@ -2332,6 +2332,34 @@
         "d365": {
           "title": "D365 integration",
           "desc": "Sync jobs, code mapping and dead-letter queue (in Settings)."
+        },
+        "compliance": {
+          "title": "Regulatory compliance",
+          "desc": "FG portfolio status against active regulations (routing only)."
+        },
+        "labResults": {
+          "title": "Lab results log",
+          "desc": "Read-only Quality-owned lab results in Technical context."
+        },
+        "costImport": {
+          "title": "D365 cost import",
+          "desc": "Optional D365 cost pull — local history stays source of truth."
+        },
+        "shelfLife": {
+          "title": "Shelf life",
+          "desc": "Shelf-life config & overrides"
+        },
+        "tooling": {
+          "title": "Tooling & equipment",
+          "desc": "Equipment setups from routings"
+        },
+        "bulkImport": {
+          "title": "Bulk import",
+          "desc": "Import items from CSV"
+        },
+        "bomSnapshots": {
+          "title": "BOM snapshots",
+          "desc": "View immutable WO BOM snapshots"
         }
       },
       "resourceType": {
@@ -2747,6 +2775,369 @@
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
       "forbidden": "You do not have permission to view this BOM."
+    },
+    "bomDelete": {
+      "title": "Delete BOM version",
+      "subtitle": "Irreversible — breaks historical WO snapshots referencing this version.",
+      "warning": "Version {version} will be permanently removed. Planning WO snapshots that reference this version will show as “orphaned”.",
+      "blockedBySnapshots": "Blocked: {count} work-order snapshot(s) reference {version}. Delete the snapshots first.",
+      "blockedByStatus": "Only draft versions can be deleted. Active or approved versions are never removed.",
+      "confirmLabel": "Type {version} to confirm",
+      "cancel": "Cancel",
+      "delete": "Delete version"
+    },
+    "bomGraph": {
+      "intro": "Material flow: raw ingredients → sub-BOMs → process → finished product.",
+      "directionLabel": "Direction",
+      "directionDown": "Explode (down)",
+      "directionUp": "Where-used (up)",
+      "layerRaw": "Raw materials",
+      "layerSub": "Sub-BOMs",
+      "layerProcess": "Process",
+      "layerOutput": "Finished product",
+      "layerParents": "Used in (parent BOMs)",
+      "emptyComponents": "This BOM version has no component lines to graph.",
+      "emptyParents": "This FG is not used as a component in any other BOM.",
+      "legendRaw": "Raw material",
+      "legendSub": "Sub-BOM",
+      "legendProcess": "Process step",
+      "legendOutput": "Finished product"
+    },
+    "bomRecipe": {
+      "print": "Print",
+      "subhead": "BOM {code} · v{version} · Yield {yield}% · {approved}",
+      "ingredientsTitle": "Ingredients",
+      "processTitle": "Process",
+      "notesTitle": "Allergens & notes",
+      "colCode": "Code",
+      "colName": "Ingredient",
+      "colQty": "Qty",
+      "colPct": "%",
+      "emptyLines": "This BOM version has no ingredient lines.",
+      "approvedBy": "Approved by",
+      "pendingApproval": "Pending approval",
+      "bakeryIngredientsTitle": "Recipe ingredients",
+      "bakeryProcessTitle": "Method",
+      "pharmaIngredientsTitle": "Formulation",
+      "pharmaProcessTitle": "Manufacturing procedure"
+    },
+    "bomHistory": {
+      "title": "Change history",
+      "subtitle": "Immutable audit timeline of every change to this BOM — versions, approvals and releases.",
+      "filterActorLabel": "Actor",
+      "filterAllActors": "All actors",
+      "empty": "No history yet for this BOM.",
+      "emptyFiltered": "No changes by the selected actor.",
+      "tagCreated": "Created",
+      "tagApprove": "Approved",
+      "tagRelease": "Released",
+      "tagOther": "Change",
+      "versionChip": "v{version}",
+      "unknownActor": "System"
+    },
+    "compliance": {
+      "title": "Regulatory compliance dashboard",
+      "subtitle": "At-a-glance status of the FG portfolio against active regulations. Routing and remediation only — not legal advice.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "compliance": "Compliance"
+      },
+      "routingNotice": "Routing only. This dashboard surfaces gaps and routes them to the owning module (09-Quality for lab/NCR lifecycle, Technical for spec/label rework). It does not replace legal review or HACCP-team judgment.",
+      "coverage": {
+        "title": "Coverage by regulation"
+      },
+      "gaps": "{count, plural, =0 {No open gaps} one {# open gap} other {# open gaps}}",
+      "flags": {
+        "title": "Per-FG flags · {count}",
+        "hint": "Click Route to dispatch to the owning module — never auto-resolved here.",
+        "route": "Route →",
+        "empty": "No open compliance flags for the active FG portfolio.",
+        "col": {
+          "fg": "Finished good",
+          "regulation": "Regulation",
+          "issue": "Issue",
+          "severity": "Severity",
+          "action": ""
+        }
+      },
+      "empty": {
+        "title": "No finished goods yet",
+        "body": "Create active FG items in the Items master to track their regulatory coverage here."
+      },
+      "error": "Unable to load the compliance dashboard. Please try again.",
+      "regulation": {
+        "eu_1169_2011": {
+          "label": "EU 1169/2011",
+          "scope": "FIC labelling"
+        },
+        "fsma_204": {
+          "label": "FSMA 204",
+          "scope": "Traceability rule (US)"
+        },
+        "brcgs_v9": {
+          "label": "BRCGS v9",
+          "scope": "GFSI audit baseline"
+        },
+        "iso_22000": {
+          "label": "ISO 22000",
+          "scope": "FSMS / HACCP"
+        },
+        "eu_2023_915": {
+          "label": "EU 2023/915",
+          "scope": "Contaminants in food"
+        }
+      },
+      "severity": {
+        "high": "high",
+        "medium": "medium",
+        "low": "low"
+      },
+      "issue": {
+        "allergen_declaration_missing": {
+          "label": "Allergen declaration missing",
+          "remediation": "Add an allergen profile in the item master, then re-issue the label."
+        },
+        "factory_spec_unapproved": {
+          "label": "Factory spec not approved for factory use",
+          "remediation": "Approve the FactorySpec + BOM bundle in Factory specs."
+        },
+        "shelf_life_missing": {
+          "label": "Shelf-life configuration missing",
+          "remediation": "Set shelf-life days/mode in the item master."
+        },
+        "supplier_spec_missing": {
+          "label": "No active supplier spec",
+          "remediation": "Activate a supplier spec in the supplier-specs admin."
+        },
+        "lab_result_failing": {
+          "label": "Lab result failing or on hold",
+          "remediation": "Route to 09-Quality — Technical surfaces the remediation link only."
+        }
+      }
+    },
+    "labResults": {
+      "title": "Lab results log (read-only)",
+      "subtitle": "Quality-owned lab_results read model surfaced in Technical for FG/spec context. Technical never writes lab results — entry, NCR lifecycle and sign-off live in 09-Quality.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "labResults": "Lab results"
+      },
+      "readOnlyNotice": "Read-only here. To enter, edit, retest, sign-off, raise an NCR or attach a CoA, open",
+      "openInQa": "Open in QA →",
+      "searchPlaceholder": "Filter by FG / work order / lab id",
+      "sourceNote": "Source: Quality-owned lab_results projection. Technical specs link results for read-only context only.",
+      "empty": "No lab results match the current filter.",
+      "invalidFilter": "Invalid filter value for {field}.",
+      "error": "Unable to load lab results. Please try again.",
+      "rluUnit": "RLU",
+      "threshold": "threshold {value} RLU",
+      "qualitative": "n/a (qualitative)",
+      "verdict": {
+        "all": "All",
+        "pass": "Pass",
+        "fail": "Fail",
+        "inconclusive": "Inconclusive",
+        "pending": "Pending",
+        "hold": "Hold"
+      },
+      "testType": {
+        "atp_swab": "ATP RLU swab",
+        "allergen_elisa": "Allergen ELISA",
+        "micro_apc": "Micro APC",
+        "nutrition": "Nutrition",
+        "sensory": "Sensory"
+      },
+      "col": {
+        "labId": "Lab ID",
+        "taken": "Taken",
+        "fgLot": "FG / work order",
+        "test": "Test",
+        "reading": "Reading",
+        "verdict": "Verdict",
+        "action": ""
+      }
+    },
+    "costImport": {
+      "title": "Cost import from D365",
+      "subtitle": "Optional integration source — local cost history remains the source of truth. The D365-disabled state keeps this surface read-only and never blocks factory release.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "costs": "Costs",
+        "d365Import": "D365 import"
+      },
+      "disabledBanner": "D365 connector disabled for this org. Cost import is unavailable. Local cost history remains source of truth and is editable from Technical › Costs.",
+      "settingsLink": "Settings › Integrations",
+      "sourceOfTruthNote": "Local cost history is source of truth. Importing from D365 appends a new cost entry tagged source=d365_sync; it never overwrites in place. Items with |Δ| ≥ 5% require Technical sign-off.",
+      "kpi": {
+        "connector": "Connector",
+        "connectorValue": "OK",
+        "pulled": "Items pulled",
+        "changed": "Changed",
+        "over5": "|Δ| ≥ 5%"
+      },
+      "signoff": {
+        "label": "Sign-off reason",
+        "help": "Audit-logged with the import. Required when |Δ| ≥ 5% on any row (min 10 characters).",
+        "placeholder": "e.g. Q2 cost refresh approved by Controlling 2026-04-30."
+      },
+      "apply": "Apply import",
+      "applying": "Applying…",
+      "applied": "Import enqueued (job {jobId}).",
+      "duplicate": "Import already enqueued for today (no-op).",
+      "triggerForbidden": "You do not have permission to trigger a D365 import.",
+      "triggerError": "Unable to trigger the import. Please try again.",
+      "empty": "No incoming D365 cost differences to review.",
+      "noChange": "no change",
+      "error": "Unable to load the D365 cost import. Please try again.",
+      "col": {
+        "code": "Code",
+        "name": "Name",
+        "current": "Current",
+        "incoming": "Incoming",
+        "delta": "Δ %",
+        "source": "Source"
+      }
+    },
+    "tooling": {
+      "title": "Tooling & equipment setups",
+      "subtitle": "Equipment and tooling setups derived from routing operations — each operation that binds a line or machine with a setup time.",
+      "error": "Unable to load tooling setups. Please try again.",
+      "empty": {
+        "title": "No tooling setups yet",
+        "body": "No routing operations bind a line or machine in this organization yet.",
+        "bodyCanWrite": "Author a routing with line/machine-bound operations to populate the equipment setup list."
+      },
+      "list": {
+        "searchPlaceholder": "Search setups",
+        "createCta": "Author in routings",
+        "filter": {
+          "all": "All",
+          "machine": "Machine",
+          "line": "Line"
+        },
+        "col": {
+          "code": "Code",
+          "name": "Name",
+          "type": "Type",
+          "resource": "Resource",
+          "item": "Item",
+          "setup": "Setup",
+          "costPerHour": "Cost / hr",
+          "updated": "Updated",
+          "status": "Status"
+        },
+        "noMatches": "No setups match the current filter.",
+        "type": {
+          "machine": "Machine",
+          "line": "Line"
+        },
+        "setupUnit": "min"
+      }
+    },
+    "bulkImport": {
+      "breadcrumb": "Technical › Items › Import",
+      "title": "Bulk import (CSV)",
+      "subtitle": "Org-scoped wizard for FG / WIP / RM / supplier_specs rows. No D365 dependency.",
+      "permissionDenied": "You do not have permission to import items.",
+      "steps": {
+        "upload": "Upload",
+        "validate": "Validate rows",
+        "diff": "Diff preview",
+        "confirm": "Confirm + audit"
+      },
+      "scope": {
+        "label": "Import scope",
+        "fg": "FG catalog (FG-codes only)",
+        "wip": "WIP / intermediates",
+        "rm": "RM (raw materials)",
+        "rmSupplier": "RM + supplier_specs (combined)"
+      },
+      "file": {
+        "label": "CSV file",
+        "placeholder": "filename.csv"
+      },
+      "orgScopedNote": "Imports are org-scoped — only the active organization's catalog is touched. No D365 dependency.",
+      "cta": {
+        "validate": "Validate rows",
+        "diff": "Diff preview",
+        "confirm": "Confirm + audit",
+        "apply": "Apply import",
+        "back": "Back",
+        "cancel": "Cancel"
+      },
+      "kpi": {
+        "rowsInFile": "Rows in file",
+        "errors": "Errors",
+        "warnings": "Warnings",
+        "create": "Create",
+        "update": "Update",
+        "noop": "No-op"
+      },
+      "col": {
+        "row": "Row",
+        "severity": "Severity",
+        "column": "Column",
+        "issue": "Issue",
+        "code": "Code",
+        "op": "Op",
+        "field": "Field",
+        "change": "Before → After"
+      },
+      "noIssues": "No validation issues.",
+      "reason": {
+        "label": "Audit note",
+        "placeholder": "e.g. Q2 refresh — supplier swap S-101→S-202.",
+        "help": "Recorded in the import audit trail; min 10 characters."
+      },
+      "applied": "Import applied",
+      "forbidden": "You do not have permission to import items.",
+      "parseFailed": "Could not parse the CSV. Check the header row and try again.",
+      "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it."
+    },
+    "bomSnapshots": {
+      "breadcrumb": "Technical › BOMs › Snapshots",
+      "title": "BOM snapshots",
+      "subtitle": "Immutable Planning work-order snapshots of shared BOM versions. Read-only — snapshots never mutate the canonical BOM.",
+      "error": "Unable to load BOM snapshots. Please try again.",
+      "empty": {
+        "title": "No BOM snapshots yet",
+        "body": "Snapshots are captured when a work order is released against a BOM version."
+      },
+      "immutableBanner": "Immutable. A snapshot is the BOM frozen at work-order release. Editing a snapshot is forbidden — propose an ECO on the canonical BOM and trigger a clone-on-write on the next work order.",
+      "orphanedNote": "Orphaned = the canonical BOM version was deleted; the snapshot stays read-only for audit/traceability. Open the diff to see the frozen line-set.",
+      "searchPlaceholder": "Filter by WO-#####",
+      "filter": {
+        "all": "All",
+        "inUse": "In use",
+        "closed": "Closed",
+        "orphaned": "Orphaned"
+      },
+      "col": {
+        "snapshot": "Snapshot ID",
+        "version": "Ver.",
+        "wo": "WO",
+        "fg": "Finished good",
+        "lines": "Lines",
+        "taken": "Taken",
+        "status": "Status"
+      },
+      "diffCta": "Diff vs current →",
+      "noMatches": "No snapshots match the current filter.",
+      "noWo": "—",
+      "modal": {
+        "title": "Snapshot diff",
+        "readOnly": "Read-only. Snapshot is immutable. To apply the current canonical BOM, trigger clone-on-write on the next work-order release — never mutate this snapshot.",
+        "col": {
+          "kind": "Kind",
+          "path": "Path",
+          "frozen": "Snapshot (frozen)",
+          "current": "Current BOM"
+        },
+        "loading": "Computing diff…",
+        "error": "Could not compute the diff. Please try again.",
+        "empty": "No differences between this snapshot and the current canonical BOM.",
+        "close": "Close"
+      }
     }
   },
   "Technical": {

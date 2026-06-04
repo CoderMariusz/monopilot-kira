@@ -6,6 +6,10 @@
     {
       "path": "/api/internal/cron/drift",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/internal/cron/catch-weight-variance",
+      "schedule": "30 2 * * *"
     }
   ]
 }

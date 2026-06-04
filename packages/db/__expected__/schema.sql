@@ -1037,6 +1037,38 @@ COMMENT ON FUNCTION public.approve_supplier_spec_review(p_proposal_id uuid, p_ap
 
 
 --
+-- Name: atp_swab_threshold_rlu(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.atp_swab_threshold_rlu(p_org_id uuid, p_row_threshold numeric) RETURNS numeric
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare
+  v_threshold numeric;
+begin
+  -- 1. per-row override wins.
+  if p_row_threshold is not null then
+    return p_row_threshold;
+  end if;
+
+  -- 2. org-level configured threshold from Reference.AlertThresholds.
+  select at.value_int
+    into v_threshold
+    from "Reference"."AlertThresholds" at
+   where at.org_id = p_org_id
+     and at.threshold_key = 'atp_swab_rlu_max';
+
+  if v_threshold is not null then
+    return v_threshold;
+  end if;
+
+  -- 3. hard fallback (matches lab_results.threshold_rlu default in migration 162).
+  return 10::numeric;
+end;
+$$;
+
+
+--
 -- Name: audit_events_impersonation_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2957,6 +2989,99 @@ begin
   return new;
 end;
 $$;
+
+
+--
+-- Name: lab_results_atp_autofail(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lab_results_atp_autofail() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_threshold numeric;
+begin
+  if new.test_type <> 'atp_swab' then
+    return new;
+  end if;
+
+  -- No measured value → cannot auto-fail; leave caller-provided status intact.
+  if new.result_value is null then
+    return new;
+  end if;
+
+  v_threshold := public.atp_swab_threshold_rlu(new.org_id, new.threshold_rlu);
+
+  -- Persist the resolved threshold so downstream consumers + the AFTER trigger
+  -- payload see the value the decision was made against.
+  new.threshold_rlu := v_threshold;
+
+  -- Over threshold (strictly greater than; ≤ threshold passes per §10.6) → fail.
+  if new.result_value > v_threshold then
+    new.result_status := 'fail';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lab_results_atp_autofail(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lab_results_atp_autofail() IS 'T-026 / V-TEC-44: forces result_status=fail when an ATP swab result_value exceeds the org ATP RLU threshold (per-row override -> Reference.AlertThresholds atp_swab_rlu_max -> 10).';
+
+
+--
+-- Name: lab_results_atp_emit_fail(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lab_results_atp_emit_fail() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.test_type <> 'atp_swab' then
+    return new;
+  end if;
+
+  if new.result_status is distinct from 'fail' then
+    return new;
+  end if;
+
+  -- On UPDATE, only emit when the row TRANSITIONS into fail (avoid duplicate
+  -- events when an already-failed row is touched for unrelated reasons).
+  if tg_op = 'UPDATE' and old.result_status is not distinct from 'fail' then
+    return new;
+  end if;
+
+  insert into public.outbox_events
+    (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+  values (
+    new.org_id,
+    'quality.atp_swab_failed',
+    'lab_result',
+    new.id::text,
+    jsonb_build_object(
+      'item_id', new.item_id,
+      'work_order_id', new.work_order_id,
+      'test_code', new.test_code,
+      'result_value', new.result_value,
+      'threshold_rlu', new.threshold_rlu
+    ),
+    'technical-atp-autofail-v1'
+  );
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lab_results_atp_emit_fail(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lab_results_atp_emit_fail() IS 'T-026: emits quality.atp_swab_failed outbox event when an ATP swab row transitions to fail. EMIT-ONLY -- the 08-PRODUCTION WO-close gate is the downstream consumer.';
 
 
 --
@@ -6749,6 +6874,37 @@ ALTER TABLE ONLY public.capacity_plans FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: catch_weight_variance_daily; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catch_weight_variance_daily (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    item_id uuid NOT NULL,
+    day date NOT NULL,
+    avg_variance_pct numeric(7,4) NOT NULL,
+    stddev numeric(10,4),
+    samples integer NOT NULL,
+    threshold_pct numeric(7,4),
+    alerted boolean DEFAULT false NOT NULL,
+    computed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cwv_daily_avg_variance_nonneg_check CHECK ((avg_variance_pct >= (0)::numeric)),
+    CONSTRAINT cwv_daily_samples_positive_check CHECK ((samples >= 0)),
+    CONSTRAINT cwv_daily_stddev_nonneg_check CHECK (((stddev IS NULL) OR (stddev >= (0)::numeric)))
+);
+
+ALTER TABLE ONLY public.catch_weight_variance_daily FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE catch_weight_variance_daily; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.catch_weight_variance_daily IS 'T-031: nightly per-(org,item,day) catch-weight variance roll-up (avg variance%, stddev, samples). Technical-owned. The nightly cron emits catch_weight.variance_exceeded when avg_variance_pct exceeds the org Reference.AlertThresholds catch_weight_variance_pct (default 5%).';
+
+
+--
 -- Name: changeover_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9103,10 +9259,17 @@ CREATE TABLE public.outbox_events (
     dead_lettered_at timestamp with time zone,
     last_error_text text,
     dedup_key text,
-    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
+    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'catch_weight.variance_exceeded'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.atp_swab_failed'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.d365_sync.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
 );
 
 ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: CONSTRAINT outbox_events_event_type_check ON outbox_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Regenerated from events.enum.ts DB_EVENT_TYPES (122 types incl production.*).';
 
 
 --
@@ -10290,6 +10453,32 @@ ALTER TABLE ONLY public.work_order FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: work_order_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.work_order_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    work_order_id uuid,
+    item_id uuid,
+    nominal_weight numeric(10,4),
+    actual_weight numeric(10,4),
+    captured_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.work_order_items FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE work_order_items; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.work_order_items IS 'SOFT read source for T-031 catch-weight variance. 08-PRODUCTION is the canonical owner of per-unit weight capture (actual_weight, PRD §8.3); this minimal shell exists only so the variance nightly job is runnable. created via IF NOT EXISTS — superseded by the 08-PRODUCTION canonical migration when it ships.';
+
+
+--
 -- Name: work_orders; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -11085,6 +11274,14 @@ ALTER TABLE ONLY public.capacity_plans
 
 ALTER TABLE ONLY public.capacity_plans
     ADD CONSTRAINT capacity_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catch_weight_variance_daily
+    ADD CONSTRAINT catch_weight_variance_daily_pkey PRIMARY KEY (id);
 
 
 --
@@ -12360,6 +12557,14 @@ ALTER TABLE ONLY public.wo_waste_log
 
 
 --
+-- Name: work_order_items work_order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_order_items
+    ADD CONSTRAINT work_order_items_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: work_order work_order_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13042,6 +13247,13 @@ CREATE INDEX brief_to_fa_audit_org_brief_idx ON public.brief_to_fa_audit USING b
 
 
 --
+-- Name: catch_weight_variance_daily_org_item_day_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX catch_weight_variance_daily_org_item_day_uq ON public.catch_weight_variance_daily USING btree (org_id, item_id, day);
+
+
+--
 -- Name: compliance_docs_org_expires_active_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13508,6 +13720,20 @@ CREATE INDEX idx_consumption_operator_time ON public.wo_material_consumption USI
 --
 
 CREATE INDEX idx_consumption_wo ON public.wo_material_consumption USING btree (org_id, wo_id);
+
+
+--
+-- Name: idx_cwv_daily_org_day; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cwv_daily_org_day ON public.catch_weight_variance_daily USING btree (org_id, day);
+
+
+--
+-- Name: idx_cwv_daily_org_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cwv_daily_org_site ON public.catch_weight_variance_daily USING btree (org_id, site_id);
 
 
 --
@@ -14264,6 +14490,20 @@ CREATE INDEX idx_wo_status_history_user ON public.wo_status_history USING btree 
 --
 
 CREATE INDEX idx_wo_status_history_wo ON public.wo_status_history USING btree (wo_id);
+
+
+--
+-- Name: idx_work_order_items_org_item_captured; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_work_order_items_org_item_captured ON public.work_order_items USING btree (org_id, item_id, captured_at);
+
+
+--
+-- Name: idx_work_order_items_org_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_work_order_items_org_wo ON public.work_order_items USING btree (org_id, work_order_id) WHERE (work_order_id IS NOT NULL);
 
 
 --
@@ -15499,6 +15739,20 @@ CREATE TRIGGER items_set_updated_at BEFORE UPDATE ON public.items FOR EACH ROW E
 
 
 --
+-- Name: lab_results lab_results_atp_autofail; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lab_results_atp_autofail BEFORE INSERT OR UPDATE ON public.lab_results FOR EACH ROW EXECUTE FUNCTION public.lab_results_atp_autofail();
+
+
+--
+-- Name: lab_results lab_results_atp_emit_fail; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lab_results_atp_emit_fail AFTER INSERT OR UPDATE ON public.lab_results FOR EACH ROW EXECUTE FUNCTION public.lab_results_atp_emit_fail();
+
+
+--
 -- Name: manufacturing_operation_allergen_additions mfg_op_allergen_additions_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16362,6 +16616,22 @@ ALTER TABLE ONLY public.capacity_plans
 
 ALTER TABLE ONLY public.capacity_plans
     ADD CONSTRAINT capacity_plans_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catch_weight_variance_daily
+    ADD CONSTRAINT catch_weight_variance_daily_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catch_weight_variance_daily
+    ADD CONSTRAINT catch_weight_variance_daily_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -18389,6 +18659,22 @@ ALTER TABLE ONLY public.wo_waste_log
 
 
 --
+-- Name: work_order_items work_order_items_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_order_items
+    ADD CONSTRAINT work_order_items_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: work_order_items work_order_items_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_order_items
+    ADD CONSTRAINT work_order_items_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: work_order work_order_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19071,6 +19357,40 @@ ALTER TABLE public.capacity_plans ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY capacity_plans_org_isolation ON public.capacity_plans TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: catch_weight_variance_daily; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.catch_weight_variance_daily ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_org_context_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY catch_weight_variance_daily_org_context_delete ON public.catch_weight_variance_daily FOR DELETE TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_org_context_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY catch_weight_variance_daily_org_context_insert ON public.catch_weight_variance_daily FOR INSERT TO app_user WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_org_context_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY catch_weight_variance_daily_org_context_select ON public.catch_weight_variance_daily FOR SELECT TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: catch_weight_variance_daily catch_weight_variance_daily_org_context_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY catch_weight_variance_daily_org_context_update ON public.catch_weight_variance_daily FOR UPDATE TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -20790,6 +21110,40 @@ CREATE POLICY wo_waste_log_org_context ON public.wo_waste_log TO app_user USING 
 --
 
 ALTER TABLE public.work_order ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: work_order_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.work_order_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: work_order_items work_order_items_org_context_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY work_order_items_org_context_delete ON public.work_order_items FOR DELETE TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: work_order_items work_order_items_org_context_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY work_order_items_org_context_insert ON public.work_order_items FOR INSERT TO app_user WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: work_order_items work_order_items_org_context_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY work_order_items_org_context_select ON public.work_order_items FOR SELECT TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: work_order_items work_order_items_org_context_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY work_order_items_org_context_update ON public.work_order_items FOR UPDATE TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
 
 --
 -- Name: work_order work_order_org_context; Type: POLICY; Schema: public; Owner: -
