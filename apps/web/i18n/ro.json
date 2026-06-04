@@ -1942,6 +1942,36 @@
         "storage_temperature": "Temperatură de depozitare",
         "closed_technical": "Secțiune tehnică închisă"
       }
+    },
+    "faCommercialTab": {
+      "title": "Secțiunea comercială",
+      "subtitle": "Câmpurile departamentului comercial. Data de lansare aplică regula V08 de predare a briefului.",
+      "closedBadge": "✓ Închis",
+      "openBadge": "Deschis",
+      "v08Alert": "V08 · Data de lansare trebuie să fie ≥ 24 de săptămâni de la predarea briefului. Cel mai devreme: {earliest}.",
+      "v08Violation": "Data de lansare trebuie să fie cel devreme la data permisă ({earliest}).",
+      "requiredMissingTitle": "Câmpuri obligatorii lipsă",
+      "requiredMissingBody": "Data de lansare, Numărul departamentului, Numărul articolului, Codurile de bare și Cutii/săptămână W1–W3 sunt obligatorii.",
+      "save": "Salvează comercialul",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea comercială a fost salvată.",
+      "saveError": "Secțiunea comercială nu a putut fi salvată.",
+      "close": "Închide secțiunea comercială",
+      "loading": "Se încarcă secțiunea comercială…",
+      "empty": "Niciun câmp comercial configurat",
+      "emptyBody": "Această organizație nu are încă coloane pentru departamentul comercial.",
+      "error": "Secțiunea comercială nu poate fi încărcată.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea comercială.",
+      "fields": {
+        "launch_date": "Data de lansare",
+        "department_number": "Numărul departamentului",
+        "article_number": "Numărul articolului",
+        "bar_codes_gs1": "Coduri de bare (GS1)",
+        "cases_week_1": "Cutii / săptămână W1",
+        "cases_week_2": "Cutii / săptămână W2",
+        "cases_week_3": "Cutii / săptămână W3",
+        "closed_commercial": "Comercial închis"
+      }
     }
   }
 }

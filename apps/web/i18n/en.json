@@ -1942,6 +1942,36 @@
         "storage_temperature": "Storage temperature",
         "closed_technical": "Closed Technical"
       }
+    },
+    "faCommercialTab": {
+      "title": "Commercial section",
+      "subtitle": "Commercial dept fields. Launch Date drives the V08 brief-handoff rule.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "v08Alert": "V08 · Launch Date must be ≥ 24 weeks from Brief handoff. Earliest: {earliest}.",
+      "v08Violation": "Launch Date must be on or after the earliest allowed date ({earliest}).",
+      "requiredMissingTitle": "Required fields missing",
+      "requiredMissingBody": "Launch Date, Department number, Article number, Bar codes and Cases/week W1–W3 are all required.",
+      "save": "Save Commercial",
+      "saving": "Saving…",
+      "saveSuccess": "Commercial section saved.",
+      "saveError": "Could not save the Commercial section.",
+      "close": "Close Commercial section",
+      "loading": "Loading Commercial section…",
+      "empty": "No Commercial fields configured",
+      "emptyBody": "This organisation has no Commercial department columns yet.",
+      "error": "Unable to load the Commercial section.",
+      "forbidden": "You do not have permission to edit the Commercial section.",
+      "fields": {
+        "launch_date": "Launch Date",
+        "department_number": "Department number",
+        "article_number": "Article number",
+        "bar_codes_gs1": "Bar codes (GS1)",
+        "cases_week_1": "Cases / week W1",
+        "cases_week_2": "Cases / week W2",
+        "cases_week_3": "Cases / week W3",
+        "closed_commercial": "Closed Commercial"
+      }
     }
   }
 }

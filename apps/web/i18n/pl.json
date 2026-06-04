@@ -1942,6 +1942,36 @@
         "storage_temperature": "Temperatura przechowywania",
         "closed_technical": "Sekcja techniczna zamknięta"
       }
+    },
+    "faCommercialTab": {
+      "title": "Sekcja komercyjna",
+      "subtitle": "Pola działu komercyjnego. Data startu steruje regułą V08 przekazania briefu.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "v08Alert": "V08 · Data startu musi być ≥ 24 tygodnie od przekazania briefu. Najwcześniej: {earliest}.",
+      "v08Violation": "Data startu musi być nie wcześniejsza niż najwcześniejsza dozwolona data ({earliest}).",
+      "requiredMissingTitle": "Brak wymaganych pól",
+      "requiredMissingBody": "Data startu, Numer działu, Numer artykułu, Kody kreskowe oraz Kartony/tydzień W1–W3 są wymagane.",
+      "save": "Zapisz komercję",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja komercyjna zapisana.",
+      "saveError": "Nie udało się zapisać sekcji komercyjnej.",
+      "close": "Zamknij sekcję komercyjną",
+      "loading": "Ładowanie sekcji komercyjnej…",
+      "empty": "Brak skonfigurowanych pól komercyjnych",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu komercyjnego.",
+      "error": "Nie można załadować sekcji komercyjnej.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji komercyjnej.",
+      "fields": {
+        "launch_date": "Data startu",
+        "department_number": "Numer działu",
+        "article_number": "Numer artykułu",
+        "bar_codes_gs1": "Kody kreskowe (GS1)",
+        "cases_week_1": "Kartony / tydzień W1",
+        "cases_week_2": "Kartony / tydzień W2",
+        "cases_week_3": "Kartony / tydzień W3",
+        "closed_commercial": "Komercja zamknięta"
+      }
     }
   }
 }
