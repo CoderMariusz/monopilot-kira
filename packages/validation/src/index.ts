@@ -17,3 +17,12 @@ export {
   type V07AllergensInput,
   type V07AllergensResult,
 } from './v07-allergens.js';
+export {
+  V01_PRODUCT_CODE_PATTERN,
+  validateProductCodeV01,
+  type V01ProductCodeResult,
+} from './v01-product-code.js';
+export {
+  validateProductNameV02,
+  type V02ProductNameResult,
+} from './v02-product-name.js';
