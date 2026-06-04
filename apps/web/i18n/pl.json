@@ -994,6 +994,27 @@
       "error": "Nie można załadować danych odżywczych.",
       "forbidden": "Nie masz uprawnień do wyświetlania danych odżywczych."
     },
+    "nutritionPanel": {
+      "title": "Wartości odżywcze na 100 g",
+      "liveNote": "· na żywo",
+      "exportLabel": "Eksportuj etykietę",
+      "targetsNote": "Cele: Białko ≥ {protein} · Sól ≤ {salt} · Tłuszcz ≤ {fat} na 100 g",
+      "withinTarget": "W normie",
+      "overTarget": "Powyżej celu",
+      "overMax": "Powyżej maksimum",
+      "energyLabel": "Energia",
+      "fatLabel": "Tłuszcz",
+      "saturatesLabel": "Kwasy nasycone",
+      "carbsLabel": "Węglowodany",
+      "sugarsLabel": "Cukry",
+      "proteinLabel": "Białko",
+      "saltLabel": "Sól",
+      "loading": "Wczytywanie wartości odżywczych…",
+      "empty": "Brak danych odżywczych",
+      "emptyBody": "Wartości odżywcze są obliczane, gdy składniki mają dane odżywcze.",
+      "error": "Nie można wczytać wartości odżywczych.",
+      "forbidden": "Nie masz uprawnień do wyświetlania wartości odżywczych."
+    },
     "costing": {
       "title": "Struktura kosztów",
       "subtitle": "Wodospad od surowców do końcowego kosztu za kg",

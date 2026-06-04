@@ -994,6 +994,27 @@
       "error": "Datele nutriționale nu au putut fi încărcate.",
       "forbidden": "Nu aveți permisiunea de a vizualiza datele nutriționale."
     },
+    "nutritionPanel": {
+      "title": "Valori nutriționale la 100 g",
+      "liveNote": "· live",
+      "exportLabel": "Exportă eticheta",
+      "targetsNote": "Ținte: Proteine ≥ {protein} · Sare ≤ {salt} · Grăsimi ≤ {fat} la 100 g",
+      "withinTarget": "În limită",
+      "overTarget": "Peste țintă",
+      "overMax": "Peste maxim",
+      "energyLabel": "Energie",
+      "fatLabel": "Grăsimi",
+      "saturatesLabel": "Acizi grași saturați",
+      "carbsLabel": "Glucide",
+      "sugarsLabel": "Zaharuri",
+      "proteinLabel": "Proteine",
+      "saltLabel": "Sare",
+      "loading": "Se încarcă valorile nutriționale…",
+      "empty": "Încă nu există date nutriționale",
+      "emptyBody": "Valorile nutriționale se calculează când ingredientele au date nutriționale.",
+      "error": "Nu se pot încărca valorile nutriționale.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza valorile nutriționale."
+    },
     "costing": {
       "title": "Structura costurilor",
       "subtitle": "Cascadă de la materii prime la costul final pe kg",
