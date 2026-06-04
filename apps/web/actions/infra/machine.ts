@@ -1,5 +1,7 @@
 'use server';
 
+import { z } from 'zod';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -29,6 +31,15 @@ export type UpsertMachineResult =
 
 const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UuidInput = z.string().trim().regex(UUID_RE);
+const MachineCodeInput = z.string().trim().min(1).max(64).transform((value) => value.toLowerCase()).pipe(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/));
+const MachineInput = z.object({
+  id: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
+  code: MachineCodeInput,
+  name: z.string().trim().min(1).max(128),
+  machineType: MachineCodeInput,
+  locationId: UuidInput,
+});
 
 export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineResult> {
   const input = parseMachineInput(rawInput);
@@ -73,16 +84,15 @@ export async function upsertMachine(rawInput: unknown): Promise<UpsertMachineRes
 }
 
 function parseMachineInput(raw: unknown): ParsedMachineInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const input = raw as Record<string, unknown>;
-  const id = optionalUuid(input.id);
-  const locationId = requiredUuid(input.locationId);
-  const code = normalizeCode(input.code);
-  const name = normalizeText(input.name, 128);
-  const machineType = normalizeCode(input.machineType);
-  if (input.id !== undefined && id === null) return null;
-  if (!locationId || !code || !name || !machineType) return null;
-  return { id, code, name, machineType, locationId };
+  const parsed = MachineInput.safeParse(raw);
+  if (!parsed.success) return null;
+  return {
+    id: parsed.data.id ?? null,
+    code: parsed.data.code,
+    name: parsed.data.name,
+    machineType: parsed.data.machineType,
+    locationId: parsed.data.locationId,
+  };
 }
 
 async function getLocation(client: QueryClient, id: string): Promise<LocationRow | null> {
@@ -122,25 +132,4 @@ async function writeOutbox(
      values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-infra-v1')`,
     [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
   );
-}
-
-function requiredUuid(value: unknown): string | null {
-  return typeof value === 'string' && UUID_RE.test(value.trim()) ? value.trim() : null;
-}
-
-function optionalUuid(value: unknown): string | null {
-  if (value === undefined || value === null || value === '') return null;
-  return requiredUuid(value);
-}
-
-function normalizeCode(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toLowerCase();
-  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(trimmed) ? trimmed : null;
-}
-
-function normalizeText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= max ? trimmed : null;
 }

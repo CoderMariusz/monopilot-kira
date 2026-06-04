@@ -4,6 +4,8 @@ import React from 'react';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
+import { Checkbox } from '@monopilot/ui/Checkbox';
+import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -14,6 +16,12 @@ export type MachinePreview = {
   code: string;
   name: string;
   seq: number;
+};
+
+export type MachineOption = {
+  id: string;
+  code: string;
+  name: string;
 };
 
 export type ProductionLine = {
@@ -29,6 +37,10 @@ export type ProductionLine = {
 };
 
 export type ActivateLineInput = { lineId: string };
+export type CreateLineInput = { code: string; name: string; status: 'draft' | 'active'; machineIds: string[] };
+export type CreateLineResult =
+  | { ok: true; data: { id: string; status: 'draft' | 'active' } }
+  | { ok: false; error?: string };
 
 export type ActivateLineResult =
   | { ok: true; data: { lineId: string; status: 'active' } }
@@ -56,6 +68,18 @@ export type LinesLabels = {
   bulkActivate: string;
   bulkActivatePending: string;
   bulkDeactivate: string;
+  addLine: string;
+  dialogAddTitle: string;
+  fieldCode: string;
+  fieldName: string;
+  fieldStatus: string;
+  fieldMachines: string;
+  createLine: string;
+  createLinePending: string;
+  cancel: string;
+  createLineSuccess: string;
+  createLineFailed: string;
+  noMachinesAvailable: string;
   insufficientPermission: string;
   noMachineTitle: string;
   noMachineCode: string;
@@ -88,6 +112,18 @@ export const DEFAULT_LINES_LABELS: LinesLabels = {
   bulkActivate: 'Bulk Activate',
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
+  addLine: 'Add line',
+  dialogAddTitle: 'Add production line',
+  fieldCode: 'Code',
+  fieldName: 'Name',
+  fieldStatus: 'Status',
+  fieldMachines: 'Machine sequence',
+  createLine: 'Create line',
+  createLinePending: 'Creating…',
+  cancel: 'Cancel',
+  createLineSuccess: 'Production line created.',
+  createLineFailed: 'Production line could not be created.',
+  noMachinesAvailable: 'Create at least one machine before creating an active line.',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   noMachineTitle: 'No machines assigned',
   noMachineCode: 'NO_MACHINE',
@@ -106,8 +142,10 @@ export const LINE_LABEL_KEYS = Object.keys(DEFAULT_LINES_LABELS) as Array<keyof 
 export type LinesScreenProps = {
   labels?: LinesLabels;
   lines: ProductionLine[];
+  machines: MachineOption[];
   canUpdateInfra: boolean;
   activateLine: (input: ActivateLineInput) => Promise<ActivateLineResult> | ActivateLineResult;
+  createLine: (input: CreateLineInput) => Promise<CreateLineResult> | CreateLineResult;
   state: LinesPageState;
 };
 
@@ -168,44 +206,54 @@ function SelectField({
   );
 }
 
-export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra, activateLine, state }: LinesScreenProps) {
+export default function LinesScreen({ labels: labelsProp, lines, machines, canUpdateInfra, activateLine, createLine, state }: LinesScreenProps) {
   const labels = labelsProp ?? DEFAULT_LINES_LABELS;
+  const [rows, setRows] = React.useState<ProductionLine[]>(() => [...lines]);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [statusById, setStatusById] = React.useState<Record<string, LineStatus>>(() =>
-    Object.fromEntries(lines.map((line) => [line.id, line.status])),
+    Object.fromEntries(rows.map((line) => [line.id, line.status])),
   );
   const [rowErrors, setRowErrors] = React.useState<Record<string, string>>({});
   const [pending, setPending] = React.useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
+  const [createPending, setCreatePending] = React.useState(false);
+  const [createStatus, setCreateStatus] = React.useState<string | null>(null);
+  const [createError, setCreateError] = React.useState<string | null>(null);
+  const [newLine, setNewLine] = React.useState<CreateLineInput>({ code: '', name: '', status: 'draft', machineIds: [] });
   const [warehouseFilter, setWarehouseFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
 
   React.useEffect(() => {
-    setStatusById(Object.fromEntries(lines.map((line) => [line.id, line.status])));
+    setRows([...lines]);
+  }, [lines]);
+
+  React.useEffect(() => {
+    setStatusById(Object.fromEntries(rows.map((line) => [line.id, line.status])));
     setSelectedIds([]);
     setRowErrors({});
     setWarehouseFilter('all');
     setStatusFilter('all');
-  }, [lines]);
+  }, [rows]);
 
   const warehouseOptions = React.useMemo<SelectOption[]>(() => {
     const seen = new Map<string, string>();
-    for (const line of lines) {
+    for (const line of rows) {
       if (line.warehouseId) seen.set(line.warehouseId, line.warehouseName ?? line.warehouseId);
     }
     return [
       { value: 'all', label: labels.allWarehouses },
       ...Array.from(seen.entries()).map(([value, label]) => ({ value, label })),
     ];
-  }, [labels.allWarehouses, lines]);
+  }, [labels.allWarehouses, rows]);
 
   const visibleLines = React.useMemo(() => {
-    return lines.filter((line) => {
+    return rows.filter((line) => {
       const currentStatus = statusById[line.id] ?? line.status;
       const warehouseMatches = warehouseFilter === 'all' || line.warehouseId === warehouseFilter;
       const statusMatches = statusFilter === 'all' || currentStatus === statusFilter;
       return warehouseMatches && statusMatches;
     });
-  }, [lines, statusById, statusFilter, warehouseFilter]);
+  }, [rows, statusById, statusFilter, warehouseFilter]);
 
   const toggleSelected = (lineId: string, checked: boolean) => {
     setSelectedIds((current) => (checked ? [...new Set([...current, lineId])] : current.filter((id) => id !== lineId)));
@@ -229,6 +277,53 @@ export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra,
     setPending(false);
   };
 
+  const toggleCreateMachine = (machineId: string, checked: boolean) => {
+    setNewLine((current) => ({
+      ...current,
+      machineIds: checked ? [...current.machineIds, machineId] : current.machineIds.filter((id) => id !== machineId),
+    }));
+  };
+
+  const submitCreateLine = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canUpdateInfra || createPending) return;
+    if (newLine.status === 'active' && newLine.machineIds.length === 0) {
+      setCreateError(labels.noMachineBody);
+      return;
+    }
+    setCreatePending(true);
+    setCreateError(null);
+    setCreateStatus(null);
+    try {
+      const result = await createLine(newLine);
+      if (!result.ok) {
+        setCreateError(labels.createLineFailed);
+        return;
+      }
+      const selectedMachines = newLine.machineIds
+        .map((id, index) => {
+          const machine = machines.find((candidate) => candidate.id === id);
+          return machine ? { ...machine, seq: index + 1 } : null;
+        })
+        .filter((machine): machine is MachinePreview => machine !== null);
+      setRows((current) => [
+        {
+          id: result.data.id,
+          code: newLine.code.trim().toUpperCase(),
+          name: newLine.name.trim(),
+          status: result.data.status,
+          machines: selectedMachines,
+        },
+        ...current.filter((line) => line.id !== result.data.id),
+      ]);
+      setNewLine({ code: '', name: '', status: 'draft', machineIds: [] });
+      setCreateStatus(labels.createLineSuccess);
+      setCreateDialogOpen(false);
+    } finally {
+      setCreatePending(false);
+    }
+  };
+
   const renderState = () => {
     if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">{labels.loading}</section>;
     if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
@@ -248,6 +343,14 @@ export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra,
           <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Production line actions">
+          <Button
+            type="button"
+            disabled={!canUpdateInfra}
+            aria-label={canUpdateInfra ? labels.addLine : `${labels.addLine} — ${labels.insufficientPermission}`}
+            onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
+          >
+            + {labels.addLine}
+          </Button>
           <Button
             type="button"
             disabled={!canUpdateInfra || pending || selectedVisibleCount === 0}
@@ -285,6 +388,9 @@ export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra,
           </div>
         </div>
       </section>
+
+      {createStatus ? <section role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</section> : null}
+      {createError ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">{createError}</section> : null}
 
       {state === 'ready' ? (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label={labels.title}>
@@ -356,6 +462,74 @@ export default function LinesScreen({ labels: labelsProp, lines, canUpdateInfra,
           {visibleLines.length === 0 ? <div role="status" className="border-t border-slate-100 p-4 text-sm text-slate-600">{labels.empty}</div> : null}
         </section>
       ) : renderState()}
+
+      {createDialogOpen ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="add-line-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="add-line-title" className="text-lg font-semibold text-slate-950">{labels.dialogAddTitle}</h2>
+              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>x</Button>
+            </div>
+            <form onSubmit={(event) => void submitCreateLine(event)} className="mt-4 space-y-4">
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-code">
+                {labels.fieldCode}
+                <Input
+                  id="new-line-code"
+                  aria-label={labels.fieldCode}
+                  value={newLine.code}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewLine((current) => ({ ...current, code: value }));
+                  }}
+                  required
+                  disabled={createPending}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-line-name">
+                {labels.fieldName}
+                <Input
+                  id="new-line-name"
+                  aria-label={labels.fieldName}
+                  value={newLine.name}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewLine((current) => ({ ...current, name: value }));
+                  }}
+                  required
+                  disabled={createPending}
+                />
+              </label>
+              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <span id="new-line-status-label">{labels.fieldStatus}</span>
+                <Select value={newLine.status} onValueChange={(value) => setNewLine((current) => ({ ...current, status: value === 'active' ? 'active' : 'draft' }))}>
+                  <SelectTrigger aria-label={labels.fieldStatus}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">{labels.statusDraft}</SelectItem>
+                    <SelectItem value="active">{labels.statusActive}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.fieldMachines}</legend>
+                {machines.length > 0 ? machines.map((machine) => (
+                  <label key={machine.id} className="flex items-center gap-2 text-sm text-slate-800">
+                    <Checkbox checked={newLine.machineIds.includes(machine.id)} onCheckedChange={(checked) => toggleCreateMachine(machine.id, checked)} disabled={createPending} />
+                    <span><span className="font-mono text-xs text-slate-500">{machine.code}</span> {machine.name}</span>
+                  </label>
+                )) : <p className="text-sm text-slate-600">{labels.noMachinesAvailable}</p>}
+              </fieldset>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
+                <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createLine : `${labels.createLine} — ${labels.insufficientPermission}`}>
+                  {createPending ? labels.createLinePending : labels.createLine}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

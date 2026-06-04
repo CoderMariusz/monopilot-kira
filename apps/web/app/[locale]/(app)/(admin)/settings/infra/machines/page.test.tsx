@@ -31,6 +31,18 @@ const labels: Record<string, string> = {
   columnLocation: 'Location',
   bulkActivate: 'Bulk Activate',
   bulkDeactivate: 'Bulk Deactivate',
+  addMachine: 'Add machine',
+  dialogAddTitle: 'Add machine',
+  fieldCode: 'Code',
+  fieldName: 'Name',
+  fieldMachineType: 'Machine type',
+  fieldLocation: 'Location',
+  createMachine: 'Create machine',
+  createMachinePending: 'Creating…',
+  cancel: 'Cancel',
+  createMachineSuccess: 'Machine created.',
+  createMachineFailed: 'Machine could not be created.',
+  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
   deactivated: 'Deactivated',
   insufficientPermission:
     'Insufficient permissions: settings.infra.update is required to activate or deactivate machines.',
@@ -59,6 +71,18 @@ const REQUIRED_MACHINE_LABEL_KEYS = Object.freeze([
   'bulkActivatePending',
   'bulkDeactivate',
   'bulkDeactivatePending',
+  'addMachine',
+  'dialogAddTitle',
+  'fieldCode',
+  'fieldName',
+  'fieldMachineType',
+  'fieldLocation',
+  'createMachine',
+  'createMachinePending',
+  'cancel',
+  'createMachineSuccess',
+  'createMachineFailed',
+  'noLocationsAvailable',
   'deactivated',
   'selectMachine',
   'insufficientPermission',
@@ -111,6 +135,7 @@ type MachinesPageProps = {
   machines?: MachineRow[];
   locations?: LocationRow[];
   canUpdateInfra?: boolean;
+  createMachine?: (input: { code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: true; data: { id: string; locationId: string; status: string } } | { ok: false; error?: string }>;
   deactivateMachine?: (input: MachineActionInput) => Promise<MachineActionResult>;
   activateMachine?: (input: MachineActionInput) => Promise<MachineActionResult>;
 };
@@ -236,6 +261,10 @@ async function renderMachinesPage(overrides: Partial<MachinesPageProps> = {}) {
     activateMachine: vi.fn(async (input: MachineActionInput) => ({
       ok: true as const,
       data: { machineId: input.machineId, deactivated_at: null },
+    })),
+    createMachine: vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'machine-new', locationId: locations[3].id, status: 'active' },
     })),
     ...overrides,
   };
@@ -429,5 +458,31 @@ describe('SET-016 machine list behavior', () => {
       expect(button).toBeDisabled();
       expect(button).toHaveAccessibleName(/insufficient permissions.*settings\.infra\.update/i);
     }
+  });
+
+  it('opens Add machine modal and creates a machine against the selected location', async () => {
+    const user = userEvent.setup();
+    const createMachine = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: 'machine-new-filler', locationId: locations[3].id, status: 'active' },
+    }));
+    await renderMachinesPage({ createMachine });
+
+    await user.click(screen.getByRole('button', { name: /^add machine$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /^add machine$/i });
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'MC-FILL-99');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'Filler 99');
+    await user.type(within(dialog).getByLabelText(/^machine type$/i), 'filler');
+    await user.click(within(dialog).getByRole('combobox', { name: /^location$/i }));
+    await user.click(screen.getByRole('option', { name: locations[3].path }));
+    await user.click(within(dialog).getByRole('button', { name: /^create machine$/i }));
+
+    await waitFor(() => expect(createMachine).toHaveBeenCalledWith({
+      code: 'MC-FILL-99',
+      name: 'Filler 99',
+      machineType: 'filler',
+      locationId: locations[3].id,
+    }));
+    expect(rowFor(/filler 99.*mc-fill-99.*active/i)).toBeInTheDocument();
   });
 });

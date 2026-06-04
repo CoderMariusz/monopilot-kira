@@ -5,6 +5,7 @@ import React from 'react';
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Checkbox } from '@monopilot/ui/Checkbox';
+import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -30,6 +31,10 @@ export type MachineRow = {
 };
 
 export type MachineActionInput = { machineId: string };
+export type CreateMachineInput = { code: string; name: string; machineType: string; locationId: string };
+export type CreateMachineResult =
+  | { ok: true; data: { id: string; locationId: string; status: string } }
+  | { ok: false; error?: string };
 export type MachineActionResult = {
   ok: boolean;
   data?: { machineId: string; deactivated_at?: string | null };
@@ -58,6 +63,18 @@ export type MachinesLabels = {
   bulkActivatePending: string;
   bulkDeactivate: string;
   bulkDeactivatePending: string;
+  addMachine: string;
+  dialogAddTitle: string;
+  fieldCode: string;
+  fieldName: string;
+  fieldMachineType: string;
+  fieldLocation: string;
+  createMachine: string;
+  createMachinePending: string;
+  cancel: string;
+  createMachineSuccess: string;
+  createMachineFailed: string;
+  noLocationsAvailable: string;
   deactivated: string;
   selectMachine: string;
   insufficientPermission: string;
@@ -92,6 +109,18 @@ export const DEFAULT_MACHINE_LABELS: MachinesLabels = {
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
+  addMachine: 'Add machine',
+  dialogAddTitle: 'Add machine',
+  fieldCode: 'Code',
+  fieldName: 'Name',
+  fieldMachineType: 'Machine type',
+  fieldLocation: 'Location',
+  createMachine: 'Create machine',
+  createMachinePending: 'Creating…',
+  cancel: 'Cancel',
+  createMachineSuccess: 'Machine created.',
+  createMachineFailed: 'Machine could not be created.',
+  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
   deactivated: 'Deactivated',
   selectMachine: 'Select {name}',
   insufficientPermission:
@@ -175,6 +204,7 @@ export default function MachinesListScreen({
   canUpdateInfra,
   activateMachine,
   deactivateMachine,
+  createMachine,
   state = 'ready',
 }: {
   initialMachines: MachineRow[];
@@ -183,6 +213,7 @@ export default function MachinesListScreen({
   canUpdateInfra: boolean;
   activateMachine: (input: MachineActionInput) => Promise<MachineActionResult> | MachineActionResult;
   deactivateMachine: (input: MachineActionInput) => Promise<MachineActionResult> | MachineActionResult;
+  createMachine: (input: CreateMachineInput) => Promise<CreateMachineResult> | CreateMachineResult;
   state?: PageState;
 }) {
   const [rows, setRows] = React.useState<MachineRow[]>(() => [...initialMachines]);
@@ -191,6 +222,10 @@ export default function MachinesListScreen({
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
   const [pendingAction, setPendingAction] = React.useState<'activate' | 'deactivate' | null>(null);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
+  const [createPending, setCreatePending] = React.useState(false);
+  const [createStatus, setCreateStatus] = React.useState<string | null>(null);
+  const [newMachine, setNewMachine] = React.useState<CreateMachineInput>({ code: '', name: '', machineType: '', locationId: locations[0]?.id ?? '' });
 
   const warehouseOptions = React.useMemo(() => {
     const byWarehouse = new Map<string, string>();
@@ -255,6 +290,40 @@ export default function MachinesListScreen({
     }
   }
 
+  async function submitCreateMachine(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canUpdateInfra || createPending) return;
+    setCreatePending(true);
+    setActionError(null);
+    setCreateStatus(null);
+    try {
+      const result = await createMachine(newMachine);
+      if (!result.ok) {
+        setActionError(labels.createMachineFailed);
+        return;
+      }
+      const location = locations.find((candidate) => candidate.id === result.data.locationId);
+      setRows((current) => [
+        {
+          id: result.data.id,
+          code: newMachine.code.trim().toLowerCase(),
+          name: newMachine.name.trim(),
+          warehouseId: location?.warehouseId ?? '',
+          locationId: result.data.locationId,
+          locationPath: location?.path ?? '',
+          specs: { status: result.data.status },
+          deactivated_at: null,
+        },
+        ...current.filter((row) => row.id !== result.data.id),
+      ]);
+      setNewMachine({ code: '', name: '', machineType: '', locationId: locations[0]?.id ?? '' });
+      setCreateStatus(labels.createMachineSuccess);
+      setCreateDialogOpen(false);
+    } finally {
+      setCreatePending(false);
+    }
+  }
+
   const disabledReason = canUpdateInfra ? undefined : labels.insufficientPermission;
   const bulkDisabled = !canUpdateInfra || selected.size === 0 || pendingAction !== null;
   const activateLabel = disabledReason ? `${labels.bulkActivate} — ${disabledReason}` : labels.bulkActivate;
@@ -268,8 +337,17 @@ export default function MachinesListScreen({
           <h1 id="settings-machines-title">{labels.title}</h1>
           <p className="muted">{labels.subtitle}</p>
         </div>
+        <Button
+          type="button"
+          disabled={!canUpdateInfra}
+          aria-label={canUpdateInfra ? labels.addMachine : `${labels.addMachine} — ${labels.insufficientPermission}`}
+          onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
+        >
+          + {labels.addMachine}
+        </Button>
       </header>
 
+      {createStatus ? <section role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</section> : null}
       <section className="settings-section rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="machine-toolbar-title">
         <div className="settings-section__head flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -324,6 +402,82 @@ export default function MachinesListScreen({
         </div>
         {actionError ? <div role="alert" className="mt-3 text-sm text-red-700">{actionError}</div> : null}
       </section>
+
+      {createDialogOpen ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="add-machine-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="add-machine-title" className="text-lg font-semibold text-slate-950">{labels.dialogAddTitle}</h2>
+              <Button type="button" variant="dry-run" aria-label={labels.cancel} onClick={() => setCreateDialogOpen(false)} disabled={createPending}>x</Button>
+            </div>
+            <form onSubmit={(event) => void submitCreateMachine(event)} className="mt-4 space-y-4">
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-machine-code">
+                {labels.fieldCode}
+                <Input
+                  id="new-machine-code"
+                  aria-label={labels.fieldCode}
+                  value={newMachine.code}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewMachine((current) => ({ ...current, code: value }));
+                  }}
+                  required
+                  disabled={createPending}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-machine-name">
+                {labels.fieldName}
+                <Input
+                  id="new-machine-name"
+                  aria-label={labels.fieldName}
+                  value={newMachine.name}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewMachine((current) => ({ ...current, name: value }));
+                  }}
+                  required
+                  disabled={createPending}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="new-machine-type">
+                {labels.fieldMachineType}
+                <Input
+                  id="new-machine-type"
+                  aria-label={labels.fieldMachineType}
+                  value={newMachine.machineType}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setNewMachine((current) => ({ ...current, machineType: value }));
+                  }}
+                  required
+                  disabled={createPending}
+                />
+              </label>
+              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <span id="new-machine-location-label">{labels.fieldLocation}</span>
+                {locations.length > 0 ? (
+                  <Select value={newMachine.locationId} onValueChange={(value) => setNewMachine((current) => ({ ...current, locationId: value }))}>
+                    <SelectTrigger aria-label={labels.fieldLocation}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>{location.path || location.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : <p className="text-sm text-slate-600">{labels.noLocationsAvailable}</p>}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
+                <Button type="submit" disabled={!canUpdateInfra || createPending || locations.length === 0} aria-label={canUpdateInfra ? labels.createMachine : `${labels.createMachine} — ${labels.insufficientPermission}`}>
+                  {createPending ? labels.createMachinePending : labels.createMachine}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="machine-list-title">
         <h2 id="machine-list-title" className="sr-only">{labels.sectionTitle}</h2>
