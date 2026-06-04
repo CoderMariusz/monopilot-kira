@@ -1190,6 +1190,35 @@
         "deleted": "Deleted"
       }
     },
+    "faDetail": {
+      "eyebrow": "Factory Article",
+      "subtitle": "Department workspace · close each department to complete the FA",
+      "built": "Built",
+      "loading": "Loading Factory Article…",
+      "empty": "Factory Article not found",
+      "emptyBody": "No Factory Article matches this code in your organisation.",
+      "forbidden": "You do not have permission to view this Factory Article.",
+      "error": "Unable to load this Factory Article.",
+      "deferred": "Tab content deferred",
+      "deferredBody": "This department workspace is delivered in a later slice.",
+      "status": {
+        "Pending": "Pending",
+        "InProgress": "In progress",
+        "Alert": "Alert",
+        "Complete": "Complete",
+        "Built": "Built"
+      },
+      "tabs": {
+        "core": "Core",
+        "planning": "Planning",
+        "commercial": "Commercial",
+        "production": "Production",
+        "technical": "Technical",
+        "mrp": "MRP",
+        "procurement": "Procurement",
+        "history": "History"
+      }
+    },
     "dashboard": {
       "alertAmber": "Amber",
       "alertGreen": "Green",

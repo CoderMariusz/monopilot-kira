@@ -1190,6 +1190,35 @@
         "deleted": "Șters"
       }
     },
+    "faDetail": {
+      "eyebrow": "Articol de fabrică",
+      "subtitle": "Spațiu de lucru pe departamente · închide fiecare departament pentru a finaliza AF",
+      "built": "Construit",
+      "loading": "Se încarcă articolul de fabrică…",
+      "empty": "Articolul de fabrică nu a fost găsit",
+      "emptyBody": "Niciun articol de fabrică nu corespunde acestui cod în organizația ta.",
+      "forbidden": "Nu ai permisiunea de a vizualiza acest articol de fabrică.",
+      "error": "Nu se poate încărca acest articol de fabrică.",
+      "deferred": "Conținutul filei este amânat",
+      "deferredBody": "Acest spațiu de lucru al departamentului este livrat într-o etapă ulterioară.",
+      "status": {
+        "Pending": "În așteptare",
+        "InProgress": "În curs",
+        "Alert": "Alertă",
+        "Complete": "Finalizat",
+        "Built": "Construit"
+      },
+      "tabs": {
+        "core": "De bază",
+        "planning": "Planificare",
+        "commercial": "Comercial",
+        "production": "Producție",
+        "technical": "Tehnic",
+        "mrp": "MRP",
+        "procurement": "Achiziții",
+        "history": "Istoric"
+      }
+    },
     "dashboard": {
       "alertAmber": "Chihlimbar",
       "alertGreen": "Verde",
