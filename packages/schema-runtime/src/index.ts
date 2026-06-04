@@ -8,3 +8,4 @@
  *   beforeAll / afterAll without relying on env-var detection (process.env.VITEST).
  */
 export { compile, clearCache, _setPool, _clearPool } from './compile.js';
+export { buildDeptZod, clearDeptZodCache } from './build-dept-zod.js';
