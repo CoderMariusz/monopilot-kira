@@ -10,6 +10,9 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -107,5 +110,105 @@ describe('/settings/processes schema-driven reference screen', () => {
 
     expect(container.querySelector('[data-testid^="settings-route-stub-"]')).toBeNull();
     expect(screen.queryByText('MIXING')).not.toBeInTheDocument();
+  });
+
+  it('opens the add-process modal with translated labels and saves through the reference upsert action', async () => {
+    const user = userEvent.setup();
+    mocks.upsertReferenceRow.mockResolvedValueOnce({ ok: true, data: { tableCode: 'processes', rowKey: 'BLENDING' } });
+    wireLiveRead({ schema: liveSchema, rows: [], canEdit: true });
+
+    await renderPage();
+
+    await user.click(screen.getByRole('button', { name: /add process/i }));
+
+    const dialog = await screen.findByTestId('ref-row-edit-modal');
+    expect(dialog).toHaveAccessibleName('Add process');
+    expect(within(dialog).getByText('Reference table · processes')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent(/settings\.processes/);
+
+    await user.type(within(dialog).getByLabelText('Row key'), 'BLENDING');
+    await user.type(within(dialog).getByLabelText('Process code'), 'BLENDING');
+    await user.type(within(dialog).getByLabelText('Name'), 'Ingredient blending');
+    await user.type(within(dialog).getByLabelText('Category'), 'preparation');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    expect(mocks.upsertReferenceRow).toHaveBeenCalledWith({
+      tableCode: 'processes',
+      rowKey: 'BLENDING',
+      rowData: {
+        process_code: 'BLENDING',
+        name: 'Ingredient blending',
+        category: 'preparation',
+      },
+    });
+  });
+
+  it('defines every settings.processes key used by the shared reference CRUD modal in all runtime locales', () => {
+    const requiredKeys = [
+      'title',
+      'subtitle',
+      'importCsv',
+      'exportCsv',
+      'addRow',
+      'edit',
+      'delete',
+      'rowsSuffix',
+      'updatedPrefix',
+      'loading',
+      'empty',
+      'error',
+      'permissionDenied',
+      'actions',
+      'enabled',
+      'disabled',
+      'yes',
+      'no',
+      'rowKey',
+      'rowKeyHelp',
+      'modal.edit.title',
+      'modal.edit.editTitle',
+      'modal.edit.referenceTable',
+      'modal.edit.cancel',
+      'modal.edit.save',
+      'modal.edit.saving',
+      'modal.edit.loading',
+      'modal.edit.loadingLabel',
+      'modal.edit.noSchema',
+      'modal.edit.rowKeyInvalid',
+      'modal.edit.rowKeyRequired',
+      'modal.edit.minChars',
+      'modal.edit.selectPlaceholder',
+      'modal.edit.saveFailed',
+      'modal.delete.title',
+      'modal.delete.cancel',
+      'modal.delete.confirmLabel',
+      'modal.delete.confirmButton',
+      'modal.delete.deleting',
+      'modal.delete.confirmCheckbox',
+      'modal.delete.warning',
+      'modal.delete.affectedRows',
+      'modal.delete.precheckError',
+      'modal.delete.submitFailed',
+      'modal.delete.success',
+    ];
+
+    for (const locale of ['en', 'pl', 'ro', 'uk']) {
+      const runtime = JSON.parse(readFileSync(join(process.cwd(), 'i18n', `${locale}.json`), 'utf8')) as Record<string, unknown>;
+      const settingsBundle = JSON.parse(readFileSync(join(process.cwd(), 'messages', locale, '02-settings.json'), 'utf8')) as Record<string, unknown>;
+
+      for (const source of [runtime.settings, settingsBundle]) {
+        for (const key of requiredKeys) {
+          const value = key.split('.').reduce<unknown>((node, segment) => {
+            if (!node || typeof node !== 'object') return undefined;
+            return (node as Record<string, unknown>)[segment];
+          }, (source as Record<string, unknown>).processes);
+
+          expect(value, `${locale} settings.processes.${key} must be translated`).toEqual(expect.any(String));
+          expect(value, `${locale} settings.processes.${key} must not leak a raw key`).not.toMatch(/^settings\.processes/);
+        }
+      }
+    }
   });
 });
