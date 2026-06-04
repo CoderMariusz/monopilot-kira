@@ -113,78 +113,88 @@ export async function handleOperationChange(
   assertOperationIndex(n);
 
   const pool = options.pool ?? getDefaultPool();
-  const columns = operationColumns[n];
   const client = await pool.connect();
 
   try {
     await client.query('begin');
     await setOrgContextIfProvided(client, options);
-
-    const operation = await client.query<OperationRow>(
-      `select process_suffix
-         from "Reference"."ManufacturingOperations"
-        where operation_name = $1
-          and is_active = true
-        order by operation_seq asc
-        limit 1`,
-      [newOpName],
-    );
-
-    const processSuffix = operation.rows[0]?.process_suffix;
-    if (!processSuffix) {
-      throw new Error('operation_not_found');
-    }
-
-    const intermediateCodeP = `WIP-${processSuffix}-${nextSeq7()}`;
-    const updated = await client.query<ProdDetailRow>(
-      `update public.prod_detail detail
-          set ${columns.operation} = $2,
-              ${columns.intermediate} = $3
-         from public.product product
-        where detail.id = $1::uuid
-          and product.product_code = detail.product_code
-        returning detail.id::text,
-                  product.recipe_components,
-                  detail.intermediate_code_p1,
-                  detail.intermediate_code_p2,
-                  detail.intermediate_code_p3,
-                  detail.intermediate_code_p4`,
-      [prodDetailId, newOpName, intermediateCodeP],
-    );
-
-    const row = updated.rows[0];
-    if (!row) {
-      throw new Error('prod_detail_not_found');
-    }
-
-    const intermediateCodeFinal = composeFinalCode(row);
-    if (intermediateCodeFinal) {
-      await client.query(
-        `update public.prod_detail
-            set intermediate_code_final = $2
-          where id = $1::uuid`,
-        [prodDetailId, intermediateCodeFinal],
-      );
-    }
-
-    const v06 = validateSuffixMatchV06({
-      recipeComponents: row.recipe_components,
-      intermediateCodeFinal,
-    });
-
+    const result = await recomputeOperationInTransaction(client, prodDetailId, n, newOpName);
     await client.query('commit');
-
-    return {
-      prodDetailId,
-      operationIndex: n,
-      intermediateCodeP,
-      intermediateCodeFinal,
-      validations: v06.status === 'WARN' ? [v06] : [],
-    };
+    return result;
   } catch (error) {
     await client.query('rollback').catch(() => undefined);
     throw error;
   } finally {
     client.release();
   }
+}
+
+export async function recomputeOperationInTransaction(
+  client: pg.PoolClient,
+  prodDetailId: string,
+  n: number,
+  newOpName: string,
+): Promise<HandleOperationChangeResult> {
+  assertOperationIndex(n);
+
+  const columns = operationColumns[n];
+  const operation = await client.query<OperationRow>(
+    `select process_suffix
+       from "Reference"."ManufacturingOperations"
+      where operation_name = $1
+        and is_active = true
+      order by operation_seq asc
+      limit 1`,
+    [newOpName],
+  );
+
+  const processSuffix = operation.rows[0]?.process_suffix;
+  if (!processSuffix) {
+    throw new Error('operation_not_found');
+  }
+
+  const intermediateCodeP = `WIP-${processSuffix}-${nextSeq7()}`;
+  const updated = await client.query<ProdDetailRow>(
+    `update public.prod_detail detail
+        set ${columns.operation} = $2,
+            ${columns.intermediate} = $3
+       from public.product product
+      where detail.id = $1::uuid
+        and product.product_code = detail.product_code
+      returning detail.id::text,
+                product.recipe_components,
+                detail.intermediate_code_p1,
+                detail.intermediate_code_p2,
+                detail.intermediate_code_p3,
+                detail.intermediate_code_p4`,
+    [prodDetailId, newOpName, intermediateCodeP],
+  );
+
+  const row = updated.rows[0];
+  if (!row) {
+    throw new Error('prod_detail_not_found');
+  }
+
+  const intermediateCodeFinal = composeFinalCode(row);
+  if (intermediateCodeFinal) {
+    await client.query(
+      `update public.prod_detail
+          set intermediate_code_final = $2
+        where id = $1::uuid`,
+      [prodDetailId, intermediateCodeFinal],
+    );
+  }
+
+  const v06 = validateSuffixMatchV06({
+    recipeComponents: row.recipe_components,
+    intermediateCodeFinal,
+  });
+
+  return {
+    prodDetailId,
+    operationIndex: n,
+    intermediateCodeP,
+    intermediateCodeFinal,
+    validations: v06.status === 'WARN' ? [v06] : [],
+  };
 }
