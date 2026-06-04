@@ -1847,6 +1847,33 @@
         "Complete": "Ukończony",
         "Built": "Zbudowany"
       }
+    },
+    "faTechnicalTab": {
+      "title": "Sekcja techniczna",
+      "subtitle": "Trwałość i zatwierdzenie techniczne. Zamknij po wypełnieniu wszystkich wymaganych pól.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "autoHint": "Wyliczane automatycznie — tylko do odczytu.",
+      "requiredMissingTitle": "Brak wymaganych pól",
+      "requiredMissingBody": "Trwałość musi być wypełniona przed zamknięciem sekcji technicznej.",
+      "save": "Zapisz dane techniczne",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja techniczna zapisana.",
+      "saveError": "Nie udało się zapisać sekcji technicznej.",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Ładowanie sekcji technicznej…",
+      "empty": "Brak skonfigurowanych pól technicznych",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu technicznego.",
+      "error": "Nie można załadować sekcji technicznej.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji technicznej.",
+      "allergenSlotTitle": "Deklaracja alergenów",
+      "allergenSlotSubtitle": "Regulacja: EU FIC 1169/2011 · 14 obowiązkowych alergenów",
+      "allergenSlotLoading": "Ładowanie alergenów…",
+      "fields": {
+        "shelf_life": "Trwałość",
+        "storage_temperature": "Temperatura przechowywania",
+        "closed_technical": "Sekcja techniczna zamknięta"
+      }
     }
   }
 }

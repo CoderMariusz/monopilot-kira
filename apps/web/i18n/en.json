@@ -1847,6 +1847,33 @@
         "Complete": "Complete",
         "Built": "Built"
       }
+    },
+    "faTechnicalTab": {
+      "title": "Technical section",
+      "subtitle": "Shelf-life and technical sign-off. Close after all required fields are filled.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "autoHint": "Auto-derived — read-only.",
+      "requiredMissingTitle": "Required fields missing",
+      "requiredMissingBody": "Shelf life must be filled before Close Technical.",
+      "save": "Save Technical",
+      "saving": "Saving…",
+      "saveSuccess": "Technical section saved.",
+      "saveError": "Could not save the Technical section.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading Technical section…",
+      "empty": "No Technical fields configured",
+      "emptyBody": "This organisation has no Technical department columns yet.",
+      "error": "Unable to load the Technical section.",
+      "forbidden": "You do not have permission to edit the Technical section.",
+      "allergenSlotTitle": "Allergen declaration",
+      "allergenSlotSubtitle": "Regulation: EU FIC 1169/2011 · 14 mandatory allergens",
+      "allergenSlotLoading": "Allergens loading…",
+      "fields": {
+        "shelf_life": "Shelf life",
+        "storage_temperature": "Storage temperature",
+        "closed_technical": "Closed Technical"
+      }
     }
   }
 }

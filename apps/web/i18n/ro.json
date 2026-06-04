@@ -1847,6 +1847,33 @@
         "Complete": "Finalizat",
         "Built": "Construit"
       }
+    },
+    "faTechnicalTab": {
+      "title": "Secțiune tehnică",
+      "subtitle": "Termen de valabilitate și aprobare tehnică. Închide după completarea tuturor câmpurilor obligatorii.",
+      "closedBadge": "✓ Închis",
+      "openBadge": "Deschis",
+      "autoHint": "Derivat automat — doar citire.",
+      "requiredMissingTitle": "Câmpuri obligatorii lipsă",
+      "requiredMissingBody": "Termenul de valabilitate trebuie completat înainte de închiderea secțiunii tehnice.",
+      "save": "Salvează secțiunea tehnică",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea tehnică a fost salvată.",
+      "saveError": "Secțiunea tehnică nu a putut fi salvată.",
+      "selectPlaceholder": "Selectează…",
+      "loading": "Se încarcă secțiunea tehnică…",
+      "empty": "Nicio coloană tehnică configurată",
+      "emptyBody": "Această organizație nu are încă coloane pentru departamentul tehnic.",
+      "error": "Secțiunea tehnică nu a putut fi încărcată.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea tehnică.",
+      "allergenSlotTitle": "Declarație alergeni",
+      "allergenSlotSubtitle": "Reglementare: EU FIC 1169/2011 · 14 alergeni obligatorii",
+      "allergenSlotLoading": "Se încarcă alergenii…",
+      "fields": {
+        "shelf_life": "Termen de valabilitate",
+        "storage_temperature": "Temperatură de depozitare",
+        "closed_technical": "Secțiune tehnică închisă"
+      }
     }
   }
 }
