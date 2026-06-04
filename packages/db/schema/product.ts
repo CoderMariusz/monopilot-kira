@@ -101,6 +101,13 @@ export const product = pgTable(
     orgActiveIdx: index('product_org_active_idx')
       .on(table.orgId, table.productCode)
       .where(sql`deleted_at is null`),
+    orgClosedCoreIdx: index('product_org_closed_core_idx').on(table.orgId, table.closedCore),
+    orgClosedPlanningIdx: index('product_org_closed_planning_idx').on(table.orgId, table.closedPlanning),
+    orgClosedCommercialIdx: index('product_org_closed_commercial_idx').on(table.orgId, table.closedCommercial),
+    orgClosedProductionIdx: index('product_org_closed_production_idx').on(table.orgId, table.closedProduction),
+    orgClosedTechnicalIdx: index('product_org_closed_technical_idx').on(table.orgId, table.closedTechnical),
+    orgClosedMrpIdx: index('product_org_closed_mrp_idx').on(table.orgId, table.closedMrp),
+    orgClosedProcurementIdx: index('product_org_closed_procurement_idx').on(table.orgId, table.closedProcurement),
   }),
 );
 
