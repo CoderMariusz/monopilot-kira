@@ -7,6 +7,7 @@ export enum EventType {
   FG_CREATED = 'fg.created',
   FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
   FG_INTERMEDIATE_CODE_CHANGED = 'fg.intermediate_code_changed',
+  RISK_CREATED = 'risk.created',
   BOM_INITIAL_VERSION_CREATED = 'bom.initial_version_created',
   FG_BOM_RELEASED = 'fg.bom.released',
   BOM_VERSION_SUBMITTED = 'bom.version_submitted',
