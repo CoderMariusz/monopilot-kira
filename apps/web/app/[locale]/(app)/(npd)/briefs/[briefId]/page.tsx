@@ -1,7 +1,12 @@
 /**
  * T-120 — Brief detail page (RSC).
  *
- * Route: /[locale]/(app)/(npd)/brief/[briefId]
+ * Route: /[locale]/(app)/(npd)/briefs/[briefId]
+ *
+ * T-121 (wiring): consolidated under `briefs/[briefId]` (was `brief/[briefId]`)
+ * so the list-table row links (`/briefs/<id>`) and the BriefCreateModal
+ * post-create redirect resolve to a real route. A back-link to the list is
+ * wired via `listHref` on the form (breadcrumb 'Briefs' becomes navigable).
  *
  * Server Component. Reads REAL, org-scoped data via `withOrgContext` (RLS as
  * app_user with app.current_org_id()). No mocks, no hard-coded rows.
@@ -404,6 +409,10 @@ export default async function BriefDetailPage(propsInput: unknown = {}) {
       }
     : await readPageData(briefId);
 
+  // T-121 (wiring): locale-prefixed back-link so the breadcrumb 'Briefs' crumb
+  // returns to the list inside the same locale route group.
+  const listHref = `/${locale}/briefs`;
+
   return (
     <BriefDetailForm
       state={loaded.state}
@@ -411,6 +420,7 @@ export default async function BriefDetailPage(propsInput: unknown = {}) {
       labels={labels}
       canWrite={loaded.canWrite}
       onSaveDraft={saveDraftAction}
+      listHref={listHref}
     />
   );
 }

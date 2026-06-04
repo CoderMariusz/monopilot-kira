@@ -23,12 +23,16 @@ import {
   type BriefListRow,
   type PageState,
 } from './_components/brief-list-table';
+import { BriefModalsHost } from './_components/brief-modals-host';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
 
 type BriefListPageProps = {
   params?: Promise<{ locale: string }>;
+  // T-121 (wiring): the list-table pushes `?modal=…&brief=<id>`; the page reads
+  // it server-side to resolve the complete-summary for the modal host.
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
   // Test-only injection seam (mirrors fa/page.tsx convention).
   rows?: BriefListRow[];
   canCreate?: boolean;
@@ -202,9 +206,18 @@ async function readPageData(): Promise<LoaderResult> {
   }
 }
 
+function firstParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
 export default async function BriefListPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as BriefListPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
+  const search = props.searchParams ? await props.searchParams : {};
+  // The list pushes `?modal=briefConvert&brief=<id>`; resolve the brief for the
+  // Complete modal summary server-side.
+  const briefId = firstParam(search.brief);
 
   const labels = await buildLabels(locale);
 
@@ -219,12 +232,18 @@ export default async function BriefListPage(propsInput: unknown = {}) {
     : await readPageData();
 
   return (
-    <BriefListTable
-      rows={loaded.rows}
-      labels={labels}
-      canCreate={props.canCreate ?? loaded.canCreate}
-      canConvert={props.canConvert ?? loaded.canConvert}
-      state={props.state ?? loaded.state}
-    />
+    <>
+      <BriefListTable
+        rows={loaded.rows}
+        labels={labels}
+        canCreate={props.canCreate ?? loaded.canCreate}
+        canConvert={props.canConvert ?? loaded.canConvert}
+        state={props.state ?? loaded.state}
+      />
+      {/* T-121: mount the merged Create/Complete modal host; it maps the
+          `?modal=` triggers the list pushes to the injected modals. Rendered
+          inside the same RSC so RBAC + summary are server-resolved. */}
+      {await BriefModalsHost({ locale, briefId })}
+    </>
   );
 }

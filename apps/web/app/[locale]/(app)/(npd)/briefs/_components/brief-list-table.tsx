@@ -10,7 +10,8 @@
  *   - window.NPD_BRIEFS in-memory filter → server-side withOrgContext read of
  *     public.brief joined to public.npd_projects (page.tsx); filters kept client-side.
  *   - statusBadge helper              → BriefStatusBadge (shadcn Badge variants).
- *   - row click → onOpenBrief(id)     → next/link row navigation to /briefs/[briefId].
+ *   - row click → onOpenBrief(id)     → next/link row navigation to /<locale>/briefs/[briefId]
+ *     (T-121 wiring: detail route consolidated under briefs/[briefId]; locale-prefixed).
  *   - openModal('briefCreate')        → router.push(?modal=briefCreate); gated by canCreate.
  *   - Convert (status==='complete')   → router.push(?modal=briefConvert&brief=…); gated by canConvert.
  *   - raw <select> status/template    → shadcn Select (raw <select> is a red-line).
@@ -89,6 +90,18 @@ export type BriefListLabels = {
 
 const STATUS_VALUES: BriefStatus[] = ['draft', 'complete', 'converted', 'abandoned'];
 const TEMPLATE_VALUES: BriefTemplate[] = ['single_component', 'multi_component'];
+
+const SUPPORTED_LOCALES = new Set(['pl', 'en', 'uk', 'ro']);
+
+/**
+ * T-121 (wiring): derive the active locale segment from the pathname so row links
+ * resolve directly to `/<locale>/briefs/<id>` (next-intl localePrefix='always')
+ * instead of relying on a redirect hop.
+ */
+function localePrefixFrom(pathname: string | null): string {
+  const segment = (pathname ?? '/').split('/')[1] ?? '';
+  return SUPPORTED_LOCALES.has(segment) ? `/${segment}` : '';
+}
 
 function statusVariant(status: string): BadgeVariant {
   switch (status) {
@@ -171,6 +184,8 @@ export function BriefListTable({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const localePrefix = localePrefixFrom(pathname);
+  const briefHref = (briefId: string) => `${localePrefix}/briefs/${briefId}`;
 
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('all');
@@ -356,7 +371,7 @@ export function BriefListTable({
                     >
                       <TableCell className="px-3 py-2 font-mono text-xs">
                         <Link
-                          href={`/briefs/${row.briefId}`}
+                          href={briefHref(row.briefId)}
                           prefetch
                           className="text-blue-600 hover:underline"
                         >
@@ -399,7 +414,7 @@ export function BriefListTable({
                       <TableCell className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/briefs/${row.briefId}`}
+                            href={briefHref(row.briefId)}
                             prefetch
                             className="text-sm text-blue-600 hover:underline"
                           >

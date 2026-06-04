@@ -28,6 +28,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useFieldArray, useForm } from 'react-hook-form';
 
 import { Badge } from '@monopilot/ui/Badge';
@@ -272,6 +273,7 @@ export function BriefDetailForm({
   onSaveDraft,
   onMarkComplete,
   onNavigateToProject,
+  listHref = '/briefs',
 }: {
   state?: PageState;
   data: BriefDetailData | null;
@@ -281,6 +283,12 @@ export function BriefDetailForm({
   onSaveDraft?: SaveDraftCall;
   onMarkComplete?: MarkCompleteCall;
   onNavigateToProject?: (npdProjectId: string) => void;
+  /**
+   * T-121 (wiring): back-link target for the breadcrumb 'Briefs' crumb. Defaults
+   * to the list route; the page passes the locale-prefixed href so back→list
+   * preserves the user's place in the route group.
+   */
+  listHref?: string;
 }) {
   const [tab, setTab] = React.useState<TabKey>('product');
   const [saveState, setSaveState] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -359,7 +367,10 @@ export function BriefDetailForm({
         <nav aria-label="breadcrumb" className="text-xs text-slate-500">
           <span>{labels.breadcrumbRoot}</span>
           <span aria-hidden> / </span>
-          <span>{labels.breadcrumbList}</span>
+          {/* T-121: 'Briefs' crumb is the back-link to the list (back→list). */}
+          <Link href={listHref} className="text-blue-600 hover:underline" data-testid="brief-detail-breadcrumb-list">
+            {labels.breadcrumbList}
+          </Link>
           <span aria-hidden> / </span>
           <span className="font-mono text-slate-700">{data.devCode}</span>
         </nav>
