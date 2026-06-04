@@ -63,6 +63,12 @@ import {
   type FaProcurementColumn,
   type FaProcurementTabLabels,
 } from './_components/fa-procurement-tab';
+import {
+  AllergenCascadeSection,
+  buildAllergenLabels,
+  loadAllergenCascade,
+  type AllergenLoad,
+} from './_lib/allergen-cascade';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -869,6 +875,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     productionLabels,
     technicalLabels,
     procurementLabels,
+    allergenLabels,
   ] = await Promise.all([
     buildCoreLabels(locale, dept.core),
     buildPlanningLabels(locale, dept.planning),
@@ -876,7 +883,19 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     buildProductionLabels(locale, dept.production),
     buildTechnicalLabels(locale, dept.technical),
     buildProcurementLabels(locale, dept.procurement),
+    buildAllergenLabels(locale),
   ]);
+
+  // Allergen cascade (REAL, org-scoped) — read here so the BUILT T-040 widget is
+  // reachable inside the Technical tab. Uses the reused readAllergenCascade
+  // (own withOrgContext + RLS + server-resolved npd.allergen.write). Skipped for
+  // the injected (test-only) path, which renders the reserved placeholder instead.
+  const allergenLoad: AllergenLoad = injected
+    ? { state: 'empty', data: null, canWrite: false, displayNames: {} }
+    : await loadAllergenCascade(fa.productCode, locale);
+  const allergenSlot = injected ? undefined : (
+    <AllergenCascadeSection labels={allergenLabels} load={allergenLoad} />
+  );
 
   const packSizeFilled = String(dept.values.pack_size ?? '').trim() !== '';
   const briefId = dept.values.brief_id != null ? String(dept.values.brief_id) : null;
@@ -942,6 +961,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         dropdowns={{}}
         labels={technicalLabels}
         state="ready"
+        allergenSlot={allergenSlot}
       />
     ),
     procurement: (
