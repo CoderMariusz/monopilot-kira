@@ -1400,6 +1400,49 @@
       "emptyBody": "Ten projekt nie ma jeszcze skonfigurowanych pozycji listy kontrolnej bramki.",
       "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki."
+    },
+    "briefModals": {
+      "create": {
+        "title": "Nowy brief",
+        "subtitle": "Tworzy brief i powiązany projekt NPD na etapie G0.",
+        "templateLabel": "Szablon",
+        "templateSingle": "Pojedynczy komponent",
+        "templateSingleHint": "Jedno mięso gotowe / jeden komponent",
+        "templateMulti": "Wiele komponentów",
+        "templateMultiHint": "Półmiski, zestawy mieszane (2+ komponenty)",
+        "fieldDevCode": "Kod Dev",
+        "fieldDevCodeHint": "V08 · Format DEV<RR><MM>-<nr>",
+        "projectNote": "Brief tworzy powiązany projekt NPD na etapie G0. Mapowanie FG następuje później, na G3.",
+        "cancel": "Anuluj",
+        "create": "Utwórz brief",
+        "creating": "Tworzenie…",
+        "errorDevCode": "Nieprawidłowy format kodu Dev (np. DEV26-052).",
+        "errorGeneric": "Nie udało się utworzyć briefu. Spróbuj ponownie."
+      },
+      "complete": {
+        "title": "Zakończ brief dla projektu",
+        "subtitle": "Kontrole bramki przeszły — brief jest kompletny, a wymagane pola wypełnione.",
+        "gateChecksTitle": "Kontrole bramki",
+        "gateCheckStatus": "Status briefu = kompletny",
+        "gateCheckRequired": "Wszystkie wymagane pola wypełnione",
+        "gateCheckDevCode": "Format kodu Dev poprawny (V08)",
+        "summaryHeader": "Dowody z briefu przeniesione do projektu",
+        "colField": "Pole",
+        "colValue": "Wartość z briefu",
+        "legacyAliasLabel": "Alias zgodności (opcjonalnie)",
+        "legacyAliasHint": "Tylko zgodność — to nie jest zatwierdzony FG. Mapowanie FG następuje na G3.",
+        "errorLegacyAlias": "Alias zgodności jest za długi (maks. 80).",
+        "lockingWarning": "Brief zostanie oznaczony jako Skonwertowany i zablokowany. Dowody projektu pozostają edytowalne.",
+        "emptyValue": "—",
+        "cancel": "Anuluj",
+        "complete": "Zakończ brief dla projektu",
+        "completing": "Kończenie…",
+        "loading": "Wczytywanie podsumowania briefu…",
+        "empty": "Brak podsumowania dla tego briefu.",
+        "error": "Nie udało się wczytać podsumowania briefu. Spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień, aby zakończyć ten brief.",
+        "errorGeneric": "Nie udało się zakończyć briefu. Spróbuj ponownie."
+      }
     }
   }
 }

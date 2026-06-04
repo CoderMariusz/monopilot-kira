@@ -1400,6 +1400,49 @@
       "emptyBody": "This project has no gate checklist items configured yet.",
       "error": "Unable to load the gate checklist. Try again.",
       "forbidden": "You do not have permission to view this gate checklist."
+    },
+    "briefModals": {
+      "create": {
+        "title": "New brief",
+        "subtitle": "Creates a Brief and a linked NPD project at G0.",
+        "templateLabel": "Template",
+        "templateSingle": "Single component",
+        "templateSingleHint": "One Finish Meat / one component",
+        "templateMulti": "Multi component",
+        "templateMultiHint": "Platters, mixed packs (2+ components)",
+        "fieldDevCode": "Dev Code",
+        "fieldDevCodeHint": "V08 · Format DEV<YY><MM>-<seq>",
+        "projectNote": "A Brief creates a linked NPD project at G0. FG mapping happens later at G3.",
+        "cancel": "Cancel",
+        "create": "Create brief",
+        "creating": "Creating…",
+        "errorDevCode": "Invalid Dev Code format (e.g. DEV26-052).",
+        "errorGeneric": "Could not create the brief. Try again."
+      },
+      "complete": {
+        "title": "Complete brief for project",
+        "subtitle": "Gate checks pass — the brief is complete and required fields are filled.",
+        "gateChecksTitle": "Gate checks",
+        "gateCheckStatus": "Brief status = complete",
+        "gateCheckRequired": "All required fields filled",
+        "gateCheckDevCode": "Dev code format valid (V08)",
+        "summaryHeader": "Brief evidence carried to the project",
+        "colField": "Field",
+        "colValue": "Value from brief",
+        "legacyAliasLabel": "Legacy alias (optional)",
+        "legacyAliasHint": "Compatibility only — not an approved FG. FG mapping happens at G3.",
+        "errorLegacyAlias": "Legacy alias is too long (max 80).",
+        "lockingWarning": "The brief will be set to Converted and locked. Project evidence remains editable.",
+        "emptyValue": "—",
+        "cancel": "Cancel",
+        "complete": "Complete brief for project",
+        "completing": "Completing…",
+        "loading": "Loading brief summary…",
+        "empty": "No summary available for this brief.",
+        "error": "Unable to load the brief summary. Try again.",
+        "forbidden": "You do not have permission to complete this brief.",
+        "errorGeneric": "Could not complete the brief. Try again."
+      }
     }
   }
 }
