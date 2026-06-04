@@ -1463,6 +1463,12 @@
       "locked": "Цю версію заблоковано, і її не можна редагувати.",
       "noAllergen": "—"
     },
+    "compositionBar": {
+      "title": "Склад",
+      "ariaLabel": "Склад інгредієнтів",
+      "empty": "Немає інгредієнтів для відображення.",
+      "segmentLabel": "{name}: {pct}%"
+    },
     "gateChecklist": {
       "title": "Контрольний список етапу",
       "currentGate": "Поточний етап:",

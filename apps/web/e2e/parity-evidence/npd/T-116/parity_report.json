@@ -1,0 +1,54 @@
+{
+  "ready": {
+    "bar": true,
+    "track": true,
+    "role": "img",
+    "ariaLabel": "Ingredient composition",
+    "ariaLive": "polite",
+    "segmentCount": 3,
+    "segmentWidths": [
+      "85%",
+      "10%",
+      "5%"
+    ],
+    "segmentLabels": [
+      "Pork shoulder: 85%",
+      "Water: 10%",
+      "Salt: 5%"
+    ],
+    "legendChips": 3,
+    "emptyNotice": false
+  },
+  "unbalanced-with-trace": {
+    "bar": true,
+    "track": true,
+    "role": "img",
+    "ariaLabel": "Ingredient composition",
+    "ariaLive": "polite",
+    "segmentCount": 3,
+    "segmentWidths": [
+      "92.961%",
+      "0.398%",
+      "6.64%"
+    ],
+    "segmentLabels": [
+      "Pork shoulder: 70%",
+      "Water: 0.3%",
+      "Salt: 5%"
+    ],
+    "legendChips": 2,
+    "emptyNotice": false
+  },
+  "empty": {
+    "bar": true,
+    "track": false,
+    "role": null,
+    "ariaLabel": null,
+    "ariaLive": null,
+    "segmentCount": 0,
+    "segmentWidths": [],
+    "segmentLabels": [],
+    "legendChips": 0,
+    "emptyNotice": true
+  }
+}

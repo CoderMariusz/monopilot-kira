@@ -1463,6 +1463,12 @@
       "locked": "Ta wersja jest zablokowana i nie można jej edytować.",
       "noAllergen": "—"
     },
+    "compositionBar": {
+      "title": "Skład",
+      "ariaLabel": "Skład surowcowy",
+      "empty": "Brak składników do wyświetlenia.",
+      "segmentLabel": "{name}: {pct}%"
+    },
     "gateChecklist": {
       "title": "Lista kontrolna bramki",
       "currentGate": "Bieżąca bramka:",

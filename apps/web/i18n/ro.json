@@ -1463,6 +1463,12 @@
       "locked": "Această versiune este blocată și nu poate fi editată.",
       "noAllergen": "—"
     },
+    "compositionBar": {
+      "title": "Compoziție",
+      "ariaLabel": "Compoziția ingredientelor",
+      "empty": "Niciun ingredient de afișat.",
+      "segmentLabel": "{name}: {pct}%"
+    },
     "gateChecklist": {
       "title": "Listă de verificare poartă",
       "currentGate": "Poarta curentă:",

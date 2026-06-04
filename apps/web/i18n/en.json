@@ -1463,6 +1463,12 @@
       "locked": "This version is locked and cannot be edited.",
       "noAllergen": "—"
     },
+    "compositionBar": {
+      "title": "Composition",
+      "ariaLabel": "Ingredient composition",
+      "empty": "No ingredients to display.",
+      "segmentLabel": "{name}: {pct}%"
+    },
     "gateChecklist": {
       "title": "Gate checklist",
       "currentGate": "Current gate:",

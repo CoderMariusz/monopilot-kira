@@ -1,0 +1,10 @@
+{
+  "tool": "RTL role/aria-label assertions (axe-core not installed; package.json out of scope)",
+  "containerHasRoleImg": true,
+  "containerHasAccessibleName": true,
+  "containerAriaLive": "polite",
+  "everySegmentLabelled": true,
+  "notColourAlone": true,
+  "legendSwatchesDecorative": 3,
+  "violations": 0
+}
