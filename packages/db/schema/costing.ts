@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 import { organizations } from './baseline.js';
 import { product } from './product.js';
@@ -20,6 +20,9 @@ export const costingBreakdowns = pgTable(
     rawCostEur: numeric('raw_cost_eur').notNull(),
     marginPct: numeric('margin_pct').notNull(),
     targetPriceEur: numeric('target_price_eur').notNull(),
+    // T-073 (108-costing-scenario-params): exact what-if input parameters as
+    // decimal strings (never floats). Null for legacy rows.
+    params: jsonb('params'),
     computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
