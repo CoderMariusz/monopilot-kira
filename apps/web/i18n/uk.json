@@ -1786,6 +1786,36 @@
       "ariaLabel": "Склад інгредієнтів",
       "empty": "Немає інгредієнтів для відображення.",
       "segmentLabel": "{name}: {pct}%"
+    },
+    "faCoreTab": {
+      "title": "Розділ Core",
+      "subtitle": "Спочатку заповніть розділ Core — інші відділи розблокуються після закриття Core.",
+      "closedBadge": "✓ Закрито",
+      "openBadge": "Відкрито",
+      "autoHint": "Обчислюється автоматично — лише для читання.",
+      "requiredMissingTitle": "Відсутні обов’язкові поля",
+      "requiredMissingBody": "Назва продукту, Розмір упаковки та Компоненти рецептури мають бути заповнені перед закриттям Core.",
+      "save": "Зберегти Core",
+      "saving": "Збереження…",
+      "saveSuccess": "Розділ Core збережено.",
+      "saveError": "Не вдалося зберегти розділ Core.",
+      "selectPlaceholder": "Виберіть…",
+      "loading": "Завантаження розділу Core…",
+      "empty": "Поля Core не налаштовані",
+      "emptyBody": "У цієї організації ще немає колонок відділу Core.",
+      "error": "Не вдалося завантажити розділ Core.",
+      "forbidden": "У вас немає дозволу редагувати розділ Core.",
+      "fields": {
+        "product_code": "Код FA",
+        "product_name": "Назва продукту",
+        "pack_size": "Розмір упаковки",
+        "number_of_cases": "Кількість ящиків",
+        "recipe_components": "Компоненти рецептури",
+        "ingredient_codes": "Коди інгредієнтів (авто)",
+        "template": "Шаблон",
+        "closed_core": "Закриття Core",
+        "comments": "Коментарі"
+      }
     }
   }
 }

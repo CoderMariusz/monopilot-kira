@@ -1786,6 +1786,36 @@
       "ariaLabel": "Ingredient composition",
       "empty": "No ingredients to display.",
       "segmentLabel": "{name}: {pct}%"
+    },
+    "faCoreTab": {
+      "title": "Core section",
+      "subtitle": "Fill the Core section first — other departments unlock after Core is closed.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "autoHint": "Auto-derived — read-only.",
+      "requiredMissingTitle": "Required fields missing",
+      "requiredMissingBody": "Product Name, Pack Size and Recipe components must all be filled before Close Core.",
+      "save": "Save Core",
+      "saving": "Saving…",
+      "saveSuccess": "Core section saved.",
+      "saveError": "Could not save the Core section.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading Core section…",
+      "empty": "No Core fields configured",
+      "emptyBody": "This organisation has no Core department columns yet.",
+      "error": "Unable to load the Core section.",
+      "forbidden": "You do not have permission to edit the Core section.",
+      "fields": {
+        "product_code": "FA Code",
+        "product_name": "Product Name",
+        "pack_size": "Pack Size",
+        "number_of_cases": "Number of cases",
+        "recipe_components": "Recipe components",
+        "ingredient_codes": "Ingredient codes (auto)",
+        "template": "Template",
+        "closed_core": "Closed Core",
+        "comments": "Comments"
+      }
     }
   }
 }
