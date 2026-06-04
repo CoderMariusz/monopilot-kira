@@ -1816,6 +1816,37 @@
         "closed_core": "Zamknięcie Core",
         "comments": "Uwagi"
       }
+    },
+    "faRightPanel": {
+      "title": "Status walidacji",
+      "subtitle": "Podsumowanie panelu bocznego dla tego artykułu fabrycznego.",
+      "keyFacts": "Kluczowe dane",
+      "code": "Kod",
+      "name": "Produkt",
+      "statusLabel": "Status",
+      "daysToLaunch": "Dni do startu",
+      "launchDate": "Data startu",
+      "lastUpdated": "Ostatnia aktualizacja",
+      "builtTitle": "Status budowy",
+      "built": "Zbudowany",
+      "notBuilt": "Niezbudowany",
+      "builtNote": "Każda edycja resetuje flagę Zbudowany.",
+      "actions": "Szybkie akcje",
+      "deptClose": "Zamknij dział",
+      "d365Build": "Buduj D365",
+      "actionsDeferred": "Dostępne po wdrożeniu procesu akcji.",
+      "loading": "Ładowanie podsumowania…",
+      "empty": "Brak podsumowania",
+      "emptyBody": "żaden artykuł fabryczny nie pasuje do tego kodu w Twojej organizacji.",
+      "forbidden": "Nie masz uprawnień, aby wyświetlić to podsumowanie.",
+      "error": "Nie można załadować podsumowania.",
+      "status": {
+        "Pending": "Oczekuje",
+        "InProgress": "W toku",
+        "Alert": "Alert",
+        "Complete": "Ukończony",
+        "Built": "Zbudowany"
+      }
     }
   }
 }
