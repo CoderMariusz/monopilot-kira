@@ -1,0 +1,67 @@
+{
+  "task": "T-059",
+  "anchor": "prototypes/design/Monopilot Design System/npd/pipeline.jsx:19-52",
+  "anchor_status": "@deprecated BL-NPD-02 (legacy R&D stage board, read-only) — translated to the production Stage-Gate model",
+  "mapping": [
+    {
+      "prototype": "KanbanView columns from window.NPD_STAGES (5 legacy stages)",
+      "production": "6 gate columns G0..Launched from GATE_ORDER (gate-helpers parity)",
+      "lines": "36-52",
+      "deviation": "legacy stage model → Stage-Gate (G0-G4 + Launched)"
+    },
+    {
+      "prototype": "kanban-col-head label + .count",
+      "production": "data-testid=kanban-col-* header + kanban-count-* badge",
+      "lines": "42-45"
+    },
+    {
+      "prototype": "projects.filter(p => p.stage === s.key)",
+      "production": "projects bucketed by currentGate (REAL listProjects rows)",
+      "lines": "39"
+    },
+    {
+      "prototype": "empty column \"—\"",
+      "production": "labelled per-column placeholder (labels.columnEmpty)",
+      "lines": "47"
+    },
+    {
+      "prototype": "KanbanCard div.kanban-card onClick(open)",
+      "production": "shadcn Card + CardContent; name → next/link /pipeline/[id]",
+      "lines": "19-21"
+    },
+    {
+      "prototype": "p.code · p.type (muted)",
+      "production": "font-mono code · type line",
+      "lines": "22"
+    },
+    {
+      "prototype": "inline progress bar",
+      "production": "role=progressbar with aria-valuenow/min/max",
+      "lines": "23-28"
+    },
+    {
+      "prototype": "kanban-card-meta owner + ▶ target",
+      "production": "owner + ▶ targetLaunch meta row",
+      "lines": "29-32"
+    },
+    {
+      "prototype": "prioBadge(p.prio) span.badge",
+      "production": "shadcn Badge (prio→variant, text-paired)",
+      "lines": "12-17"
+    },
+    {
+      "prototype": "(no DnD in read-only prototype)",
+      "production": "explicit Advance affordance → advanceProjectGate (optimistic + 422 revert §17.12)",
+      "lines": "n/a",
+      "deviation": "@dnd-kit not a workspace dep; accessible Advance button preserves the adjacency + optimistic-revert contract"
+    }
+  ],
+  "shadcn_translation": {
+    "div.kanban-card": "Card + CardContent (@monopilot/ui)",
+    "span.badge prio": "Badge (danger/warning/muted)",
+    "div progress bar": "role=progressbar (aria-valuenow/min/max)",
+    "window.NPD_PROJECTS": "listProjects() → ProjectSummary (REAL Supabase via withOrgContext)",
+    "onOpen(p.id)": "next/link → /pipeline/[id]",
+    "gate move": "advanceProjectGate({ projectId, targetGate }) (REAL Server Action)"
+  }
+}

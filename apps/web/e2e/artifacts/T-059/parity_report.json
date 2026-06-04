@@ -1,0 +1,97 @@
+{
+  "task": "T-059",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/pipeline.jsx:19-52 (KanbanCard + KanbanView)"
+  ],
+  "prd_refs": [
+    "§17.8",
+    "§17.12"
+  ],
+  "data_sources": [
+    "listProjects (T-057, merged)",
+    "advanceProjectGate (T-058, merged)"
+  ],
+  "generated_at": "2026-06-04T07:36:13.140Z",
+  "states": {
+    "loading": {
+      "pageRoot": true,
+      "columns": 0,
+      "gateOrder": [],
+      "cards": 0,
+      "shadcnCards": 0,
+      "badges": 0,
+      "progressBars": 0,
+      "advanceButtons": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1
+    },
+    "empty": {
+      "pageRoot": true,
+      "columns": 0,
+      "gateOrder": [],
+      "cards": 0,
+      "shadcnCards": 0,
+      "badges": 0,
+      "progressBars": 0,
+      "advanceButtons": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0
+    },
+    "error": {
+      "pageRoot": true,
+      "columns": 0,
+      "gateOrder": [],
+      "cards": 0,
+      "shadcnCards": 0,
+      "badges": 0,
+      "progressBars": 0,
+      "advanceButtons": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0
+    },
+    "permission_denied": {
+      "pageRoot": true,
+      "columns": 0,
+      "gateOrder": [],
+      "cards": 0,
+      "shadcnCards": 0,
+      "badges": 0,
+      "progressBars": 0,
+      "advanceButtons": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0
+    },
+    "ready": {
+      "pageRoot": true,
+      "columns": 6,
+      "gateOrder": [
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "Launched"
+      ],
+      "cards": 4,
+      "shadcnCards": 4,
+      "badges": 4,
+      "progressBars": 4,
+      "advanceButtons": 3,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0
+    },
+    "optimistic_advance": {
+      "movedToTarget": true
+    },
+    "optimistic_revert_422": {
+      "backInSource": true,
+      "notInTarget": true,
+      "alertShown": true
+    }
+  }
+}
