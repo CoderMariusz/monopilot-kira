@@ -181,3 +181,10 @@ Local gate DB: rebuild via `psql .../postgres -c "drop database monopilot" -c "c
 - Decisions: D365 T-042/044/047 = DEFERRED-AS-GAP (PRD-TBD mappings); allergen engine kept; autonomous-to-sign-off.
 - Pre-existing reds to fix at module-close (clone-passed-but-full-canon-fails): npd-shared-bom-builder (text=uuid), npd-projects-and-gates (pg array parse @ line 211), shared-bom-ssot (comment assertion).
 - NEXT: Wave C gate cluster SEQUENTIAL (T-095 G3-FG + T-058 advanceGate coupled → T-096 release → T-100 G4) + Wave D UI parallel (kira-ui).
+
+## INCIDENT 2026-06-04: apps/web/package.json accidental delete (recovered)
+During gate1 commit, `git rm --cached apps/web/package.json pnpm-lock.yaml` (intended to skip baseline-drift)
+DELETED the web manifest (merge carried the deletion → pnpm --filter web "No projects matched"). RECOVERED
+via `git show d1e966e5^:apps/web/package.json` + re-added @monopilot/e-sign dep + pnpm install. LESSON: never
+`git rm --cached` package.json/lockfiles in worktree commits; for unwanted diffs use `git checkout HEAD -- <f>`.
+i18n union-merge: use bash-3.2-safe while-read (NO mapfile); abort+restore if a merge half-completes.

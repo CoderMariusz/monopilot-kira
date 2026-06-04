@@ -32,13 +32,13 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-018 | Autofilter logic + reopenDeptSection Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Autofilter logic + reopenDeptSection Server Action (mig 136) + fa.dept_reopened event — merged |
 | T-019 | UI: FA list page (fa_list prototype) | ✅ DONE | DONE 2026-06-04 (Wave D pilot). FA list page — prototype parity (fa-screens.jsx:177-297, structural mapping), real product data via withOrgContext, 12 RTL, tsc0/lint0, i18n en/pl/ro/uk, 4 states+permission-denied. kira-ui (Opus). Codex-review + live axe deferred to Gate-5. Deviations: kanban omitted (scope), didnt use listFaByDept (insufficient cols), product.deleted_at absent (list-fa-by-dept helper latent bug) |
 | T-020 | ROOT: FA detail page shell group | ⏸ BLOCKED | page.tsx + fa-tabs.tsx + fa-right-panel.tsx exist but all tab content is "deferred-empty"; no real data; no parity evidence |
-| T-021 | UI: FA Create modal | ⬜ PENDING | Blocked by T-008 |
-| T-022 | UI: Dept Close modal | ⬜ PENDING | Blocked by T-015, T-017 |
+| T-021 | UI: FA Create modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). FA Create modal — wired to createFa (T-008), V01/V02 feedback, parity (modals.jsx:9-43), real action, RTL, tsc0, i18n npd.faCreate. kira-ui |
+| T-022 | UI: Dept Close modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). Dept Close modal — readiness via Reference.DeptColumns required-check, wired closeDeptSection (T-017), parity (modals.jsx:143-191), RTL, tsc0, i18n npd.deptClose. kira-ui |
 | T-023 | UI: FA Core tab (schema-driven form) | ⬜ PENDING | Blocked by T-009, T-010, T-012, T-014, T-020 |
 | T-024 | UI: FA Production tab + ProdDetail rows editor | ⬜ PENDING | Blocked by T-002, T-004, T-010, T-011, T-020 |
 | T-025 | ROOT: FA planning/commercial tabs group | ⬜ PENDING | Blocked by T-009, T-014, T-016, T-020 |
 | T-026 | UI: FA Technical tab shell | ⬜ PENDING | Blocked by T-014, T-020, T-025 |
-| T-027 | UI: FA History tab + audit_events timeline | ⬜ PENDING | Blocked by T-001, T-007, T-020 |
+| T-027 | UI: FA History tab + audit_events timeline | ✅ DONE | DONE 2026-06-04 (parallel ramp). FA History tab + audit timeline — union outbox_events∪audit_events org-scoped, parity (fa-screens.jsx:938-968), packages/queries listFaHistory, RTL, tsc0, i18n npd.faHistory. kira-ui |
 | T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ✅ DONE | DONE 2026-06-04 (Wave C). V03/V04 validators (mig 111, packages/validation) — merged |
 | T-029 | Server Action deleteFa | ✅ DONE | DONE 2026-06-04 (Wave C). deleteFa soft-delete (mig 132) + fa.deleted event — merged |
 | T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
@@ -63,13 +63,13 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-049 | Reference.AlertThresholds + d365_import_cache tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.AlertThresholds + d365_import_cache (mig 084) — merged (canonical AlertThresholds owner) |
 | T-050 | Reference.AlertThresholds default seed | ✅ DONE | DONE 2026-06-04 (Wave B). AlertThresholds default seed (mig 096, Sonnet, 9/9, matches T-049 threshold_key) — merged |
 | T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ✅ DONE | DONE 2026-06-04 (Wave C). Dashboard Server Actions getDashboardSummary+getAlerts + d365.cache.refreshed event (mig 118) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
-| T-052 | ROOT: NPD Dashboard page group | ⏸ BLOCKED | dashboard-counters.tsx + dashboard-pipeline-preview.tsx exist as stubs; no dashboard page.tsx; no real data |
+| T-052 | ROOT: NPD Dashboard page group | ✅ DONE | DONE 2026-06-04 (parallel ramp). NPD Dashboard page — KPI counters + dept progress + launch alerts via T-051 actions, parity (fa-screens.jsx:32-174), RTL, tsc0, i18n npd.dashboard. kira-ui |
 | T-053 | E2E: dashboard refresh + alert thresholds smoke | ⬜ PENDING | Blocked by T-051, T-052 |
 | T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
 | T-055 | Reference.GateChecklistTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.GateChecklistTemplates (mig 092) — merged |
 | T-056 | Default G0-G4 GateChecklistTemplates seed | ✅ DONE | DONE 2026-06-04 (Wave B). Default G0-G4 GateChecklistTemplates seed (mig 101, Sonnet, 9/9 idempotent) — merged |
 | T-057 | createProject + listProjects + getProject Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). createProject/list/get Server Actions + npd.project.created event (mig 103) — Codex+rework (typecheck fix, code constraint→(org_id,code) fixing T-054 global-unique bug, real integration tests). merged |
-| T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ⬜ PENDING | Blocked by T-054, T-057, T-095 |
+| T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ✅ DONE | DONE 2026-06-04 (parallel ramp). advanceProjectGate/approveProjectGate/rollbackGate (mig 143) — gate transitions + checklist gating + e-sign G3/G4 + rollback. Codex+Opus review PASS-WITH-NITS. REAL integration 6/6. merged |
 | T-059 | UI: Pipeline Kanban view | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-060 | ROOT: Pipeline views group | ⬜ PENDING | Blocked by T-057, T-059 |
 | T-061 | ROOT: Gate screen components group | ⬜ PENDING | Blocked by T-057, T-058 |
@@ -106,7 +106,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-092 | Shared BOM SSOT schema | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). Shared BOM SSOT bom_headers+bom_lines (mig 090, NUMERIC-exact, versioned) — Codex+rework (INSERT immutability guard), merged. Existing bom_item(014) is R13 placeholder, no collision |
 | T-093 | API/backfill: NPD Builder writes initial shared BOM | ✅ DONE | DONE 2026-06-04 (Wave B). NPD Builder writes initial shared BOM + bom.* events (mig 099) — merged; immutability/idempotency/RLS verified |
 | T-094 | FG canonical terminology compatibility pass (UI/i18n) | ⬜ PENDING | Blocked by T-056, T-058, T-095 |
-| T-095 | G3 create/map FG candidate for NPD project | ⬜ PENDING | Blocked by T-031, T-054, T-057, T-058 |
+| T-095 | G3 create/map FG candidate for NPD project | ✅ DONE | DONE 2026-06-04 (parallel ramp). G3 create/map FG candidate — creates product/FG row (composite PK) on G2→G3 transition, linked to npd_project. coupled with T-058. merged |
 | T-096 | releaseNpdProjectToFactory | ⬜ PENDING | Blocked by T-056, T-058, T-092, T-093, T-095, T-097 |
 | T-097 | Shared factory release status/read model and events | ✅ DONE | DONE 2026-06-04 (Wave C). Shared factory release status read-model (mig 125) + events — Opus review PASS (canonical boundaries clean, Technical-approval gate at DB trigger, D365 no-op). merged |
 | T-098 | Full Brief→Project→G3 FG→G4 release→Technical E2E | ⬜ PENDING | Blocked by most of the above |
@@ -130,8 +130,8 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-116 | UI: CompositionBar (horizontal stacked %) | ⬜ PENDING | Blocked by T-065 |
 | T-117 | WIRING: FormulationEditor panels | ⬜ PENDING | Blocked by T-066, T-113–T-116 |
 | T-118 | PARITY: FormulationEditor panels | ⬜ PENDING | Blocked by T-113–T-117 |
-| T-119 | UI: Brief list page | ⬜ PENDING | Blocked by T-030, T-031 |
-| T-120 | UI: Brief detail page | ⬜ PENDING | Blocked by T-030, T-031 |
+| T-119 | UI: Brief list page | ✅ DONE | DONE 2026-06-04 (parallel ramp). Brief list page — real brief rows org-scoped, Linked-Project column (e2e-spine), parity (brief-screens.jsx:7-82), RTL, tsc0, i18n npd.briefList. kira-ui |
+| T-120 | UI: Brief detail page | ✅ DONE | DONE 2026-06-04 (parallel ramp). Brief detail page — brief+brief_lines (Section A/B), wired saveBriefDraft (T-031), parity (brief-screens.jsx:84-231), RTL, tsc0, i18n npd.briefDetail. kira-ui |
 | T-121 | WIRING: Brief list→detail navigation | ⬜ PENDING | Blocked by T-119, T-120 |
 | T-122 | PARITY: Brief list + detail Playwright | ⬜ PENDING | Blocked by T-119–T-121 |
 | T-123 | UI: D365 Build modal | ⬜ PENDING | Button exists in fa-right-panel but no modal; blocked by T-044 |
