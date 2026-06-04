@@ -11,8 +11,12 @@ export { d365Constants } from './d365-constants.js';
 export type { D365Constant, NewD365Constant } from './d365-constants.js';
 export { alertThresholds } from './alert-thresholds.js';
 export type { AlertThreshold, NewAlertThreshold } from './alert-thresholds.js';
-export { d365ImportCache } from './d365-import-cache.js';
-export type { D365ImportCache, NewD365ImportCache } from './d365-import-cache.js';
+export { d365ImportCache, d365ImportCacheMeta } from './d365-import-cache.js';
+export type {
+  D365ImportCache,
+  D365ImportCacheMeta,
+  NewD365ImportCache,
+} from './d365-import-cache.js';
 export { emailDeliveryLog } from './email-log.js';
 export { featureFlagsCore, notificationPreferences } from './flags-prefs.js';
 export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.js';

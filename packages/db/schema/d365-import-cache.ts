@@ -1,6 +1,16 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { check, index, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  check,
+  index,
+  pgTable,
+  pgView,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { organizations } from './baseline.js';
 
@@ -29,5 +39,12 @@ export const d365ImportCache = pgTable(
   }),
 );
 
+export const d365ImportCacheMeta = pgView('d365_import_cache_meta', {
+  orgId: uuid('org_id').notNull(),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  rowCount: bigint('row_count', { mode: 'number' }).notNull(),
+}).existing();
+
 export type D365ImportCache = InferSelectModel<typeof d365ImportCache>;
 export type NewD365ImportCache = InferInsertModel<typeof d365ImportCache>;
+export type D365ImportCacheMeta = typeof d365ImportCacheMeta.$inferSelect;
