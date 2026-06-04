@@ -122,3 +122,62 @@ body {
 a {
   color: inherit;
 }
+
+/* ============ Button system ============
+   Mirrors prototypes/design/Monopilot Design System/_shared/shared.css:42-54
+   so the shared @monopilot/ui Button (which emits class="btn") and the
+   btn-primary / btn-secondary / btn-ghost / btn-danger modifiers used across
+   the settings screens render the prototype's primary blue instead of a bare
+   browser button. */
+.btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--blue-600);
+}
+.btn-secondary {
+  background: #fff;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--gray-600);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: var(--text);
+}
+.btn-danger {
+  background: var(--red-700);
+  color: #fff;
+  border-color: var(--red-700);
+}
+.btn-danger:hover:not(:disabled) {
+  background: #991b1b;
+}

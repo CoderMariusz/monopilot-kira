@@ -21,6 +21,7 @@ const messages: Record<string, string> = {
   empty: 'No organization profile is available for the current org.',
   load_error: 'Company profile could not be loaded.',
   save_error: 'Company profile could not be saved.',
+  save_success: 'Company profile saved.',
   read_only_label: 'Read-only',
   read_only_notice: 'You need settings.org.update to save company profile changes.',
   section_identity: 'Identity',
@@ -54,6 +55,11 @@ const messages: Record<string, string> = {
 
 vi.mock('next-intl', () => ({
   useTranslations: (namespace?: string) => (key: string) => messages[key] ?? `${namespace}.${key}`,
+}));
+
+const routerRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: routerRefresh, push: vi.fn(), replace: vi.fn() }),
 }));
 
 type CompanyProfile = {
@@ -309,7 +315,20 @@ describe('SET-010 save action and V-SET-32 region lock', () => {
       }),
     );
     expect(await screen.findByDisplayValue('Apex Prime Foods')).toBeInTheDocument();
-    expect(await screen.findByText(/settings\.org\.updated/i)).toBeInTheDocument();
+    // Localized success confirmation (not a raw internal event-type key) so the
+    // user gets visible feedback that the save persisted.
+    expect(await screen.findByText('Company profile saved.')).toBeInTheDocument();
+    expect(screen.queryByText(/settings\.org\.updated/i)).not.toBeInTheDocument();
+    // Re-fetch the server-rendered row so persisted values are reflected.
+    expect(routerRefresh).toHaveBeenCalled();
+  });
+
+  it('renders the primary Save button with the prototype btn-primary blue variant (org-screens.jsx:22)', async () => {
+    await renderCompanyProfile();
+    const save = screen.getByRole('button', { name: /save changes/i });
+    expect(save.className).toContain('btn-primary');
+    const cancel = screen.getByRole('button', { name: /^cancel$/i });
+    expect(cancel.className).toContain('btn-ghost');
   });
 
   it('keeps region read-only with the exact support-ticket tooltip and excludes region from save payload', async () => {
