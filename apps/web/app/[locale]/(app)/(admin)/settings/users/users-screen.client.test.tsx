@@ -5,8 +5,6 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const productionModalCalls = vi.hoisted(() => ({
-  invite: [] as Array<{ open: boolean; roles: string[] }>,
-  roleAssign: [] as Array<{ open: boolean; users: Array<{ id: string; currentRoleLabel: string }>; roles: Array<{ id: string; label: string }> }>,
   passwordReset: [] as Array<{ open: boolean; user: { id: string; email: string } | null }>,
 }));
 
@@ -51,39 +49,6 @@ vi.mock('@monopilot/ui/Modal', () => {
   }
   return { default: Object.assign(Modal, { Header, Body, Footer }) };
 });
-
-vi.mock('../../../../../../components/settings/modals/user-invite-modal', () => ({
-  UserInviteModal: (props: { open: boolean; roles: string[]; onOpenChange: (open: boolean) => void }) => {
-    productionModalCalls.invite.push({ open: props.open, roles: props.roles });
-    if (!props.open) return null;
-    return (
-      <div role="dialog" aria-modal="true" aria-label="production invite modal">
-        <p>Production UserInviteModal</p>
-        <button type="button" onClick={() => props.onOpenChange(false)}>Close production invite</button>
-      </div>
-    );
-  },
-}));
-
-vi.mock('../../../../../../components/settings/modals/role-assign-modal', () => ({
-  RoleAssignModal: (props: {
-    open: boolean;
-    users: Array<{ id: string; currentRoleLabel: string }>;
-    roles: Array<{ id: string; label: string }>;
-    onOpenChange: (open: boolean) => void;
-  }) => {
-    productionModalCalls.roleAssign.push({ open: props.open, users: props.users, roles: props.roles });
-    if (!props.open) return null;
-    return (
-      <div role="dialog" aria-modal="true" aria-label="production role assign modal">
-        <p>Production RoleAssignModal</p>
-        <p>Selected user {props.users[0]?.id}</p>
-        <p>Role options {props.roles.map((role) => role.label).join(', ')}</p>
-        <button type="button" onClick={() => props.onOpenChange(false)}>Close production role assign</button>
-      </div>
-    );
-  },
-}));
 
 vi.mock('../../../../../../components/settings/modals/password-reset-modal', () => ({
   PasswordResetModal: (props: { open: boolean; user?: { id: string; email: string } | null; onOpenChange: (open: boolean) => void }) => {
@@ -225,19 +190,21 @@ function renderScreen(overrides: Partial<SettingsUsersScreenProps & { assignRole
 
 describe('SettingsUsersScreen invite and role assignment parity', () => {
   beforeEach(() => {
-    productionModalCalls.invite.length = 0;
-    productionModalCalls.roleAssign.length = 0;
     productionModalCalls.passwordReset.length = 0;
   });
 
-  it('opens the production UserInviteModal from the route CTA and keeps the CTA fail-closed without invite permission', async () => {
+  it('opens a single invite dialog from the route CTA and keeps the CTA fail-closed without invite permission', async () => {
     const user = userEvent.setup();
     const inviteUserAction = vi.fn().mockResolvedValue({ ok: true, data: { email: 'new@example.com', expiresAt: '2026-06-01T00:00:00Z' } });
-    renderScreen({ inviteUserAction });
+    const { unmount } = renderScreen({ inviteUserAction });
 
     await user.click(screen.getByRole('button', { name: /invite user/i }));
-    expect(await screen.findByRole('dialog', { name: /production invite modal/i })).toBeVisible();
-    expect(productionModalCalls.invite.at(-1)).toMatchObject({ open: true, roles: ['Admin', 'Manager', 'Operator', 'Viewer'] });
+    // Exactly ONE invite dialog is rendered (the duplicate competing modal that
+    // caused the focus war / close-on-click is gone).
+    const dialogs = await screen.findAllByRole('dialog', { name: /invite team member/i });
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toBeVisible();
+    unmount();
 
     renderScreen({
       data: { ...data, canInviteUsers: false } as UsersScreenData,
@@ -246,7 +213,29 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     const disabledInvite = screen.getAllByRole('button', { name: /invite user/i }).at(-1);
     expect(disabledInvite).toBeDisabled();
     await user.click(disabledInvite!);
-    expect(screen.queryAllByRole('dialog', { name: /production invite modal/i })).toHaveLength(1);
+    expect(screen.queryAllByRole('dialog', { name: /invite team member/i })).toHaveLength(0);
+  });
+
+  it('keeps the invite dialog open while the user moves between fields and retains entered values', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+
+    // Field A: email
+    const email = within(dialog).getByRole('textbox', { name: /email address/i });
+    await user.type(email, 'new@example.com');
+    // Click/type a SECOND field — previously this closed the modal.
+    const message = within(dialog).getByRole('textbox', { name: /personal message/i });
+    await user.click(message);
+    await user.type(message, 'Welcome aboard');
+
+    // Modal still open, single instance, and both values retained.
+    const stillOpen = screen.getAllByRole('dialog', { name: /invite team member/i });
+    expect(stillOpen).toHaveLength(1);
+    expect(within(stillOpen[0]).getByRole('textbox', { name: /email address/i })).toHaveValue('new@example.com');
+    expect(within(stillOpen[0]).getByRole('textbox', { name: /personal message/i })).toHaveValue('Welcome aboard');
   });
 
   it('submits Invite user dialog through the injected Server Action with role, site, and personal message metadata', async () => {
@@ -288,7 +277,7 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/role.*updated|assigned/i);
   });
 
-  it('opens the production RoleAssignModal for the selected user and passes role picker options/categories', async () => {
+  it('opens a single role-assign dialog for the selected user with the role picker options', async () => {
     const user = userEvent.setup();
     const assignRoleAction = vi.fn().mockResolvedValue({ ok: true, data: { targetUserId: 'user-maria', roleId: 'role-operator' } });
     renderScreen({ assignRoleAction });
@@ -296,13 +285,14 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     const row = screen.getByRole('row', { name: /Maria Manager maria@example\.com/i });
     await user.selectOptions(within(row).getByRole('combobox', { name: /Maria Manager Role/i }), 'role-operator');
 
-    expect(await screen.findByRole('dialog', { name: /production role assign modal/i })).toBeVisible();
-    expect(screen.getByText(/Selected user user-maria/i)).toBeVisible();
-    expect(screen.getByText(/Role options Admin, Manager, Operator, Viewer/i)).toBeVisible();
-    expect(productionModalCalls.roleAssign.at(-1)).toMatchObject({
-      open: true,
-      users: [expect.objectContaining({ id: 'user-maria', currentRoleLabel: 'Manager' })],
-    });
+    // Exactly ONE role-assign dialog (no competing duplicate modal).
+    const dialogs = await screen.findAllByRole('dialog', { name: /assign role/i });
+    expect(dialogs).toHaveLength(1);
+    const dialog = dialogs[0];
+    expect(within(dialog).getByLabelText(/search user/i)).toHaveValue('Maria Manager');
+    const rolePicker = within(dialog).getByRole('combobox', { name: /new role/i });
+    expect(within(rolePicker).getByRole('option', { name: 'Admin' })).toBeInTheDocument();
+    expect(within(rolePicker).getByRole('option', { name: 'Viewer' })).toBeInTheDocument();
   });
 
   it('opens PasswordResetModal from a visible per-user action when allowed', async () => {

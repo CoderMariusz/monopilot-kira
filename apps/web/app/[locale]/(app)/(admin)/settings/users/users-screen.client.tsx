@@ -9,8 +9,6 @@ import Modal from '@monopilot/ui/Modal';
 import Textarea from '@monopilot/ui/Textarea';
 
 import { PasswordResetModal } from '../../../../../../components/settings/modals/password-reset-modal';
-import { RoleAssignModal } from '../../../../../../components/settings/modals/role-assign-modal';
-import { UserInviteModal } from '../../../../../../components/settings/modals/user-invite-modal';
 
 export type RoleCategory = 'Admin' | 'Manager' | 'Operator' | 'Viewer';
 export type UserStatus = 'active' | 'invited' | 'disabled';
@@ -527,17 +525,6 @@ export default function SettingsUsersScreen({
     ? `${data.kpis.activeUsers} ${labels.seatsUnlimited}`
     : `${data.kpis.activeUsers} / ${data.kpis.seatLimit}`;
 
-  const inviteRoleLabels = data.roles.map((role) => role.label);
-  const modalUsers = data.users.map((user) => ({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    initials: user.initials,
-    currentRoleId: user.roleId,
-    currentRoleLabel: user.roleLabel,
-  }));
-  const modalRoles = data.roles.map((role) => ({ id: role.id, label: role.label }));
-
   function openInviteDialog() {
     if (!data.canInviteUsers) return;
     setShowInvite(true);
@@ -801,6 +788,16 @@ export default function SettingsUsersScreen({
         </div>
       </section>
 
+      {/*
+        Single invite + role-assign dialogs only. Previously this screen
+        rendered BOTH the inline Radix InviteDialog/RoleAssignDialog AND the
+        legacy UserInviteModal/RoleAssignModal at the same time. With two
+        simultaneously-open, focus-trapped dialogs each Radix dialog treated a
+        click inside the other dialog as an "interact outside" event and fired
+        onOpenChange(false) — closing the modal as soon as the user moved to a
+        second field. Keeping a single i18n-complete dialog removes the focus
+        war and keeps the modal open through full form entry.
+      */}
       <InviteDialog
         open={showInvite}
         onOpenChange={setShowInvite}
@@ -810,28 +807,6 @@ export default function SettingsUsersScreen({
         inviteUserAction={inviteUserAction}
         onFeedback={setFeedback}
       />
-      <UserInviteModal
-        open={showInvite && data.canInviteUsers}
-        onOpenChange={setShowInvite}
-        roles={inviteRoleLabels}
-        inviteUser={async (input) => {
-          const role = data.roles.find((candidate) => candidate.label === input.role || candidate.id === input.role);
-          if (!inviteUserAction || !role) return { ok: false, error: 'ROLE_REQUIRED' };
-          const result = await inviteUserAction({
-            email: input.email,
-            name: input.fullName,
-            roleId: role.id,
-            personalMessage: input.message,
-            language: locale,
-          });
-          if (result.ok) {
-            setFeedback({ kind: 'status', message: interpolate(labels.invitationSent, { email: result.data.email }) });
-            return { ok: true };
-          }
-          setFeedback({ kind: 'alert', message: interpolate(labels.invitationFailed, { error: result.error }) });
-          return { ok: false, error: result.error };
-        }}
-      />
       <RoleAssignDialog
         draft={roleAssignmentDraft}
         onClose={() => setRoleAssignmentDraft(null)}
@@ -839,27 +814,6 @@ export default function SettingsUsersScreen({
         data={data}
         assignRoleAction={assignRoleAction}
         onFeedback={setFeedback}
-      />
-      <RoleAssignModal
-        open={Boolean(roleAssignmentDraft) && data.canAssignRoles && Boolean(assignRoleAction)}
-        users={roleAssignmentDraft
-          ? modalUsers.filter((user) => user.id === roleAssignmentDraft.user.id)
-          : modalUsers}
-        roles={modalRoles}
-        searchUsers={async ({ query, limit }) => {
-          const normalized = query.toLowerCase();
-          return modalUsers
-            .filter((user) => `${user.name} ${user.email}`.toLowerCase().includes(normalized))
-            .slice(0, limit);
-        }}
-        assignRole={async (input) => {
-          if (!assignRoleAction) return { ok: false, error: labels.roleAssignmentUnavailable };
-          const result = await assignRoleAction({ targetUserId: input.userId, roleId: input.roleId });
-          if (!result.ok) return { ok: false, error: result.error };
-          return { ok: true, userId: result.data.targetUserId, roleId: result.data.roleId, revalidatedPath: '/settings/users' };
-        }}
-        onOpenChange={(open) => { if (!open) setRoleAssignmentDraft(null); }}
-        onAssigned={() => setFeedback({ kind: 'status', message: labels.roleAssignmentSuccess ?? 'Role updated.' })}
       />
       {passwordResetUser ? (
         <PasswordResetModal

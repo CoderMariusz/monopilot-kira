@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
@@ -44,6 +45,7 @@ export type CompanyProfileScreenLabels = {
   empty: string;
   loadError: string;
   saveError: string;
+  saveSuccess: string;
   readOnlyLabel: string;
   readOnlyNotice: string;
   sections: {
@@ -164,6 +166,7 @@ function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyP
     empty: t('empty'),
     loadError: t('load_error'),
     saveError: t('save_error'),
+    saveSuccess: t('save_success'),
     readOnlyLabel: t('read_only_label'),
     readOnlyNotice: t('read_only_notice'),
     sections: {
@@ -358,6 +361,7 @@ function CityZipField({
 }
 
 export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps = {}) {
+  const router = useRouter();
   const translatedLabels = labelsFromTranslations(useTranslations('settings.company_profile'));
   const labels = rawProps.labels ?? translatedLabels;
   const organization = rawProps.organization ?? fallbackOrganization;
@@ -431,7 +435,11 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         const next = result.organization ? { ...fallbackOrganization, ...result.organization } : draft;
         setSaved(next);
         setDraft(next);
-        setMessage(result.outboxEventType ?? 'settings.org.updated');
+        setMessage(labels.saveSuccess);
+        // Re-fetch the server-rendered row so the persisted values are reflected
+        // (without this the screen keeps the in-memory draft and the save can
+        // look like a no-op to the user).
+        router.refresh?.();
       } else {
         setError(labels.saveError);
       }
@@ -466,10 +474,10 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         foot={
           canEdit ? (
             <>
-              <Button disabled={!isDirty || isSaving} type="button" onClick={() => setDraft(saved)}>
+              <Button className="btn-ghost" disabled={!isDirty || isSaving} type="button" onClick={() => setDraft(saved)}>
                 {labels.actions.cancel}
               </Button>
-              <Button disabled={!isDirty || isSaving} type="button" onClick={() => void handleSave()}>
+              <Button className="btn-primary" disabled={!isDirty || isSaving} type="button" onClick={() => void handleSave()}>
                 {labels.actions.saveChanges}
               </Button>
             </>
@@ -497,7 +505,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
               {draft.logoInitials}
             </div>
             <div>
-              <Button disabled={controlsDisabled} type="button" onClick={() => void uploadLogo?.()}>
+              <Button className="btn-secondary" disabled={controlsDisabled} type="button" onClick={() => void uploadLogo?.()}>
                 {labels.actions.uploadNew}
               </Button>
               <div className="mt-1 text-[11px] text-slate-500">{labels.hints.upload}</div>

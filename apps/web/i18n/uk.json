@@ -425,6 +425,7 @@
       "empty": "No organization profile is available for the current org.",
       "load_error": "Company profile could not be loaded.",
       "save_error": "Company profile could not be saved.",
+      "save_success": "Профіль компанії збережено.",
       "read_only_label": "Read-only",
       "read_only_notice": "You need settings.org.update to save company profile changes.",
       "section_identity": "Identity",

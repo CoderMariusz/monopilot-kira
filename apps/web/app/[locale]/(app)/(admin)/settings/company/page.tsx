@@ -183,6 +183,7 @@ async function buildLabels(locale: string): Promise<CompanyProfileScreenLabels> 
     empty: t('empty'),
     loadError: t('load_error'),
     saveError: t('save_error'),
+    saveSuccess: t('save_success'),
     readOnlyLabel: t('read_only_label'),
     readOnlyNotice: t('read_only_notice'),
     sections: {
