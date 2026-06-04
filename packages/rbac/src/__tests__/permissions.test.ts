@@ -114,6 +114,38 @@ const expectedProductionPermissions = [
   'production.oee.read',
 ] as const;
 
+const expectedWarehousePermissions = [
+  'warehouse.lp.create',
+  'warehouse.lp.split',
+  'warehouse.lp.merge',
+  'warehouse.lp.reserve',
+  'warehouse.lp.consume',
+  'warehouse.lp.block',
+  'warehouse.lp.ship',
+  'warehouse.lp.force_unlock',
+  'warehouse.grn.receive',
+  'warehouse.stock.move',
+  'warehouse.stock.adjust',
+  'warehouse.inventory.read',
+  'warehouse.fefo.override',
+] as const;
+
+const expectedQualityPermissions = [
+  'quality.hold.create',
+  'quality.hold.release',
+  'quality.spec.approve',
+  'quality.inspection.execute',
+  'quality.inspection.assign',
+  'quality.ncr.create',
+  'quality.ncr.close_critical',
+  'quality.ccp.deviation_override',
+  'quality.haccp.plan_edit',
+  'quality.batch.release',
+  'quality.dashboard.view',
+  'quality.settings.edit',
+  'quality.audit.export',
+] as const;
+
 const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
 const npdPermissionPattern = /^[a-z_]+\.[a-z_]+\.[a-z_]+$/;
 const npdPermissionsOutsideLiteralPattern = ['brief.create', 'npd.d365_builder.execute'] as const;
@@ -134,6 +166,8 @@ const expectedCanonicalPermissions = [
   ...expectedNpdPermissions,
   ...expectedTechnicalPermissions,
   ...expectedProductionPermissions,
+  ...expectedWarehousePermissions,
+  ...expectedQualityPermissions,
 ] as const;
 
 type PermissionsModule = {
@@ -145,6 +179,8 @@ type PermissionsModule = {
   ALL_NPD_PERMISSIONS: readonly string[];
   ALL_TECHNICAL_PERMISSIONS: readonly string[];
   ALL_PRODUCTION_PERMISSIONS: readonly string[];
+  ALL_WAREHOUSE_PERMISSIONS: readonly string[];
+  ALL_QUALITY_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -320,6 +356,55 @@ describe('rbac permission source of truth', () => {
       /export\s+const\s+ALL_PRODUCTION_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
     );
     expect(productionExport?.[0]).toContain('ALL_PRODUCTION_PERMISSIONS');
+  });
+
+  it('exports the warehouse permissions as a typed Permission array literal (T-058 §5.2/§6/§7/§8/§9)', async () => {
+    const { ALL_PERMISSIONS, ALL_WAREHOUSE_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    expect(ALL_WAREHOUSE_PERMISSIONS).toEqual(expectedWarehousePermissions);
+    expect(ALL_WAREHOUSE_PERMISSIONS).toHaveLength(13);
+    expect(new Set(ALL_WAREHOUSE_PERMISSIONS).size).toBe(ALL_WAREHOUSE_PERMISSIONS.length);
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+
+    for (const permission of ALL_WAREHOUSE_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission.startsWith('warehouse.')).toBe(true);
+      expect(permission).toMatch(/^[a-z_]+\.[a-z_]+\.[a-z_]+$/);
+    }
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const warehouseExport = source.match(
+      /export\s+const\s+ALL_WAREHOUSE_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(warehouseExport?.[0]).toContain('ALL_WAREHOUSE_PERMISSIONS');
+  });
+
+  it('exports the quality permissions as a typed Permission array literal (T-065 §2.3)', async () => {
+    const { ALL_PERMISSIONS, ALL_QUALITY_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    // AC1 — all 13 strings present exactly once, in order.
+    expect(ALL_QUALITY_PERMISSIONS).toEqual(expectedQualityPermissions);
+    // AC3 — typed readonly Permission[] with length === 13.
+    expect(ALL_QUALITY_PERMISSIONS).toHaveLength(13);
+    expect(new Set(ALL_QUALITY_PERMISSIONS).size).toBe(ALL_QUALITY_PERMISSIONS.length);
+
+    // AC2 — regex + uniqueness across the whole enum.
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+    for (const permission of ALL_QUALITY_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission.startsWith('quality.')).toBe(true);
+      expect(permission).toMatch(/^[a-z_]+\.[a-z_]+\.[a-z_]+$/);
+    }
+
+    // Allergen dual-sign is owned by 08-PRODUCTION, NOT re-declared here.
+    expect(ALL_QUALITY_PERMISSIONS).not.toContain('production.allergen_gate.sign_first');
+    expect(ALL_QUALITY_PERMISSIONS).not.toContain('production.allergen_gate.sign_second');
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const qualityExport = source.match(
+      /export\s+const\s+ALL_QUALITY_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(qualityExport?.[0]).toContain('ALL_QUALITY_PERMISSIONS');
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {

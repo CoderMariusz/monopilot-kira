@@ -225,6 +225,34 @@ export const Permission = {
   WAREHOUSE_INVENTORY_READ: 'warehouse.inventory.read',
   /** Warehouse FEFO deviation override (reason_code required) permission; PRD 05-WAREHOUSE §9.3. */
   WAREHOUSE_FEFO_OVERRIDE: 'warehouse.fefo.override',
+
+  // Quality (09-quality) — hold / spec / inspection / NCR / HACCP / batch-release / dashboard family.
+  /** Quality hold create permission; PRD 09-QUALITY §2.3, §6.3 (quality_holds). */
+  QUALITY_HOLD_CREATE: 'quality.hold.create',
+  /** Quality hold release (e-signature) permission; PRD 09-QUALITY §2.3, §6.3. */
+  QUALITY_HOLD_RELEASE: 'quality.hold.release',
+  /** Quality specification approve (e-signature) permission; PRD 09-QUALITY §2.3, §6.3. */
+  QUALITY_SPEC_APPROVE: 'quality.spec.approve',
+  /** Quality inspection execute (record results + sign) permission; PRD 09-QUALITY §2.3. */
+  QUALITY_INSPECTION_EXECUTE: 'quality.inspection.execute',
+  /** Quality inspection assign (QA-031A) permission; PRD 09-QUALITY §8 QA-031A. */
+  QUALITY_INSPECTION_ASSIGN: 'quality.inspection.assign',
+  /** Quality NCR create permission; PRD 09-QUALITY §2.3, §6.3 (ncr_reports). */
+  QUALITY_NCR_CREATE: 'quality.ncr.create',
+  /** Quality NCR close-critical (dual-sign) permission; PRD 09-QUALITY §6.3 (critical close SoD). */
+  QUALITY_NCR_CLOSE_CRITICAL: 'quality.ncr.close_critical',
+  /** Quality CCP deviation override permission; PRD 09-QUALITY §6.3 (HACCP). */
+  QUALITY_CCP_DEVIATION_OVERRIDE: 'quality.ccp.deviation_override',
+  /** Quality HACCP plan edit permission; PRD 09-QUALITY §6.3 (haccp_plans). */
+  QUALITY_HACCP_PLAN_EDIT: 'quality.haccp.plan_edit',
+  /** Quality batch release permission; PRD 09-QUALITY §2.3 (batch release gate). */
+  QUALITY_BATCH_RELEASE: 'quality.batch.release',
+  /** Quality dashboard view permission; PRD 09-QUALITY §8 QA-001 (base read). */
+  QUALITY_DASHBOARD_VIEW: 'quality.dashboard.view',
+  /** Quality settings edit (QA-060) permission; PRD 09-QUALITY §8 QA-060. */
+  QUALITY_SETTINGS_EDIT: 'quality.settings.edit',
+  /** Quality audit export (7y auditor) permission; PRD 09-QUALITY §2.2. */
+  QUALITY_AUDIT_EXPORT: 'quality.audit.export',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -365,6 +393,30 @@ export const ALL_WAREHOUSE_PERMISSIONS = [
   Permission.WAREHOUSE_FEFO_OVERRIDE,
 ] as readonly Permission[];
 
+/**
+ * Quality (09-quality) module permission group; PRD 09-QUALITY §2.3 (RBAC matrix) + §6.3 (NCR/HACCP)
+ * + §8 (QA-031A inspection.assign, QA-060 settings) + §2.2 (auditor 7y export). 13 page/action
+ * permissions (T-065). Allergen dual-sign is owned by 08-PRODUCTION
+ * (production.allergen_gate.sign_{first,second}) and is NOT re-declared here. Recognised by the
+ * ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130).
+ * Seeded to the org-admin role family + QA inspector/lead roles by migration 198.
+ */
+export const ALL_QUALITY_PERMISSIONS = [
+  Permission.QUALITY_HOLD_CREATE,
+  Permission.QUALITY_HOLD_RELEASE,
+  Permission.QUALITY_SPEC_APPROVE,
+  Permission.QUALITY_INSPECTION_EXECUTE,
+  Permission.QUALITY_INSPECTION_ASSIGN,
+  Permission.QUALITY_NCR_CREATE,
+  Permission.QUALITY_NCR_CLOSE_CRITICAL,
+  Permission.QUALITY_CCP_DEVIATION_OVERRIDE,
+  Permission.QUALITY_HACCP_PLAN_EDIT,
+  Permission.QUALITY_BATCH_RELEASE,
+  Permission.QUALITY_DASHBOARD_VIEW,
+  Permission.QUALITY_SETTINGS_EDIT,
+  Permission.QUALITY_AUDIT_EXPORT,
+] as readonly Permission[];
+
 export const LegacyPermissionAlias = {
   'fa.create': Permission.FG_CREATE,
   'fa.edit': Permission.FG_EDIT,
@@ -374,6 +426,13 @@ export const LegacyPermissionAlias = {
 export type LegacyPermissionAlias = keyof typeof LegacyPermissionAlias;
 
 export const ALL_PERMISSIONS = Object.values(Permission) as readonly Permission[];
+
+// O(1) membership lookup for isPermission(). Mirrors the `canonicalEvents` Set
+// idiom in packages/outbox/src/events.enum.ts. Built once at module load from
+// the same source of truth (ALL_PERMISSIONS), so membership semantics are
+// identical to the previous Array.includes scan — just constant-time instead of
+// an O(n) linear scan over ~140 permission strings.
+const PERMISSION_SET: ReadonlySet<string> = new Set(ALL_PERMISSIONS);
 
 export const SOD_EXCLUSIVE_PAIRS = [
   [Permission.ORG_ACCESS_ADMIN, Permission.ORG_SCHEMA_ADMIN],
@@ -392,7 +451,7 @@ export function normalizePermission(input: string): Permission {
 }
 
 function isPermission(input: string): input is Permission {
-  return (ALL_PERMISSIONS as readonly string[]).includes(input);
+  return PERMISSION_SET.has(input);
 }
 
 function isLegacyPermissionAlias(input: string): input is LegacyPermissionAlias {

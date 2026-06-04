@@ -3113,6 +3113,26 @@ $$;
 
 
 --
+-- Name: ncr_reports_set_updated_at_retention(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ncr_reports_set_updated_at_retention() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  new.retention_until := (new.created_at::date + interval '10 years')::date;
+  new.response_due_at := new.detected_at + case new.severity
+    when 'critical' then interval '24 hours'
+    when 'major'    then interval '48 hours'
+    when 'minor'    then interval '7 days'
+  end;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: npd_dashboard_label(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3224,6 +3244,40 @@ begin
   returning 1
   into removed;
   return coalesce(removed, 0);
+end;
+$$;
+
+
+--
+-- Name: quality_holds_set_updated_at_retention(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.quality_holds_set_updated_at_retention() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  -- retention_until (BRCGS 7y from release/create) — §6.3 COALESCE(released_at, created_at+7y)+7y.
+  new.retention_until :=
+    (coalesce(new.released_at, new.created_at + interval '7 years')::date + interval '7 years')::date;
+  -- estimated_release_at = created_at::date + default_hold_duration_days.
+  new.estimated_release_at :=
+    (new.created_at::date + (coalesce(new.default_hold_duration_days, 0) || ' days')::interval)::date;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: quality_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.quality_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
 end;
 $$;
 
@@ -4593,6 +4647,142 @@ CREATE FUNCTION public.seed_production_permissions_on_org_insert() RETURNS trigg
     AS $$
 begin
   perform public.seed_production_permissions_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
+-- Name: seed_quality_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_quality_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- Complete quality.* family (PRD §2.3 RBAC matrix). Mirrors ALL_QUALITY_PERMISSIONS.
+  v_all_perms text[] := array[
+    'quality.hold.create',
+    'quality.hold.release',
+    'quality.spec.approve',
+    'quality.inspection.execute',
+    'quality.inspection.assign',
+    'quality.ncr.create',
+    'quality.ncr.close_critical',
+    'quality.ccp.deviation_override',
+    'quality.haccp.plan_edit',
+    'quality.batch.release',
+    'quality.dashboard.view',
+    'quality.settings.edit',
+    'quality.audit.export'
+  ];
+  -- QA inspector / lab operator subset: creates holds, executes inspections, raises NCRs, views the
+  -- dashboard. NOT the elevated/approval strings (hold.release, spec.approve, ncr.close_critical,
+  -- ccp.deviation_override, haccp.plan_edit, batch.release, settings.edit, audit.export — SoD).
+  v_inspector_perms text[] := array[
+    'quality.hold.create',
+    'quality.inspection.execute',
+    'quality.ncr.create',
+    'quality.dashboard.view'
+  ];
+  -- QA lead / hygiene lead subset: the approver. Full set (release/approve/close-critical/override/
+  -- haccp-edit/batch-release/settings/audit-export are quality-lead grants).
+  v_lead_perms text[] := v_all_perms;
+  -- org-admin role family across naming conventions used in this codebase.
+  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
+  -- QA inspector / lab role family (defensive — codes vary; grant is a no-op if absent).
+  v_inspector_roles text[] := array['qa_inspector','quality_inspector','inspector','lab_technician','lab_analyst'];
+  -- QA lead / hygiene lead role family (defensive).
+  v_lead_roles text[] := array['quality_lead','qa_lead','quality_manager','hygiene_lead','qa_manager'];
+begin
+  -- --- Normalized storage (role_permissions) ---
+  -- admin family: full set.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_all_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- inspector family: inspector subset.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_inspector_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_inspector_roles) or r.slug = any(v_inspector_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- lead family: lead subset (= full set).
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_lead_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- --- Legacy jsonb cache (roles.permissions) ---
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_all_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_inspector_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_inspector_roles) or r.slug = any(v_inspector_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_lead_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles));
+end;
+$$;
+
+
+--
+-- Name: seed_quality_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_quality_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_quality_permissions_for_org(new.id);
   return new;
 end;
 $$;
@@ -8972,6 +9162,69 @@ ALTER TABLE ONLY public.mrp_runs FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: ncr_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.ncr_seq
+    START WITH 1000
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ncr_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ncr_reports (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    ncr_seq bigint DEFAULT nextval('public.ncr_seq'::regclass) NOT NULL,
+    ncr_number text GENERATED ALWAYS AS (('NCR-'::text || lpad((ncr_seq)::text, 8, '0'::text))) STORED,
+    ncr_type text DEFAULT 'quality'::text NOT NULL,
+    severity text NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    title text NOT NULL,
+    description text NOT NULL,
+    reference_type text,
+    reference_id uuid,
+    product_id uuid,
+    detected_by uuid,
+    detected_at timestamp with time zone DEFAULT now() NOT NULL,
+    detected_location text,
+    fail_reason_code_id uuid,
+    affected_qty_kg numeric(18,3),
+    assigned_to uuid,
+    investigator_id uuid,
+    root_cause text,
+    root_cause_category text,
+    immediate_action text,
+    capa_record_id uuid,
+    target_yield_pct numeric(5,2),
+    actual_yield_pct numeric(5,2),
+    claim_pct numeric(5,2),
+    claim_value_eur numeric(18,2),
+    closed_by uuid,
+    closed_at timestamp with time zone,
+    closure_signature_hash character varying(64),
+    response_due_at timestamp with time zone,
+    linked_hold_id uuid,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    retention_until date DEFAULT (((now())::date + '10 years'::interval))::date,
+    CONSTRAINT ncr_reports_ncr_type_check CHECK ((ncr_type = ANY (ARRAY['quality'::text, 'yield_issue'::text, 'allergen_deviation'::text, 'supplier'::text, 'process'::text, 'complaint_related'::text]))),
+    CONSTRAINT ncr_reports_reference_type_check CHECK (((reference_type IS NULL) OR (reference_type = ANY (ARRAY['lp'::text, 'batch'::text, 'wo'::text, 'po'::text, 'grn'::text, 'inspection'::text, 'ccp_deviation'::text, 'complaint'::text, 'supplier'::text])))),
+    CONSTRAINT ncr_reports_severity_check CHECK ((severity = ANY (ARRAY['critical'::text, 'major'::text, 'minor'::text]))),
+    CONSTRAINT ncr_reports_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'open'::text, 'investigating'::text, 'awaiting_capa'::text, 'closed'::text, 'reopened'::text, 'cancelled'::text])))
+);
+
+ALTER TABLE ONLY public.ncr_reports FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: notification_preferences; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9444,7 +9697,7 @@ CREATE TABLE public.outbox_events (
     dead_lettered_at timestamp with time zone,
     last_error_text text,
     dedup_key text,
-    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'catch_weight.variance_exceeded'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.atp_swab_failed'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.d365_sync.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'warehouse.lp.received'::text, 'warehouse.lp.shipped'::text, 'warehouse.lp.transitioned'::text, 'warehouse.material.consumed'::text, 'wo.ready'::text])))
+    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'catch_weight.variance_exceeded'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.atp_swab_failed'::text, 'quality.hold.created'::text, 'quality.hold.released'::text, 'quality.ncr.assigned'::text, 'quality.ncr.closed'::text, 'quality.ncr.critical_dual_signed'::text, 'quality.ncr.opened'::text, 'quality.ncr.submitted'::text, 'quality.ncr.updated'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.d365_sync.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'warehouse.lp.received'::text, 'warehouse.lp.shipped'::text, 'warehouse.lp.transitioned'::text, 'warehouse.material.consumed'::text, 'wo.ready'::text])))
 );
 
 ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
@@ -9454,7 +9707,7 @@ ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
 -- Name: CONSTRAINT outbox_events_event_type_check ON outbox_events; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Regenerated from events.enum.ts DB_EVENT_TYPES (126 types incl warehouse.*).';
+COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Regenerated from events.enum.ts DB_EVENT_TYPES (134 types incl quality.hold.* / quality.ncr.*).';
 
 
 --
@@ -9524,6 +9777,136 @@ CREATE TABLE public.quality_event (
 );
 
 ALTER TABLE ONLY public.quality_event FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: quality_hold_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quality_hold_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    hold_id uuid NOT NULL,
+    license_plate_id uuid,
+    qty_held_kg numeric(18,3),
+    qty_released_kg numeric(18,3) DEFAULT 0,
+    item_status text DEFAULT 'held'::text NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT quality_hold_items_item_status_check CHECK ((item_status = ANY (ARRAY['held'::text, 'released'::text, 'partial_released'::text, 'scrapped'::text])))
+);
+
+ALTER TABLE ONLY public.quality_hold_items FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: quality_hold_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.quality_hold_seq
+    START WITH 1000
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: quality_holds; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quality_holds (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    hold_seq bigint DEFAULT nextval('public.quality_hold_seq'::regclass) NOT NULL,
+    hold_number text GENERATED ALWAYS AS (('HLD-'::text || lpad((hold_seq)::text, 8, '0'::text))) STORED,
+    reference_type text NOT NULL,
+    reference_id uuid NOT NULL,
+    reason_code_id uuid,
+    reason_free_text text,
+    priority text NOT NULL,
+    disposition text,
+    disposition_notes text,
+    default_hold_duration_days integer,
+    estimated_release_at date,
+    hold_status text DEFAULT 'open'::text NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    released_by uuid,
+    released_at timestamp with time zone,
+    release_signature_hash character varying(64),
+    release_notes text,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    retention_until date DEFAULT (((now())::date + '7 years'::interval))::date,
+    CONSTRAINT quality_holds_disposition_check CHECK (((disposition IS NULL) OR (disposition = ANY (ARRAY['pending'::text, 'rework'::text, 'scrap'::text, 'release_as_is'::text, 'return_supplier'::text, 'other'::text])))),
+    CONSTRAINT quality_holds_hold_status_check CHECK ((hold_status = ANY (ARRAY['open'::text, 'investigating'::text, 'released'::text, 'quarantined'::text, 'escalated'::text]))),
+    CONSTRAINT quality_holds_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text]))),
+    CONSTRAINT quality_holds_reference_type_check CHECK ((reference_type = ANY (ARRAY['lp'::text, 'batch'::text, 'wo'::text, 'po'::text, 'grn'::text])))
+);
+
+ALTER TABLE ONLY public.quality_holds FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: quality_spec_parameters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quality_spec_parameters (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    specification_id uuid NOT NULL,
+    parameter_name text NOT NULL,
+    parameter_type text NOT NULL,
+    target_value numeric,
+    min_value numeric,
+    max_value numeric,
+    unit text,
+    test_method text,
+    equipment_required text,
+    is_critical boolean DEFAULT false NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT quality_spec_parameters_min_le_max_check CHECK (((min_value IS NULL) OR (max_value IS NULL) OR (min_value <= max_value))),
+    CONSTRAINT quality_spec_parameters_parameter_type_check CHECK ((parameter_type = ANY (ARRAY['visual'::text, 'measurement'::text, 'attribute'::text, 'microbiological'::text, 'chemical'::text, 'sensory'::text, 'equipment'::text])))
+);
+
+ALTER TABLE ONLY public.quality_spec_parameters FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: quality_specifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.quality_specifications (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    spec_code text NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    effective_from date,
+    effective_until date,
+    applies_to text NOT NULL,
+    reference_documents jsonb DEFAULT '[]'::jsonb NOT NULL,
+    allergen_profile jsonb,
+    approved_by uuid,
+    approved_at timestamp with time zone,
+    approval_signature_hash character varying(64),
+    superseded_by uuid,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT quality_specifications_applies_to_check CHECK ((applies_to = ANY (ARRAY['incoming'::text, 'in_process'::text, 'final'::text, 'all'::text]))),
+    CONSTRAINT quality_specifications_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'under_review'::text, 'active'::text, 'expired'::text, 'superseded'::text])))
+);
+
+ALTER TABLE ONLY public.quality_specifications FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -10310,6 +10693,32 @@ CREATE TABLE public.users (
 );
 
 ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: v_active_holds; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_active_holds WITH (security_invoker='true') AS
+ SELECT id AS hold_id,
+    hold_number,
+    org_id,
+    reference_type,
+    reference_id,
+    priority,
+    hold_status,
+    created_at,
+    estimated_release_at,
+    default_hold_duration_days
+   FROM public.quality_holds h
+  WHERE ((hold_status = ANY (ARRAY['open'::text, 'investigating'::text, 'escalated'::text, 'quarantined'::text])) AND (released_at IS NULL));
+
+
+--
+-- Name: VIEW v_active_holds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_active_holds IS 'Canonical consume-gate read model (09-Quality §9.2, T-064). security_invoker view over quality_holds: active holds only (hold_status in open/investigating/escalated/quarantined AND released_at IS NULL). Queried by 08-production / 05-warehouse / 11-shipping via holdsGuard (single source of truth). NEVER security_definer — RLS must flow from quality_holds.';
 
 
 --
@@ -12023,6 +12432,22 @@ ALTER TABLE ONLY public.mrp_runs
 
 
 --
+-- Name: ncr_reports ncr_reports_ncr_number_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_ncr_number_uq UNIQUE (ncr_number);
+
+
+--
+-- Name: ncr_reports ncr_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notification_preferences notification_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12252,6 +12677,62 @@ ALTER TABLE ONLY public.production_lines
 
 ALTER TABLE ONLY public.quality_event
     ADD CONSTRAINT quality_event_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quality_hold_items quality_hold_items_hold_lp_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_hold_items
+    ADD CONSTRAINT quality_hold_items_hold_lp_uq UNIQUE (hold_id, license_plate_id);
+
+
+--
+-- Name: quality_hold_items quality_hold_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_hold_items
+    ADD CONSTRAINT quality_hold_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quality_holds quality_holds_hold_number_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_holds
+    ADD CONSTRAINT quality_holds_hold_number_uq UNIQUE (hold_number);
+
+
+--
+-- Name: quality_holds quality_holds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_holds
+    ADD CONSTRAINT quality_holds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quality_spec_parameters quality_spec_parameters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_spec_parameters
+    ADD CONSTRAINT quality_spec_parameters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quality_specifications quality_specifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quality_specifications quality_specifications_product_code_version_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_product_code_version_uq UNIQUE (org_id, product_id, spec_code, version);
 
 
 --
@@ -14083,6 +14564,20 @@ CREATE INDEX idx_factory_specs_org_status ON public.factory_specs USING btree (o
 
 
 --
+-- Name: idx_holds_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_holds_active ON public.quality_holds USING btree (org_id, hold_status) WHERE (hold_status = ANY (ARRAY['open'::text, 'investigating'::text, 'escalated'::text, 'quarantined'::text]));
+
+
+--
+-- Name: idx_holds_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_holds_ref ON public.quality_holds USING btree (org_id, reference_type, reference_id);
+
+
+--
 -- Name: idx_item_allergen_profile_overrides_actor; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14297,6 +14792,20 @@ CREATE INDEX idx_mrp_runs_org_site ON public.mrp_runs USING btree (org_id, site_
 --
 
 CREATE INDEX idx_mrp_runs_org_status ON public.mrp_runs USING btree (org_id, status);
+
+
+--
+-- Name: idx_ncr_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ncr_open ON public.ncr_reports USING btree (org_id, status, severity, response_due_at) WHERE (status <> ALL (ARRAY['closed'::text, 'cancelled'::text]));
+
+
+--
+-- Name: idx_ncr_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ncr_ref ON public.ncr_reports USING btree (org_id, reference_type, reference_id);
 
 
 --
@@ -14944,6 +15453,27 @@ CREATE INDEX mfa_secrets_last_otp_window_idx ON public.mfa_secrets USING btree (
 
 
 --
+-- Name: ncr_reports_linked_hold_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ncr_reports_linked_hold_idx ON public.ncr_reports USING btree (linked_hold_id) WHERE (linked_hold_id IS NOT NULL);
+
+
+--
+-- Name: ncr_reports_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ncr_reports_org_idx ON public.ncr_reports USING btree (org_id);
+
+
+--
+-- Name: ncr_reports_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ncr_reports_org_site_idx ON public.ncr_reports USING btree (org_id, site_id);
+
+
+--
 -- Name: notification_preferences_org_event_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15179,6 +15709,76 @@ CREATE INDEX production_lines_org_idx ON public.production_lines USING btree (or
 --
 
 CREATE INDEX quality_event_org_created_idx ON public.quality_event USING btree (org_id, created_at DESC);
+
+
+--
+-- Name: quality_hold_items_hold_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_hold_items_hold_idx ON public.quality_hold_items USING btree (hold_id);
+
+
+--
+-- Name: quality_hold_items_lp_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_hold_items_lp_idx ON public.quality_hold_items USING btree (license_plate_id) WHERE (license_plate_id IS NOT NULL);
+
+
+--
+-- Name: quality_hold_items_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_hold_items_org_idx ON public.quality_hold_items USING btree (org_id);
+
+
+--
+-- Name: quality_holds_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_holds_org_idx ON public.quality_holds USING btree (org_id);
+
+
+--
+-- Name: quality_holds_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_holds_org_site_idx ON public.quality_holds USING btree (org_id, site_id);
+
+
+--
+-- Name: quality_spec_parameters_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_spec_parameters_org_idx ON public.quality_spec_parameters USING btree (org_id);
+
+
+--
+-- Name: quality_spec_parameters_spec_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_spec_parameters_spec_idx ON public.quality_spec_parameters USING btree (specification_id);
+
+
+--
+-- Name: quality_specifications_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_specifications_org_idx ON public.quality_specifications USING btree (org_id);
+
+
+--
+-- Name: quality_specifications_org_product_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_specifications_org_product_idx ON public.quality_specifications USING btree (org_id, product_id);
+
+
+--
+-- Name: quality_specifications_superseded_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX quality_specifications_superseded_idx ON public.quality_specifications USING btree (superseded_by) WHERE (superseded_by IS NOT NULL);
 
 
 --
@@ -16071,10 +16671,45 @@ CREATE TRIGGER mrp_runs_set_updated_at BEFORE UPDATE ON public.mrp_runs FOR EACH
 
 
 --
+-- Name: ncr_reports ncr_reports_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ncr_reports_set_updated_at BEFORE INSERT OR UPDATE ON public.ncr_reports FOR EACH ROW EXECUTE FUNCTION public.ncr_reports_set_updated_at_retention();
+
+
+--
 -- Name: org_authorization_policies org_authorization_policies_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER org_authorization_policies_set_updated_at BEFORE UPDATE ON public.org_authorization_policies FOR EACH ROW EXECUTE FUNCTION public.org_authorization_policies_set_updated_at();
+
+
+--
+-- Name: quality_hold_items quality_hold_items_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER quality_hold_items_set_updated_at BEFORE UPDATE ON public.quality_hold_items FOR EACH ROW EXECUTE FUNCTION public.quality_set_updated_at();
+
+
+--
+-- Name: quality_holds quality_holds_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER quality_holds_set_updated_at BEFORE INSERT OR UPDATE ON public.quality_holds FOR EACH ROW EXECUTE FUNCTION public.quality_holds_set_updated_at_retention();
+
+
+--
+-- Name: quality_spec_parameters quality_spec_parameters_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER quality_spec_parameters_set_updated_at BEFORE UPDATE ON public.quality_spec_parameters FOR EACH ROW EXECUTE FUNCTION public.quality_set_updated_at();
+
+
+--
+-- Name: quality_specifications quality_specifications_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER quality_specifications_set_updated_at BEFORE UPDATE ON public.quality_specifications FOR EACH ROW EXECUTE FUNCTION public.quality_set_updated_at();
 
 
 --
@@ -16271,6 +16906,13 @@ CREATE TRIGGER trg_zzz_seed_npd_org_admin_permissions AFTER INSERT ON public.org
 --
 
 CREATE TRIGGER trg_zzz_seed_production_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_production_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_quality_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_quality_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_quality_permissions_on_org_insert();
 
 
 --
@@ -17836,6 +18478,54 @@ ALTER TABLE ONLY public.mrp_runs
 
 
 --
+-- Name: ncr_reports ncr_reports_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ncr_reports ncr_reports_closed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ncr_reports ncr_reports_detected_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_detected_by_fkey FOREIGN KEY (detected_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ncr_reports ncr_reports_investigator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_investigator_id_fkey FOREIGN KEY (investigator_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ncr_reports ncr_reports_linked_hold_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_linked_hold_id_fkey FOREIGN KEY (linked_hold_id) REFERENCES public.quality_holds(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ncr_reports ncr_reports_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ncr_reports
+    ADD CONSTRAINT ncr_reports_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_preferences notification_preferences_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18145,6 +18835,94 @@ ALTER TABLE ONLY public.production_lines
 
 ALTER TABLE ONLY public.quality_event
     ADD CONSTRAINT quality_event_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: quality_hold_items quality_hold_items_hold_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_hold_items
+    ADD CONSTRAINT quality_hold_items_hold_id_fkey FOREIGN KEY (hold_id) REFERENCES public.quality_holds(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_hold_items quality_hold_items_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_hold_items
+    ADD CONSTRAINT quality_hold_items_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_holds quality_holds_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_holds
+    ADD CONSTRAINT quality_holds_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: quality_holds quality_holds_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_holds
+    ADD CONSTRAINT quality_holds_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_holds quality_holds_released_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_holds
+    ADD CONSTRAINT quality_holds_released_by_fkey FOREIGN KEY (released_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quality_spec_parameters quality_spec_parameters_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_spec_parameters
+    ADD CONSTRAINT quality_spec_parameters_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_spec_parameters quality_spec_parameters_specification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_spec_parameters
+    ADD CONSTRAINT quality_spec_parameters_specification_id_fkey FOREIGN KEY (specification_id) REFERENCES public.quality_specifications(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_specifications quality_specifications_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quality_specifications quality_specifications_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: quality_specifications quality_specifications_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quality_specifications quality_specifications_superseded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quality_specifications
+    ADD CONSTRAINT quality_specifications_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES public.quality_specifications(id) ON DELETE SET NULL;
 
 
 --
@@ -20405,6 +21183,19 @@ CREATE POLICY mrp_runs_org_isolation ON public.mrp_runs TO app_user USING ((org_
 
 
 --
+-- Name: ncr_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ncr_reports ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ncr_reports ncr_reports_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ncr_reports_org_context ON public.ncr_reports TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: notification_preferences; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -20674,6 +21465,58 @@ ALTER TABLE public.quality_event ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY quality_event_org_context ON public.quality_event TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: quality_hold_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.quality_hold_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: quality_hold_items quality_hold_items_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY quality_hold_items_org_context ON public.quality_hold_items TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: quality_holds; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.quality_holds ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: quality_holds quality_holds_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY quality_holds_org_context ON public.quality_holds TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: quality_spec_parameters; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.quality_spec_parameters ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: quality_spec_parameters quality_spec_parameters_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY quality_spec_parameters_org_context ON public.quality_spec_parameters TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: quality_specifications; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.quality_specifications ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: quality_specifications quality_specifications_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY quality_specifications_org_context ON public.quality_specifications TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --

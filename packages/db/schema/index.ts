@@ -277,3 +277,30 @@ export type { WoWasteLog, NewWoWasteLog, DowntimeEvent, NewDowntimeEvent, Change
 // 10-finance / 11-shipping. Soft FKs to warehouses/items/locations/work_orders avoid cycles.
 export { licensePlates, vInventoryAvailable } from './warehouse-lp.js';
 export type { LicensePlate, NewLicensePlate, InventoryAvailableRow } from './warehouse-lp.js';
+
+// 09-quality — schema foundation (migration 197): quality_holds (+ v_active_holds consume-gate read
+// model, T-064), quality_hold_items, ncr_reports, quality_specifications + quality_spec_parameters.
+// v_active_holds is the canonical consume-gate source queried by 08-production / 05-warehouse /
+// 11-shipping via holdsGuard. SECURITY INVOKER (RLS flows from quality_holds). Soft FKs to
+// 02-settings reference rows / 03-technical items / 05-warehouse license_plates avoid cycles.
+export {
+  qualityHolds,
+  qualityHoldItems,
+  ncrReports,
+  qualitySpecifications,
+  qualitySpecParameters,
+  vActiveHolds,
+} from './quality.js';
+export type {
+  QualityHold,
+  NewQualityHold,
+  QualityHoldItem,
+  NewQualityHoldItem,
+  NcrReport,
+  NewNcrReport,
+  QualitySpecification,
+  NewQualitySpecification,
+  QualitySpecParameter,
+  NewQualitySpecParameter,
+  ActiveHoldRow,
+} from './quality.js';

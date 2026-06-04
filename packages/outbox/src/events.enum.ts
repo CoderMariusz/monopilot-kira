@@ -75,6 +75,18 @@ export enum EventType {
   NPD_PROJECT_RELEASE_REQUESTED = 'npd.project.release_requested',
   ONBOARDING_FIRST_WO_RECORDED = 'onboarding.first_wo_recorded',
   QUALITY_ATP_SWAB_FAILED = 'quality.atp_swab_failed',
+  // 09-quality hold lifecycle + NCR events (PRD 09-QUALITY §6.3, §12.1; canonical event table in the
+  // MON-domain-quality skill). 09-quality is the sole emitter. Hold events drive the consume-gate
+  // consumers (05-warehouse / 08-production / 11-shipping); NCR events drive 12-reporting +
+  // 13-maintenance auto-MWO P2.
+  QUALITY_HOLD_CREATED = 'quality.hold.created',
+  QUALITY_HOLD_RELEASED = 'quality.hold.released',
+  QUALITY_NCR_OPENED = 'quality.ncr.opened',
+  QUALITY_NCR_SUBMITTED = 'quality.ncr.submitted',
+  QUALITY_NCR_ASSIGNED = 'quality.ncr.assigned',
+  QUALITY_NCR_UPDATED = 'quality.ncr.updated',
+  QUALITY_NCR_CLOSED = 'quality.ncr.closed',
+  QUALITY_NCR_CRITICAL_DUAL_SIGNED = 'quality.ncr.critical_dual_signed',
   ONBOARDING_STEP_ADVANCE = 'onboarding.step.advance',
   ONBOARDING_STEP_BACK = 'onboarding.step.back',
   ONBOARDING_STEP_JUMP = 'onboarding.step.jump',
@@ -218,6 +230,23 @@ export const ALL_WAREHOUSE_EVENTS = [
  * are part of the DB-permitted set (`DB_EVENT_TYPES`) but are NOT canonical enum
  * members — `normalizeEventType` rewrites them on the way through the worker.
  */
+/**
+ * Locked 09-quality event group. Subset of `EventType` — the canonical hold-lifecycle + NCR
+ * vocabulary that 09-quality (and ONLY 09-quality) emits. quality.hold.* drive the consume-gate
+ * consumers (05-warehouse / 08-production / 11-shipping); quality.ncr.* drive 12-reporting +
+ * 13-maintenance auto-MWO P2. Referenced by the quality module sign-off contract.
+ */
+export const ALL_QUALITY_EVENTS = [
+  EventType.QUALITY_HOLD_CREATED,
+  EventType.QUALITY_HOLD_RELEASED,
+  EventType.QUALITY_NCR_OPENED,
+  EventType.QUALITY_NCR_SUBMITTED,
+  EventType.QUALITY_NCR_ASSIGNED,
+  EventType.QUALITY_NCR_UPDATED,
+  EventType.QUALITY_NCR_CLOSED,
+  EventType.QUALITY_NCR_CRITICAL_DUAL_SIGNED,
+] as const;
+
 export const LegacyEventAlias = {
   'fa.created': EventType.FG_CREATED,
   'fa.allergens_changed': EventType.FG_ALLERGENS_CHANGED,
