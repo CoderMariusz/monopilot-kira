@@ -884,6 +884,22 @@
       "noneDetected": "Nie wykryto alergenów w bieżących składnikach.",
       "statusLabel": "{name} — {status}"
     },
+    "allergenNames": {
+      "gluten": "Zboża (gluten)",
+      "crustaceans": "Skorupiaki",
+      "eggs": "Jaja",
+      "fish": "Ryby",
+      "peanuts": "Orzeszki ziemne",
+      "soybeans": "Soja",
+      "milk": "Mleko",
+      "nuts": "Orzechy",
+      "celery": "Seler",
+      "mustard": "Gorczyca",
+      "sesame": "Sezam",
+      "sulphites": "Dwutlenek siarki i siarczyny",
+      "lupin": "Łubin",
+      "molluscs": "Mięczaki"
+    },
     "deptClose": {
       "titleClose": "Zamknij sekcję {dept}",
       "subtitle": "FA {faCode} · {productName}",

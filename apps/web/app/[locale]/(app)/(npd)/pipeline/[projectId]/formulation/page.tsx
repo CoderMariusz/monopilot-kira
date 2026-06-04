@@ -28,8 +28,14 @@ import {
   FormulationEditor,
   type FormulationEditorData,
   type FormulationLabels,
+  type FormulationPanelLabels,
   type PageState,
 } from './_components/formulation-editor';
+import type { CostPanelLabels } from './_components/cost-panel';
+import type { NutritionPanelLabels, NutritionTargets } from './_components/nutrition-panel';
+import type { AllergenPanelLabels } from './_components/allergen-panel';
+import type { CompositionBarLabels } from './_components/composition-bar';
+import { EU14_ALLERGEN_CODES } from './_components/allergen-panel';
 import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/get-formulation';
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
@@ -116,6 +122,208 @@ async function buildLabels(locale: string): Promise<FormulationLabels> {
   }
 }
 
+// ── Live-panel i18n bundles (T-113-116) ──────────────────────────────────────
+// Each panel is a pure Client island; its visible strings are resolved here
+// (RSC) on the panel's own namespace and threaded down via panelLabels. Defaults
+// mirror the message-file values so a missing key never leaks the raw key.
+
+const DEFAULT_COST_LABELS: CostPanelLabels = {
+  title: 'Cost & margin',
+  live: 'live',
+  rawMaterial: 'Raw material',
+  afterYield: 'After yield ({yieldPct}%)',
+  processing: 'Processing ({overheadPct}%)',
+  packaging: 'Packaging',
+  totalCost: 'Total cost / kg',
+  perKgSuffix: '/kg',
+  targetPrice: 'Target price',
+  expectedYield: 'Expected yield %',
+  revenuePerKg: 'Revenue / kg',
+  marginPerKg: 'Margin / kg',
+  marginPct: 'Margin %',
+  loading: 'Computing cost…',
+  empty: 'No cost yet',
+  emptyBody: 'Add ingredient costs to see the margin.',
+  error: 'Unable to compute the cost.',
+  forbidden: 'You do not have permission to view costs.',
+};
+
+const DEFAULT_NUTRITION_LABELS: NutritionPanelLabels = {
+  title: 'Nutrition per 100g',
+  liveNote: '· live',
+  exportLabel: 'Export label',
+  targetsNote: 'Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g',
+  withinTarget: 'Within target',
+  overTarget: 'Over target',
+  overMax: 'Over max',
+  energyLabel: 'Energy',
+  fatLabel: 'Fat',
+  saturatesLabel: 'Saturates',
+  carbsLabel: 'Carbohydrate',
+  sugarsLabel: 'Sugars',
+  proteinLabel: 'Protein',
+  saltLabel: 'Salt',
+  loading: 'Computing nutrition…',
+  empty: 'No nutrition yet',
+  emptyBody: 'Add raw materials with nutrition data to see per-100g values.',
+  error: 'Unable to compute nutrition.',
+  forbidden: 'You do not have permission to view nutrition.',
+};
+
+const DEFAULT_ALLERGEN_LABELS: AllergenPanelLabels = {
+  title: 'Allergens',
+  subtitle: 'EU 14 mandatory allergens · presence from formulation',
+  present: 'Present',
+  trace: 'Trace',
+  absent: 'Absent',
+  detectedHeading: '{count} allergen(s) detected:',
+  mustDeclare: 'Must be declared on label.',
+  noneDetected: 'No allergens detected from the current ingredients.',
+  statusLabel: '{name} — {status}',
+};
+
+const DEFAULT_COMPOSITION_LABELS: CompositionBarLabels = {
+  title: 'Composition',
+  ariaLabel: 'Ingredient composition',
+  empty: 'No ingredients to display.',
+  segmentLabel: '{name}: {pct}%',
+};
+
+function buildPanelBundle<T extends Record<string, string>>(
+  t: (key: string) => string,
+  defaults: T,
+): T {
+  const out = { ...defaults };
+  for (const key of Object.keys(defaults) as Array<keyof T>) {
+    try {
+      const value = t(key as string);
+      out[key] = (value === (key as string) ? defaults[key] : value) as T[keyof T];
+    } catch {
+      out[key] = defaults[key];
+    }
+  }
+  return out;
+}
+
+// Panel label interfaces are all-string records; cast through these aliases so the
+// shared buildPanelBundle helper accepts them without an index-signature widening.
+type StringBundle = Record<string, string>;
+
+async function buildPanelLabels(locale: string): Promise<FormulationPanelLabels> {
+  try {
+    const [tCost, tNutrition, tAllergen, tComposition] = await Promise.all([
+      getTranslations({ locale, namespace: 'npd.costPanel' }),
+      getTranslations({ locale, namespace: 'npd.nutritionPanel' }),
+      getTranslations({ locale, namespace: 'npd.allergenPanel' }),
+      getTranslations({ locale, namespace: 'npd.compositionBar' }),
+    ]);
+    return {
+      cost: buildPanelBundle(tCost, DEFAULT_COST_LABELS as unknown as StringBundle) as unknown as CostPanelLabels,
+      nutrition: buildPanelBundle(
+        tNutrition,
+        DEFAULT_NUTRITION_LABELS as unknown as StringBundle,
+      ) as unknown as NutritionPanelLabels,
+      allergen: buildPanelBundle(
+        tAllergen,
+        DEFAULT_ALLERGEN_LABELS as unknown as StringBundle,
+      ) as unknown as AllergenPanelLabels,
+      composition: buildPanelBundle(
+        tComposition,
+        DEFAULT_COMPOSITION_LABELS as unknown as StringBundle,
+      ) as unknown as CompositionBarLabels,
+    };
+  } catch {
+    return {
+      cost: { ...DEFAULT_COST_LABELS },
+      nutrition: { ...DEFAULT_NUTRITION_LABELS },
+      allergen: { ...DEFAULT_ALLERGEN_LABELS },
+      composition: { ...DEFAULT_COMPOSITION_LABELS },
+    };
+  }
+}
+
+/** EU14 allergen display names (npd.allergenNames), keyed by code. */
+async function buildAllergenNames(locale: string): Promise<Record<string, string>> {
+  const names: Record<string, string> = {};
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.allergenNames' });
+    for (const code of EU14_ALLERGEN_CODES) {
+      try {
+        const value = t(code);
+        names[code] = value === code ? code : value;
+      } catch {
+        names[code] = code;
+      }
+    }
+  } catch {
+    for (const code of EU14_ALLERGEN_CODES) names[code] = code;
+  }
+  return names;
+}
+
+/**
+ * Per-100g traffic-light thresholds (reference data). No nutrition-targets table
+ * is provisioned yet (PRD §17.11.1 lists it as a later slice), so these EU
+ * per-100g guideline defaults stand in. They are CONFIG, not data — the actual
+ * nutrient VALUES come from Supabase (Reference.RawMaterials, weighted by pct).
+ */
+const NUTRITION_TARGETS: NutritionTargets = {
+  energy_kj: { target: '1500', max: '3000' },
+  fat_g: { target: '17.5', max: '21' },
+  saturates_g: { target: '5', max: '6' },
+  carbs_g: { target: '50', max: '80' },
+  sugars_g: { target: '22.5', max: '27' },
+  protein_g: { target: '10', max: '100' },
+  salt_g: { target: '1.5', max: '1.8' },
+};
+
+interface RmNutritionRow {
+  rm_code: string;
+  nutrition_per_100g: Record<string, unknown> | null;
+}
+
+/** Postgres SQLSTATE for "undefined_table" (relation does not exist). */
+const PG_UNDEFINED_TABLE = '42P01';
+
+/**
+ * Load per-100g nutrition for the given rm_codes from the canonical
+ * Reference.RawMaterials master (the same source the T-065 recompute action
+ * uses), so the live NutritionPanel can recompute on pct edits client-side.
+ * Degrades gracefully to an empty map when the table is not yet provisioned.
+ */
+async function loadRmNutrition(
+  ctx: OrgContextLike,
+  rmCodes: string[],
+): Promise<Map<string, Record<string, string>>> {
+  const out = new Map<string, Record<string, string>>();
+  const unique = [...new Set(rmCodes)].filter(Boolean);
+  if (unique.length === 0) return out;
+  let rows: RmNutritionRow[];
+  try {
+    const res = await ctx.client.query<RmNutritionRow>(
+      `select rm_code, nutrition_per_100g
+         from "Reference"."RawMaterials"
+        where rm_code = any($1::text[])`,
+      [unique],
+    );
+    rows = res.rows;
+  } catch (err) {
+    if ((err as { code?: string })?.code === PG_UNDEFINED_TABLE) return out;
+    throw err;
+  }
+  for (const row of rows) {
+    const src = row.nutrition_per_100g;
+    if (!src || typeof src !== 'object') continue;
+    const per: Record<string, string> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (v === null || v === undefined) continue;
+      per[k] = String(v);
+    }
+    out.set(row.rm_code, per);
+  }
+  return out;
+}
+
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -134,15 +342,29 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
 type LoaderResult = { state: PageState; data: FormulationEditorData | null; canEdit: boolean };
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  // Editability is RBAC-gated server-side; the read itself is RLS-scoped.
+  const result = await getFormulation({ projectId });
+
+  // RM codes needed for the per-100g nutrition load (only when we have rows).
+  const rmCodes =
+    result.ok && result.data.ingredients ? result.data.ingredients.map((i) => i.rm_code) : [];
+
+  // One org-context round-trip: editability (RBAC, server-side) + per-RM
+  // nutrition (Reference.RawMaterials, the same source the recompute uses).
   let canEdit = false;
+  let nutritionByRm = new Map<string, Record<string, string>>();
   try {
-    canEdit = await withOrgContext(async (rawCtx) => hasPermission(rawCtx as OrgContextLike, EDIT_PERMISSION));
+    ({ canEdit, nutritionByRm } = await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      return {
+        canEdit: await hasPermission(ctx, EDIT_PERMISSION),
+        nutritionByRm: await loadRmNutrition(ctx, rmCodes),
+      };
+    }));
   } catch {
     canEdit = false;
+    nutritionByRm = new Map();
   }
 
-  const result = await getFormulation({ projectId });
   if (!result.ok) {
     if (result.error === 'not_found') return { state: 'empty', data: null, canEdit };
     if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit };
@@ -164,16 +386,20 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     targetPriceEur: currentVersion.targetPriceEur,
     targetYieldPct: currentVersion.targetYieldPct,
     versions: [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }],
-    ingredients: ingredients.map((ing) => ({
-      id: ing.id,
-      rmCode: ing.rm_code,
-      // rm_code is the canonical key; a friendly name is not on this row (T-063).
-      name: '',
-      pct: ing.pct,
-      costPerKgEur: ing.cost_per_kg_eur,
-      allergen: ing.allergens_inherited?.[0] ?? null,
-      sequence: ing.sequence,
-    })),
+    ingredients: ingredients.map((ing) => {
+      const nutrition = nutritionByRm.get(ing.rm_code);
+      return {
+        id: ing.id,
+        rmCode: ing.rm_code,
+        // rm_code is the canonical key; a friendly name is not on this row (T-063).
+        name: '',
+        pct: ing.pct,
+        costPerKgEur: ing.cost_per_kg_eur,
+        allergen: ing.allergens_inherited?.[0] ?? null,
+        sequence: ing.sequence,
+        ...(nutrition ? { nutritionPer100g: nutrition } : {}),
+      };
+    }),
   };
 
   return { state: 'ready', data, canEdit };
@@ -185,7 +411,11 @@ export default async function FormulationPage(propsInput: unknown = {}) {
     ? await props.params
     : { locale: 'en', projectId: '' };
 
-  const labels = await buildLabels(locale);
+  const [labels, panelLabels, allergenNames] = await Promise.all([
+    buildLabels(locale),
+    buildPanelLabels(locale),
+    buildAllergenNames(locale),
+  ]);
 
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
@@ -201,6 +431,10 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       state={loaded.state}
       data={loaded.data}
       labels={labels}
+      panelLabels={panelLabels}
+      nutritionTargets={NUTRITION_TARGETS}
+      allergenNames={allergenNames}
+      currency="EUR"
       canEdit={loaded.canEdit}
       saveDraftAction={saveDraft}
       recomputeAction={recomputeAndCache}

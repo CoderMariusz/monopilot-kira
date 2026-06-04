@@ -884,6 +884,22 @@
       "noneDetected": "Niciun alergen detectat din ingredientele curente.",
       "statusLabel": "{name} — {status}"
     },
+    "allergenNames": {
+      "gluten": "Cereale (gluten)",
+      "crustaceans": "Crustacee",
+      "eggs": "Ouă",
+      "fish": "Pește",
+      "peanuts": "Arahide",
+      "soybeans": "Soia",
+      "milk": "Lapte",
+      "nuts": "Fructe cu coajă",
+      "celery": "Țelină",
+      "mustard": "Muștar",
+      "sesame": "Susan",
+      "sulphites": "Dioxid de sulf și sulfiți",
+      "lupin": "Lupin",
+      "molluscs": "Moluște"
+    },
     "deptClose": {
       "titleClose": "Închide secțiunea {dept}",
       "subtitle": "FA {faCode} · {productName}",

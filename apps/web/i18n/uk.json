@@ -884,6 +884,22 @@
       "noneDetected": "Алергенів у поточних інгредієнтах не виявлено.",
       "statusLabel": "{name} — {status}"
     },
+    "allergenNames": {
+      "gluten": "Злаки (глютен)",
+      "crustaceans": "Ракоподібні",
+      "eggs": "Яйця",
+      "fish": "Риба",
+      "peanuts": "Арахіс",
+      "soybeans": "Соя",
+      "milk": "Молоко",
+      "nuts": "Горіхи",
+      "celery": "Селера",
+      "mustard": "Гірчиця",
+      "sesame": "Кунжут",
+      "sulphites": "Діоксид сірки та сульфіти",
+      "lupin": "Люпин",
+      "molluscs": "Молюски"
+    },
     "deptClose": {
       "titleClose": "Закрити розділ {dept}",
       "subtitle": "FA {faCode} · {productName}",

@@ -23,7 +23,7 @@ import {
   type NutritionTargets,
 } from '../nutrition-panel';
 
-const OUT_DIR = resolve(__dirname, '../../../../../../../../../_meta/parity-evidence/T-113');
+const OUT_DIR = resolve(__dirname, '../../../../../../../../../e2e/parity-evidence/npd/T-113');
 
 const LABELS: NutritionPanelLabels = {
   title: 'Nutrition per 100g',
