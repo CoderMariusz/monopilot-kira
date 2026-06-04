@@ -186,7 +186,23 @@ begin
 end;
 $$;
 
-alter function public.compliance_docs_expiry_scan() owner to service_role;
+-- Prefer service_role ownership, but on managed platforms (Supabase) service_role has
+-- no CREATE on schema public and therefore cannot own an object here ("permission denied
+-- for schema public"). The function is SECURITY DEFINER, so it runs as its owner — and
+-- the migration/owner role has bypassrls on Supabase (postgres) and is superuser locally,
+-- so the cross-org RLS-bypass scan works regardless of owner. service_role only needs
+-- EXECUTE (granted below). Skip the owner change where it isn't permitted.
+do $$
+begin
+  alter function public.compliance_docs_expiry_scan() owner to service_role;
+exception
+  when insufficient_privilege or dependent_privilege_descriptors_still_exist then
+    null;
+  when others then
+    -- "permission denied for schema public" surfaces as a generic privilege error on
+    -- some managed platforms; never block the migration on the owner-change nicety.
+    null;
+end $$;
 revoke all on function public.compliance_docs_expiry_scan() from public;
 revoke all on function public.compliance_docs_expiry_scan() from app_user;
 grant execute on function public.compliance_docs_expiry_scan() to service_role;
