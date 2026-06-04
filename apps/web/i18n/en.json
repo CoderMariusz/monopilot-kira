@@ -1151,6 +1151,44 @@
       "errorV02": "Product Name is required (max 200 characters).",
       "errorDuplicate": "That FA Code already exists. Choose a different code.",
       "errorGeneric": "Could not create the factory article. Try again."
+    },
+    "faHistory": {
+      "title": "History",
+      "subtitle": "Read-only timeline of every change to this Factory Article.",
+      "filterLabel": "Event type",
+      "filterAll": "All events",
+      "colWhen": "When",
+      "colActor": "Who",
+      "colEvent": "Event",
+      "detailsToggle": "Details",
+      "detailsHide": "Hide details",
+      "systemActor": "System",
+      "unknownActor": "Unknown",
+      "loading": "Loading FA history…",
+      "empty": "No history yet",
+      "emptyBody": "Changes to this Factory Article will appear here as they happen.",
+      "emptyFiltered": "No events match this filter",
+      "emptyFilteredBody": "Try a different event type or clear the filter.",
+      "clearFilter": "Clear filter",
+      "error": "Unable to load FA history.",
+      "forbidden": "You do not have permission to view this FA history.",
+      "eventCount": "{count, plural, =0 {No events} one {# event} other {# events}}",
+      "type": {
+        "created": "Created",
+        "field_edit": "Field edited",
+        "edit": "Field edited",
+        "dept_closed": "Department closed",
+        "dept_reopened": "Department reopened",
+        "core_closed": "Core closed",
+        "built": "Built in D365",
+        "built_reset": "Build reset",
+        "allergens_changed": "Allergens changed",
+        "intermediate_code_changed": "Intermediate code changed",
+        "recipe_changed": "Recipe changed",
+        "template_applied": "Template applied",
+        "cascade": "Allergen cascade",
+        "deleted": "Deleted"
+      }
     }
   }
 }

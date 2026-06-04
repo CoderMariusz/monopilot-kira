@@ -1,0 +1,11 @@
+{
+  "task": "T-027",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree). RTL role/landmark checks below substitute, per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "hasLabelledSection": true,
+  "hasHeading": true,
+  "eventBadgesHaveText": true,
+  "timestampsHaveDatetime": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true,
+  "readOnlyNoMutationControls": false
+}

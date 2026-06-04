@@ -1,0 +1,85 @@
+{
+  "task": "T-027",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:938-968 (FAHistoryTab)",
+    "prototype-index-npd.json#fa_history_tab declares 921-950 (labelled region; body at 938-968)"
+  ],
+  "data_source": "REAL public.outbox_events (fa.* events) ∪ public.audit_events — org-scoped via withOrgContext/RLS; NO mocks",
+  "generated_at": "2026-06-04T07:13:29.263Z",
+  "states": {
+    "loading": {
+      "tab": true,
+      "card": true,
+      "heading": "History",
+      "rows": 0,
+      "icons": 0,
+      "badges": 0,
+      "detailsDisclosures": 0,
+      "filterCombobox": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1,
+      "timeElements": 0
+    },
+    "empty": {
+      "tab": true,
+      "card": true,
+      "heading": "History",
+      "rows": 0,
+      "icons": 0,
+      "badges": 0,
+      "detailsDisclosures": 0,
+      "filterCombobox": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "timeElements": 0
+    },
+    "error": {
+      "tab": true,
+      "card": true,
+      "heading": "History",
+      "rows": 0,
+      "icons": 0,
+      "badges": 0,
+      "detailsDisclosures": 0,
+      "filterCombobox": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "timeElements": 0
+    },
+    "permission_denied": {
+      "tab": true,
+      "card": true,
+      "heading": "History",
+      "rows": 0,
+      "icons": 0,
+      "badges": 0,
+      "detailsDisclosures": 0,
+      "filterCombobox": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "timeElements": 0
+    },
+    "ready": {
+      "tab": true,
+      "card": true,
+      "heading": "History",
+      "rows": 3,
+      "icons": 3,
+      "badges": 3,
+      "detailsDisclosures": 2,
+      "filterCombobox": 1,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "timeElements": 3
+    },
+    "details_open": {
+      "payloadPre": true,
+      "prettyJson": true
+    }
+  }
+}
