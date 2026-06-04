@@ -35,6 +35,8 @@ const expectedCanonicalEvents = [
   'risk.created',
   'compliance_doc.uploaded',
   'compliance_doc.deleted',
+  'compliance_doc.expiring',
+  'compliance_doc.expired',
   'bom.initial_version_created',
   'fg.bom.released',
   'bom.version_submitted',
