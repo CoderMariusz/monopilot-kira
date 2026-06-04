@@ -264,3 +264,10 @@ export type {
   CapacityPlanLine,
   NewCapacityPlanLine,
 } from './planning-capacity.js';
+
+// 08-production execution core (migs 181/182): canonical wo_outputs (T-003), consumption (T-002), executions+events (T-022).
+export { woOutputs, woMaterialConsumption, woExecutions, woEvents } from './production-execution.js';
+export type { WoOutput, NewWoOutput, WoMaterialConsumption, NewWoMaterialConsumption, WoExecution, NewWoExecution, WoEvent, NewWoEvent } from './production-execution.js';
+// 08-production waste/downtime/changeover/allergen/OEE (migs 183-185). oee_snapshots producer = 08 (D-OEE-1).
+export { downtimeSourceEnum, woWasteLog, downtimeEvents, changeoverEvents, allergenChangeoverValidations, oeeSnapshots } from './production/index.js';
+export type { WoWasteLog, NewWoWasteLog, DowntimeEvent, NewDowntimeEvent, ChangeoverEvent, NewChangeoverEvent, AllergenChangeoverValidation, NewAllergenChangeoverValidation, OeeSnapshot, NewOeeSnapshot } from './production/index.js';

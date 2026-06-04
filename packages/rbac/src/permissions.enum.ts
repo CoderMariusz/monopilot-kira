@@ -161,6 +161,42 @@ export const Permission = {
   TECHNICAL_COST_EDIT: 'technical.cost.edit',
   /** Technical D365 sync trigger permission; PRD 03-TECHNICAL §3 (RBAC). */
   TECHNICAL_D365_SYNC_TRIGGER: 'technical.d365.sync_trigger',
+
+  // Production (08-production)
+  /** Production WO start permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WO_START: 'production.wo.start',
+  /** Production WO pause permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WO_PAUSE: 'production.wo.pause',
+  /** Production WO resume permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WO_RESUME: 'production.wo.resume',
+  /** Production WO complete permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WO_COMPLETE: 'production.wo.complete',
+  /** Production material consumption write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_CONSUMPTION_WRITE: 'production.consumption.write',
+  /** Production over-consumption approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE: 'production.consumption.override_approve',
+  /** Production output write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_OUTPUT_WRITE: 'production.output.write',
+  /** Production catch-weight override permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE: 'production.output.catch_weight_override',
+  /** Production waste write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WASTE_WRITE: 'production.waste.write',
+  /** Production over-threshold waste approval permission (supervisor); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE: 'production.waste.overthreshold_approve',
+  /** Production downtime write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_DOWNTIME_WRITE: 'production.downtime.write',
+  /** Production downtime taxonomy edit permission (admin); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_DOWNTIME_TAXONOMY_EDIT: 'production.downtime.taxonomy_edit',
+  /** Production changeover write permission; PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_CHANGEOVER_WRITE: 'production.changeover.write',
+  /** Production allergen-gate first-signer permission (SoD); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_ALLERGEN_GATE_SIGN_FIRST: 'production.allergen_gate.sign_first',
+  /** Production allergen-gate second-signer permission (SoD); PRD 08-PRODUCTION §3.2 (RBAC). */
+  PRODUCTION_ALLERGEN_GATE_SIGN_SECOND: 'production.allergen_gate.sign_second',
+  /** Production D365 DLQ replay permission; PRD 08-PRODUCTION §12 (RBAC). */
+  PRODUCTION_D365_DLQ_REPLAY: 'production.d365_dlq.replay',
+  /** Production OEE read permission; PRD 08-PRODUCTION §13 (RBAC). */
+  PRODUCTION_OEE_READ: 'production.oee.read',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -250,6 +286,33 @@ export const ALL_TECHNICAL_PERMISSIONS = [
   Permission.TECHNICAL_ALLERGENS_EDIT,
   Permission.TECHNICAL_COST_EDIT,
   Permission.TECHNICAL_D365_SYNC_TRIGGER,
+] as readonly Permission[];
+
+/**
+ * Production (08-production) module permission group; PRD 08-PRODUCTION §3.2 (RBAC) +
+ * §12 (D365 DLQ) + §13 (OEE). 17 page/action permissions. Allergen gate is split into
+ * first/second signer to enforce SoD (dual sign-off cannot share a permission grant).
+ * Recognised by the ESLint enum-lock guard via the ALL_<MODULE>_PERMISSIONS export
+ * convention (02-settings T-130). Seeded to roles by migration 185.
+ */
+export const ALL_PRODUCTION_PERMISSIONS = [
+  Permission.PRODUCTION_WO_START,
+  Permission.PRODUCTION_WO_PAUSE,
+  Permission.PRODUCTION_WO_RESUME,
+  Permission.PRODUCTION_WO_COMPLETE,
+  Permission.PRODUCTION_CONSUMPTION_WRITE,
+  Permission.PRODUCTION_CONSUMPTION_OVERRIDE_APPROVE,
+  Permission.PRODUCTION_OUTPUT_WRITE,
+  Permission.PRODUCTION_OUTPUT_CATCH_WEIGHT_OVERRIDE,
+  Permission.PRODUCTION_WASTE_WRITE,
+  Permission.PRODUCTION_WASTE_OVERTHRESHOLD_APPROVE,
+  Permission.PRODUCTION_DOWNTIME_WRITE,
+  Permission.PRODUCTION_DOWNTIME_TAXONOMY_EDIT,
+  Permission.PRODUCTION_CHANGEOVER_WRITE,
+  Permission.PRODUCTION_ALLERGEN_GATE_SIGN_FIRST,
+  Permission.PRODUCTION_ALLERGEN_GATE_SIGN_SECOND,
+  Permission.PRODUCTION_D365_DLQ_REPLAY,
+  Permission.PRODUCTION_OEE_READ,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {

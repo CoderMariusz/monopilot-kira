@@ -94,6 +94,26 @@ const expectedTechnicalPermissions = [
   'technical.d365.sync_trigger',
 ] as const;
 
+const expectedProductionPermissions = [
+  'production.wo.start',
+  'production.wo.pause',
+  'production.wo.resume',
+  'production.wo.complete',
+  'production.consumption.write',
+  'production.consumption.override_approve',
+  'production.output.write',
+  'production.output.catch_weight_override',
+  'production.waste.write',
+  'production.waste.overthreshold_approve',
+  'production.downtime.write',
+  'production.downtime.taxonomy_edit',
+  'production.changeover.write',
+  'production.allergen_gate.sign_first',
+  'production.allergen_gate.sign_second',
+  'production.d365_dlq.replay',
+  'production.oee.read',
+] as const;
+
 const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
 const npdPermissionPattern = /^[a-z_]+\.[a-z_]+\.[a-z_]+$/;
 const npdPermissionsOutsideLiteralPattern = ['brief.create', 'npd.d365_builder.execute'] as const;
@@ -113,6 +133,7 @@ const expectedCanonicalPermissions = [
   ...expectedSettingsExtPermissions,
   ...expectedNpdPermissions,
   ...expectedTechnicalPermissions,
+  ...expectedProductionPermissions,
 ] as const;
 
 type PermissionsModule = {
@@ -123,6 +144,7 @@ type PermissionsModule = {
   ALL_SETTINGS_EXT_PERMISSIONS: readonly string[];
   ALL_NPD_PERMISSIONS: readonly string[];
   ALL_TECHNICAL_PERMISSIONS: readonly string[];
+  ALL_PRODUCTION_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -261,6 +283,43 @@ describe('rbac permission source of truth', () => {
       /export\s+const\s+ALL_TECHNICAL_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
     );
     expect(technicalExport?.[0]).toContain('ALL_TECHNICAL_PERMISSIONS');
+  });
+
+  it('exports the production permissions as a typed Permission array literal (T-056 §3.2)', async () => {
+    const { ALL_PERMISSIONS, ALL_PRODUCTION_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    // AC1 — all 17 strings present exactly once, in order.
+    expect(ALL_PRODUCTION_PERMISSIONS).toEqual(expectedProductionPermissions);
+    // AC3 — typed readonly Permission[] with length === 17.
+    expect(ALL_PRODUCTION_PERMISSIONS).toHaveLength(17);
+    expect(new Set(ALL_PRODUCTION_PERMISSIONS).size).toBe(ALL_PRODUCTION_PERMISSIONS.length);
+
+    // AC2 — regex + uniqueness across the whole enum.
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+    // production.d365_dlq.replay carries digits in the middle segment (like
+    // technical.d365.sync_trigger), so it is verified against the locked lowercase-dotted
+    // format (digits permitted after the first char of a segment) rather than the digit-free
+    // 3-segment shorthand.
+    const productionWithDigits = ['production.d365_dlq.replay'];
+    for (const permission of ALL_PRODUCTION_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission.startsWith('production.')).toBe(true);
+      if (productionWithDigits.includes(permission)) {
+        expect(permission).toMatch(/^[a-z]+(\.[a-z_][a-z_0-9]*)+$/);
+      } else {
+        expect(permission).toMatch(/^[a-z_]+\.[a-z_]+\.[a-z_]+$/);
+      }
+    }
+
+    // SoD: dual sign-off is split across two distinct grants.
+    expect(ALL_PRODUCTION_PERMISSIONS).toContain('production.allergen_gate.sign_first');
+    expect(ALL_PRODUCTION_PERMISSIONS).toContain('production.allergen_gate.sign_second');
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const productionExport = source.match(
+      /export\s+const\s+ALL_PRODUCTION_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(productionExport?.[0]).toContain('ALL_PRODUCTION_PERMISSIONS');
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {

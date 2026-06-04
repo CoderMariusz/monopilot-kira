@@ -44,6 +44,18 @@ COMMENT ON EXTENSION citext IS 'data type for case-insensitive character strings
 
 
 --
+-- Name: downtime_source_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.downtime_source_enum AS ENUM (
+    'manual',
+    'wo_pause',
+    'plc_auto',
+    'changeover'
+);
+
+
+--
 -- Name: fa_allergen_override_action; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -2468,6 +2480,24 @@ begin new.updated_at := pg_catalog.now(); return new; end; $$;
 
 
 --
+-- Name: fn_set_allergen_retention_until(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_set_allergen_retention_until() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_min_retention date := (new.validated_at + interval '7 years')::date;
+begin
+  if new.retention_until is null or new.retention_until < v_min_retention then
+    new.retention_until := v_min_retention;
+  end if;
+  return new;
+end;
+$$;
+
+
+--
 -- Name: formulation_audit_log_reject_mutation(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2989,6 +3019,20 @@ $$;
 --
 
 CREATE FUNCTION public.planning_mrp_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: production_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.production_set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 begin
@@ -4269,6 +4313,153 @@ $$;
 
 
 --
+-- Name: seed_production_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_production_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- Complete production.* family (PRD §3.2 RBAC matrix). Mirrors ALL_PRODUCTION_PERMISSIONS.
+  v_all_perms text[] := array[
+    'production.wo.start',
+    'production.wo.pause',
+    'production.wo.resume',
+    'production.wo.complete',
+    'production.consumption.write',
+    'production.consumption.override_approve',
+    'production.output.write',
+    'production.output.catch_weight_override',
+    'production.waste.write',
+    'production.waste.overthreshold_approve',
+    'production.downtime.write',
+    'production.downtime.taxonomy_edit',
+    'production.changeover.write',
+    'production.allergen_gate.sign_first',
+    'production.allergen_gate.sign_second',
+    'production.d365_dlq.replay',
+    'production.oee.read'
+  ];
+  -- Operator-facing subset: the line operator runs WOs, consumes, records output/waste/downtime,
+  -- performs changeovers, signs first on the allergen gate, and reads OEE. NOT the approver
+  -- (override/overthreshold/catch-weight/taxonomy/dlq-replay/second-sign — SoD).
+  v_operator_perms text[] := array[
+    'production.wo.start',
+    'production.wo.pause',
+    'production.wo.resume',
+    'production.wo.complete',
+    'production.consumption.write',
+    'production.output.write',
+    'production.waste.write',
+    'production.downtime.write',
+    'production.changeover.write',
+    'production.allergen_gate.sign_first',
+    'production.oee.read'
+  ];
+  -- Supervisor subset: the approver. The full operator set PLUS the approval/override/second-sign
+  -- + taxonomy + d365 dlq replay strings. (SoD: sign_first vs sign_second are distinct grants.)
+  v_supervisor_perms text[] := v_all_perms;
+  -- org-admin role family across naming conventions used in this codebase.
+  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
+  -- production operator role family (defensive — codes vary; grant is a no-op if absent).
+  v_operator_roles text[] := array['operator','production_operator','line_operator','warehouse_operator'];
+  -- production supervisor role family (defensive).
+  v_supervisor_roles text[] := array['supervisor','production_supervisor','shift_supervisor','production_lead'];
+begin
+  -- --- Normalized storage (role_permissions) ---
+  -- admin family: full set.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_all_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- operator family: operator subset.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_operator_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- supervisor family: supervisor subset (= full set).
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_supervisor_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_supervisor_roles) or r.slug = any(v_supervisor_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- --- Legacy jsonb cache (roles.permissions) ---
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_all_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_operator_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_supervisor_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_supervisor_roles) or r.slug = any(v_supervisor_roles));
+end;
+$$;
+
+
+--
+-- Name: seed_production_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_production_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_production_permissions_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
 -- Name: seed_reference_data_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5166,6 +5357,34 @@ COMMENT ON FUNCTION public.update_fa_allergen_set(p_product_code text) IS 'T-038
 
 
 --
+-- Name: wo_executions_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.wo_executions_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: wo_outputs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.wo_outputs_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: work_orders_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5660,6 +5879,30 @@ CREATE TABLE public.allergen_cascade_rebuild_jobs (
 );
 
 ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: allergen_changeover_validations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.allergen_changeover_validations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    changeover_event_id uuid NOT NULL,
+    validation_result text NOT NULL,
+    risk_level text NOT NULL,
+    cleaning_evidence jsonb NOT NULL,
+    atp_evidence jsonb,
+    signatures jsonb NOT NULL,
+    override_by uuid,
+    override_reason text,
+    validated_at timestamp with time zone DEFAULT now() NOT NULL,
+    retention_until date NOT NULL,
+    CONSTRAINT chk_allergen_signatures CHECK (((jsonb_array_length(signatures) >= 2) OR (risk_level <> ALL (ARRAY['medium'::text, 'high'::text, 'segregated'::text]))))
+);
+
+ALTER TABLE ONLY public.allergen_changeover_validations FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6506,6 +6749,43 @@ ALTER TABLE ONLY public.capacity_plans FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: changeover_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.changeover_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    line_id text NOT NULL,
+    wo_from_id uuid,
+    wo_to_id uuid,
+    allergen_from text[],
+    allergen_to text[],
+    risk_level text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    planned_duration_min integer,
+    actual_duration_min integer,
+    cleaning_completed boolean DEFAULT false NOT NULL,
+    cleaning_checklist jsonb,
+    atp_required boolean DEFAULT false NOT NULL,
+    atp_result jsonb,
+    dual_sign_off_status text DEFAULT 'pending'::text NOT NULL,
+    first_signer uuid,
+    first_signed_at timestamp with time zone,
+    second_signer uuid,
+    second_signed_at timestamp with time zone,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT changeover_events_risk_level_check CHECK ((risk_level = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'segregated'::text]))),
+    CONSTRAINT chk_changeover_time CHECK (((completed_at IS NULL) OR (started_at < completed_at)))
+);
+
+ALTER TABLE ONLY public.changeover_events FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: compliance_docs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7043,6 +7323,59 @@ CREATE SEQUENCE public.dept_column_migrations_id_seq
 --
 
 ALTER SEQUENCE public.dept_column_migrations_id_seq OWNED BY public.dept_column_migrations.id;
+
+
+--
+-- Name: downtime_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.downtime_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    code text NOT NULL,
+    name text NOT NULL,
+    kind text DEFAULT 'unplanned'::text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT downtime_categories_kind_check CHECK ((kind = ANY (ARRAY['planned'::text, 'unplanned'::text, 'changeover'::text])))
+);
+
+ALTER TABLE ONLY public.downtime_categories FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: downtime_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.downtime_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    line_id text NOT NULL,
+    wo_id uuid,
+    category_id uuid NOT NULL,
+    source public.downtime_source_enum NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone,
+    duration_min integer GENERATED ALWAYS AS (
+CASE
+    WHEN (ended_at IS NOT NULL) THEN ((EXTRACT(epoch FROM (ended_at - started_at)) / (60)::numeric))::integer
+    ELSE NULL::integer
+END) STORED,
+    shift_id text,
+    operator_id uuid,
+    reason_notes text,
+    plc_fault_code text,
+    mwo_id uuid,
+    recorded_by uuid,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL
+);
+
+ALTER TABLE ONLY public.downtime_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -8455,6 +8788,54 @@ ALTER TABLE ONLY public.nutrition_profiles FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: oee_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oee_snapshots (
+    id bigint NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    line_id text NOT NULL,
+    shift_id text NOT NULL,
+    snapshot_minute timestamp with time zone NOT NULL,
+    availability_pct numeric(5,2) NOT NULL,
+    performance_pct numeric(5,2) NOT NULL,
+    quality_pct numeric(5,2) NOT NULL,
+    oee_pct numeric(5,2) GENERATED ALWAYS AS ((((availability_pct * performance_pct) * quality_pct) / (10000)::numeric)) STORED,
+    active_wo_id uuid,
+    output_qty_delta numeric(12,3),
+    downtime_min_delta integer,
+    waste_qty_delta numeric(12,3),
+    ideal_cycle_time_sec numeric(8,2),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT oee_snapshots_availability_pct_range_check CHECK (((availability_pct >= (0)::numeric) AND (availability_pct <= (100)::numeric))),
+    CONSTRAINT oee_snapshots_performance_pct_range_check CHECK (((performance_pct >= (0)::numeric) AND (performance_pct <= (100)::numeric))),
+    CONSTRAINT oee_snapshots_quality_pct_range_check CHECK (((quality_pct >= (0)::numeric) AND (quality_pct <= (100)::numeric)))
+);
+
+ALTER TABLE ONLY public.oee_snapshots FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: oee_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.oee_snapshots_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: oee_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.oee_snapshots_id_seq OWNED BY public.oee_snapshots.id;
+
+
+--
 -- Name: org_authorization_policies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8722,7 +9103,7 @@ CREATE TABLE public.outbox_events (
     dead_lettered_at timestamp with time zone,
     last_error_text text,
     dedup_key text,
-    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
+    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
 );
 
 ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
@@ -9602,6 +9983,25 @@ ALTER TABLE ONLY public.warehouses FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: waste_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.waste_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    code text NOT NULL,
+    name text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.waste_categories FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: wo_dependencies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9619,6 +10019,97 @@ CREATE TABLE public.wo_dependencies (
 );
 
 ALTER TABLE ONLY public.wo_dependencies FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: wo_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.wo_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    wo_id uuid NOT NULL,
+    execution_id uuid,
+    transaction_id uuid NOT NULL,
+    event_type text NOT NULL,
+    from_status text,
+    to_status text NOT NULL,
+    version_at_event integer,
+    reason text,
+    context_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    actor_user_id uuid,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT wo_events_event_type_check CHECK ((event_type = ANY (ARRAY['start'::text, 'pause'::text, 'resume'::text, 'complete'::text, 'close'::text, 'cancel'::text]))),
+    CONSTRAINT wo_events_from_status_check CHECK (((from_status IS NULL) OR (from_status = ANY (ARRAY['planned'::text, 'in_progress'::text, 'paused'::text, 'completed'::text, 'closed'::text, 'cancelled'::text])))),
+    CONSTRAINT wo_events_to_status_check CHECK ((to_status = ANY (ARRAY['planned'::text, 'in_progress'::text, 'paused'::text, 'completed'::text, 'closed'::text, 'cancelled'::text])))
+);
+
+ALTER TABLE ONLY public.wo_events FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: wo_executions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.wo_executions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    wo_id uuid NOT NULL,
+    status text DEFAULT 'planned'::text NOT NULL,
+    version integer DEFAULT 0 NOT NULL,
+    started_at timestamp with time zone,
+    paused_at timestamp with time zone,
+    resumed_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    closed_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT wo_executions_schema_version_check CHECK ((schema_version >= 1)),
+    CONSTRAINT wo_executions_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'in_progress'::text, 'paused'::text, 'completed'::text, 'closed'::text, 'cancelled'::text]))),
+    CONSTRAINT wo_executions_version_nonneg_check CHECK ((version >= 0))
+);
+
+ALTER TABLE ONLY public.wo_executions FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: wo_material_consumption; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.wo_material_consumption (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    transaction_id uuid NOT NULL,
+    wo_id uuid NOT NULL,
+    component_id uuid NOT NULL,
+    lp_id uuid NOT NULL,
+    qty_consumed numeric(12,3) NOT NULL,
+    uom text DEFAULT 'kg'::text NOT NULL,
+    operator_id uuid,
+    fefo_adherence_flag boolean NOT NULL,
+    fefo_deviation_reason text,
+    over_consumption_flag boolean DEFAULT false NOT NULL,
+    over_consumption_approved_by uuid,
+    over_consumption_approved_at timestamp with time zone,
+    over_consumption_reason_code text,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    consumed_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_over_consumption_approval CHECK (((over_consumption_flag = false) OR (over_consumption_approved_by IS NOT NULL))),
+    CONSTRAINT wo_material_consumption_qty_consumed_positive_check CHECK ((qty_consumed > (0)::numeric))
+);
+
+ALTER TABLE ONLY public.wo_material_consumption FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9691,6 +10182,45 @@ ALTER TABLE ONLY public.wo_operations FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: wo_outputs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.wo_outputs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    transaction_id uuid NOT NULL,
+    wo_id uuid NOT NULL,
+    output_type text NOT NULL,
+    product_id uuid NOT NULL,
+    lp_id uuid,
+    batch_number text NOT NULL,
+    qty_kg numeric(12,3) NOT NULL,
+    uom text DEFAULT 'kg'::text NOT NULL,
+    qa_status text DEFAULT 'PENDING'::text NOT NULL,
+    expiry_date date,
+    catch_weight_details jsonb,
+    allergen_profile_snapshot jsonb,
+    label_printed_at timestamp with time zone,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    registered_by uuid,
+    registered_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    registered_year integer GENERATED ALWAYS AS ((EXTRACT(year FROM (registered_at AT TIME ZONE 'UTC'::text)))::integer) STORED,
+    CONSTRAINT wo_outputs_output_type_check CHECK ((output_type = ANY (ARRAY['primary'::text, 'co_product'::text, 'by_product'::text]))),
+    CONSTRAINT wo_outputs_qa_status_check CHECK ((qa_status = ANY (ARRAY['PENDING'::text, 'PASSED'::text, 'FAILED'::text, 'ON_HOLD'::text, 'RELEASED'::text]))),
+    CONSTRAINT wo_outputs_qty_kg_nonneg_check CHECK ((qty_kg >= (0)::numeric)),
+    CONSTRAINT wo_outputs_schema_version_check CHECK ((schema_version >= 1))
+);
+
+ALTER TABLE ONLY public.wo_outputs FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: wo_status_history; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9710,6 +10240,33 @@ CREATE TABLE public.wo_status_history (
 );
 
 ALTER TABLE ONLY public.wo_status_history FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: wo_waste_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.wo_waste_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    transaction_id uuid NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    wo_id uuid NOT NULL,
+    category_id uuid NOT NULL,
+    qty_kg numeric(12,3) NOT NULL,
+    reason_code text,
+    reason_notes text,
+    operator_id uuid,
+    shift_id text NOT NULL,
+    approved_by uuid,
+    scan_event_id uuid,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT wo_waste_log_qty_kg_positive_check CHECK ((qty_kg > (0)::numeric))
+);
+
+ALTER TABLE ONLY public.wo_waste_log FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -9893,6 +10450,13 @@ ALTER TABLE ONLY public.audit_events ALTER COLUMN id SET DEFAULT nextval('public
 --
 
 ALTER TABLE ONLY public.dept_column_migrations ALTER COLUMN id SET DEFAULT nextval('public.dept_column_migrations_id_seq'::regclass);
+
+
+--
+-- Name: oee_snapshots id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oee_snapshots ALTER COLUMN id SET DEFAULT nextval('public.oee_snapshots_id_seq'::regclass);
 
 
 --
@@ -10202,6 +10766,14 @@ ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
 
 ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
     ADD CONSTRAINT allergen_cascade_rebuild_jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: allergen_changeover_validations allergen_changeover_validations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_changeover_validations
+    ADD CONSTRAINT allergen_changeover_validations_pkey PRIMARY KEY (id);
 
 
 --
@@ -10516,6 +11088,14 @@ ALTER TABLE ONLY public.capacity_plans
 
 
 --
+-- Name: changeover_events changeover_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: compliance_docs compliance_docs_org_product_doc_version_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10625,6 +11205,30 @@ ALTER TABLE ONLY public.dept_column_drafts
 
 ALTER TABLE ONLY public.dept_column_migrations
     ADD CONSTRAINT dept_column_migrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: downtime_categories downtime_categories_org_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_categories
+    ADD CONSTRAINT downtime_categories_org_code_unique UNIQUE (org_id, code);
+
+
+--
+-- Name: downtime_categories downtime_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_categories
+    ADD CONSTRAINT downtime_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: downtime_events downtime_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -11081,6 +11685,22 @@ ALTER TABLE ONLY public.nutrition_profiles
 
 ALTER TABLE ONLY public.nutrition_profiles
     ADD CONSTRAINT nutrition_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: oee_snapshots oee_snapshots_line_shift_minute_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oee_snapshots
+    ADD CONSTRAINT oee_snapshots_line_shift_minute_unique UNIQUE (org_id, line_id, shift_id, snapshot_minute);
+
+
+--
+-- Name: oee_snapshots oee_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oee_snapshots
+    ADD CONSTRAINT oee_snapshots_pkey PRIMARY KEY (id);
 
 
 --
@@ -11596,6 +12216,22 @@ ALTER TABLE ONLY public.warehouses
 
 
 --
+-- Name: waste_categories waste_categories_org_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.waste_categories
+    ADD CONSTRAINT waste_categories_org_code_unique UNIQUE (org_id, code);
+
+
+--
+-- Name: waste_categories waste_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.waste_categories
+    ADD CONSTRAINT waste_categories_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: wo_dependencies wo_dependencies_org_parent_child_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11609,6 +12245,54 @@ ALTER TABLE ONLY public.wo_dependencies
 
 ALTER TABLE ONLY public.wo_dependencies
     ADD CONSTRAINT wo_dependencies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_events wo_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_events
+    ADD CONSTRAINT wo_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_events wo_events_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_events
+    ADD CONSTRAINT wo_events_transaction_id_unique UNIQUE (transaction_id);
+
+
+--
+-- Name: wo_executions wo_executions_org_wo_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_org_wo_unique UNIQUE (org_id, wo_id);
+
+
+--
+-- Name: wo_executions wo_executions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_transaction_id_unique UNIQUE (transaction_id);
 
 
 --
@@ -11636,11 +12320,43 @@ ALTER TABLE ONLY public.wo_operations
 
 
 --
+-- Name: wo_outputs wo_outputs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_outputs wo_outputs_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_transaction_id_unique UNIQUE (transaction_id);
+
+
+--
 -- Name: wo_status_history wo_status_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.wo_status_history
     ADD CONSTRAINT wo_status_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_waste_log wo_waste_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: wo_waste_log wo_waste_log_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_transaction_id_unique UNIQUE (transaction_id);
 
 
 --
@@ -12683,6 +13399,20 @@ CREATE INDEX idx_allergen_contamination_risk_org ON public.allergen_contaminatio
 
 
 --
+-- Name: idx_allergen_val_changeover; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_val_changeover ON public.allergen_changeover_validations USING btree (changeover_event_id);
+
+
+--
+-- Name: idx_allergen_val_retention; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_val_retention ON public.allergen_changeover_validations USING btree (retention_until);
+
+
+--
 -- Name: idx_bom_snapshots_wo; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12732,6 +13462,55 @@ CREATE INDEX idx_capacity_plans_org_status ON public.capacity_plans USING btree 
 
 
 --
+-- Name: idx_changeover_line_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_changeover_line_time ON public.changeover_events USING btree (line_id, started_at);
+
+
+--
+-- Name: idx_changeover_wo_from; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_changeover_wo_from ON public.changeover_events USING btree (wo_from_id) WHERE (wo_from_id IS NOT NULL);
+
+
+--
+-- Name: idx_changeover_wo_to; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_changeover_wo_to ON public.changeover_events USING btree (wo_to_id) WHERE (wo_to_id IS NOT NULL);
+
+
+--
+-- Name: idx_consumption_fefo_dev; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_fefo_dev ON public.wo_material_consumption USING btree (org_id, wo_id) WHERE (fefo_adherence_flag = false);
+
+
+--
+-- Name: idx_consumption_lp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_lp ON public.wo_material_consumption USING btree (lp_id);
+
+
+--
+-- Name: idx_consumption_operator_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_operator_time ON public.wo_material_consumption USING btree (operator_id, consumed_at) WHERE (operator_id IS NOT NULL);
+
+
+--
+-- Name: idx_consumption_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_wo ON public.wo_material_consumption USING btree (org_id, wo_id);
+
+
+--
 -- Name: idx_d365_sync_dlq_job; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12771,6 +13550,48 @@ CREATE INDEX idx_d365_sync_jobs_org_next_retry ON public.d365_sync_jobs USING bt
 --
 
 CREATE INDEX idx_d365_sync_jobs_org_status_scheduled ON public.d365_sync_jobs USING btree (org_id, status, scheduled_at);
+
+
+--
+-- Name: idx_downtime_categories_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_categories_org ON public.downtime_categories USING btree (org_id);
+
+
+--
+-- Name: idx_downtime_category; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_category ON public.downtime_events USING btree (category_id);
+
+
+--
+-- Name: idx_downtime_line_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_line_time ON public.downtime_events USING btree (line_id, started_at);
+
+
+--
+-- Name: idx_downtime_mwo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_mwo ON public.downtime_events USING btree (mwo_id) WHERE (mwo_id IS NOT NULL);
+
+
+--
+-- Name: idx_downtime_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_open ON public.downtime_events USING btree (org_id, line_id) WHERE (ended_at IS NULL);
+
+
+--
+-- Name: idx_downtime_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_downtime_wo ON public.downtime_events USING btree (wo_id) WHERE (wo_id IS NOT NULL);
 
 
 --
@@ -13019,6 +13840,48 @@ CREATE INDEX idx_mrp_runs_org_status ON public.mrp_runs USING btree (org_id, sta
 
 
 --
+-- Name: idx_oee_line_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_oee_line_time ON public.oee_snapshots USING btree (line_id, snapshot_minute DESC);
+
+
+--
+-- Name: idx_outputs_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outputs_batch ON public.wo_outputs USING btree (org_id, batch_number);
+
+
+--
+-- Name: idx_outputs_lp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outputs_lp ON public.wo_outputs USING btree (lp_id) WHERE (lp_id IS NOT NULL);
+
+
+--
+-- Name: idx_outputs_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outputs_product ON public.wo_outputs USING btree (org_id, product_id);
+
+
+--
+-- Name: idx_outputs_qa_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outputs_qa_status ON public.wo_outputs USING btree (org_id, qa_status);
+
+
+--
+-- Name: idx_outputs_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outputs_wo ON public.wo_outputs USING btree (org_id, wo_id);
+
+
+--
 -- Name: idx_reorder_thresholds_item; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13215,6 +14078,34 @@ CREATE INDEX idx_technical_sensory_evaluations_org_subject ON public.technical_s
 
 
 --
+-- Name: idx_waste_categories_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_waste_categories_org ON public.waste_categories USING btree (org_id);
+
+
+--
+-- Name: idx_waste_category_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_waste_category_time ON public.wo_waste_log USING btree (category_id, recorded_at);
+
+
+--
+-- Name: idx_waste_tenant_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_waste_tenant_time ON public.wo_waste_log USING btree (org_id, recorded_at);
+
+
+--
+-- Name: idx_waste_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_waste_wo ON public.wo_waste_log USING btree (wo_id);
+
+
+--
 -- Name: idx_wo_dependencies_child; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13247,6 +14138,55 @@ CREATE INDEX idx_wo_dependencies_org_parent ON public.wo_dependencies USING btre
 --
 
 CREATE INDEX idx_wo_dependencies_parent ON public.wo_dependencies USING btree (parent_wo_id);
+
+
+--
+-- Name: idx_wo_events_actor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_events_actor ON public.wo_events USING btree (actor_user_id) WHERE (actor_user_id IS NOT NULL);
+
+
+--
+-- Name: idx_wo_events_execution; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_events_execution ON public.wo_events USING btree (execution_id) WHERE (execution_id IS NOT NULL);
+
+
+--
+-- Name: idx_wo_events_org_wo_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_events_org_wo_time ON public.wo_events USING btree (org_id, wo_id, occurred_at);
+
+
+--
+-- Name: idx_wo_events_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_events_wo ON public.wo_events USING btree (wo_id);
+
+
+--
+-- Name: idx_wo_executions_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_executions_org_status ON public.wo_executions USING btree (org_id, status);
+
+
+--
+-- Name: idx_wo_executions_org_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_executions_org_wo ON public.wo_executions USING btree (org_id, wo_id);
+
+
+--
+-- Name: idx_wo_executions_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_wo_executions_wo ON public.wo_executions USING btree (wo_id);
 
 
 --
@@ -13985,6 +14925,13 @@ CREATE INDEX warehouses_org_idx ON public.warehouses USING btree (org_id);
 
 
 --
+-- Name: wo_outputs_org_batch_year_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX wo_outputs_org_batch_year_uq ON public.wo_outputs USING btree (org_id, batch_number, registered_year);
+
+
+--
 -- Name: work_order_org_created_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14398,6 +15345,13 @@ CREATE TRIGGER capacity_plans_set_updated_at BEFORE UPDATE ON public.capacity_pl
 
 
 --
+-- Name: changeover_events changeover_events_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER changeover_events_set_updated_at BEFORE UPDATE ON public.changeover_events FOR EACH ROW EXECUTE FUNCTION public.production_set_updated_at();
+
+
+--
 -- Name: d365_sync_dlq d365_sync_dlq_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14734,6 +15688,13 @@ CREATE TRIGGER trg_seed_units_of_measure AFTER INSERT ON public.organizations FO
 
 
 --
+-- Name: allergen_changeover_validations trg_set_allergen_retention_until; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_set_allergen_retention_until BEFORE INSERT OR UPDATE ON public.allergen_changeover_validations FOR EACH ROW EXECUTE FUNCTION public.fn_set_allergen_retention_until();
+
+
+--
 -- Name: user_pins trg_user_pins_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14759,6 +15720,13 @@ CREATE TRIGGER trg_zzz_seed_npd_allergen_write_permission AFTER INSERT ON public
 --
 
 CREATE TRIGGER trg_zzz_seed_npd_org_admin_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_npd_org_admin_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_production_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_production_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_production_permissions_on_org_insert();
 
 
 --
@@ -14804,6 +15772,20 @@ CREATE TRIGGER uom_custom_conversions_set_updated_at BEFORE UPDATE ON public.uom
 
 
 --
+-- Name: wo_executions wo_executions_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER wo_executions_set_updated_at BEFORE UPDATE ON public.wo_executions FOR EACH ROW EXECUTE FUNCTION public.wo_executions_set_updated_at();
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER wo_material_consumption_set_updated_at BEFORE UPDATE ON public.wo_material_consumption FOR EACH ROW EXECUTE FUNCTION public.wo_outputs_set_updated_at();
+
+
+--
 -- Name: wo_materials wo_materials_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14815,6 +15797,20 @@ CREATE TRIGGER wo_materials_set_updated_at BEFORE UPDATE ON public.wo_materials 
 --
 
 CREATE TRIGGER wo_operations_set_updated_at BEFORE UPDATE ON public.wo_operations FOR EACH ROW EXECUTE FUNCTION public.work_orders_set_updated_at();
+
+
+--
+-- Name: wo_outputs wo_outputs_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER wo_outputs_set_updated_at BEFORE UPDATE ON public.wo_outputs FOR EACH ROW EXECUTE FUNCTION public.wo_outputs_set_updated_at();
+
+
+--
+-- Name: wo_waste_log wo_waste_log_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER wo_waste_log_set_updated_at BEFORE UPDATE ON public.wo_waste_log FOR EACH ROW EXECUTE FUNCTION public.production_set_updated_at();
 
 
 --
@@ -15054,6 +16050,30 @@ ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
 
 ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
     ADD CONSTRAINT allergen_cascade_rebuild_jobs_product_code_fkey FOREIGN KEY (org_id, product_code) REFERENCES public.product(org_id, product_code) ON DELETE CASCADE;
+
+
+--
+-- Name: allergen_changeover_validations allergen_changeover_validations_changeover_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_changeover_validations
+    ADD CONSTRAINT allergen_changeover_validations_changeover_event_id_fkey FOREIGN KEY (changeover_event_id) REFERENCES public.changeover_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allergen_changeover_validations allergen_changeover_validations_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_changeover_validations
+    ADD CONSTRAINT allergen_changeover_validations_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allergen_changeover_validations allergen_changeover_validations_override_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_changeover_validations
+    ADD CONSTRAINT allergen_changeover_validations_override_by_fkey FOREIGN KEY (override_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -15345,6 +16365,46 @@ ALTER TABLE ONLY public.capacity_plans
 
 
 --
+-- Name: changeover_events changeover_events_first_signer_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_first_signer_fkey FOREIGN KEY (first_signer) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: changeover_events changeover_events_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: changeover_events changeover_events_second_signer_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_second_signer_fkey FOREIGN KEY (second_signer) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: changeover_events changeover_events_wo_from_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_wo_from_id_fkey FOREIGN KEY (wo_from_id) REFERENCES public.work_orders(id) ON DELETE SET NULL;
+
+
+--
+-- Name: changeover_events changeover_events_wo_to_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.changeover_events
+    ADD CONSTRAINT changeover_events_wo_to_id_fkey FOREIGN KEY (wo_to_id) REFERENCES public.work_orders(id) ON DELETE SET NULL;
+
+
+--
 -- Name: compliance_docs compliance_docs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15462,6 +16522,54 @@ ALTER TABLE ONLY public.d365_sync_runs
 
 ALTER TABLE ONLY public.dept_column_drafts
     ADD CONSTRAINT dept_column_drafts_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: downtime_categories downtime_categories_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_categories
+    ADD CONSTRAINT downtime_categories_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: downtime_events downtime_events_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.downtime_categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: downtime_events downtime_events_operator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: downtime_events downtime_events_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: downtime_events downtime_events_recorded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_recorded_by_fkey FOREIGN KEY (recorded_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: downtime_events downtime_events_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.downtime_events
+    ADD CONSTRAINT downtime_events_wo_id_fkey FOREIGN KEY (wo_id) REFERENCES public.work_orders(id) ON DELETE SET NULL;
 
 
 --
@@ -16297,6 +17405,14 @@ ALTER TABLE ONLY public.nutrition_profiles
 
 
 --
+-- Name: oee_snapshots oee_snapshots_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oee_snapshots
+    ADD CONSTRAINT oee_snapshots_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: org_authorization_policies org_authorization_policies_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16985,6 +18101,14 @@ ALTER TABLE ONLY public.warehouses
 
 
 --
+-- Name: waste_categories waste_categories_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.waste_categories
+    ADD CONSTRAINT waste_categories_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: wo_dependencies wo_dependencies_child_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17014,6 +18138,86 @@ ALTER TABLE ONLY public.wo_dependencies
 
 ALTER TABLE ONLY public.wo_dependencies
     ADD CONSTRAINT wo_dependencies_parent_wo_id_fkey FOREIGN KEY (parent_wo_id) REFERENCES public.work_orders(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_events wo_events_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_events
+    ADD CONSTRAINT wo_events_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: wo_events wo_events_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_events
+    ADD CONSTRAINT wo_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_executions wo_executions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_executions wo_executions_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_executions wo_executions_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_executions wo_executions_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_executions
+    ADD CONSTRAINT wo_executions_wo_id_fkey FOREIGN KEY (wo_id) REFERENCES public.work_orders(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_operator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_over_consumption_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_over_consumption_approved_by_fkey FOREIGN KEY (over_consumption_approved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: wo_material_consumption wo_material_consumption_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_material_consumption
+    ADD CONSTRAINT wo_material_consumption_wo_id_fkey FOREIGN KEY (wo_id) REFERENCES public.work_orders(id) ON DELETE CASCADE;
 
 
 --
@@ -17089,6 +18293,46 @@ ALTER TABLE ONLY public.wo_operations
 
 
 --
+-- Name: wo_outputs wo_outputs_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_outputs wo_outputs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_outputs wo_outputs_registered_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_registered_by_fkey FOREIGN KEY (registered_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_outputs wo_outputs_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_outputs wo_outputs_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_outputs
+    ADD CONSTRAINT wo_outputs_wo_id_fkey FOREIGN KEY (wo_id) REFERENCES public.work_orders(id) ON DELETE CASCADE;
+
+
+--
 -- Name: wo_status_history wo_status_history_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17102,6 +18346,46 @@ ALTER TABLE ONLY public.wo_status_history
 
 ALTER TABLE ONLY public.wo_status_history
     ADD CONSTRAINT wo_status_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: wo_waste_log wo_waste_log_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_waste_log wo_waste_log_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.waste_categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_waste_log wo_waste_log_operator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: wo_waste_log wo_waste_log_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: wo_waste_log wo_waste_log_wo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wo_waste_log
+    ADD CONSTRAINT wo_waste_log_wo_id_fkey FOREIGN KEY (wo_id) REFERENCES public.work_orders(id) ON DELETE CASCADE;
 
 
 --
@@ -17502,6 +18786,19 @@ CREATE POLICY allergen_cascade_rebuild_jobs_org_context ON public.allergen_casca
 
 
 --
+-- Name: allergen_changeover_validations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.allergen_changeover_validations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: allergen_changeover_validations allergen_changeover_validations_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY allergen_changeover_validations_org_context ON public.allergen_changeover_validations TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: allergen_contamination_risk; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17777,6 +19074,19 @@ CREATE POLICY capacity_plans_org_isolation ON public.capacity_plans TO app_user 
 
 
 --
+-- Name: changeover_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.changeover_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: changeover_events changeover_events_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY changeover_events_org_context ON public.changeover_events TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: compliance_docs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17908,6 +19218,32 @@ ALTER TABLE public.dept_column_migrations ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY dept_column_migrations_org_context ON public.dept_column_migrations TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: downtime_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.downtime_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: downtime_categories downtime_categories_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY downtime_categories_org_context ON public.downtime_categories TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: downtime_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.downtime_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: downtime_events downtime_events_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY downtime_events_org_context ON public.downtime_events TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -18482,6 +19818,19 @@ ALTER TABLE public.nutrition_profiles ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY nutrition_profiles_org_context ON public.nutrition_profiles TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: oee_snapshots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.oee_snapshots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: oee_snapshots oee_snapshots_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY oee_snapshots_org_context ON public.oee_snapshots TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -19307,6 +20656,19 @@ CREATE POLICY warehouses_org_context_update ON public.warehouses FOR UPDATE TO a
 
 
 --
+-- Name: waste_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.waste_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: waste_categories waste_categories_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY waste_categories_org_context ON public.waste_categories TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: wo_dependencies; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -19317,6 +20679,45 @@ ALTER TABLE public.wo_dependencies ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY wo_dependencies_org_context ON public.wo_dependencies TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: wo_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.wo_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: wo_events wo_events_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY wo_events_org_context ON public.wo_events TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: wo_executions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.wo_executions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: wo_executions wo_executions_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY wo_executions_org_context ON public.wo_executions TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: wo_material_consumption; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.wo_material_consumption ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: wo_material_consumption wo_material_consumption_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY wo_material_consumption_org_context ON public.wo_material_consumption TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -19346,6 +20747,19 @@ CREATE POLICY wo_operations_org_context ON public.wo_operations TO app_user USIN
 
 
 --
+-- Name: wo_outputs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.wo_outputs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: wo_outputs wo_outputs_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY wo_outputs_org_context ON public.wo_outputs TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: wo_status_history; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -19356,6 +20770,19 @@ ALTER TABLE public.wo_status_history ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY wo_status_history_org_context ON public.wo_status_history TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: wo_waste_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.wo_waste_log ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: wo_waste_log wo_waste_log_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY wo_waste_log_org_context ON public.wo_waste_log TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --

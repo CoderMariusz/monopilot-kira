@@ -81,6 +81,19 @@ export enum EventType {
   ORG_CREATED = 'org.created',
   ORG_MFA_ENROLLMENT_FORCED = 'org.mfa_enrollment.forced',
   ORG_SECURITY_POLICY_UPDATED = 'org.security_policy.updated',
+  // 08-production lifecycle + waste/downtime/changeover/OEE events (PRD 08-PRODUCTION §6/§12/§13;
+  // canonical event table in the MON-domain-production skill). 08 is the sole emitter of these.
+  PRODUCTION_ALLERGEN_CHANGEOVER_VALIDATED = 'production.allergen_changeover.validated',
+  PRODUCTION_CHANGEOVER_SIGNED = 'production.changeover.signed',
+  PRODUCTION_CONSUME_BLOCKED = 'production.consume.blocked',
+  PRODUCTION_CONSUME_COMPLETED = 'production.consume.completed',
+  PRODUCTION_DOWNTIME_RECORDED = 'production.downtime.recorded',
+  PRODUCTION_OEE_SNAPSHOT = 'production.oee.snapshot',
+  PRODUCTION_OUTPUT_RECORDED = 'production.output.recorded',
+  PRODUCTION_WASTE_RECORDED = 'production.waste.recorded',
+  PRODUCTION_WO_CLOSED = 'production.wo.closed',
+  PRODUCTION_WO_COMPLETED = 'production.wo.completed',
+  PRODUCTION_WO_STARTED = 'production.wo.started',
   QUALITY_RECORDED = 'quality.recorded',
   REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
   REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
@@ -154,6 +167,26 @@ export const ALL_SETTINGS_EVENTS = [
   EventType.SETTINGS_NOTIFICATION_DIGEST_UPDATED,
   EventType.SETTINGS_SSO_CONFIG_CHANGED,
   EventType.SETTINGS_SCIM_TOKEN_CREATED,
+] as const;
+
+/**
+ * Locked 08-production event group. Subset of `EventType` — the canonical
+ * production lifecycle + waste/downtime/changeover/OEE vocabulary that
+ * 08-production (and ONLY 08-production) emits. Referenced by the production
+ * module sign-off contract; 15-OEE is a read-only consumer of `production.oee.snapshot`.
+ */
+export const ALL_PRODUCTION_EVENTS = [
+  EventType.PRODUCTION_WO_STARTED,
+  EventType.PRODUCTION_WO_COMPLETED,
+  EventType.PRODUCTION_WO_CLOSED,
+  EventType.PRODUCTION_OUTPUT_RECORDED,
+  EventType.PRODUCTION_WASTE_RECORDED,
+  EventType.PRODUCTION_DOWNTIME_RECORDED,
+  EventType.PRODUCTION_CONSUME_COMPLETED,
+  EventType.PRODUCTION_CONSUME_BLOCKED,
+  EventType.PRODUCTION_CHANGEOVER_SIGNED,
+  EventType.PRODUCTION_ALLERGEN_CHANGEOVER_VALIDATED,
+  EventType.PRODUCTION_OEE_SNAPSHOT,
 ] as const;
 
 /**
