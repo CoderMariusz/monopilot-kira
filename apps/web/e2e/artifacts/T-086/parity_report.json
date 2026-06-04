@@ -1,0 +1,96 @@
+{
+  "task": "T-086",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/docs-screens.jsx:6-53 (ComplianceDocsScreen)",
+    "prototypes/design/Monopilot Design System/npd/modals.jsx:667-689 (DocUploadModal)"
+  ],
+  "generated_at": "2026-06-04T06:51:27.849Z",
+  "states": {
+    "loading": {
+      "screen": true,
+      "uploadButton": false,
+      "table": false,
+      "badges": 0,
+      "statusBadges": 0,
+      "groups": [],
+      "columnHeaders": [],
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1
+    },
+    "empty": {
+      "screen": true,
+      "uploadButton": false,
+      "table": false,
+      "badges": 0,
+      "statusBadges": 0,
+      "groups": [],
+      "columnHeaders": [],
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0
+    },
+    "error": {
+      "screen": true,
+      "uploadButton": false,
+      "table": false,
+      "badges": 0,
+      "statusBadges": 0,
+      "groups": [],
+      "columnHeaders": [],
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0
+    },
+    "permission_denied": {
+      "screen": true,
+      "uploadButton": false,
+      "table": false,
+      "badges": 0,
+      "statusBadges": 0,
+      "groups": [],
+      "columnHeaders": [],
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0
+    },
+    "populated": {
+      "screen": true,
+      "uploadButton": false,
+      "table": true,
+      "badges": 8,
+      "statusBadges": 3,
+      "groups": [
+        "CoA",
+        "Spec"
+      ],
+      "columnHeaders": [
+        "Type",
+        "Title",
+        "Version",
+        "Uploaded",
+        "Expires",
+        "Status",
+        "Actions",
+        "Type",
+        "Title",
+        "Version",
+        "Uploaded",
+        "Expires",
+        "Status",
+        "Actions"
+      ],
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0
+    },
+    "upload_modal": {
+      "dialog": true,
+      "modalId": "docUpload",
+      "docTypeCombobox": 1,
+      "fileInputAccept": ".pdf,.xlsx,.docx",
+      "dateInput": true,
+      "rawSelects": 0
+    }
+  }
+}
