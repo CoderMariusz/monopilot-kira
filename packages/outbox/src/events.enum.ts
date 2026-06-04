@@ -10,6 +10,8 @@ export enum EventType {
   RISK_CREATED = 'risk.created',
   COMPLIANCE_DOC_UPLOADED = 'compliance_doc.uploaded',
   COMPLIANCE_DOC_DELETED = 'compliance_doc.deleted',
+  COMPLIANCE_DOC_EXPIRING = 'compliance_doc.expiring',
+  COMPLIANCE_DOC_EXPIRED = 'compliance_doc.expired',
   BOM_INITIAL_VERSION_CREATED = 'bom.initial_version_created',
   FG_BOM_RELEASED = 'fg.bom.released',
   BOM_VERSION_SUBMITTED = 'bom.version_submitted',
