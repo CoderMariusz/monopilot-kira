@@ -20,6 +20,7 @@
     "./RunStrip": "./src/RunStrip.tsx",
     "./Textarea": "./src/Textarea.tsx",
     "./Switch": "./src/Switch.tsx",
+    "./Slider": "./src/Slider.tsx",
     "./Checkbox": "./src/Checkbox.tsx",
     "./Select": "./src/Select.tsx",
     "./Card": "./src/Card.tsx",
