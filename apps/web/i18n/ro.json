@@ -1728,6 +1728,36 @@
       "emptyDetail": "Selectați un proiect pentru a vedea detaliile.",
       "error": "Pipeline-ul nu a putut fi încărcat. Încercați din nou când backendul este disponibil.",
       "forbidden": "Nu ai permisiunea de a vizualiza pipeline-ul."
+    },
+    "faCoreTab": {
+      "title": "Secțiunea Core",
+      "subtitle": "Completați mai întâi secțiunea Core — celelalte departamente se deblochează după închiderea Core.",
+      "closedBadge": "✓ Închis",
+      "openBadge": "Deschis",
+      "autoHint": "Derivat automat — doar pentru citire.",
+      "requiredMissingTitle": "Lipsesc câmpuri obligatorii",
+      "requiredMissingBody": "Numele produsului, Dimensiunea ambalajului și Componentele rețetei trebuie completate înainte de închiderea Core.",
+      "save": "Salvează Core",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea Core a fost salvată.",
+      "saveError": "Secțiunea Core nu a putut fi salvată.",
+      "selectPlaceholder": "Selectați…",
+      "loading": "Se încarcă secțiunea Core…",
+      "empty": "Niciun câmp Core configurat",
+      "emptyBody": "Această organizație nu are încă coloane pentru departamentul Core.",
+      "error": "Secțiunea Core nu a putut fi încărcată.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea Core.",
+      "fields": {
+        "product_code": "Cod FA",
+        "product_name": "Numele produsului",
+        "pack_size": "Dimensiunea ambalajului",
+        "number_of_cases": "Număr de baxuri",
+        "recipe_components": "Componentele rețetei",
+        "ingredient_codes": "Coduri ingrediente (auto)",
+        "template": "Șablon",
+        "closed_core": "Închidere Core",
+        "comments": "Comentarii"
+      }
     }
   }
 }

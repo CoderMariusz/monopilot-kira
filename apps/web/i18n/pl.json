@@ -1728,6 +1728,36 @@
       "emptyDetail": "Wybierz projekt, aby zobaczyć jego szczegóły.",
       "error": "Nie można wczytać pipeline. Spróbuj ponownie, gdy backend będzie dostępny.",
       "forbidden": "Nie masz uprawnień do przeglądania pipeline."
+    },
+    "faCoreTab": {
+      "title": "Sekcja Core",
+      "subtitle": "Najpierw wypełnij sekcję Core — pozostałe działy odblokują się po zamknięciu Core.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "autoHint": "Wyliczane automatycznie — tylko do odczytu.",
+      "requiredMissingTitle": "Brak wymaganych pól",
+      "requiredMissingBody": "Nazwa produktu, Rozmiar opakowania i Składniki receptury muszą być wypełnione przed zamknięciem Core.",
+      "save": "Zapisz Core",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja Core zapisana.",
+      "saveError": "Nie udało się zapisać sekcji Core.",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Ładowanie sekcji Core…",
+      "empty": "Brak skonfigurowanych pól Core",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu Core.",
+      "error": "Nie można załadować sekcji Core.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji Core.",
+      "fields": {
+        "product_code": "Kod FA",
+        "product_name": "Nazwa produktu",
+        "pack_size": "Rozmiar opakowania",
+        "number_of_cases": "Liczba kartonów",
+        "recipe_components": "Składniki receptury",
+        "ingredient_codes": "Kody składników (auto)",
+        "template": "Szablon",
+        "closed_core": "Zamknięcie Core",
+        "comments": "Uwagi"
+      }
     }
   }
 }
