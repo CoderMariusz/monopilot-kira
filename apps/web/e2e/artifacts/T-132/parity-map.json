@@ -1,0 +1,44 @@
+{
+  "task": "T-132",
+  "component": "apps/web/app/(npd)/_components/dashboard-counters.tsx",
+  "prototypeAnchor": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174",
+  "kpiRowLines": "59-81",
+  "regions": [
+    {
+      "prototype": "KPI grid (repeat(4,1fr))",
+      "production": "labelled <section> grid of shadcn Card tiles"
+    },
+    {
+      "prototype": "card \"Total active FAs\"",
+      "production": "Total tile (FG copy) — Card + info Badge"
+    },
+    {
+      "prototype": "card \"Fully complete\"",
+      "production": "Done tile — Card + success Badge"
+    },
+    {
+      "prototype": "card \"In progress / pending\"",
+      "production": "Pending tile — Card + warning Badge"
+    },
+    {
+      "prototype": "by-status blocked count",
+      "production": "Blocked tile — Card + Badge (destructive when > 0)"
+    },
+    {
+      "prototype": "launch-alert overdue count",
+      "production": "Overdue tile — Card + destructive Badge when > 0"
+    }
+  ],
+  "states": [
+    "ready",
+    "empty",
+    "error",
+    "forbidden"
+  ],
+  "i18nNamespace": "npd.dashboardKpi",
+  "deviations": [
+    "Tile set follows the task contract (Total + by-status + Overdue = 5) vs prototype (Total/Complete/InProgress/Built = 4).",
+    "User-facing copy uses canonical FG term; legacy FA alias from the prototype is not reproduced (MON-domain-npd red-line).",
+    "Loading state owned by parent RSC Suspense boundary; not rendered by this island."
+  ]
+}
