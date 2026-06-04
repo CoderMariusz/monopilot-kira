@@ -14147,6 +14147,13 @@ CREATE INDEX d365_import_cache_org_status_idx ON public.d365_import_cache USING 
 
 
 --
+-- Name: d365_sync_jobs_org_scheduled_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX d365_sync_jobs_org_scheduled_idx ON public.d365_sync_jobs USING btree (org_id, scheduled_at DESC NULLS LAST);
+
+
+--
 -- Name: d365_sync_runs_org_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15607,6 +15614,13 @@ CREATE INDEX npd_legacy_closeout_org_closed_idx ON public.npd_legacy_closeout US
 --
 
 CREATE INDEX npd_legacy_closeout_org_project_idx ON public.npd_legacy_closeout USING btree (org_id, npd_project_id);
+
+
+--
+-- Name: npd_projects_org_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX npd_projects_org_created_idx ON public.npd_projects USING btree (org_id, created_at DESC);
 
 
 --
