@@ -7,3 +7,10 @@ export type {
   FaHistoryEventSource,
   ListFaHistoryOptions,
 } from './list-fa-history.js';
+
+export { listApprovalHistory } from './list-approval-history.js';
+export type {
+  ApprovalDecision,
+  ApprovalHistoryRecord,
+  ListApprovalHistoryOptions,
+} from './list-approval-history.js';
