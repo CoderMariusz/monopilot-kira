@@ -178,7 +178,7 @@ describe('T-052 page — RBAC affordances (§11.6)', () => {
   it('renders both privileged actions when permissions are granted', async () => {
     grantPermissions(true, true);
     await renderPage();
-    expect(screen.getByRole('button', { name: /create fa/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create fg/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /refresh d365/i })).toBeInTheDocument();
   });
 

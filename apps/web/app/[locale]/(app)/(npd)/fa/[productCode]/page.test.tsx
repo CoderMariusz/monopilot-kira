@@ -189,12 +189,12 @@ describe('T-136 FA detail page — states', () => {
 describe('T-136 FA detail page — i18n (next-intl locale path)', () => {
   it('resolves the npd.faDetail eyebrow label in English', async () => {
     await renderPage('en');
-    expect(screen.getByText('Factory Article')).toBeInTheDocument();
+    expect(screen.getByText('Finished Good')).toBeInTheDocument();
   });
 
   it('resolves Polish labels through the npd.faDetail namespace', async () => {
     await renderPage('pl');
     // eyebrow label localized — proves the namespace exists in pl.json.
-    expect(screen.getByText('Artykuł fabryczny')).toBeInTheDocument();
+    expect(screen.getByText('Wyrób gotowy')).toBeInTheDocument();
   });
 });
