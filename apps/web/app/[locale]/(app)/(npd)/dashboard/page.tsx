@@ -32,8 +32,16 @@ import {
   type LaunchAlert,
   type PageState,
 } from './_components/dashboard-screen';
+import {
+  DashboardPipelinePreview,
+  DEFAULT_PIPELINE_PREVIEW_LABELS,
+  type DashboardPipelinePreviewLabels,
+  type GateStatus,
+  type RecentProject,
+} from '../_components/dashboard-pipeline-preview';
 import { getDashboardSummary } from '../../../../(npd)/dashboard/_actions/get-dashboard-summary';
 import { getLaunchAlerts } from '../../../../(npd)/dashboard/_actions/get-launch-alerts';
+import { listProjects } from '../../../../(npd)/pipeline/_actions/list-projects';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +62,7 @@ type DashboardData = {
   summary: DashboardSummary;
   perDept: DeptProgress[];
   alerts: LaunchAlert[];
+  recentProjects: RecentProject[];
 };
 
 type DashboardPageProps = {
@@ -65,6 +74,7 @@ type DashboardPageProps = {
   summary?: DashboardSummary;
   perDept?: DeptProgress[];
   alerts?: LaunchAlert[];
+  recentProjects?: RecentProject[];
 };
 
 const DEFAULT_LABELS: DashboardScreenLabels = {
@@ -186,13 +196,86 @@ async function readActionAffordances(): Promise<{ canCreate: boolean; canRefresh
   });
 }
 
+const RECENT_PROJECTS_LIMIT = 10;
+
+type ProjectSummaryLike = {
+  id: string;
+  code: string;
+  name: string;
+  currentGate: string;
+  owner: string | null;
+  progressPercent: number;
+};
+
+/**
+ * Derive the preview gate-status dot from the real project state. listProjects
+ * (T-057) exposes the current gate + checklist progress; we map:
+ *   - Launched / 100% checklist  → done
+ *   - any checklist progress      → in-progress
+ *   - no progress yet             → todo
+ * (`blocked` is reserved in the GateStatus union but not surfaced by listProjects;
+ * see the deviation log.)
+ */
+function deriveGateStatus(project: ProjectSummaryLike): GateStatus {
+  if (project.currentGate === 'Launched' || project.progressPercent >= 100) return 'done';
+  if (project.progressPercent > 0) return 'in-progress';
+  return 'todo';
+}
+
+function mapRecentProject(project: ProjectSummaryLike): RecentProject {
+  return {
+    id: project.id,
+    projectId: project.id,
+    code: project.code,
+    productCode: project.code,
+    name: project.name,
+    owner: project.owner ?? '—',
+    currentGate: project.currentGate,
+    gateStatus: deriveGateStatus(project),
+  };
+}
+
+/**
+ * Recent-projects snapshot for the T-133 preview region. Real, org-scoped data via
+ * the T-057 `listProjects` Server Action (RLS app.current_org_id()); listProjects
+ * already orders by created_at desc, so we take the top N. A FORBIDDEN/failure here
+ * degrades the preview to empty without failing the whole dashboard.
+ */
+async function readRecentProjects(): Promise<RecentProject[]> {
+  const result = await listProjects();
+  if (!result.ok) return [];
+  return result.data.projects.slice(0, RECENT_PROJECTS_LIMIT).map(mapRecentProject);
+}
+
+async function buildPipelineLabels(locale: string): Promise<DashboardPipelinePreviewLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.dashboardPipeline' });
+    const keys = Object.keys(DEFAULT_PIPELINE_PREVIEW_LABELS) as Array<
+      keyof DashboardPipelinePreviewLabels
+    >;
+    return keys.reduce((labels, key) => {
+      try {
+        const value = t(key);
+        labels[key] = value === key ? DEFAULT_PIPELINE_PREVIEW_LABELS[key] : value;
+      } catch {
+        labels[key] = DEFAULT_PIPELINE_PREVIEW_LABELS[key];
+      }
+      return labels;
+    }, {} as DashboardPipelinePreviewLabels);
+  } catch {
+    return { ...DEFAULT_PIPELINE_PREVIEW_LABELS };
+  }
+}
+
 async function readDashboard(): Promise<DashboardData> {
   try {
     // Prefetch built + active alerts so the client toggle filters without a refetch.
-    const [summaryResult, alertsResult, affordances] = await Promise.all([
+    // Recent projects (T-057) feed the T-133 pipeline-preview region in parallel.
+    const [summaryResult, alertsResult, affordances, recentProjects] = await Promise.all([
       getDashboardSummary(),
       getLaunchAlerts({ showBuilt: true }),
       readActionAffordances(),
+      readRecentProjects(),
     ]);
 
     const summary: DashboardSummary = {
@@ -230,6 +313,7 @@ async function readDashboard(): Promise<DashboardData> {
       summary,
       perDept,
       alerts,
+      recentProjects,
     };
   } catch (error) {
     if (error instanceof Error && error.message === 'FORBIDDEN') {
@@ -248,15 +332,23 @@ function emptyData(state: PageState): DashboardData {
     summary: { totalActive: 0, fullyComplete: 0, inProgress: 0, totalBuilt: 0 },
     perDept: [],
     alerts: [],
+    recentProjects: [],
   };
 }
 
 export default async function NpdDashboardPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as DashboardPageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
-  const labels = await buildLabels(locale);
+  const [labels, pipelineLabels] = await Promise.all([
+    buildLabels(locale),
+    buildPipelineLabels(locale),
+  ]);
 
-  const injected = props.summary !== undefined || props.alerts !== undefined || props.state !== undefined;
+  const injected =
+    props.summary !== undefined ||
+    props.alerts !== undefined ||
+    props.state !== undefined ||
+    props.recentProjects !== undefined;
   const data: DashboardData = injected
     ? {
         state: props.state ?? 'ready',
@@ -265,6 +357,7 @@ export default async function NpdDashboardPage(propsInput: unknown = {}) {
         summary: props.summary ?? { totalActive: 0, fullyComplete: 0, inProgress: 0, totalBuilt: 0 },
         perDept: props.perDept ?? [],
         alerts: props.alerts ?? [],
+        recentProjects: props.recentProjects ?? [],
       }
     : await readDashboard();
 
@@ -277,6 +370,9 @@ export default async function NpdDashboardPage(propsInput: unknown = {}) {
       summary={data.summary}
       perDept={data.perDept}
       alerts={data.alerts}
+      pipelinePreview={
+        <DashboardPipelinePreview recentProjects={data.recentProjects} labels={pipelineLabels} />
+      }
     />
   );
 }

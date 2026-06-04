@@ -2014,6 +2014,16 @@
       "empty": "Nu există încă produse finite active.",
       "error": "Indicatorii KPI nu pot fi încărcați. Încearcă din nou când backendul este disponibil.",
       "forbidden": "Nu aveți permisiunea de a vizualiza acești indicatori KPI."
+    },
+    "dashboardPipeline": {
+      "title": "Pipeline (recente)",
+      "subtitle": "Mișcări recente ale porților FA",
+      "viewAll": "Vezi toate",
+      "empty": "Niciun proiect recent în pipeline.",
+      "statusTodo": "În așteptare",
+      "statusInProgress": "În curs",
+      "statusBlocked": "Blocat",
+      "statusDone": "Finalizat"
     }
   }
 }

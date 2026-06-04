@@ -22,11 +22,13 @@ import NpdDashboardPage from './page';
 
 type Locale = 'en' | 'pl' | 'ro' | 'uk';
 
-const { getDashboardSummaryMock, getLaunchAlertsMock, withOrgContextMock } = vi.hoisted(() => ({
-  getDashboardSummaryMock: vi.fn(),
-  getLaunchAlertsMock: vi.fn(),
-  withOrgContextMock: vi.fn(),
-}));
+const { getDashboardSummaryMock, getLaunchAlertsMock, listProjectsMock, withOrgContextMock } =
+  vi.hoisted(() => ({
+    getDashboardSummaryMock: vi.fn(),
+    getLaunchAlertsMock: vi.fn(),
+    listProjectsMock: vi.fn(),
+    withOrgContextMock: vi.fn(),
+  }));
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) =>
@@ -59,6 +61,10 @@ vi.mock('../../../../(npd)/dashboard/_actions/get-launch-alerts', () => ({
   getLaunchAlerts: getLaunchAlertsMock,
 }));
 
+vi.mock('../../../../(npd)/pipeline/_actions/list-projects', () => ({
+  listProjects: listProjectsMock,
+}));
+
 vi.mock('../../../../../lib/auth/with-org-context', () => ({
   withOrgContext: withOrgContextMock,
 }));
@@ -85,6 +91,42 @@ const ALERTS = {
   ],
 };
 
+const RECENT_PROJECTS = {
+  ok: true as const,
+  data: {
+    projects: [
+      {
+        id: 'p-001',
+        code: 'FA5101',
+        name: 'Smoked Almond Yoghurt',
+        type: 'recipe',
+        currentGate: 'G2',
+        currentStage: 'formulation',
+        prio: 'high',
+        owner: 'Jane Nowak',
+        targetLaunch: '2026-08-01',
+        notes: null,
+        createdAt: '2026-06-01T00:00:00.000Z',
+        progressPercent: 40,
+      },
+      {
+        id: 'p-002',
+        code: 'FA5102',
+        name: 'Reduced Sugar Kefir',
+        type: 'recipe',
+        currentGate: 'Launched',
+        currentStage: 'launch',
+        prio: 'normal',
+        owner: 'Piotr Zielinski',
+        targetLaunch: '2026-07-01',
+        notes: null,
+        createdAt: '2026-05-20T00:00:00.000Z',
+        progressPercent: 100,
+      },
+    ],
+  },
+};
+
 function grantPermissions(canCreate: boolean, canRefresh: boolean) {
   // withOrgContext callback runs hasAnyPermission twice (create, refresh).
   withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
@@ -109,6 +151,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDashboardSummaryMock.mockResolvedValue(SUMMARY);
   getLaunchAlertsMock.mockResolvedValue(ALERTS);
+  listProjectsMock.mockResolvedValue(RECENT_PROJECTS);
   grantPermissions(true, true);
 });
 
@@ -182,5 +225,70 @@ describe('T-052 page — i18n (next-intl locale path)', () => {
   it('resolves Ukrainian labels through the npd.dashboard namespace', async () => {
     await renderPage('uk');
     expect(screen.getByRole('heading', { name: 'Панель NPD' })).toBeInTheDocument();
+  });
+});
+
+describe('T-134 assembly — KPI region + T-133 pipeline preview + launch alerts', () => {
+  it('composes the pipeline-preview region from real listProjects (T-057) data after the KPI counters', async () => {
+    await renderPage();
+
+    expect(listProjectsMock).toHaveBeenCalledTimes(1);
+
+    const kpiRegion = screen.getByRole('region', { name: /kpi|summary counters/i });
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+    expect(previewRegion).toBeInTheDocument();
+
+    // KPI region renders before the pipeline-preview region (documented order).
+    expect(kpiRegion.compareDocumentPosition(previewRegion)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+    // Real recent-project rows surface inside the preview.
+    expect(within(previewRegion).getByText(/smoked almond yoghurt/i)).toBeInTheDocument();
+    expect(within(previewRegion).getByText('FA5101')).toBeInTheDocument();
+    expect(within(previewRegion).getByText('Jane Nowak', { exact: false })).toBeInTheDocument();
+  });
+
+  it('derives gate-status dots from real project state (Launched/100% → done)', async () => {
+    await renderPage();
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+    // FA5102 is Launched + 100% → "Done"; FA5101 is 40% → "In progress".
+    expect(within(previewRegion).getByText(/done/i)).toBeInTheDocument();
+    expect(within(previewRegion).getByText(/in progress/i)).toBeInTheDocument();
+  });
+
+  it('routes the preview view-all link to /pipeline and each row to /fa/[productCode]', async () => {
+    await renderPage();
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+
+    const viewAll = within(previewRegion).getByRole('link', { name: /view all/i });
+    expect(viewAll).toHaveAttribute('href', '/pipeline');
+
+    const row = within(previewRegion).getByRole('link', {
+      name: /FA5101.*Smoked Almond Yoghurt/i,
+    });
+    expect(row).toHaveAttribute('href', '/fa/FA5101');
+  });
+
+  it('renders the preview empty state when there are no recent projects', async () => {
+    listProjectsMock.mockResolvedValue({ ok: true, data: { projects: [] } });
+    await renderPage();
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+    expect(within(previewRegion).getByText(/no recent projects/i)).toBeInTheDocument();
+  });
+
+  it('degrades the preview to empty without failing the dashboard when listProjects is forbidden', async () => {
+    listProjectsMock.mockResolvedValue({ ok: false, error: 'FORBIDDEN' });
+    await renderPage();
+    // Dashboard KPI region still renders; preview shows its empty body.
+    expect(screen.getByRole('region', { name: /kpi|summary counters/i })).toBeInTheDocument();
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+    expect(within(previewRegion).getByText(/no recent projects/i)).toBeInTheDocument();
+  });
+
+  it('resolves the pipeline preview labels through the npd.dashboardPipeline namespace (pl)', async () => {
+    await renderPage('pl');
+    const previewRegion = screen.getByRole('region', { name: /pipeline/i });
+    expect(within(previewRegion).getByText('Zobacz wszystkie')).toBeInTheDocument();
   });
 });

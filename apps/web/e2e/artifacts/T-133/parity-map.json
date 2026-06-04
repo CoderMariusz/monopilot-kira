@@ -1,0 +1,27 @@
+{
+  "task": "T-133",
+  "anchor": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174",
+  "note": "T-133 is a NEW dashboard region (compact recent-projects mini-view) composed into the NpdDashboard layout by T-134. It reuses the prototype dashboard-tile/card family + status-dot badge idiom (deptIcon / alertBadge) rather than a 1:1 prototype sub-block.",
+  "mapping": [
+    {
+      "prototype": "dashboard card surface (className=\"card\")",
+      "production": "Card[data-slot=card][role=region]"
+    },
+    {
+      "prototype": "card-head title + link idiom",
+      "production": "CardHeader: h2 title + /pipeline view-all Link"
+    },
+    {
+      "prototype": "status dot/icon (deptIcon ● color coding)",
+      "production": "Badge[data-slot=badge] with ● dot + text label (color not sole signal)"
+    },
+    {
+      "prototype": "FA code link (onOpenFA)",
+      "production": "row Link → /fa/[productCode]"
+    },
+    {
+      "prototype": "no-data muted state",
+      "production": "empty Card body (npd.dashboardPipeline.empty)"
+    }
+  ]
+}
