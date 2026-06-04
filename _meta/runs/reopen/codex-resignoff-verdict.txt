@@ -1,0 +1,20 @@
++end
++$$;
+
+codex
+VERDICT: SIGN-OFF
+
+P0-1: RESOLVED — forward migration 155 surgically revokes the over-granted admin matrix from `org.schema.admin`, preserves only the 3 schema keepers, updates both stores, and handles future org inserts after mig 150.
+
+P0-2: RESOLVED — `returnTo` now rejects decoded backslashes and ASCII controls/whitespace, then enforces same-origin URL resolution before navigation.
+
+VERDICT: SIGN-OFF
+tokens used
+29,589
+VERDICT: SIGN-OFF
+
+P0-1: RESOLVED — forward migration 155 surgically revokes the over-granted admin matrix from `org.schema.admin`, preserves only the 3 schema keepers, updates both stores, and handles future org inserts after mig 150.
+
+P0-2: RESOLVED — `returnTo` now rejects decoded backslashes and ASCII controls/whitespace, then enforces same-origin URL resolution before navigation.
+
+VERDICT: SIGN-OFF
