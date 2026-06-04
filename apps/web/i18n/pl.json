@@ -2046,6 +2046,16 @@
       "empty": "Brak aktywnych wyrobów gotowych.",
       "error": "Nie można załadować wskaźników KPI. Spróbuj ponownie, gdy backend będzie dostępny.",
       "forbidden": "Nie masz uprawnień do wyświetlania tych wskaźników KPI."
+    },
+    "dashboardPipeline": {
+      "title": "Pipeline (ostatnie)",
+      "subtitle": "Ostatnie zmiany bramek FA",
+      "viewAll": "Zobacz wszystkie",
+      "empty": "Brak ostatnich projektów w pipeline.",
+      "statusTodo": "Oczekuje",
+      "statusInProgress": "W toku",
+      "statusBlocked": "Zablokowane",
+      "statusDone": "Gotowe"
     }
   }
 }

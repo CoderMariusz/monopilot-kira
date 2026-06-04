@@ -1,0 +1,53 @@
+{
+  "task": "T-133 (assembled by T-134; parity T-135)",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard)"
+  ],
+  "prd_refs": [
+    "§11.1",
+    "§11.7"
+  ],
+  "data_sources": [
+    "listProjects (T-057) — recent projects snapshot, mapped in dashboard/page.tsx"
+  ],
+  "i18n_namespace": "npd.dashboardPipeline",
+  "labels": {
+    "title": "Pipeline (recent)",
+    "subtitle": "Recent FA gate movement",
+    "viewAll": "View all",
+    "empty": "No recent projects in the pipeline yet.",
+    "statusTodo": "Pending",
+    "statusInProgress": "In progress",
+    "statusBlocked": "Blocked",
+    "statusDone": "Done"
+  },
+  "generated_at": "2026-06-04T08:51:09.451Z",
+  "states": {
+    "ready": {
+      "card": true,
+      "cardHeader": true,
+      "cardContent": true,
+      "region": true,
+      "viewAllLink": true,
+      "rowLinks": [
+        "/fa/FA5101",
+        "/fa/FA5102",
+        "/fa/FA5103"
+      ],
+      "badges": 3,
+      "badgeDots": true,
+      "rawSelects": 0
+    },
+    "empty": {
+      "card": true,
+      "cardHeader": true,
+      "cardContent": true,
+      "region": true,
+      "viewAllLink": true,
+      "rowLinks": [],
+      "badges": 0,
+      "badgeDots": true,
+      "rawSelects": 0
+    }
+  }
+}

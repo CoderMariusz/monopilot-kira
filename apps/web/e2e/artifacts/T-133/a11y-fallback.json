@@ -1,0 +1,9 @@
+{
+  "task": "T-133",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree). RTL role checks substitute; live harness = e2e/npd-dashboard.spec.ts.",
+  "regionHasAccessibleName": true,
+  "rowsAreLinks": true,
+  "badgesHaveText": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true
+}

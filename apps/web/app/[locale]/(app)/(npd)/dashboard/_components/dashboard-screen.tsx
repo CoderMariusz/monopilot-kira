@@ -137,6 +137,12 @@ export type DashboardScreenProps = {
   onRefreshD365?: () => void;
   /** Test/storybook seam for the Create-FA action. */
   onCreateFa?: () => void;
+  /**
+   * T-134 — composition slot for the T-133 Dashboard Pipeline preview region.
+   * Rendered after the launch-alerts table in the ready layout. Optional so the
+   * legacy parity/page tests (which don't compose the preview) stay green.
+   */
+  pipelinePreview?: React.ReactNode;
 };
 
 const ANCHOR = 'npd/fa-screens.jsx:32-174';
@@ -258,6 +264,7 @@ export function DashboardScreen({
   alerts,
   onRefreshD365,
   onCreateFa,
+  pipelinePreview,
 }: DashboardScreenProps) {
   const [showBuilt, setShowBuilt] = React.useState(false);
 
@@ -531,6 +538,9 @@ export function DashboardScreen({
           )}
         </CardContent>
       </Card>
+
+      {/* T-134 composition slot — T-133 Dashboard Pipeline preview region. */}
+      {pipelinePreview}
     </section>
   );
 }

@@ -1,5 +1,28 @@
 'use client';
 
+/**
+ * T-133 — Dashboard Pipeline preview region (NPD-e slice of T-052).
+ *
+ * Prototype parity source (1:1):
+ *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard)
+ *
+ * Standalone Client Component: a compact recent-projects mini-view (top 5-10) with
+ * per-project current-gate status Badge dots and a view-all link to the full
+ * pipeline page. Consumes a `recentProjects` prop from the parent RSC (T-134) — it
+ * performs NO DB call and imports NO Server Action (parent provides real data via
+ * withOrgContext → listProjects, T-057).
+ *
+ * i18n: distinct namespace `npd.dashboardPipeline`. All visible strings arrive as
+ * `labels` props resolved server-side via next-intl (mirrors the DashboardScreen
+ * label-injection pattern). Defaults are English so the component is renderable in
+ * isolation (RTL) without a next-intl provider.
+ *
+ * The 5 UI states are surfaced by the parent page (loading/error/permission_denied
+ * short-circuit the dashboard); this region owns the EMPTY state (no recent
+ * projects) and the populated/ready state. Optimistic mutation is N/A (read-only
+ * region, BL-NPD-04 30s refresh is out of scope — static render).
+ */
+
 import Link from 'next/link';
 
 import { Badge } from '@monopilot/ui/Badge';
@@ -18,16 +41,51 @@ export type RecentProject = {
   gateStatus: GateStatus;
 };
 
-export type DashboardPipelinePreviewProps = {
-  recentProjects: RecentProject[];
+export type DashboardPipelinePreviewLabels = {
+  title: string;
+  subtitle: string;
+  viewAll: string;
+  empty: string;
+  statusTodo: string;
+  statusInProgress: string;
+  statusBlocked: string;
+  statusDone: string;
 };
 
-const gateStatusLabels: Record<GateStatus, string> = {
-  todo: 'Pending',
-  'in-progress': 'In progress',
-  blocked: 'Blocked',
-  done: 'Done',
+export type DashboardPipelinePreviewProps = {
+  recentProjects: RecentProject[];
+  labels?: DashboardPipelinePreviewLabels;
 };
+
+/**
+ * English defaults. The parent RSC overrides these via the `npd.dashboardPipeline`
+ * next-intl namespace; kept here so the component renders standalone in tests.
+ */
+export const DEFAULT_PIPELINE_PREVIEW_LABELS: DashboardPipelinePreviewLabels = {
+  title: 'Pipeline (recent)',
+  subtitle: 'Recent FA gate movement',
+  viewAll: 'View all',
+  empty: 'No recent projects in the pipeline yet.',
+  statusTodo: 'Pending',
+  statusInProgress: 'In progress',
+  statusBlocked: 'Blocked',
+  statusDone: 'Done',
+};
+
+const MAX_PREVIEW_ROWS = 10;
+
+function statusLabel(status: GateStatus, labels: DashboardPipelinePreviewLabels): string {
+  switch (status) {
+    case 'blocked':
+      return labels.statusBlocked;
+    case 'done':
+      return labels.statusDone;
+    case 'in-progress':
+      return labels.statusInProgress;
+    default:
+      return labels.statusTodo;
+  }
+}
 
 const gateStatusClasses: Record<GateStatus, string> = {
   todo: 'border-slate-200 bg-slate-50 text-slate-600',
@@ -36,7 +94,13 @@ const gateStatusClasses: Record<GateStatus, string> = {
   done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
 };
 
-function StatusBadge({ status }: { status: GateStatus }) {
+function StatusBadge({
+  status,
+  labels,
+}: {
+  status: GateStatus;
+  labels: DashboardPipelinePreviewLabels;
+}) {
   return (
     <Badge
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${gateStatusClasses[status]}`}
@@ -45,13 +109,16 @@ function StatusBadge({ status }: { status: GateStatus }) {
       <span aria-hidden="true" className="text-[10px] leading-none">
         ●
       </span>
-      {gateStatusLabels[status]}
+      {statusLabel(status, labels)}
     </Badge>
   );
 }
 
-export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePreviewProps) {
-  const compactProjects = recentProjects.slice(0, 10);
+export function DashboardPipelinePreview({
+  recentProjects,
+  labels = DEFAULT_PIPELINE_PREVIEW_LABELS,
+}: DashboardPipelinePreviewProps) {
+  const compactProjects = recentProjects.slice(0, MAX_PREVIEW_ROWS);
 
   return (
     <Card
@@ -62,18 +129,18 @@ export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePr
       <CardHeader className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-900" id="dashboard-pipeline-preview-title">
-            Pipeline (recent)
+            {labels.title}
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">Recent FA gate movement</p>
+          <p className="mt-0.5 text-xs text-slate-500">{labels.subtitle}</p>
         </div>
         <Link className="text-xs font-medium text-blue-600 hover:text-blue-700" href="/pipeline">
-          View all
+          {labels.viewAll}
         </Link>
       </CardHeader>
       <CardContent className="px-4 py-3">
         {compactProjects.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-            No recent projects in the pipeline yet.
+            {labels.empty}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -99,7 +166,7 @@ export function DashboardPipelinePreview({ recentProjects }: DashboardPipelinePr
                     </span>
                   </span>
                   <span className="flex items-center">
-                    <StatusBadge status={project.gateStatus} />
+                    <StatusBadge status={project.gateStatus} labels={labels} />
                   </span>
                 </Link>
               );

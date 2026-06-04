@@ -28,8 +28,20 @@ test.describe('NPD Dashboard parity (fa-screens.jsx:32-174)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('table', { name: /department progress/i })).toBeVisible();
 
+    // T-134/T-135 assembly parity: KPI region + T-133 pipeline-preview region both
+    // mount in the documented order (KPI counters above the pipeline preview).
+    const kpiRegion = page.getByRole('region', { name: /kpi|summary counters/i });
+    const previewRegion = page.getByRole('region', { name: /pipeline/i });
+    await expect(kpiRegion).toBeVisible();
+    await expect(previewRegion).toBeVisible();
+    await expect(previewRegion.getByRole('link', { name: /view all/i })).toBeVisible();
+    const kpiBox = await kpiRegion.boundingBox();
+    const previewBox = await previewRegion.boundingBox();
+    expect(kpiBox && previewBox && kpiBox.y <= previewBox.y).toBeTruthy();
+
     // Happy-path: capture the ready state.
     await page.screenshot({ path: path.join(evidenceDir, 'T-052-ready.png'), fullPage: true });
+    await previewRegion.screenshot({ path: path.join(evidenceDir, 'T-133-pipeline-preview.png') });
 
     // Optimistic interaction: toggle show-built reveals built FAs without a navigation.
     const toggle = page.getByRole('checkbox', { name: /show built/i });

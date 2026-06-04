@@ -2046,6 +2046,16 @@
       "empty": "No active Finished Goods yet.",
       "error": "Unable to load KPI counters. Try again once the backend is available.",
       "forbidden": "You do not have permission to view these KPIs."
+    },
+    "dashboardPipeline": {
+      "title": "Pipeline (recent)",
+      "subtitle": "Recent FA gate movement",
+      "viewAll": "View all",
+      "empty": "No recent projects in the pipeline yet.",
+      "statusTodo": "Pending",
+      "statusInProgress": "In progress",
+      "statusBlocked": "Blocked",
+      "statusDone": "Done"
     }
   }
 }
