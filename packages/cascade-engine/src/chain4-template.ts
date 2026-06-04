@@ -140,13 +140,14 @@ export async function handleTemplateChange(
       }
     }
 
-    await emitTemplateAppliedEvent(client, productCode, newTemplate, details.rowCount);
+    const affectedCount = details.rowCount ?? 0;
+    await emitTemplateAppliedEvent(client, productCode, newTemplate, affectedCount);
     await client.query('commit');
 
     return {
       productCode,
       templateName: newTemplate,
-      affectedCount: details.rowCount,
+      affectedCount,
       recomputed,
     };
   } catch (error) {

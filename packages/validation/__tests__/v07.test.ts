@@ -51,6 +51,7 @@ describe('V07 allergen validator', () => {
     });
 
     expect(result.status).toBe('WARN');
+    if (result.status !== 'WARN') throw new Error('expected WARN');
     expect(result.details).toEqual([
       {
         code: 'OVERRIDE_REASON_TOO_SHORT',
