@@ -1817,6 +1817,31 @@
         "comments": "Uwagi"
       }
     },
+    "faPlanningTab": {
+      "title": "Sekcja Planowanie",
+      "subtitle": "Pola działu Planowanie.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "bomNoteTitle": "Techniczny BOM v1",
+      "bomNoteBody": "Po wprowadzeniu FA na rynek przechodzi w Techniczny BOM v1 przyjęty przez moduł Planowanie (zobacz Planowanie / Produkty).",
+      "save": "Zapisz Planowanie",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja Planowanie zapisana.",
+      "saveError": "Nie udało się zapisać sekcji Planowanie.",
+      "closeSection": "Zamknij sekcję Planowanie",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Ładowanie sekcji Planowanie…",
+      "empty": "Brak skonfigurowanych pól Planowania",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu Planowanie.",
+      "error": "Nie można załadować sekcji Planowanie.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji Planowanie.",
+      "fields": {
+        "meat_pct": "Mięso %",
+        "runs_per_week": "Przebiegi na tydzień",
+        "date_codes_per_week": "Kody dat na tydzień",
+        "closed_planning": "Planowanie zamknięte"
+      }
+    },
     "faRightPanel": {
       "title": "Status walidacji",
       "subtitle": "Podsumowanie panelu bocznego dla tego artykułu fabrycznego.",

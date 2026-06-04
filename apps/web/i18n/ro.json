@@ -1817,6 +1817,31 @@
         "comments": "Comentarii"
       }
     },
+    "faPlanningTab": {
+      "title": "Secțiunea Planificare",
+      "subtitle": "Câmpurile departamentului Planificare.",
+      "closedBadge": "✓ Închis",
+      "openBadge": "Deschis",
+      "bomNoteTitle": "BOM Tehnic v1",
+      "bomNoteBody": "Când FA este lansat, acesta trece la BOM Tehnic v1 adoptat de modulul Planificare (vezi Planificare / Produse).",
+      "save": "Salvează Planificarea",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea Planificare a fost salvată.",
+      "saveError": "Nu s-a putut salva secțiunea Planificare.",
+      "closeSection": "Închide secțiunea Planificare",
+      "selectPlaceholder": "Selectează…",
+      "loading": "Se încarcă secțiunea Planificare…",
+      "empty": "Niciun câmp de Planificare configurat",
+      "emptyBody": "Această organizație nu are încă coloane pentru departamentul Planificare.",
+      "error": "Nu se poate încărca secțiunea Planificare.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea Planificare.",
+      "fields": {
+        "meat_pct": "Carne %",
+        "runs_per_week": "Rulări pe săptămână",
+        "date_codes_per_week": "Coduri de dată pe săptămână",
+        "closed_planning": "Planificare închisă"
+      }
+    },
     "faRightPanel": {
       "title": "Stare validare",
       "subtitle": "Rezumatul panoului lateral pentru acest articol de fabrică.",

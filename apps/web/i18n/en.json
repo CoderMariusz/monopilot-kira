@@ -1817,6 +1817,31 @@
         "comments": "Comments"
       }
     },
+    "faPlanningTab": {
+      "title": "Planning section",
+      "subtitle": "Planning department fields.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "bomNoteTitle": "Technical BOM v1",
+      "bomNoteBody": "When FA is launched it transitions to Technical BOM v1 adopted by the Planning module (see Planning / Products).",
+      "save": "Save Planning",
+      "saving": "Saving…",
+      "saveSuccess": "Planning section saved.",
+      "saveError": "Could not save the Planning section.",
+      "closeSection": "Close Planning section",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading Planning section…",
+      "empty": "No Planning fields configured",
+      "emptyBody": "This organisation has no Planning department columns yet.",
+      "error": "Unable to load the Planning section.",
+      "forbidden": "You do not have permission to edit the Planning section.",
+      "fields": {
+        "meat_pct": "Meat %",
+        "runs_per_week": "Runs per week",
+        "date_codes_per_week": "Date codes per week",
+        "closed_planning": "Closed Planning"
+      }
+    },
     "faRightPanel": {
       "title": "Validation status",
       "subtitle": "Right-panel summary for this Factory Article.",
