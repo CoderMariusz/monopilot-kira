@@ -7,3 +7,9 @@ export type {
   LineCascadeResult,
   PackSizeCascadeResult,
 } from './chain1-pack-size.js';
+export {
+  handleOperationChange,
+  type HandleOperationChangeOptions,
+  type HandleOperationChangeResult,
+  type OperationIndex,
+} from './chain2-operations.js';

@@ -26,3 +26,8 @@ export {
   validateProductNameV02,
   type V02ProductNameResult,
 } from './v02-product-name.js';
+export {
+  validateSuffixMatchV06,
+  type V06SuffixMatchInput,
+  type V06SuffixMatchResult,
+} from './v06-suffix-match.js';
