@@ -93,6 +93,36 @@ export function mapProjectRow(row: ProjectRow): ProjectSummary {
     notes: row.notes,
     createdAt: row.created_at,
     progressPercent: total > 0 ? Math.round((completed / total) * 100) : 0,
+    closeoutStatus: mapCloseoutStatus(row),
+  };
+}
+
+function mapCloseoutStatus(row: ProjectRow): ProjectSummary['closeoutStatus'] {
+  if (row.current_gate !== 'Launched') return null;
+  if (!row.closeout_id) {
+    return {
+      trial: false,
+      pilot: false,
+      handoff: false,
+      packaging: false,
+      warningCode: 'HANDOFF_BOM_NOT_APPROVED',
+    };
+  }
+  const trial = row.trial_shelf_life_set === true && row.trial_allergens_cascade_recomputed_at !== null;
+  const pilot = row.pilot_wo_id !== null;
+  const handoff = row.handoff_g4_esign_id !== null && row.handoff_bom_header_id !== null;
+  const packaging = row.packaging_mrp_complete === true;
+  return {
+    trial,
+    pilot,
+    handoff,
+    packaging,
+    warningCode:
+      !trial ? 'TRIAL_SHELF_LIFE_MISSING'
+      : !pilot ? 'PILOT_WO_NOT_LINKED'
+      : !handoff ? 'HANDOFF_BOM_NOT_APPROVED'
+      : !packaging ? 'PACKAGING_MRP_INCOMPLETE'
+      : null,
   };
 }
 
@@ -110,6 +140,13 @@ export type ProjectRow = {
   created_at: string;
   checklist_total: string | number;
   checklist_completed: string | number;
+  closeout_id: string | null;
+  trial_shelf_life_set: boolean | null;
+  trial_allergens_cascade_recomputed_at: string | null;
+  pilot_wo_id: string | null;
+  handoff_g4_esign_id: string | null;
+  handoff_bom_header_id: string | null;
+  packaging_mrp_complete: boolean | null;
 };
 
 export type ProjectSummary = {
@@ -125,4 +162,17 @@ export type ProjectSummary = {
   notes: string | null;
   createdAt: string;
   progressPercent: number;
+  closeoutStatus: {
+    trial: boolean;
+    pilot: boolean;
+    handoff: boolean;
+    packaging: boolean;
+    warningCode?:
+      | 'TRIAL_SHELF_LIFE_MISSING'
+      | 'PILOT_WO_NOT_LINKED'
+      | 'HANDOFF_BOM_NOT_APPROVED'
+      | 'PACKAGING_MRP_INCOMPLETE'
+      | 'ALREADY_CLOSED'
+      | null;
+  } | null;
 };

@@ -1,0 +1,443 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import {
+  APP_VERSION,
+  GATE_ADVANCE_PERMISSION,
+  GateActionError,
+  emitOutbox,
+  loadProjectForUpdate,
+  requireActionPermission,
+  serializeGateError,
+  updateProjectGate,
+  type GateProjectRow,
+} from './_lib/gate-helpers';
+import { type OrgContextLike } from './shared';
+
+export const LEGACY_STAGES_CLOSED_EVENT = 'npd.project.legacy_stages_closed' as const;
+
+const inputSchema = z.object({
+  projectId: z.string().uuid(),
+});
+
+export type LegacyCloseoutErrorCode =
+  | 'INVALID_INPUT'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'ADJACENCY_VIOLATION'
+  | 'TRIAL_SHELF_LIFE_MISSING'
+  | 'PILOT_WO_NOT_LINKED'
+  | 'HANDOFF_BOM_NOT_APPROVED'
+  | 'PACKAGING_MRP_INCOMPLETE'
+  | 'ALREADY_CLOSED'
+  | 'PERSISTENCE_FAILED';
+
+export type CloseOutLegacyStagesResult =
+  | {
+      ok: true;
+      data: {
+        projectId: string;
+        productCode: string;
+        closeoutId: string;
+        currentGate: 'Launched';
+        outboxEventType: typeof LEGACY_STAGES_CLOSED_EVENT;
+      };
+    }
+  | { ok: false; error: LegacyCloseoutErrorCode; status: number };
+
+type ExistingCloseoutRow = {
+  id: string;
+  fg_product_code: string;
+};
+
+type ReleaseRow = {
+  release_status: string;
+  release_event_id: string | number | null;
+  active_bom_header_id: string | null;
+  active_factory_spec_id: string | null;
+};
+
+type ProductCloseoutRow = {
+  shelf_life: string | null;
+  done_mrp: boolean | null;
+  closed_mrp: string | null;
+  box: string | null;
+  top_label: string | null;
+  bottom_label: string | null;
+  web: string | null;
+  mrp_box: string | null;
+  mrp_labels: string | null;
+  mrp_films: string | null;
+  mrp_sleeves: string | null;
+  mrp_cartons: string | null;
+  private_jsonb: Record<string, unknown> | null;
+};
+
+type G4ApprovalRow = {
+  id: string;
+};
+
+type BomRow = {
+  id: string;
+  status: string;
+};
+
+type BriefPackagingRow = {
+  c14: string | null;
+  c15: string | null;
+  c16: string | null;
+  c17: string | null;
+  c18: string | null;
+  c19: string | null;
+};
+
+type CloseoutInsertRow = {
+  id: string;
+  fg_product_code: string;
+};
+
+export async function closeOutLegacyStages(rawInput: unknown): Promise<CloseOutLegacyStagesResult> {
+  const parsed = inputSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'INVALID_INPUT', status: 400 };
+
+  try {
+    return await withOrgContext<CloseOutLegacyStagesResult>(async (ctx) => {
+      const context = ctx as OrgContextLike;
+      await requireActionPermission(context, GATE_ADVANCE_PERMISSION);
+
+      const project = await loadProjectForUpdate(context, parsed.data.projectId);
+      if (project.current_gate === 'Launched') {
+        const existing = await loadExistingCloseout(context, project.id);
+        if (existing) return alreadyClosed(existing);
+      }
+      if (project.current_gate !== 'G4') {
+        return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
+      }
+
+      const closeout = await closeOutLegacyStagesForLaunch(context, project);
+      await updateProjectGate(context, project.id, 'Launched');
+
+      safeRevalidatePath(`/npd/pipeline/${project.id}`);
+      return {
+        ok: true,
+        data: {
+          projectId: project.id,
+          productCode: closeout.fg_product_code,
+          closeoutId: closeout.id,
+          currentGate: 'Launched',
+          outboxEventType: LEGACY_STAGES_CLOSED_EVENT,
+        },
+      };
+    });
+  } catch (error) {
+    const serialized = serializeCloseoutError(error);
+    if (serialized) return serialized;
+    console.error('[closeOutLegacyStages] persistence_failed', {
+      appVersion: APP_VERSION,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
+  }
+}
+
+export async function closeOutLegacyStagesForLaunch(
+  ctx: OrgContextLike,
+  project: GateProjectRow,
+): Promise<CloseoutInsertRow> {
+  const existing = await loadExistingCloseout(ctx, project.id);
+  if (existing) throw new GateActionError('ALREADY_CLOSED', 200);
+
+  if (!project.product_code) throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
+
+  const [release, product, g4Approval] = await Promise.all([
+    loadRelease(ctx, project),
+    loadProduct(ctx, project.product_code),
+    loadG4Approval(ctx, project.id),
+  ]);
+
+  if (!release || !isApprovedFactoryStatus(release.release_status) || !release.active_bom_header_id || !release.release_event_id) {
+    throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
+  }
+  if (!g4Approval) throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
+  if (!product || !product.shelf_life?.trim()) throw new GateActionError('TRIAL_SHELF_LIFE_MISSING', 409);
+
+  const allergenRecomputedAt = await resolveAllergenRecomputedAt(ctx, project.product_code, product.private_jsonb);
+  if (!allergenRecomputedAt) throw new GateActionError('TRIAL_SHELF_LIFE_MISSING', 409);
+
+  const pilotWoId = stringFromPrivateJson(product.private_jsonb, 'npd_project_pilot_wo_id')
+    ?? stringFromPrivateJson(product.private_jsonb, 'pilot_wo_id');
+  if (!pilotWoId || !isUuid(pilotWoId) || !(await pilotWorkOrderExists(ctx, pilotWoId))) {
+    throw new GateActionError('PILOT_WO_NOT_LINKED', 409);
+  }
+
+  const bom = await loadBom(ctx, release.active_bom_header_id, project.id, project.product_code);
+  if (!bom || !['active', 'technical_approved'].includes(bom.status)) {
+    throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
+  }
+
+  const packagingMrpComplete = product.done_mrp === true || product.closed_mrp === 'Yes';
+  if (!packagingMrpComplete) throw new GateActionError('PACKAGING_MRP_INCOMPLETE', 409);
+
+  const packagingSnapshot = await buildPackagingSnapshot(ctx, project.id, project.product_code, product);
+  const inserted = await ctx.client.query<CloseoutInsertRow>(
+    `insert into public.npd_legacy_closeout
+       (org_id, npd_project_id, fg_product_code, closed_by, release_event_id,
+        trial_shelf_life_set, trial_allergens_cascade_recomputed_at, pilot_wo_id,
+        handoff_g4_esign_id, handoff_bom_header_id, packaging_snapshot_jsonb,
+        packaging_mrp_complete, created_by_user, app_version)
+     values
+       (app.current_org_id(), $1::uuid, $2, $3::uuid, $4::bigint,
+        true, $5::timestamptz, $6::uuid, $7::uuid, $8::uuid, $9::jsonb,
+        true, $3::uuid, $10)
+     on conflict (npd_project_id) do nothing
+     returning id, fg_product_code`,
+    [
+      project.id,
+      project.product_code,
+      ctx.userId,
+      release.release_event_id,
+      allergenRecomputedAt,
+      pilotWoId,
+      g4Approval.id,
+      bom.id,
+      JSON.stringify(packagingSnapshot),
+      APP_VERSION,
+    ],
+  );
+
+  const closeout = inserted.rows[0] ?? await loadExistingCloseout(ctx, project.id);
+  if (!closeout) throw new Error('npd_legacy_closeout insert returned no row');
+  if (!inserted.rows[0]) throw new GateActionError('ALREADY_CLOSED', 200);
+
+  await emitOutbox(ctx, {
+    eventType: LEGACY_STAGES_CLOSED_EVENT,
+    aggregateType: 'npd_project',
+    aggregateId: project.id,
+    payload: {
+      org_id: ctx.orgId,
+      actor_user_id: ctx.userId,
+      project_id: project.id,
+      project_code: project.code,
+      fg_product_code: project.product_code,
+      closeout_id: closeout.id,
+      trial: {
+        shelf_life_set: true,
+        allergens_cascade_recomputed_at: allergenRecomputedAt,
+      },
+      pilot: {
+        wo_id: pilotWoId,
+      },
+      handoff: {
+        g4_esign_id: g4Approval.id,
+        bom_header_id: bom.id,
+      },
+      packaging: {
+        mrp_complete: true,
+        snapshot: packagingSnapshot,
+      },
+      release_event_id: Number(release.release_event_id),
+    },
+    dedupKey: `${LEGACY_STAGES_CLOSED_EVENT}:${project.id}`,
+  });
+
+  return closeout;
+}
+
+async function loadExistingCloseout(ctx: OrgContextLike, projectId: string): Promise<ExistingCloseoutRow | null> {
+  const { rows } = await ctx.client.query<ExistingCloseoutRow>(
+    `select id, fg_product_code
+       from public.npd_legacy_closeout
+      where org_id = app.current_org_id()
+        and npd_project_id = $1::uuid
+      limit 1`,
+    [projectId],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadRelease(ctx: OrgContextLike, project: GateProjectRow): Promise<ReleaseRow | null> {
+  const { rows } = await ctx.client.query<ReleaseRow>(
+    `select release_status, release_event_id, active_bom_header_id, active_factory_spec_id
+       from public.factory_release_status
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and product_code = $2
+      order by updated_at desc, created_at desc
+      limit 1`,
+    [project.id, project.product_code],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadProduct(ctx: OrgContextLike, productCode: string): Promise<ProductCloseoutRow | null> {
+  const { rows } = await ctx.client.query<ProductCloseoutRow>(
+    `select shelf_life, done_mrp, closed_mrp, box, top_label, bottom_label, web,
+            mrp_box, mrp_labels, mrp_films, mrp_sleeves, mrp_cartons, private_jsonb
+       from public.product
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and deleted_at is null
+      limit 1`,
+    [productCode],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadG4Approval(ctx: OrgContextLike, projectId: string): Promise<G4ApprovalRow | null> {
+  const { rows } = await ctx.client.query<G4ApprovalRow>(
+    `select id
+       from public.gate_approvals
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and gate_code = 'G4'
+        and decision = 'approved'
+        and esigned_at is not null
+        and esign_hash is not null
+      order by created_at desc
+      limit 1`,
+    [projectId],
+  );
+  return rows[0] ?? null;
+}
+
+async function resolveAllergenRecomputedAt(
+  ctx: OrgContextLike,
+  productCode: string,
+  privateJsonb: Record<string, unknown> | null,
+): Promise<string | null> {
+  const explicit = stringFromPrivateJson(privateJsonb, 'trial_allergens_cascade_recomputed_at');
+  if (explicit) return explicit;
+  const { rows } = await ctx.client.query<{ processed_at: string | Date | null }>(
+    `select processed_at
+       from public.allergen_cascade_rebuild_jobs
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and status = 'processed'
+        and processed_at is not null
+      order by processed_at desc
+      limit 1`,
+    [productCode],
+  );
+  const processedAt = rows[0]?.processed_at;
+  if (!processedAt) return null;
+  return processedAt instanceof Date ? processedAt.toISOString() : new Date(processedAt).toISOString();
+}
+
+async function pilotWorkOrderExists(ctx: OrgContextLike, pilotWoId: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.work_order
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [pilotWoId],
+  );
+  return rows.length > 0;
+}
+
+async function loadBom(
+  ctx: OrgContextLike,
+  bomHeaderId: string,
+  projectId: string,
+  productCode: string,
+): Promise<BomRow | null> {
+  const { rows } = await ctx.client.query<BomRow>(
+    `select id, status
+       from public.bom_headers
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+        and product_id = $2
+        and npd_project_id = $3::uuid
+      limit 1`,
+    [bomHeaderId, productCode, projectId],
+  );
+  return rows[0] ?? null;
+}
+
+async function buildPackagingSnapshot(
+  ctx: OrgContextLike,
+  projectId: string,
+  productCode: string,
+  product: ProductCloseoutRow,
+): Promise<Record<string, unknown>> {
+  const { rows } = await ctx.client.query<BriefPackagingRow>(
+    `select bl.primary_packaging as c14,
+            bl.secondary_packaging as c15,
+            bl.base_web_code as c16,
+            bl.base_web_price::text as c17,
+            bl.top_web_type as c18,
+            bl.sleeve_carton_code as c19
+       from public.brief b
+       join public.brief_lines bl
+         on bl.brief_id = b.brief_id
+        and bl.org_id = app.current_org_id()
+        and bl.line_type = 'product'
+      where b.org_id = app.current_org_id()
+        and b.npd_project_id = $1::uuid
+      order by bl.line_index
+      limit 1`,
+    [projectId],
+  );
+  const brief = rows[0];
+  return {
+    source: brief ? 'brief_lines' : 'product',
+    product_code: productCode,
+    C14: brief?.c14 ?? product.box ?? product.mrp_box,
+    C15: brief?.c15 ?? product.mrp_cartons,
+    C16: brief?.c16 ?? product.web,
+    C17: brief?.c17 ?? null,
+    C18: brief?.c18 ?? product.top_label,
+    C19: brief?.c19 ?? product.mrp_sleeves ?? product.mrp_cartons,
+    product_mrp: {
+      box: product.mrp_box,
+      labels: product.mrp_labels,
+      films: product.mrp_films,
+      sleeves: product.mrp_sleeves,
+      cartons: product.mrp_cartons,
+      top_label: product.top_label,
+      bottom_label: product.bottom_label,
+    },
+  };
+}
+
+function isApprovedFactoryStatus(value: string): boolean {
+  return value === 'approved_for_factory' || value === 'released_to_factory';
+}
+
+function stringFromPrivateJson(source: Record<string, unknown> | null, key: string): string | null {
+  const value = source?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function alreadyClosed(_existing: ExistingCloseoutRow): CloseOutLegacyStagesResult {
+  return {
+    ok: false,
+    error: 'ALREADY_CLOSED',
+    status: 200,
+  };
+}
+
+function serializeCloseoutError(error: unknown): CloseOutLegacyStagesResult | null {
+  const serialized = serializeGateError(error);
+  if (!serialized) return null;
+  return {
+    ok: false,
+    error: serialized.error as LegacyCloseoutErrorCode,
+    status: serialized.status,
+  };
+}
+
+function safeRevalidatePath(path: string): void {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}

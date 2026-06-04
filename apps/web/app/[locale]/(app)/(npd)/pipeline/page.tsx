@@ -244,6 +244,7 @@ function toKanbanProject(summary: ProjectSummary): KanbanProject {
     owner: summary.owner,
     targetLaunch: summary.targetLaunch,
     progressPercent: summary.progressPercent,
+    closeoutStatus: summary.closeoutStatus,
   };
 }
 

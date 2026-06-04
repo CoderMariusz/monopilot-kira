@@ -28,6 +28,7 @@ import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent } from '@monopilot/ui/Card';
 
+import { LaunchedCardCloseoutPill } from './launched-card-closeout-pill';
 import type { KanbanLabels, KanbanProject, ProjectGate, ProjectPriority } from './kanban-types';
 
 export type { KanbanLabels, KanbanProject } from './kanban-types';
@@ -126,6 +127,10 @@ export function KanbanCard({
             )}
           </span>
         </div>
+
+        {project.currentGate === 'Launched' && project.closeoutStatus ? (
+          <LaunchedCardCloseoutPill status={project.closeoutStatus} />
+        ) : null}
 
         {showAdvance ? (
           <div className="pt-1">

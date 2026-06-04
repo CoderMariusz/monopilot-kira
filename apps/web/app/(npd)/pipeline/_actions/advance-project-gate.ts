@@ -18,6 +18,7 @@ import {
   updateProjectGate,
   type GateBlocker,
 } from './_lib/gate-helpers';
+import { closeOutLegacyStagesForLaunch } from './close-out-legacy-stages';
 import { type OrgContextLike, type ProjectGate } from './shared';
 
 const inputSchema = z.object({
@@ -50,6 +51,9 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
       const targetGate = parsed.data.targetGate as ProjectGate;
+      if (targetGate === 'Launched' && project.current_gate === 'Launched') {
+        return { ok: false, error: 'ALREADY_CLOSED', status: 200 };
+      }
       assertAdjacent(project.current_gate, targetGate);
 
       const blockers = await getBlockers(context, project, targetGate);
@@ -59,6 +63,10 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
       if (targetGate === 'G3') {
         const fg = await createFgCandidate(context, project, parsed.data.productCode);
         productCode = fg.productCode;
+      }
+      if (targetGate === 'Launched') {
+        const closeout = await closeOutLegacyStagesForLaunch(context, project);
+        productCode = closeout.fg_product_code;
       }
 
       await updateProjectGate(context, project.id, targetGate);
