@@ -1797,6 +1797,22 @@
       "error": "Не вдалося завантажити pipeline. Спробуйте ще раз, коли backend буде доступний.",
       "forbidden": "У вас немає дозволу переглядати pipeline."
     },
+    "pipelineSwitcher": {
+      "viewsLabel": "Подання конвеєра",
+      "tabKanban": "Канбан",
+      "tabTable": "Таблиця",
+      "tabSplit": "Розділ",
+      "filtersLabel": "Фільтри",
+      "filterAll": "Усі",
+      "filterMine": "Мої",
+      "filterG0": "G0",
+      "filterG1": "G1",
+      "filterG2": "G2",
+      "filterG3": "G3",
+      "filterG4": "G4",
+      "searchLabel": "Пошук проєктів",
+      "searchPlaceholder": "Пошук за назвою або кодом…"
+    },
     "compositionBar": {
       "title": "Склад",
       "ariaLabel": "Склад інгредієнтів",

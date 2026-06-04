@@ -1797,6 +1797,22 @@
       "error": "Nie można wczytać pipeline. Spróbuj ponownie, gdy backend będzie dostępny.",
       "forbidden": "Nie masz uprawnień do przeglądania pipeline."
     },
+    "pipelineSwitcher": {
+      "viewsLabel": "Widoki pipeline’u",
+      "tabKanban": "Kanban",
+      "tabTable": "Tabela",
+      "tabSplit": "Podział",
+      "filtersLabel": "Filtry",
+      "filterAll": "Wszystkie",
+      "filterMine": "Moje",
+      "filterG0": "G0",
+      "filterG1": "G1",
+      "filterG2": "G2",
+      "filterG3": "G3",
+      "filterG4": "G4",
+      "searchLabel": "Szukaj projektów",
+      "searchPlaceholder": "Szukaj po nazwie lub kodzie…"
+    },
     "compositionBar": {
       "title": "Skład",
       "ariaLabel": "Skład surowcowy",

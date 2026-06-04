@@ -24,16 +24,19 @@
 import { getTranslations } from 'next-intl/server';
 
 import { advanceProjectGate } from '../../../../(npd)/pipeline/_actions/advance-project-gate';
-import { listProjects } from '../../../../(npd)/pipeline/_actions/list-projects';
+import { listProjects, type ListProjectsInput } from '../../../../(npd)/pipeline/_actions/list-projects';
 import { GATE_ADVANCE_PERMISSION } from '../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_VIEW_PERMISSION,
   hasPermission,
   type OrgContextLike,
+  type ProjectGate,
   type ProjectSummary,
 } from '../../../../(npd)/pipeline/_actions/shared';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
-import { KanbanView } from './_components/kanban-view';
+import { PipelineTabs, type PipelineTabsLabels } from './_components/pipeline-tabs';
+import type { TableLabels } from './_components/table-view';
+import type { SplitLabels } from './_components/split-labels';
 import type {
   AdvanceInput,
   AdvanceResult,
@@ -44,8 +47,11 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
+type RawSearchParams = Record<string, string | string[] | undefined>;
+
 type PipelinePageProps = {
   params?: Promise<{ locale: string }>;
+  searchParams?: Promise<RawSearchParams>;
   // Test-only injection seam (mirrors briefs/fa page convention).
   projects?: KanbanProject[];
   canAdvance?: boolean;
@@ -57,6 +63,22 @@ type LoaderResult = {
   projects: KanbanProject[];
   canAdvance: boolean;
 };
+
+/** Filter chips (URL ?filter=) — maps to the merged listProjects gate/owner args. */
+type PipelineFilter = 'all' | 'mine' | 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
+
+const GATE_FILTERS: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4'];
+
+function readParam(params: RawSearchParams | undefined, key: string): string | undefined {
+  const value = params?.[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseFilter(raw: string | undefined): PipelineFilter {
+  if (raw === 'mine') return 'mine';
+  if (raw && (GATE_FILTERS as string[]).includes(raw)) return raw as PipelineFilter;
+  return 'all';
+}
 
 const DEFAULT_LABELS: KanbanLabels = {
   title: 'Pipeline',
@@ -85,27 +107,130 @@ const DEFAULT_LABELS: KanbanLabels = {
   adjacencyError: 'Projects can only advance to the next gate. The change was reverted.',
 };
 
-const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof KanbanLabels>;
+const DEFAULT_TABLE_LABELS: TableLabels = {
+  title: 'Pipeline',
+  caption: 'NPD projects',
+  colCode: 'Code',
+  colName: 'Name',
+  colType: 'Type',
+  colGate: 'Current Gate',
+  colPriority: 'Priority',
+  colOwner: 'Owner',
+  colTarget: 'Target Launch',
+  colProgress: 'Progress',
+  gateG0: 'G0 · Concept',
+  gateG1: 'G1 · Brief',
+  gateG2: 'G2 · Recipe',
+  gateG3: 'G3 · Trial',
+  gateG4: 'G4 · Approval',
+  gateLaunched: 'Launched',
+  prioHigh: 'High',
+  prioNormal: 'Normal',
+  prioLow: 'Low',
+  noOwner: 'Unassigned',
+  noTarget: 'No target',
+  sortAsc: 'sorted ascending',
+  sortDesc: 'sorted descending',
+  sortNone: 'not sorted',
+  selectAll: 'Select all',
+  selectRow: 'Select row',
+  selectedCount: '{count} selected',
+  bulkAssignOwner: 'Assign owner',
+  bulkSetPriority: 'Set priority',
+  bulkMoveGate: 'Move gate',
+  loading: 'Loading pipeline…',
+  empty: 'No projects in the pipeline',
+  emptyBody: 'Start a new Stage-Gate project to populate the board.',
+  error: 'Unable to load the pipeline. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view the pipeline.',
+};
 
-function translateLabel(t: (key: string) => string, key: keyof KanbanLabels): string {
+const DEFAULT_SPLIT_LABELS: SplitLabels = {
+  title: 'Pipeline',
+  subtitle: 'Split view — list + project detail',
+  colCode: 'Project',
+  colName: 'Name',
+  colType: 'Type',
+  colGate: 'Gate',
+  colOwner: 'Owner',
+  colProgress: 'Progress',
+  colTarget: 'Target',
+  colPrio: 'Prio',
+  listLabel: 'Projects',
+  detailLabel: 'Project detail',
+  gateG0: 'G0 · Concept',
+  gateG1: 'G1 · Brief',
+  gateG2: 'G2 · Recipe',
+  gateG3: 'G3 · Trial',
+  gateG4: 'G4 · Approval',
+  gateLaunched: 'Launched',
+  prioHigh: 'High',
+  prioNormal: 'Normal',
+  prioLow: 'Low',
+  fieldOwner: 'Owner',
+  fieldGate: 'Gate',
+  fieldCreated: 'Created',
+  fieldTarget: 'Target launch',
+  fieldType: 'Type',
+  progress: 'Progress',
+  recentActivity: 'Recent activity',
+  noActivity: 'No recent activity',
+  noOwner: 'Unassigned',
+  noTarget: 'No target',
+  openProject: 'Open project →',
+  loading: 'Loading pipeline…',
+  empty: 'No projects in the pipeline',
+  emptyBody: 'Start a new Stage-Gate project to populate the board.',
+  emptyDetail: 'Select a project to see its detail.',
+  error: 'Unable to load the pipeline. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view the pipeline.',
+};
+
+const DEFAULT_SWITCHER_LABELS: PipelineTabsLabels = {
+  viewsLabel: 'Pipeline views',
+  tabKanban: 'Kanban',
+  tabTable: 'Table',
+  tabSplit: 'Split',
+  filtersLabel: 'Filters',
+  filterAll: 'All',
+  filterMine: 'Mine',
+  filterG0: 'G0',
+  filterG1: 'G1',
+  filterG2: 'G2',
+  filterG3: 'G3',
+  filterG4: 'G4',
+  searchLabel: 'Search projects',
+  searchPlaceholder: 'Search by name or code…',
+};
+
+/**
+ * Resolve a label dictionary through next-intl, falling back to the typed defaults
+ * for any missing key (and for the whole namespace if next-intl is unavailable).
+ */
+async function buildLabelSet<T extends Record<string, string>>(
+  locale: string,
+  namespace: string,
+  defaults: T,
+): Promise<T> {
   try {
-    const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    const t = await getTranslations({ locale, namespace });
+    const keys = Object.keys(defaults) as Array<keyof T>;
+    return keys.reduce((acc, key) => {
+      try {
+        const value = t(key as string);
+        acc[key] = (value === (key as string) ? defaults[key] : (value as T[keyof T]));
+      } catch {
+        acc[key] = defaults[key];
+      }
+      return acc;
+    }, {} as T);
   } catch {
-    return DEFAULT_LABELS[key];
+    return { ...defaults };
   }
 }
 
-async function buildLabels(locale: string): Promise<KanbanLabels> {
-  try {
-    const t = await getTranslations({ locale, namespace: 'npd.pipelineKanban' });
-    return LABEL_KEYS.reduce((labels, key) => {
-      labels[key] = translateLabel(t, key);
-      return labels;
-    }, {} as KanbanLabels);
-  } catch {
-    return { ...DEFAULT_LABELS };
-  }
+function buildLabels(locale: string): Promise<KanbanLabels> {
+  return buildLabelSet(locale, 'npd.pipelineKanban', DEFAULT_LABELS);
 }
 
 function toKanbanProject(summary: ProjectSummary): KanbanProject {
@@ -122,20 +247,49 @@ function toKanbanProject(summary: ProjectSummary): KanbanProject {
   };
 }
 
-async function readPageData(): Promise<LoaderResult> {
-  try {
-    const canAdvance = await withOrgContext(async (rawCtx): Promise<boolean> => {
-      const ctx = rawCtx as OrgContextLike;
-      const [canRead, canAdv] = await Promise.all([
-        hasPermission(ctx, PROJECT_VIEW_PERMISSION),
-        hasPermission(ctx, GATE_ADVANCE_PERMISSION),
-      ]);
-      // Surface the read gate via a thrown sentinel so the outer block can map it.
-      if (!canRead) throw new ForbiddenError();
-      return canAdv;
-    });
+type ReadPageDataArgs = { filter: PipelineFilter; search: string | null };
 
-    const result = await listProjects({});
+/** Resolve the current user's display name (used to scope the ?filter=mine chip). */
+async function resolveOwnerName(ctx: OrgContextLike): Promise<string | null> {
+  try {
+    const { rows } = await ctx.client.query<{ owner: string | null }>(
+      `select coalesce(u.name, u.display_name, u.email::text) as owner
+         from public.users u
+        where u.id = $1::uuid
+          and u.org_id = app.current_org_id()
+        limit 1`,
+      [ctx.userId],
+    );
+    return rows[0]?.owner ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function readPageData({ filter, search }: ReadPageDataArgs): Promise<LoaderResult> {
+  try {
+    // Resolve RBAC + (for ?filter=mine) the owner name inside one org-context tx,
+    // so the listProjects WHERE clause is org-scoped and never client-trusted.
+    const { canAdvance, ownerName } = await withOrgContext(
+      async (rawCtx): Promise<{ canAdvance: boolean; ownerName: string | null }> => {
+        const ctx = rawCtx as OrgContextLike;
+        const [canRead, canAdv] = await Promise.all([
+          hasPermission(ctx, PROJECT_VIEW_PERMISSION),
+          hasPermission(ctx, GATE_ADVANCE_PERMISSION),
+        ]);
+        // Surface the read gate via a thrown sentinel so the outer block can map it.
+        if (!canRead) throw new ForbiddenError();
+        const owner = filter === 'mine' ? await resolveOwnerName(ctx) : null;
+        return { canAdvance: canAdv, ownerName: owner };
+      },
+    );
+
+    const query: ListProjectsInput = {};
+    if (filter === 'mine') query.owner = ownerName;
+    else if ((GATE_FILTERS as string[]).includes(filter)) query.gate = filter as ProjectGate;
+    if (search) query.search = search;
+
+    const result = await listProjects(query);
     if (!result.ok) {
       if (result.error === 'FORBIDDEN') {
         return { state: 'permission_denied', projects: [], canAdvance: false };
@@ -149,7 +303,7 @@ async function readPageData(): Promise<LoaderResult> {
     if (error instanceof ForbiddenError) {
       return { state: 'permission_denied', projects: [], canAdvance: false };
     }
-    console.error('[pipeline-kanban] org-scoped read failed:', error);
+    console.error('[pipeline] org-scoped read failed:', error);
     return { state: 'error', projects: [], canAdvance: false };
   }
 }
@@ -166,11 +320,20 @@ async function advanceActionAdapter(input: AdvanceInput): Promise<AdvanceResult>
   return { ok: false, error: result.error, status: result.status };
 }
 
-export default async function PipelineKanbanPage(propsInput: unknown = {}) {
+export default async function PipelinePage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PipelinePageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
+  const search = props.searchParams ? await props.searchParams : undefined;
 
-  const labels = await buildLabels(locale);
+  const filter = parseFilter(readParam(search, 'filter'));
+  const searchQuery = readParam(search, 'search')?.trim() || null;
+
+  const [kanbanLabels, tableLabels, splitLabels, switcherLabels] = await Promise.all([
+    buildLabels(locale),
+    buildLabelSet(locale, 'npd.pipelineTable', DEFAULT_TABLE_LABELS),
+    buildLabelSet(locale, 'npd.pipelineSplit', DEFAULT_SPLIT_LABELS),
+    buildLabelSet(locale, 'npd.pipelineSwitcher', DEFAULT_SWITCHER_LABELS),
+  ]);
 
   const injected = Array.isArray(props.projects);
   const loaded: LoaderResult = injected
@@ -179,12 +342,15 @@ export default async function PipelineKanbanPage(propsInput: unknown = {}) {
         projects: props.projects ?? [],
         canAdvance: props.canAdvance ?? false,
       }
-    : await readPageData();
+    : await readPageData({ filter, search: searchQuery });
 
   return (
-    <KanbanView
+    <PipelineTabs
       projects={loaded.projects}
-      labels={labels}
+      switcherLabels={switcherLabels}
+      kanbanLabels={kanbanLabels}
+      tableLabels={tableLabels}
+      splitLabels={splitLabels}
       canAdvance={props.canAdvance ?? loaded.canAdvance}
       state={props.state ?? loaded.state}
       advanceAction={advanceActionAdapter}
