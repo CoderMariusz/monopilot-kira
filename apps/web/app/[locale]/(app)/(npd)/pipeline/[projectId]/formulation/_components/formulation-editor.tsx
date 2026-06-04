@@ -40,16 +40,30 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-import { Dec } from '@monopilot/domain';
+import { Dec, recomputeCalc, type RecomputeResult } from '@monopilot/domain';
 
 import {
   IngredientRow,
-  computeContribution,
   isDecimalString,
   type EditableIngredient,
   type IngredientField,
   type RowError,
 } from './ingredient-row';
+import {
+  AllergenPanel,
+  EU14_ALLERGEN_CODES,
+  type AllergenPanelLabels,
+  type AllergenStatus,
+} from './allergen-panel';
+import { CompositionBar, type CompositionBarLabels, type CompositionSegment } from './composition-bar';
+import { CostPanel, type CostBreakdown, type CostPanelLabels } from './cost-panel';
+import {
+  NutritionPanel,
+  NUTRIENT_ROW_ORDER,
+  type NutritionPanelLabels,
+  type NutritionRow,
+  type NutritionTargets,
+} from './nutrition-panel';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -73,7 +87,25 @@ export type FormulationEditorData = {
     costPerKgEur: string | null;
     allergen: string | null;
     sequence: number;
+    /**
+     * Optional per-100g nutrient values for the RM (NUMERIC strings) read
+     * server-side from Reference.RawMaterials.nutrition_per_100g (T-065 source).
+     * Feeds the live NutritionPanel weighted-sum; omitted RMs contribute 0.
+     */
+    nutritionPer100g?: Record<string, string>;
   }>;
+};
+
+/**
+ * Pre-resolved i18n message bundles for the four live panels (resolved
+ * server-side by page.tsx via getTranslations on each panel namespace, then
+ * threaded down). Keeps the panels pure islands — they never call next-intl.
+ */
+export type FormulationPanelLabels = {
+  cost: CostPanelLabels;
+  nutrition: NutritionPanelLabels;
+  allergen: AllergenPanelLabels;
+  composition: CompositionBarLabels;
 };
 
 export type FormulationLabels = {
@@ -159,6 +191,77 @@ const COMPOSITION_COLORS = [
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+/**
+ * Processing overhead % used by the CostPanel "Processing ({overheadPct}%)" line.
+ * `recomputeCalc` applies this same default (recipe.jsx:8-12) but does not echo it
+ * back in its result, so the panel label is supplied from the same constant.
+ */
+const DEFAULT_OVERHEAD_PCT = '8';
+
+/** Map the editor's editable rows + per-RM nutrition into recomputeCalc inputs. */
+function toRecomputeIngredients(
+  rows: EditableIngredient[],
+  nutritionByRm: Map<string, Record<string, string>>,
+): Parameters<typeof recomputeCalc>[0]['ingredients'] {
+  return rows.map((r) => {
+    const nutrition = nutritionByRm.get(r.rmCode);
+    return {
+      rmCode: r.rmCode,
+      pct: isDecimalString(r.pct) ? r.pct : null,
+      costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
+      allergensInherited: r.allergen ? [r.allergen] : [],
+      ...(nutrition ? { nutritionPer100g: nutrition } : {}),
+    };
+  });
+}
+
+/** calc roll-up → CostPanel breakdown (adds the overhead% the panel label needs). */
+function toCostBreakdown(calc: RecomputeResult): CostBreakdown {
+  return {
+    rawCost: calc.rawCost,
+    yieldedCost: calc.yieldedCost,
+    processing: calc.processing,
+    packaging: calc.packaging,
+    costPerKg: calc.costPerKg,
+    revenuePerKg: calc.revenuePerKg,
+    marginPct: calc.marginPct,
+    overheadPct: DEFAULT_OVERHEAD_PCT,
+  };
+}
+
+/** calc.nutrition (record) → ordered NutritionPanel rows (units from the code). */
+function toNutritionRows(nutrition: Record<string, string>): NutritionRow[] {
+  return NUTRIENT_ROW_ORDER.filter((code) => code in nutrition).map((code) => ({
+    nutrientCode: code,
+    per100g: nutrition[code],
+    unit: code === 'energy_kj' ? 'kJ' : 'g',
+  }));
+}
+
+/**
+ * calc.allergens (detected union) → full EU14 presence list for the AllergenPanel.
+ * Detected codes are 'present'; the remaining EU14 codes are 'absent'. The compute
+ * path emits a binary union (no trace), so every detected allergen is 'present'.
+ */
+function toAllergenStatuses(detected: string[], names: Record<string, string>): AllergenStatus[] {
+  const present = new Set(detected);
+  return EU14_ALLERGEN_CODES.map((code) => ({
+    code,
+    name: names[code] ?? code,
+    status: present.has(code) ? ('present' as const) : ('absent' as const),
+  }));
+}
+
+/** Editable rows → CompositionBar segments (only valid-pct rows render). */
+function toCompositionSegments(rows: EditableIngredient[]): CompositionSegment[] {
+  return rows.map((r) => ({
+    id: r.id,
+    rmCode: r.rmCode,
+    name: r.name,
+    pct: isDecimalString(r.pct) ? r.pct : '0',
+  }));
+}
+
 function toEditable(data: FormulationEditorData): EditableIngredient[] {
   return data.ingredients.map((ing) => ({
     id: ing.id,
@@ -171,25 +274,15 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
   }));
 }
 
-/** Exact percent sum (3 dp) of all rows that hold a valid decimal string. */
-function totalPct(rows: EditableIngredient[]): string {
-  let acc = Dec.zero();
-  for (const r of rows) if (isDecimalString(r.pct)) acc = acc.add(Dec.from(r.pct));
-  return acc.toFixed(3);
-}
-
-/** Exact raw-cost sum (3 dp): Σ contribution. */
-function rawCost(rows: EditableIngredient[]): string {
-  let acc = Dec.zero();
-  for (const r of rows) {
-    const c = computeContribution(r.pct, r.costPerKgEur);
-    if (c) acc = acc.add(Dec.from(c));
-  }
-  return acc.toFixed(3);
-}
-
 function isHundred(pctStr: string): boolean {
   return Dec.from(pctStr).cmp(Dec.from('100')) === 0;
+}
+
+/** Yield % as a layout-only integer (default 0 when unset/invalid). */
+function parseYield(value: string | null | undefined): number {
+  if (!value) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: FormulationLabels }) {
@@ -243,6 +336,10 @@ export function FormulationEditor({
   state = 'ready',
   data,
   labels,
+  panelLabels,
+  nutritionTargets,
+  allergenNames,
+  currency = 'EUR',
   canEdit = false,
   saveDraftAction,
   recomputeAction,
@@ -250,6 +347,14 @@ export function FormulationEditor({
   state?: PageState;
   data: FormulationEditorData | null;
   labels: FormulationLabels;
+  /** Pre-resolved i18n bundles for the four live panels (T-113-116). */
+  panelLabels?: FormulationPanelLabels;
+  /** Per-nutrient amber/red thresholds (reference data, NUMERIC strings). */
+  nutritionTargets?: NutritionTargets;
+  /** Locale-resolved EU14 allergen display names, keyed by code. */
+  allergenNames?: Record<string, string>;
+  /** ISO-4217 currency code for the CostPanel (default EUR). */
+  currency?: string;
   canEdit?: boolean;
   saveDraftAction?: SaveDraftAction;
   recomputeAction?: RecomputeAction;
@@ -261,8 +366,36 @@ export function FormulationEditor({
   const [errors, setErrors] = React.useState<Record<string, RowError>>({});
   const [batchKg, setBatchKg] = React.useState<string>(data?.batchSizeKg ?? '');
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
+  const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+
+  // Per-RM nutrition is reference data (stable across pct edits); derive once.
+  const nutritionByRm = React.useMemo(() => {
+    const map = new Map<string, Record<string, string>>();
+    for (const ing of data?.ingredients ?? []) {
+      if (ing.nutritionPer100g) map.set(ing.rmCode, ing.nutritionPer100g);
+    }
+    return map;
+  }, [data]);
+
+  /**
+   * Live cost/nutrition/allergen roll-up — the production equivalent of the
+   * prototype `useLiveCalc` (recipe.jsx:147). Pure `recomputeCalc` (T-065) runs
+   * AT MOST ONCE per render, only when an actual dependency
+   * [rows, batchKg, targetPrice, yieldPct] changes (AC#4). The persisted
+   * recompute (recomputeAndCache) still runs server-side on save.
+   */
+  const calc = React.useMemo<RecomputeResult>(
+    () =>
+      recomputeCalc({
+        ingredients: toRecomputeIngredients(rows, nutritionByRm),
+        batchKg: isDecimalString(batchKg) ? batchKg : null,
+        targetPriceEur: isDecimalString(targetPrice) ? targetPrice : null,
+        yieldPct: String(yieldPct),
+      }),
+    [rows, batchKg, targetPrice, yieldPct, nutritionByRm],
+  );
 
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowsRef = React.useRef(rows);
@@ -381,8 +514,10 @@ export function FormulationEditor({
     [editable, scheduleSave],
   );
 
-  const total = totalPct(rows);
-  const cost = rawCost(rows);
+  // Total % and raw cost come from the same NUMERIC-exact roll-up that feeds the
+  // panels, so the table total and the CostPanel never disagree (single source).
+  const total = calc.totalPct;
+  const cost = calc.rawCost;
   const balanced = isHundred(total);
 
   const versionOptions = data?.versions ?? [];
@@ -570,59 +705,100 @@ export function FormulationEditor({
                 </div>
               ) : null}
 
-              <div className="px-3.5 pb-4 pt-3">
-                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-slate-500">
-                  {labels.composition}
-                </div>
-                <div
-                  className="flex h-6 overflow-hidden rounded border"
-                  role="img"
-                  aria-label={labels.composition}
-                >
-                  {rows.map((ingredient, i) => {
-                    const w = compositionWidth(ingredient.pct, total);
-                    return (
-                      <div
-                        key={ingredient.id}
-                        className={COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]}
-                        style={{ width: `${w}%` }}
-                        title={`${ingredient.name || ingredient.rmCode}: ${ingredient.pct}%`}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {rows
-                    .filter((r) => isDecimalString(r.pct) && Dec.from(r.pct).cmp(Dec.from('0.5')) > 0)
-                    .map((ingredient, i) => (
-                      <span key={ingredient.id} className="inline-flex items-center gap-1">
-                        <span
-                          aria-hidden="true"
-                          className={['inline-block h-2 w-2 rounded-sm', COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]].join(' ')}
+              {/* T-116 CompositionBar — live %-by-ingredient strip below the table
+                  (recipe.jsx:230-250). Falls back to the inline strip if the
+                  composition labels are not supplied (back-compat with T-066). */}
+              {panelLabels ? (
+                <CompositionBar
+                  segments={toCompositionSegments(rows)}
+                  labels={panelLabels.composition}
+                />
+              ) : (
+                <div className="px-3.5 pb-4 pt-3">
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-slate-500">
+                    {labels.composition}
+                  </div>
+                  <div
+                    className="flex h-6 overflow-hidden rounded border"
+                    role="img"
+                    aria-label={labels.composition}
+                  >
+                    {rows.map((ingredient, i) => {
+                      const w = compositionWidth(ingredient.pct, total);
+                      return (
+                        <div
+                          key={ingredient.id}
+                          className={COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]}
+                          style={{ width: `${w}%` }}
+                          title={`${ingredient.name || ingredient.rmCode}: ${ingredient.pct}%`}
                         />
-                        <span>
-                          {ingredient.name || ingredient.rmCode} {ingredient.pct}%
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {rows
+                      .filter((r) => isDecimalString(r.pct) && Dec.from(r.pct).cmp(Dec.from('0.5')) > 0)
+                      .map((ingredient, i) => (
+                        <span key={ingredient.id} className="inline-flex items-center gap-1">
+                          <span
+                            aria-hidden="true"
+                            className={['inline-block h-2 w-2 rounded-sm', COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]].join(' ')}
+                          />
+                          <span>
+                            {ingredient.name || ingredient.rmCode} {ingredient.pct}%
+                          </span>
                         </span>
-                      </span>
-                    ))}
+                      ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
           <aside className="space-y-3" data-testid="live-panels" aria-label={labels.livePanels}>
             <p className="text-xs text-slate-500">{labels.livePanelsHint}</p>
-            <PanelSlot testId="panel-cost" title={labels.costPanelTitle} placeholder={labels.panelPlaceholder} />
-            <PanelSlot
-              testId="panel-nutrition"
-              title={labels.nutritionPanelTitle}
-              placeholder={labels.panelPlaceholder}
-            />
-            <PanelSlot
-              testId="panel-allergen"
-              title={labels.allergenPanelTitle}
-              placeholder={labels.panelPlaceholder}
-            />
+            {panelLabels ? (
+              <>
+                {/* Sidebar order Nutrition → Cost → Allergen (recipe.jsx:253-258).
+                    Each panel CONSUMES the live `calc` (T-065 recomputeCalc); the
+                    editor owns the single source of truth (rows + targetPrice +
+                    yieldPct). Cost target-price / yield write back to page state. */}
+                <NutritionPanel
+                  nutrition={toNutritionRows(calc.nutrition)}
+                  targets={nutritionTargets ?? {}}
+                  labels={panelLabels.nutrition}
+                  state="ready"
+                />
+                <CostPanel
+                  state="ready"
+                  calc={toCostBreakdown(calc)}
+                  targetPrice={targetPrice}
+                  onTargetPriceChange={setTargetPrice}
+                  yieldPct={yieldPct}
+                  onYieldChange={setYieldPct}
+                  labels={panelLabels.cost}
+                  currency={currency}
+                />
+                <AllergenPanel
+                  allergens={toAllergenStatuses(calc.allergens, allergenNames ?? {})}
+                  labels={panelLabels.allergen}
+                />
+              </>
+            ) : (
+              <>
+                <PanelSlot testId="panel-cost" title={labels.costPanelTitle} placeholder={labels.panelPlaceholder} />
+                <PanelSlot
+                  testId="panel-nutrition"
+                  title={labels.nutritionPanelTitle}
+                  placeholder={labels.panelPlaceholder}
+                />
+                <PanelSlot
+                  testId="panel-allergen"
+                  title={labels.allergenPanelTitle}
+                  placeholder={labels.panelPlaceholder}
+                />
+              </>
+            )}
           </aside>
         </div>
       )}

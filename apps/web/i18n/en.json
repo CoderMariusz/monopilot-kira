@@ -884,6 +884,22 @@
       "noneDetected": "No allergens detected from the current ingredients.",
       "statusLabel": "{name} — {status}"
     },
+    "allergenNames": {
+      "gluten": "Cereals (gluten)",
+      "crustaceans": "Crustaceans",
+      "eggs": "Eggs",
+      "fish": "Fish",
+      "peanuts": "Peanuts",
+      "soybeans": "Soybeans",
+      "milk": "Milk",
+      "nuts": "Tree nuts",
+      "celery": "Celery",
+      "mustard": "Mustard",
+      "sesame": "Sesame",
+      "sulphites": "Sulphur dioxide & sulphites",
+      "lupin": "Lupin",
+      "molluscs": "Molluscs"
+    },
     "deptClose": {
       "titleClose": "Close {dept} section",
       "subtitle": "FA {faCode} · {productName}",

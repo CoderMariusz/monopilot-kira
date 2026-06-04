@@ -42,7 +42,7 @@ import {
 
 afterEach(() => cleanup());
 
-const OUT_DIR = path.resolve(__dirname, '../../../../../../../e2e/parity-evidence/npd/T-115');
+const OUT_DIR = path.resolve(__dirname, '../../../../../../../../../e2e/parity-evidence/npd/T-115');
 
 const LABELS: AllergenPanelLabels = {
   title: 'Allergens',

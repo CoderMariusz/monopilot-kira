@@ -1,0 +1,92 @@
+{
+  "task": "T-117",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/recipe.jsx:141-262 (RecipeScreen)"
+  ],
+  "prd_refs": [
+    "§17.11.1"
+  ],
+  "data_sources": [
+    "getFormulation (T-063) — ingredients + cached calc (RLS, org-scoped)",
+    "Reference.RawMaterials.nutrition_per_100g — per-RM nutrition (page loader)",
+    "recomputeCalc (T-065) — client useMemo live roll-up",
+    "recomputeAndCache (T-065) — persisted on save"
+  ],
+  "generated_at": "2026-06-04T08:59:29.808Z",
+  "states": {
+    "loading": {
+      "editorRoot": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "nutritionPanel": false,
+      "costPanel": false,
+      "allergenPanel": false,
+      "compositionBar": false,
+      "panelOrder": [],
+      "placeholderSlots": 0,
+      "rawSelects": 0,
+      "alerts": 0
+    },
+    "empty": {
+      "editorRoot": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "nutritionPanel": false,
+      "costPanel": false,
+      "allergenPanel": false,
+      "compositionBar": false,
+      "panelOrder": [],
+      "placeholderSlots": 0,
+      "rawSelects": 0,
+      "alerts": 0
+    },
+    "error": {
+      "editorRoot": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "nutritionPanel": false,
+      "costPanel": false,
+      "allergenPanel": false,
+      "compositionBar": false,
+      "panelOrder": [],
+      "placeholderSlots": 0,
+      "rawSelects": 0,
+      "alerts": 1
+    },
+    "permission_denied": {
+      "editorRoot": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "nutritionPanel": false,
+      "costPanel": false,
+      "allergenPanel": false,
+      "compositionBar": false,
+      "panelOrder": [],
+      "placeholderSlots": 0,
+      "rawSelects": 0,
+      "alerts": 1
+    },
+    "ready": {
+      "editorRoot": true,
+      "ingredientTable": true,
+      "ingredientRows": 2,
+      "nutritionPanel": true,
+      "costPanel": true,
+      "allergenPanel": true,
+      "compositionBar": true,
+      "panelOrder": [
+        "nutrition-panel",
+        "cost-panel",
+        "allergen-panel"
+      ],
+      "placeholderSlots": 0,
+      "rawSelects": 0,
+      "alerts": 1
+    },
+    "live_edit": {
+      "costRawBefore": "€3.74 /kg",
+      "costRawAfter": "€2.27 /kg",
+      "changed": true
+    }
+  }
+}

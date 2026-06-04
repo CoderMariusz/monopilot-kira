@@ -1,0 +1,35 @@
+{
+  "task": "T-117",
+  "anchor": "prototypes/design/Monopilot Design System/npd/recipe.jsx:141-262",
+  "mapping": [
+    {
+      "prototype": "calc = useLiveCalc(ingredients, batchKg, targetPrice, yieldPct) (recipe.jsx:147)",
+      "production": "calc = useMemo(() => recomputeCalc({...}), [rows, batchKg, targetPrice, yieldPct]) (T-065)"
+    },
+    {
+      "prototype": "composition strip below table (recipe.jsx:230-250)",
+      "production": "<CompositionBar segments={...}/> (T-116)"
+    },
+    {
+      "prototype": "<NutritionPanel/> (recipe.jsx:255)",
+      "production": "<NutritionPanel nutrition={calc.nutrition}/> (T-113)"
+    },
+    {
+      "prototype": "<CostPanel calc targetPrice setTargetPrice yieldPct setYieldPct/> (recipe.jsx:256)",
+      "production": "<CostPanel calc targetPrice onTargetPriceChange yieldPct onYieldChange/> (T-114)"
+    },
+    {
+      "prototype": "<AllergenPanel calc/> (recipe.jsx:257)",
+      "production": "<AllergenPanel allergens={calc.allergens → EU14 statuses}/> (T-115)"
+    },
+    {
+      "prototype": "sidebar order Nutrition → Cost → Allergen (recipe.jsx:253-258)",
+      "production": "aside[data-testid=live-panels] renders the panels in that exact order"
+    }
+  ],
+  "deviations": [
+    "Sidebar order corrected to Nutrition → Cost → Allergen to match the prototype (T-117 JSON listed Cost → Nutrition → Allergen; prototype + T-118 AC#1 are authoritative).",
+    "Allergen presence is binary (present/absent) — recomputeCalc emits a union of codes (no trace); the trace token stays available for the cascade read-model.",
+    "Nutrition traffic-light targets use EU per-100g guideline defaults (no targets table provisioned yet — PRD §17.11.1 later slice); the nutrient VALUES are real (Reference.RawMaterials × pct)."
+  ]
+}

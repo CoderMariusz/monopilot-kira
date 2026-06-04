@@ -1,0 +1,14 @@
+{
+  "task": "T-117",
+  "note": "Playwright + @axe-core blocked at the component layer (no running RBAC app server). The Playwright spec apps/web/e2e/npd-formulation-editor-panels.spec.ts runs the real axe pass at Gate-5 (T-118). RTL role/landmark checks below substitute, per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "hasMainLandmark": true,
+  "sidebarOrder": [
+    "nutrition-panel",
+    "cost-panel",
+    "allergen-panel"
+  ],
+  "compositionBelowTable": true,
+  "noRawSelect": true,
+  "glutenPresent": true,
+  "declaredOnLabelAlert": true
+}
