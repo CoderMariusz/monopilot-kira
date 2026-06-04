@@ -90,7 +90,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-077 | Reference.ApprovalChainTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.ApprovalChainTemplates (mig 098, zod) — merged |
 | T-078 | Approval criteria (C1-C7) evaluator Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Approval criteria C1-C7 evaluator Server Action — merged |
-| T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
+| T-079 | UI: ApprovalScreen | ✅ DONE | DONE 2026-06-04 (ramp 3). ApprovalScreen — C1-C7 criteria via T-078, e-sign submit via T-058, parity (other-stages.jsx:412-473), RTL, tsc0, i18n npd.approvalScreen. kira-ui |
 | T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
 | T-081 | risks CRUD + lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). risks CRUD Server Actions + risk.created event (mig 105) — merged |
 | T-082 | UI: RiskRegisterScreen + RiskAddModal | ✅ DONE | DONE 2026-06-04 (Wave D). RiskRegisterScreen + RiskAddModal — real risks data via T-081 listRisks, V18 built-blocker advisory, §18 reason-gated transitions, prototype parity (docs-screens.jsx:56-106 + modals.jsx:297-346), 15 RTL, tsc0, i18n npd.risks x4. kira-ui. axe/Codex-review deferred |
@@ -119,9 +119,9 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-105 | WIRING: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101, T-102, T-103, T-104 |
 | T-106 | PARITY: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101–T-105 |
 | T-107 | UI: GateChecklistPanel | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). GateChecklistPanel — real gate_checklist_items via T-057, per-gate progress, toggle via T-058, parity (gate-screens.jsx:106-258), RTL, tsc0, i18n npd.gateChecklist. kira-ui |
-| T-108 | UI: AdvanceGateModal | ⬜ PENDING | Blocked by T-057, T-058 |
-| T-109 | UI: GateApprovalModal | ⬜ PENDING | Blocked by T-057, T-058 |
-| T-110 | UI: ApprovalHistoryTimeline | ⬜ PENDING | Blocked by T-057, T-058 |
+| T-108 | UI: AdvanceGateModal | ✅ DONE | DONE 2026-06-04 (ramp 3). AdvanceGateModal — advanceProjectGate(T-058), checklist completeness gate, parity (gate-screens.jsx:261-373), RTL, tsc0, i18n npd.advanceGateModal. kira-ui |
+| T-109 | UI: GateApprovalModal | ✅ DONE | DONE 2026-06-04 (ramp 3). GateApprovalModal — approveProjectGate(T-058) e-sign, parity (gate-screens.jsx:378-522), RTL, tsc0, i18n npd.gateApprovalModal. kira-ui. FLAG: T-058 reject requires password but UI omits it on reject — T-111 wiring must reconcile |
+| T-110 | UI: ApprovalHistoryTimeline | ✅ DONE | DONE 2026-06-04 (ramp 3). ApprovalHistoryTimeline — real gate_approvals (packages/queries listApprovalHistory), e-sign disclosure, parity (gate-screens.jsx:525-616), RTL+integration, tsc0, i18n npd.approvalHistory. kira-ui |
 | T-111 | WIRING: Gate screen | ⬜ PENDING | Blocked by T-107–T-110 |
 | T-112 | PARITY: Gate screen components | ⬜ PENDING | Blocked by T-111 |
 | T-113 | UI: NutritionPanel (per-100g traffic-light bars) | ⬜ PENDING | Blocked by T-065 |
@@ -139,8 +139,8 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-125 | UI: D365 Wizard modal — steps 5-8 + SSE | ⬜ PENDING | Blocked by T-044, T-124 |
 | T-126 | WIRING: D365 modals wire into FA detail | ⬜ PENDING | Blocked by T-123, T-124, T-125 |
 | T-127 | PARITY: D365 modals Playwright | ⬜ PENDING | Blocked by T-123–T-126 |
-| T-128 | UI: Pipeline TableView | ⬜ PENDING | Blocked by T-057, T-059 |
-| T-129 | UI: Pipeline SplitView + ProjectDetailPanel | ⬜ PENDING | Blocked by T-057, T-059 |
+| T-128 | UI: Pipeline TableView | ✅ DONE | DONE 2026-06-04 (ramp 3). Pipeline TableView — real npd_projects(T-057), sortable + bulk toolbar, parity (pipeline.jsx:54-88), RTL, tsc0, i18n npd.pipelineTable. kira-ui |
+| T-129 | UI: Pipeline SplitView + ProjectDetailPanel | ✅ DONE | DONE 2026-06-04 (ramp 3). Pipeline SplitView + ProjectDetailPanel — real projects(T-057), URL ?selected, <1280px fallback, parity (pipeline.jsx:89-131), RTL, tsc0, i18n npd.pipelineSplit. kira-ui |
 | T-130 | WIRING: Pipeline page tabbed view switcher | ⬜ PENDING | Blocked by T-059, T-128, T-129 |
 | T-131 | PARITY: Pipeline views Playwright + axe | ⬜ PENDING | Blocked by T-128–T-130 |
 | T-132 | UI: Dashboard KPI counters region | ⏸ BLOCKED | dashboard-counters.tsx exists but no page wiring, no real data, no parity evidence; duplicate route tree issue |
