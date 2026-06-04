@@ -85,7 +85,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-071 | DEFERRED/CROSS-MODULE: Sensory schema (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-072 | Nutrition computation Server Action + Nutri-Score | ✅ DONE | DONE 2026-06-04 (Wave C). Nutrition compute Server Action + Nutri-Score (mig 110, @monopilot/domain) — Codex, REAL integration tests, NUMERIC-exact. merged. Nit: Nutri-Score fiber/FVN=0 (RM schema lacks cols, deviation) |
 | T-073 | Costing 9-step waterfall + scenario Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Costing 9-step waterfall + scenario action (apps/web/lib/costing) + mig 108 (scenario params jsonb) — Opus impl-hard + rework (exact margin gate, persist params, bounds). Codex review. NUMERIC-exact. merged |
-| T-074 | UI: NutritionScreen | ⬜ PENDING | Blocked by T-072 |
+| T-074 | UI: NutritionScreen | ✅ DONE | DONE 2026-06-04 (Wave D). NutritionScreen (per-100g traffic-light + Nutri-Score) — real data (nutrition_profiles+Reference.Nutrients+nutri_score_results), prototype parity (other-stages.jsx:4-80), 16 RTL, tsc0, i18n npd.nutrition x4, parity-evidence harness. kira-ui. axe/Codex-review deferred to Gate-5 |
 | T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-077 | Reference.ApprovalChainTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.ApprovalChainTemplates (mig 098, zod) — merged |
@@ -93,7 +93,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
 | T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
 | T-081 | risks CRUD + lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). risks CRUD Server Actions + risk.created event (mig 105) — merged |
-| T-082 | UI: RiskRegisterScreen + RiskAddModal | ⬜ PENDING | Blocked by T-081 |
+| T-082 | UI: RiskRegisterScreen + RiskAddModal | ✅ DONE | DONE 2026-06-04 (Wave D). RiskRegisterScreen + RiskAddModal — real risks data via T-081 listRisks, V18 built-blocker advisory, §18 reason-gated transitions, prototype parity (docs-screens.jsx:56-106 + modals.jsx:297-346), 15 RTL, tsc0, i18n npd.risks x4. kira-ui. axe/Codex-review deferred |
 | T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
 | T-084 | Compliance docs upload + signed URL + soft-delete | ✅ DONE | DONE 2026-06-04 (Wave C). Compliance docs upload + signed URL + soft-delete + compliance_doc.* events (mig 119) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ✅ DONE | DONE 2026-06-04 (Wave C). compliance_docs expiry-scan cron (mig 124, apps/worker) + compliance_doc.expired/expiring events — merged |
