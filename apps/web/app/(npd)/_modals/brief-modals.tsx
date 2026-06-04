@@ -71,9 +71,13 @@ export function BriefModals({
 
   const defaultCreated = React.useCallback(
     (result: { briefId: string; npdProjectId: string }) => {
-      router.push(`/briefs/${result.briefId}`);
+      // T-121 (wiring): redirect to the consolidated detail route, locale-prefixed
+      // (next-intl localePrefix='always') so the new brief opens without a hop.
+      const segment = (pathname ?? '/').split('/')[1] ?? '';
+      const localePrefix = ['pl', 'en', 'uk', 'ro'].includes(segment) ? `/${segment}` : '';
+      router.push(`${localePrefix}/briefs/${result.briefId}`);
     },
-    [router],
+    [pathname, router],
   );
 
   const defaultCompleted = React.useCallback(() => {
