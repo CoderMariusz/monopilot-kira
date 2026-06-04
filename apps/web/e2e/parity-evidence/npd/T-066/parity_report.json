@@ -1,0 +1,90 @@
+{
+  "task": "T-066",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/recipe.jsx:124-264 (IngredientRow + RecipeScreen)",
+    "prototypes/design/Monopilot Design System/npd/formulation-screens.jsx:79-153 (FormulationEditor)"
+  ],
+  "prd_refs": [
+    "§17.11.1"
+  ],
+  "data_sources": [
+    "getFormulation (T-063)",
+    "saveDraft (T-064)",
+    "recomputeAndCache (T-065)"
+  ],
+  "generated_at": "2026-06-04T07:37:22.216Z",
+  "states": {
+    "loading": {
+      "editorRoot": true,
+      "toolbar": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "totalRow": false,
+      "panelSlots": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1,
+      "columnHeaders": []
+    },
+    "empty": {
+      "editorRoot": true,
+      "toolbar": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "totalRow": false,
+      "panelSlots": 0,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "columnHeaders": []
+    },
+    "error": {
+      "editorRoot": true,
+      "toolbar": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "totalRow": false,
+      "panelSlots": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "columnHeaders": []
+    },
+    "permission_denied": {
+      "editorRoot": true,
+      "toolbar": true,
+      "ingredientTable": false,
+      "ingredientRows": 0,
+      "totalRow": false,
+      "panelSlots": 0,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "columnHeaders": []
+    },
+    "ready": {
+      "editorRoot": true,
+      "toolbar": true,
+      "ingredientTable": true,
+      "ingredientRows": 3,
+      "totalRow": true,
+      "panelSlots": 3,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "columnHeaders": [
+        "Ingredient",
+        "% w/w",
+        "€ / kg",
+        "Contrib.",
+        "Allergen",
+        "Delete ingredient"
+      ]
+    },
+    "optimistic_debounced_save": {
+      "saveDraftCalls": 1,
+      "recomputeCalls": 1,
+      "debounceMs": 800
+    }
+  }
+}

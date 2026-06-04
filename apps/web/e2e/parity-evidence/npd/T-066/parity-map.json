@@ -1,0 +1,60 @@
+{
+  "task": "T-066",
+  "anchors": [
+    "prototypes/design/Monopilot Design System/npd/recipe.jsx:124-264",
+    "prototypes/design/Monopilot Design System/npd/formulation-screens.jsx:79-153"
+  ],
+  "mapping": [
+    {
+      "prototype": "toolbar (Recipe label, batch size input, version select, Compare/Save/Submit)",
+      "production": "header[data-region=\"toolbar\"] + Input(batch) + Select(version) + Buttons",
+      "lines": "recipe 158-182"
+    },
+    {
+      "prototype": "IngredientRow (name+code, % w/w, € / kg, contribution, allergen badge, ✕ delete)",
+      "production": "IngredientRow → TableRow with Input(rmCode/pct/cost) + Dec contribution + Badge + delete Button",
+      "lines": "recipe 124-139"
+    },
+    {
+      "prototype": "ingredients table head + Add ingredient",
+      "production": "Table/TableHeader columns + \"+ Add ingredient\" Button",
+      "lines": "recipe 186-210"
+    },
+    {
+      "prototype": "total row + totalPct ≠ 100 amber alert",
+      "production": "TableRow[data-testid=total-row] + [data-testid=total-pct-warning]",
+      "lines": "recipe 212-228"
+    },
+    {
+      "prototype": "composition multi-color strip + legend",
+      "production": "flex strip (per-ingredient width via Dec) + legend swatches",
+      "lines": "recipe 230-250"
+    },
+    {
+      "prototype": "NutritionPanel / CostPanel / AllergenPanel side panels",
+      "production": "aside[data-testid=live-panels] > PanelSlot x3 (T-113-115 own full panels)",
+      "lines": "recipe 253-258",
+      "deviation": "rendered as placeholder slots — full panels are out of scope (T-113-115)"
+    },
+    {
+      "prototype": "formulation-screens \"auto-save on blur\"",
+      "production": "800 ms debounced saveDraft (T-064) + recomputeAndCache (T-065)",
+      "lines": "formulation-screens 92,96"
+    }
+  ],
+  "shadcn_translation": {
+    "bare <input> (batch/price/pct/cost)": "Input (@monopilot/ui)",
+    "raw <select> version picker": "Select/SelectTrigger/SelectContent/SelectItem (raw <select> is a red-line)",
+    "<table> ingredients": "Table/TableHeader/TableBody/TableRow/TableCell",
+    "span.badge-amber allergen": "Badge variant=\"warning\"",
+    "window.NPD_INGREDIENTS_DEFAULT mock": "getFormulation() → formulation_ingredients (RLS, org-scoped)",
+    "useLiveCalc(...) float math": "Dec NUMERIC-exact contribution/total (no Number() on money)",
+    "\"Save draft\" button": "saveDraft Server Action (debounced 800 ms)"
+  },
+  "deviations": [
+    "Live cost/nutrition/allergen panels rendered as placeholder slots — full panels owned by T-113-115 (in scope per task brief).",
+    "CSV import + drag-to-reorder (recipe.jsx Import CSV / drag handle) omitted — not in T-066 scope.",
+    "Composition bar uses Tailwind flex strip (role=\"img\") rather than a recharts chart (translation-note suggestion); accessible label supplied.",
+    "Friendly ingredient name not stored on formulation_ingredients (T-063 keys by rm_code); name shown only when provided."
+  ]
+}
