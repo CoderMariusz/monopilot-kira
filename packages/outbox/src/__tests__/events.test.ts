@@ -23,6 +23,10 @@ const expectedSettingsEvents = [
   'settings.scim.token_created',
 ] as const;
 
+// Canonical events that MUST be present in the authoritative enum. This is a
+// representative coverage subset (the full set is enforced against the DB CHECK
+// by check-drift.test.ts), spanning the foundation, settings, NPD and the
+// legacy fa.* lifecycle strings the DB still stores.
 const expectedCanonicalEvents = [
   'org.created',
   'user.invited',
@@ -33,6 +37,8 @@ const expectedCanonicalEvents = [
   'fg.allergens_changed',
   'fg.intermediate_code_changed',
   'fg.edit',
+  'fg.release_blocked',
+  'fg.released_to_factory',
   'risk.created',
   'compliance_doc.uploaded',
   'compliance_doc.deleted',
@@ -45,7 +51,16 @@ const expectedCanonicalEvents = [
   'wo.ready',
   'quality.recorded',
   'shipment.created',
-  // T-039 — canary upgrade orchestration (extends the foundation 12-event list)
+  // Legacy fa.* lifecycle strings with NO fg.* equivalent — emitted by shipped
+  // code and stored by the DB, so they remain canonical enum members.
+  'fa.built',
+  'fa.cascade',
+  'fa.core_closed',
+  'fa.deleted',
+  'fa.dept_closed',
+  'fa.recipe_changed',
+  'fa.template_applied',
+  // T-039 — canary upgrade orchestration
   'tenant.migration.run',
   'tenant.migration.run.failed',
   'tenant.cohort.advanced',
@@ -66,6 +81,7 @@ type EventsModule = {
   ALL_EVENTS: readonly string[];
   ALL_EVENT_ALIASES: Readonly<Record<string, string>>;
   ALL_SETTINGS_EVENTS: readonly string[];
+  DB_EVENT_TYPES: readonly string[];
   normalizeEventType: (input: string) => string;
 };
 
@@ -79,11 +95,16 @@ async function loadEventsModule(): Promise<EventsModule> {
 }
 
 describe('outbox event type source of truth', () => {
-  it('exports exactly the canonical foundation and settings event values without duplicates', async () => {
+  it('exports the canonical foundation, settings and legacy event values without duplicates', async () => {
     const { ALL_EVENTS, EventType } = await loadEventsModule();
 
-    expect(ALL_EVENTS).toEqual(expectedCanonicalEvents);
-    expect(Object.values(EventType)).toEqual(expectedCanonicalEvents);
+    // ENUM-AUTHORITATIVE: ALL_EVENTS is the canonical superset. It MUST contain
+    // every expected canonical event (exact full-set equality is enforced
+    // against the DB CHECK by check-drift.test.ts).
+    for (const eventType of expectedCanonicalEvents) {
+      expect(ALL_EVENTS, `missing canonical event ${eventType}`).toContain(eventType);
+      expect(Object.values(EventType)).toContain(eventType);
+    }
     expect(new Set(ALL_EVENTS).size).toBe(ALL_EVENTS.length);
   });
 
@@ -103,28 +124,58 @@ describe('outbox event type source of truth', () => {
   it('keeps all canonical event values in the locked lowercase dotted format', async () => {
     const { ALL_EVENTS } = await loadEventsModule();
 
+    // Lowercase dotted segments; digits permitted (e.g. d365.cache.refreshed),
+    // which the DB CHECK has stored since migration 147.
     for (const eventType of ALL_EVENTS) {
-      expect(eventType).toMatch(/^[a-z_]+(\.[a-z_]+)+$/);
+      expect(eventType).toMatch(/^[a-z0-9_]+(\.[a-z0-9_]+)+$/);
     }
   });
 
-  it('uses fg.* as the only canonical finished-good lifecycle prefix', async () => {
+  it('uses fg.* as the canonical finished-good lifecycle prefix and keeps aliased fa.* OUT of the enum', async () => {
     const { ALL_EVENTS, EventType } = await loadEventsModule();
 
+    // fg.* is the canonical lifecycle prefix going forward.
     expect(EventType.FG_CREATED).toBe('fg.created');
     expect(EventType.FG_ALLERGENS_CHANGED).toBe('fg.allergens_changed');
     expect(EventType.FG_INTERMEDIATE_CODE_CHANGED).toBe('fg.intermediate_code_changed');
+    expect(EventType.FG_EDIT).toBe('fg.edit');
 
     expect(ALL_EVENTS).toContain('fg.created');
     expect(ALL_EVENTS).toContain('fg.allergens_changed');
     expect(ALL_EVENTS).toContain('fg.intermediate_code_changed');
-    expect(Object.values(EventType).some((eventType) => eventType.startsWith('fa.'))).toBe(false);
-    expect(Object.values(EventType).some((eventType) => eventType.startsWith('product.'))).toBe(false);
-    expect(ALL_EVENTS.some((eventType) => eventType.startsWith('fa.'))).toBe(false);
+    expect(ALL_EVENTS).toContain('fg.edit');
+
+    // The four fa.* strings that HAVE an fg.* equivalent are aliases only — they
+    // must NOT appear as canonical enum members.
     expect(ALL_EVENTS).not.toContain('fa.created');
     expect(ALL_EVENTS).not.toContain('fa.allergens_changed');
     expect(ALL_EVENTS).not.toContain('fa.intermediate_code_changed');
+    expect(ALL_EVENTS).not.toContain('fa.edit');
+
+    // No product.* events exist in either form.
+    expect(Object.values(EventType).some((eventType) => eventType.startsWith('product.'))).toBe(false);
     expect(ALL_EVENTS.some((eventType) => eventType.startsWith('product.'))).toBe(false);
+  });
+
+  it('keeps the legacy fa.* lifecycle strings (no fg.* equivalent) as canonical members the DB stores', async () => {
+    const { ALL_EVENTS } = await loadEventsModule();
+
+    // These fa.* events are emitted by shipped code and stored by the DB CHECK;
+    // they MUST be canonical so normalizeEventType never throws on them (the
+    // poison-pill class). They have no fg.* rename target yet.
+    for (const ev of [
+      'fa.built',
+      'fa.built_reset',
+      'fa.cascade',
+      'fa.core_closed',
+      'fa.deleted',
+      'fa.dept_closed',
+      'fa.dept_reopened',
+      'fa.recipe_changed',
+      'fa.template_applied',
+    ]) {
+      expect(ALL_EVENTS, `legacy fa.* event ${ev} must be a canonical member`).toContain(ev);
+    }
   });
 
   it('keeps fa.* only as explicit migration aliases that normalize to fg.*', async () => {
@@ -154,6 +205,43 @@ describe('outbox event type source of truth', () => {
     expect(() => normalizeEventType('fa.unknown')).toThrow(/unknown|unsupported|invalid/i);
     expect(() => normalizeEventType('product.created')).toThrow(/unknown|unsupported|invalid/i);
     expect(() => normalizeEventType('fg.deleted')).toThrow(/unknown|unsupported|invalid/i);
+  });
+
+  it('never throws for any event the code emits or the DB stores (regression: the 32 previously-throwing events)', async () => {
+    const { normalizeEventType, DB_EVENT_TYPES } = await loadEventsModule();
+
+    // Every string the DB CHECK permits must resolve cleanly — this is the
+    // poison-pill guarantee. Includes the formerly-unknown legacy + new events.
+    for (const ev of DB_EVENT_TYPES) {
+      expect(() => normalizeEventType(ev), `normalizeEventType threw on ${ev}`).not.toThrow();
+    }
+
+    // Spot-check a sample of events that used to throw before this change:
+    // legacy fa.* aliases, non-aliased legacy fa.*, and brand-new emitted events.
+    const previouslyThrowing = [
+      'fa.created',
+      'fa.edit',
+      'fa.built',
+      'fa.cascade',
+      'fa.core_closed',
+      'manufacturing_operations.created',
+      'reference.row.upserted',
+      'unit_of_measure.created',
+      'settings.upgrade.scheduled',
+      'org.security_policy.updated',
+      'settings.location.imported',
+    ];
+    for (const ev of previouslyThrowing) {
+      expect(() => normalizeEventType(ev), `normalizeEventType threw on ${ev}`).not.toThrow();
+    }
+  });
+
+  it('exposes DB_EVENT_TYPES = canonical values ∪ legacy alias keys (the DB CHECK contract)', async () => {
+    const { ALL_EVENTS, LegacyEventAlias, DB_EVENT_TYPES } = await loadEventsModule();
+
+    const expected = new Set<string>([...ALL_EVENTS, ...Object.keys(LegacyEventAlias)]);
+    expect(new Set(DB_EVENT_TYPES)).toEqual(expected);
+    expect(DB_EVENT_TYPES.length).toBe(expected.size);
   });
 
   it('locks events.enum.ts behind architect review in CODEOWNERS', () => {

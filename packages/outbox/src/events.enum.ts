@@ -1,55 +1,142 @@
+/**
+ * Outbox event type — SINGLE SOURCE OF TRUTH.
+ *
+ * This enum is AUTHORITATIVE (human decision, side-car foundation audit
+ * `_meta/runs/sidecar/reports/foundation-audit.md`). Every event type that the
+ * application emits into `public.outbox_events`, AND every event type stored by
+ * the DB CHECK constraint `outbox_events_event_type_check`, MUST appear here —
+ * either as a canonical `EventType` member or as a `LegacyEventAlias` key that
+ * normalizes to a canonical member.
+ *
+ * Invariants (enforced by the drift gate test, `__tests__/check-drift.test.ts`):
+ *   - The set of DB-permitted strings = (canonical values) ∪ (alias keys) =
+ *     `DB_EVENT_TYPES`.
+ *   - The latest migration's CHECK constraint string set === `DB_EVENT_TYPES`.
+ *     So the enum and the DB CHECK can never silently desync again.
+ *   - `normalizeEventType` NEVER throws for any string the code emits or the DB
+ *     stores — it resolves legacy `fa.*` aliases to their `fg.*` canonical and
+ *     passes through every canonical value unchanged.
+ *
+ * Naming policy:
+ *   - `fg.*` is the canonical finished-good lifecycle prefix going forward.
+ *   - The four legacy `fa.*` strings that have a `fg.*` equivalent are kept ONLY
+ *     as `LegacyEventAlias` entries (the DB historically stored them).
+ *   - The remaining `fa.*` strings (built, cascade, core_closed, deleted, …) have
+ *     NO `fg.*` equivalent and are stored verbatim by shipped code + the DB, so
+ *     they remain canonical members until a dedicated rename migration retires
+ *     them. Dropping them here would make `normalizeEventType` throw on rows the
+ *     DB already holds (the poison-pill class this change fixes).
+ */
 export enum EventType {
-  ORG_CREATED = 'org.created',
-  USER_INVITED = 'user.invited',
-  ROLE_ASSIGNED = 'role.assigned',
   AUDIT_RECORDED = 'audit.recorded',
-  BRIEF_CREATED = 'brief.created',
-  FG_CREATED = 'fg.created',
-  FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
-  FG_INTERMEDIATE_CODE_CHANGED = 'fg.intermediate_code_changed',
-  FG_EDIT = 'fg.edit',
-  RISK_CREATED = 'risk.created',
-  COMPLIANCE_DOC_UPLOADED = 'compliance_doc.uploaded',
-  COMPLIANCE_DOC_DELETED = 'compliance_doc.deleted',
-  COMPLIANCE_DOC_EXPIRING = 'compliance_doc.expiring',
-  COMPLIANCE_DOC_EXPIRED = 'compliance_doc.expired',
   BOM_INITIAL_VERSION_CREATED = 'bom.initial_version_created',
-  FG_BOM_RELEASED = 'fg.bom.released',
   BOM_VERSION_SUBMITTED = 'bom.version_submitted',
+  BRIEF_COMPLETED_FOR_PROJECT = 'brief.completed_for_project',
+  BRIEF_CONVERTED = 'brief.converted',
+  BRIEF_CREATED = 'brief.created',
+  COMPLIANCE_DOC_DELETED = 'compliance_doc.deleted',
+  COMPLIANCE_DOC_EXPIRED = 'compliance_doc.expired',
+  COMPLIANCE_DOC_EXPIRING = 'compliance_doc.expiring',
+  COMPLIANCE_DOC_UPLOADED = 'compliance_doc.uploaded',
+  D365_CACHE_REFRESHED = 'd365.cache.refreshed',
+  FA_BUILT = 'fa.built',
+  FA_BUILT_RESET = 'fa.built_reset',
+  FA_CASCADE = 'fa.cascade',
+  FA_CORE_CLOSED = 'fa.core_closed',
+  FA_DELETED = 'fa.deleted',
+  FA_DEPT_CLOSED = 'fa.dept_closed',
+  FA_DEPT_REOPENED = 'fa.dept_reopened',
+  FA_RECIPE_CHANGED = 'fa.recipe_changed',
+  FA_TEMPLATE_APPLIED = 'fa.template_applied',
+  FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
+  FG_BOM_RELEASED = 'fg.bom.released',
+  FG_CREATED = 'fg.created',
+  FG_EDIT = 'fg.edit',
+  FG_INTERMEDIATE_CODE_CHANGED = 'fg.intermediate_code_changed',
+  FG_RELEASE_BLOCKED = 'fg.release_blocked',
+  FG_RELEASED_TO_FACTORY = 'fg.released_to_factory',
+  FORMULATION_LOCKED = 'formulation.locked',
+  FORMULATION_SUBMITTED_FOR_TRIAL = 'formulation.submitted_for_trial',
   LP_RECEIVED = 'lp.received',
-  WO_READY = 'wo.ready',
-  QUALITY_RECORDED = 'quality.recorded',
-  SHIPMENT_CREATED = 'shipment.created',
-  // T-039 — canary upgrade orchestration
-  TENANT_MIGRATION_RUN = 'tenant.migration.run',
-  TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
-  TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
-
-  // T-003 — settings outbox events
-  SETTINGS_ORG_CREATED = 'settings.org.created',
-  SETTINGS_ORG_UPDATED = 'settings.org.updated',
-  SETTINGS_USER_INVITED = 'settings.user.invited',
-  SETTINGS_USER_ACCEPTED = 'settings.user.accepted',
-  SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
-  SETTINGS_ROLE_ASSIGNED = 'settings.role.assigned',
-  SETTINGS_MODULE_TOGGLED = 'settings.module.toggled',
-  SETTINGS_REFERENCE_ROW_UPDATED = 'settings.reference.row_updated',
-  SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
-  SETTINGS_RULE_DEPLOYED = 'settings.rule.deployed',
-  SETTINGS_NOTIFICATION_RULE_UPDATED = 'settings.notification_rule_updated',
-  SETTINGS_NOTIFICATION_CHANNEL_UPDATED = 'settings.notification_channel_updated',
-  SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
-  SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
-  SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
-  REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
-  REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
+  MANUFACTURING_OPERATIONS_CREATED = 'manufacturing_operations.created',
+  MANUFACTURING_OPERATIONS_DEACTIVATED = 'manufacturing_operations.deactivated',
+  MANUFACTURING_OPERATIONS_RESET_TO_SEED = 'manufacturing_operations.reset_to_seed',
+  MANUFACTURING_OPERATIONS_UPDATED = 'manufacturing_operations.updated',
   NPD_ALLERGENS_BULK_REBUILD_COMPLETED = 'npd.allergens.bulk_rebuild_completed',
+  NPD_BUILDER_RELEASED_RECORDS_CREATED = 'npd.builder.released_records_created',
   NPD_FG_CANDIDATE_MAPPED = 'npd.fg_candidate_mapped',
   NPD_GATE_ADVANCED = 'npd.gate.advanced',
   NPD_GATE_APPROVED = 'npd.gate.approved',
   NPD_GATE_REVERTED = 'npd.gate.reverted',
+  NPD_PROJECT_BRIEF_MAPPED = 'npd.project.brief_mapped',
+  NPD_PROJECT_CREATED = 'npd.project.created',
+  NPD_PROJECT_LEGACY_STAGES_CLOSED = 'npd.project.legacy_stages_closed',
+  NPD_PROJECT_RELEASE_REQUESTED = 'npd.project.release_requested',
+  ONBOARDING_FIRST_WO_RECORDED = 'onboarding.first_wo_recorded',
+  ONBOARDING_STEP_ADVANCE = 'onboarding.step.advance',
+  ONBOARDING_STEP_BACK = 'onboarding.step.back',
+  ONBOARDING_STEP_JUMP = 'onboarding.step.jump',
+  ONBOARDING_STEP_RESTART = 'onboarding.step.restart',
+  ONBOARDING_STEP_SKIP = 'onboarding.step.skip',
+  ORG_CREATED = 'org.created',
+  ORG_MFA_ENROLLMENT_FORCED = 'org.mfa_enrollment.forced',
+  ORG_SECURITY_POLICY_UPDATED = 'org.security_policy.updated',
+  QUALITY_RECORDED = 'quality.recorded',
+  REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
+  REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
+  REFERENCE_CSV_COMMITTED = 'reference.csv.committed',
+  REFERENCE_ROW_SOFT_DELETED = 'reference.row.soft_deleted',
+  REFERENCE_ROW_UPSERTED = 'reference.row.upserted',
+  RISK_CREATED = 'risk.created',
+  ROLE_ASSIGNED = 'role.assigned',
+  RULE_DEPLOYED = 'rule.deployed',
+  SETTINGS_CORE_FLAG_UPDATED = 'settings.core_flag.updated',
+  SETTINGS_DEPT_OVERRIDE_UPDATED = 'settings.dept_override.updated',
+  SETTINGS_IP_ALLOWLIST_CHANGED = 'settings.ip_allowlist.changed',
+  SETTINGS_LINE_UPSERTED = 'settings.line.upserted',
+  SETTINGS_LOCATION_IMPORTED = 'settings.location.imported',
+  SETTINGS_LOCATION_UPSERTED = 'settings.location.upserted',
+  SETTINGS_MACHINE_UPSERTED = 'settings.machine.upserted',
+  SETTINGS_MODULE_DISABLED = 'settings.module.disabled',
+  SETTINGS_MODULE_ENABLED = 'settings.module.enabled',
+  SETTINGS_MODULE_TOGGLED = 'settings.module.toggled',
+  SETTINGS_NOTIFICATION_CHANNEL_UPDATED = 'settings.notification_channel_updated',
+  SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
+  SETTINGS_NOTIFICATION_RULE_UPDATED = 'settings.notification_rule_updated',
+  SETTINGS_ORG_CREATED = 'settings.org.created',
+  SETTINGS_ORG_UPDATED = 'settings.org.updated',
+  SETTINGS_REFERENCE_ROW_UPDATED = 'settings.reference.row_updated',
+  SETTINGS_ROLE_ASSIGNED = 'settings.role.assigned',
+  SETTINGS_RULE_VARIANT_UPDATED = 'settings.rule_variant.updated',
+  SETTINGS_RULE_DEPLOYED = 'settings.rule.deployed',
+  SETTINGS_SCHEMA_MIGRATION_REQUESTED = 'settings.schema.migration_requested',
+  SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
+  SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
+  SETTINGS_UPGRADE_COMPLETED = 'settings.upgrade.completed',
+  SETTINGS_UPGRADE_PROMOTED = 'settings.upgrade.promoted',
+  SETTINGS_UPGRADE_ROLLED_BACK = 'settings.upgrade.rolled_back',
+  SETTINGS_UPGRADE_SCHEDULED = 'settings.upgrade.scheduled',
+  SETTINGS_USER_ACCEPTED = 'settings.user.accepted',
+  SETTINGS_USER_DEACTIVATED = 'settings.user.deactivated',
+  SETTINGS_USER_INVITATION_RESENT = 'settings.user.invitation_resent',
+  SETTINGS_USER_INVITED = 'settings.user.invited',
+  SETTINGS_WAREHOUSE_DEACTIVATED = 'settings.warehouse.deactivated',
+  SHIPMENT_CREATED = 'shipment.created',
+  TECHNICAL_FACTORY_SPEC_APPROVED = 'technical.factory_spec.approved',
+  TENANT_COHORT_ADVANCED = 'tenant.cohort.advanced',
+  TENANT_MIGRATION_RUN = 'tenant.migration.run',
+  TENANT_MIGRATION_RUN_FAILED = 'tenant.migration.run.failed',
+  UNIT_OF_MEASURE_CONVERSION_CREATED = 'unit_of_measure.conversion_created',
+  UNIT_OF_MEASURE_CREATED = 'unit_of_measure.created',
+  UNIT_OF_MEASURE_SOFT_DELETED = 'unit_of_measure.soft_deleted',
+  USER_INVITED = 'user.invited',
+  WO_READY = 'wo.ready',
 }
 
+/**
+ * Locked settings event group (T-003). Subset of `EventType` — referenced by the
+ * settings module sign-off contract.
+ */
 export const ALL_SETTINGS_EVENTS = [
   EventType.SETTINGS_ORG_CREATED,
   EventType.SETTINGS_ORG_UPDATED,
@@ -68,6 +155,12 @@ export const ALL_SETTINGS_EVENTS = [
   EventType.SETTINGS_SCIM_TOKEN_CREATED,
 ] as const;
 
+/**
+ * Legacy `fa.*` event strings that the DB historically stored and that shipped
+ * code still emits. Each normalizes to its canonical `fg.*` member. These keys
+ * are part of the DB-permitted set (`DB_EVENT_TYPES`) but are NOT canonical enum
+ * members — `normalizeEventType` rewrites them on the way through the worker.
+ */
 export const LegacyEventAlias = {
   'fa.created': EventType.FG_CREATED,
   'fa.allergens_changed': EventType.FG_ALLERGENS_CHANGED,
@@ -78,6 +171,16 @@ export const LegacyEventAlias = {
 export const ALL_EVENTS = Object.values(EventType) as readonly EventType[];
 
 export const ALL_EVENT_ALIASES = LegacyEventAlias;
+
+/**
+ * Every string the DB CHECK constraint must permit: the canonical enum values
+ * PLUS the legacy alias keys (which are stored verbatim by older rows + code).
+ * The drift gate asserts the latest migration's CHECK string set === this set.
+ */
+export const DB_EVENT_TYPES: readonly string[] = [
+  ...ALL_EVENTS,
+  ...(Object.keys(LegacyEventAlias) as readonly string[]),
+];
 
 const canonicalEvents = new Set<string>(ALL_EVENTS);
 
