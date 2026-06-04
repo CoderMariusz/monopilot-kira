@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import {
   check,
+  foreignKey,
   index,
   integer,
   numeric,
@@ -43,9 +44,7 @@ export const nutritionProfiles = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     formulationVersionId: uuid('formulation_version_id'),
     nutrientCode: text('nutrient_code')
       .notNull()
@@ -56,6 +55,11 @@ export const nutritionProfiles = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'nutrition_profiles_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductIdx: index('nutrition_profiles_org_product_idx').on(table.orgId, table.productCode),
     productNutrientIdx: index('nutrition_profiles_product_nutrient_idx').on(
       table.productCode,
@@ -78,9 +82,7 @@ export const nutritionAllergens = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     formulationVersionId: uuid('formulation_version_id'),
     allergenCode: text('allergen_code').notNull(),
     presence: text('presence').notNull(),
@@ -89,6 +91,11 @@ export const nutritionAllergens = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'nutrition_allergens_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductAllergenUnique: unique('nutrition_allergens_org_product_allergen_unique')
       .on(table.orgId, table.productCode, table.formulationVersionId, table.allergenCode)
       .nullsNotDistinct(),
@@ -107,9 +114,7 @@ export const nutriScoreResults = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     formulationVersionId: uuid('formulation_version_id'),
     grade: text('grade').notNull(),
     computedScore: integer('computed_score').notNull(),
@@ -117,6 +122,11 @@ export const nutriScoreResults = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'nutri_score_results_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductComputedUnique: unique('nutri_score_results_org_product_computed_unique')
       .on(table.orgId, table.productCode, table.formulationVersionId, table.computedAt)
       .nullsNotDistinct(),

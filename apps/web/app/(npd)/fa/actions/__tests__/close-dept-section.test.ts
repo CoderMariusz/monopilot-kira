@@ -125,7 +125,7 @@ async function seedProduct(productCode: string, overrides: Record<string, unknow
     `insert into public.product
        (org_id, product_code, product_name, pack_size, number_of_cases, recipe_components, created_by_user, app_version)
      values ($1::uuid, $2, $3, $4, $5::numeric, $6, $7::uuid, 't017-test')
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set product_name = excluded.product_name,
            pack_size = excluded.pack_size,
            number_of_cases = excluded.number_of_cases,

@@ -99,7 +99,7 @@ async function seedBase(ownerPool: pg.Pool) {
     `insert into public.product (product_code, org_id, product_name, created_by_user, recipe_components)
      values ($1, $2, 'T013 product A', $3, 'WIP-MX-KN-PR-BK'),
             ($4, $2, 'T013 unrelated FA', $3, 'WIP-MX-KN-PR-BK')
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            created_by_user = excluded.created_by_user,
            recipe_components = excluded.recipe_components`,

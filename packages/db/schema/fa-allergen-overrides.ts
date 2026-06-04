@@ -25,9 +25,7 @@ export const faAllergenOverrides = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     allergenCode: text('allergen_code').notNull(),
     action: faAllergenOverrideAction('action').notNull(),
     reason: text('reason').notNull(),
@@ -41,6 +39,11 @@ export const faAllergenOverrides = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'fa_allergen_overrides_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     allergenFk: foreignKey({
       name: 'fa_allergen_overrides_allergen_fk',
       columns: [table.orgId, table.allergenCode],

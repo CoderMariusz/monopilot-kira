@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { check, foreignKey, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 import { organizations } from './baseline.js';
 import { product } from './product.js';
@@ -13,9 +13,7 @@ export const costingBreakdowns = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     scenario: text('scenario').notNull(),
     rawCostEur: numeric('raw_cost_eur').notNull(),
     marginPct: numeric('margin_pct').notNull(),
@@ -26,6 +24,11 @@ export const costingBreakdowns = pgTable(
     computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'costing_breakdowns_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductScenarioUnique: unique('costing_breakdowns_org_product_scenario_unique').on(
       table.orgId,
       table.productCode,

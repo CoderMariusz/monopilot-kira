@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { bigint, check, date, index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { bigint, check, date, foreignKey, index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
 import { product } from './product.js';
@@ -13,9 +13,7 @@ export const complianceDocs = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     docType: text('doc_type').notNull(),
     title: text('title').notNull(),
     filePath: text('file_path').notNull(),
@@ -41,6 +39,11 @@ export const complianceDocs = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'compliance_docs_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductDocVersionUnique: unique('compliance_docs_org_product_doc_version_unique').on(
       table.orgId,
       table.productCode,

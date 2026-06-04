@@ -109,7 +109,7 @@ async function seedProducts(): Promise<void> {
        ('T051-DONE-MRP', 'MRP done active', $1, current_date + 30, false, 'Pending', true, false, 'BOX-1', null, $3),
        ('T051-BUILT', 'Built should hide by default', $1, current_date + 2, true, 'InProgress', false, true, null, 'A-2', $3),
        ('T051-OTHER', 'Other org invisible', $2, current_date + 1, false, 'InProgress', false, true, null, 'B-1', $4)
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set product_name = excluded.product_name,
            org_id = excluded.org_id,
            launch_date = excluded.launch_date,

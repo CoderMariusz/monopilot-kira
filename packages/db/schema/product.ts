@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, date, index, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, index, integer, jsonb, numeric, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations, users } from './baseline.js';
@@ -7,7 +7,7 @@ import { organizations, users } from './baseline.js';
 export const product = pgTable(
   'product',
   {
-    productCode: text('product_code').primaryKey(),
+    productCode: text('product_code').notNull(),
     productName: text('product_name'),
     packSize: text('pack_size'),
     numberOfCases: numeric('number_of_cases'),
@@ -94,6 +94,7 @@ export const product = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => ({
+    pk: primaryKey({ name: 'product_pkey', columns: [table.orgId, table.productCode] }),
     orgStatusDaysIdx: index('product_org_status_days_idx').on(table.orgId, table.statusOverall, table.daysToLaunch),
     orgLaunchUnbuiltIdx: index('product_org_launch_unbuilt_idx')
       .on(table.orgId, table.launchDate)

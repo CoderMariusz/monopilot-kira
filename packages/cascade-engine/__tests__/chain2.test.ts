@@ -95,7 +95,7 @@ run('T-011 chain2 manufacturing operation cascade', () => {
       `insert into public.product (product_code, org_id, product_name, created_by_user, recipe_components)
        values ($1, $2, 'T011 product A', $3, 'Component A'),
               ($4, $5, 'T011 product B', $6, 'Component B')
-       on conflict (product_code) do update
+       on conflict (org_id, product_code) do update
          set org_id = excluded.org_id,
              created_by_user = excluded.created_by_user,
              recipe_components = excluded.recipe_components`,

@@ -89,7 +89,7 @@ async function seedBaseOrgData(adminPool: pg.Pool) {
         product_code, org_id, product_name, schema_version, created_by_user
       )
       values ($1, $2, 'NPD T054 Product A', 1, $3)
-      on conflict (product_code) do update
+      on conflict (org_id, product_code) do update
         set org_id = excluded.org_id,
             product_name = excluded.product_name,
             schema_version = excluded.schema_version,
