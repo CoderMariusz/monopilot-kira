@@ -1,0 +1,46 @@
+{
+  "task": "T-052",
+  "anchor": "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174",
+  "mapping": [
+    {
+      "prototype": "breadcrumb (NPD / Dashboard)",
+      "production": "nav[aria-label=\"Breadcrumb\"]",
+      "lines": "45"
+    },
+    {
+      "prototype": "page-head title + actor/date + actions",
+      "production": "h1 + p.subtitle + Refresh/Create buttons",
+      "lines": "46-57",
+      "deviation": "hardcoded actor \"Jane Nowak\" + reference date removed (i18n discipline)"
+    },
+    {
+      "prototype": "4 KPI cards (borderBottom accent)",
+      "production": "section[aria-label*=\"KPI\"] > Card.border-b-* (x4)",
+      "lines": "59-81"
+    },
+    {
+      "prototype": "Department progress table",
+      "production": "table[aria-label=\"Department progress\"] + progressbar",
+      "lines": "83-115"
+    },
+    {
+      "prototype": "Launch alert legend + showBuilt checkbox",
+      "production": "legend Card + Checkbox[role=checkbox]",
+      "lines": "117-132"
+    },
+    {
+      "prototype": "Launch alerts table (RAG rows, FA links)",
+      "production": "table[aria-label=\"Launch alerts\"] + row bg + AlertBadge + /fa/[code] links",
+      "lines": "135-171"
+    }
+  ],
+  "shadcn_translation": {
+    "div.card border-bottom": "Card (border-b-* accent)",
+    "table": "Table/TableHeader/TableBody/TableRow/TableCell",
+    "span.badge": "Badge (danger/warning/success)",
+    "input[type=checkbox]": "Checkbox (@monopilot/ui)",
+    "window.NPD_FAS reduce": "getDashboardSummary() server aggregate",
+    "window.NPD_DEPT_SUMMARY": "getDashboardSummary().perDept",
+    "launch rows": "getLaunchAlerts({ showBuilt: true })"
+  }
+}
