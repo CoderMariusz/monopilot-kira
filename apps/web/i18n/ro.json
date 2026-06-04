@@ -1307,6 +1307,32 @@
       "emptyBody": "Acest brief nu există sau nu ai acces la el.",
       "error": "Brieful nu a putut fi încărcat.",
       "forbidden": "Nu ai permisiunea de a vizualiza acest brief."
+    },
+    "pipelineKanban": {
+      "title": "Pipeline",
+      "subtitle": "Pipeline Stage-Gate — proiecte după poartă",
+      "gateG0": "G0 · Concept",
+      "gateG1": "G1 · Brief",
+      "gateG2": "G2 · Rețetă",
+      "gateG3": "G3 · Testare",
+      "gateG4": "G4 · Aprobare",
+      "gateLaunched": "Lansate",
+      "prioHigh": "Ridicată",
+      "prioNormal": "Normală",
+      "prioLow": "Scăzută",
+      "advance": "Avansează →",
+      "advancing": "Se avansează…",
+      "noOwner": "Nealocat",
+      "noTarget": "Fără țintă",
+      "columnEmpty": "—",
+      "open": "Deschide",
+      "loading": "Se încarcă pipeline-ul…",
+      "empty": "Niciun proiect în pipeline",
+      "emptyBody": "Începe un nou proiect Stage-Gate pentru a popula tabloul.",
+      "error": "Pipeline-ul nu a putut fi încărcat. Încearcă din nou după ce backend-ul este disponibil.",
+      "forbidden": "Nu ai permisiunea de a vizualiza pipeline-ul.",
+      "advanceError": "Proiectul nu a putut fi avansat. Modificarea a fost anulată.",
+      "adjacencyError": "Proiectele pot avansa doar la poarta următoare. Modificarea a fost anulată."
     }
   }
 }

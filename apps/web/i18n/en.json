@@ -1307,6 +1307,32 @@
       "emptyBody": "This brief does not exist or you do not have access to it.",
       "error": "Unable to load the brief.",
       "forbidden": "You do not have permission to view this brief."
+    },
+    "pipelineKanban": {
+      "title": "Pipeline",
+      "subtitle": "Stage-Gate pipeline — projects by gate",
+      "gateG0": "G0 · Concept",
+      "gateG1": "G1 · Brief",
+      "gateG2": "G2 · Recipe",
+      "gateG3": "G3 · Trial",
+      "gateG4": "G4 · Approval",
+      "gateLaunched": "Launched",
+      "prioHigh": "High",
+      "prioNormal": "Normal",
+      "prioLow": "Low",
+      "advance": "Advance →",
+      "advancing": "Advancing…",
+      "noOwner": "Unassigned",
+      "noTarget": "No target",
+      "columnEmpty": "—",
+      "open": "Open",
+      "loading": "Loading pipeline…",
+      "empty": "No projects in the pipeline",
+      "emptyBody": "Start a new Stage-Gate project to populate the board.",
+      "error": "Unable to load the pipeline. Try again after the backend is available.",
+      "forbidden": "You do not have permission to view the pipeline.",
+      "advanceError": "Could not advance the project. The change was reverted.",
+      "adjacencyError": "Projects can only advance to the next gate. The change was reverted."
     }
   }
 }

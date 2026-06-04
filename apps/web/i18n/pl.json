@@ -1307,6 +1307,32 @@
       "emptyBody": "Ten brief nie istnieje lub nie masz do niego dostępu.",
       "error": "Nie można załadować briefu.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tego briefu."
+    },
+    "pipelineKanban": {
+      "title": "Pipeline",
+      "subtitle": "Pipeline Stage-Gate — projekty wg bramki",
+      "gateG0": "G0 · Koncepcja",
+      "gateG1": "G1 · Brief",
+      "gateG2": "G2 · Receptura",
+      "gateG3": "G3 · Próba",
+      "gateG4": "G4 · Zatwierdzenie",
+      "gateLaunched": "Wdrożone",
+      "prioHigh": "Wysoki",
+      "prioNormal": "Normalny",
+      "prioLow": "Niski",
+      "advance": "Przesuń →",
+      "advancing": "Przesuwanie…",
+      "noOwner": "Nieprzypisany",
+      "noTarget": "Brak terminu",
+      "columnEmpty": "—",
+      "open": "Otwórz",
+      "loading": "Ładowanie pipeline…",
+      "empty": "Brak projektów w pipeline",
+      "emptyBody": "Rozpocznij nowy projekt Stage-Gate, aby zapełnić tablicę.",
+      "error": "Nie można załadować pipeline. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "forbidden": "Nie masz uprawnień do przeglądania pipeline.",
+      "advanceError": "Nie udało się przesunąć projektu. Zmiana została cofnięta.",
+      "adjacencyError": "Projekty można przesuwać tylko do następnej bramki. Zmiana została cofnięta."
     }
   }
 }
