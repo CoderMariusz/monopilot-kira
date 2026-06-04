@@ -1307,6 +1307,49 @@
       "emptyBody": "Acest brief nu există sau nu ai acces la el.",
       "error": "Brieful nu a putut fi încărcat.",
       "forbidden": "Nu ai permisiunea de a vizualiza acest brief."
+    },
+    "briefModals": {
+      "create": {
+        "title": "Brief nou",
+        "subtitle": "Creează un brief și un proiect NPD asociat la G0.",
+        "templateLabel": "Șablon",
+        "templateSingle": "Component unic",
+        "templateSingleHint": "O carne finită / un component",
+        "templateMulti": "Mai multe componente",
+        "templateMultiHint": "Platouri, pachete mixte (2+ componente)",
+        "fieldDevCode": "Cod Dev",
+        "fieldDevCodeHint": "V08 · Format DEV<AA><LL>-<nr>",
+        "projectNote": "Un brief creează un proiect NPD asociat la G0. Maparea FG are loc mai târziu, la G3.",
+        "cancel": "Anulează",
+        "create": "Creează brief",
+        "creating": "Se creează…",
+        "errorDevCode": "Format Cod Dev invalid (ex. DEV26-052).",
+        "errorGeneric": "Brieful nu a putut fi creat. Încercați din nou."
+      },
+      "complete": {
+        "title": "Finalizează brieful pentru proiect",
+        "subtitle": "Verificările de poartă au trecut — brieful este complet și câmpurile necesare sunt completate.",
+        "gateChecksTitle": "Verificări de poartă",
+        "gateCheckStatus": "Stare brief = complet",
+        "gateCheckRequired": "Toate câmpurile necesare sunt completate",
+        "gateCheckDevCode": "Format Cod Dev valid (V08)",
+        "summaryHeader": "Dovezi din brief transferate în proiect",
+        "colField": "Câmp",
+        "colValue": "Valoare din brief",
+        "legacyAliasLabel": "Alias de compatibilitate (opțional)",
+        "legacyAliasHint": "Doar compatibilitate — nu este un FG aprobat. Maparea FG are loc la G3.",
+        "errorLegacyAlias": "Aliasul de compatibilitate este prea lung (max. 80).",
+        "lockingWarning": "Brieful va fi setat la Convertit și blocat. Dovezile proiectului rămân editabile.",
+        "emptyValue": "—",
+        "cancel": "Anulează",
+        "complete": "Finalizează brieful pentru proiect",
+        "completing": "Se finalizează…",
+        "loading": "Se încarcă rezumatul briefului…",
+        "empty": "Niciun rezumat disponibil pentru acest brief.",
+        "error": "Rezumatul briefului nu a putut fi încărcat. Încercați din nou.",
+        "forbidden": "Nu aveți permisiunea de a finaliza acest brief.",
+        "errorGeneric": "Brieful nu a putut fi finalizat. Încercați din nou."
+      }
     }
   }
 }
