@@ -1082,6 +1082,22 @@
       "errorFileTooLarge": "Fișierul depășește limita de 20 MB.",
       "errorFileType": "Tip de fișier neacceptat. Folosește PDF, XLSX sau DOCX.",
       "errorUpload": "Încărcarea a eșuat. Încearcă din nou."
+    },
+    "faCreate": {
+      "title": "Creează articol de fabrică",
+      "subtitle": "V01 · Formatul codului FA este validat pe măsură ce tastați. V02 · Numele produsului este obligatoriu.",
+      "fieldProductCode": "Cod FA",
+      "fieldProductCodeHint": "Trebuie să înceapă cu 'FA' urmat de litere mari/cifre (ex. FA5609).",
+      "fieldProductName": "Numele produsului",
+      "fieldProductNameHint": "Maxim 200 de caractere",
+      "rangeHint": "La succes veți fi direcționat către noul FA. Codurile FA5600+ sunt rezervate pentru fluxul NPD 2026.",
+      "cancel": "Anulează",
+      "create": "Creează FA",
+      "creating": "Se creează…",
+      "errorV01": "Codul FA trebuie să înceapă cu 'FA' urmat de litere mari/cifre (ex. FA5609).",
+      "errorV02": "Numele produsului este obligatoriu (maxim 200 de caractere).",
+      "errorDuplicate": "Acest cod FA există deja. Alegeți alt cod.",
+      "errorGeneric": "Nu s-a putut crea articolul de fabrică. Încercați din nou."
     }
   }
 }

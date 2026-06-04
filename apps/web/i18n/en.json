@@ -1082,6 +1082,22 @@
       "errorFileTooLarge": "File exceeds the 20 MB limit.",
       "errorFileType": "Unsupported file type. Use PDF, XLSX or DOCX.",
       "errorUpload": "Upload failed. Please try again."
+    },
+    "faCreate": {
+      "title": "Create factory article",
+      "subtitle": "V01 · FA Code format validated as you type. V02 · Product Name is required.",
+      "fieldProductCode": "FA Code",
+      "fieldProductCodeHint": "Must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
+      "fieldProductName": "Product Name",
+      "fieldProductNameHint": "Max 200 characters",
+      "rangeHint": "On success you will be taken to the new FA. Codes FA5600+ are reserved for the 2026 NPD pipeline.",
+      "cancel": "Cancel",
+      "create": "Create FA",
+      "creating": "Creating…",
+      "errorV01": "FA Code must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
+      "errorV02": "Product Name is required (max 200 characters).",
+      "errorDuplicate": "That FA Code already exists. Choose a different code.",
+      "errorGeneric": "Could not create the factory article. Try again."
     }
   }
 }

@@ -1082,6 +1082,22 @@
       "errorFileTooLarge": "Plik przekracza limit 20 MB.",
       "errorFileType": "Nieobsługiwany typ pliku. Użyj PDF, XLSX lub DOCX.",
       "errorUpload": "Przesyłanie nie powiodło się. Spróbuj ponownie."
+    },
+    "faCreate": {
+      "title": "Utwórz artykuł fabryczny",
+      "subtitle": "V01 · Format kodu FA sprawdzany na bieżąco. V02 · Nazwa produktu jest wymagana.",
+      "fieldProductCode": "Kod FA",
+      "fieldProductCodeHint": "Musi zaczynać się od 'FA', a następnie wielkie litery/cyfry (np. FA5609).",
+      "fieldProductName": "Nazwa produktu",
+      "fieldProductNameHint": "Maks. 200 znaków",
+      "rangeHint": "Po utworzeniu nastąpi przejście do nowego FA. Kody FA5600+ są zarezerwowane dla potoku NPD 2026.",
+      "cancel": "Anuluj",
+      "create": "Utwórz FA",
+      "creating": "Tworzenie…",
+      "errorV01": "Kod FA musi zaczynać się od 'FA', a następnie wielkie litery/cyfry (np. FA5609).",
+      "errorV02": "Nazwa produktu jest wymagana (maks. 200 znaków).",
+      "errorDuplicate": "Taki kod FA już istnieje. Wybierz inny kod.",
+      "errorGeneric": "Nie udało się utworzyć artykułu fabrycznego. Spróbuj ponownie."
     }
   }
 }
