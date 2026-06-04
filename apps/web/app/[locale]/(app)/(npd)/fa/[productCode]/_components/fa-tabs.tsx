@@ -21,6 +21,16 @@
  * T-027 history slot: when `historyPanel` is provided it replaces the
  * deferred-empty placeholder for the History panel ONLY; every other panel keeps
  * the deferred-empty card. Omitting it preserves the prior shell behavior.
+ *
+ * T-105 dept wiring: the FA detail page server-loads each dept tab body (schema-
+ * driven DeptColumns + the real product row) and hands them to `panels`. A slot
+ * with a provided panel renders the real component; a slot left undefined keeps
+ * the deferred-empty card. The Core-close gate (`coreDone`) locks Planning /
+ * Commercial / Technical / Procurement, and `(coreDone && prodDone)` gates MRP —
+ * matching the prototype TABS `locked` flags (fa-screens.jsx:312-325). Locked
+ * triggers are disabled, carry a "Locked" badge, and never activate; if the URL
+ * points at a locked tab we fall back to Core. Core + Production are never locked
+ * (Production uses a per-field block inside FaProductionTab).
  */
 
 import { useMemo, type ReactNode } from 'react';
@@ -61,6 +71,8 @@ export type FaTabsLabels = {
   /** Deferred-empty placeholder heading + body. */
   deferred: string;
   deferredBody: string;
+  /** T-105: "Locked" badge on gated triggers (prototype lines 395). */
+  locked?: string;
 };
 
 const DEFAULT_LABELS: FaTabsLabels = {
@@ -68,29 +80,75 @@ const DEFAULT_LABELS: FaTabsLabels = {
   tabs: DEFAULT_TAB_LABELS,
   deferred: 'Tab content deferred',
   deferredBody: 'This department workspace is delivered in a later slice.',
+  locked: 'Locked',
 };
+
+/** T-105: per-slug server-loaded dept tab bodies (FaCoreTab, FaPlanningTab, …). */
+export type FaTabPanels = Partial<Record<FaTabSlug, ReactNode>>;
 
 type FaTabsProps = {
   productCode: string;
   /** Localized labels resolved server-side (npd.faDetail). Optional: English fallback. */
   labels?: FaTabsLabels;
   /**
-   * T-027: real History tab content (server-loaded FaHistoryTab). When provided
-   * it replaces the deferred-empty placeholder for the History panel ONLY.
+   * T-105: real dept tab bodies keyed by slug. Each provided slot replaces the
+   * deferred-empty placeholder; omitted slots keep the placeholder.
+   */
+  panels?: FaTabPanels;
+  /**
+   * T-027 back-compat: standalone History panel. When `panels.history` is not
+   * given this still wires the History slot. (The page may pass either.)
    */
   historyPanel?: ReactNode;
+  /** Core-close gate ('closed_core' === 'Yes') — unlocks dept tabs. */
+  coreDone?: boolean;
+  /** Production-close gate ('closed_production' === 'Yes') — unlocks MRP. */
+  prodDone?: boolean;
 };
 
 function isFaTabSlug(value: string | null): value is FaTabSlug {
   return value !== null && (FA_TAB_SLUGS as readonly string[]).includes(value);
 }
 
-export function FaTabs({ productCode, labels = DEFAULT_LABELS, historyPanel }: FaTabsProps) {
+/**
+ * T-105 lock model — 1:1 with prototype TABS (fa-screens.jsx:312-325):
+ *   core/production → never locked; planning/commercial/technical/procurement →
+ *   locked when !coreDone; mrp → locked when (!coreDone || !prodDone); history →
+ *   never locked.
+ */
+function isTabLocked(slug: FaTabSlug, coreDone: boolean, prodDone: boolean): boolean {
+  switch (slug) {
+    case 'planning':
+    case 'commercial':
+    case 'technical':
+    case 'procurement':
+      return !coreDone;
+    case 'mrp':
+      return !coreDone || !prodDone;
+    default:
+      return false;
+  }
+}
+
+export function FaTabs({
+  productCode,
+  labels = DEFAULT_LABELS,
+  panels,
+  historyPanel,
+  coreDone = false,
+  prodDone = false,
+}: FaTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const activeTab: FaTabSlug = isFaTabSlug(urlTab) ? urlTab : 'core';
+  const requestedTab: FaTabSlug = isFaTabSlug(urlTab) ? urlTab : 'core';
+  // Never honor a deep-link to a locked tab — fall back to Core.
+  const activeTab: FaTabSlug = isTabLocked(requestedTab, coreDone, prodDone)
+    ? 'core'
+    : requestedTab;
+
+  const lockedLabel = labels.locked ?? DEFAULT_LABELS.locked ?? 'Locked';
 
   const tabs = useMemo(
     () =>
@@ -99,15 +157,24 @@ export function FaTabs({ productCode, labels = DEFAULT_LABELS, historyPanel }: F
         label: labels.tabs[slug] ?? DEFAULT_TAB_LABELS[slug],
         tabId: `fa-tab-${slug}`,
         panelId: `fa-panel-${slug}`,
+        locked: isTabLocked(slug, coreDone, prodDone),
       })),
-    [labels],
+    [labels, coreDone, prodDone],
   );
 
   function persistTab(nextTab: FaTabSlug) {
     if (nextTab === activeTab) return;
+    if (isTabLocked(nextTab, coreDone, prodDone)) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', nextTab);
     router.push(`${pathname}?${params.toString()}`);
+  }
+
+  /** Resolve the real body for a slot (panels first, then historyPanel compat). */
+  function panelFor(slug: FaTabSlug): ReactNode {
+    if (panels && panels[slug] !== undefined) return panels[slug];
+    if (slug === 'history' && historyPanel) return historyPanel;
+    return null;
   }
 
   return (
@@ -121,26 +188,40 @@ export function FaTabs({ productCode, labels = DEFAULT_LABELS, historyPanel }: F
         >
           {tabs.map((tab) => {
             const selected = activeTab === tab.slug;
+            const baseClass = selected
+              ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
+              : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50';
+            const lockedClass = tab.locked
+              ? ' cursor-not-allowed opacity-50 hover:bg-white'
+              : '';
             return (
               <button
                 key={tab.slug}
                 aria-controls={tab.panelId}
                 aria-selected={selected}
-                className={
-                  selected
-                    ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
-                    : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
-                }
+                className={`${baseClass}${lockedClass} inline-flex items-center gap-1.5`}
                 data-slot="tabs-trigger"
                 data-state={selected ? 'active' : 'inactive'}
                 data-value={tab.slug}
+                data-locked={tab.locked ? 'true' : undefined}
+                disabled={tab.locked}
                 id={tab.tabId}
                 onClick={() => persistTab(tab.slug)}
                 role="tab"
                 tabIndex={selected ? 0 : -1}
+                title={tab.locked ? lockedLabel : undefined}
                 type="button"
               >
                 {tab.label}
+                {tab.locked ? (
+                  <span
+                    aria-hidden="true"
+                    className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-600"
+                    data-testid={`fa-tab-locked-${tab.slug}`}
+                  >
+                    {lockedLabel}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -148,6 +229,7 @@ export function FaTabs({ productCode, labels = DEFAULT_LABELS, historyPanel }: F
 
         {tabs.map((tab) => {
           const selected = activeTab === tab.slug;
+          const body = panelFor(tab.slug);
           return (
             <div
               key={tab.slug}
@@ -161,8 +243,8 @@ export function FaTabs({ productCode, labels = DEFAULT_LABELS, historyPanel }: F
               tabIndex={0}
             >
               {selected ? (
-                tab.slug === 'history' && historyPanel ? (
-                  <div className="mt-3">{historyPanel}</div>
+                body !== null ? (
+                  <div className="mt-3">{body}</div>
                 ) : (
                   <Card className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     <CardHeader className="font-semibold text-slate-900">{tab.label}</CardHeader>
