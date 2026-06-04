@@ -32,6 +32,7 @@ const expectedCanonicalEvents = [
   'fg.created',
   'fg.allergens_changed',
   'fg.intermediate_code_changed',
+  'fg.edit',
   'risk.created',
   'compliance_doc.uploaded',
   'compliance_doc.deleted',
@@ -133,12 +134,14 @@ describe('outbox event type source of truth', () => {
       'fa.created': 'fg.created',
       'fa.allergens_changed': 'fg.allergens_changed',
       'fa.intermediate_code_changed': 'fg.intermediate_code_changed',
+      'fa.edit': 'fg.edit',
     });
     expect(ALL_EVENT_ALIASES).toEqual(LegacyEventAlias);
 
     expect(normalizeEventType('fa.created')).toBe('fg.created');
     expect(normalizeEventType('fa.allergens_changed')).toBe('fg.allergens_changed');
     expect(normalizeEventType('fa.intermediate_code_changed')).toBe('fg.intermediate_code_changed');
+    expect(normalizeEventType('fa.edit')).toBe('fg.edit');
   });
 
   it('normalizes canonical values unchanged and rejects unknown free-form strings', async () => {

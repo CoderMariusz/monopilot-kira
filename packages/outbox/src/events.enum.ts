@@ -7,6 +7,7 @@ export enum EventType {
   FG_CREATED = 'fg.created',
   FG_ALLERGENS_CHANGED = 'fg.allergens_changed',
   FG_INTERMEDIATE_CODE_CHANGED = 'fg.intermediate_code_changed',
+  FG_EDIT = 'fg.edit',
   RISK_CREATED = 'risk.created',
   COMPLIANCE_DOC_UPLOADED = 'compliance_doc.uploaded',
   COMPLIANCE_DOC_DELETED = 'compliance_doc.deleted',
@@ -71,6 +72,7 @@ export const LegacyEventAlias = {
   'fa.created': EventType.FG_CREATED,
   'fa.allergens_changed': EventType.FG_ALLERGENS_CHANGED,
   'fa.intermediate_code_changed': EventType.FG_INTERMEDIATE_CODE_CHANGED,
+  'fa.edit': EventType.FG_EDIT,
 } as const;
 
 export const ALL_EVENTS = Object.values(EventType) as readonly EventType[];
