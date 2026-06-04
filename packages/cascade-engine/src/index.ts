@@ -2,6 +2,11 @@ export {
   handleLineChange,
   handlePackSizeChange,
 } from './chain1-pack-size.js';
+export {
+  queueAllergenCascadeRebuild,
+  type QueueAllergenCascadeRebuildInput,
+  type QueuedAllergenCascadeRebuild,
+} from './bulk-rebuild.js';
 export type {
   Chain1Options,
   LineCascadeResult,

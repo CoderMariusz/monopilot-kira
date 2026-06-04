@@ -5,6 +5,7 @@ import { getSystemActorConnection } from '@monopilot/db/system-actor-connection.
 
 import { env } from './env.js';
 import { registerBackupVerificationCron } from './jobs/backup-verification-cron.js';
+import { registerAllergenCascadeRebuild } from './jobs/allergen-cascade-rebuild.js';
 import { registerComplianceDocsExpiryScan } from './jobs/compliance-docs-expiry.js';
 import { registerD365CacheSync } from './jobs/d365-cache-sync.js';
 import { registerGdprErasureCron } from './jobs/gdpr-erasure-cron.js';
@@ -72,6 +73,7 @@ export function createWorkerRuntime(options: WorkerRuntimeOptions = {}): WorkerR
   const pool = options.pool ?? getSystemActorConnection();
   const registry = captureRegistryJobFailures(options.registry ?? new JobRegistry({ pool, logger }));
   registerBackupVerificationCron(registry);
+  registerAllergenCascadeRebuild(registry);
   registerComplianceDocsExpiryScan(registry);
   registerD365CacheSync(registry);
   registerOutboxConsumer(registry, { everyMs: env.OUTBOX_INTERVAL_MS });
