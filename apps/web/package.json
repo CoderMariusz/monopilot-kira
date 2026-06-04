@@ -21,6 +21,7 @@
     "@monopilot/domain": "workspace:*",
     "@monopilot/observability": "workspace:*",
     "@monopilot/ops": "workspace:*",
+    "@monopilot/queries": "workspace:*",
     "@monopilot/rbac": "workspace:*",
     "@monopilot/ui": "workspace:*",
     "@monopilot/validation": "workspace:*",

@@ -1,6 +1,6 @@
 'use client';
 
-import { createElement, useMemo } from 'react';
+import { createElement, useMemo, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
@@ -20,13 +20,20 @@ type FaTabSlug = (typeof FA_TABS)[number]['slug'];
 
 type FaTabsProps = {
   productCode: string;
+  /**
+   * T-027: real History tab content (server-loaded FaHistoryTab). When provided
+   * it replaces the deferred-empty placeholder for the History panel ONLY; all
+   * other panels keep the deferred-empty card. Omitting it preserves the prior
+   * behavior (shell test contract).
+   */
+  historyPanel?: ReactNode;
 };
 
 function isFaTabSlug(value: string | null): value is FaTabSlug {
   return FA_TABS.some((tab) => tab.slug === value);
 }
 
-export function FaTabs({ productCode }: FaTabsProps) {
+export function FaTabs({ productCode, historyPanel }: FaTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -99,14 +106,18 @@ export function FaTabs({ productCode }: FaTabsProps) {
               tabIndex: 0,
             },
             selected ? (
-              <Card className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                <CardHeader className="font-semibold text-slate-900">
-                  {tab.label}
-                </CardHeader>
-                <CardContent className="mt-1">
-                  deferred-empty — tab content deferred for {productCode}.
-                </CardContent>
-              </Card>
+              tab.slug === 'history' && historyPanel ? (
+                <div className="mt-3">{historyPanel}</div>
+              ) : (
+                <Card className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <CardHeader className="font-semibold text-slate-900">
+                    {tab.label}
+                  </CardHeader>
+                  <CardContent className="mt-1">
+                    deferred-empty — tab content deferred for {productCode}.
+                  </CardContent>
+                </Card>
+              )
             ) : null,
           );
         }),

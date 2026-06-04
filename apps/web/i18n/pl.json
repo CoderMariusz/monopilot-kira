@@ -1082,6 +1082,44 @@
       "errorFileTooLarge": "Plik przekracza limit 20 MB.",
       "errorFileType": "Nieobsługiwany typ pliku. Użyj PDF, XLSX lub DOCX.",
       "errorUpload": "Przesyłanie nie powiodło się. Spróbuj ponownie."
+    },
+    "faHistory": {
+      "title": "Historia",
+      "subtitle": "Tylko do odczytu — oś czasu wszystkich zmian tego artykułu fabrycznego.",
+      "filterLabel": "Typ zdarzenia",
+      "filterAll": "Wszystkie zdarzenia",
+      "colWhen": "Kiedy",
+      "colActor": "Kto",
+      "colEvent": "Zdarzenie",
+      "detailsToggle": "Szczegóły",
+      "detailsHide": "Ukryj szczegóły",
+      "systemActor": "System",
+      "unknownActor": "Nieznany",
+      "loading": "Wczytywanie historii FA…",
+      "empty": "Brak historii",
+      "emptyBody": "Zmiany tego artykułu fabrycznego pojawią się tutaj na bieżąco.",
+      "emptyFiltered": "Brak zdarzeń pasujących do filtra",
+      "emptyFilteredBody": "Wybierz inny typ zdarzenia lub wyczyść filtr.",
+      "clearFilter": "Wyczyść filtr",
+      "error": "Nie można wczytać historii FA.",
+      "forbidden": "Nie masz uprawnień do przeglądania historii tego FA.",
+      "eventCount": "{count, plural, =0 {Brak zdarzeń} one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}",
+      "type": {
+        "created": "Utworzono",
+        "field_edit": "Edytowano pole",
+        "edit": "Edytowano pole",
+        "dept_closed": "Zamknięto dział",
+        "dept_reopened": "Ponownie otwarto dział",
+        "core_closed": "Zamknięto Core",
+        "built": "Zbudowano w D365",
+        "built_reset": "Zresetowano budowę",
+        "allergens_changed": "Zmieniono alergeny",
+        "intermediate_code_changed": "Zmieniono kod pośredni",
+        "recipe_changed": "Zmieniono recepturę",
+        "template_applied": "Zastosowano szablon",
+        "cascade": "Kaskada alergenów",
+        "deleted": "Usunięto"
+      }
     }
   }
 }
