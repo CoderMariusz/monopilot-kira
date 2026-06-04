@@ -24,11 +24,11 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-010 | Cascade Chain 1: Pack_Size → Line → Equipment_Setup | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 1 Pack_Size→Line→Equipment (mig 127, packages/cascade-engine) + fa.cascade event — merged |
 | T-011 | Cascade Chain 2: Manufacturing_Operation → Intermediate | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 2 Manufacturing_Operation→Intermediate (packages/cascade-engine/chain2 + V06 suffix-match validator) — merged (scaffold conflict resolved) |
 | T-012 | Cascade Chain 3: Recipe_Components → Ingredient_Code | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 3 Recipe_Components→Ingredient_Code (mig 129, cascade-engine/chain3) + fa.recipe_changed event — merged (type-fixed post-merge) |
-| T-013 | Cascade Chain 4: Template → ApplyTemplate to ProdDetail | ⬜ PENDING | Blocked by T-001, T-002, T-005, T-011 |
+| T-013 | Cascade Chain 4: Template → ApplyTemplate to ProdDetail | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 4 Template→ApplyTemplate (mig 131, cascade-engine/chain4) + fa.template_applied event — merged (post-merge type-fixed) |
 | T-014 | Schema-driven Zod runtime from Reference.DeptColumns | ✅ DONE | DONE 2026-06-04 (Wave C). Schema-driven Zod runtime from Reference.DeptColumns (mig 123, packages/schema-runtime) — Codex+rework (getAppConnection RLS, boolean/formula handling). merged |
 | T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ✅ DONE | DONE 2026-06-04 (Wave B). IsAllRequiredFilled + Done_<Dept> + fa_status_overall view (mig 097, security_invoker, schema-driven) — merged |
 | T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
-| T-017 | Server Action closeDeptSection | ⬜ PENDING | Blocked by T-001, T-006, T-007, T-015 |
+| T-017 | Server Action closeDeptSection | ✅ DONE | DONE 2026-06-04 (Wave C). closeDeptSection Server Action — merged |
 | T-018 | Autofilter logic + reopenDeptSection Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-017 |
 | T-019 | UI: FA list page (fa_list prototype) | ⬜ PENDING | Blocked by T-001, T-018; no fa/page.tsx |
 | T-020 | ROOT: FA detail page shell group | ⏸ BLOCKED | page.tsx + fa-tabs.tsx + fa-right-panel.tsx exist but all tab content is "deferred-empty"; no real data; no parity evidence |
@@ -40,7 +40,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-026 | UI: FA Technical tab shell | ⬜ PENDING | Blocked by T-014, T-020, T-025 |
 | T-027 | UI: FA History tab + audit_events timeline | ⬜ PENDING | Blocked by T-001, T-007, T-020 |
 | T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ✅ DONE | DONE 2026-06-04 (Wave C). V03/V04 validators (mig 111, packages/validation) — merged |
-| T-029 | Server Action deleteFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
+| T-029 | Server Action deleteFa | ✅ DONE | DONE 2026-06-04 (Wave C). deleteFa soft-delete (mig 132) + fa.deleted event — merged |
 | T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
 | T-031 | Server Actions: createBrief + saveBriefDraft | ✅ DONE | DONE 2026-06-04 (Wave C). createBrief + saveBriefDraft Server Actions — Codex+rework (mock→REAL integration tests, transactional idempotency-resume). merged |
 | T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
@@ -56,7 +56,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-042 | exceljs Builder generator: 8 tabs per FA | ⬜ PENDING | Blocked by T-001, T-002, T-041 |
 | T-043 | fa_builder_outputs storage + signed URL service | ✅ DONE | DONE 2026-06-04 (Wave C). fa_builder_outputs storage + signed URL (mig 112, packages/storage) — merged |
 | T-044 | Server Action buildD365/export | ⬜ PENDING | Blocked by T-006, T-007, T-039, T-042, T-043, T-080, T-081 |
-| T-045 | fa_bom_view + bom_export_csv Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-028 |
+| T-045 | fa_bom_view + bom_export_csv Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). fa_bom_view + bom_export_csv Server Action (mig 133) — merged |
 | T-046 | ROOT: D365 integration UI group | ⬜ PENDING | Blocked by T-044 |
 | T-047 | Wizard step Server Actions (validate/dataPreview/build) | ⬜ PENDING | Blocked by T-042, T-043, T-044, T-045, T-080, T-081 |
 | T-048 | dashboard_summary + launch_alerts + missing_requirements view | ✅ DONE | DONE 2026-06-04 (Wave C). dashboard_summary/launch_alerts/missing_required_cols views (mig 106, security_invoker) — merged |
