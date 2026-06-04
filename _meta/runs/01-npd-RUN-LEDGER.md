@@ -175,3 +175,9 @@ product(product_code)). Flagged by T-008 review. Do NOT silently change — affe
 
 ### RESUME RECIPE
 Local gate DB: rebuild via `psql .../postgres -c "drop database monopilot" -c "create database monopilot owner mariuszkrawczyk"` then `DATABASE_URL=postgres://mariuszkrawczyk@127.0.0.1:5432/monopilot DATABASE_URL_OWNER=same pnpm --filter @monopilot/db exec tsx scripts/migrate.ts`. Codex lane: `bash _meta/runs/launch-batch.sh <tag> "T-xxx:mig ..."`. UI lane: kira-ui subagent. Cross-review: kira-codex-review (Opus) for Codex work; `codex exec` review for Opus work. Migrations continue from 142. NOT YET DONE: consensus gate (step 4), Gate-5 live (Vercel+Supabase), sign-off report _meta/runs/01-npd-SIGNOFF.md, human STOP.
+
+## RESUMED 2026-06-04 (toward sign-off; user decisions applied)
+- **product_code per-org PK: DONE** (mig 142) — PK (org_id,product_code) + 14 composite FKs + Drizzle. Codex review PASS, no findings. Canon @142. (module-close item #3 RESOLVED.)
+- Decisions: D365 T-042/044/047 = DEFERRED-AS-GAP (PRD-TBD mappings); allergen engine kept; autonomous-to-sign-off.
+- Pre-existing reds to fix at module-close (clone-passed-but-full-canon-fails): npd-shared-bom-builder (text=uuid), npd-projects-and-gates (pg array parse @ line 211), shared-bom-ssot (comment assertion).
+- NEXT: Wave C gate cluster SEQUENTIAL (T-095 G3-FG + T-058 advanceGate coupled → T-096 release → T-100 G4) + Wave D UI parallel (kira-ui).
