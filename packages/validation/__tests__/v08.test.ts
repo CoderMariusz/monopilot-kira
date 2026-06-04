@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateBriefMappingV08 } from '../src/v08-brief-mapping';
+import { validateBriefMappingV08 } from '../src/v08-brief-mapping.js';
 
 const mandatory = Array.from({ length: 13 }, (_, index) => `C${index + 1}`);
 const optional = Array.from({ length: 7 }, (_, index) => `C${index + 14}`);

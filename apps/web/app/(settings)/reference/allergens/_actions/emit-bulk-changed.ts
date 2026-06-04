@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 
 type BulkChangedKind = 'rm' | 'process';
 
