@@ -141,7 +141,7 @@ describe('outbox_events table and worker (integration tests)', () => {
     expect(checkResult.rows[0].consumed_at).toBeInstanceOf(Date);
   });
 
-  runWithDb('AC2: given event_type is constrained to EventType members, when an insertion uses invalid.event (not in EventType), then the worker rejects publishing and the test fails fast', async () => {
+  runWithDb('AC2: given event_type is constrained to EventType members, when an insertion uses invalid.event (not in EventType), then the DB CHECK rejects it OR the worker dead-letters + skips it WITHOUT aborting the batch (poison-pill safe)', async () => {
     const { runOnce } = await import('../worker');
     const { InMemoryQueue } = await import('../queue');
 
@@ -185,10 +185,17 @@ describe('outbox_events table and worker (integration tests)', () => {
       return;
     }
 
-    // If insert succeeded, the worker must reject it during publishing
-    // Pass schemaName for isolated test schema (same fix as AC1 — objectively-wrong RED omission)
+    // If the insert somehow succeeded (a CHECK that permits it), the worker must
+    // NOT throw — poison-pill safe behavior: it dead-letters/skips the bad row
+    // and the batch completes. The row is stamped consumed so it is not re-polled.
     if (insertedId) {
-      await expect(runOnce(dbClient, queue, schemaName)).rejects.toThrow(/invalid|unknown|event.type/i);
+      await expect(runOnce(dbClient, queue, schemaName)).resolves.toBeUndefined();
+      expect(queue.messages).toHaveLength(0);
+      const check = await dbClient.query(
+        `SELECT consumed_at FROM ${schemaName}.outbox_events WHERE id = $1`,
+        [insertedId],
+      );
+      expect(check.rows[0].consumed_at).not.toBeNull();
     }
   });
 

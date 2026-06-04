@@ -82,6 +82,77 @@ interface OutboxRow {
   app_version: string;
 }
 
+/**
+ * Mirror of `deadLetterRow()` from `packages/outbox/src/worker.ts`. Moves a row
+ * that cannot be processed (unknown event type, or a repeatedly-throwing
+ * handler) into the dead-letter queue (migration 056) and stamps it consumed so
+ * the poll loop never sees it again. Best-effort fallback: if the DLQ write
+ * fails, stamp `consumed_at` directly so the batch is never blocked.
+ */
+async function deadLetterRow(
+  client: pg.PoolClient,
+  row: OutboxRow,
+  err: unknown,
+): Promise<void> {
+  const errorText = err instanceof Error ? err.message : String(err);
+
+  try {
+    let attempts = 0;
+    try {
+      const a = await client.query<{ attempts: number }>(
+        `SELECT coalesce(attempts, 0) AS attempts
+           FROM public.outbox_events WHERE id = $1`,
+        [row.id],
+      );
+      attempts = (a.rows[0]?.attempts ?? 0) + 1;
+    } catch {
+      attempts = 1;
+    }
+
+    await client.query(
+      `INSERT INTO public.outbox_dead_letter
+         (outbox_event_id, org_id, event_type, aggregate_type, aggregate_id,
+          payload, created_at, consumed_at, app_version, attempts, last_error_text)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, pg_catalog.now(), $8, $9, $10)
+       ON CONFLICT (outbox_event_id) DO NOTHING`,
+      [
+        row.id,
+        row.org_id,
+        row.event_type,
+        row.aggregate_type,
+        row.aggregate_id,
+        JSON.stringify(row.payload),
+        row.created_at,
+        row.app_version,
+        attempts,
+        errorText,
+      ],
+    );
+
+    await client.query(
+      `UPDATE public.outbox_events
+          SET consumed_at = pg_catalog.now(),
+              dead_lettered_at = pg_catalog.now(),
+              attempts = $2,
+              last_error_text = $3
+        WHERE id = $1`,
+      [row.id, attempts, errorText],
+    );
+  } catch (dlqErr) {
+    console.error('[cron/outbox] dead-letter failed; skipping row', {
+      id: row.id,
+      event_type: row.event_type,
+      dlqError: dlqErr instanceof Error ? dlqErr.message : String(dlqErr),
+    });
+    await client.query(
+      `UPDATE public.outbox_events
+          SET consumed_at = pg_catalog.now()
+        WHERE id = $1`,
+      [row.id],
+    );
+  }
+}
+
 async function runOnce(client: pg.PoolClient, queue: Queue): Promise<void> {
   const pollResult = await client.query<OutboxRow>(
     `SELECT id, org_id, event_type, aggregate_type, aggregate_id, payload, created_at, app_version
@@ -92,26 +163,37 @@ async function runOnce(client: pg.PoolClient, queue: Queue): Promise<void> {
   );
 
   for (const row of pollResult.rows) {
-    const eventType = normalizeEventType(row.event_type);
-    const message: OutboxMessage = {
-      id: row.id,
-      orgId: row.org_id,
-      eventType,
-      aggregateType: row.aggregate_type,
-      aggregateId: row.aggregate_id,
-      payload: row.payload,
-      createdAt: row.created_at,
-      appVersion: row.app_version,
-    };
+    try {
+      const eventType = normalizeEventType(row.event_type);
+      const message: OutboxMessage = {
+        id: row.id,
+        orgId: row.org_id,
+        eventType,
+        aggregateType: row.aggregate_type,
+        aggregateId: row.aggregate_id,
+        payload: row.payload,
+        createdAt: row.created_at,
+        appVersion: row.app_version,
+      };
 
-    await queue.publish(message);
+      await queue.publish(message);
 
-    await client.query(
-      `UPDATE public.outbox_events
-          SET consumed_at = pg_catalog.now()
-        WHERE id = $1`,
-      [row.id],
-    );
+      await client.query(
+        `UPDATE public.outbox_events
+            SET consumed_at = pg_catalog.now()
+          WHERE id = $1`,
+        [row.id],
+      );
+    } catch (err) {
+      // Per-row isolation: a single unknown/failed event is logged + dead-lettered
+      // and SKIPPED, never aborting the batch (the cron poison-pill class).
+      console.error('[cron/outbox] row failed; dead-lettering', {
+        id: row.id,
+        event_type: row.event_type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await deadLetterRow(client, row, err);
+    }
   }
 }
 
