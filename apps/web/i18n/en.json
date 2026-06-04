@@ -1781,6 +1781,22 @@
       "error": "Unable to load the pipeline. Try again after the backend is available.",
       "forbidden": "You do not have permission to view the pipeline."
     },
+    "pipelineSwitcher": {
+      "viewsLabel": "Pipeline views",
+      "tabKanban": "Kanban",
+      "tabTable": "Table",
+      "tabSplit": "Split",
+      "filtersLabel": "Filters",
+      "filterAll": "All",
+      "filterMine": "Mine",
+      "filterG0": "G0",
+      "filterG1": "G1",
+      "filterG2": "G2",
+      "filterG3": "G3",
+      "filterG4": "G4",
+      "searchLabel": "Search projects",
+      "searchPlaceholder": "Search by name or code…"
+    },
     "compositionBar": {
       "title": "Composition",
       "ariaLabel": "Ingredient composition",
