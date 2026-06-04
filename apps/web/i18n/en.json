@@ -1728,6 +1728,37 @@
       "emptyDetail": "Select a project to see its detail.",
       "error": "Unable to load the pipeline. Try again after the backend is available.",
       "forbidden": "You do not have permission to view the pipeline."
+    },
+    "faRightPanel": {
+      "title": "Validation status",
+      "subtitle": "Right-panel summary for this Factory Article.",
+      "keyFacts": "Key facts",
+      "code": "Code",
+      "name": "Product",
+      "statusLabel": "Status",
+      "daysToLaunch": "Days to launch",
+      "launchDate": "Launch date",
+      "lastUpdated": "Last updated",
+      "builtTitle": "Built status",
+      "built": "Built",
+      "notBuilt": "Not built",
+      "builtNote": "Any edit resets the Built flag.",
+      "actions": "Quick actions",
+      "deptClose": "Dept Close",
+      "d365Build": "D365 Build",
+      "actionsDeferred": "Available once the action workflow ships.",
+      "loading": "Loading summary…",
+      "empty": "No summary",
+      "emptyBody": "No Factory Article matches this code in your organisation.",
+      "forbidden": "You do not have permission to view this summary.",
+      "error": "Unable to load the summary.",
+      "status": {
+        "Pending": "Pending",
+        "InProgress": "In progress",
+        "Alert": "Alert",
+        "Complete": "Complete",
+        "Built": "Built"
+      }
     }
   }
 }

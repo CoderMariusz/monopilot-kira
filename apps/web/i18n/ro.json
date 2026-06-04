@@ -1728,6 +1728,37 @@
       "emptyDetail": "Selectați un proiect pentru a vedea detaliile.",
       "error": "Pipeline-ul nu a putut fi încărcat. Încercați din nou când backendul este disponibil.",
       "forbidden": "Nu ai permisiunea de a vizualiza pipeline-ul."
+    },
+    "faRightPanel": {
+      "title": "Stare validare",
+      "subtitle": "Rezumatul panoului lateral pentru acest articol de fabrică.",
+      "keyFacts": "Date cheie",
+      "code": "Cod",
+      "name": "Produs",
+      "statusLabel": "Stare",
+      "daysToLaunch": "Zile până la lansare",
+      "launchDate": "Data lansării",
+      "lastUpdated": "Ultima actualizare",
+      "builtTitle": "Stare construire",
+      "built": "Construit",
+      "notBuilt": "Neconstruit",
+      "builtNote": "Orice editare resetează indicatorul Construit.",
+      "actions": "Acțiuni rapide",
+      "deptClose": "Închide departament",
+      "d365Build": "Construiește D365",
+      "actionsDeferred": "Disponibil după lansarea fluxului de acțiuni.",
+      "loading": "Se încarcă rezumatul…",
+      "empty": "Fără rezumat",
+      "emptyBody": "Niciun articol de fabrică nu corespunde acestui cod în organizația ta.",
+      "forbidden": "Nu ai permisiunea de a vizualiza acest rezumat.",
+      "error": "Rezumatul nu a putut fi încărcat.",
+      "status": {
+        "Pending": "În așteptare",
+        "InProgress": "În curs",
+        "Alert": "Alertă",
+        "Complete": "Finalizat",
+        "Built": "Construit"
+      }
     }
   }
 }

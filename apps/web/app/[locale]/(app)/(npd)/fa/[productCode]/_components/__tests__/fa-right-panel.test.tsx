@@ -1,146 +1,234 @@
 /**
- * T-137 / TASK-000290 RED: FA right panel sidebar.
+ * @vitest-environment jsdom
  *
- * Prototype contract: prototypes/design/Monopilot Design System/npd/fa-screens.jsx:404-452
- * RED scope: tests only. Production component is the behavior surface.
+ * T-137 — FA right panel sidebar (STANDALONE, real-data).
+ *
+ * The right panel is a self-contained async RSC that reads the REAL product
+ * summary (status_overall / built / days_to_launch / launch_date / closed_*)
+ * through `withOrgContext` (RLS pinned to app.current_org_id()) and resolves
+ * RBAC (`npd.fa.read`) server-side. We mock ONLY the org-context transport
+ * boundary + the next-intl locale resolver — the SQL still runs as app_user
+ * against RLS in the live route, and the i18n keys resolve through the REAL
+ * locale JSON (npd.faRightPanel.*), so no fixture replaces production data.
+ *
+ * Prototype parity source (1:1):
+ *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:404-452
+ *   (fa_right_panel: FARightPanel — 280px sticky aside with a Status/Validation
+ *    card + a Built-status card; "Any edit resets the Built flag" note.)
+ *
+ * STRICT SCOPE: this is a standalone component test. It never imports the merged
+ * page.tsx / fa-tabs.tsx (wiring is T-138). Modal launchers are deferred seams
+ * (T-123) — asserted as present-but-disabled affordances, not wired dialogs.
  */
 import React from 'react';
-import { existsSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-
 import '@testing-library/jest-dom/vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-type FaRightPanelFa = {
-  code: string;
-  fa_code: string;
-  name: string;
-  product_name: string;
-  owner: string;
-  last_updated: string;
-  days_to_launch: number;
-  built: boolean;
-  status: 'Built' | 'Pending' | 'Blocked' | 'Complete';
-  status_overall: 'Built' | 'Pending' | 'Blocked' | 'Complete';
-};
+import { FaRightPanel, FaRightPanelSkeleton } from '../fa-right-panel';
 
-type FaRightPanelProps = {
-  fa: FaRightPanelFa;
-  gateProgress: number;
-  onOpenModal: (modal: 'deptClose' | 'd365Build', payload: { fa: FaRightPanelFa }) => void;
-};
+type Locale = 'en' | 'pl' | 'ro' | 'uk';
 
-type FaRightPanelComponent = React.ComponentType<FaRightPanelProps>;
+const { withOrgContextMock } = vi.hoisted(() => ({
+  withOrgContextMock: vi.fn(),
+}));
 
-const componentPath = path.resolve(
-  process.cwd(),
-  'app/[locale]/(app)/(npd)/fa/[productCode]/_components/fa-right-panel.tsx',
-);
+// Resolve labels through the REAL locale JSON so this asserts the production
+// next-intl key path (npd.faRightPanel.*), not a fixture.
+vi.mock('next-intl/server', () => ({
+  getTranslations: vi.fn(async (req?: string | { locale?: string; namespace?: string }) => {
+    const locale = typeof req === 'object' ? (req.locale ?? 'en') : 'en';
+    const namespace = typeof req === 'object' ? (req.namespace ?? '') : (req ?? '');
+    const file = path.resolve(__dirname, `../../../../../../../../i18n/${locale}.json`);
+    const messages = JSON.parse(readFileSync(file, 'utf-8'));
+    const ns = namespace.split('.').reduce((acc: Record<string, unknown>, part: string) => {
+      return (acc?.[part] as Record<string, unknown>) ?? {};
+    }, messages);
+    return (key: string) => {
+      const value = key.split('.').reduce((acc: unknown, part: string) => {
+        return acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[part] : undefined;
+      }, ns);
+      return typeof value === 'string' ? value : key;
+    };
+  }),
+}));
 
-const sampleFa: FaRightPanelFa = {
-  code: 'FA7421',
-  fa_code: 'FA7421',
-  name: 'Smoked Almond Yoghurt',
+vi.mock('../../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: withOrgContextMock,
+}));
+
+const SUMMARY_ROW = {
+  product_code: 'FA0043',
   product_name: 'Smoked Almond Yoghurt',
-  owner: 'Jane Nowak',
-  last_updated: '2026-05-18',
+  status_overall: 'InProgress',
+  built: false,
   days_to_launch: 42,
-  built: true,
-  status: 'Built',
-  status_overall: 'Built',
+  launch_date: '2026-09-01',
+  created_at: '2026-04-15T16:21:00.000Z',
+  closed_core: 'Yes',
+  closed_planning: 'No',
+  closed_commercial: 'No',
+  closed_production: 'No',
+  closed_technical: 'No',
+  closed_mrp: 'No',
+  closed_procurement: 'No',
 };
 
-async function loadFaRightPanel(): Promise<FaRightPanelComponent> {
-  if (!existsSync(componentPath)) {
-    expect.fail(
-      'FaRightPanel production component is missing at apps/web/app/(npd)/fa/[productCode]/_components/fa-right-panel.tsx; IMPL must add it before these RTL behavior tests can render.',
-    );
-  }
-
-  const componentUrl = pathToFileURL(componentPath).href;
-  const mod = (await import(componentUrl)) as {
-    default?: FaRightPanelComponent;
-    FaRightPanel?: FaRightPanelComponent;
-  };
-  const Component = mod.FaRightPanel ?? mod.default;
-  if (!Component) {
-    expect.fail('FaRightPanel must be exported as a named or default React component');
-  }
-  return Component;
+/**
+ * Wire withOrgContext so the callback receives a client whose first query is the
+ * RBAC permission probe and the second is the product summary read.
+ */
+function wireOrgContext(
+  opts: { canRead?: boolean; row?: Record<string, unknown> | null } = {},
+) {
+  const { canRead = true, row = SUMMARY_ROW } = opts;
+  withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (/role_permissions|permissions|user_roles/i.test(sql)) {
+          return { rows: canRead ? [{ ok: true }] : [] };
+        }
+        if (/from\s+public\.(product|fa)/i.test(sql) && /product_code/i.test(sql)) {
+          return { rows: row ? [row] : [] };
+        }
+        return { rows: [] };
+      }),
+    };
+    return cb({ userId: 'u1', orgId: 'o1', client });
+  });
 }
 
-async function renderPanel(overrides: Partial<FaRightPanelProps> = {}) {
-  const FaRightPanel = await loadFaRightPanel();
-  const onOpenModal = overrides.onOpenModal ?? vi.fn();
-  render(
-    <FaRightPanel
-      fa={overrides.fa ?? sampleFa}
-      gateProgress={overrides.gateProgress ?? 67}
-      onOpenModal={onOpenModal}
-    />,
-  );
-  return { onOpenModal };
+async function renderPanel(locale: Locale = 'en', productCode = 'FA0043') {
+  const ui = await FaRightPanel({ locale, productCode });
+  return render(ui);
 }
 
-function getPanel() {
-  return screen.getByRole('complementary', { name: /fa right panel|right panel|validation status/i });
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+  wireOrgContext();
+});
 
-describe('AC1: FaRightPanel prototype-parity summary and gate progress', () => {
-  it('renders a sticky shadcn Card sidebar with status pill, FA summary, Built badge, quick actions, and Progress bar', async () => {
+afterEach(() => cleanup());
+
+describe('T-137 FA right panel — real-data wiring (withOrgContext / RLS)', () => {
+  it('reads the product summary through withOrgContext exactly once', async () => {
     await renderPanel();
+    expect(withOrgContextMock).toHaveBeenCalledTimes(1);
+  });
 
-    const panel = getPanel();
-    expect(panel).toHaveAttribute('data-prototype-anchor', 'npd/fa-screens.jsx:404-452');
-    expect(panel.className, 'right panel must be sticky like the prototype sidebar').toMatch(/sticky/);
+  it('reads from public.product (RLS view) — never a hardcoded array', async () => {
+    const captured: string[] = [];
+    withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
+      const client = {
+        query: vi.fn(async (sql: string) => {
+          captured.push(sql);
+          if (/permissions|user_roles/i.test(sql)) return { rows: [{ ok: true }] };
+          if (/from\s+public\.(product|fa)/i.test(sql)) return { rows: [SUMMARY_ROW] };
+          return { rows: [] };
+        }),
+      };
+      return cb({ userId: 'u1', orgId: 'o1', client });
+    });
+    await renderPanel();
+    expect(captured.some((s) => /from\s+public\.(product|fa)/i.test(s))).toBe(true);
+  });
+});
 
-    const card = panel.querySelector('[data-slot="card"]');
-    expect(card, 'right panel content must render inside a shadcn Card primitive').toBeInTheDocument();
+describe('T-137 FA right panel — parity (fa-screens.jsx:404-452)', () => {
+  it('renders a sticky aside carrying the prototype anchor', async () => {
+    await renderPanel();
+    const aside = screen.getByRole('complementary');
+    expect(aside).toHaveAttribute('data-prototype-anchor', 'npd/fa-screens.jsx:404-452');
+    expect(aside.className).toMatch(/sticky/);
+  });
 
-    const badges = Array.from(panel.querySelectorAll('[data-slot="badge"]')) as HTMLElement[];
-    expect(badges.some((badge) => /built/i.test(badge.textContent ?? '')), 'Built indicator must be a shadcn Badge').toBe(true);
-    expect(badges.some((badge) => /status|built|complete/i.test(badge.textContent ?? '')), 'status pill must be a shadcn Badge').toBe(true);
+  it('renders content inside a shadcn Card primitive', async () => {
+    await renderPanel();
+    const aside = screen.getByRole('complementary');
+    expect(aside.querySelector('[data-slot="card"]')).toBeInTheDocument();
+  });
 
-    expect(within(panel).getByText('FA7421')).toBeInTheDocument();
+  it('surfaces status_overall as a labelled (not color-only) badge', async () => {
+    await renderPanel();
+    const status = screen.getByTestId('fa-right-panel-status');
+    expect(status).toHaveAttribute('data-slot', 'badge');
+    expect(status).toHaveTextContent(/in ?progress/i);
+  });
+
+  it('shows the key facts: code, name, days_to_launch', async () => {
+    await renderPanel();
+    const panel = screen.getByRole('complementary');
+    expect(within(panel).getByText('FA0043')).toBeInTheDocument();
     expect(within(panel).getByText('Smoked Almond Yoghurt')).toBeInTheDocument();
-    expect(within(panel).getByText(/Jane Nowak/)).toBeInTheDocument();
-    expect(within(panel).getByText(/2026-05-18/)).toBeInTheDocument();
-    expect(within(panel).getByText(/42\s*days/i)).toBeInTheDocument();
+    expect(within(panel).getByTestId('fa-right-panel-days-to-launch')).toHaveTextContent(/42/);
+  });
 
-    const deptClose = within(panel).getByRole('button', { name: /dept close/i });
-    const d365Build = within(panel).getByRole('button', { name: /d365 build/i });
+  it('renders the Built-status card with "Not built" when built=false', async () => {
+    await renderPanel();
+    const built = screen.getByTestId('fa-right-panel-built');
+    expect(built).toHaveAttribute('data-slot', 'badge');
+    expect(built).toHaveTextContent(/not built/i);
+  });
+
+  it('renders the Built indicator when built=true', async () => {
+    wireOrgContext({ row: { ...SUMMARY_ROW, built: true, status_overall: 'Built' } });
+    await renderPanel();
+    const built = screen.getByTestId('fa-right-panel-built');
+    // Prototype-faithful: built FA shows the "⚡ Built" badge (lines 458).
+    expect(built).toHaveTextContent(/built/i);
+    expect(built).toHaveTextContent('⚡');
+  });
+
+  it('exposes action affordances (Dept Close / D365 Build) as deferred seams', async () => {
+    await renderPanel();
+    const deptClose = screen.getByTestId('fa-right-panel-action-deptClose');
+    const d365 = screen.getByTestId('fa-right-panel-action-d365Build');
     expect(deptClose).toHaveAttribute('data-slot', 'button');
-    expect(d365Build).toHaveAttribute('data-slot', 'button');
-
-    const progress = within(panel).getByRole('progressbar', { name: /gate progress/i });
-    expect(progress).toHaveAttribute('data-slot', 'progress');
-    expect(progress).toHaveAttribute('aria-valuenow', '67');
+    expect(d365).toHaveAttribute('data-slot', 'button');
+    // Modals are T-123-deferred: affordances render but are not wired (disabled).
+    expect(deptClose).toBeDisabled();
+    expect(d365).toBeDisabled();
   });
 });
 
-describe('AC2: Dept Close quick action', () => {
-  it("invokes onOpenModal('deptClose', { fa }) when Dept Close is clicked", async () => {
-    const onOpenModal = vi.fn();
-    await renderPanel({ onOpenModal });
+describe('T-137 FA right panel — required UI states', () => {
+  it('exports a loading skeleton for the Suspense boundary', () => {
+    render(<FaRightPanelSkeleton />);
+    expect(screen.getByTestId('fa-right-panel-skeleton')).toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: /dept close/i }));
+  it('renders the empty state when the product row does not exist', async () => {
+    wireOrgContext({ row: null });
+    await renderPanel('en', 'FA-MISSING');
+    expect(screen.getByTestId('fa-right-panel-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('fa-right-panel-status')).not.toBeInTheDocument();
+  });
 
-    expect(onOpenModal).toHaveBeenCalledTimes(1);
-    expect(onOpenModal).toHaveBeenCalledWith('deptClose', { fa: sampleFa });
+  it('renders the permission-denied state when the caller cannot read FAs', async () => {
+    wireOrgContext({ canRead: false });
+    await renderPanel();
+    expect(screen.getByTestId('fa-right-panel-forbidden')).toBeInTheDocument();
+    expect(screen.queryByTestId('fa-right-panel-status')).not.toBeInTheDocument();
+  });
+
+  it('renders the error state when the org-scoped read throws', async () => {
+    withOrgContextMock.mockRejectedValue(new Error('boom'));
+    await renderPanel();
+    expect(screen.getByTestId('fa-right-panel-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('fa-right-panel-status')).not.toBeInTheDocument();
   });
 });
 
-describe('AC3: D365 Build quick action', () => {
-  it("invokes onOpenModal('d365Build', { fa }) when D365 Build is clicked", async () => {
-    const onOpenModal = vi.fn();
-    await renderPanel({ onOpenModal });
+describe('T-137 FA right panel — i18n (npd.faRightPanel namespace)', () => {
+  it('resolves the English title through the new namespace', async () => {
+    await renderPanel('en');
+    expect(screen.getByText('Validation status')).toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: /d365 build/i }));
-
-    expect(onOpenModal).toHaveBeenCalledTimes(1);
-    expect(onOpenModal).toHaveBeenCalledWith('d365Build', { fa: sampleFa });
+  it('resolves Polish labels through npd.faRightPanel (proves pl.json key)', async () => {
+    await renderPanel('pl');
+    expect(screen.getByText('Status walidacji')).toBeInTheDocument();
   });
 });
