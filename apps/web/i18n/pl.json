@@ -1307,6 +1307,34 @@
       "emptyBody": "Ten brief nie istnieje lub nie masz do niego dostępu.",
       "error": "Nie można załadować briefu.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tego briefu."
+    },
+    "gateChecklist": {
+      "title": "Lista kontrolna bramki",
+      "currentGate": "Bieżąca bramka:",
+      "overallProgress": "Postęp ogólny",
+      "current": "Bieżąca",
+      "blockingBadge": "{count} blokujących",
+      "notStarted": "Nie rozpoczęto",
+      "completedBy": "Ukończono przez {by} · {at}",
+      "required": "Wymagane",
+      "optional": "Opcjonalne",
+      "blocking": "Blokujące",
+      "attach": "Załącz",
+      "catTechnical": "Techniczne",
+      "catBusiness": "Biznesowe",
+      "catCompliance": "Zgodność",
+      "blockerAlert": "{count} blokujących pozycji musi zostać ukończonych przed przejściem do {gate}: {gateLabel}.",
+      "readyAlert": "Wszystkie wymagane pozycje dla {gate} ukończone. Gotowe do przejścia do {nextLabel}.",
+      "advance": "Przejdź do {gate}: {nextLabel} →",
+      "requestApproval": "Poproś o zatwierdzenie →",
+      "markLaunched": "Oznacz jako wdrożone ✓",
+      "expand": "Rozwiń bramkę",
+      "collapse": "Zwiń bramkę",
+      "loading": "Ładowanie listy kontrolnej bramki…",
+      "empty": "Brak pozycji listy kontrolnej",
+      "emptyBody": "Ten projekt nie ma jeszcze skonfigurowanych pozycji listy kontrolnej bramki.",
+      "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki."
     }
   }
 }
