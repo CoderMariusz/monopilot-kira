@@ -9,6 +9,10 @@ export default defineConfig({
         replacement: resolve(__dirname, '../db/test-utils/test-pool.ts'),
       },
       {
+        find: '@monopilot/db/clients.js',
+        replacement: resolve(__dirname, '../db/src/clients.ts'),
+      },
+      {
         find: '@monopilot/db',
         replacement: resolve(__dirname, '../db/src/index.ts'),
       },

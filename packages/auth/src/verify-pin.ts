@@ -14,7 +14,7 @@
  */
 
 import * as argon2 from 'argon2';
-import { getOwnerConnection } from '@monopilot/db/test-utils/test-pool.js';
+import { getOwnerConnection } from '@monopilot/db/clients.js';
 
 const ARGON2_OPTS: argon2.Options & { raw?: false } = {
   type: argon2.argon2id,
