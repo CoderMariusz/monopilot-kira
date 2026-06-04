@@ -131,11 +131,29 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         return { rows: (line?.machine_ids ?? []).map((machine_id) => ({ machine_id })) as never[], rowCount: line?.machine_ids.length ?? 0 };
       }
 
+      if (normalized.startsWith('delete from public.line_machines')) {
+        const lineId = params.map(String).find((value) => client.lines.has(value));
+        if (lineId) {
+          const line = client.lines.get(lineId);
+          if (line) client.lines.set(lineId, { ...line, machine_ids: [] });
+        }
+        return { rows: [] as never[], rowCount: lineId ? 1 : 0 };
+      }
+
+      if (normalized.startsWith('insert into public.line_machines')) {
+        const lineId = params.map(String).find((value) => client.lines.has(value));
+        const machineId = params.map(String).find((value) => client.machines.has(value));
+        if (lineId && machineId) {
+          const line = client.lines.get(lineId);
+          if (line) client.lines.set(lineId, { ...line, machine_ids: [...line.machine_ids, machineId] });
+        }
+        return { rows: [] as never[], rowCount: lineId && machineId ? 1 : 0 };
+      }
+
       if (normalized.startsWith('insert into public.production_lines') || normalized.startsWith('update public.production_lines')) {
         const id = params.map(String).find((value) => client.lines.has(value)) ?? LINE_ID;
-        const machineIds = params.map(String).filter((value) => client.machines.has(value));
         const status = paramsText.includes('active') ? 'active' : 'draft';
-        const row = { id, status, machine_ids: machineIds };
+        const row = { id, status, machine_ids: [] };
         client.lines.set(id, row);
         return { rows: [row] as never[], rowCount: 1 };
       }
@@ -305,6 +323,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
 
     const activeLine = await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] });
     expect(activeLine).toMatchObject({ ok: true, data: { status: 'active' } });
+    expect(currentClient.lines.get(LINE_ID)?.machine_ids).toEqual([MACHINE_ID]);
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.line.upserted')).toBe(true);
 
     await expect(deactivateWarehouse({ warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({

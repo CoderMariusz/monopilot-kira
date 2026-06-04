@@ -21,6 +21,18 @@ const labels: Record<string, string> = {
   columnLine: 'Line',
   columnStatus: 'Status',
   columnMachines: 'Machine sequence preview',
+  addLine: 'Add line',
+  dialogAddTitle: 'Add production line',
+  fieldCode: 'Code',
+  fieldName: 'Name',
+  fieldStatus: 'Status',
+  fieldMachines: 'Machine sequence',
+  createLine: 'Create line',
+  createLinePending: 'Creating…',
+  cancel: 'Cancel',
+  createLineSuccess: 'Production line created.',
+  createLineFailed: 'Production line could not be created.',
+  noMachinesAvailable: 'Create at least one machine before creating an active line.',
   bulkActivate: 'Bulk Activate',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to activate production lines.',
   noMachineTitle: 'No machines assigned',
@@ -64,6 +76,12 @@ type ProductionLine = {
   machines: MachinePreview[];
 };
 
+type MachineOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type ActivateLineInput = { lineId: string };
 
 type ActivateLineResult =
@@ -73,8 +91,10 @@ type ActivateLineResult =
 type LinesPageProps = {
   params?: Promise<{ locale: string }>;
   lines?: ProductionLine[];
+  machines?: MachineOption[];
   canUpdateInfra?: boolean;
   activateLine?: (input: ActivateLineInput) => Promise<ActivateLineResult>;
+  createLine?: (input: { code: string; name: string; status: 'draft' | 'active'; machineIds: string[] }) => Promise<{ ok: true; data: { id: string; status: 'draft' | 'active' } } | { ok: false; error?: string }>;
 };
 
 type LinesPage = (props: LinesPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -128,6 +148,10 @@ const line8: ProductionLine = {
 };
 
 const lines = [line0, line4, line8];
+const availableMachines: MachineOption[] = [
+  { id: '00000000-0000-4000-8000-000000000501', code: 'MIX-01', name: 'Mixer 01' },
+  { id: '00000000-0000-4000-8000-000000000502', code: 'PACK-02', name: 'Packer 02' },
+];
 
 async function loadLinesPage(): Promise<LinesPage> {
   try {
@@ -149,6 +173,7 @@ async function renderLinesPage(overrides: Partial<LinesPageProps> = {}) {
   const props: LinesPageProps = {
     params: Promise.resolve({ locale: 'en' }),
     lines,
+    machines: availableMachines,
     canUpdateInfra: true,
     activateLine: vi.fn(async (input: ActivateLineInput) => ({
       ok: true as const,
@@ -242,6 +267,9 @@ describe('SET-018 line list behavior', () => {
           ],
         };
       }
+      if (normalized.includes('from public.machines')) {
+        return { rows: availableMachines };
+      }
       throw new Error(`Unexpected SQL: ${sql}; params=${JSON.stringify(params)}`);
     });
     orgContextMock.withOrgContext.mockImplementation(async (callback: (ctx: unknown) => Promise<unknown>) =>
@@ -332,6 +360,37 @@ describe('SET-018 line list behavior', () => {
       'aria-label',
       expect.stringMatching(/insufficient permissions.*settings\.infra\.update/i),
     );
+  });
+
+  it('opens Add line modal and creates a production line with selected machine sequence', async () => {
+    const user = userEvent.setup();
+    const createLine = vi.fn(async () => ({
+      ok: true as const,
+      data: { id: '00000000-0000-4000-8000-000000000777', status: 'active' as const },
+    }));
+    await renderLinesPage({ createLine });
+
+    await user.click(screen.getByRole('button', { name: /^add line$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add production line/i });
+    await user.type(within(dialog).getByLabelText(/^code$/i), 'line-new');
+    await user.type(within(dialog).getByLabelText(/^name$/i), 'New packing line');
+    await user.click(within(dialog).getByRole('combobox', { name: /^status$/i }));
+    await user.click(within(dialog).getAllByRole('option', { name: /^active$/i }).at(-1) as HTMLElement);
+    await user.click(within(dialog).getByLabelText(/mixer 01/i));
+    await user.click(within(dialog).getByLabelText(/packer 02/i));
+    await user.click(within(dialog).getByRole('button', { name: /^create line$/i }));
+
+    await waitFor(() => expect(createLine).toHaveBeenCalledWith({
+      code: 'line-new',
+      name: 'New packing line',
+      status: 'active',
+      machineIds: [availableMachines[0].id, availableMachines[1].id],
+    }));
+    expect(lineRow(/new packing line.*line-new.*active/i)).toBeInTheDocument();
+    expect(within(machinePreview(lineRow(/new packing line/i))).getAllByTestId('settings-line-machine-chip').map((chip) => chip.textContent)).toEqual([
+      expect.stringMatching(/^1\s+MIX-01/i),
+      expect.stringMatching(/^2\s+PACK-02/i),
+    ]);
   });
 
   it('returns V-SET-62 NO_MACHINE only for the explicit no-machine validation branch', async () => {

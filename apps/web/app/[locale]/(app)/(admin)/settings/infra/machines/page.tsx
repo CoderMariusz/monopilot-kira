@@ -1,8 +1,10 @@
 import React from 'react';
 import { getTranslations } from 'next-intl/server';
 
+import { upsertMachine as persistMachine, type UpsertMachineResult } from '../../../../../../../actions/infra/machine';
 import MachinesListScreen from './machines-list-screen.client';
 import type {
+  CreateMachineInput,
   LocationRow,
   MachineActionInput,
   MachineActionResult,
@@ -19,6 +21,7 @@ type MachinesPageProps = {
   machines?: MachineRow[];
   locations?: LocationRow[];
   canUpdateInfra?: boolean;
+  createMachine?: (input: CreateMachineInput) => Promise<UpsertMachineResult> | UpsertMachineResult;
   deactivateMachine?: (input: MachineActionInput) => Promise<MachineActionResult> | MachineActionResult;
   activateMachine?: (input: MachineActionInput) => Promise<MachineActionResult> | MachineActionResult;
   state?: PageState;
@@ -79,6 +82,18 @@ const DEFAULT_MACHINE_LABELS: MachinesLabels = {
   bulkActivatePending: 'Activating…',
   bulkDeactivate: 'Bulk Deactivate',
   bulkDeactivatePending: 'Deactivating…',
+  addMachine: 'Add machine',
+  dialogAddTitle: 'Add machine',
+  fieldCode: 'Code',
+  fieldName: 'Name',
+  fieldMachineType: 'Machine type',
+  fieldLocation: 'Location',
+  createMachine: 'Create machine',
+  createMachinePending: 'Creating…',
+  cancel: 'Cancel',
+  createMachineSuccess: 'Machine created.',
+  createMachineFailed: 'Machine could not be created.',
+  noLocationsAvailable: 'Create a bin-level location before creating a machine.',
   deactivated: 'Deactivated',
   selectMachine: 'Select {name}',
   insufficientPermission:
@@ -277,6 +292,7 @@ export default async function MachinesPage(propsInput: unknown = {}) {
       state={props.state ?? loaded.state}
       activateMachine={props.activateMachine ?? defaultActivateMachine}
       deactivateMachine={props.deactivateMachine ?? defaultDeactivateMachine}
+      createMachine={props.createMachine ?? persistMachine}
     />
   );
 }

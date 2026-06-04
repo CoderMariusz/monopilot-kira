@@ -1,5 +1,7 @@
 'use server';
 
+import { z } from 'zod';
+
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 type QueryClient = {
@@ -30,6 +32,14 @@ export type UpsertLineResult =
 
 const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UuidInput = z.string().trim().regex(UUID_RE);
+const LineInput = z.object({
+  id: z.preprocess((value) => (value === '' ? null : value), UuidInput.nullish()),
+  code: z.string().trim().min(1).max(64).transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/)),
+  name: z.string().trim().min(1).max(128),
+  status: z.enum(['draft', 'active']),
+  machineIds: z.array(UuidInput).transform((ids) => Array.from(new Set(ids))),
+});
 
 export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
   const input = parseLineInput(rawInput);
@@ -59,6 +69,20 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
       const row = rows[0];
       if (!row) return { ok: false, error: 'persistence_failed' };
 
+      await client.query(
+        `delete from public.line_machines
+          where line_id = $1::uuid`,
+        [row.id],
+      );
+      for (const [index, machineId] of input.machineIds.entries()) {
+        await client.query(
+          `insert into public.line_machines
+             (line_id, machine_id, sequence)
+           values ($1::uuid, $2::uuid, $3::integer)`,
+          [row.id, machineId, index + 1],
+        );
+      }
+
       await writeOutbox(client, {
         orgId,
         eventType: 'settings.line.upserted',
@@ -75,16 +99,15 @@ export async function upsertLine(rawInput: unknown): Promise<UpsertLineResult> {
 }
 
 function parseLineInput(raw: unknown): ParsedLineInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const input = raw as Record<string, unknown>;
-  const id = optionalUuid(input.id);
-  const code = normalizeCode(input.code);
-  const name = normalizeText(input.name, 128);
-  const status = input.status === 'active' || input.status === 'draft' ? input.status : null;
-  const machineIds = Array.isArray(input.machineIds) ? input.machineIds.map(requiredUuid) : null;
-  if (input.id !== undefined && id === null) return null;
-  if (!code || !name || !status || !machineIds || machineIds.some((machineId) => !machineId)) return null;
-  return { id, code, name, status, machineIds: Array.from(new Set(machineIds as string[])) };
+  const parsed = LineInput.safeParse(raw);
+  if (!parsed.success) return null;
+  return {
+    id: parsed.data.id ?? null,
+    code: parsed.data.code,
+    name: parsed.data.name,
+    status: parsed.data.status,
+    machineIds: parsed.data.machineIds,
+  };
 }
 
 async function getMachines(client: QueryClient, machineIds: string[]): Promise<MachineRow[]> {
@@ -123,25 +146,4 @@ async function writeOutbox(
      values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-infra-v1')`,
     [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
   );
-}
-
-function requiredUuid(value: unknown): string | null {
-  return typeof value === 'string' && UUID_RE.test(value.trim()) ? value.trim() : null;
-}
-
-function optionalUuid(value: unknown): string | null {
-  if (value === undefined || value === null || value === '') return null;
-  return requiredUuid(value);
-}
-
-function normalizeCode(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toUpperCase();
-  return /^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(trimmed) ? trimmed : null;
-}
-
-function normalizeText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= max ? trimmed : null;
 }
