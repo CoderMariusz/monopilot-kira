@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../lib/auth/with-org-context';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 type QueryClient = {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
@@ -36,12 +37,43 @@ type ParsedLocationInput = {
   barcode: string | null;
 };
 
+type ParsedDeleteLocationInput = {
+  locationId: string;
+  warehouseId: string;
+};
+
 export type UpsertLocationResult =
   | { ok: true; data: { id: string; path: string; level: number } }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'invalid_parent_location' | 'invalid_parent_level' | 'persistence_failed' };
 
+export type DeleteLocationResult =
+  | { ok: true; data: { locationId: string; warehouseId: string } }
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'has_child_locations' | 'persistence_failed' };
+
 const EDIT_PERMISSION = 'settings.infra.update';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidSchema = z.string().trim().regex(UUID_RE);
+const locationCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{0,63}$/);
+const locationTextSchema = (max: number) => z.string().trim().min(1).max(max);
+const optionalUuidSchema = z.preprocess((value) => (value === undefined || value === null || value === '' ? null : value), uuidSchema.nullable());
+const optionalTextSchema = (max: number) => z.preprocess((value) => (value === undefined || value === null || value === '' ? null : value), locationTextSchema(max).nullable());
+
+const locationInputSchema = z.object({
+  id: optionalUuidSchema,
+  warehouseId: uuidSchema,
+  parentId: optionalUuidSchema,
+  code: locationCodeSchema,
+  name: locationTextSchema(128),
+  level: z.coerce.number().int().min(1).max(4),
+  locationType: locationCodeSchema,
+  active: z.boolean().default(true),
+  barcode: optionalTextSchema(128),
+});
+
+const deleteLocationInputSchema = z.object({
+  locationId: uuidSchema,
+  warehouseId: uuidSchema,
+});
 
 export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationResult> {
   const input = parseLocationInput(rawInput);
@@ -100,23 +132,68 @@ export async function upsertLocation(rawInput: unknown): Promise<UpsertLocationR
   }
 }
 
+export async function deleteLocation(rawInput: unknown): Promise<DeleteLocationResult> {
+  const input = parseDeleteLocationInput(rawInput);
+  if (!input) return { ok: false, error: 'invalid_input' };
+
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<DeleteLocationResult> => {
+      if (!(await hasPermission({ client, userId, orgId }, EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
+
+      const location = await getLocation(client, input.locationId);
+      if (!location || location.warehouse_id !== input.warehouseId) return { ok: false, error: 'not_found' };
+
+      const { rows: childRows } = await client.query<{ child_count: number | string }>(
+        `select count(*)::integer as child_count
+           from public.locations
+          where org_id = app.current_org_id()
+            and parent_id = $1::uuid`,
+        [input.locationId],
+      );
+      if (Number(childRows[0]?.child_count ?? 0) > 0) return { ok: false, error: 'has_child_locations' };
+
+      const { rows } = await client.query<LocationRow>(
+        `delete from public.locations
+          where org_id = app.current_org_id()
+            and warehouse_id = $2::uuid
+            and id = $1::uuid
+        returning id, warehouse_id, parent_id, code, name, location_type, level, path`,
+        [input.locationId, input.warehouseId],
+      );
+      const deleted = rows[0];
+      if (!deleted) return { ok: false, error: 'not_found' };
+
+      await writeOutbox(client, {
+        orgId,
+        eventType: 'settings.location.deleted',
+        aggregateType: 'location',
+        aggregateId: deleted.id,
+        payload: { location_id: deleted.id, warehouse_id: deleted.warehouse_id, path: deleted.path, actor_user_id: userId },
+      });
+
+      try {
+        revalidatePath('/en/settings/infra/locations');
+      } catch (error) {
+        console.warn('[settings/infra/locations] revalidate_skipped', error instanceof Error ? { message: error.message } : { message: String(error) });
+      }
+
+      return { ok: true, data: { locationId: deleted.id, warehouseId: deleted.warehouse_id } };
+    });
+  } catch {
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
 function parseLocationInput(raw: unknown): ParsedLocationInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const input = raw as Record<string, unknown>;
-  const id = optionalUuid(input.id);
-  const warehouseId = requiredUuid(input.warehouseId);
-  const parentId = input.parentId === null || input.parentId === undefined ? null : normalizeIdentifier(input.parentId);
-  const code = normalizeCode(input.code);
-  const name = normalizeText(input.name, 128);
-  const locationType = normalizeCode(input.locationType);
-  const active = typeof input.active === 'boolean' ? input.active : true;
-  const barcode = input.barcode === null || input.barcode === undefined || input.barcode === '' ? null : normalizeText(input.barcode, 128);
-  const level = Number(input.level);
-  if (input.id !== undefined && id === null) return null;
-  if (!warehouseId || (input.parentId !== null && input.parentId !== undefined && !parentId)) return null;
-  if (input.barcode !== null && input.barcode !== undefined && input.barcode !== '' && !barcode) return null;
-  if (!code || !name || !locationType || !Number.isInteger(level) || level < 1 || level > 4) return null;
-  return { id, warehouseId, parentId, code, name, level, locationType, active, barcode };
+  const parsed = locationInputSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  return parsed.data;
+}
+
+function parseDeleteLocationInput(raw: unknown): ParsedDeleteLocationInput | null {
+  const parsed = deleteLocationInputSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  return parsed.data;
 }
 
 async function getLocation(client: QueryClient, id: string): Promise<LocationRow | null> {
@@ -156,31 +233,4 @@ async function writeOutbox(
      values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, 'settings-infra-v1')`,
     [params.orgId, params.eventType, params.aggregateType, params.aggregateId, JSON.stringify(params.payload)],
   );
-}
-
-function requiredUuid(value: unknown): string | null {
-  return typeof value === 'string' && UUID_RE.test(value.trim()) ? value.trim() : null;
-}
-
-function optionalUuid(value: unknown): string | null {
-  if (value === undefined || value === null || value === '') return null;
-  return requiredUuid(value);
-}
-
-function normalizeIdentifier(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= 128 ? trimmed : null;
-}
-
-function normalizeCode(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toUpperCase();
-  return /^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(trimmed) ? trimmed : null;
-}
-
-function normalizeText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= max ? trimmed : null;
 }

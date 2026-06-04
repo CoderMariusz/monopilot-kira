@@ -359,6 +359,7 @@
       "columnAddress": "Адреса",
       "columnStatus": "Статус",
       "columnActiveWoCount": "Кількість активних робочих замовлень",
+      "openLocations": "Відкрити локації для {name}",
       "selectWarehouse": "Вибрати {name}",
       "bulkActivate": "Масова активація",
       "bulkDeactivate": "Масова деактивація",
@@ -434,6 +435,7 @@
       "addLocation": "+ Додати локацію",
       "editLocation": "Редагувати",
       "addChild": "+ Дочірня",
+      "deleteLocation": "Видалити",
       "selectedLocation": "Вибрана локація",
       "selectedParent": "Батьківська",
       "selectedDepth": "Рівень глибини",
@@ -443,6 +445,8 @@
       "readOnly": "Лише читання — для редагування потрібен settings.infra.update",
       "dialogAddTitle": "Додати локацію",
       "dialogEditTitle": "Редагувати локацію",
+      "dialogDeleteTitle": "Видалити локацію",
+      "dialogDeleteBody": "Видалити {name}? Цю дію не можна скасувати.",
       "fieldCode": "Код",
       "fieldName": "Назва",
       "fieldParent": "Батьківська локація",
@@ -452,6 +456,7 @@
       "depthExceeded": "Максимальна глибина локацій для цього tenant — 3 рівні (склад → зона → bin).",
       "cancel": "Скасувати",
       "createLocation": "Створити локацію",
+      "confirmDelete": "Видалити локацію",
       "saveChanges": "Зберегти зміни",
       "active": "Активний",
       "lpsTableTitle": "LP у цій локації",
@@ -472,7 +477,10 @@
       "fieldCodeHelp": "Літери й цифри + дефіс, максимум 20 символів, унікальний у межах складу",
       "fieldBarcodeHelp": "Генерується автоматично, якщо порожнє — для друку QR / Code128 локації",
       "upsertSuccess": "Локацію збережено.",
-      "upsertError": "Не вдалося зберегти локацію."
+      "upsertError": "Не вдалося зберегти локацію.",
+      "deleteSuccess": "Локацію видалено.",
+      "deleteError": "Не вдалося видалити локацію.",
+      "deleteHasChildren": "Спочатку видаліть дочірні локації."
     }
   },
   "schema": {

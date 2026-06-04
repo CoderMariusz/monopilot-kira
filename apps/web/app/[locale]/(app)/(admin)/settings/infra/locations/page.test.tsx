@@ -26,6 +26,7 @@ vi.mock('next-intl/server', () => ({
       addLocation: '+ Add location',
       editLocation: 'Edit',
       addChild: '+ Child',
+      deleteLocation: 'Delete',
       selectedLocation: 'Selected location',
       selectedParent: 'Parent',
       selectedDepth: 'Depth level',
@@ -35,6 +36,8 @@ vi.mock('next-intl/server', () => ({
       readOnly: 'Read-only — settings.infra.update required to edit',
       dialogAddTitle: 'Add location',
       dialogEditTitle: 'Edit location',
+      dialogDeleteTitle: 'Delete location',
+      dialogDeleteBody: 'Delete {name}? This cannot be undone.',
       fieldCode: 'Code',
       fieldName: 'Name',
       fieldParent: 'Parent location',
@@ -44,6 +47,7 @@ vi.mock('next-intl/server', () => ({
       depthExceeded: 'Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).',
       cancel: 'Cancel',
       createLocation: 'Create location',
+      confirmDelete: 'Delete location',
       saveChanges: 'Save changes',
       csvFile: 'CSV file',
       insufficientPermissions: 'Insufficient permissions: settings.infra.update is required to import CSV.',
@@ -57,6 +61,9 @@ vi.mock('next-intl/server', () => ({
       level: 'Level {level}',
       importSuccess: 'Imported {count} location rows.',
       importError: 'Row {row}: {code} ({validation}) {message}',
+      deleteSuccess: 'Location deleted.',
+      deleteError: 'Location delete failed.',
+      deleteHasChildren: 'Delete child locations first.',
     };
     return Object.entries(values ?? {}).reduce(
       (label, [name, value]) => label.replace(`{${name}}`, String(value)),
@@ -303,12 +310,14 @@ type UpsertLocationResult =
 type LocationModalCrudProps = Partial<LocationTreePageProps> & {
   canUpdateInfra?: boolean;
   upsertLocation?: (input: UpsertLocationInput) => Promise<UpsertLocationResult>;
+  deleteLocation?: (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { locationId: string; warehouseId: string } }>;
 };
 
 const REQUIRED_LOCATION_MODAL_LABEL_KEYS = Object.freeze([
   'addLocation',
   'editLocation',
   'addChild',
+  'deleteLocation',
   'selectedLocation',
   'selectedParent',
   'selectedDepth',
@@ -318,6 +327,8 @@ const REQUIRED_LOCATION_MODAL_LABEL_KEYS = Object.freeze([
   'readOnly',
   'dialogAddTitle',
   'dialogEditTitle',
+  'dialogDeleteTitle',
+  'dialogDeleteBody',
   'fieldCode',
   'fieldName',
   'fieldParent',
@@ -327,6 +338,7 @@ const REQUIRED_LOCATION_MODAL_LABEL_KEYS = Object.freeze([
   'depthExceeded',
   'cancel',
   'createLocation',
+  'confirmDelete',
   'saveChanges',
 ]);
 
@@ -385,12 +397,15 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
     expect(within(currentDialog()).getByRole('heading', { name: /add location/i })).toBeInTheDocument();
     await user.type(within(currentDialog()).getByLabelText(/code/i), 'c5');
     await user.type(within(currentDialog()).getByLabelText(/^name/i), 'Cold Storage Bin C5');
-    await user.selectOptions(within(currentDialog()).getByLabelText(/parent location/i), 'bin-a02-01');
+    await user.click(within(currentDialog()).getByRole('combobox', { name: /parent location/i }));
+    await user.click(within(currentDialog()).getByRole('option', { name: /apex › z02 › b01/i }));
     expect(within(currentDialog()).getByText(/maximum location depth/i)).toBeInTheDocument();
     expect(within(currentDialog()).getByRole('button', { name: /create location/i })).toBeDisabled();
 
-    await user.selectOptions(within(currentDialog()).getByLabelText(/parent location/i), 'zone-a02');
-    await user.selectOptions(within(currentDialog()).getByLabelText(/^type/i), 'storage');
+    await user.click(within(currentDialog()).getByRole('combobox', { name: /parent location/i }));
+    await user.click(within(currentDialog()).getByRole('option', { name: /apex › z02$/i }));
+    await user.click(within(currentDialog()).getByRole('combobox', { name: /^type/i }));
+    await user.click(within(currentDialog()).getByRole('option', { name: /^storage$/i }));
     await user.type(within(currentDialog()).getByLabelText(/barcode/i), 'LOC-C5');
     await user.click(within(currentDialog()).getByRole('button', { name: /create location/i }));
 
@@ -402,6 +417,23 @@ describe('UI-SET-002 locations modal CRUD parity RED', () => {
       locationType: 'storage',
       barcode: 'LOC-C5',
     }));
+  });
+
+  it('opens a delete confirmation and calls deleteLocation scoped to the selected warehouse', async () => {
+    const user = userEvent.setup();
+    const deleteLocation = vi.fn(async () => ({
+      ok: true as const,
+      data: { locationId: 'root-apex', warehouseId: 'wh-apex' },
+    }));
+    await renderLocationModalCrud({ canUpdateInfra: true, deleteLocation });
+
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+    expect(within(currentDialog()).getByRole('heading', { name: /delete location/i })).toBeInTheDocument();
+    expect(within(currentDialog()).getByText(/apex dairy warehouse/i)).toBeInTheDocument();
+    await user.click(within(currentDialog()).getByRole('button', { name: /delete location/i }));
+
+    await waitFor(() => expect(deleteLocation).toHaveBeenCalledTimes(1));
+    expect(deleteLocation).toHaveBeenCalledWith({ locationId: 'root-apex', warehouseId: 'wh-apex' });
   });
 
   it('shows an explicit read-only state and suppresses modal-opening controls without settings.infra.update', async () => {

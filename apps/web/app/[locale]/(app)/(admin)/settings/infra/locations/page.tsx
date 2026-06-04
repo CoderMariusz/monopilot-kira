@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { LocationTreeScreen } from './location-tree-client';
 
-import { upsertLocation as persistLocation } from '../../../../../../../actions/infra/location';
+import { deleteLocation as removeLocation, upsertLocation as persistLocation } from '../../../../../../../actions/infra/location';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 type QueryResult<T> = { rows: T[]; rowCount?: number | null };
@@ -28,6 +28,10 @@ type UpsertLocationInput = {
 type UpsertLocationResult =
   | { ok: true; data: { id: string; path: string; level: number } }
   | { ok: false; error: string };
+type DeleteLocationInput = { locationId: string; warehouseId: string };
+type DeleteLocationResult =
+  | { ok: true; data: { locationId: string; warehouseId: string } }
+  | { ok: false; error: string };
 type LocationTreePageProps = {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<{ warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string }> | { warehouseId?: string; importStatus?: string; importMessage?: string; modal?: string; selectedLocationId?: string; parentId?: string; upsertStatus?: string; upsertMessage?: string };
@@ -38,6 +42,7 @@ type LocationTreePageProps = {
   canUpdateInfra?: boolean;
   createLocation?: (input: CreateLocationInput) => Promise<CreateLocationResult> | CreateLocationResult;
   upsertLocation?: (input: UpsertLocationInput) => Promise<UpsertLocationResult> | UpsertLocationResult;
+  deleteLocation?: (input: DeleteLocationInput) => Promise<DeleteLocationResult> | DeleteLocationResult;
   state?: 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 };
 
@@ -54,6 +59,7 @@ type LocationTreeLabels = {
   addLocation: string;
   editLocation: string;
   addChild: string;
+  deleteLocation: string;
   selectedLocation: string;
   selectedParent: string;
   selectedDepth: string;
@@ -63,6 +69,8 @@ type LocationTreeLabels = {
   readOnly: string;
   dialogAddTitle: string;
   dialogEditTitle: string;
+  dialogDeleteTitle: string;
+  dialogDeleteBody: string;
   fieldCode: string;
   fieldName: string;
   fieldParent: string;
@@ -72,6 +80,7 @@ type LocationTreeLabels = {
   depthExceeded: string;
   cancel: string;
   createLocation: string;
+  confirmDelete: string;
   saveChanges: string;
   csvFile: string;
   insufficientPermissions: string;
@@ -105,6 +114,9 @@ type LocationTreeLabels = {
   fieldBarcodeHelp: string;
   upsertSuccess: string;
   upsertError: string;
+  deleteSuccess: string;
+  deleteError: string;
+  deleteHasChildren: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -122,6 +134,7 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   addLocation: '+ Add location',
   editLocation: 'Edit',
   addChild: '+ Child',
+  deleteLocation: 'Delete',
   selectedLocation: 'Selected location',
   selectedParent: 'Parent',
   selectedDepth: 'Depth level',
@@ -131,6 +144,8 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   readOnly: 'Read-only — settings.infra.update required to edit',
   dialogAddTitle: 'Add location',
   dialogEditTitle: 'Edit location',
+  dialogDeleteTitle: 'Delete location',
+  dialogDeleteBody: 'Delete {name}? This cannot be undone.',
   fieldCode: 'Code',
   fieldName: 'Name',
   fieldParent: 'Parent location',
@@ -140,6 +155,7 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   depthExceeded: 'Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).',
   cancel: 'Cancel',
   createLocation: 'Create location',
+  confirmDelete: 'Delete location',
   saveChanges: 'Save changes',
   csvFile: 'CSV file',
   insufficientPermissions: 'Insufficient permissions: settings.infra.update is required to import CSV.',
@@ -173,6 +189,9 @@ const DEFAULT_LABELS: LocationTreeLabels = {
   fieldBarcodeHelp: 'Auto-generated if blank — for location QR / Code128 printing',
   upsertSuccess: 'Location saved.',
   upsertError: 'Location save failed.',
+  deleteSuccess: 'Location deleted.',
+  deleteError: 'Location delete failed.',
+  deleteHasChildren: 'Delete child locations first.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof LocationTreeLabels>;
@@ -419,6 +438,7 @@ export default async function LocationTreePage(propsInput: unknown) {
   const canUpdateInfra = props.canUpdateInfra ?? canImport;
   const createLocation = props.createLocation ?? postLocationImport;
   const upsertLocation = props.upsertLocation ?? persistLocation;
+  const deleteLocation = props.deleteLocation ?? removeLocation;
   const importToast = searchParams?.importMessage
     ? { role: searchParams.importStatus === 'error' ? 'alert' as const : 'status' as const, message: searchParams.importMessage }
     : null;
@@ -455,6 +475,7 @@ export default async function LocationTreePage(propsInput: unknown) {
       importToast={importToast}
       upsertToast={upsertToast}
       upsertLocation={upsertLocation}
+      deleteLocation={deleteLocation}
     />
   );
 }

@@ -359,6 +359,7 @@
       "columnAddress": "Adresă",
       "columnStatus": "Stare",
       "columnActiveWoCount": "Număr de ordine de lucru active",
+      "openLocations": "Deschideți locațiile pentru {name}",
       "selectWarehouse": "Selectați {name}",
       "bulkActivate": "Activare în masă",
       "bulkDeactivate": "Dezactivare în masă",
@@ -434,6 +435,7 @@
       "addLocation": "+ Adaugă locație",
       "editLocation": "Editează",
       "addChild": "+ Copil",
+      "deleteLocation": "Șterge",
       "selectedLocation": "Locație selectată",
       "selectedParent": "Părinte",
       "selectedDepth": "Nivel adâncime",
@@ -443,6 +445,8 @@
       "readOnly": "Doar citire — settings.infra.update este necesară pentru editare",
       "dialogAddTitle": "Adaugă locație",
       "dialogEditTitle": "Editează locația",
+      "dialogDeleteTitle": "Șterge locația",
+      "dialogDeleteBody": "Ștergeți {name}? Această acțiune nu poate fi anulată.",
       "fieldCode": "Cod",
       "fieldName": "Nume",
       "fieldParent": "Locație părinte",
@@ -452,6 +456,7 @@
       "depthExceeded": "Adâncimea maximă a locației pentru acest tenant este de 3 niveluri (depozit → zonă → bin).",
       "cancel": "Anulează",
       "createLocation": "Creează locația",
+      "confirmDelete": "Șterge locația",
       "saveChanges": "Salvează modificările",
       "active": "Activ",
       "lpsTableTitle": "LP-uri la această locație",
@@ -472,7 +477,10 @@
       "fieldCodeHelp": "Alfanumeric + cratimă, maxim 20 de caractere, unic în cadrul depozitului",
       "fieldBarcodeHelp": "Generat automat dacă este gol — pentru tipărirea codului QR / Code128 al locației",
       "upsertSuccess": "Locație salvată.",
-      "upsertError": "Salvarea locației a eșuat."
+      "upsertError": "Salvarea locației a eșuat.",
+      "deleteSuccess": "Locație ștearsă.",
+      "deleteError": "Ștergerea locației a eșuat.",
+      "deleteHasChildren": "Ștergeți mai întâi locațiile copil."
     }
   },
   "schema": {

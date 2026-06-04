@@ -71,6 +71,7 @@ const DEFAULT_LABELS: WarehouseLabels = {
   columnAddress: 'Address',
   columnStatus: 'Status',
   columnActiveWoCount: 'Active WO count',
+  openLocations: 'Open locations for {name}',
   selectWarehouse: 'Select {name}',
   bulkActivate: 'Bulk Activate',
   bulkDeactivate: 'Bulk Deactivate',
@@ -285,6 +286,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
   return (
     <WarehouseListScreen
       labels={labels}
+      locale={locale}
       initialWarehouses={runtime.warehouses}
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}

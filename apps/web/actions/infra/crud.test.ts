@@ -9,6 +9,7 @@ const OTHER_WAREHOUSE_ID = '44444444-4444-4444-8444-444444444444';
 const ZONE_ID = '55555555-5555-4555-8555-555555555555';
 const AISLE_ID = '66666666-6666-4666-8666-666666666666';
 const BIN_ID = '77777777-7777-4777-8777-777777777777';
+const WRONG_WAREHOUSE_PARENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MACHINE_ID = '88888888-8888-4888-8888-888888888888';
 const LINE_ID = '99999999-9999-4999-8999-999999999999';
 
@@ -56,7 +57,7 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         BIN_ID,
         { id: BIN_ID, warehouse_id: WAREHOUSE_ID, parent_id: AISLE_ID, code: 'BIN-01', level: 4, path: 'ZONE-A.AISLE-01.RACK-01.BIN-01' },
       ],
-      ['wrong-warehouse-parent', { id: 'wrong-warehouse-parent', warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
+      [WRONG_WAREHOUSE_PARENT_ID, { id: WRONG_WAREHOUSE_PARENT_ID, warehouse_id: OTHER_WAREHOUSE_ID, parent_id: null, code: 'ZONE-B', level: 1, path: 'ZONE-B' }],
     ]),
     machines: new Map<string, InfraMachine>([[MACHINE_ID, { id: MACHINE_ID, location_id: BIN_ID, status: 'active' }]]),
     lines: new Map<string, InfraLine>([[LINE_ID, { id: LINE_ID, status: 'draft', machine_ids: [] }]]),
@@ -86,6 +87,19 @@ function makeClient(options: FakeClientOptions = {}): FakeClient {
         const payloadRaw = params[params.length - 1];
         client.outboxEntries.push({ event_type: eventType, aggregate_id: aggregateId, payload: safeJsonParse(payloadRaw) });
         return { rows: [{ id: `outbox-${client.outboxEntries.length}` }] as never[], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('delete from public.locations')) {
+        const id = params.map(String).find((value) => client.locations.has(value));
+        const row = id ? client.locations.get(id) : undefined;
+        if (id) client.locations.delete(id);
+        return { rows: row ? [row] as never[] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (normalized.includes('count(*)') && normalized.includes('parent_id')) {
+        const parentId = params.map(String).find((value) => client.locations.has(value));
+        const count = parentId ? Array.from(client.locations.values()).filter((location) => location.parent_id === parentId).length : 0;
+        return { rows: [{ child_count: count }] as never[], rowCount: 1 };
       }
 
       if (normalized.includes('from public.locations')) {
@@ -262,7 +276,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
 
     await expect(
-      upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: 'wrong-warehouse-parent', code: 'AISLE-X', name: 'Wrong warehouse', level: 2, locationType: 'aisle' }),
+      upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: WRONG_WAREHOUSE_PARENT_ID, code: 'AISLE-X', name: 'Wrong warehouse', level: 2, locationType: 'aisle' }),
     ).resolves.toMatchObject({ ok: false, error: 'invalid_parent_location' });
     await expect(upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: ZONE_ID, code: 'BIN-BAD', name: 'Wrong level', level: 4, locationType: 'bin' })).resolves.toMatchObject({
       ok: false,
@@ -272,6 +286,23 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const created = await upsertLocation({ warehouseId: WAREHOUSE_ID, parentId: AISLE_ID, code: 'RACK-02', name: 'Rack 02', level: 3, locationType: 'rack' });
     expect(created).toMatchObject({ ok: true, data: { level: 3, path: 'ZONE-A.AISLE-01.RACK-02' } });
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.location.upserted')).toBe(true);
+    expect(currentClient.calls.some((call) => call.sql.includes('app.current_org_id()'))).toBe(true);
+  });
+
+  it('deletes a leaf location through settings.infra.update, rejects parent locations with children, and emits outbox', async () => {
+    const deleteLocation = await loadAction<
+      (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string; data?: { locationId: string; warehouseId: string } }>
+    >('location.ts', 'deleteLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+
+    await expect(deleteLocation({ locationId: ZONE_ID, warehouseId: WAREHOUSE_ID })).resolves.toMatchObject({
+      ok: false,
+      error: 'has_child_locations',
+    });
+
+    const deleted = await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID });
+    expect(deleted).toMatchObject({ ok: true, data: { locationId: BIN_ID, warehouseId: WAREHOUSE_ID } });
+    expect(currentClient.locations.has(BIN_ID)).toBe(false);
+    expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'settings.location.deleted')).toBe(true);
     expect(currentClient.calls.some((call) => call.sql.includes('app.current_org_id()'))).toBe(true);
   });
 
@@ -324,6 +355,9 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const upsertLocation = await loadAction<
       (input: { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string }) => Promise<{ ok: boolean; error?: string }>
     >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+    const deleteLocation = await loadAction<
+      (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string }>
+    >('location.ts', 'deleteLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
     const upsertMachine = await loadAction<
       (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
     >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
@@ -339,6 +373,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       { eventType: 'settings.machine.upserted', result: await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }) },
       { eventType: 'settings.line.upserted', result: await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }) },
       { eventType: 'settings.warehouse.deactivated', result: await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }) },
+      { eventType: 'settings.location.deleted', result: await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }) },
     ].map(({ eventType, result }) => ({ eventType, ok: result.ok, error: result.ok ? undefined : result.error }));
 
     expect(
@@ -349,12 +384,14 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       { eventType: 'settings.machine.upserted', ok: true, error: undefined },
       { eventType: 'settings.line.upserted', ok: true, error: undefined },
       { eventType: 'settings.warehouse.deactivated', ok: true, error: undefined },
+      { eventType: 'settings.location.deleted', ok: true, error: undefined },
     ]);
     expect(currentClient.outboxEntries.map((entry) => entry.event_type)).toEqual([
       'settings.location.upserted',
       'settings.machine.upserted',
       'settings.line.upserted',
       'settings.warehouse.deactivated',
+      'settings.location.deleted',
     ]);
   });
 
@@ -364,6 +401,9 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
     const upsertLocation = await loadAction<
       (input: { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string }) => Promise<{ ok: boolean; error?: string }>
     >('location.ts', 'upsertLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
+    const deleteLocation = await loadAction<
+      (input: { locationId: string; warehouseId: string }) => Promise<{ ok: boolean; error?: string }>
+    >('location.ts', 'deleteLocation', () => import(`${__dirname}/location.ts`) as Promise<Record<string, unknown>>);
     const upsertMachine = await loadAction<
       (input: { id?: string; code: string; name: string; machineType: string; locationId: string }) => Promise<{ ok: boolean; error?: string }>
     >('machine.ts', 'upsertMachine', () => import(`${__dirname}/machine.ts`) as Promise<Record<string, unknown>>);
@@ -379,6 +419,7 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       await upsertMachine({ id: MACHINE_ID, code: 'MIX-01', name: 'Mixer', machineType: 'mixer', locationId: BIN_ID }),
       await upsertLine({ id: LINE_ID, code: 'LINE-1', name: 'Line 1', status: 'active', machineIds: [MACHINE_ID] }),
       await deactivateWarehouse({ warehouseId: WAREHOUSE_ID, force: true }),
+      await deleteLocation({ locationId: BIN_ID, warehouseId: WAREHOUSE_ID }),
     ];
 
     expect(results.map((result) => ({ ok: result.ok, error: result.ok ? undefined : result.error }))).toEqual([
@@ -386,8 +427,9 @@ describe('infrastructure CRUD Server Actions (T-029 RED)', () => {
       { ok: true, error: undefined },
       { ok: true, error: undefined },
       { ok: true, error: undefined },
+      { ok: true, error: undefined },
     ]);
-    expect(_runWithOrgContext).toHaveBeenCalledTimes(4);
+    expect(_runWithOrgContext).toHaveBeenCalledTimes(5);
     expect(
       currentClient.calls.filter((call) =>
         ['public.locations', 'public.machines', 'public.production_lines', 'public.warehouses', 'public.work_orders'].some((tableName) => call.sql.toLowerCase().includes(tableName)),
