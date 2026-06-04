@@ -259,6 +259,7 @@ runIntegrationTest('075 product table and fa compatibility view', () => {
       'created_by_user',
       'created_by_device',
       'app_version',
+      'deleted_at',
     ]) {
       expect(columnNames.has(column), `product is missing ${column}`).toBe(true);
     }
@@ -288,6 +289,10 @@ runIntegrationTest('075 product table and fa compatibility view', () => {
     await expect(selectFaRowsForOrg(appPool, adminPool, orgB)).resolves.toEqual([
       { product_code: 'FA-T001-B', org_id: orgB },
     ]);
+
+    await adminPool.query("update public.product set deleted_at = now() where product_code = 'FA-T001-A'");
+    await expect(selectFaRowsForOrg(appPool, adminPool, orgA)).resolves.toEqual([]);
+    await adminPool.query("update public.product set deleted_at = null where product_code = 'FA-T001-A'");
   });
 
   it('keeps fa structurally read-only for owner inserts, updates, and deletes', async () => {

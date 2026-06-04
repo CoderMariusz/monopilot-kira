@@ -91,12 +91,16 @@ export const product = pgTable(
       .references(() => users.id),
     createdByDevice: text('created_by_device'),
     appVersion: text('app_version'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => ({
     orgStatusDaysIdx: index('product_org_status_days_idx').on(table.orgId, table.statusOverall, table.daysToLaunch),
     orgLaunchUnbuiltIdx: index('product_org_launch_unbuilt_idx')
       .on(table.orgId, table.launchDate)
       .where(sql`built = false`),
+    orgActiveIdx: index('product_org_active_idx')
+      .on(table.orgId, table.productCode)
+      .where(sql`deleted_at is null`),
   }),
 );
 
