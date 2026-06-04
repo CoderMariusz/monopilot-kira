@@ -1817,6 +1817,32 @@
         "comments": "Uwagi"
       }
     },
+    "faProcurementTab": {
+      "title": "Sekcja zaopatrzenia",
+      "subtitle": "Dostawca, cena i czas realizacji. Cena odblokowuje się po zamknięciu sekcji Rdzeń i Produkcja.",
+      "closedBadge": "✓ Zamknięte",
+      "openBadge": "Otwarte",
+      "priceBlockedTitle": "V-NPD-PROC-001",
+      "priceBlockedBody": "Wprowadzanie ceny odblokowuje się po zamknięciu sekcji Rdzeń ORAZ Produkcja. Reguła biznesowa: cena zależy od ostatecznych składników.",
+      "priceBlockedHint": "Zablokowane do czasu zamknięcia sekcji Rdzeń i Produkcja.",
+      "save": "Zapisz zaopatrzenie",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja zaopatrzenia zapisana.",
+      "saveError": "Nie udało się zapisać sekcji zaopatrzenia.",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Wczytywanie sekcji zaopatrzenia…",
+      "empty": "Brak skonfigurowanych pól zaopatrzenia",
+      "emptyBody": "Ta organizacja nie ma jeszcze kolumn działu zaopatrzenia.",
+      "error": "Nie można wczytać sekcji zaopatrzenia.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji zaopatrzenia.",
+      "fields": {
+        "price_per_kg": "Cena (€/kg)",
+        "lead_time_days": "Czas realizacji (dni)",
+        "supplier": "Dostawca",
+        "proc_shelf_life_days": "Termin przydatności zaopatrzenia (dni)",
+        "closed_procurement": "Zaopatrzenie zamknięte"
+      }
+    },
     "faRightPanel": {
       "title": "Status walidacji",
       "subtitle": "Podsumowanie panelu bocznego dla tego artykułu fabrycznego.",
