@@ -1,0 +1,66 @@
+{
+  "task": "T-115",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/recipe.jsx:103-122 (AllergenPanel)"
+  ],
+  "prd_refs": [
+    "§17.11.1",
+    "§8.5"
+  ],
+  "data_sources": [
+    "@monopilot/domain recomputeCalc → RecomputeResult.allergens (T-065 compute)",
+    "public.fa_allergen_cascade derived/may_contain (T-038) — mapped to AllergenStatus[] by T-117 wiring"
+  ],
+  "state_note": "loading/error/permission-denied are owned by the parent formulation editor (T-117); AllergenPanel is a controlled synchronous presentation component, so its states are allergen-presence permutations.",
+  "generated_at": "2026-06-04T08:16:42.809Z",
+  "states": {
+    "empty": {
+      "panelRoot": true,
+      "grid": true,
+      "cells": 14,
+      "badges": 14,
+      "presentCells": 0,
+      "traceCells": 0,
+      "absentCells": 14,
+      "alerts": 0,
+      "emptyHint": true,
+      "rawSelects": 0
+    },
+    "mixed": {
+      "panelRoot": true,
+      "grid": true,
+      "cells": 14,
+      "badges": 14,
+      "presentCells": 1,
+      "traceCells": 1,
+      "absentCells": 12,
+      "alerts": 1,
+      "emptyHint": false,
+      "rawSelects": 0
+    },
+    "all_present": {
+      "panelRoot": true,
+      "grid": true,
+      "cells": 14,
+      "badges": 14,
+      "presentCells": 14,
+      "traceCells": 0,
+      "absentCells": 0,
+      "alerts": 1,
+      "emptyHint": false,
+      "rawSelects": 0
+    },
+    "single_present": {
+      "panelRoot": true,
+      "grid": true,
+      "cells": 14,
+      "badges": 14,
+      "presentCells": 1,
+      "traceCells": 0,
+      "absentCells": 13,
+      "alerts": 1,
+      "emptyHint": false,
+      "rawSelects": 0
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task": "T-115",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree; editor wiring is T-117, Playwright parity is T-118). RTL role/aria checks below substitute, per UI-PROTOTYPE-PARITY-POLICY.md.",
+  "jestAxeBlocker": "jest-axe is not a dependency of apps/web and adding it is out of STRICT SCOPE (no package.json edits). Accessible-name assertions via aria-label substitute (same convention as T-040 AllergenCascadeWidget).",
+  "panelLabelledBy": true,
+  "titleHasId": true,
+  "everyBadgeHasAriaLabel": true,
+  "ariaLabelCombinesNameAndStatus": true,
+  "glyphsAreAriaHidden": true,
+  "statusTextRendered": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true,
+  "alertHasRole": true
+}

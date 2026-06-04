@@ -873,6 +873,17 @@
     "save_failed": "Не вдалося зберегти профіль організації."
   },
   "npd": {
+    "allergenPanel": {
+      "title": "Алергени",
+      "subtitle": "14 обов'язкових алергенів ЄС · наявність із рецептури",
+      "present": "Присутній",
+      "trace": "Сліди",
+      "absent": "Відсутній",
+      "detectedHeading": "{count, plural, one {Виявлено # алерген:} few {Виявлено # алергени:} many {Виявлено # алергенів:} other {Виявлено # алергену:}}",
+      "mustDeclare": "Має бути зазначено на етикетці.",
+      "noneDetected": "Алергенів у поточних інгредієнтах не виявлено.",
+      "statusLabel": "{name} — {status}"
+    },
     "deptClose": {
       "titleClose": "Закрити розділ {dept}",
       "subtitle": "FA {faCode} · {productName}",

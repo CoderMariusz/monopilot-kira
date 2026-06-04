@@ -873,6 +873,17 @@
     "save_failed": "Nie udało się zapisać profilu organizacji."
   },
   "npd": {
+    "allergenPanel": {
+      "title": "Alergeny",
+      "subtitle": "14 obowiązkowych alergenów UE · obecność z receptury",
+      "present": "Obecny",
+      "trace": "Ślady",
+      "absent": "Brak",
+      "detectedHeading": "{count, plural, one {Wykryto # alergen:} few {Wykryto # alergeny:} many {Wykryto # alergenów:} other {Wykryto # alergenu:}}",
+      "mustDeclare": "Musi być zadeklarowany na etykiecie.",
+      "noneDetected": "Nie wykryto alergenów w bieżących składnikach.",
+      "statusLabel": "{name} — {status}"
+    },
     "deptClose": {
       "titleClose": "Zamknij sekcję {dept}",
       "subtitle": "FA {faCode} · {productName}",

@@ -873,6 +873,17 @@
     "save_failed": "Organization profile could not be saved."
   },
   "npd": {
+    "allergenPanel": {
+      "title": "Allergens",
+      "subtitle": "EU 14 mandatory allergens · presence from formulation",
+      "present": "Present",
+      "trace": "Trace",
+      "absent": "Absent",
+      "detectedHeading": "{count, plural, one {# allergen detected:} other {# allergens detected:}}",
+      "mustDeclare": "Must be declared on label.",
+      "noneDetected": "No allergens detected from the current ingredients.",
+      "statusLabel": "{name} — {status}"
+    },
     "deptClose": {
       "titleClose": "Close {dept} section",
       "subtitle": "FA {faCode} · {productName}",
