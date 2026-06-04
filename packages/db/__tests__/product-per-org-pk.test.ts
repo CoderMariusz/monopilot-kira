@@ -191,7 +191,7 @@ runIntegrationTest('142 product per-org primary key', () => {
     await insertProduct(adminPool, orgB, orgBUser);
   });
 
-  it('converts all 14 product FKs to composite (org_id, code) -> (org_id, product_code)', async () => {
+  it('converts every product FK to composite (org_id, code) -> (org_id, product_code)', async () => {
     const fks = await adminPool.query<{ conname: string; def: string; child: string }>(
       `
         select con.conname,
@@ -204,10 +204,16 @@ runIntegrationTest('142 product per-org primary key', () => {
         order by conrel.relname
       `,
     );
-    expect(fks.rows).toHaveLength(14);
+    // Don't hardcode a count: later migrations (e.g. 144 npd_legacy_closeout) may
+    // add further product-referencing FKs. The contract is that EVERY FK that
+    // references public.product is composite (org_id, <code>) -> (org_id, product_code).
+    expect(fks.rows.length).toBeGreaterThanOrEqual(14);
     for (const fk of fks.rows) {
+      // The child code column can be product_code, product_id, or a domain-specific
+      // alias (e.g. fg_product_code). What matters: it pairs with org_id and targets
+      // the composite product PK. Order of the two columns is not guaranteed.
       expect(fk.def, `${fk.conname} not composite`).toMatch(
-        /FOREIGN KEY \((org_id, (product_code|product_id)|(product_code|product_id), org_id)\) REFERENCES product\(org_id, product_code\)/,
+        /FOREIGN KEY \((org_id, [a-z_]+|[a-z_]+, org_id)\) REFERENCES product\(org_id, product_code\)/,
       );
     }
   });

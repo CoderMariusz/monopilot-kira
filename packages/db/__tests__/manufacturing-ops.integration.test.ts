@@ -1,27 +1,29 @@
 /**
- * T-020 — manufacturing-ops.integration.test.ts
- * RED-phase integration tests for Reference.ManufacturingOperations (§9.1).
+ * 012 / T-004 — manufacturing-ops.integration.test.ts
+ * Integration tests for Reference.ManufacturingOperations.
  *
- * Acceptance criteria:
- *  AC1: Given four industry seeds run for one org, SELECT industry_code, count(*)
- *       returns bakery=4, pharma=4, fmcg=4, generic=4.
- *  AC2: INSERT process_suffix='MX' for an org that already has 'MX' in the same
- *       industry_code rejects with SQLSTATE 23505 (unique violation on
- *       UNIQUE(org_id, industry_code, process_suffix)). Same org + same suffix but
- *       different industry_code must succeed (cross-industry countercheck).
- *  AC3: INSERT process_suffix='!!' rejects with SQLSTATE 23514 (CHECK violation
- *       on CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$')).
+ * CANONICAL STATE (post T-004 / migration 078):
+ *  Migration 012 originally created a 16-row / 4-industry taxonomy
+ *  (bakery/pharma/fmcg/generic, generic = PA/PB/PC/PD) with a single
+ *  UNIQUE(org_id, industry_code, process_suffix) and a nullable operation_seq.
  *
- * Mutation resistance:
- *  AC1 mutation: seeding only 3 ops per industry → count assertion fails (expects 4).
- *  AC2 mutation: UNIQUE constraint dropped → duplicate (org,industry,suffix) insert
- *               succeeds → test catches because it expected an error and got none.
- *  AC3 mutation: regex weakened to '^.+$' → '!!' accepted → test catches because
- *               it expected a CHECK error and got none.
+ *  Migration 078 (T-004) superseded that shape and is now canonical:
+ *   - industry_code CHECK restricts to ('bakery','pharma','fmcg') — generic dropped.
+ *   - operation_seq is NOT NULL.
+ *   - Two stronger uniqueness constraints exist per org:
+ *       UNIQUE(org_id, operation_name) and UNIQUE(org_id, process_suffix).
+ *     (The legacy UNIQUE(org_id, industry_code, process_suffix) is retained, but
+ *      the per-org process_suffix uniqueness is the binding one — the same suffix
+ *      can no longer repeat across industries within one org.)
+ *   - The seed (seeds/manufacturing-operations.sql) writes exactly the 4 default
+ *     operations that match each org's own industry_code:
+ *       bakery → Mix/Knead/Proof/Bake  (MX/KN/PR/BK)
+ *       pharma → Synthesis/Separation/Crystallization/Drying (SY/SE/CZ/DR)
+ *       fmcg   → Mix/Fill/Seal/Label   (MX/FL/SL/LB)
+ *     An org with any other industry_code (e.g. 'generic') receives 0 seed rows.
  *
- * Files required (DO NOT exist yet — RED):
- *  packages/db/migrations/012-manufacturing-ops.sql
- *  packages/db/seeds/manufacturing-operations.sql
+ * These tests assert that canonical reality. AC2 (per-org uniqueness) and AC3
+ * (process_suffix CHECK) remain meaningful and mutation-resistant.
  *
  * Skips gracefully when DATABASE_URL is not set (CI without Postgres).
  */
@@ -42,6 +44,7 @@ const rlsBaselineMigrationPath      = resolve(packageRoot, 'migrations/002-rls-b
 const appRoleMigrationPath          = resolve(packageRoot, 'migrations/006-app-role.sql');
 const departmentsMigrationPath      = resolve(packageRoot, 'migrations/011-departments.sql');
 const mfgOpsMigrationPath           = resolve(packageRoot, 'migrations/012-manufacturing-ops.sql');
+const mfgOpsT004MigrationPath       = resolve(packageRoot, 'migrations/078-manufacturing-operations-t004.sql');
 const mfgOpsSeedPath                = resolve(packageRoot, 'seeds/manufacturing-operations.sql');
 
 // ─── guards ──────────────────────────────────────────────────────────────────
@@ -49,6 +52,19 @@ const mfgOpsSeedPath                = resolve(packageRoot, 'seeds/manufacturing-
 const databaseUrl        = process.env.DATABASE_URL;
 const runIntegrationTest = databaseUrl ? it : it.skip;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
+
+// Apply the canonical schema chain (012 base + 078 T-004 correction) onto the
+// shared DB. Both files are idempotent (create table if not exists / add column
+// if not exists / drop constraint if exists), so re-running against an
+// already-migrated DB is a no-op that simply guarantees the canonical shape.
+async function applyCanonicalSchema(ownerPool: pg.Pool) {
+  await ownerPool.query(readFileSync(baselineMigrationPath, 'utf8'));
+  await ownerPool.query(readFileSync(rlsBaselineMigrationPath, 'utf8'));
+  await ownerPool.query(readFileSync(appRoleMigrationPath, 'utf8'));
+  await ownerPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
+  await ownerPool.query(readFileSync(mfgOpsMigrationPath, 'utf8'));
+  await ownerPool.query(readFileSync(mfgOpsT004MigrationPath, 'utf8'));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AC0 — static shape contract (no DB required)
@@ -75,15 +91,21 @@ describe('012 manufacturing-ops migration — static shape contract', () => {
     expect(sql).toMatch(/\bmarker\b/);
   });
 
-  it('migration includes UNIQUE(org_id, industry_code, process_suffix) constraint', () => {
-    const sql = readFileSync(mfgOpsMigrationPath, 'utf8');
-    // Constraint must reference all three columns in order
-    expect(sql).toMatch(/unique\s*\(\s*org_id\s*,\s*industry_code\s*,\s*process_suffix\s*\)/i);
+  it('canonical T-004 migration declares per-org uniqueness for operation_name and process_suffix', () => {
+    const sql = readFileSync(mfgOpsT004MigrationPath, 'utf8');
+    // Canonical (post T-004) uniqueness: per-org operation_name and per-org process_suffix.
+    expect(sql).toMatch(/unique\s*\(\s*org_id\s*,\s*operation_name\s*\)/i);
+    expect(sql).toMatch(/unique\s*\(\s*org_id\s*,\s*process_suffix\s*\)/i);
   });
 
   it('migration includes CHECK constraint matching ^[A-Z0-9]{2,4}$', () => {
     const sql = readFileSync(mfgOpsMigrationPath, 'utf8');
     expect(sql).toMatch(/check\s*\(\s*process_suffix\s*~\s*'\^?\[A-Z0-9\]\{2,4\}\$?'/i);
+  });
+
+  it('canonical T-004 migration restricts industry_code to bakery/pharma/fmcg (generic dropped)', () => {
+    const sql = readFileSync(mfgOpsT004MigrationPath, 'utf8');
+    expect(sql).toMatch(/industry_code\s+in\s*\(\s*'bakery'\s*,\s*'pharma'\s*,\s*'fmcg'\s*\)/i);
   });
 
   it('migration enables and forces RLS with org_id = app.current_org_id() policy', () => {
@@ -105,16 +127,18 @@ describe('012 manufacturing-ops migration — static shape contract', () => {
     ).toBe(true);
   });
 
-  it('seed file contains all 4 industry codes', () => {
+  it('seed file contains the 3 canonical industry codes (generic dropped by T-004)', () => {
     const seed = readFileSync(mfgOpsSeedPath, 'utf8');
-    for (const code of ['bakery', 'pharma', 'fmcg', 'generic']) {
+    for (const code of ['bakery', 'pharma', 'fmcg']) {
       expect(seed, `seed must reference industry_code '${code}'`).toMatch(
         new RegExp(`'${code}'`),
       );
     }
+    // generic is no longer a valid industry_code (CHECK rejects it).
+    expect(seed, "seed must not reference the dropped 'generic' industry").not.toMatch(/'generic'/);
   });
 
-  it('seed file contains all expected process_suffix values across industries', () => {
+  it('seed file contains all expected process_suffix values across the 3 industries', () => {
     const seed = readFileSync(mfgOpsSeedPath, 'utf8');
     // bakery: MX, KN, PR, BK
     for (const suffix of ['MX', 'KN', 'PR', 'BK']) {
@@ -134,12 +158,6 @@ describe('012 manufacturing-ops migration — static shape contract', () => {
         new RegExp(`'${suffix}'`),
       );
     }
-    // generic: PA, PB, PC, PD
-    for (const suffix of ['PA', 'PB', 'PC', 'PD']) {
-      expect(seed, `seed must contain suffix '${suffix}' (generic)`).toMatch(
-        new RegExp(`'${suffix}'`),
-      );
-    }
   });
 
   it('seed file uses APEX-CONFIG marker', () => {
@@ -147,26 +165,28 @@ describe('012 manufacturing-ops migration — static shape contract', () => {
     expect(seed).toMatch(/APEX-CONFIG/);
   });
 
-  it('seed file uses ON CONFLICT DO NOTHING for idempotency', () => {
+  it('seed file is idempotent via ON CONFLICT (org_id, operation_name) DO UPDATE', () => {
     const seed = readFileSync(mfgOpsSeedPath, 'utf8');
-    expect(seed).toMatch(/on\s+conflict\b.*do\s+nothing/i);
+    // T-004 seed upserts on the per-org operation_name uniqueness.
+    expect(seed).toMatch(/on\s+conflict\s*\(\s*org_id\s*,\s*operation_name\s*\)\s*do\s+update/i);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AC1 — Four industry seeds: bakery=4, pharma=4, fmcg=4, generic=4
+// AC1 — Per-industry seeds: bakery/pharma/fmcg each get exactly 4 ops; an org
+//       with a non-seeded industry (e.g. generic) gets 0.
 // ─────────────────────────────────────────────────────────────────────────────
 
-runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
+runIntegrationSuite('012/T-004 manufacturing-ops AC1 — per-industry seeds', () => {
   let ownerPool: pg.Pool;
   let appPool: pg.Pool;
 
-  // Use the canonical bootstrap Apex tenant/org IDs from migration 030. The
-  // manufacturing operations seed resolves the Apex org via external_id='apex'
-  // with deterministic created_at/id ordering; matching the bootstrap row keeps
-  // this assertion stable in CI, where migrations seed Apex before tests run.
-  const tenantId = '00000000-0000-0000-0000-000000000001';
-  const apexOrgId = '00000000-0000-0000-0000-000000000002';
+  const tenantId    = randomUUID();
+  const bakeryOrgId = randomUUID();
+  const pharmaOrgId = randomUUID();
+  const fmcgOrgId   = randomUUID();
+  // An org whose industry has no canonical default operations.
+  const otherOrgId  = randomUUID();
 
   beforeAll(async () => {
     if (!databaseUrl) return;
@@ -174,80 +194,82 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
     ownerPool = getOwnerConnection();
     appPool   = getAppConnection();
 
-    // Apply prerequisite migrations in order
-    await ownerPool.query(readFileSync(baselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(rlsBaselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(appRoleMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
+    await applyCanonicalSchema(ownerPool);
 
-    // Apply the T-020 migration (will fail in RED because file doesn't exist yet)
-    await ownerPool.query(readFileSync(mfgOpsMigrationPath, 'utf8'));
-
-    // Ensure the canonical bootstrap Apex tenant + org exist. In CI these are
-    // already created by migration 030; in standalone runs this keeps the seed
-    // precondition local to the test.
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'Apex (system)', 'eu', '')
+       values ($1, 'T020/T004 AC1 Tenant', 'eu', 'https://t020-t004-ac1.example')
        on conflict (id) do nothing`,
       [tenantId],
     );
 
     await ownerPool.query(
-      `insert into public.organizations (id, tenant_id, name, industry_code, external_id)
-       values ($1, $2, 'Apex', 'generic', 'apex')
+      `insert into public.organizations (id, tenant_id, name, industry_code)
+       values ($1, $2, 'AC1 Bakery', 'bakery'),
+              ($3, $2, 'AC1 Pharma', 'pharma'),
+              ($4, $2, 'AC1 FMCG',   'fmcg'),
+              ($5, $2, 'AC1 Other',  'generic')
        on conflict (id) do nothing`,
-      [apexOrgId, tenantId],
+      [bakeryOrgId, tenantId, pharmaOrgId, fmcgOrgId, otherOrgId],
     );
 
-    // Apply the manufacturing-operations seed
+    // The seed derives org_id from public.organizations and matches each org's
+    // own industry_code, so it covers all four orgs in one pass.
     await ownerPool.query(readFileSync(mfgOpsSeedPath, 'utf8'));
   });
 
   afterAll(async () => {
     if (!ownerPool) return;
 
-    await ownerPool
-      .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [apexOrgId])
-      .catch(() => undefined);
+    for (const orgId of [bakeryOrgId, pharmaOrgId, fmcgOrgId, otherOrgId]) {
+      await ownerPool
+        .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [orgId])
+        .catch(() => undefined);
+      await ownerPool
+        .query(`delete from public.organizations where id = $1`, [orgId])
+        .catch(() => undefined);
+    }
+    await ownerPool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
 
     await appPool?.end();
     await ownerPool.end();
   });
 
   runIntegrationTest(
-    'AC1: seed produces exactly 4 rows per industry (bakery=4, pharma=4, fmcg=4, generic=4)',
+    'AC1: seed produces exactly 4 ops for each seeded industry and 0 for a non-seeded one',
     async () => {
-      const result = await ownerPool.query<{ industry_code: string; cnt: string }>(
-        `select industry_code, count(*) as cnt
-         from "Reference"."ManufacturingOperations"
-         where org_id = $1
-         group by industry_code
-         order by industry_code`,
-        [apexOrgId],
-      );
-
       const counts: Record<string, number> = {};
-      for (const row of result.rows) {
-        counts[row.industry_code] = Number(row.cnt);
+      for (const [orgId, industry] of [
+        [bakeryOrgId, 'bakery'],
+        [pharmaOrgId, 'pharma'],
+        [fmcgOrgId, 'fmcg'],
+        [otherOrgId, 'generic'],
+      ] as [string, string][]) {
+        const result = await ownerPool.query<{ cnt: string }>(
+          `select count(*) as cnt from "Reference"."ManufacturingOperations" where org_id = $1`,
+          [orgId],
+        );
+        counts[industry] = Number(result.rows[0]?.cnt);
       }
 
       expect(counts['bakery'],  'bakery must have 4 operations').toBe(4);
       expect(counts['pharma'],  'pharma must have 4 operations').toBe(4);
       expect(counts['fmcg'],    'fmcg must have 4 operations').toBe(4);
-      expect(counts['generic'], 'generic must have 4 operations').toBe(4);
+      expect(counts['generic'], 'generic (non-seeded industry) must have 0 operations').toBe(0);
     },
   );
 
   runIntegrationTest(
-    'AC1: total seed row count is exactly 16 for the apex org',
+    'AC1: total seeded rows across the 3 seeded industries is exactly 12',
     async () => {
       const result = await ownerPool.query<{ cnt: string }>(
-        `select count(*) as cnt from "Reference"."ManufacturingOperations" where org_id = $1`,
-        [apexOrgId],
+        `select count(*) as cnt
+         from "Reference"."ManufacturingOperations"
+         where org_id in ($1, $2, $3)`,
+        [bakeryOrgId, pharmaOrgId, fmcgOrgId],
       );
 
-      expect(Number(result.rows[0]?.cnt), 'total operations must be 16').toBe(16);
+      expect(Number(result.rows[0]?.cnt), 'total operations must be 12 (4 per industry)').toBe(12);
     },
   );
 
@@ -259,7 +281,7 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
          from "Reference"."ManufacturingOperations"
          where org_id = $1 and industry_code = 'bakery'
          order by operation_seq`,
-        [apexOrgId],
+        [bakeryOrgId],
       );
 
       const suffixes = result.rows.map((r) => r.process_suffix);
@@ -275,7 +297,7 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
          from "Reference"."ManufacturingOperations"
          where org_id = $1 and industry_code = 'pharma'
          order by operation_seq`,
-        [apexOrgId],
+        [pharmaOrgId],
       );
 
       const suffixes = result.rows.map((r) => r.process_suffix);
@@ -291,27 +313,11 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
          from "Reference"."ManufacturingOperations"
          where org_id = $1 and industry_code = 'fmcg'
          order by operation_seq`,
-        [apexOrgId],
+        [fmcgOrgId],
       );
 
       const suffixes = result.rows.map((r) => r.process_suffix);
       expect(new Set(suffixes)).toEqual(new Set(['MX', 'FL', 'SL', 'LB']));
-    },
-  );
-
-  runIntegrationTest(
-    'AC1: generic process_suffix set is exactly {PA, PB, PC, PD}',
-    async () => {
-      const result = await ownerPool.query<{ process_suffix: string }>(
-        `select process_suffix
-         from "Reference"."ManufacturingOperations"
-         where org_id = $1 and industry_code = 'generic'
-         order by operation_seq`,
-        [apexOrgId],
-      );
-
-      const suffixes = result.rows.map((r) => r.process_suffix);
-      expect(new Set(suffixes)).toEqual(new Set(['PA', 'PB', 'PC', 'PD']));
     },
   );
 
@@ -321,8 +327,8 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
       const result = await ownerPool.query<{ process_suffix: string; marker: string }>(
         `select process_suffix, marker
          from "Reference"."ManufacturingOperations"
-         where org_id = $1`,
-        [apexOrgId],
+         where org_id in ($1, $2, $3)`,
+        [bakeryOrgId, pharmaOrgId, fmcgOrgId],
       );
 
       expect(result.rows.length).toBeGreaterThan(0);
@@ -337,10 +343,12 @@ runIntegrationSuite('012 manufacturing-ops AC1 — four industry seeds', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AC2 — UNIQUE(org_id, process_suffix) rejects duplicate suffix (SQLSTATE 23505)
+// AC2 — Per-org uniqueness (T-004): UNIQUE(org_id, operation_name) and
+//       UNIQUE(org_id, process_suffix). Same suffix cannot repeat within an org,
+//       even across industries; a different org may reuse it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id, industry_code, process_suffix)', () => {
+runIntegrationSuite('012/T-004 manufacturing-ops AC2 — per-org uniqueness', () => {
   let ownerPool: pg.Pool;
 
   const tenantId = randomUUID();
@@ -351,15 +359,11 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
 
     ownerPool = getOwnerConnection();
 
-    await ownerPool.query(readFileSync(baselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(rlsBaselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(appRoleMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(mfgOpsMigrationPath, 'utf8'));
+    await applyCanonicalSchema(ownerPool);
 
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'T020 AC2 Tenant', 'eu', 'https://t020-ac2.example')
+       values ($1, 'T020/T004 AC2 Tenant', 'eu', 'https://t020-t004-ac2.example')
        on conflict (id) do nothing`,
       [tenantId],
     );
@@ -371,12 +375,20 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
       [orgId, tenantId],
     );
 
-    // First INSERT for suffix 'MX' — must succeed
+    // On the fully-migrated DB an org-insert trigger (trg_seed_reference_data)
+    // auto-seeds the org's industry defaults. Clear them so this suite controls
+    // its own fixture rows and the uniqueness assertions stay deterministic.
+    await ownerPool.query(
+      `delete from "Reference"."ManufacturingOperations" where org_id = $1`,
+      [orgId],
+    );
+
+    // First INSERT for operation 'Mix' / suffix 'MX' — must succeed.
     await ownerPool.query(
       `insert into "Reference"."ManufacturingOperations"
-         (id, org_id, operation_name, process_suffix, industry_code, marker)
+         (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
        values
-         ($1, $2, 'Mix', 'MX', 'bakery', 'APEX-CONFIG')`,
+         ($1, $2, 'Mix', 'MX', 1, 'bakery', 'APEX-CONFIG')`,
       [randomUUID(), orgId],
     );
   });
@@ -387,29 +399,23 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
     await ownerPool
       .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [orgId])
       .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.organizations where id = $1`, [orgId])
-      .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.tenants where id = $1`, [tenantId])
-      .catch(() => undefined);
+    await ownerPool.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
+    await ownerPool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
 
     await ownerPool.end();
   });
 
   runIntegrationTest(
-    'AC2: second INSERT with same (org_id, industry_code, process_suffix) triple throws SQLSTATE 23505',
+    'AC2: duplicate (org_id, operation_name) throws SQLSTATE 23505',
     async () => {
       let caughtError: unknown;
-
       try {
+        // Same operation_name 'Mix' (different suffix) — violates per-org operation_name uniqueness.
         await ownerPool.query(
           `insert into "Reference"."ManufacturingOperations"
-             (id, org_id, operation_name, process_suffix, industry_code, marker)
+             (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
            values
-             ($1, $2, 'Mix Again', 'MX', 'bakery', 'APEX-CONFIG')`,
+             ($1, $2, 'Mix', 'M2', 99, 'bakery', 'APEX-CONFIG')`,
           [randomUUID(), orgId],
         );
       } catch (err) {
@@ -419,10 +425,62 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
       expect(
         caughtError,
         'expected a unique-violation error (SQLSTATE 23505) but no error was thrown — ' +
-        'UNIQUE(org_id, industry_code, process_suffix) constraint may be missing',
+        'UNIQUE(org_id, operation_name) constraint may be missing',
       ).toBeDefined();
+      expect((caughtError as { code?: string }).code).toBe('23505');
+    },
+  );
 
-      // Pin the exact SQLSTATE: 23505 unique_violation
+  runIntegrationTest(
+    'AC2: duplicate (org_id, process_suffix) throws SQLSTATE 23505',
+    async () => {
+      let caughtError: unknown;
+      try {
+        // Same suffix 'MX' (different operation_name) — violates per-org process_suffix uniqueness.
+        await ownerPool.query(
+          `insert into "Reference"."ManufacturingOperations"
+             (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
+           values
+             ($1, $2, 'Mixer', 'MX', 99, 'bakery', 'APEX-CONFIG')`,
+          [randomUUID(), orgId],
+        );
+      } catch (err) {
+        caughtError = err;
+      }
+
+      expect(
+        caughtError,
+        'expected a unique-violation error (SQLSTATE 23505) but no error was thrown — ' +
+        'UNIQUE(org_id, process_suffix) constraint may be missing',
+      ).toBeDefined();
+      expect((caughtError as { code?: string }).code).toBe('23505');
+    },
+  );
+
+  runIntegrationTest(
+    'AC2 countercheck (T-004 tightening): same org reusing suffix MX across industries is now rejected',
+    async () => {
+      // Pre-T-004 the unique key included industry_code, so the same org could hold
+      // MX in both bakery and fmcg. T-004 added UNIQUE(org_id, process_suffix), so
+      // this is now a 23505 within the same org regardless of industry.
+      let caughtError: unknown;
+      try {
+        await ownerPool.query(
+          `insert into "Reference"."ManufacturingOperations"
+             (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
+           values
+             ($1, $2, 'Mix FMCG', 'MX', 99, 'fmcg', 'APEX-CONFIG')`,
+          [randomUUID(), orgId],
+        );
+      } catch (err) {
+        caughtError = err;
+      }
+
+      expect(
+        caughtError,
+        'expected a unique-violation (SQLSTATE 23505): UNIQUE(org_id, process_suffix) ' +
+        'must reject the same suffix in a second industry within one org',
+      ).toBeDefined();
       expect((caughtError as { code?: string }).code).toBe('23505');
     },
   );
@@ -430,7 +488,6 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
   runIntegrationTest(
     'AC2: same process_suffix MX is allowed for a different org (cross-org uniqueness not enforced)',
     async () => {
-      // A different org must be allowed to use 'MX'.
       const otherOrgId = randomUUID();
 
       await ownerPool.query(
@@ -440,12 +497,18 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
         [otherOrgId, tenantId],
       );
 
-      // This must succeed (different org_id)
+      // Clear trigger-auto-seeded defaults so the explicit MX insert is the only row.
+      await ownerPool.query(
+        `delete from "Reference"."ManufacturingOperations" where org_id = $1`,
+        [otherOrgId],
+      );
+
+      // Different org_id — must succeed.
       await ownerPool.query(
         `insert into "Reference"."ManufacturingOperations"
-           (id, org_id, operation_name, process_suffix, industry_code, marker)
+           (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
          values
-           ($1, $2, 'Mix', 'MX', 'bakery', 'APEX-CONFIG')`,
+           ($1, $2, 'Mix', 'MX', 1, 'bakery', 'APEX-CONFIG')`,
         [randomUUID(), otherOrgId],
       );
 
@@ -455,10 +518,8 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
          where org_id = $1 and process_suffix = 'MX'`,
         [otherOrgId],
       );
-
       expect(Number(result.rows[0]?.cnt)).toBe(1);
 
-      // Clean up extra org
       await ownerPool
         .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [otherOrgId])
         .catch(() => undefined);
@@ -467,50 +528,14 @@ runIntegrationSuite('012 manufacturing-ops AC2 — unique constraint on (org_id,
         .catch(() => undefined);
     },
   );
-
-  runIntegrationTest(
-    'AC2 countercheck: same (org_id, process_suffix=MX) with different industry_code succeeds (cross-industry MX allowed)',
-    async () => {
-      // Same org, same suffix 'MX', but industry_code='fmcg' (not 'bakery').
-      // The new 3-column unique constraint must allow this — no 23505 should be thrown.
-      await ownerPool.query(
-        `insert into "Reference"."ManufacturingOperations"
-           (id, org_id, operation_name, process_suffix, industry_code, marker)
-         values
-           ($1, $2, 'Mix FMCG', 'MX', 'fmcg', 'APEX-CONFIG')`,
-        [randomUUID(), orgId],
-      );
-
-      const result = await ownerPool.query<{ cnt: string }>(
-        `select count(*) as cnt
-         from "Reference"."ManufacturingOperations"
-         where org_id = $1 and process_suffix = 'MX'`,
-        [orgId],
-      );
-
-      // One bakery-MX (from beforeAll) + one fmcg-MX (just inserted) = 2
-      expect(
-        Number(result.rows[0]?.cnt),
-        'same org with MX in different industry_code must both be present (cross-industry allowed)',
-      ).toBe(2);
-
-      // Clean up fmcg-MX row so afterAll cleanup stays consistent
-      await ownerPool
-        .query(
-          `delete from "Reference"."ManufacturingOperations"
-           where org_id = $1 and industry_code = 'fmcg' and process_suffix = 'MX'`,
-          [orgId],
-        )
-        .catch(() => undefined);
-    },
-  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AC3 — CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$') rejects '!!' (SQLSTATE 23514)
+// AC3 — CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$') rejects malformed suffixes.
+//       (industry_code must be one of the canonical 3; operation_seq is NOT NULL.)
 // ─────────────────────────────────────────────────────────────────────────────
 
-runIntegrationSuite('012 manufacturing-ops AC3 — CHECK constraint on process_suffix', () => {
+runIntegrationSuite('012/T-004 manufacturing-ops AC3 — CHECK constraint on process_suffix', () => {
   let ownerPool: pg.Pool;
 
   const tenantId = randomUUID();
@@ -521,24 +546,28 @@ runIntegrationSuite('012 manufacturing-ops AC3 — CHECK constraint on process_s
 
     ownerPool = getOwnerConnection();
 
-    await ownerPool.query(readFileSync(baselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(rlsBaselineMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(appRoleMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(departmentsMigrationPath, 'utf8'));
-    await ownerPool.query(readFileSync(mfgOpsMigrationPath, 'utf8'));
+    await applyCanonicalSchema(ownerPool);
 
     await ownerPool.query(
       `insert into public.tenants (id, name, region_cluster, data_plane_url)
-       values ($1, 'T020 AC3 Tenant', 'eu', 'https://t020-ac3.example')
+       values ($1, 'T020/T004 AC3 Tenant', 'eu', 'https://t020-t004-ac3.example')
        on conflict (id) do nothing`,
       [tenantId],
     );
 
     await ownerPool.query(
       `insert into public.organizations (id, tenant_id, name, industry_code)
-       values ($1, $2, 'AC3 Org', 'generic')
+       values ($1, $2, 'AC3 Org', 'bakery')
        on conflict (id) do nothing`,
       [orgId, tenantId],
+    );
+
+    // Clear trigger-auto-seeded bakery defaults so the suffix-CHECK / valid-suffix
+    // assertions are not perturbed by the seeded Mix/MX row (which would collide
+    // with the valid-values 'MX' insert under UNIQUE(org_id, process_suffix)).
+    await ownerPool.query(
+      `delete from "Reference"."ManufacturingOperations" where org_id = $1`,
+      [orgId],
     );
   });
 
@@ -548,134 +577,55 @@ runIntegrationSuite('012 manufacturing-ops AC3 — CHECK constraint on process_s
     await ownerPool
       .query(`delete from "Reference"."ManufacturingOperations" where org_id = $1`, [orgId])
       .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.organizations where id = $1`, [orgId])
-      .catch(() => undefined);
-
-    await ownerPool
-      .query(`delete from public.tenants where id = $1`, [tenantId])
-      .catch(() => undefined);
+    await ownerPool.query(`delete from public.organizations where id = $1`, [orgId]).catch(() => undefined);
+    await ownerPool.query(`delete from public.tenants where id = $1`, [tenantId]).catch(() => undefined);
 
     await ownerPool.end();
   });
 
-  runIntegrationTest(
-    "AC3: INSERT process_suffix='!!' throws SQLSTATE 23514 (CHECK violation)",
-    async () => {
-      let caughtError: unknown;
+  // industry_code is a canonical value; operation_seq is supplied (NOT NULL) so
+  // the only thing under test is the process_suffix CHECK (SQLSTATE 23514).
+  for (const [label, suffix] of [
+    ["'!!' (non-alnum)", '!!'],
+    ["'a1' (lowercase)", 'a1'],
+    ["'TOOLONG5' (5 chars)", 'TOOLONG5'],
+    ["'A' (1 char)", 'A'],
+  ] as [string, string][]) {
+    runIntegrationTest(
+      `AC3: INSERT process_suffix=${label} throws SQLSTATE 23514 (CHECK violation)`,
+      async () => {
+        let caughtError: unknown;
+        try {
+          await ownerPool.query(
+            `insert into "Reference"."ManufacturingOperations"
+               (id, org_id, operation_name, process_suffix, operation_seq, industry_code, marker)
+             values
+               ($1, $2, $3, $4, 1, 'bakery', 'APEX-CONFIG')`,
+            [randomUUID(), orgId, `Bad Op ${suffix}`, suffix],
+          );
+        } catch (err) {
+          caughtError = err;
+        }
 
-      try {
-        await ownerPool.query(
-          `insert into "Reference"."ManufacturingOperations"
-             (id, org_id, operation_name, process_suffix, industry_code, marker)
-           values
-             ($1, $2, 'Bad Op', '!!', 'generic', 'APEX-CONFIG')`,
-          [randomUUID(), orgId],
-        );
-      } catch (err) {
-        caughtError = err;
-      }
-
-      expect(
-        caughtError,
-        "expected a CHECK violation (SQLSTATE 23514) for suffix '!!' but no error was thrown — " +
-        "CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$') constraint may be missing or regex weakened",
-      ).toBeDefined();
-
-      // Pin the exact SQLSTATE: 23514 check_violation
-      expect((caughtError as { code?: string }).code).toBe('23514');
-    },
-  );
-
-  runIntegrationTest(
-    "AC3: INSERT process_suffix='a1' (lowercase) throws SQLSTATE 23514",
-    async () => {
-      let caughtError: unknown;
-
-      try {
-        await ownerPool.query(
-          `insert into "Reference"."ManufacturingOperations"
-             (id, org_id, operation_name, process_suffix, industry_code, marker)
-           values
-             ($1, $2, 'Lowercase Op', 'a1', 'generic', 'APEX-CONFIG')`,
-          [randomUUID(), orgId],
-        );
-      } catch (err) {
-        caughtError = err;
-      }
-
-      expect(
-        caughtError,
-        "expected a CHECK violation (SQLSTATE 23514) for suffix 'a1' (lowercase not allowed) but no error was thrown",
-      ).toBeDefined();
-
-      expect((caughtError as { code?: string }).code).toBe('23514');
-    },
-  );
-
-  runIntegrationTest(
-    "AC3: INSERT process_suffix='TOOLONG5' (5 chars) throws SQLSTATE 23514",
-    async () => {
-      let caughtError: unknown;
-
-      try {
-        await ownerPool.query(
-          `insert into "Reference"."ManufacturingOperations"
-             (id, org_id, operation_name, process_suffix, industry_code, marker)
-           values
-             ($1, $2, 'Too Long Op', 'TOOLONG5', 'generic', 'APEX-CONFIG')`,
-          [randomUUID(), orgId],
-        );
-      } catch (err) {
-        caughtError = err;
-      }
-
-      expect(
-        caughtError,
-        "expected a CHECK violation (SQLSTATE 23514) for suffix 'TOOLONG5' (5 chars > max 4) but no error was thrown",
-      ).toBeDefined();
-
-      expect((caughtError as { code?: string }).code).toBe('23514');
-    },
-  );
-
-  runIntegrationTest(
-    "AC3: INSERT process_suffix='A' (1 char) throws SQLSTATE 23514",
-    async () => {
-      let caughtError: unknown;
-
-      try {
-        await ownerPool.query(
-          `insert into "Reference"."ManufacturingOperations"
-             (id, org_id, operation_name, process_suffix, industry_code, marker)
-           values
-             ($1, $2, 'Short Op', 'A', 'generic', 'APEX-CONFIG')`,
-          [randomUUID(), orgId],
-        );
-      } catch (err) {
-        caughtError = err;
-      }
-
-      expect(
-        caughtError,
-        "expected a CHECK violation (SQLSTATE 23514) for suffix 'A' (1 char < min 2) but no error was thrown",
-      ).toBeDefined();
-
-      expect((caughtError as { code?: string }).code).toBe('23514');
-    },
-  );
+        expect(
+          caughtError,
+          `expected a CHECK violation (SQLSTATE 23514) for suffix ${label} but no error was thrown — ` +
+          "CHECK(process_suffix ~ '^[A-Z0-9]{2,4}$') may be missing or weakened",
+        ).toBeDefined();
+        expect((caughtError as { code?: string }).code).toBe('23514');
+      },
+    );
+  }
 
   runIntegrationTest(
     "AC3: valid process_suffix values 'MX', 'AB12', 'XYZ' are accepted",
     async () => {
-      // These must succeed without error — verifies the regex allows all valid forms
       for (const [suffix, seq] of [['MX', 1], ['AB12', 2], ['XYZ', 3]] as [string, number][]) {
         await ownerPool.query(
           `insert into "Reference"."ManufacturingOperations"
              (id, org_id, operation_name, process_suffix, industry_code, marker, operation_seq)
            values
-             ($1, $2, $3, $4, 'generic', 'APEX-CONFIG', $5)`,
+             ($1, $2, $3, $4, 'bakery', 'APEX-CONFIG', $5)`,
           [randomUUID(), orgId, `Valid Op ${suffix}`, suffix, seq],
         );
       }
