@@ -35,9 +35,9 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-021 | UI: FA Create modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). FA Create modal — wired to createFa (T-008), V01/V02 feedback, parity (modals.jsx:9-43), real action, RTL, tsc0, i18n npd.faCreate. kira-ui |
 | T-022 | UI: Dept Close modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). Dept Close modal — readiness via Reference.DeptColumns required-check, wired closeDeptSection (T-017), parity (modals.jsx:143-191), RTL, tsc0, i18n npd.deptClose. kira-ui |
 | T-023 | UI: FA Core tab (schema-driven form) | ✅ DONE | DONE 2026-06-04 (ramp 4). FA Core tab (schema-driven form) standalone — fields from Reference.DeptColumns via T-014 runtime, updateFaCell(T-009), parity (fa-screens.jsx:455-517), 15 RTL, tsc0, i18n npd.faCoreTab. kira-ui. wiring=T-105 |
-| T-024 | UI: FA Production tab + ProdDetail rows editor | ⬜ PENDING | Blocked by T-002, T-004, T-010, T-011, T-020 |
+| T-024 | UI: FA Production tab + ProdDetail rows editor | ✅ DONE | DONE 2026-06-04 (ramp 5). FA Production tab + ProdDetail rows editor (standalone) — schema-driven, prod_detail rows, updateFaCell(T-009), chain1/chain2 cascade, parity (fa-screens.jsx:571-653), 18 RTL, tsc0, i18n npd.faProductionTab. wiring=T-105 |
 | T-025 | ROOT: FA planning/commercial tabs group | ⬜ PENDING | Blocked by T-009, T-014, T-016, T-020 |
-| T-026 | UI: FA Technical tab shell | ⬜ PENDING | Blocked by T-014, T-020, T-025 |
+| T-026 | UI: FA Technical tab shell | ✅ DONE | DONE 2026-06-04 (ramp 5). FA Technical tab (standalone) — schema-driven Technical DeptColumns, allergen slot reserved (Sensory=03-tech deferred), parity (fa-screens.jsx:656-743), 16 RTL, tsc0, i18n npd.faTechnicalTab. wiring=T-105 |
 | T-027 | UI: FA History tab + audit_events timeline | ✅ DONE | DONE 2026-06-04 (parallel ramp). FA History tab + audit timeline — union outbox_events∪audit_events org-scoped, parity (fa-screens.jsx:938-968), packages/queries listFaHistory, RTL, tsc0, i18n npd.faHistory. kira-ui |
 | T-028 | V03/V04 validators (Pack_Size; D365 mapping) | ✅ DONE | DONE 2026-06-04 (Wave C). V03/V04 validators (mig 111, packages/validation) — merged |
 | T-029 | Server Action deleteFa | ✅ DONE | DONE 2026-06-04 (Wave C). deleteFa soft-delete (mig 132) + fa.deleted event — merged |
@@ -113,9 +113,9 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-099 | Allergens cascade bulk-rebuild worker | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade bulk-rebuild worker (mig 139) — merged (post-merge import-path fixed) |
 | T-100 | Stage-Gate G4 Launched closeout + Trial/Pilot/Handover | ⬜ PENDING | Blocked by T-058, T-093, T-095, T-096, T-097, T-098 |
 | T-101 | Add npd permission strings to enum | ✅ DONE | DONE 2026-06-04 (Wave B). npd.* permission enum + eslint baseline (no migration — code) — 10/10; T-006 seed verified FULLY consistent. merged |
-| T-102 | UI: FA Procurement tab | ⬜ PENDING | Tab button in fa-tabs.tsx; no content component; blocked by T-009, T-014, T-016, T-020 |
-| T-103 | UI: FA Commercial tab | ⬜ PENDING | Same situation as T-102 |
-| T-104 | UI: FA Planning tab | ⬜ PENDING | Same situation as T-102 |
+| T-102 | UI: FA Procurement tab | ✅ DONE | DONE 2026-06-04 (ramp 5). FA Procurement tab (standalone) — schema-driven, V-NPD-PROC-001 price-gate, parity (fa-screens.jsx:806-838), 17 RTL, tsc0, i18n npd.faProcurementTab. wiring=T-105 |
+| T-103 | UI: FA Commercial tab | ✅ DONE | DONE 2026-06-04 (ramp 5). FA Commercial tab (standalone) — schema-driven, V08 launch-date gate, parity (fa-screens.jsx:559-586), 21 RTL, tsc0, i18n npd.faCommercialTab. wiring=T-105 |
+| T-104 | UI: FA Planning tab | ✅ DONE | DONE 2026-06-04 (ramp 5). FA Planning tab (standalone) — schema-driven, parity (fa-screens.jsx:537-557), 14 RTL, tsc0, i18n npd.faPlanningTab. wiring=T-105 |
 | T-105 | WIRING: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101, T-102, T-103, T-104 |
 | T-106 | PARITY: FA planning/commercial tabs | ⬜ PENDING | Blocked by T-101–T-105 |
 | T-107 | UI: GateChecklistPanel | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). GateChecklistPanel — real gate_checklist_items via T-057, per-gate progress, toggle via T-058, parity (gate-screens.jsx:106-258), RTL, tsc0, i18n npd.gateChecklist. kira-ui |
@@ -143,7 +143,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-129 | UI: Pipeline SplitView + ProjectDetailPanel | ✅ DONE | DONE 2026-06-04 (ramp 3). Pipeline SplitView + ProjectDetailPanel — real projects(T-057), URL ?selected, <1280px fallback, parity (pipeline.jsx:89-131), RTL, tsc0, i18n npd.pipelineSplit. kira-ui |
 | T-130 | WIRING: Pipeline page tabbed view switcher | ⬜ PENDING | Blocked by T-059, T-128, T-129 |
 | T-131 | PARITY: Pipeline views Playwright + axe | ⬜ PENDING | Blocked by T-128–T-130 |
-| T-132 | UI: Dashboard KPI counters region | ⏸ BLOCKED | dashboard-counters.tsx exists but no page wiring, no real data, no parity evidence; duplicate route tree issue |
+| T-132 | UI: Dashboard KPI counters region | ✅ DONE | DONE 2026-06-04 (ramp 5). Dashboard KPI counters region (standalone) — DashboardCountersSummary from T-051, FG terminology, parity (fa-screens.jsx:32-174), 8 RTL, tsc0, i18n npd.dashboardKpi. wiring=T-134 |
 | T-133 | UI: Dashboard Pipeline preview region | ⏸ BLOCKED | dashboard-pipeline-preview.tsx exists but same gaps as T-132 |
 | T-134 | WIRING: NPD Dashboard page assembly | ⬜ PENDING | Blocked by T-132, T-133 |
 | T-135 | PARITY: NPD Dashboard Playwright + axe | ⬜ PENDING | Blocked by T-132–T-134 |
