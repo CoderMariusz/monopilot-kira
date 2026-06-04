@@ -958,6 +958,22 @@
       "error": "Unable to load Finished Goods. Try again after the backend is available.",
       "forbidden": "You do not have permission to view Finished Goods."
     },
+    "faCreateModal": {
+      "title": "Create Finished Good",
+      "subtitle": "V01 · FG Code format validated on blur. V02 · Product Name required.",
+      "fieldProductCode": "FG Code",
+      "fieldProductCodeHint": "Must start with FA followed by uppercase letters/digits (e.g. FA5609).",
+      "fieldProductName": "Product Name",
+      "fieldProductNameHint": "Max 200 chars",
+      "rangeHint": "Ranges: FA5600+ is reserved for the 2026 NPD pipeline.",
+      "cancel": "Cancel",
+      "create": "Create FG",
+      "creating": "Creating…",
+      "errorV01": "FG Code must start with FA followed by uppercase letters/digits (e.g. FA5609).",
+      "errorV02": "Product Name is required (max 200 chars).",
+      "errorDuplicate": "FG Code already exists. Choose a different code.",
+      "errorGeneric": "Could not create the Finished Good. Try again."
+    },
     "briefList": {
       "title": "NPD Briefs",
       "subtitle": "Briefs are pre-FG intake",

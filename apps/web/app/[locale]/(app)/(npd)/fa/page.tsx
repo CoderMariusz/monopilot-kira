@@ -23,6 +23,7 @@ import {
   type FaListRow,
   type PageState,
 } from './_components/fa-list-table';
+import { FaCreateHost } from './_components/fa-create-host';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -238,12 +239,21 @@ export default async function FaListPage(propsInput: unknown = {}) {
       }
     : await readPageData(showClosed);
 
+  const canCreate = props.canCreate ?? loaded.canCreate;
+
   return (
-    <FaListTable
-      rows={loaded.rows}
-      labels={labels}
-      canCreate={props.canCreate ?? loaded.canCreate}
-      state={props.state ?? loaded.state}
-    />
+    <>
+      <FaListTable
+        rows={loaded.rows}
+        labels={labels}
+        canCreate={canCreate}
+        state={props.state ?? loaded.state}
+      />
+      {/* G-1 wiring: mount the FA create modal host. It maps the `?modal=faCreate`
+          trigger the list pushes to the injected FaCreateModal. Rendered inside
+          the same RSC so RBAC (canCreate) + labels are server-resolved; the real
+          createFa Server Action is injected only when permitted. */}
+      {await FaCreateHost({ locale, canCreate })}
+    </>
   );
 }

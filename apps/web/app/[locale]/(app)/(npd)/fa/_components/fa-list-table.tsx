@@ -8,7 +8,10 @@
  *
  * Translation notes (from the prototype):
  *   - window.NPD_FAS                 → server-side withOrgContext read of public.product (page.tsx)
- *   - openModal('faCreate')          → /(npd)/fa create flow (T-021); gated by server-supplied canCreate
+ *   - openModal('faCreate')          → router.push(?modal=faCreate); the FaCreateHost
+ *                                       (mounted by page.tsx) maps that URL state to the
+ *                                       injected FaCreateModal (G-1 wiring); gated by
+ *                                       server-supplied canCreate
  *   - onOpenFA(code)                 → next/link row navigation to /(npd)/fa/[productCode]
  *   - inline status badge helper     → shadcn Badge variants (status pill)
  *   - dept ✓/◐/⊘/– glyphs            → accessible dept indicator (icon + sr-only label, color is never sole signal)
@@ -21,6 +24,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -201,6 +205,10 @@ export function FaListTable({
   canCreate: boolean;
   state?: PageState;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [search, setSearch] = React.useState('');
   const [deptFilter, setDeptFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
@@ -226,6 +234,15 @@ export function FaListTable({
     setSearch('');
     setDeptFilter('all');
     setStatusFilter('all');
+  }
+
+  // G-1 wiring: the "+ Create FG" button opens the FaCreateModal via the
+  // `?modal=faCreate` query trigger (mirrors the brief openModal pattern). The
+  // FaCreateHost mounted by page.tsx maps this URL state to the injected modal.
+  function openModal(modal: string) {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('modal', modal);
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   const deptOptions = [
@@ -256,7 +273,7 @@ export function FaListTable({
           </p>
         </div>
         {canCreate ? (
-          <Button type="button" aria-label={labels.createFa}>
+          <Button type="button" aria-label={labels.createFa} onClick={() => openModal('faCreate')}>
             {labels.createFa}
           </Button>
         ) : null}
