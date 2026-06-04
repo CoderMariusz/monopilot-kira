@@ -19,3 +19,9 @@ export {
   handleRecipeComponentsChanged,
   parseRecipeComponents,
 } from './chain3-recipe.js';
+export {
+  handleTemplateChange,
+  TemplateNotFoundError,
+  type HandleTemplateChangeOptions,
+  type HandleTemplateChangeResult,
+} from './chain4-template.js';
