@@ -22,6 +22,7 @@ const projectId = randomUUID();
 const otherProjectId = randomUUID();
 const checklistProjectId = randomUUID();
 const rollbackProjectId = randomUUID();
+const rejectProjectId = randomUUID();
 const productCode = `FG-T095-${randomUUID().slice(0, 8).toUpperCase()}`;
 const pin = '123456';
 
@@ -78,7 +79,8 @@ async function seedGateFixtures(): Promise<void> {
        ($1, $2, 'NPD-T058-A', 'Gate action project', 'standard', 'G0', 'brief', $3),
        ($4, $5, 'NPD-T058-B', 'Other org project', 'standard', 'G2', 'recipe', $6),
        ($7, $2, 'NPD-T058-C', 'Checklist blocker project', 'standard', 'G2', 'recipe', $3),
-       ($8, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3)
+       ($8, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3),
+       ($9, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3)
      on conflict (id) do nothing`,
     [
       projectId,
@@ -89,6 +91,7 @@ async function seedGateFixtures(): Promise<void> {
       seed.userBId,
       checklistProjectId,
       rollbackProjectId,
+      rejectProjectId,
     ],
   );
   await owner.query(
@@ -244,6 +247,72 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       .digest('hex');
     expect(row.esign_hash).toBe(expected);
     expect(row.approved_events).toBe('1');
+  });
+
+  it('rejects a gate WITHOUT a password and records the reason with NO e-signature (T-111 reconciliation)', async () => {
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    // Reject path: no `password` supplied. Must succeed, persist the rejection_reason,
+    // leave the project on its current gate, and NOT write an e-signature (esigned_at/esign_hash null).
+    const rejected = await withActionActor(seed.userAId, seed.orgAId, () =>
+      approveProjectGate({
+        projectId: rejectProjectId,
+        gateCode: 'G3',
+        decision: 'rejected',
+        notes: 'Trial outcomes did not meet the gate criteria.',
+      }),
+    );
+    expect(rejected).toMatchObject({ ok: true, data: { decision: 'rejected', approvedGate: 'G3' } });
+
+    const persisted = await owner.query<{
+      decision: string;
+      rejection_reason: string | null;
+      esigned_at: Date | null;
+      esign_hash: string | null;
+      current_gate: string;
+      esign_log_count: string;
+    }>(
+      `select ga.decision,
+              ga.rejection_reason,
+              ga.esigned_at,
+              ga.esign_hash,
+              p.current_gate,
+              (select count(*) from public.e_sign_log esl
+                where esl.org_id = ga.org_id
+                  and esl.signer_user_id = ga.approver_user_id
+                  and esl.intent = 'npd.gate.rejected') as esign_log_count
+         from public.gate_approvals ga
+         join public.npd_projects p on p.id = ga.project_id
+        where ga.project_id = $1::uuid and ga.gate_code = 'G3'
+        order by ga.created_at desc
+        limit 1`,
+      [rejectProjectId],
+    );
+    const row = persisted.rows[0]!;
+    expect(row.decision).toBe('rejected');
+    expect(row.rejection_reason).toBe('Trial outcomes did not meet the gate criteria.');
+    expect(row.esigned_at).toBeNull();
+    expect(row.esign_hash).toBeNull();
+    // No e-signature was ever produced on the reject path.
+    expect(row.esign_log_count).toBe('0');
+    // Reject must not advance the project gate.
+    expect(row.current_gate).toBe('G3');
+  });
+
+  it('rejects an APPROVE decision submitted WITHOUT a password as INVALID_INPUT (T-111 reconciliation)', async () => {
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    // Approve still REQUIRES the e-signature password — omitting it fails at the
+    // schema boundary (400) before any DB or e-sign work runs.
+    const missingPassword = await withActionActor(seed.userAId, seed.orgAId, () =>
+      approveProjectGate({
+        projectId: rejectProjectId,
+        gateCode: 'G3',
+        decision: 'approved',
+        notes: 'Approving without a password should be rejected.',
+      } as unknown as Parameters<typeof approveProjectGate>[0]),
+    );
+    expect(missingPassword).toMatchObject({ ok: false, error: 'INVALID_INPUT', status: 400 });
   });
 
   it('rolls back a gate with audit/outbox and enforces RBAC denial', async () => {
