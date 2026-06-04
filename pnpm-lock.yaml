@@ -282,6 +282,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.39)(jsdom@24.1.3)(lightningcss@1.32.0)(terser@5.48.0)
 
+  packages/cascade-engine:
+    dependencies:
+      '@monopilot/db':
+        specifier: workspace:*
+        version: link:../db
+      pg:
+        specifier: 8.16.0
+        version: 8.16.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@20.19.39)(jsdom@24.1.3)(lightningcss@1.32.0)(terser@5.48.0)
+
   packages/db:
     dependencies:
       '@monopilot/gdpr':
