@@ -301,16 +301,39 @@ async function hasPermission(ctx: OrgActionContext, permission: string): Promise
 }
 
 async function loadSchemaColumns(client: QueryClient, tableCode: string): Promise<ReferenceSchemaColumn[]> {
+  // reference_tables DATA rows use bare table codes such as "processes";
+  // reference_schemas universal rows are seeded under "reference.processes".
+  // Match both and prefer org-scoped overrides over universal L1 rows.
+  const schemaTableCodes = tableCode.startsWith('reference.')
+    ? [tableCode, tableCode.slice('reference.'.length)]
+    : [tableCode, `reference.${tableCode}`];
+
   const { rows } = await client.query<ReferenceSchemaColumn>(
-    `select column_code, data_type, required_for_done, validation_json, presentation_json
+    `select distinct on (column_code)
+            column_code, data_type, required_for_done, validation_json, presentation_json
        from public.reference_schemas
-      where org_id = app.current_org_id()
-        and table_code = $1
+      where table_code = any($1::text[])
+        and (org_id = app.current_org_id() or org_id is null)
         and deprecated_at is null
-      order by coalesce((presentation_json->>'display_order')::integer, 0), column_code`,
-    [tableCode],
+      order by column_code,
+               org_id nulls last,
+               coalesce((presentation_json->>'display_order')::integer, 0)`,
+    [schemaTableCodes],
   );
-  return rows;
+  return rows.sort((left, right) => {
+    const leftOrder = presentationOrder(left);
+    const rightOrder = presentationOrder(right);
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return left.column_code.localeCompare(right.column_code);
+  });
+}
+
+function presentationOrder(column: ReferenceSchemaColumn): number {
+  const presentation = column.presentation_json;
+  if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) return 0;
+  const value = (presentation as { display_order?: unknown }).display_order;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 async function loadReferenceRows(client: QueryClient, tableCode: string): Promise<ReferenceRow[]> {
