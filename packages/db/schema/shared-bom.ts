@@ -7,6 +7,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -17,6 +18,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
+import { items } from './items.js';
 import { npdProjects } from './npd-projects.js';
 import { product } from './product.js';
 
@@ -125,6 +127,8 @@ export const bomLines = pgTable(
     bomHeaderId: uuid('bom_header_id').notNull(),
     lineNo: integer('line_no').notNull(),
     componentCode: text('component_code').notNull(),
+    // T-002: canonical item master FK; component_code kept for display / back-compat.
+    itemId: uuid('item_id').references(() => items.id, { onDelete: 'restrict' }),
     componentType: text('component_type'),
     quantity: numeric('quantity', { precision: 14, scale: 6 }).notNull(),
     uom: text('uom').notNull(),
@@ -147,6 +151,9 @@ export const bomLines = pgTable(
     headerLineUnique: unique('bom_lines_header_line_unique').on(table.bomHeaderId, table.lineNo),
     orgHeaderIdx: index('bom_lines_org_header_idx').on(table.orgId, table.bomHeaderId, table.lineNo),
     orgComponentIdx: index('bom_lines_org_component_idx').on(table.orgId, table.componentCode),
+    orgItemIdx: index('bom_lines_org_item_idx')
+      .on(table.orgId, table.itemId)
+      .where(sql`${table.itemId} is not null`),
     lineNoCheck: check('bom_lines_line_no_check', sql`${table.lineNo} > 0`),
     quantityPositiveCheck: check('bom_lines_quantity_positive_check', sql`${table.quantity} > 0`),
     scrapPctCheck: check(
@@ -160,7 +167,96 @@ export const bomLines = pgTable(
   }),
 );
 
+/**
+ * T-002: co-products (positive market value) + byproducts (is_byproduct=true,
+ * allocation_pct=0) per shared BOM version. Part of the shared BOM SSOT.
+ */
+export const bomCoProducts = pgTable(
+  'bom_co_products',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    bomHeaderId: uuid('bom_header_id').notNull(),
+    coProductItemId: uuid('co_product_item_id')
+      .notNull()
+      .references(() => items.id, { onDelete: 'restrict' }),
+    quantity: numeric('quantity', { precision: 14, scale: 6 }).notNull(),
+    uom: text('uom').notNull(),
+    allocationPct: numeric('allocation_pct', { precision: 6, scale: 3 }).notNull(),
+    isByproduct: boolean('is_byproduct').notNull().default(false),
+    // Day-1 multi-site: site_id NULL now; 14-multi-site/T-030 backfills + tightens to NOT NULL.
+    siteId: uuid('site_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    schemaVersion: integer('schema_version').notNull().default(1),
+  },
+  (table) => ({
+    headerOrgFk: foreignKey({
+      name: 'bom_co_products_header_org_fk',
+      columns: [table.bomHeaderId, table.orgId],
+      foreignColumns: [bomHeaders.id, bomHeaders.orgId],
+    }).onDelete('cascade'),
+    headerItemUnique: unique('bom_co_products_header_item_unique').on(
+      table.bomHeaderId,
+      table.coProductItemId,
+    ),
+    orgHeaderIdx: index('bom_co_products_org_header_idx').on(table.orgId, table.bomHeaderId),
+    orgItemIdx: index('bom_co_products_org_item_idx').on(table.orgId, table.coProductItemId),
+    orgSiteIdx: index('bom_co_products_org_site_idx').on(table.orgId, table.siteId),
+    quantityPositiveCheck: check('bom_co_products_quantity_positive_check', sql`${table.quantity} > 0`),
+    allocationPctCheck: check(
+      'bom_co_products_allocation_pct_check',
+      sql`${table.allocationPct} >= 0 and ${table.allocationPct} <= 100.000`,
+    ),
+    byproductAllocationCheck: check(
+      'bom_co_products_byproduct_allocation_check',
+      sql`${table.isByproduct} is false or ${table.allocationPct} = 0`,
+    ),
+  }),
+);
+
+/**
+ * T-002: immutable flattened BOM snapshot (header + lines + co-products) captured at
+ * WO creation (ADR-002). work_order_id FK is added by 08-PRODUCTION. Shared BOM SSOT.
+ */
+export const bomSnapshots = pgTable(
+  'bom_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    // Soft UUID reference to 08-PRODUCTION work_orders; FK deferred to that module.
+    workOrderId: uuid('work_order_id'),
+    bomHeaderId: uuid('bom_header_id').notNull(),
+    snapshotJson: jsonb('snapshot_json').notNull(),
+    // Day-1 multi-site: site_id NULL now; 14-multi-site/T-030 backfills + tightens to NOT NULL.
+    siteId: uuid('site_id'),
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    headerOrgFk: foreignKey({
+      name: 'bom_snapshots_header_org_fk',
+      columns: [table.bomHeaderId, table.orgId],
+      foreignColumns: [bomHeaders.id, bomHeaders.orgId],
+    }).onDelete('restrict'),
+    woIdx: index('idx_bom_snapshots_wo').on(table.orgId, table.workOrderId),
+    orgHeaderIdx: index('bom_snapshots_org_header_idx').on(table.orgId, table.bomHeaderId),
+    orgSiteIdx: index('bom_snapshots_org_site_idx').on(table.orgId, table.siteId),
+    snapshotJsonObjectCheck: check(
+      'bom_snapshots_snapshot_json_object_check',
+      sql`jsonb_typeof(${table.snapshotJson}) = 'object'`,
+    ),
+  }),
+);
+
 export type BomHeader = InferSelectModel<typeof bomHeaders>;
 export type NewBomHeader = InferInsertModel<typeof bomHeaders>;
 export type BomLine = InferSelectModel<typeof bomLines>;
 export type NewBomLine = InferInsertModel<typeof bomLines>;
+export type BomCoProduct = InferSelectModel<typeof bomCoProducts>;
+export type NewBomCoProduct = InferInsertModel<typeof bomCoProducts>;
+export type BomSnapshot = InferSelectModel<typeof bomSnapshots>;
+export type NewBomSnapshot = InferInsertModel<typeof bomSnapshots>;

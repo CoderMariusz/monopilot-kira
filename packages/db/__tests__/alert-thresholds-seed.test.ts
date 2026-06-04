@@ -2,9 +2,13 @@
  * T-050 — Reference.AlertThresholds default seed
  *
  * Integration tests asserting:
- *  AC1 — Apex org gets 3 default rows after migration 096 runs
- *  AC2 — Seed is idempotent (re-running leaves row count = 3, updated_at unchanged)
- *  AC3 — A second org created after migration gets the same 3 defaults via trigger
+ *  AC1 — Apex org gets the canonical default rows after migration 096 runs
+ *  AC2 — Seed is idempotent (re-running leaves the row set unchanged)
+ *  AC3 — A second org created after migration gets the same defaults via trigger
+ *
+ * Note: migration 167 (T-070) extends the SAME per-org seed function with two
+ * 03-TECHNICAL defaults (atp_swab_rlu_max, catch_weight_variance_pct), so the
+ * canonical default set is now 5 rows. EXPECTED_DEFAULTS reflects that.
  *
  * Static tests (no DB) verify the migration file contract:
  *  - uses ON CONFLICT DO NOTHING (idempotent)
@@ -31,12 +35,18 @@ const migrationPath = resolve(packageRoot, 'migrations', '096-alert-thresholds-d
 
 const APEX_ORG_ID = '00000000-0000-0000-0000-000000000002';
 
-// Expected default rows per PRD §11.3 + §17.11.3
+// Expected default rows per PRD §11.3 + §17.11.3 (migration 096)
+// plus the two 03-TECHNICAL defaults added by migration 167 / T-070
+// (PRD §10.6 ATP swab ≤10 RLU, §8.5/§8.6 catch-weight variance default 5%).
 const EXPECTED_DEFAULTS = [
   { threshold_key: 'launch_alert_red_days',     value_int: 10,  value_text: null },
   { threshold_key: 'launch_alert_yellow_days',   value_int: 21,  value_text: null },
   { threshold_key: 'costing_margin_warn_pct',    value_int: 15,  value_text: null },
+  { threshold_key: 'atp_swab_rlu_max',           value_int: 10,  value_text: null },
+  { threshold_key: 'catch_weight_variance_pct',  value_int: 5,   value_text: null },
 ] as const;
+
+const EXPECTED_COUNT = EXPECTED_DEFAULTS.length;
 
 // ============================================================
 // Static contract tests (no DB required)
@@ -133,7 +143,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
     await adminPool.end();
   });
 
-  runIntegrationTest('AC1: Apex org has exactly 3 default AlertThreshold rows with correct values', async () => {
+  runIntegrationTest('AC1: Apex org has exactly the canonical default AlertThreshold rows with correct values', async () => {
     const result = await adminPool.query<{
       threshold_key: string;
       value_int: number | null;
@@ -146,7 +156,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
       [APEX_ORG_ID],
     );
 
-    expect(result.rows).toHaveLength(3);
+    expect(result.rows).toHaveLength(EXPECTED_COUNT);
 
     // Sort both arrays by threshold_key for stable comparison
     const sorted = [...EXPECTED_DEFAULTS].sort((a, b) =>
@@ -159,7 +169,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
     }
   });
 
-  runIntegrationTest('AC2: Running seed function again is idempotent — row count stays 3, updated_at unchanged', async () => {
+  runIntegrationTest('AC2: Running seed function again is idempotent — row count unchanged, updated_at unchanged', async () => {
     // Capture current updated_at values
     const before = await adminPool.query<{ threshold_key: string; updated_at: Date }>(
       `select threshold_key, updated_at
@@ -168,7 +178,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
         order by threshold_key`,
       [APEX_ORG_ID],
     );
-    expect(before.rows).toHaveLength(3);
+    expect(before.rows).toHaveLength(EXPECTED_COUNT);
 
     // Re-invoke the seed function directly
     await adminPool.query(`select public.seed_alert_thresholds_for_org($1::uuid)`, [APEX_ORG_ID]);
@@ -181,7 +191,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
       [APEX_ORG_ID],
     );
 
-    expect(after.rows).toHaveLength(3);
+    expect(after.rows).toHaveLength(EXPECTED_COUNT);
 
     // updated_at must not have changed (ON CONFLICT DO NOTHING)
     for (let i = 0; i < before.rows.length; i++) {
@@ -192,7 +202,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
     }
   });
 
-  runIntegrationTest('AC3: A new org created after migration gets 3 default threshold rows via trigger', async () => {
+  runIntegrationTest('AC3: A new org created after migration gets the default threshold rows via trigger', async () => {
     // Insert a second org — the trigger should fire and seed AlertThresholds
     await adminPool.query(
       `insert into public.organizations (id, tenant_id, name, industry_code, external_id)
@@ -212,7 +222,7 @@ runIntegrationSuite('T-050 alert-thresholds-seed — integration (database)', ()
       [secondOrgId],
     );
 
-    expect(result.rows).toHaveLength(3);
+    expect(result.rows).toHaveLength(EXPECTED_COUNT);
 
     const sorted = [...EXPECTED_DEFAULTS].sort((a, b) =>
       a.threshold_key.localeCompare(b.threshold_key),

@@ -122,8 +122,17 @@ export { risks } from './risks.js';
 export type { NewRisk, Risk } from './risks.js';
 export { complianceDocs } from './compliance-docs.js';
 export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
-export { bomHeaders, bomLines } from './shared-bom.js';
-export type { BomHeader, BomLine, NewBomHeader, NewBomLine } from './shared-bom.js';
+export { bomCoProducts, bomHeaders, bomLines, bomSnapshots } from './shared-bom.js';
+export type {
+  BomCoProduct,
+  BomHeader,
+  BomLine,
+  BomSnapshot,
+  NewBomCoProduct,
+  NewBomHeader,
+  NewBomLine,
+  NewBomSnapshot,
+} from './shared-bom.js';
 export { faBomView } from './fa-bom-view.js';
 export type { FaBomView } from './fa-bom-view.js';
 export { factoryReleaseStatus } from './factory-release-status.js';
@@ -171,3 +180,38 @@ export type {
   NutritionProfile,
   ReferenceNutrient,
 } from './nutrition.js';
+
+// ── 03-technical Wave-A schema (migrations 159-167) ──────────────────────────
+export { itemCostHistory } from './cost-history.js';
+export type { ItemCostHistory, NewItemCostHistory } from './cost-history.js';
+export {
+  allergenContaminationRisk,
+  itemAllergenProfileOverrides,
+  itemAllergenProfiles,
+  manufacturingOperationAllergenAdditions,
+} from './item-allergens.js';
+export type {
+  AllergenContaminationRisk,
+  ItemAllergenProfile,
+  ItemAllergenProfileOverride,
+  ManufacturingOperationAllergenAddition,
+  NewAllergenContaminationRisk,
+  NewItemAllergenProfile,
+  NewItemAllergenProfileOverride,
+  NewManufacturingOperationAllergenAddition,
+} from './item-allergens.js';
+export { labResults } from './lab.js';
+export type { LabResult, NewLabResult } from './lab.js';
+export { supplierSpecs } from './supplier-specs.js';
+export type { NewSupplierSpec, SupplierSpec } from './supplier-specs.js';
+export { routingOperations, routings } from './routing.js';
+export type { NewRouting, NewRoutingOperation, Routing, RoutingOperation } from './routing.js';
+export { d365SyncDlq, d365SyncJobs } from './d365-sync.js';
+export type { D365SyncDlqEntry, D365SyncJob, NewD365SyncDlqEntry, NewD365SyncJob } from './d365-sync.js';
+export { factorySpecs } from './factory-specs.js';
+export type { FactorySpec, NewFactorySpec } from './factory-specs.js';
+export { technicalSensoryEvaluations } from './technical-sensory-evaluations.js';
+export type {
+  NewTechnicalSensoryEvaluation,
+  TechnicalSensoryEvaluation,
+} from './technical-sensory-evaluations.js';

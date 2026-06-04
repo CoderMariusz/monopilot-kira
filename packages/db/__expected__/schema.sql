@@ -432,6 +432,71 @@ $$;
 
 
 --
+-- Name: seed_reference_lookups(uuid); Type: FUNCTION; Schema: Reference; Owner: -
+--
+
+CREATE FUNCTION "Reference".seed_reference_lookups(p_org_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'Reference'
+    AS $$
+DECLARE
+  -- prototype window.NPD_REF.pack_sizes (data.jsx) — the canonical Pack Size option list.
+  v_pack_sizes text[] := ARRAY['100g','120g','150g','160g','180g','200g','220g','250g'];
+  -- prototype window.NPD_REF.lines (data.jsx) — the canonical Line option list.
+  v_lines      text[] := ARRAY['L1','L2','L3','L4-MAP','L5-Smoked'];
+  v_line       text;
+  v_pack       text;
+BEGIN
+  -- -------- PackSizes (dropdown_source 'PackSizes', Core "Pack Size *") --------
+  INSERT INTO "Reference"."PackSizes" (org_id, value)
+  SELECT p_org_id, ps
+    FROM unnest(v_pack_sizes) AS ps
+  ON CONFLICT (org_id, value) DO NOTHING;
+
+  -- -------- CloseConfirm (dropdown_source 'CloseConfirm', "Closed_<Dept>") -----
+  -- 079 CHECK constraint restricts value to ('Yes','No',''); seed all three.
+  INSERT INTO "Reference"."CloseConfirm" (org_id, value)
+  VALUES (p_org_id, 'Yes'), (p_org_id, 'No'), (p_org_id, '')
+  ON CONFLICT (org_id, value) DO NOTHING;
+
+  -- -------- Templates (dropdown_source 'Templates', Core "Template") -----------
+  -- template_name list from prototype window.NPD_REF.templates (data.jsx). The four
+  -- operation_*_name values come from window.NPD_REF.processes so cascade chain4
+  -- (templateOperations() requires all 4 non-empty) resolves for every template.
+  INSERT INTO "Reference"."Templates"
+    (org_id, template_name, operation_1_name, operation_2_name, operation_3_name, operation_4_name)
+  VALUES
+    (p_org_id, 'Single Comp · Cold cut', 'Slice',  'MAP',    'Pack', 'Pack'),
+    (p_org_id, 'Single Comp · Smoked',   'Smoke',  'Slice',  'MAP',  'Pack'),
+    (p_org_id, 'Single Comp · Cured',    'Inject', 'Tumble', 'Cook', 'Pack'),
+    (p_org_id, 'Single Comp · Fish',     'Slice',  'Coat',   'Cook', 'Pack'),
+    (p_org_id, 'Multi Comp · Platter',   'Slice',  'MAP',    'Coat', 'Pack')
+  ON CONFLICT (org_id, template_name) DO NOTHING;
+
+  -- -------- Lines_By_PackSize (dropdown_source 'Lines_By_PackSize', Production "Line") --
+  -- Each baseline line supports every baseline pack size (supported_pack_sizes is the
+  -- array the @> containment query in reference-lookups.test.ts filters on).
+  INSERT INTO "Reference"."Lines_By_PackSize" (org_id, line, supported_pack_sizes)
+  SELECT p_org_id, ln, v_pack_sizes
+    FROM unnest(v_lines) AS ln
+  ON CONFLICT (org_id, line) DO NOTHING;
+
+  -- -------- Equipment_Setup_By_Line_Pack (dropdown_source, Production "Equipment_Setup") --
+  -- One deterministic dieset per (line, pack) so cascade chain1 handleLineChange()
+  -- auto-fills prod_detail.equipment_setup non-null for any valid line+pack pairing.
+  FOREACH v_line IN ARRAY v_lines LOOP
+    FOREACH v_pack IN ARRAY v_pack_sizes LOOP
+      INSERT INTO "Reference"."Equipment_Setup_By_Line_Pack"
+        (org_id, line, pack_size, equipment_setup)
+      VALUES (p_org_id, v_line, v_pack, 'Dieset ' || v_line || ' · ' || v_pack)
+      ON CONFLICT (org_id, line, pack_size) DO NOTHING;
+    END LOOP;
+  END LOOP;
+END;
+$$;
+
+
+--
 -- Name: app_next_seq_7(uuid, text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -848,6 +913,20 @@ $$;
 
 
 --
+-- Name: allergen_contamination_risk_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.allergen_contamination_risk_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: audit_events_impersonation_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1084,6 +1163,20 @@ $$;
 
 
 --
+-- Name: bom_co_products_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_co_products_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: bom_headers_reject_approved_content_update(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1150,6 +1243,19 @@ begin
   end if;
 
   raise exception 'unsupported bom_lines immutability trigger operation: %', tg_op;
+end;
+$$;
+
+
+--
+-- Name: bom_snapshots_reject_mutation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_snapshots_reject_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  raise exception 'bom_snapshots rows are immutable; insert a new snapshot instead of updating or deleting';
 end;
 $$;
 
@@ -1410,6 +1516,34 @@ $$;
 --
 
 COMMENT ON FUNCTION public.create_initial_shared_bom_version_for_npd_project(p_project_id uuid, p_product_id text, p_created_by_user uuid, p_initial_version integer) IS 'T-093: NPD Builder primitive that writes the initial shared BOM SSOT version from Monopilot-owned prod_detail rows; idempotent and pending Technical approval. (145: outbox aggregate_id text cast)';
+
+
+--
+-- Name: d365_sync_dlq_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.d365_sync_dlq_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: d365_sync_jobs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.d365_sync_jobs_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
 
 
 --
@@ -1902,6 +2036,78 @@ $$;
 
 
 --
+-- Name: factory_specs_enforce_clone_on_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.factory_specs_enforce_clone_on_write() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  business_changed boolean;
+begin
+  if tg_op <> 'UPDATE' then
+    return new;
+  end if;
+
+  -- Only guard rows that are already in a factory-usable (immutable) state.
+  if old.status not in ('approved_for_factory', 'released_to_factory') then
+    return new;
+  end if;
+
+  -- Did any immutable business field change?
+  business_changed := (
+    new.org_id is distinct from old.org_id
+    or new.fg_item_id is distinct from old.fg_item_id
+    or new.spec_code is distinct from old.spec_code
+    or new.version is distinct from old.version
+    or new.source is distinct from old.source
+    or new.bom_header_id is distinct from old.bom_header_id
+    or new.bom_version is distinct from old.bom_version
+    or new.supersedes_factory_spec_id is distinct from old.supersedes_factory_spec_id
+    or new.approved_by is distinct from old.approved_by
+    or new.approved_at is distinct from old.approved_at
+    or new.notes is distinct from old.notes
+    or new.site_id is distinct from old.site_id
+    or new.d365_item_id is distinct from old.d365_item_id
+    or new.schema_version is distinct from old.schema_version
+  );
+
+  if business_changed then
+    raise exception
+      'factory_specs version % (status %) is immutable; edits must create a new version (clone-on-write)',
+      old.version, old.status
+      using errcode = '23514';
+  end if;
+
+  -- Status may only move forward to a terminal/release state — never back to a draft/working state.
+  if new.status is distinct from old.status
+     and new.status not in ('released_to_factory', 'superseded', 'archived') then
+    raise exception
+      'factory_specs approved version cannot transition from % to % in place (clone-on-write)',
+      old.status, new.status
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: factory_specs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.factory_specs_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: feature_flags_core_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2333,6 +2539,62 @@ $$;
 
 
 --
+-- Name: item_allergen_profiles_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.item_allergen_profiles_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: item_cost_history_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.item_cost_history_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: items_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.items_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: mfg_op_allergen_additions_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mfg_op_allergen_additions_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: npd_dashboard_label(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2548,6 +2810,147 @@ COMMENT ON FUNCTION public.request_npd_released_bom_edit(p_active_bom_header_id 
 
 
 --
+-- Name: revoke_schema_admin_sod_overgrant_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.revoke_schema_admin_sod_overgrant_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  if to_regclass('public.role_permissions') is null or to_regclass('public.roles') is null then
+    return; -- RBAC tables not present yet; nothing to revoke.
+  end if;
+
+  -- ----------------------------------------------------------------------
+  -- 1) Normalized storage: delete the over-granted strings from the
+  --    schema-admin role(s). REVOKE list = migration 150's admin matrix MINUS
+  --    the three schema-scoped keepers.
+  -- ----------------------------------------------------------------------
+  with schema_admin_roles as (
+    select r.id
+    from public.roles r
+    where r.org_id = p_org_id
+      and r.slug = 'org.schema.admin'
+      and r.code not in ('owner', 'admin', 'org_admin')
+  ),
+  revoke_list(permission) as (
+    values
+      ('settings.org.read'),
+      ('settings.org.update'),
+      ('settings.users.view'),
+      ('settings.users.invite'),
+      ('settings.users.create'),
+      ('settings.users.deactivate'),
+      ('settings.users.manage'),
+      ('settings.roles.view'),
+      ('settings.roles.assign'),
+      ('settings.roles.manage'),
+      ('settings.audit.read'),
+      ('impersonate.tenant'),
+      ('settings.rules.view'),
+      ('settings.reference.view'),
+      ('settings.reference.edit'),
+      ('settings.reference.import'),
+      ('settings.infra.read'),
+      ('settings.infra.update'),
+      ('settings.infra.view'),
+      ('settings.flags.edit'),
+      ('settings.flags.view'),
+      ('settings.units.manage'),
+      ('settings.d365.view'),
+      ('settings.d365.manage'),
+      ('settings.d365.rotate_secret'),
+      ('settings.d365.test_connection'),
+      ('settings.email.view'),
+      ('settings.email.edit'),
+      ('settings.email.read'),
+      ('settings.email_config.edit'),
+      ('settings.sso.edit'),
+      ('settings.scim.edit'),
+      ('settings.ip_allowlist.edit'),
+      ('settings.security.view'),
+      ('settings.security.manage'),
+      ('settings.security.edit'),
+      ('settings.authorization.view'),
+      ('settings.authorization.edit'),
+      ('org.access.admin')
+  )
+  delete from public.role_permissions rp
+  using schema_admin_roles sar
+  where rp.role_id = sar.id
+    and rp.permission in (select permission from revoke_list);
+
+  -- ----------------------------------------------------------------------
+  -- 2) Legacy jsonb cache: remove the same strings from the schema-admin
+  --    role's permissions array (surgical — keep everything else as-is).
+  -- ----------------------------------------------------------------------
+  with revoke_list(permission) as (
+    values
+      ('settings.org.read'), ('settings.org.update'),
+      ('settings.users.view'), ('settings.users.invite'), ('settings.users.create'),
+      ('settings.users.deactivate'), ('settings.users.manage'),
+      ('settings.roles.view'), ('settings.roles.assign'), ('settings.roles.manage'),
+      ('settings.audit.read'), ('impersonate.tenant'), ('settings.rules.view'),
+      ('settings.reference.view'), ('settings.reference.edit'), ('settings.reference.import'),
+      ('settings.infra.read'), ('settings.infra.update'), ('settings.infra.view'),
+      ('settings.flags.edit'), ('settings.flags.view'), ('settings.units.manage'),
+      ('settings.d365.view'), ('settings.d365.manage'), ('settings.d365.rotate_secret'),
+      ('settings.d365.test_connection'),
+      ('settings.email.view'), ('settings.email.edit'), ('settings.email.read'),
+      ('settings.email_config.edit'), ('settings.sso.edit'), ('settings.scim.edit'),
+      ('settings.ip_allowlist.edit'),
+      ('settings.security.view'), ('settings.security.manage'), ('settings.security.edit'),
+      ('settings.authorization.view'), ('settings.authorization.edit'),
+      ('org.access.admin')
+  )
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(elem order by elem)
+         from jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) elem
+         where elem not in (select permission from revoke_list)
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and r.slug = 'org.schema.admin'
+     and r.code not in ('owner', 'admin', 'org_admin')
+     and r.permissions is not null;
+end;
+$$;
+
+
+--
+-- Name: revoke_schema_admin_sod_overgrant_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.revoke_schema_admin_sod_overgrant_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.revoke_schema_admin_sod_overgrant_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
+-- Name: routings_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.routings_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: seed_alert_thresholds_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2559,10 +2962,14 @@ BEGIN
   INSERT INTO "Reference"."AlertThresholds" (org_id, threshold_key, value_int, value_text)
   VALUES
     -- PRD §11.3 — launch alert thresholds (days before scheduled launch date)
-    (p_org_id, 'launch_alert_red_days',    10,   NULL),
-    (p_org_id, 'launch_alert_yellow_days', 21,   NULL),
+    (p_org_id, 'launch_alert_red_days',      10, NULL),
+    (p_org_id, 'launch_alert_yellow_days',   21, NULL),
     -- PRD §17.11.3 — costing margin warning threshold (percent, ≤15% triggers warn)
-    (p_org_id, 'costing_margin_warn_pct',  15,   NULL)
+    (p_org_id, 'costing_margin_warn_pct',    15, NULL),
+    -- PRD §10.6 — ATP swab cleaning-validation threshold (RLU, ≤10 passes)
+    (p_org_id, 'atp_swab_rlu_max',           10, NULL),
+    -- PRD §8.5/§8.6 — catch-weight variance default tolerance (percent)
+    (p_org_id, 'catch_weight_variance_pct',   5, NULL)
   ON CONFLICT (org_id, threshold_key) DO NOTHING;
 END;
 $$;
@@ -2572,7 +2979,7 @@ $$;
 -- Name: FUNCTION seed_alert_thresholds_for_org(p_org_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.seed_alert_thresholds_for_org(p_org_id uuid) IS 'T-050: Seeds the 3 canonical default AlertThreshold rows for the given org. Idempotent (ON CONFLICT DO NOTHING). Called by trg_seed_alert_thresholds and the migration 096 backfill.';
+COMMENT ON FUNCTION public.seed_alert_thresholds_for_org(p_org_id uuid) IS 'T-050/T-070: Seeds the canonical default AlertThreshold rows for the given org (launch alert + costing margin + ATP swab RLU + catch-weight variance). Idempotent (ON CONFLICT DO NOTHING). Called by trg_seed_alert_thresholds and the backfill below.';
 
 
 --
@@ -3092,6 +3499,81 @@ $$;
 
 
 --
+-- Name: seed_npd_org_admin_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_npd_org_admin_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- COMPLETE union of permission strings actually checked by NPD pages/actions (both the
+  -- canonical locale tree and the non-locale (npd) actions it imports). The page-check
+  -- vocabulary diverged from migration 080's seed vocabulary (080 seeds npd.core.write /
+  -- npd.dashboard.view / ... while pages check npd.fa.read / npd.compliance / npd.costing /
+  -- npd.nutrition / npd.risks / npd.*.write / npd.project.* / npd.brief.* — none seeded).
+  -- An org admin gets the full set so the whole NPD module is reachable. The page-vs-seed
+  -- vocabulary divergence itself is recorded for a follow-up reconciliation decision.
+  v_perms text[] := array[
+    'brief.convert_to_fa','brief.convert_to_npd_project','brief.create',
+    'fa.create','fa.delete','fa.field_edit','fg.create',
+    'npd.allergen.write','npd.bom.export','npd.brief.read','npd.brief.write',
+    'npd.closed_flag.unset','npd.commercial.write','npd.compliance','npd.compliance_doc.write',
+    'npd.core.write','npd.costing','npd.d365_builder.execute','npd.dashboard','npd.dashboard.view',
+    'npd.fa.build','npd.fa.close','npd.fa.create','npd.fa.read',
+    'npd.formulation.create_draft','npd.formulation.lock','npd.gate.advance','npd.gate.approve',
+    'npd.mrp.write','npd.nutrition','npd.pilot.promote_to_bom','npd.planning.write',
+    'npd.procurement.write','npd.production.write','npd.project.create','npd.project.delete',
+    'npd.project.view','npd.recipe.submit_for_trial','npd.risk.write','npd.risks',
+    'npd.rule.edit','npd.schema.edit','npd.technical.write'
+  ];
+  -- org-admin role family across naming conventions used in this codebase.
+  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
+begin
+  -- Normalized storage.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- Legacy jsonb cache: union the perms into each admin role's permissions array.
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
+end;
+$$;
+
+
+--
+-- Name: seed_npd_org_admin_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_npd_org_admin_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_npd_org_admin_permissions_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
 -- Name: seed_npd_role_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3391,6 +3873,258 @@ $$;
 
 
 --
+-- Name: seed_reference_lookups_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_reference_lookups_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public', 'Reference'
+    AS $$
+DECLARE
+  v_apex_org_id uuid := '00000000-0000-0000-0000-000000000002'::uuid;
+BEGIN
+  -- Skip Apex itself — it is the source of the seed.
+  IF NEW.id = v_apex_org_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- Guard: lookup tables must exist (safe on a partially migrated DB).
+  IF NOT EXISTS (
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'Reference'
+       AND table_name   = 'PackSizes'
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  -- Seed the new org from the same canonical baseline (NOT a copy of Apex rows, so
+  -- a manually-edited Apex set never leaks into fresh tenants).
+  PERFORM "Reference".seed_reference_lookups(NEW.id);
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: seed_settings_infra_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_settings_infra_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  -- Normalized storage: admin-class roles get the two canonical infra permission rows.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join (values ('settings.infra.read'), ('settings.infra.update')) as p(permission)
+  where r.org_id = p_org_id
+    and (
+      r.code in ('owner', 'admin', 'org_admin')
+      or r.slug in ('owner', 'admin', 'org.access.admin', 'org.platform.admin', 'org.schema.admin')
+    )
+  on conflict (role_id, permission) do nothing;
+
+  -- Legacy jsonb cache: keep each admin-class role's permissions array in sync so either
+  -- read path (role_permissions row OR roles.permissions ? perm) grants access.
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select 'settings.infra.read'
+           union all
+           select 'settings.infra.update'
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (
+       r.code in ('owner', 'admin', 'org_admin')
+       or r.slug in ('owner', 'admin', 'org.access.admin', 'org.platform.admin', 'org.schema.admin')
+     );
+end;
+$$;
+
+
+--
+-- Name: seed_settings_infra_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_settings_infra_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_settings_infra_permissions_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
+-- Name: seed_settings_rbac_matrix_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_settings_rbac_matrix_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  if to_regclass('public.role_permissions') is null or to_regclass('public.roles') is null then
+    return; -- RBAC tables not present yet; nothing to grant.
+  end if;
+
+  -- ----------------------------------------------------------------------
+  -- 1) Normalized storage: insert (role_id, permission) for the grant matrix.
+  --    grant_matrix(permission, role_family):
+  --      'admin'   -> org-admin family (codes owner/admin/org_admin + slugs org.*.admin)
+  --      'auditor' -> the auditor role (code or slug 'auditor')
+  -- ----------------------------------------------------------------------
+  with grant_matrix(permission, role_family) as (
+    values
+      -- Org / tenant settings ----------------------------------------------------
+      ('settings.org.read',             'admin'),
+      ('settings.org.update',           'admin'),
+      -- Users / roles -----------------------------------------------------------
+      ('settings.users.view',           'admin'),
+      ('settings.users.view',           'auditor'),
+      ('settings.users.invite',         'admin'),
+      ('settings.users.create',         'admin'),
+      ('settings.users.deactivate',     'admin'),
+      ('settings.users.manage',         'admin'),
+      ('settings.roles.view',           'admin'),
+      ('settings.roles.assign',         'admin'),
+      ('settings.roles.manage',         'admin'),
+      -- Audit / impersonation ---------------------------------------------------
+      ('settings.audit.read',           'admin'),
+      ('settings.audit.read',           'auditor'),
+      ('impersonate.tenant',            'admin'),
+      -- Rules registry ----------------------------------------------------------
+      ('settings.rules.view',           'admin'),
+      ('settings.rules.view',           'auditor'),
+      -- Reference data ----------------------------------------------------------
+      ('settings.reference.view',       'admin'),
+      ('settings.reference.edit',       'admin'),
+      ('settings.reference.import',     'admin'),
+      -- Infrastructure (warehouses / machines / locations / lines) --------------
+      -- read/update = the strings the code checks; view = export-capability check.
+      ('settings.infra.read',           'admin'),
+      ('settings.infra.update',         'admin'),
+      ('settings.infra.view',           'admin'),
+      -- Feature flags / modules -------------------------------------------------
+      ('settings.flags.edit',           'admin'),
+      ('settings.flags.view',           'admin'),
+      -- Units of measure (also repairs the migration-064 ordering bug) ----------
+      ('settings.units.manage',         'admin'),
+      -- D365 integration (strings as the code checks them today) ----------------
+      ('settings.d365.view',            'admin'),
+      ('settings.d365.manage',          'admin'),
+      ('settings.d365.rotate_secret',   'admin'),
+      ('settings.d365.test_connection', 'admin'),
+      -- Email configuration (both string variants the code uses) ----------------
+      ('settings.email.view',           'admin'),
+      ('settings.email.edit',           'admin'),
+      ('settings.email.read',           'admin'),
+      ('settings.email_config.edit',    'admin'),
+      -- SSO / SCIM --------------------------------------------------------------
+      ('settings.sso.edit',             'admin'),
+      ('settings.scim.edit',            'admin'),
+      -- IP allowlist ------------------------------------------------------------
+      ('settings.ip_allowlist.edit',    'admin'),
+      -- Security page -----------------------------------------------------------
+      ('settings.security.view',        'admin'),
+      ('settings.security.manage',      'admin'),
+      ('settings.security.edit',        'admin'),
+      -- Authorization policies --------------------------------------------------
+      ('settings.authorization.view',   'admin'),
+      ('settings.authorization.edit',   'admin'),
+      -- Schema lifecycle (preview / diff read) ----------------------------------
+      ('settings.schema.read',          'admin'),
+      ('settings.schema.admin',         'admin'),
+      -- Role-name-as-permission gates (flags / schema-preview / promotions / security)
+      ('org.access.admin',              'admin'),
+      ('org.schema.admin',              'admin')
+  )
+  insert into public.role_permissions (role_id, permission)
+  select r.id, gm.permission
+  from public.roles r
+  join grant_matrix gm
+    on (
+         gm.role_family = 'admin'
+         and (
+           r.code in ('owner', 'admin', 'org_admin')
+           or r.slug in ('owner', 'admin', 'org_admin',
+                         'org.access.admin', 'org.platform.admin', 'org.schema.admin')
+         )
+       )
+    or (
+         gm.role_family = 'auditor'
+         and (r.code = 'auditor' or r.slug = 'auditor')
+       )
+  where r.org_id = p_org_id
+  on conflict (role_id, permission) do nothing;
+
+  -- ----------------------------------------------------------------------
+  -- 2) Legacy jsonb cache: rebuild each touched role's permissions array as the
+  --    set-deduped union of its existing array + every role_permissions row it now
+  --    holds (so either read path grants access). Only roles in the seeded families.
+  -- ----------------------------------------------------------------------
+  with expanded as (
+    select
+      r.id,
+      coalesce(
+        (
+          select jsonb_agg(distinct merged.value order by merged.value)
+          from (
+            select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as value
+            union all
+            select rp.permission
+            from public.role_permissions rp
+            where rp.role_id = r.id
+          ) merged(value)
+        ),
+        '[]'::jsonb
+      ) as permissions
+    from public.roles r
+    where r.org_id = p_org_id
+      and (
+        r.code in ('owner', 'admin', 'org_admin', 'auditor')
+        or r.slug in ('owner', 'admin', 'org_admin', 'auditor',
+                      'org.access.admin', 'org.platform.admin', 'org.schema.admin')
+      )
+  )
+  update public.roles r
+     set permissions = expanded.permissions
+    from expanded
+   where r.id = expanded.id
+     and r.permissions is distinct from expanded.permissions;
+end;
+$$;
+
+
+--
+-- Name: seed_settings_rbac_matrix_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_settings_rbac_matrix_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_settings_rbac_matrix_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
 -- Name: seed_system_roles_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3413,6 +4147,78 @@ CREATE FUNCTION public.seed_system_roles_on_org_insert() RETURNS trigger
       return new;
     end;
     $$;
+
+
+--
+-- Name: seed_technical_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_technical_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- The complete technical.* family the 03-technical pages/actions check: the 10 strings
+  -- added by T-091 (ALL_TECHNICAL_PERMISSIONS) plus the pre-existing
+  -- technical.product_spec.approve workflow-authorization string, so the org admin can also
+  -- approve product specs.
+  v_perms text[] := array[
+    'technical.allergens.edit',
+    'technical.bom.approve',
+    'technical.bom.create',
+    'technical.bom.generate_batch',
+    'technical.bom.version_publish',
+    'technical.cost.edit',
+    'technical.d365.sync_trigger',
+    'technical.items.create',
+    'technical.items.deactivate',
+    'technical.items.edit',
+    'technical.product_spec.approve'
+  ];
+  -- org-admin role family across naming conventions used in this codebase.
+  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
+begin
+  -- Normalized storage.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- Legacy jsonb cache: union the perms into each admin role's permissions array.
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
+end;
+$$;
+
+
+--
+-- Name: seed_technical_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_technical_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_technical_permissions_for_org(new.id);
+  return new;
+end;
+$$;
 
 
 --
@@ -3502,6 +4308,160 @@ CREATE FUNCTION public.set_user_pins_updated_at() RETURNS trigger
     AS $$
 begin
   new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: supplier_specs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.supplier_specs_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: sync_prod_detail_rows(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_prod_detail_rows(p_product_code text, p_app_version text DEFAULT 'sync_prod_detail_rows-v1'::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_recipe text;
+  v_components text[];
+  v_added text[] := '{}'::text[];
+  v_removed text[] := '{}'::text[];
+  v_code text;
+  v_idx integer := 0;
+  v_item_id uuid;
+  v_changed integer := 0;
+begin
+  if v_org_id is null then
+    raise exception 'sync_prod_detail_rows requires an org context (app.current_org_id() is null)';
+  end if;
+
+  -- Read the product's free-text recipe component list (comma-separated) within scope.
+  select p.recipe_components
+    into v_recipe
+    from public.product p
+   where p.org_id = v_org_id
+     and p.product_code = p_product_code;
+
+  if not found then
+    raise exception 'sync_prod_detail_rows: product % not visible in org %', p_product_code, v_org_id;
+  end if;
+
+  -- Parse: split on comma, trim, drop blanks, de-duplicate preserving first-seen order.
+  select coalesce(
+           array_agg(c order by ord),
+           '{}'::text[]
+         )
+    into v_components
+    from (
+      select trimmed as c, min(ord) as ord
+        from (
+          select pg_catalog.btrim(part) as trimmed,
+                 ordinality as ord
+            from unnest(string_to_array(coalesce(v_recipe, ''), ',')) with ordinality as t(part, ordinality)
+        ) parts
+       where length(trimmed) > 0
+       group by trimmed
+    ) deduped;
+
+  -- Remove prod_detail rows whose intermediate_code no longer appears in the recipe.
+  with deleted as (
+    delete from public.prod_detail pd
+     where pd.org_id = v_org_id
+       and pd.product_code = p_product_code
+       and not (pd.intermediate_code = any (v_components))
+    returning pd.intermediate_code
+  )
+  select coalesce(array_agg(intermediate_code), '{}'::text[]) into v_removed from deleted;
+  v_changed := v_changed + coalesce(array_length(v_removed, 1), 0);
+
+  -- Upsert one row per component, in recipe order. Match an existing real item
+  -- by code so item_id is wired automatically when the item master has it.
+  foreach v_code in array v_components loop
+    v_idx := v_idx + 1;
+
+    select i.id
+      into v_item_id
+      from public.items i
+     where i.org_id = v_org_id
+       and i.item_code = v_code
+       and i.item_type in ('rm', 'intermediate', 'co_product')
+     limit 1;
+
+    if exists (
+      select 1 from public.prod_detail pd
+       where pd.org_id = v_org_id
+         and pd.product_code = p_product_code
+         and pd.intermediate_code = v_code
+    ) then
+      update public.prod_detail pd
+         set component_index = v_idx,
+             item_id = coalesce(v_item_id, pd.item_id)
+       where pd.org_id = v_org_id
+         and pd.product_code = p_product_code
+         and pd.intermediate_code = v_code
+         and (pd.component_index is distinct from v_idx
+              or (v_item_id is not null and pd.item_id is distinct from v_item_id));
+    else
+      insert into public.prod_detail
+        (org_id, product_code, intermediate_code, component_index, item_id)
+      values
+        (v_org_id, p_product_code, v_code, v_idx, v_item_id);
+      v_added := array_append(v_added, v_code);
+      v_changed := v_changed + 1;
+    end if;
+  end loop;
+
+  -- Emit an audit event only when the materialized component set actually changed.
+  if coalesce(array_length(v_added, 1), 0) > 0
+     or coalesce(array_length(v_removed, 1), 0) > 0 then
+    insert into public.outbox_events
+      (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+    values
+      (v_org_id, 'fa.recipe_changed', 'fa', p_product_code,
+       jsonb_build_object(
+         'product_code', p_product_code,
+         'next_recipe_components', array_to_string(v_components, ', '),
+         'diff', jsonb_build_object('added', to_jsonb(v_added), 'removed', to_jsonb(v_removed))
+       ),
+       p_app_version);
+  end if;
+
+  return v_changed;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION sync_prod_detail_rows(p_product_code text, p_app_version text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sync_prod_detail_rows(p_product_code text, p_app_version text) IS 'Lane-B: materialize/refresh prod_detail rows from product.recipe_components (org-scoped, idempotent); wires item_id from the items master by code.';
+
+
+--
+-- Name: technical_sensory_evaluations_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.technical_sensory_evaluations_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
   return new;
 end;
 $$;
@@ -4120,6 +5080,31 @@ ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: allergen_contamination_risk; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.allergen_contamination_risk (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    line_id uuid,
+    machine_id uuid,
+    allergen_code text NOT NULL,
+    risk_level text NOT NULL,
+    mitigation text,
+    site_id uuid,
+    last_assessed_at timestamp with time zone,
+    assessed_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT allergen_contamination_risk_allergen_code_nonblank_check CHECK ((length(btrim(allergen_code)) > 0)),
+    CONSTRAINT allergen_contamination_risk_risk_level_check CHECK ((risk_level = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'segregated'::text]))),
+    CONSTRAINT allergen_contamination_risk_target_check CHECK (((line_id IS NOT NULL) OR (machine_id IS NOT NULL)))
+);
+
+ALTER TABLE ONLY public.allergen_contamination_risk FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: allergens; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4507,6 +5492,45 @@ ALTER TABLE ONLY public.audit_log_2026_12 FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: bom_co_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bom_co_products (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    bom_header_id uuid NOT NULL,
+    co_product_item_id uuid NOT NULL,
+    quantity numeric(14,6) NOT NULL,
+    uom text NOT NULL,
+    allocation_pct numeric(6,3) NOT NULL,
+    is_byproduct boolean DEFAULT false NOT NULL,
+    site_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT bom_co_products_allocation_pct_check CHECK (((allocation_pct >= (0)::numeric) AND (allocation_pct <= 100.000))),
+    CONSTRAINT bom_co_products_byproduct_allocation_check CHECK (((is_byproduct IS FALSE) OR (allocation_pct = (0)::numeric))),
+    CONSTRAINT bom_co_products_quantity_positive_check CHECK ((quantity > (0)::numeric))
+);
+
+ALTER TABLE ONLY public.bom_co_products FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE bom_co_products; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bom_co_products IS 'T-002: co-products (positive market value) + byproducts (is_byproduct=true, allocation_pct=0) per shared BOM version. Cost allocation_pct of parent + non-byproduct co-products sums to 100. Part of the shared BOM SSOT; D365 is integration only.';
+
+
+--
+-- Name: COLUMN bom_co_products.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bom_co_products.site_id IS 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
+
+
+--
 -- Name: bom_headers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4609,6 +5633,7 @@ CREATE TABLE public.bom_lines (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     schema_version integer DEFAULT 1 NOT NULL,
+    item_id uuid,
     CONSTRAINT bom_lines_component_type_check CHECK (((component_type IS NULL) OR (component_type = ANY (ARRAY['RM'::text, 'PM'::text, 'WIP'::text, 'FG'::text])))),
     CONSTRAINT bom_lines_line_no_check CHECK ((line_no > 0)),
     CONSTRAINT bom_lines_quantity_positive_check CHECK ((quantity > (0)::numeric)),
@@ -4623,6 +5648,52 @@ ALTER TABLE ONLY public.bom_lines FORCE ROW LEVEL SECURITY;
 --
 
 COMMENT ON TABLE public.bom_lines IS 'T-092: Line items for the shared BOM SSOT. Initial NPD Builder BOMs and Technical post-release versions use this same model; D365 is integration only.';
+
+
+--
+-- Name: COLUMN bom_lines.item_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bom_lines.item_id IS 'T-002: canonical item master FK (public.items). component_code TEXT is retained for display / back-compat; item_id is the authoritative component reference for the shared BOM SSOT.';
+
+
+--
+-- Name: bom_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bom_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    work_order_id uuid,
+    bom_header_id uuid NOT NULL,
+    snapshot_json jsonb NOT NULL,
+    site_id uuid,
+    snapshot_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT bom_snapshots_snapshot_json_object_check CHECK ((jsonb_typeof(snapshot_json) = 'object'::text))
+);
+
+ALTER TABLE ONLY public.bom_snapshots FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE bom_snapshots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bom_snapshots IS 'T-002: immutable flattened BOM snapshot (header + lines + co-products) captured at WO creation (ADR-002). WO execution reads only its snapshot, never live bom_headers. work_order_id FK is added by 08-PRODUCTION. site_id is the Day-1 multi-site column. Shared BOM SSOT; D365 is integration only.';
+
+
+--
+-- Name: COLUMN bom_snapshots.work_order_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bom_snapshots.work_order_id IS 'T-002: soft UUID reference to 08-PRODUCTION work_orders; FK is intentionally deferred to 08-PRODUCTION (table does not exist yet).';
+
+
+--
+-- Name: COLUMN bom_snapshots.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bom_snapshots.site_id IS 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
 
 
 --
@@ -4896,6 +5967,101 @@ CREATE VIEW public.d365_import_cache_meta WITH (security_invoker='true') AS
 --
 
 COMMENT ON VIEW public.d365_import_cache_meta IS 'T-090: Per-org last D365 import-cache sync timestamp and cache row count. security_invoker=true preserves d365_import_cache RLS.';
+
+
+--
+-- Name: d365_sync_dlq; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.d365_sync_dlq (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    job_id uuid,
+    direction text NOT NULL,
+    job_type text NOT NULL,
+    target_entity text NOT NULL,
+    idempotency_key text,
+    record_key text,
+    d365_item_id text,
+    error_message text NOT NULL,
+    error_detail jsonb DEFAULT '{}'::jsonb NOT NULL,
+    failed_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    retry_count integer DEFAULT 0 NOT NULL,
+    status text DEFAULT 'unresolved'::text NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid,
+    resolution_note text,
+    failed_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT d365_sync_dlq_direction_check CHECK ((direction = ANY (ARRAY['pull'::text, 'push'::text]))),
+    CONSTRAINT d365_sync_dlq_error_detail_object_check CHECK ((jsonb_typeof(error_detail) = 'object'::text)),
+    CONSTRAINT d365_sync_dlq_error_message_not_blank_check CHECK ((length(TRIM(BOTH FROM error_message)) > 0)),
+    CONSTRAINT d365_sync_dlq_failed_payload_object_check CHECK ((jsonb_typeof(failed_payload) = 'object'::text)),
+    CONSTRAINT d365_sync_dlq_job_type_check CHECK ((job_type = ANY (ARRAY['items'::text, 'bom'::text, 'formula'::text, 'wo_confirmation'::text, 'journal'::text]))),
+    CONSTRAINT d365_sync_dlq_retry_count_check CHECK ((retry_count >= 0)),
+    CONSTRAINT d365_sync_dlq_status_check CHECK ((status = ANY (ARRAY['unresolved'::text, 'retried'::text, 'resolved'::text, 'skipped'::text])))
+);
+
+ALTER TABLE ONLY public.d365_sync_dlq FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE d365_sync_dlq; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.d365_sync_dlq IS 'T-007: D365 sync dead-letter queue (poison messages). error_message NOT NULL (V-TEC-71). job_id soft link (ON DELETE SET NULL). 7-year retention per ADR-008.';
+
+
+--
+-- Name: d365_sync_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.d365_sync_jobs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    direction text NOT NULL,
+    job_type text NOT NULL,
+    target_entity text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    idempotency_key text NOT NULL,
+    record_key text,
+    d365_item_id text,
+    payload_version integer DEFAULT 1 NOT NULL,
+    retry_count integer DEFAULT 0 NOT NULL,
+    max_retries integer DEFAULT 3 NOT NULL,
+    next_retry_at timestamp with time zone,
+    records_processed integer DEFAULT 0 NOT NULL,
+    records_failed integer DEFAULT 0 NOT NULL,
+    error_message text,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    scheduled_at timestamp with time zone DEFAULT now() NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT d365_sync_jobs_direction_check CHECK ((direction = ANY (ARRAY['pull'::text, 'push'::text]))),
+    CONSTRAINT d365_sync_jobs_idempotency_key_not_blank_check CHECK ((length(TRIM(BOTH FROM idempotency_key)) > 0)),
+    CONSTRAINT d365_sync_jobs_job_type_check CHECK ((job_type = ANY (ARRAY['items'::text, 'bom'::text, 'formula'::text, 'wo_confirmation'::text, 'journal'::text]))),
+    CONSTRAINT d365_sync_jobs_max_retries_check CHECK ((max_retries >= 0)),
+    CONSTRAINT d365_sync_jobs_payload_object_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT d365_sync_jobs_payload_version_check CHECK ((payload_version >= 1)),
+    CONSTRAINT d365_sync_jobs_records_nonnegative_check CHECK (((records_processed >= 0) AND (records_failed >= 0))),
+    CONSTRAINT d365_sync_jobs_retry_count_check CHECK ((retry_count >= 0)),
+    CONSTRAINT d365_sync_jobs_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'completed'::text, 'failed'::text, 'dead_lettered'::text])))
+);
+
+ALTER TABLE ONLY public.d365_sync_jobs FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE d365_sync_jobs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.d365_sync_jobs IS 'T-007: D365 sync job queue (pull/push). Worker-facing — DISTINCT from d365_sync_runs (mig 065, Settings audit viewer). idempotency_key UNIQUE per org (V-TEC-72/R14). 7-year retention per ADR-008.';
 
 
 --
@@ -5307,7 +6473,8 @@ CREATE TABLE public.prod_detail (
     intermediate_code_final text,
     slice_count integer,
     component_weight numeric,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    item_id uuid
 );
 
 ALTER TABLE ONLY public.prod_detail FORCE ROW LEVEL SECURITY;
@@ -5318,6 +6485,13 @@ ALTER TABLE ONLY public.prod_detail FORCE ROW LEVEL SECURITY;
 --
 
 COMMENT ON TABLE public.prod_detail IS 'T-002: per-component production detail rows for product manufacturing data.';
+
+
+--
+-- Name: COLUMN prod_detail.item_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.prod_detail.item_id IS 'Lane-B: optional FK to the real items master row this component represents (intermediate_code stays the display code).';
 
 
 --
@@ -5602,6 +6776,74 @@ COMMENT ON COLUMN public.factory_release_status.active_factory_spec_id IS 'Techn
 
 
 --
+-- Name: factory_specs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.factory_specs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    fg_item_id uuid NOT NULL,
+    spec_code text NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    source text DEFAULT 'technical'::text NOT NULL,
+    bom_header_id uuid,
+    bom_version integer,
+    supersedes_factory_spec_id uuid,
+    approved_by uuid,
+    approved_at timestamp with time zone,
+    released_by uuid,
+    released_at timestamp with time zone,
+    notes text,
+    d365_item_id text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT factory_specs_approved_requires_evidence_check CHECK (((status <> ALL (ARRAY['approved_for_factory'::text, 'released_to_factory'::text])) OR ((approved_by IS NOT NULL) AND (approved_at IS NOT NULL)))),
+    CONSTRAINT factory_specs_bom_version_check CHECK (((bom_version IS NULL) OR (bom_version > 0))),
+    CONSTRAINT factory_specs_d365_import_status_check CHECK (((source <> 'd365_import'::text) OR (status = ANY (ARRAY['draft'::text, 'in_review'::text])))),
+    CONSTRAINT factory_specs_npd_builder_draft_check CHECK (((source <> 'npd_builder'::text) OR ((status = 'draft'::text) AND (approved_by IS NULL) AND (approved_at IS NULL) AND (released_by IS NULL) AND (released_at IS NULL)))),
+    CONSTRAINT factory_specs_released_requires_evidence_check CHECK (((status <> 'released_to_factory'::text) OR ((released_by IS NOT NULL) AND (released_at IS NOT NULL)))),
+    CONSTRAINT factory_specs_schema_version_check CHECK ((schema_version >= 1)),
+    CONSTRAINT factory_specs_source_check CHECK ((source = ANY (ARRAY['technical'::text, 'npd_builder'::text, 'd365_import'::text]))),
+    CONSTRAINT factory_specs_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'in_review'::text, 'approved_for_factory'::text, 'released_to_factory'::text, 'superseded'::text, 'archived'::text]))),
+    CONSTRAINT factory_specs_version_positive_check CHECK ((version > 0))
+);
+
+ALTER TABLE ONLY public.factory_specs FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE factory_specs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.factory_specs IS 'Technical-owned, versioned canonical production spec (factory_spec / internal_product_spec) per FG. Clone-on-write: approved/released versions are immutable. Approval emits technical.factory_spec.approved (wired in T-080/T-081).';
+
+
+--
+-- Name: COLUMN factory_specs.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.factory_specs.site_id IS 'site_id day-1 soft column: nullable uuid, no FK / no registry (REC-L1 style).';
+
+
+--
+-- Name: COLUMN factory_specs.bom_header_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.factory_specs.bom_header_id IS 'Soft (nullable) composite FK to the shared BOM SSOT header (bom_headers). The bundle approval is T-080.';
+
+
+--
+-- Name: COLUMN factory_specs.d365_item_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.factory_specs.d365_item_id IS 'D365 soft TEXT reference only; D365 is never authoritative for approved specs (no FK).';
+
+
+--
 -- Name: feature_flags_core; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5679,6 +6921,7 @@ CREATE TABLE public.formulation_ingredients (
     sequence integer NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     schema_version integer DEFAULT 1 NOT NULL,
+    item_id uuid,
     CONSTRAINT formulation_ingredients_cost_per_kg_eur_check CHECK (((cost_per_kg_eur IS NULL) OR (cost_per_kg_eur >= (0)::numeric))),
     CONSTRAINT formulation_ingredients_pct_check CHECK (((pct IS NULL) OR ((pct >= (0)::numeric) AND (pct <= (100)::numeric)))),
     CONSTRAINT formulation_ingredients_qty_kg_check CHECK (((qty_kg IS NULL) OR (qty_kg >= (0)::numeric))),
@@ -5687,6 +6930,13 @@ CREATE TABLE public.formulation_ingredients (
 );
 
 ALTER TABLE ONLY public.formulation_ingredients FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: COLUMN formulation_ingredients.item_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.formulation_ingredients.item_id IS 'Lane-B: optional FK to the real items master row this ingredient represents (rm_code stays the display code).';
 
 
 --
@@ -5844,6 +7094,188 @@ ALTER TABLE ONLY public.integration_settings FORCE ROW LEVEL SECURITY;
 --
 
 COMMENT ON TABLE public.integration_settings IS 'W7/T-090: per-org integration provider config (email/etc). One active row per (org, category).';
+
+
+--
+-- Name: iso4217; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.iso4217 (
+    code character(3) NOT NULL,
+    currency_name text NOT NULL,
+    num character(3) NOT NULL,
+    minor_unit integer DEFAULT 2 NOT NULL,
+    CONSTRAINT iso4217_code_format_check CHECK ((code ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT iso4217_minor_unit_check CHECK (((minor_unit >= 0) AND (minor_unit <= 4))),
+    CONSTRAINT iso4217_num_format_check CHECK ((num ~ '^[0-9]{3}$'::text))
+);
+
+
+--
+-- Name: TABLE iso4217; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.iso4217 IS 'T-070: Global ISO-4217 currency reference (code / name / numeric / minor unit). Un-scoped shared lookup (no org_id, no RLS). Backs V-TEC-52 currency validation.';
+
+
+--
+-- Name: item_allergen_profile_overrides; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.item_allergen_profile_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    item_id uuid NOT NULL,
+    allergen_code text NOT NULL,
+    action text NOT NULL,
+    intensity text,
+    confidence text,
+    reason text NOT NULL,
+    overridden_by uuid,
+    overridden_at timestamp with time zone DEFAULT now() NOT NULL,
+    site_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT item_allergen_profile_overrides_action_check CHECK ((action = ANY (ARRAY['set'::text, 'clear'::text, 'adjust_intensity'::text, 'adjust_confidence'::text]))),
+    CONSTRAINT item_allergen_profile_overrides_allergen_code_nonblank_check CHECK ((length(btrim(allergen_code)) > 0)),
+    CONSTRAINT item_allergen_profile_overrides_confidence_check CHECK (((confidence IS NULL) OR (confidence = ANY (ARRAY['declared'::text, 'tested'::text, 'assumed'::text])))),
+    CONSTRAINT item_allergen_profile_overrides_intensity_check CHECK (((intensity IS NULL) OR (intensity = ANY (ARRAY['contains'::text, 'may_contain'::text, 'trace'::text])))),
+    CONSTRAINT item_allergen_profile_overrides_reason_nonblank_check CHECK ((length(btrim(reason)) > 0))
+);
+
+ALTER TABLE ONLY public.item_allergen_profile_overrides FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: item_allergen_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.item_allergen_profiles (
+    org_id uuid NOT NULL,
+    item_id uuid NOT NULL,
+    allergen_code text NOT NULL,
+    source text NOT NULL,
+    intensity text DEFAULT 'contains'::text NOT NULL,
+    confidence text DEFAULT 'declared'::text NOT NULL,
+    site_id uuid,
+    declared_by uuid,
+    declared_at timestamp with time zone DEFAULT now() NOT NULL,
+    manual_override_reason text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT item_allergen_profiles_allergen_code_nonblank_check CHECK ((length(btrim(allergen_code)) > 0)),
+    CONSTRAINT item_allergen_profiles_confidence_check CHECK ((confidence = ANY (ARRAY['declared'::text, 'tested'::text, 'assumed'::text]))),
+    CONSTRAINT item_allergen_profiles_intensity_check CHECK ((intensity = ANY (ARRAY['contains'::text, 'may_contain'::text, 'trace'::text]))),
+    CONSTRAINT item_allergen_profiles_override_reason_check CHECK (((source <> 'manual_override'::text) OR ((manual_override_reason IS NOT NULL) AND (length(btrim(manual_override_reason)) > 0)))),
+    CONSTRAINT item_allergen_profiles_source_check CHECK ((source = ANY (ARRAY['brief_declared'::text, 'supplier_spec'::text, 'lab_result'::text, 'cascaded'::text, 'manual_override'::text])))
+);
+
+ALTER TABLE ONLY public.item_allergen_profiles FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: item_cost_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.item_cost_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    item_id uuid NOT NULL,
+    cost_per_kg numeric(10,4) NOT NULL,
+    currency character(3) DEFAULT 'PLN'::bpchar NOT NULL,
+    effective_from date DEFAULT CURRENT_DATE NOT NULL,
+    effective_to date,
+    source text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT item_cost_history_cost_per_kg_nonnegative_check CHECK ((cost_per_kg >= (0)::numeric)),
+    CONSTRAINT item_cost_history_effective_range_check CHECK (((effective_to IS NULL) OR (effective_to >= effective_from))),
+    CONSTRAINT item_cost_history_source_check CHECK (((source IS NULL) OR (source = ANY (ARRAY['manual'::text, 'd365_sync'::text, 'supplier_update'::text, 'variance_roll'::text]))))
+);
+
+ALTER TABLE ONLY public.item_cost_history FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    item_code text NOT NULL,
+    item_type text NOT NULL,
+    name text NOT NULL,
+    description text,
+    status text DEFAULT 'active'::text NOT NULL,
+    product_group text,
+    uom_base text NOT NULL,
+    uom_secondary text,
+    gs1_gtin text,
+    weight_mode text DEFAULT 'fixed'::text NOT NULL,
+    nominal_weight numeric(10,4),
+    tare_weight numeric(10,4),
+    gross_weight_max numeric(10,4),
+    variance_tolerance_pct numeric(5,2) DEFAULT 5.00,
+    shelf_life_days integer,
+    shelf_life_mode text DEFAULT 'use_by'::text,
+    date_code_format text,
+    cost_per_kg numeric(18,6),
+    d365_item_id text,
+    d365_last_sync_at timestamp with time zone,
+    d365_sync_status text DEFAULT 'unsynced'::text,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    private_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT items_cost_per_kg_nonnegative_check CHECK (((cost_per_kg IS NULL) OR (cost_per_kg >= (0)::numeric))),
+    CONSTRAINT items_d365_sync_status_check CHECK (((d365_sync_status IS NULL) OR (d365_sync_status = ANY (ARRAY['unsynced'::text, 'synced'::text, 'drift'::text, 'error'::text])))),
+    CONSTRAINT items_ext_jsonb_object_check CHECK ((jsonb_typeof(ext_jsonb) = 'object'::text)),
+    CONSTRAINT items_item_type_check CHECK ((item_type = ANY (ARRAY['rm'::text, 'intermediate'::text, 'fg'::text, 'co_product'::text, 'byproduct'::text]))),
+    CONSTRAINT items_private_jsonb_object_check CHECK ((jsonb_typeof(private_jsonb) = 'object'::text)),
+    CONSTRAINT items_schema_version_check CHECK ((schema_version >= 1)),
+    CONSTRAINT items_shelf_life_days_check CHECK (((shelf_life_days IS NULL) OR (shelf_life_days >= 0))),
+    CONSTRAINT items_shelf_life_mode_check CHECK (((shelf_life_mode IS NULL) OR (shelf_life_mode = ANY (ARRAY['use_by'::text, 'best_before'::text])))),
+    CONSTRAINT items_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'deprecated'::text, 'blocked'::text]))),
+    CONSTRAINT items_variance_tolerance_pct_check CHECK (((variance_tolerance_pct IS NULL) OR ((variance_tolerance_pct >= (0)::numeric) AND (variance_tolerance_pct <= (100)::numeric)))),
+    CONSTRAINT items_weight_mode_check CHECK ((weight_mode = ANY (ARRAY['fixed'::text, 'catch'::text]))),
+    CONSTRAINT items_weights_nonnegative_check CHECK ((((nominal_weight IS NULL) OR (nominal_weight >= (0)::numeric)) AND ((tare_weight IS NULL) OR (tare_weight >= (0)::numeric)) AND ((gross_weight_max IS NULL) OR (gross_weight_max >= (0)::numeric))))
+);
+
+ALTER TABLE ONLY public.items FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: lab_results; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lab_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    item_id uuid,
+    work_order_id uuid,
+    quality_result_id uuid,
+    test_type text NOT NULL,
+    test_code text,
+    result_value numeric(14,4),
+    result_unit text,
+    result_status text NOT NULL,
+    threshold_rlu numeric(10,2) DEFAULT 10.00,
+    tested_at timestamp with time zone,
+    lab_provider text,
+    notes text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT lab_results_result_status_check CHECK ((result_status = ANY (ARRAY['pass'::text, 'fail'::text, 'inconclusive'::text, 'pending'::text, 'hold'::text]))),
+    CONSTRAINT lab_results_test_type_check CHECK ((test_type = ANY (ARRAY['atp_swab'::text, 'allergen_elisa'::text, 'micro_apc'::text, 'nutrition'::text, 'sensory'::text]))),
+    CONSTRAINT lab_results_threshold_rlu_nonnegative_check CHECK (((threshold_rlu IS NULL) OR (threshold_rlu >= (0)::numeric)))
+);
+
+ALTER TABLE ONLY public.lab_results FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6036,6 +7468,26 @@ CREATE TABLE public.machines (
 );
 
 ALTER TABLE ONLY public.machines FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: manufacturing_operation_allergen_additions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.manufacturing_operation_allergen_additions (
+    org_id uuid NOT NULL,
+    manufacturing_operation_name text NOT NULL,
+    allergen_code text NOT NULL,
+    reason text,
+    site_id uuid,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT manufacturing_operation_allergen_additions_allergen_code_nonbla CHECK ((length(btrim(allergen_code)) > 0)),
+    CONSTRAINT manufacturing_operation_allergen_additions_op_nonblank_check CHECK ((length(btrim(manufacturing_operation_name)) > 0))
+);
+
+ALTER TABLE ONLY public.manufacturing_operation_allergen_additions FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -6407,17 +7859,10 @@ CREATE TABLE public.outbox_events (
     dead_lettered_at timestamp with time zone,
     last_error_text text,
     dedup_key text,
-    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.line.upserted'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'user.invited'::text, 'wo.ready'::text])))
+    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
 );
 
 ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: CONSTRAINT outbox_events_event_type_check ON outbox_events; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Full outbox event union through migration 144, including T-100 npd.project.legacy_stages_closed.';
 
 
 --
@@ -6678,6 +8123,62 @@ ALTER TABLE ONLY public.roles FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: routing_operations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.routing_operations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    routing_id uuid NOT NULL,
+    op_no integer NOT NULL,
+    op_code text NOT NULL,
+    op_name text NOT NULL,
+    line_id uuid,
+    machine_id uuid,
+    setup_time_min integer DEFAULT 0 NOT NULL,
+    run_time_per_unit_sec numeric(10,2),
+    cost_per_hour numeric(10,4),
+    manufacturing_operation_name text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT routing_operations_cost_per_hour_nonnegative_check CHECK (((cost_per_hour IS NULL) OR (cost_per_hour >= (0)::numeric))),
+    CONSTRAINT routing_operations_op_no_check CHECK ((op_no >= 1)),
+    CONSTRAINT routing_operations_run_time_nonnegative_check CHECK (((run_time_per_unit_sec IS NULL) OR (run_time_per_unit_sec >= (0)::numeric))),
+    CONSTRAINT routing_operations_setup_time_nonnegative_check CHECK ((setup_time_min >= 0))
+);
+
+ALTER TABLE ONLY public.routing_operations FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: routings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.routings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    item_id uuid NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    status text DEFAULT 'draft'::text NOT NULL,
+    effective_from date DEFAULT CURRENT_DATE NOT NULL,
+    effective_to date,
+    approved_by uuid,
+    approved_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT routings_effective_range_check CHECK (((effective_to IS NULL) OR (effective_to >= effective_from))),
+    CONSTRAINT routings_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'approved'::text, 'active'::text, 'superseded'::text]))),
+    CONSTRAINT routings_version_check CHECK ((version >= 1))
+);
+
+ALTER TABLE ONLY public.routings FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: rule_definitions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6813,6 +8314,52 @@ ALTER TABLE ONLY public.shipment FORCE ROW LEVEL SECURITY;
 
 
 --
+-- Name: supplier_specs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.supplier_specs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    item_id uuid NOT NULL,
+    supplier_code text NOT NULL,
+    supplier_status text DEFAULT 'pending'::text NOT NULL,
+    spec_document_url text,
+    document_sha256 text,
+    document_mime_type text,
+    spec_version text NOT NULL,
+    issued_date date,
+    effective_from date DEFAULT CURRENT_DATE NOT NULL,
+    expiry_date date,
+    lifecycle_status text DEFAULT 'draft'::text NOT NULL,
+    review_status text DEFAULT 'pending'::text NOT NULL,
+    review_notes text,
+    cost_review_blocked boolean DEFAULT false NOT NULL,
+    spec_review_blocked boolean DEFAULT false NOT NULL,
+    approved_by uuid,
+    approved_at timestamp with time zone,
+    rejected_by uuid,
+    rejected_at timestamp with time zone,
+    rejection_reason text,
+    declared_allergens text[],
+    declared_attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
+    certificate_refs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    uploaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    uploaded_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT supplier_specs_certificate_refs_array_check CHECK ((jsonb_typeof(certificate_refs) = 'array'::text)),
+    CONSTRAINT supplier_specs_declared_attrs_object_check CHECK ((jsonb_typeof(declared_attrs) = 'object'::text)),
+    CONSTRAINT supplier_specs_expiry_after_effective_check CHECK (((expiry_date IS NULL) OR (effective_from IS NULL) OR (expiry_date >= effective_from))),
+    CONSTRAINT supplier_specs_lifecycle_status_check CHECK ((lifecycle_status = ANY (ARRAY['draft'::text, 'active'::text, 'expired'::text, 'superseded'::text, 'blocked'::text]))),
+    CONSTRAINT supplier_specs_review_status_check CHECK ((review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'blocked'::text]))),
+    CONSTRAINT supplier_specs_supplier_status_check CHECK ((supplier_status = ANY (ARRAY['pending'::text, 'approved'::text, 'blocked'::text])))
+);
+
+ALTER TABLE ONLY public.supplier_specs FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: tax_codes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6831,6 +8378,35 @@ CREATE TABLE public.tax_codes (
 );
 
 ALTER TABLE ONLY public.tax_codes FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: technical_sensory_evaluations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.technical_sensory_evaluations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    subject_type text NOT NULL,
+    subject_ref text NOT NULL,
+    subject_item_id uuid,
+    status text DEFAULT 'not_required'::text NOT NULL,
+    status_reason text,
+    policy_required boolean DEFAULT false NOT NULL,
+    evaluated_at timestamp with time zone,
+    evaluated_by uuid,
+    schema_version integer DEFAULT 1 NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT technical_sensory_evaluations_not_required_policy_check CHECK (((status <> 'not_required'::text) OR (policy_required = false))),
+    CONSTRAINT technical_sensory_evaluations_schema_version_check CHECK ((schema_version >= 1)),
+    CONSTRAINT technical_sensory_evaluations_status_check CHECK ((status = ANY (ARRAY['required'::text, 'pending'::text, 'pass'::text, 'fail'::text, 'hold'::text, 'not_required'::text]))),
+    CONSTRAINT technical_sensory_evaluations_subject_type_check CHECK ((subject_type = ANY (ARRAY['product'::text, 'project'::text, 'work_order'::text, 'item'::text])))
+);
+
+ALTER TABLE ONLY public.technical_sensory_evaluations FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -7502,6 +9078,14 @@ ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
 
 
 --
+-- Name: allergen_contamination_risk allergen_contamination_risk_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_contamination_risk
+    ADD CONSTRAINT allergen_contamination_risk_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: allergens allergens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7637,6 +9221,22 @@ ALTER TABLE ONLY public.audit_log_2026_12
 
 
 --
+-- Name: bom_co_products bom_co_products_header_item_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_co_products
+    ADD CONSTRAINT bom_co_products_header_item_unique UNIQUE (bom_header_id, co_product_item_id);
+
+
+--
+-- Name: bom_co_products bom_co_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_co_products
+    ADD CONSTRAINT bom_co_products_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: bom_headers bom_headers_identity_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7674,6 +9274,14 @@ ALTER TABLE ONLY public.bom_lines
 
 ALTER TABLE ONLY public.bom_lines
     ADD CONSTRAINT bom_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bom_snapshots bom_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_snapshots
+    ADD CONSTRAINT bom_snapshots_pkey PRIMARY KEY (id);
 
 
 --
@@ -7805,6 +9413,30 @@ ALTER TABLE ONLY public.d365_import_cache
 
 
 --
+-- Name: d365_sync_dlq d365_sync_dlq_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_dlq
+    ADD CONSTRAINT d365_sync_dlq_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_org_idempotency_key_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_jobs
+    ADD CONSTRAINT d365_sync_jobs_org_idempotency_key_unique UNIQUE (org_id, idempotency_key);
+
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_jobs
+    ADD CONSTRAINT d365_sync_jobs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: d365_sync_runs d365_sync_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7882,6 +9514,22 @@ ALTER TABLE ONLY public.factory_release_status
 
 ALTER TABLE ONLY public.factory_release_status
     ADD CONSTRAINT factory_release_status_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: factory_specs factory_specs_org_fg_version_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_org_fg_version_unique UNIQUE (org_id, fg_item_id, version);
+
+
+--
+-- Name: factory_specs factory_specs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_pkey PRIMARY KEY (id);
 
 
 --
@@ -7997,6 +9645,62 @@ ALTER TABLE ONLY public.integration_settings
 
 
 --
+-- Name: iso4217 iso4217_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.iso4217
+    ADD CONSTRAINT iso4217_pkey PRIMARY KEY (code);
+
+
+--
+-- Name: item_allergen_profile_overrides item_allergen_profile_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profile_overrides
+    ADD CONSTRAINT item_allergen_profile_overrides_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: item_allergen_profiles item_allergen_profiles_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profiles
+    ADD CONSTRAINT item_allergen_profiles_pk PRIMARY KEY (org_id, item_id, allergen_code);
+
+
+--
+-- Name: item_cost_history item_cost_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_cost_history
+    ADD CONSTRAINT item_cost_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: items items_org_item_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.items
+    ADD CONSTRAINT items_org_item_code_unique UNIQUE (org_id, item_code);
+
+
+--
+-- Name: items items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.items
+    ADD CONSTRAINT items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: lab_results lab_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lab_results
+    ADD CONSTRAINT lab_results_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: line_machines line_machines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8050,6 +9754,14 @@ ALTER TABLE ONLY public.machines
 
 ALTER TABLE ONLY public.machines
     ADD CONSTRAINT machines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: manufacturing_operation_allergen_additions manufacturing_operation_allergen_additions_pk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.manufacturing_operation_allergen_additions
+    ADD CONSTRAINT manufacturing_operation_allergen_additions_pk PRIMARY KEY (org_id, manufacturing_operation_name, allergen_code);
 
 
 --
@@ -8365,6 +10077,38 @@ ALTER TABLE ONLY public.roles
 
 
 --
+-- Name: routing_operations routing_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: routing_operations routing_operations_routing_op_no_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_routing_op_no_unique UNIQUE (routing_id, op_no);
+
+
+--
+-- Name: routings routings_org_item_version_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_org_item_version_unique UNIQUE (org_id, item_id, version);
+
+
+--
+-- Name: routings routings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: rule_definitions rule_definitions_org_id_rule_code_version_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8445,6 +10189,14 @@ ALTER TABLE ONLY public.shipment
 
 
 --
+-- Name: supplier_specs supplier_specs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: tax_codes tax_codes_org_id_code_effective_from_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8458,6 +10210,22 @@ ALTER TABLE ONLY public.tax_codes
 
 ALTER TABLE ONLY public.tax_codes
     ADD CONSTRAINT tax_codes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_org_subject_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_org_subject_unique UNIQUE (org_id, subject_type, subject_ref);
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_pkey PRIMARY KEY (id);
 
 
 --
@@ -9101,6 +10869,27 @@ CREATE INDEX audit_log_2026_12_resource_type_resource_id_occurred_at_idx ON publ
 
 
 --
+-- Name: bom_co_products_org_header_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_co_products_org_header_idx ON public.bom_co_products USING btree (org_id, bom_header_id);
+
+
+--
+-- Name: bom_co_products_org_item_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_co_products_org_item_idx ON public.bom_co_products USING btree (org_id, co_product_item_id);
+
+
+--
+-- Name: bom_co_products_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_co_products_org_site_idx ON public.bom_co_products USING btree (org_id, site_id);
+
+
+--
 -- Name: bom_headers_active_version_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9161,6 +10950,27 @@ CREATE INDEX bom_lines_org_component_idx ON public.bom_lines USING btree (org_id
 --
 
 CREATE INDEX bom_lines_org_header_idx ON public.bom_lines USING btree (org_id, bom_header_id, line_no);
+
+
+--
+-- Name: bom_lines_org_item_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_lines_org_item_idx ON public.bom_lines USING btree (org_id, item_id) WHERE (item_id IS NOT NULL);
+
+
+--
+-- Name: bom_snapshots_org_header_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_snapshots_org_header_idx ON public.bom_snapshots USING btree (org_id, bom_header_id);
+
+
+--
+-- Name: bom_snapshots_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_snapshots_org_site_idx ON public.bom_snapshots USING btree (org_id, site_id);
 
 
 --
@@ -9416,6 +11226,20 @@ CREATE INDEX factory_release_status_org_usable_idx ON public.factory_release_sta
 
 
 --
+-- Name: factory_specs_one_active_approved_per_fg; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX factory_specs_one_active_approved_per_fg ON public.factory_specs USING btree (org_id, fg_item_id) WHERE (status = 'approved_for_factory'::text);
+
+
+--
+-- Name: factory_specs_one_released_per_fg; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX factory_specs_one_released_per_fg ON public.factory_specs USING btree (org_id, fg_item_id) WHERE (status = 'released_to_factory'::text);
+
+
+--
 -- Name: feature_flags_core_org_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9427,6 +11251,13 @@ CREATE INDEX feature_flags_core_org_idx ON public.feature_flags_core USING btree
 --
 
 CREATE INDEX formulation_audit_log_org_created_idx ON public.formulation_audit_log USING btree (org_id, created_at DESC);
+
+
+--
+-- Name: formulation_ingredients_item_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX formulation_ingredients_item_id_idx ON public.formulation_ingredients USING btree (item_id) WHERE (item_id IS NOT NULL);
 
 
 --
@@ -9497,6 +11328,363 @@ CREATE INDEX idempotency_keys_expires_at_idx ON public.idempotency_keys USING bt
 --
 
 CREATE INDEX idempotency_keys_org_id_idx ON public.idempotency_keys USING btree (org_id);
+
+
+--
+-- Name: idx_allergen_contamination_risk_allergen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_contamination_risk_allergen ON public.allergen_contamination_risk USING btree (org_id, allergen_code);
+
+
+--
+-- Name: idx_allergen_contamination_risk_assessed_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_contamination_risk_assessed_by ON public.allergen_contamination_risk USING btree (assessed_by) WHERE (assessed_by IS NOT NULL);
+
+
+--
+-- Name: idx_allergen_contamination_risk_line; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_contamination_risk_line ON public.allergen_contamination_risk USING btree (line_id) WHERE (line_id IS NOT NULL);
+
+
+--
+-- Name: idx_allergen_contamination_risk_machine; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_contamination_risk_machine ON public.allergen_contamination_risk USING btree (machine_id) WHERE (machine_id IS NOT NULL);
+
+
+--
+-- Name: idx_allergen_contamination_risk_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_allergen_contamination_risk_org ON public.allergen_contamination_risk USING btree (org_id);
+
+
+--
+-- Name: idx_bom_snapshots_wo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_bom_snapshots_wo ON public.bom_snapshots USING btree (org_id, work_order_id);
+
+
+--
+-- Name: idx_d365_sync_dlq_job; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_d365_sync_dlq_job ON public.d365_sync_dlq USING btree (job_id) WHERE (job_id IS NOT NULL);
+
+
+--
+-- Name: idx_d365_sync_dlq_org_status_failed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_d365_sync_dlq_org_status_failed ON public.d365_sync_dlq USING btree (org_id, status, failed_at);
+
+
+--
+-- Name: idx_d365_sync_jobs_d365_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_d365_sync_jobs_d365_item ON public.d365_sync_jobs USING btree (org_id, d365_item_id) WHERE (d365_item_id IS NOT NULL);
+
+
+--
+-- Name: idx_d365_sync_jobs_org_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_d365_sync_jobs_org_idempotency ON public.d365_sync_jobs USING btree (org_id, idempotency_key);
+
+
+--
+-- Name: idx_d365_sync_jobs_org_next_retry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_d365_sync_jobs_org_next_retry ON public.d365_sync_jobs USING btree (org_id, next_retry_at) WHERE (next_retry_at IS NOT NULL);
+
+
+--
+-- Name: idx_d365_sync_jobs_org_status_scheduled; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_d365_sync_jobs_org_status_scheduled ON public.d365_sync_jobs USING btree (org_id, status, scheduled_at);
+
+
+--
+-- Name: idx_factory_specs_bom_header; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_factory_specs_bom_header ON public.factory_specs USING btree (org_id, bom_header_id) WHERE (bom_header_id IS NOT NULL);
+
+
+--
+-- Name: idx_factory_specs_d365; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_factory_specs_d365 ON public.factory_specs USING btree (org_id, d365_item_id) WHERE (d365_item_id IS NOT NULL);
+
+
+--
+-- Name: idx_factory_specs_org_fg; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_factory_specs_org_fg ON public.factory_specs USING btree (org_id, fg_item_id, version DESC);
+
+
+--
+-- Name: idx_factory_specs_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_factory_specs_org_status ON public.factory_specs USING btree (org_id, status, fg_item_id);
+
+
+--
+-- Name: idx_item_allergen_profile_overrides_actor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profile_overrides_actor ON public.item_allergen_profile_overrides USING btree (overridden_by) WHERE (overridden_by IS NOT NULL);
+
+
+--
+-- Name: idx_item_allergen_profile_overrides_history; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profile_overrides_history ON public.item_allergen_profile_overrides USING btree (org_id, item_id, allergen_code, overridden_at DESC);
+
+
+--
+-- Name: idx_item_allergen_profile_overrides_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profile_overrides_org ON public.item_allergen_profile_overrides USING btree (org_id);
+
+
+--
+-- Name: idx_item_allergen_profiles_allergen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profiles_allergen ON public.item_allergen_profiles USING btree (org_id, allergen_code);
+
+
+--
+-- Name: idx_item_allergen_profiles_declared_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profiles_declared_by ON public.item_allergen_profiles USING btree (declared_by) WHERE (declared_by IS NOT NULL);
+
+
+--
+-- Name: idx_item_allergen_profiles_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profiles_item ON public.item_allergen_profiles USING btree (org_id, item_id);
+
+
+--
+-- Name: idx_item_allergen_profiles_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_allergen_profiles_org ON public.item_allergen_profiles USING btree (org_id);
+
+
+--
+-- Name: idx_item_cost_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_item_cost_active ON public.item_cost_history USING btree (org_id, item_id, effective_from DESC);
+
+
+--
+-- Name: idx_items_d365; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_items_d365 ON public.items USING btree (org_id, d365_item_id) WHERE (d365_item_id IS NOT NULL);
+
+
+--
+-- Name: idx_items_ext_jsonb; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_items_ext_jsonb ON public.items USING gin (ext_jsonb);
+
+
+--
+-- Name: idx_items_org_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_items_org_type ON public.items USING btree (org_id, item_type, status);
+
+
+--
+-- Name: idx_lab_results_org_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lab_results_org_item ON public.lab_results USING btree (org_id, item_id);
+
+
+--
+-- Name: idx_lab_results_org_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lab_results_org_site ON public.lab_results USING btree (org_id, site_id);
+
+
+--
+-- Name: idx_lab_results_org_test_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lab_results_org_test_type ON public.lab_results USING btree (org_id, test_type, result_status);
+
+
+--
+-- Name: idx_lab_results_org_work_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_lab_results_org_work_order ON public.lab_results USING btree (org_id, work_order_id) WHERE (work_order_id IS NOT NULL);
+
+
+--
+-- Name: idx_manufacturing_operation_allergen_additions_allergen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_manufacturing_operation_allergen_additions_allergen ON public.manufacturing_operation_allergen_additions USING btree (org_id, allergen_code);
+
+
+--
+-- Name: idx_manufacturing_operation_allergen_additions_op; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_manufacturing_operation_allergen_additions_op ON public.manufacturing_operation_allergen_additions USING btree (org_id, manufacturing_operation_name);
+
+
+--
+-- Name: idx_manufacturing_operation_allergen_additions_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_manufacturing_operation_allergen_additions_org ON public.manufacturing_operation_allergen_additions USING btree (org_id);
+
+
+--
+-- Name: idx_routing_operations_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_created_by ON public.routing_operations USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: idx_routing_operations_line; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_line ON public.routing_operations USING btree (line_id) WHERE (line_id IS NOT NULL);
+
+
+--
+-- Name: idx_routing_operations_machine; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_machine ON public.routing_operations USING btree (machine_id) WHERE (machine_id IS NOT NULL);
+
+
+--
+-- Name: idx_routing_operations_mfg_op_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_mfg_op_name ON public.routing_operations USING btree (org_id, manufacturing_operation_name) WHERE (manufacturing_operation_name IS NOT NULL);
+
+
+--
+-- Name: idx_routing_operations_org; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_org ON public.routing_operations USING btree (org_id);
+
+
+--
+-- Name: idx_routing_operations_routing; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routing_operations_routing ON public.routing_operations USING btree (routing_id, op_no);
+
+
+--
+-- Name: idx_routings_approved_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routings_approved_by ON public.routings USING btree (approved_by) WHERE (approved_by IS NOT NULL);
+
+
+--
+-- Name: idx_routings_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routings_created_by ON public.routings USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: idx_routings_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routings_item ON public.routings USING btree (item_id);
+
+
+--
+-- Name: idx_routings_org_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routings_org_item ON public.routings USING btree (org_id, item_id, status);
+
+
+--
+-- Name: idx_supplier_specs_org_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_specs_org_item ON public.supplier_specs USING btree (org_id, item_id);
+
+
+--
+-- Name: idx_supplier_specs_org_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_specs_org_site ON public.supplier_specs USING btree (org_id, site_id);
+
+
+--
+-- Name: idx_supplier_specs_org_supplier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_specs_org_supplier ON public.supplier_specs USING btree (org_id, supplier_code, item_id);
+
+
+--
+-- Name: idx_technical_sensory_evaluations_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_technical_sensory_evaluations_item ON public.technical_sensory_evaluations USING btree (org_id, subject_item_id) WHERE (subject_item_id IS NOT NULL);
+
+
+--
+-- Name: idx_technical_sensory_evaluations_org_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_technical_sensory_evaluations_org_site ON public.technical_sensory_evaluations USING btree (org_id, site_id);
+
+
+--
+-- Name: idx_technical_sensory_evaluations_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_technical_sensory_evaluations_org_status ON public.technical_sensory_evaluations USING btree (org_id, status);
+
+
+--
+-- Name: idx_technical_sensory_evaluations_org_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_technical_sensory_evaluations_org_subject ON public.technical_sensory_evaluations USING btree (org_id, subject_type, subject_ref);
 
 
 --
@@ -9721,6 +11909,13 @@ CREATE INDEX outbox_events_unconsumed_idx ON public.outbox_events USING btree (o
 --
 
 CREATE INDEX password_history_user_id_created_at_idx ON public.password_history USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: prod_detail_item_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX prod_detail_item_id_idx ON public.prod_detail USING btree (item_id) WHERE (item_id IS NOT NULL);
 
 
 --
@@ -9987,6 +12182,13 @@ CREATE INDEX scim_tokens_org_created_idx ON public.scim_tokens USING btree (org_
 --
 
 CREATE INDEX shipment_org_created_idx ON public.shipment USING btree (org_id, created_at DESC);
+
+
+--
+-- Name: supplier_specs_one_active_approved; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX supplier_specs_one_active_approved ON public.supplier_specs USING btree (org_id, item_id, supplier_code) WHERE ((lifecycle_status = 'active'::text) AND (review_status = 'approved'::text));
 
 
 --
@@ -10424,10 +12626,24 @@ ALTER INDEX public.audit_log_resource_idx ATTACH PARTITION public.audit_log_2026
 
 
 --
+-- Name: allergen_contamination_risk allergen_contamination_risk_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER allergen_contamination_risk_set_updated_at BEFORE UPDATE ON public.allergen_contamination_risk FOR EACH ROW EXECUTE FUNCTION public.allergen_contamination_risk_set_updated_at();
+
+
+--
 -- Name: audit_events audit_events_impersonation_guard_trg; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER audit_events_impersonation_guard_trg BEFORE INSERT ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.audit_events_impersonation_guard();
+
+
+--
+-- Name: bom_co_products bom_co_products_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER bom_co_products_set_updated_at BEFORE UPDATE ON public.bom_co_products FOR EACH ROW EXECUTE FUNCTION public.bom_co_products_set_updated_at();
 
 
 --
@@ -10442,6 +12658,27 @@ CREATE TRIGGER bom_headers_reject_approved_content_update BEFORE UPDATE ON publi
 --
 
 CREATE TRIGGER bom_lines_reject_approved_header_update BEFORE INSERT OR DELETE OR UPDATE ON public.bom_lines FOR EACH ROW EXECUTE FUNCTION public.bom_lines_reject_approved_header_update();
+
+
+--
+-- Name: bom_snapshots bom_snapshots_reject_mutation; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER bom_snapshots_reject_mutation BEFORE DELETE OR UPDATE ON public.bom_snapshots FOR EACH ROW EXECUTE FUNCTION public.bom_snapshots_reject_mutation();
+
+
+--
+-- Name: d365_sync_dlq d365_sync_dlq_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER d365_sync_dlq_set_updated_at BEFORE UPDATE ON public.d365_sync_dlq FOR EACH ROW EXECUTE FUNCTION public.d365_sync_dlq_set_updated_at();
+
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER d365_sync_jobs_set_updated_at BEFORE UPDATE ON public.d365_sync_jobs FOR EACH ROW EXECUTE FUNCTION public.d365_sync_jobs_set_updated_at();
 
 
 --
@@ -10501,6 +12738,20 @@ CREATE TRIGGER factory_release_status_validate BEFORE INSERT OR UPDATE ON public
 
 
 --
+-- Name: factory_specs factory_specs_enforce_clone_on_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER factory_specs_enforce_clone_on_write BEFORE UPDATE ON public.factory_specs FOR EACH ROW EXECUTE FUNCTION public.factory_specs_enforce_clone_on_write();
+
+
+--
+-- Name: factory_specs factory_specs_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER factory_specs_set_updated_at BEFORE UPDATE ON public.factory_specs FOR EACH ROW EXECUTE FUNCTION public.factory_specs_set_updated_at();
+
+
+--
 -- Name: feature_flags_core feature_flags_core_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10543,6 +12794,34 @@ CREATE TRIGGER integration_settings_set_updated_at BEFORE UPDATE ON public.integ
 
 
 --
+-- Name: item_allergen_profiles item_allergen_profiles_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER item_allergen_profiles_set_updated_at BEFORE UPDATE ON public.item_allergen_profiles FOR EACH ROW EXECUTE FUNCTION public.item_allergen_profiles_set_updated_at();
+
+
+--
+-- Name: item_cost_history item_cost_history_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER item_cost_history_set_updated_at BEFORE UPDATE ON public.item_cost_history FOR EACH ROW EXECUTE FUNCTION public.item_cost_history_set_updated_at();
+
+
+--
+-- Name: items items_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER items_set_updated_at BEFORE UPDATE ON public.items FOR EACH ROW EXECUTE FUNCTION public.items_set_updated_at();
+
+
+--
+-- Name: manufacturing_operation_allergen_additions mfg_op_allergen_additions_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER mfg_op_allergen_additions_set_updated_at BEFORE UPDATE ON public.manufacturing_operation_allergen_additions FOR EACH ROW EXECUTE FUNCTION public.mfg_op_allergen_additions_set_updated_at();
+
+
+--
 -- Name: org_authorization_policies org_authorization_policies_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10557,6 +12836,20 @@ CREATE TRIGGER reference_tables_set_version BEFORE UPDATE ON public.reference_ta
 
 
 --
+-- Name: routing_operations routing_operations_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER routing_operations_set_updated_at BEFORE UPDATE ON public.routing_operations FOR EACH ROW EXECUTE FUNCTION public.routings_set_updated_at();
+
+
+--
+-- Name: routings routings_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER routings_set_updated_at BEFORE UPDATE ON public.routings FOR EACH ROW EXECUTE FUNCTION public.routings_set_updated_at();
+
+
+--
 -- Name: organizations seed_allergens_eu14_after_org_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10568,6 +12861,20 @@ CREATE TRIGGER seed_allergens_eu14_after_org_insert AFTER INSERT ON public.organ
 --
 
 CREATE TRIGGER seed_system_roles_on_org_insert AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_system_roles_on_org_insert();
+
+
+--
+-- Name: supplier_specs supplier_specs_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER supplier_specs_set_updated_at BEFORE UPDATE ON public.supplier_specs FOR EACH ROW EXECUTE FUNCTION public.supplier_specs_set_updated_at();
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER technical_sensory_evaluations_set_updated_at BEFORE UPDATE ON public.technical_sensory_evaluations FOR EACH ROW EXECUTE FUNCTION public.technical_sensory_evaluations_set_updated_at();
 
 
 --
@@ -10634,6 +12941,13 @@ CREATE TRIGGER trg_seed_reference_data AFTER INSERT ON public.organizations FOR 
 
 
 --
+-- Name: organizations trg_seed_reference_lookups; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_seed_reference_lookups AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_reference_lookups_on_org_insert();
+
+
+--
 -- Name: organizations trg_seed_units_of_measure; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10659,6 +12973,41 @@ CREATE TRIGGER trg_zzz_seed_gdpr_erasure_permission AFTER INSERT ON public.organ
 --
 
 CREATE TRIGGER trg_zzz_seed_npd_allergen_write_permission AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_npd_allergen_write_permission_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_npd_org_admin_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_npd_org_admin_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_npd_org_admin_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_settings_infra_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_settings_infra_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_settings_infra_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_settings_rbac_matrix; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_settings_rbac_matrix AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_settings_rbac_matrix_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_technical_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_technical_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_technical_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzzz_revoke_schema_admin_sod_overgrant; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzzz_revoke_schema_admin_sod_overgrant AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.revoke_schema_admin_sod_overgrant_on_org_insert();
 
 
 --
@@ -10908,6 +13257,38 @@ ALTER TABLE ONLY public.allergen_cascade_rebuild_jobs
 
 
 --
+-- Name: allergen_contamination_risk allergen_contamination_risk_assessed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_contamination_risk
+    ADD CONSTRAINT allergen_contamination_risk_assessed_by_fkey FOREIGN KEY (assessed_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: allergen_contamination_risk allergen_contamination_risk_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_contamination_risk
+    ADD CONSTRAINT allergen_contamination_risk_line_id_fkey FOREIGN KEY (line_id) REFERENCES public.production_lines(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allergen_contamination_risk allergen_contamination_risk_machine_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_contamination_risk
+    ADD CONSTRAINT allergen_contamination_risk_machine_id_fkey FOREIGN KEY (machine_id) REFERENCES public.machines(id) ON DELETE CASCADE;
+
+
+--
+-- Name: allergen_contamination_risk allergen_contamination_risk_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.allergen_contamination_risk
+    ADD CONSTRAINT allergen_contamination_risk_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: audit_log audit_log_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10921,6 +13302,30 @@ ALTER TABLE public.audit_log
 
 ALTER TABLE public.audit_log
     ADD CONSTRAINT audit_log_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bom_co_products bom_co_products_co_product_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_co_products
+    ADD CONSTRAINT bom_co_products_co_product_item_id_fkey FOREIGN KEY (co_product_item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: bom_co_products bom_co_products_header_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_co_products
+    ADD CONSTRAINT bom_co_products_header_org_fk FOREIGN KEY (bom_header_id, org_id) REFERENCES public.bom_headers(id, org_id) ON DELETE CASCADE;
+
+
+--
+-- Name: bom_co_products bom_co_products_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_co_products
+    ADD CONSTRAINT bom_co_products_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -10996,11 +13401,35 @@ ALTER TABLE ONLY public.bom_lines
 
 
 --
+-- Name: bom_lines bom_lines_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_lines
+    ADD CONSTRAINT bom_lines_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: bom_lines bom_lines_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bom_lines
     ADD CONSTRAINT bom_lines_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bom_snapshots bom_snapshots_header_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_snapshots
+    ADD CONSTRAINT bom_snapshots_header_org_fk FOREIGN KEY (bom_header_id, org_id) REFERENCES public.bom_headers(id, org_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: bom_snapshots bom_snapshots_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_snapshots
+    ADD CONSTRAINT bom_snapshots_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -11129,6 +13558,46 @@ ALTER TABLE ONLY public.costing_waterfall_steps
 
 ALTER TABLE ONLY public.d365_import_cache
     ADD CONSTRAINT d365_import_cache_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: d365_sync_dlq d365_sync_dlq_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_dlq
+    ADD CONSTRAINT d365_sync_dlq_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.d365_sync_jobs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: d365_sync_dlq d365_sync_dlq_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_dlq
+    ADD CONSTRAINT d365_sync_dlq_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: d365_sync_dlq d365_sync_dlq_resolved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_dlq
+    ADD CONSTRAINT d365_sync_dlq_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_jobs
+    ADD CONSTRAINT d365_sync_jobs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.d365_sync_jobs
+    ADD CONSTRAINT d365_sync_jobs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -11292,6 +13761,62 @@ ALTER TABLE ONLY public.factory_release_status
 
 
 --
+-- Name: factory_specs factory_specs_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: factory_specs factory_specs_bom_header_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_bom_header_fk FOREIGN KEY (bom_header_id, org_id) REFERENCES public.bom_headers(id, org_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: factory_specs factory_specs_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: factory_specs factory_specs_fg_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_fg_item_id_fkey FOREIGN KEY (fg_item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: factory_specs factory_specs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: factory_specs factory_specs_released_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_released_by_fkey FOREIGN KEY (released_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: factory_specs factory_specs_supersedes_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.factory_specs
+    ADD CONSTRAINT factory_specs_supersedes_fk FOREIGN KEY (supersedes_factory_spec_id) REFERENCES public.factory_specs(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: feature_flags_core feature_flags_core_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11321,6 +13846,14 @@ ALTER TABLE ONLY public.formulation_audit_log
 
 ALTER TABLE ONLY public.formulation_calc_cache
     ADD CONSTRAINT formulation_calc_cache_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.formulation_versions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: formulation_ingredients formulation_ingredients_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.formulation_ingredients
+    ADD CONSTRAINT formulation_ingredients_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE SET NULL;
 
 
 --
@@ -11460,6 +13993,118 @@ ALTER TABLE ONLY public.integration_settings
 
 
 --
+-- Name: item_allergen_profile_overrides item_allergen_profile_overrides_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profile_overrides
+    ADD CONSTRAINT item_allergen_profile_overrides_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: item_allergen_profile_overrides item_allergen_profile_overrides_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profile_overrides
+    ADD CONSTRAINT item_allergen_profile_overrides_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: item_allergen_profile_overrides item_allergen_profile_overrides_overridden_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profile_overrides
+    ADD CONSTRAINT item_allergen_profile_overrides_overridden_by_fkey FOREIGN KEY (overridden_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: item_allergen_profiles item_allergen_profiles_declared_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profiles
+    ADD CONSTRAINT item_allergen_profiles_declared_by_fkey FOREIGN KEY (declared_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: item_allergen_profiles item_allergen_profiles_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profiles
+    ADD CONSTRAINT item_allergen_profiles_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: item_allergen_profiles item_allergen_profiles_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_allergen_profiles
+    ADD CONSTRAINT item_allergen_profiles_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: item_cost_history item_cost_history_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_cost_history
+    ADD CONSTRAINT item_cost_history_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: item_cost_history item_cost_history_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_cost_history
+    ADD CONSTRAINT item_cost_history_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: item_cost_history item_cost_history_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.item_cost_history
+    ADD CONSTRAINT item_cost_history_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: items items_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.items
+    ADD CONSTRAINT items_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: items items_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.items
+    ADD CONSTRAINT items_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: lab_results lab_results_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lab_results
+    ADD CONSTRAINT lab_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: lab_results lab_results_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lab_results
+    ADD CONSTRAINT lab_results_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: lab_results lab_results_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lab_results
+    ADD CONSTRAINT lab_results_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: line_machines line_machines_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11537,6 +14182,22 @@ ALTER TABLE ONLY public.machines
 
 ALTER TABLE ONLY public.machines
     ADD CONSTRAINT machines_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: manufacturing_operation_allergen_additions manufacturing_operation_allergen_additions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.manufacturing_operation_allergen_additions
+    ADD CONSTRAINT manufacturing_operation_allergen_additions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: manufacturing_operation_allergen_additions manufacturing_operation_allergen_additions_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.manufacturing_operation_allergen_additions
+    ADD CONSTRAINT manufacturing_operation_allergen_additions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -11788,6 +14449,14 @@ ALTER TABLE ONLY public.password_history
 
 
 --
+-- Name: prod_detail prod_detail_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.prod_detail
+    ADD CONSTRAINT prod_detail_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE SET NULL;
+
+
+--
 -- Name: prod_detail prod_detail_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11956,6 +14625,78 @@ ALTER TABLE ONLY public.roles
 
 
 --
+-- Name: routing_operations routing_operations_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: routing_operations routing_operations_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_line_id_fkey FOREIGN KEY (line_id) REFERENCES public.production_lines(id) ON DELETE SET NULL;
+
+
+--
+-- Name: routing_operations routing_operations_machine_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_machine_id_fkey FOREIGN KEY (machine_id) REFERENCES public.machines(id) ON DELETE SET NULL;
+
+
+--
+-- Name: routing_operations routing_operations_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: routing_operations routing_operations_routing_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routing_operations
+    ADD CONSTRAINT routing_operations_routing_id_fkey FOREIGN KEY (routing_id) REFERENCES public.routings(id) ON DELETE CASCADE;
+
+
+--
+-- Name: routings routings_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: routings routings_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: routings routings_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: routings routings_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routings
+    ADD CONSTRAINT routings_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: rule_definitions rule_definitions_deployed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12052,11 +14793,83 @@ ALTER TABLE ONLY public.shipment
 
 
 --
+-- Name: supplier_specs supplier_specs_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: supplier_specs supplier_specs_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: supplier_specs supplier_specs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: supplier_specs supplier_specs_rejected_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_rejected_by_fkey FOREIGN KEY (rejected_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: supplier_specs supplier_specs_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_specs
+    ADD CONSTRAINT supplier_specs_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: tax_codes tax_codes_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tax_codes
     ADD CONSTRAINT tax_codes_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_evaluated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_evaluated_by_fkey FOREIGN KEY (evaluated_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_subject_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.technical_sensory_evaluations
+    ADD CONSTRAINT technical_sensory_evaluations_subject_item_id_fkey FOREIGN KEY (subject_item_id) REFERENCES public.items(id) ON DELETE RESTRICT;
 
 
 --
@@ -12521,6 +15334,19 @@ CREATE POLICY allergen_cascade_rebuild_jobs_org_context ON public.allergen_casca
 
 
 --
+-- Name: allergen_contamination_risk; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.allergen_contamination_risk ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: allergen_contamination_risk allergen_contamination_risk_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY allergen_contamination_risk_org_isolation ON public.allergen_contamination_risk TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: allergens; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12632,6 +15458,23 @@ CREATE POLICY audit_log_org_context ON public.audit_log TO app_user USING ((org_
 
 
 --
+-- Name: bom_co_products; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.bom_co_products ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: bom_co_products bom_co_products_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY bom_co_products_org_context ON public.bom_co_products TO app_user USING (((org_id = app.current_org_id()) AND (EXISTS ( SELECT 1
+   FROM public.bom_headers header
+  WHERE ((header.id = bom_co_products.bom_header_id) AND (header.org_id = app.current_org_id())))))) WITH CHECK (((org_id = app.current_org_id()) AND (EXISTS ( SELECT 1
+   FROM public.bom_headers header
+  WHERE ((header.id = bom_co_products.bom_header_id) AND (header.org_id = app.current_org_id()))))));
+
+
+--
 -- Name: bom_headers; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12672,6 +15515,19 @@ CREATE POLICY bom_lines_org_context ON public.bom_lines TO app_user USING (((org
   WHERE ((header.id = bom_lines.bom_header_id) AND (header.org_id = app.current_org_id())))))) WITH CHECK (((org_id = app.current_org_id()) AND (EXISTS ( SELECT 1
    FROM public.bom_headers header
   WHERE ((header.id = bom_lines.bom_header_id) AND (header.org_id = app.current_org_id()))))));
+
+
+--
+-- Name: bom_snapshots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.bom_snapshots ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: bom_snapshots bom_snapshots_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY bom_snapshots_org_context ON public.bom_snapshots TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -12783,6 +15639,32 @@ CREATE POLICY d365_import_cache_org_context ON public.d365_import_cache TO app_u
 
 
 --
+-- Name: d365_sync_dlq; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.d365_sync_dlq ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: d365_sync_dlq d365_sync_dlq_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY d365_sync_dlq_org_isolation ON public.d365_sync_dlq TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: d365_sync_jobs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.d365_sync_jobs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: d365_sync_jobs d365_sync_jobs_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY d365_sync_jobs_org_isolation ON public.d365_sync_jobs TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: d365_sync_runs; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12884,6 +15766,19 @@ ALTER TABLE public.factory_release_status ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY factory_release_status_org_context ON public.factory_release_status TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: factory_specs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.factory_specs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: factory_specs factory_specs_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY factory_specs_org_isolation ON public.factory_specs TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -13046,6 +15941,78 @@ CREATE POLICY integration_settings_org_context ON public.integration_settings TO
 
 
 --
+-- Name: item_allergen_profile_overrides; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.item_allergen_profile_overrides ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: item_allergen_profile_overrides item_allergen_profile_overrides_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY item_allergen_profile_overrides_org_isolation ON public.item_allergen_profile_overrides TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: item_allergen_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.item_allergen_profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: item_allergen_profiles item_allergen_profiles_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY item_allergen_profiles_org_isolation ON public.item_allergen_profiles TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: item_cost_history; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.item_cost_history ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: item_cost_history item_cost_history_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY item_cost_history_org_isolation ON public.item_cost_history TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: items items_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY items_org_isolation ON public.items TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: lab_results; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.lab_results ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: lab_results lab_results_org_context_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY lab_results_org_context_insert ON public.lab_results FOR INSERT TO app_user WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: lab_results lab_results_org_context_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY lab_results_org_context_select ON public.lab_results FOR SELECT TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
 -- Name: line_machines; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13150,6 +16117,19 @@ CREATE POLICY machines_org_context_select ON public.machines FOR SELECT TO app_u
 --
 
 CREATE POLICY machines_org_context_update ON public.machines FOR UPDATE TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: manufacturing_operation_allergen_additions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.manufacturing_operation_allergen_additions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: manufacturing_operation_allergen_additions manufacturing_operation_allergen_additions_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY manufacturing_operation_allergen_additions_org_isolation ON public.manufacturing_operation_allergen_additions TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -13592,6 +16572,32 @@ CREATE POLICY roles_org_context ON public.roles TO app_user USING ((org_id = app
 
 
 --
+-- Name: routing_operations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.routing_operations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: routing_operations routing_operations_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY routing_operations_org_isolation ON public.routing_operations TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: routings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.routings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: routings routings_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY routings_org_isolation ON public.routings TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: rule_definitions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13766,6 +16772,40 @@ CREATE POLICY shipment_org_context ON public.shipment TO app_user USING ((org_id
 
 
 --
+-- Name: supplier_specs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.supplier_specs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: supplier_specs supplier_specs_org_context_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY supplier_specs_org_context_delete ON public.supplier_specs FOR DELETE TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: supplier_specs supplier_specs_org_context_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY supplier_specs_org_context_insert ON public.supplier_specs FOR INSERT TO app_user WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: supplier_specs supplier_specs_org_context_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY supplier_specs_org_context_select ON public.supplier_specs FOR SELECT TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: supplier_specs supplier_specs_org_context_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY supplier_specs_org_context_update ON public.supplier_specs FOR UPDATE TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
 -- Name: tax_codes; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13797,6 +16837,19 @@ CREATE POLICY tax_codes_org_context_select ON public.tax_codes FOR SELECT TO app
 --
 
 CREATE POLICY tax_codes_org_context_update ON public.tax_codes FOR UPDATE TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: technical_sensory_evaluations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.technical_sensory_evaluations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: technical_sensory_evaluations technical_sensory_evaluations_org_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY technical_sensory_evaluations_org_isolation ON public.technical_sensory_evaluations TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
