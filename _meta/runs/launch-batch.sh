@@ -44,6 +44,8 @@ export APP_USER_PASSWORD='app-user-test-password'
    pnpm --filter @monopilot/db exec tsx scripts/migrate.ts
    pnpm --filter @monopilot/db test <pattern>
    Reuse existing helpers for set_org_context/org bootstrap. RLS isolation test must be NON-VACUOUS (two orgs, prove cross-org rows invisible + cross-org WITH CHECK insert rejected).
+   **MANDATE for any T2-api Server Action: tests MUST be REAL DB integration** — drive the action through the REAL withOrgContext (app_user + RLS) against YOUR clone DB and assert real rows via owner SELECT. COPY the pattern from apps/web/app/(npd)/pipeline/[projectId]/formulation/_actions/__tests__/recompute.integration.test.ts (const run = process.env.DATABASE_URL ? describe : describe.skip). vi.fn()/FakeClient mock-only server-action tests are a FAIL (they pass vacuously and hide real schema/CHECK/RLS bugs).
+   If your action emits an outbox event, confirm the event_type is already in outbox_events_event_type_check (mig 109 union); if NOT, add it in a small migration AND tell the orchestrator to re-reconcile.
 3. pnpm --filter @monopilot/db lint on touched files.
 
 ## Closeout: changed files, EXACT test command + REAL pass/fail output, AC-by-AC status, deviations, git status. Never claim GREEN without real passing output.

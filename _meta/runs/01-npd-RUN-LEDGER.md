@@ -119,3 +119,19 @@ Medium (Codex≤4/batch):
   T-058(advanceProjectGate←T-057,T-095), T-078(approval criteria←T-064,T-072,T-073), T-095(G3 FG←T-031,T-057,T-058),
   T-096(releaseToFactory), T-099(allergen bulk-rebuild←T-011/12/13), T-031(createBrief←T-007).
 Mig numbers from 103+. Watch: T-009 reset_built vs T-080 V18 downgrade-guard interaction (deferred nit).
+
+### Wave C progress (2026-06-04, canon @116) — 41/139 DONE
+- C batch-1 merged: T-057(103 createProject+code-constraint-fix), T-064(104 formulation lifecycle+immutability), T-081(105 risks), T-048(106 dashboard views), T-065(107 RawMaterials+formulation compute @monopilot/domain), T-073(108 costing waterfall+scenario params). + reconciliation 109 (outbox CHECK union).
+- C batch-2 merged: T-072(110 nutrition compute), T-028(111 validators), T-043(112 builder storage), T-031(createBrief REAL tests), T-038(114 allergen cascade ENGINE), T-089(115/116 GDPR erasure — satisfies foundation T-115).
+- **RECURRING ISSUE: Codex writes MOCK-ONLY tests for T2-api server actions** (T-064, T-031 both caught). launch-batch.sh prompt now MANDATES real integration tests (copy recompute.integration.test.ts). Always Opus-review server actions for this.
+- **Accumulated gaps / module-close TODO:**
+  - regen `packages/db/__expected__/schema.sql` (stale wave-wide; CI check:drift) — file currently absent on kira/long-run branch; recreate from canon.
+  - T-004 drop redundant 012 `mfg_ops_org_industry_suffix_unique`.
+  - T-080 V18 downgrade-guard vs T-009 reset_built: when T-009 built, its reset MUST be allowed past the guard (audited path).
+  - T-054 test `npd-projects-and-gates.test.ts` asserts old constraint name — T-057 renamed to `npd_projects_org_code_unique`; update the assertion.
+  - NEW perm `npd.allergen.write` (T-038 action) needs enum+seed (mirror gdpr.erasure.execute pattern in 116).
+  - Reconcile MON-domain-npd skill: allergen cascade is "derived" BUT now also materializes to product.allergens/may_contain + emits fa.allergens_changed (engine, T-038).
+  - Pure NPD compute consolidated under @monopilot/domain (T-065/T-072); T-073 costing lives in apps/web/lib/costing — consider consolidating.
+- **Remaining Wave C** (~20): T-008 createFa, T-009 updateFaCell+reset_built, T-010/011/012/013 cascade chains, T-014 schema-driven Zod, T-017 closeDeptSection, T-018 reopen, T-029 deleteFa, T-033 convertBriefToFa, T-039 setAllergenOverride, T-042 exceljs builder(Opus), T-044 buildD365, T-045 bom_export, T-047 wizard actions, T-051 dashboard actions, T-058 advanceGate, T-078 approval criteria, T-084 compliance upload, T-085 expiry cron, T-090 d365 import sync, T-095 G3 FG, T-096 release-to-factory, T-097 factory release RM, T-099 allergen bulk-rebuild, T-100 G4 closeout.
+- **Then Wave D** (UI ~30, Opus impl-ui + prototype parity — heavy) + **Wave E** (wiring/E2E ~30) + consensus + Gate-5 + sign-off.
+- Time note: at ~03:30 with 41/139, the full module will NOT complete by 5am — this is a multi-session long-run. State is fully checkpointed; resume from here.
