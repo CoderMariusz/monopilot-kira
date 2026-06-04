@@ -4,6 +4,7 @@ export const FA_EVENT_TYPES = [
   'fa.dept_closed',
   'fa.built',
   'fa.built_reset',
+  'fa.edit',
   'fa.allergens_changed',
   'brief.converted',
 ] as const;
