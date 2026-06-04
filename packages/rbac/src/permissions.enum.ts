@@ -117,6 +117,8 @@ export const Permission = {
   NPD_RULE_EDIT: 'npd.rule.edit',
   /** NPD risk write permission; PRD 01-NPD §2.2, §18. */
   NPD_RISK_WRITE: 'npd.risk.write',
+  /** NPD allergen declaration write permission; PRD 01-NPD §2.2, §13 (allergen cascade). */
+  NPD_ALLERGEN_WRITE: 'npd.allergen.write',
   /** NPD compliance document write permission; PRD 01-NPD §2.2, §18. */
   NPD_COMPLIANCE_DOC_WRITE: 'npd.compliance_doc.write',
   /** NPD formulation draft creation permission; PRD 01-NPD §2.2, §18. */
@@ -196,6 +198,7 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_SCHEMA_EDIT,
   Permission.NPD_RULE_EDIT,
   Permission.NPD_RISK_WRITE,
+  Permission.NPD_ALLERGEN_WRITE,
   Permission.NPD_COMPLIANCE_DOC_WRITE,
   Permission.NPD_FORMULATION_CREATE_DRAFT,
   Permission.NPD_FORMULATION_LOCK,
