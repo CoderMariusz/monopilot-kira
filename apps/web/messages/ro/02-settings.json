@@ -122,6 +122,59 @@
       }
     }
   },
+  "processes": {
+    "title": "Process steps",
+    "subtitle": "Schema-driven manufacturing process-step reference data.",
+    "importCsv": "Import CSV",
+    "exportCsv": "Export CSV",
+    "addRow": "+ Add process",
+    "edit": "Edit",
+    "delete": "Delete",
+    "rowsSuffix": "rows",
+    "updatedPrefix": "Updated",
+    "loading": "Loading process steps...",
+    "empty": "No process steps configured yet.",
+    "error": "Unable to load process steps.",
+    "permissionDenied": "You do not have permission to edit process steps.",
+    "actions": "Actions",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "yes": "Yes",
+    "no": "No",
+    "rowKey": "Row key",
+    "rowKeyHelp": "Uppercase, min 2 chars. Unique in processes.",
+    "modal": {
+      "edit": {
+        "title": "Add process",
+        "editTitle": "Edit process - {rowKey}",
+        "referenceTable": "Reference table · {tableCode}",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving...",
+        "loading": "Loading process...",
+        "loadingLabel": "Loading process",
+        "noSchema": "No schema fields available for {tableCode}",
+        "rowKeyInvalid": "Must be uppercase alnum / underscore / dash, at least 2 chars",
+        "rowKeyRequired": "Row key is required",
+        "minChars": "Min 2 chars",
+        "selectPlaceholder": "Select...",
+        "saveFailed": "Unable to save process."
+      },
+      "delete": {
+        "title": "Delete {code}?",
+        "cancel": "Cancel",
+        "confirmLabel": "Type DELETE to confirm",
+        "confirmButton": "Delete permanently",
+        "deleting": "Deleting...",
+        "confirmCheckbox": "Confirm",
+        "warning": "This action cannot be undone. {code} - {name} will be permanently removed from {table}.",
+        "affectedRows": "{count} rows referencing this code will be orphaned.",
+        "precheckError": "Unable to check referencing rows",
+        "submitFailed": "Unable to delete process.",
+        "success": "Process deleted"
+      }
+    }
+  },
   "users": {
     "screen_title": "Utilizatori",
     "screen_subtitle": "Invitați, activați și gestionați utilizatorii acestei organizații.",
