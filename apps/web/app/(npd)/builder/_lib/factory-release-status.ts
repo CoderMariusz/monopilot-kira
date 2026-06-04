@@ -4,8 +4,6 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 
-export const FACTORY_USABLE_RELEASE_STATUSES = ['approved_for_factory', 'released_to_factory'] as const;
-
 export type FactoryReleaseStatusValue =
   | 'pending_npd_release'
   | 'pending_technical_approval'
@@ -106,20 +104,6 @@ function mapReleaseRow(row: ReleaseRow): FactoryReleaseStatus {
     requestedBy: row.requested_by,
     requestedAt: toIso(row.requested_at),
   };
-}
-
-export function isFactoryUsable(release: Pick<
-  FactoryReleaseStatus,
-  'releaseStatus' | 'activeBomHeaderId' | 'activeFactorySpecId' | 'releaseBlockers'
->): boolean {
-  return (
-    FACTORY_USABLE_RELEASE_STATUSES.includes(
-      release.releaseStatus as (typeof FACTORY_USABLE_RELEASE_STATUSES)[number],
-    ) &&
-    !!release.activeBomHeaderId &&
-    !!release.activeFactorySpecId &&
-    release.releaseBlockers.length === 0
-  );
 }
 
 async function assertProjectBundle(

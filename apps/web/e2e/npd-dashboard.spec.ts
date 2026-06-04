@@ -17,7 +17,7 @@ import { expect, test } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 const evidenceDir = path.resolve(__dirname, 'artifacts/T-052');
-const route = '/en/dashboard';
+const route = '/en/npd';
 
 test.describe('NPD Dashboard parity (fa-screens.jsx:32-174)', () => {
   test.skip(!baseURL, 'PLAYWRIGHT_BASE_URL unset — live RBAC-authenticated server required; RTL DOM fallback evidence used.');

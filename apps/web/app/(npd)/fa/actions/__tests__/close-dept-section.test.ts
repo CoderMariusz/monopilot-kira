@@ -224,7 +224,8 @@ run('closeDeptSection — REAL DB integration (T-017)', () => {
   });
 
   it('throws DepartmentNotReadyError listing recipe_components when a required Core field is missing', async () => {
-    const { closeDeptSection, DepartmentNotReadyError } = await import('../close-dept-section');
+    const { closeDeptSection } = await import('../close-dept-section');
+    const { DepartmentNotReadyError } = await import('../errors');
     const productCode = faCode();
     await seedProduct(productCode, { recipe_components: null });
 
@@ -255,7 +256,8 @@ run('closeDeptSection — REAL DB integration (T-017)', () => {
   });
 
   it('throws AuthError when planning_user attempts to close Core', async () => {
-    const { AuthError, closeDeptSection } = await import('../close-dept-section');
+    const { closeDeptSection } = await import('../close-dept-section');
+    const { AuthError } = await import('../errors');
     const productCode = faCode();
     await seedProduct(productCode);
 

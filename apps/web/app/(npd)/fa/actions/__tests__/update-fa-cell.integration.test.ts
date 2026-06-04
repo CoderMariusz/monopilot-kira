@@ -173,7 +173,8 @@ run('updateFaCell Server Action — REAL DB integration', () => {
 
   it('rejects a planning user editing an MRP-owned column', async () => {
     await useActor(planningUserId);
-    const { updateFaCell, AuthError } = await import('../update-fa-cell');
+    const { updateFaCell } = await import('../update-fa-cell');
+    const { AuthError } = await import('../errors');
 
     await expect(updateFaCell(productCode, 'box', 'BOX-2')).rejects.toBeInstanceOf(AuthError);
 

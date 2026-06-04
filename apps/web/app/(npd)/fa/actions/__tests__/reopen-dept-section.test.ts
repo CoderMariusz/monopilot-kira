@@ -197,7 +197,8 @@ run('reopenDeptSection — REAL DB integration (T-018)', () => {
   });
 
   it('rejects users without closed_flag.unset and leaves the row closed without an event', async () => {
-    const { AuthError, reopenDeptSection } = await import('../reopen-dept-section');
+    const { reopenDeptSection } = await import('../reopen-dept-section');
+    const { AuthError } = await import('../errors');
     const productCode = faCode();
     await seedProduct(seed.orgAId, seed.managerUserId, productCode);
 

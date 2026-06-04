@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z, type ZodTypeAny } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { AuthError, ValidationError } from './errors';
 
 const FA_EDIT_EVENT = 'fa.edit';
 const APP_VERSION = 'update-fa-cell-v1';
@@ -316,25 +317,5 @@ function safeRevalidatePath(path: string): void {
     revalidatePath(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
-  }
-}
-
-export class AuthError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'AuthError';
-    this.code = code;
-  }
-}
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
   }
 }

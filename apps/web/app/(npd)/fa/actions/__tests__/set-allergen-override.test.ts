@@ -207,7 +207,8 @@ run('setAllergenOverride Server Action — REAL DB integration', () => {
   });
 
   it('throws ValidationError with REASON_TOO_SHORT for a five-character reason before mutating', async () => {
-    const { setAllergenOverride, ValidationError } = await import('../set-allergen-override');
+    const { setAllergenOverride } = await import('../set-allergen-override');
+    const { ValidationError } = await import('../errors');
 
     await expect(setAllergenOverride(productA, 'milk', 'add', 'short')).rejects.toMatchObject({
       code: 'REASON_TOO_SHORT',

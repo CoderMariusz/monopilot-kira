@@ -209,7 +209,8 @@ run('bom_export_csv Server Action — REAL DB integration (T-045)', () => {
     const productCode = `FA5101-DENIED-${randomUUID()}`;
     await seedBom(productCode);
 
-    const { bom_export_csv, AuthError } = await import('../bom-export-csv');
+    const { bom_export_csv } = await import('../bom-export-csv');
+    const { AuthError } = await import('../errors');
 
     await expect(asUser(viewerUserId, () => bom_export_csv(productCode))).rejects.toBeInstanceOf(AuthError);
   });

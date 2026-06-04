@@ -5,7 +5,7 @@
  * PRD ref: docs/prd/01-NPD-PRD.md §11.1, §11.5, §15
  *
  * Covers the merged NPD Dashboard (T-052) wired to T-051 Server Actions:
- *   1. Dashboard loads at /en/dashboard — KPI counters render with numeric values.
+ *   1. Dashboard loads at /en/npd — KPI counters render with numeric values.
  *   2. Launch-alert thresholds (T-051) are reflected: RED badge row carries
  *      aria-label/variant "danger" per AlertBadge in dashboard-screen.tsx.
  *   3. A router-level refresh re-fetches and re-renders the view (Server Component
@@ -44,7 +44,7 @@ const AUTH_STORAGE =
 const USER_EMAIL = process.env.PLAYWRIGHT_USER_EMAIL;
 const USER_PASSWORD = process.env.PLAYWRIGHT_USER_PASSWORD;
 
-const DASHBOARD_ROUTE = '/en/dashboard';
+const DASHBOARD_ROUTE = '/en/npd';
 const LOGIN_ROUTE = '/en/login';
 
 const evidenceDir = path.resolve(
@@ -126,7 +126,7 @@ test.describe('NPD Dashboard refresh + alert thresholds smoke (fa-screens.jsx:32
   // Hard skip when no live server is configured — exits 0 in any isolated worktree.
   test.skip(!BASE_URL, 'PLAYWRIGHT_BASE_URL unset — live authenticated server required; skip cleanly in worktree.');
 
-  test('dashboard loads at /en/dashboard and KPI counters render with non-negative numeric values', async ({ browser }) => {
+  test('dashboard loads at /en/npd and KPI counters render with non-negative numeric values', async ({ browser }) => {
     ensureDir(evidenceDir);
     ensureDir(artifactDir);
 

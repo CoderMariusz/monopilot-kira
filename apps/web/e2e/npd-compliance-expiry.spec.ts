@@ -10,7 +10,7 @@
  *   3. Upload a minimal fixture PDF with expires_at = today + 25 days.
  *   4. Assert the row appears in the docs table with badge data-status="Expiring"
  *      (within the ≤30-day threshold per §19 + T-085 classifyExpiry formula).
- *   5. Navigate to /en/dashboard and assert the "Expiring docs" alert tile is
+ *   5. Navigate to /en/npd and assert the "Expiring docs" alert tile is
  *      present (§19 dashboard tile contract).
  *
  * PRD reference: docs/prd/01-NPD-PRD.md §19
@@ -245,7 +245,7 @@ test.describe('NPD compliance doc upload → expiry status → dashboard (T-088 
         // docs screen. The dashboard tile is surfaced via the launch-alerts region
         // or a dedicated compliance widget (implementation-dependent); we look for
         // the most accessible selector first.
-        await page.goto(`${baseURL}/en/dashboard`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${baseURL}/en/npd`, { waitUntil: 'domcontentloaded' });
         await expect(
           page.getByRole('heading', { level: 1 }),
           'Dashboard heading must be visible',

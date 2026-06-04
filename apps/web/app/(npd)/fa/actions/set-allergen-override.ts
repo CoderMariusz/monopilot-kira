@@ -3,6 +3,7 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { AuthorizationError, ValidationError } from './errors';
 
 const WRITE_PERMISSIONS = ['technical.write', 'quality.write'] as const;
 
@@ -50,25 +51,6 @@ export type SetAllergenOverrideResult = {
     mayContain: string[];
   };
 };
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
-  }
-}
-
-export class AuthorizationError extends Error {
-  code = 'FORBIDDEN';
-
-  constructor(message = 'Insufficient permission to set allergen overrides') {
-    super(message);
-    this.name = 'AuthorizationError';
-  }
-}
 
 const inputSchema = z.object({
   productCode: z.string().trim().min(1),

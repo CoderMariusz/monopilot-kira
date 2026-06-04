@@ -139,7 +139,8 @@ run('factory release status transitions — REAL DB integration', () => {
   });
 
   it('creates pending_technical_approval with active IDs and no factory availability before Technical approval', async () => {
-    const { requestFactoryRelease, isFactoryUsable } = await import('../factory-release-status');
+    const { requestFactoryRelease } = await import('../factory-release-status');
+    const { isFactoryUsable } = await import('../factory-release-helpers');
 
     const release = await requestFactoryRelease({
       projectId,
@@ -191,7 +192,8 @@ run('factory release status transitions — REAL DB integration', () => {
   });
 
   it('transitions to released_to_factory only for the real Technical-approved active BOM/spec bundle', async () => {
-    const { recordTechnicalFactoryApproval, isFactoryUsable } = await import('../factory-release-status');
+    const { recordTechnicalFactoryApproval } = await import('../factory-release-status');
+    const { isFactoryUsable } = await import('../factory-release-helpers');
 
     const release = await recordTechnicalFactoryApproval({
       projectId,
@@ -245,7 +247,8 @@ run('factory release status transitions — REAL DB integration', () => {
   });
 
   it('emits typed blockers and prevents factory usability when blocked', async () => {
-    const { blockFactoryRelease, isFactoryUsable } = await import('../factory-release-status');
+    const { blockFactoryRelease } = await import('../factory-release-status');
+    const { isFactoryUsable } = await import('../factory-release-helpers');
 
     const blockers = [
       {

@@ -2,12 +2,22 @@
 -- PRD: docs/prd/01-NPD-PRD.md §19.
 -- Wave0 lock: org_id business scope; RLS remains app.current_org_id().
 
+-- service_role: on managed platforms (Supabase) this role already exists WITH
+-- bypassrls and is platform-owned. Setting the BYPASSRLS attribute requires
+-- SUPERUSER, which the deploy connection role (Supabase `postgres`) is NOT — so the
+-- old `alter role service_role bypassrls` failed live ("must be superuser to change
+-- bypassrls"). Only CREATE the role when it is genuinely missing (fresh local DB,
+-- where the owner IS superuser); never alter an existing platform-managed role.
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'service_role') then
-    create role service_role noinherit bypassrls;
-  else
-    alter role service_role bypassrls;
+    begin
+      create role service_role noinherit bypassrls;
+    exception
+      when insufficient_privilege then
+        -- non-superuser env without a preexisting service_role: best-effort without bypassrls
+        create role service_role noinherit;
+    end;
   end if;
 end $$;
 

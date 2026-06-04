@@ -15,9 +15,7 @@ import {
   updateProjectGate,
   type GateProjectRow,
 } from './_lib/gate-helpers';
-import { type OrgContextLike } from './shared';
-
-export const LEGACY_STAGES_CLOSED_EVENT = 'npd.project.legacy_stages_closed' as const;
+import { LEGACY_STAGES_CLOSED_EVENT, type OrgContextLike } from './shared';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),

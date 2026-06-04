@@ -3,6 +3,7 @@ import type pg from 'pg';
 export const PROJECT_CREATE_PERMISSION = 'npd.project.create';
 export const PROJECT_VIEW_PERMISSION = 'npd.project.view';
 export const PROJECT_CREATED_EVENT = 'npd.project.created';
+export const LEGACY_STAGES_CLOSED_EVENT = 'npd.project.legacy_stages_closed' as const;
 export const PROJECT_CODE_SEQUENCE = 'npd_project_code';
 export const DEFAULT_TEMPLATE_ID = 'APEX_DEFAULT';
 

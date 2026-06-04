@@ -1,6 +1,7 @@
 'use server';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { AuthError, ValidationError } from './errors';
 
 const DASHBOARD_VIEW_PERMISSION = 'npd.dashboard.view';
 const BOM_EXPORT_PERMISSION = 'npd.bom.export';
@@ -122,24 +123,4 @@ function normalizeProductCode(productCode: string): string {
 
 function csvFilename(productCode: string): string {
   return `${productCode.replaceAll(/[^A-Za-z0-9_-]/g, '_')}-bom.csv`;
-}
-
-export class AuthError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'AuthError';
-    this.code = code;
-  }
-}
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
-  }
 }

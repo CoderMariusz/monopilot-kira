@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { AuthError, DepartmentNotReadyError, ValidationError } from './errors';
 
 const DEPT_CONFIG = {
   Core: { permission: 'npd.core.write', closedColumn: 'closed_core' },
@@ -160,42 +161,5 @@ function safeRevalidatePath(path: string): void {
     revalidatePath(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
-  }
-}
-
-export class AuthError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'AuthError';
-    this.code = code;
-  }
-}
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
-  }
-}
-
-export class DepartmentNotReadyError extends Error {
-  code = 'DEPARTMENT_NOT_READY';
-  dept: Dept;
-  missingColumns: string[];
-
-  constructor(dept: Dept, missingColumns: string[]) {
-    super(
-      missingColumns.length > 0
-        ? `${dept} is missing required fields: ${missingColumns.join(', ')}`
-        : `${dept} is not ready to close`,
-    );
-    this.name = 'DepartmentNotReadyError';
-    this.dept = dept;
-    this.missingColumns = missingColumns;
   }
 }

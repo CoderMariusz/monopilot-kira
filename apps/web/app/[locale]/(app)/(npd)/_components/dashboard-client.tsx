@@ -8,7 +8,7 @@
  * by dashboard-client.test.tsx (counters-before-preview ordering + route links).
  *
  * NOTE: the production, prototype-faithful NPD dashboard (anchor
- * fa-screens.jsx:32-174) lives in ../dashboard/page.tsx + ../dashboard/_components/
+ * fa-screens.jsx:32-174) lives in ../npd/page.tsx + ../npd/_components/
  * dashboard-screen.tsx. This wrapper is retained only to satisfy the pre-existing
  * scaffold contract; see the T-052 deviation log.
  */

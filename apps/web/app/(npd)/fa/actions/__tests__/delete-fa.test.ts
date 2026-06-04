@@ -258,7 +258,8 @@ run('deleteFa — REAL DB integration (T-029)', () => {
   });
 
   it('throws ValidationError for reason shorter than 10 characters before mutating', async () => {
-    const { deleteFa, ValidationError } = await import('../delete-fa');
+    const { deleteFa } = await import('../delete-fa');
+    const { ValidationError } = await import('../errors');
     const productCode = faCode();
     await insertProduct(productCode);
 
@@ -282,7 +283,8 @@ run('deleteFa — REAL DB integration (T-029)', () => {
   });
 
   it('throws AuthError for core_user before mutating', async () => {
-    const { AuthError, deleteFa } = await import('../delete-fa');
+    const { deleteFa } = await import('../delete-fa');
+    const { AuthError } = await import('../errors');
     const productCode = faCode();
     await insertProduct(productCode);
 

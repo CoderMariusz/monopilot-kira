@@ -5,6 +5,7 @@ import { validateProductCodeV01, validateProductNameV02 } from '@monopilot/valid
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { AuthError, DuplicateError, ValidationError } from './errors';
 
 // RBAC source-of-truth normalizes legacy fa.create to canonical fg.create.
 const FA_CREATE_PERMISSION = 'fg.create';
@@ -125,35 +126,5 @@ function safeRevalidatePath(path: string): void {
     revalidatePath(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
-  }
-}
-
-export class AuthError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'AuthError';
-    this.code = code;
-  }
-}
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
-  }
-}
-
-export class DuplicateError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'DuplicateError';
-    this.code = code;
   }
 }

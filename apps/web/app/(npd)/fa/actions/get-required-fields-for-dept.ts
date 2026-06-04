@@ -3,6 +3,7 @@
 import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import { ValidationError } from './errors';
 
 /**
  * T-022 — Server-side readiness probe for the Dept Close modal.
@@ -71,16 +72,6 @@ const inputSchema = z.object({
   productCode: z.string().trim().min(1),
   dept: z.enum(DEPT_VALUES),
 });
-
-export class ValidationError extends Error {
-  code: string;
-
-  constructor(code: string, message = code) {
-    super(message);
-    this.name = 'ValidationError';
-    this.code = code;
-  }
-}
 
 /**
  * Humanize a `column_key` (e.g. `product_name`, `Pack_Size`) into a label

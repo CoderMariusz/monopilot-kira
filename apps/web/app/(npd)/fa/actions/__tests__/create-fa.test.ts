@@ -186,7 +186,8 @@ run('createFa — REAL DB integration (T-008)', () => {
   });
 
   it('creates product FA5101 and emits one fa.created outbox row for npd_manager', async () => {
-    const { createFa, DuplicateError } = await import('../create-fa');
+    const { createFa } = await import('../create-fa');
+    const { DuplicateError } = await import('../errors');
 
     const result = await withActionActor(seed.managerUserId, seed.orgAId, () =>
       createFa({ productCode: 'FA5101', productName: 'Test' }),
@@ -255,7 +256,8 @@ run('createFa — REAL DB integration (T-008)', () => {
   });
 
   it('throws ValidationError with V01_FORMAT for non-FA product codes before mutating', async () => {
-    const { createFa, ValidationError } = await import('../create-fa');
+    const { createFa } = await import('../create-fa');
+    const { ValidationError } = await import('../errors');
 
     await expect(
       withActionActor(seed.managerUserId, seed.orgAId, () =>
@@ -285,7 +287,8 @@ run('createFa — REAL DB integration (T-008)', () => {
   });
 
   it('allows core_user with fa.create alias and denies viewer before mutation', async () => {
-    const { AuthError, createFa } = await import('../create-fa');
+    const { createFa } = await import('../create-fa');
+    const { AuthError } = await import('../errors');
     const productCode = faCode();
 
     await expect(

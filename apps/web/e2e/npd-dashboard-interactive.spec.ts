@@ -42,7 +42,7 @@ const AUTH_STORAGE =
 const USER_EMAIL = process.env.PLAYWRIGHT_USER_EMAIL;
 const USER_PASSWORD = process.env.PLAYWRIGHT_USER_PASSWORD;
 
-const DASHBOARD_ROUTE = '/en/dashboard';
+const DASHBOARD_ROUTE = '/en/npd';
 const LOGIN_ROUTE = '/en/login';
 
 const evidenceDir = path.resolve(
