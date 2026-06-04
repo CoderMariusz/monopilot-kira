@@ -873,6 +873,25 @@
     "save_failed": "Organization profile could not be saved."
   },
   "npd": {
+    "deptClose": {
+      "titleClose": "Close {dept} section",
+      "subtitle": "FA {faCode} · {productName}",
+      "requiredCheckHeader": "V05 · Required field check",
+      "fieldPass": "{name} — filled",
+      "fieldFail": "{name} — missing",
+      "allPassBanner": "All required fields filled — safe to close.",
+      "cannotCloseBanner": "Cannot close: fill all required fields before closing this section.",
+      "noteLabel": "Closing note (optional)",
+      "notePlaceholder": "Add a comment for the audit trail…",
+      "cancel": "Cancel",
+      "confirm": "Confirm close",
+      "submitting": "Closing…",
+      "noteTooShort": "The closing note must be at least 10 characters.",
+      "loading": "Checking required fields…",
+      "empty": "No required fields configured for this department.",
+      "error": "Unable to load the required-field checklist. Try again.",
+      "forbidden": "You do not have permission to close this department."
+    },
     "faList": {
       "title": "Factory Articles",
       "subtitle": "All FAs · filter by status or department",

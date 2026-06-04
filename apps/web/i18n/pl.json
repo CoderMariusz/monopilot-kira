@@ -873,6 +873,25 @@
     "save_failed": "Nie udało się zapisać profilu organizacji."
   },
   "npd": {
+    "deptClose": {
+      "titleClose": "Zamknij sekcję {dept}",
+      "subtitle": "FA {faCode} · {productName}",
+      "requiredCheckHeader": "V05 · Kontrola pól wymaganych",
+      "fieldPass": "{name} — uzupełnione",
+      "fieldFail": "{name} — brakuje",
+      "allPassBanner": "Wszystkie pola wymagane uzupełnione — można zamknąć.",
+      "cannotCloseBanner": "Nie można zamknąć: uzupełnij wszystkie pola wymagane przed zamknięciem tej sekcji.",
+      "noteLabel": "Notatka zamknięcia (opcjonalna)",
+      "notePlaceholder": "Dodaj komentarz do ścieżki audytu…",
+      "cancel": "Anuluj",
+      "confirm": "Potwierdź zamknięcie",
+      "submitting": "Zamykanie…",
+      "noteTooShort": "Notatka zamknięcia musi mieć co najmniej 10 znaków.",
+      "loading": "Sprawdzanie pól wymaganych…",
+      "empty": "Brak skonfigurowanych pól wymaganych dla tego działu.",
+      "error": "Nie można wczytać listy pól wymaganych. Spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do zamknięcia tego działu."
+    },
     "faList": {
       "title": "Artykuły fabryczne",
       "subtitle": "Wszystkie FA · filtruj wg statusu lub działu",

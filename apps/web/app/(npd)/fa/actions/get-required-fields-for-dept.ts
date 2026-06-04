@@ -1,0 +1,154 @@
+'use server';
+
+import { z } from 'zod';
+
+import { withOrgContext } from '../../../../lib/auth/with-org-context';
+
+/**
+ * T-022 — Server-side readiness probe for the Dept Close modal.
+ *
+ * Returns the per-dept required-field checklist used by the dept-close modal:
+ * one row per `Reference.DeptColumns` entry with `required_for_done = true`,
+ * each carrying a `pass` flag computed from the real `public.product` row
+ * (NOT a hardcoded checklist — the prototype's static arrays are replaced by
+ * live DeptColumns + product reads). Mirrors the readiness contract that
+ * `closeDeptSection` (T-017) enforces via `public.is_all_required_filled`, so
+ * the modal cannot surface a green checklist the action would reject.
+ *
+ * Red lines:
+ *   - DB is only touched server-side (this module is 'use server'); the client
+ *     modal imports the typed result, never a query.
+ *   - Org scoping + RLS come from `withOrgContext` (app.current_org_id()).
+ *   - `allPass` is recomputed by the action; the client must not be trusted to
+ *     decide readiness on its own.
+ */
+
+const DEPT_VALUES = [
+  'Core',
+  'Planning',
+  'Commercial',
+  'Production',
+  'Technical',
+  'MRP',
+  'Procurement',
+] as const;
+
+export type Dept = (typeof DEPT_VALUES)[number];
+
+export type RequiredFieldStatus = {
+  /** Physical column key (lower-cased product column / DeptColumns.column_key). */
+  key: string;
+  /** Human-readable label derived from the column key (no label column exists). */
+  name: string;
+  /** True when the product row has a non-empty value for this required column. */
+  ok: boolean;
+};
+
+export type RequiredFieldsForDept = {
+  dept: Dept;
+  fields: RequiredFieldStatus[];
+  /** True iff every required field is filled (server-authoritative). */
+  allPass: boolean;
+};
+
+type QueryResult<T = Record<string, unknown>> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>>;
+};
+type OrgContextLike = {
+  userId: string;
+  orgId: string;
+  client: QueryClient;
+};
+
+type RequiredColumnRow = {
+  column_key: string;
+  physical_column: string;
+  field_value: string | null;
+};
+
+const inputSchema = z.object({
+  productCode: z.string().trim().min(1),
+  dept: z.enum(DEPT_VALUES),
+});
+
+export class ValidationError extends Error {
+  code: string;
+
+  constructor(code: string, message = code) {
+    super(message);
+    this.name = 'ValidationError';
+    this.code = code;
+  }
+}
+
+/**
+ * Humanize a `column_key` (e.g. `product_name`, `Pack_Size`) into a label
+ * ("Product Name", "Pack Size"). `Reference.DeptColumns` has no display-label
+ * column, so the key is the source of truth for the checklist label.
+ */
+function humanizeColumnKey(columnKey: string): string {
+  return columnKey
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+export async function getRequiredFieldsForDept(
+  productCode: string,
+  dept: string,
+): Promise<RequiredFieldsForDept> {
+  const parsed = inputSchema.safeParse({ productCode, dept });
+  if (!parsed.success) {
+    throw new ValidationError('INVALID_INPUT', 'Invalid product code or department');
+  }
+
+  return withOrgContext<RequiredFieldsForDept>(async (ctx) => {
+    const context = ctx as OrgContextLike;
+
+    const { rows } = await context.client.query<RequiredColumnRow>(
+      `with product_row as (
+         select to_jsonb(p.*) as product_json
+           from public.product p
+          where p.org_id = app.current_org_id()
+            and p.product_code = $1
+          limit 1
+       ),
+       required_columns as (
+         select dc.column_key,
+                lower(dc.column_key) as physical_column,
+                dc.display_order
+           from "Reference"."DeptColumns" dc
+          where dc.org_id = app.current_org_id()
+            and lower(dc.dept_code) = lower($2)
+            and dc.required_for_done = true
+       )
+       select rc.column_key,
+              rc.physical_column,
+              pr.product_json ->> rc.physical_column as field_value
+         from required_columns rc
+         left join product_row pr on true
+        order by rc.display_order nulls last, rc.column_key`,
+      [parsed.data.productCode, parsed.data.dept],
+    );
+
+    const fields: RequiredFieldStatus[] = rows.map((row) => {
+      const value = row.field_value;
+      const ok = value !== null && value !== undefined && value.trim() !== '';
+      return {
+        key: row.physical_column,
+        name: humanizeColumnKey(row.column_key),
+        ok,
+      };
+    });
+
+    return {
+      dept: parsed.data.dept,
+      fields,
+      allPass: fields.length > 0 && fields.every((field) => field.ok),
+    };
+  });
+}

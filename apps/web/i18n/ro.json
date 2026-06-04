@@ -873,6 +873,25 @@
     "save_failed": "Profilul organizației nu a putut fi salvat."
   },
   "npd": {
+    "deptClose": {
+      "titleClose": "Închide secțiunea {dept}",
+      "subtitle": "FA {faCode} · {productName}",
+      "requiredCheckHeader": "V05 · Verificarea câmpurilor obligatorii",
+      "fieldPass": "{name} — completat",
+      "fieldFail": "{name} — lipsește",
+      "allPassBanner": "Toate câmpurile obligatorii sunt completate — se poate închide.",
+      "cannotCloseBanner": "Nu se poate închide: completați toate câmpurile obligatorii înainte de a închide această secțiune.",
+      "noteLabel": "Notă de închidere (opțional)",
+      "notePlaceholder": "Adăugați un comentariu pentru pista de audit…",
+      "cancel": "Anulează",
+      "confirm": "Confirmă închiderea",
+      "submitting": "Se închide…",
+      "noteTooShort": "Nota de închidere trebuie să aibă cel puțin 10 caractere.",
+      "loading": "Se verifică câmpurile obligatorii…",
+      "empty": "Niciun câmp obligatoriu configurat pentru acest departament.",
+      "error": "Nu se poate încărca lista câmpurilor obligatorii. Încercați din nou.",
+      "forbidden": "Nu aveți permisiunea de a închide acest departament."
+    },
     "faList": {
       "title": "Articole de fabrică",
       "subtitle": "Toate FA · filtrează după status sau departament",
