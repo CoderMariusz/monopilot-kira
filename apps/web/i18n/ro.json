@@ -1780,6 +1780,12 @@
       "emptyDetail": "Selectați un proiect pentru a vedea detaliile.",
       "error": "Pipeline-ul nu a putut fi încărcat. Încercați din nou când backendul este disponibil.",
       "forbidden": "Nu ai permisiunea de a vizualiza pipeline-ul."
+    },
+    "compositionBar": {
+      "title": "Compoziție",
+      "ariaLabel": "Compoziția ingredientelor",
+      "empty": "Niciun ingredient de afișat.",
+      "segmentLabel": "{name}: {pct}%"
     }
   }
 }

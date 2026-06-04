@@ -1780,6 +1780,12 @@
       "emptyDetail": "Select a project to see its detail.",
       "error": "Unable to load the pipeline. Try again after the backend is available.",
       "forbidden": "You do not have permission to view the pipeline."
+    },
+    "compositionBar": {
+      "title": "Composition",
+      "ariaLabel": "Ingredient composition",
+      "empty": "No ingredients to display.",
+      "segmentLabel": "{name}: {pct}%"
     }
   }
 }

@@ -1,0 +1,44 @@
+{
+  "task": "T-116",
+  "component": "CompositionBar",
+  "prototype": {
+    "file": "prototypes/design/Monopilot Design System/npd/recipe.jsx",
+    "lines": "230-250",
+    "note": "composition stacked bar + legend inside RecipeScreen"
+  },
+  "mapping": [
+    {
+      "prototype": "recipe.jsx:232 uppercase Composition label",
+      "production": "labels.title (npd.compositionBar.title)"
+    },
+    {
+      "prototype": "recipe.jsx:233 flex/height 24/rounded/border",
+      "production": "flex h-6 rounded border"
+    },
+    {
+      "prototype": "recipe.jsx:234-236 ingredients.map → per-ingredient div, width=(pct/totalPct)*100%",
+      "production": "segments.map → div[data-testid=composition-segment], Dec width (NUMERIC-exact, 3dp)"
+    },
+    {
+      "prototype": "recipe.jsx:235 10-colour palette",
+      "production": "COMPOSITION_COLORS (same 10 hues, palette cycles by index)"
+    },
+    {
+      "prototype": "recipe.jsx:236 title={name: pct%}",
+      "production": "aria-label + title (labelled, not colour-alone) + role=img container"
+    },
+    {
+      "prototype": "recipe.jsx:240 filter(pct>0.5) legend",
+      "production": "legend filter via Dec.cmp(0.5) > 0"
+    },
+    {
+      "prototype": "recipe.jsx:243-246 swatch 8px + name pct% chip",
+      "production": "swatch (aria-hidden) + name pct% text chip"
+    }
+  ],
+  "deviations": [
+    "pct kept as decimal STRING (formulation_ingredients NUMERIC) not number (task-JSON contract) — preserves NUMERIC exactness via Dec; matches T-065/T-066.",
+    "jest-axe/axe-core not installed (package.json out of scope) → a11y verified via RTL role/aria-label assertions per T-066 precedent + AC#5.",
+    "Component colocated with merged T-066 editor (real path) instead of the non-existent (npd)/formulations/[id]/editor path in the task JSON."
+  ]
+}

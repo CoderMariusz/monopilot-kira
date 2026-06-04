@@ -1780,6 +1780,12 @@
       "emptyDetail": "Wybierz projekt, aby zobaczyć jego szczegóły.",
       "error": "Nie można wczytać pipeline. Spróbuj ponownie, gdy backend będzie dostępny.",
       "forbidden": "Nie masz uprawnień do przeglądania pipeline."
+    },
+    "compositionBar": {
+      "title": "Skład",
+      "ariaLabel": "Skład surowcowy",
+      "empty": "Brak składników do wyświetlenia.",
+      "segmentLabel": "{name}: {pct}%"
     }
   }
 }
