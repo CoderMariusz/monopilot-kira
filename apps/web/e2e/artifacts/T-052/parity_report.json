@@ -1,0 +1,117 @@
+{
+  "task": "T-052",
+  "prototype_anchors": [
+    "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:32-174 (NpdDashboard)"
+  ],
+  "prd_refs": [
+    "§11.1",
+    "§11.5",
+    "§11.7"
+  ],
+  "data_sources": [
+    "getDashboardSummary (T-051)",
+    "getLaunchAlerts (T-051)"
+  ],
+  "generated_at": "2026-06-04T07:16:07.492Z",
+  "states": {
+    "loading": {
+      "pageRoot": true,
+      "kpiCards": 0,
+      "deptTable": false,
+      "alertsTable": false,
+      "showBuiltToggle": false,
+      "badges": 0,
+      "progressBars": 0,
+      "createFaButton": false,
+      "refreshButton": false,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 1,
+      "columnHeaders": []
+    },
+    "empty": {
+      "pageRoot": true,
+      "kpiCards": 4,
+      "deptTable": true,
+      "alertsTable": false,
+      "showBuiltToggle": true,
+      "badges": 3,
+      "progressBars": 0,
+      "createFaButton": true,
+      "refreshButton": true,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "columnHeaders": [
+        "Department",
+        "Done",
+        "Pending",
+        "Blocked",
+        "Progress"
+      ]
+    },
+    "error": {
+      "pageRoot": true,
+      "kpiCards": 0,
+      "deptTable": false,
+      "alertsTable": false,
+      "showBuiltToggle": false,
+      "badges": 0,
+      "progressBars": 0,
+      "createFaButton": false,
+      "refreshButton": false,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "columnHeaders": []
+    },
+    "permission_denied": {
+      "pageRoot": true,
+      "kpiCards": 0,
+      "deptTable": false,
+      "alertsTable": false,
+      "showBuiltToggle": false,
+      "badges": 0,
+      "progressBars": 0,
+      "createFaButton": false,
+      "refreshButton": false,
+      "rawSelects": 0,
+      "alerts": 1,
+      "statuses": 0,
+      "columnHeaders": []
+    },
+    "ready": {
+      "pageRoot": true,
+      "kpiCards": 4,
+      "deptTable": true,
+      "alertsTable": true,
+      "showBuiltToggle": true,
+      "badges": 6,
+      "progressBars": 7,
+      "createFaButton": true,
+      "refreshButton": true,
+      "rawSelects": 0,
+      "alerts": 0,
+      "statuses": 0,
+      "columnHeaders": [
+        "Department",
+        "Done",
+        "Pending",
+        "Blocked",
+        "Progress",
+        "FA Code",
+        "Product",
+        "Launch date",
+        "Days left",
+        "Alert",
+        "Missing data",
+        "Open FA"
+      ]
+    },
+    "optimistic_show_built": {
+      "rowsBeforeToggle": 3,
+      "rowsAfterToggle": 4,
+      "revealsBuilt": true
+    }
+  }
+}

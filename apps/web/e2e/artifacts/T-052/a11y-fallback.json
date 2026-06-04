@@ -1,0 +1,12 @@
+{
+  "task": "T-052",
+  "note": "Playwright + @axe-core blocked (no running RBAC-authenticated app server in worktree). RTL role/landmark checks below substitute.",
+  "hasH1": true,
+  "hasBreadcrumbNav": true,
+  "tableHeadersHaveScope": true,
+  "progressBarsHaveAria": true,
+  "alertBadgesHaveText": true,
+  "colorNotSoleSignal": true,
+  "noRawSelect": true,
+  "checkboxIsAccessible": true
+}
