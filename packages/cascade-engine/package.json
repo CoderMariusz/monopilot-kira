@@ -1,0 +1,24 @@
+{
+  "name": "cascade-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/chain3-recipe.ts",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@monopilot/db": "workspace:*",
+    "pg": "8.16.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^9.39.4",
+    "typescript": "^5.8.2",
+    "vitest": "^4.0.0"
+  }
+}
