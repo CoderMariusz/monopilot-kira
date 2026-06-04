@@ -22,13 +22,28 @@ import {
 } from './_lib/gate-helpers';
 import { type OrgContextLike, type ProjectGate } from './shared';
 
-const inputSchema = z.object({
+// T-111 reconciliation: the e-signature password is required ONLY when approving
+// (G3/G4 require a BRCGS/CFR-21 e-sign). A rejection records the reason WITHOUT a
+// password and WITHOUT an e-signature (signEvent is never invoked on the reject path).
+// A discriminated union enforces this at the schema boundary: a stray `password` on
+// the reject branch is stripped, and a missing `password` on the approve branch is a
+// 400 INVALID_INPUT before any DB / e-sign work.
+const approveSchema = z.object({
   projectId: z.string().uuid(),
   gateCode: z.enum(['G3', 'G4']),
-  decision: z.enum(['approved', 'rejected']),
+  decision: z.literal('approved'),
   notes: z.string().trim().min(1).max(2000),
   password: z.string().min(1).max(256),
 });
+
+const rejectSchema = z.object({
+  projectId: z.string().uuid(),
+  gateCode: z.enum(['G3', 'G4']),
+  decision: z.literal('rejected'),
+  notes: z.string().trim().min(1).max(2000),
+});
+
+const inputSchema = z.discriminatedUnion('decision', [approveSchema, rejectSchema]);
 
 export type ApproveProjectGateResult =
   | {
@@ -64,25 +79,33 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       const blockers = parsed.data.decision === 'approved' ? await getBlockers(context, project, targetGate) : [];
       if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
 
-      const receipt = await signEvent(
-        {
-          signerUserId: context.userId,
-          pin: parsed.data.password,
-          intent: `npd.gate.${parsed.data.decision}`,
-          subject: {
-            projectId: project.id,
-            projectCode: project.code,
-            gateCode: parsed.data.gateCode,
-            decision: parsed.data.decision,
+      // E-signature is collected ONLY on the approve path (G3/G4 require it). A rejection
+      // records the reason with no password and no signature (esigned_at/esign_hash null).
+      let esignedAt: string | null = null;
+      let esignHash: string | null = null;
+      let signatureId: string | null = null;
+      if (parsed.data.decision === 'approved') {
+        const receipt = await signEvent(
+          {
+            signerUserId: context.userId,
+            pin: parsed.data.password,
+            intent: `npd.gate.${parsed.data.decision}`,
+            subject: {
+              projectId: project.id,
+              projectCode: project.code,
+              gateCode: parsed.data.gateCode,
+              decision: parsed.data.decision,
+            },
+            nonce: `${project.id}:${parsed.data.gateCode}:${parsed.data.decision}:${Date.now()}`,
+            reason: parsed.data.notes,
           },
-          nonce: `${project.id}:${parsed.data.gateCode}:${parsed.data.decision}:${Date.now()}`,
-          reason: parsed.data.notes,
-        },
-        { client: context.client as ESignTxOptions['client'] },
-      );
+          { client: context.client as ESignTxOptions['client'] },
+        );
+        esignedAt = new Date(receipt.signedAt).toISOString();
+        esignHash = deterministicApprovalHash(context.userId, project.id, parsed.data.gateCode, esignedAt);
+        signatureId = receipt.signatureId;
+      }
 
-      const esignedAt = new Date(receipt.signedAt).toISOString();
-      const esignHash = deterministicApprovalHash(context.userId, project.id, parsed.data.gateCode, esignedAt);
       const approval = await context.client.query<{ id: string }>(
         `insert into public.gate_approvals
            (org_id, project_id, gate_code, decision, approver_user_id, notes, rejection_reason, esigned_at, esign_hash)
@@ -120,7 +143,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           decision: parsed.data.decision,
           current_gate: targetGate,
           approval_id: approvalId,
-          e_sign_signature_id: receipt.signatureId,
+          e_sign_signature_id: signatureId,
           esign_hash: esignHash,
         },
         dedupKey: `${GATE_APPROVED_EVENT}:${approvalId}`,
