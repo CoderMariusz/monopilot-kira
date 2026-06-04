@@ -112,7 +112,7 @@ async function resetScenario(pool: pg.Pool) {
        ('FA-T099W-A-002', $1, 'Worker A 002', 'RM1939', $2),
        ('FA-T099W-A-OVR', $1, 'Worker A override', 'RM1939', $2),
        ('FA-T099W-B-001', $3, 'Worker B 001', 'RM1939', $4)
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            product_name = excluded.product_name,
            ingredient_codes = excluded.ingredient_codes,

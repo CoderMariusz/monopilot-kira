@@ -31,7 +31,7 @@ export const bomHeaders = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productId: text('product_id').references(() => product.productCode, { onDelete: 'restrict' }),
+    productId: text('product_id'),
     npdProjectId: uuid('npd_project_id').references(() => npdProjects.id, { onDelete: 'set null' }),
     faCode: text('fa_code'),
     originModule: text('origin_module').notNull().default('technical'),
@@ -55,6 +55,12 @@ export const bomHeaders = pgTable(
   },
   (table) => ({
     identityUnique: unique('bom_headers_identity_unique').on(table.id, table.orgId),
+    // column is product_id but references product_code; composite (org_id, product_id).
+    productFk: foreignKey({
+      name: 'bom_headers_product_id_fkey',
+      columns: [table.orgId, table.productId],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('restrict'),
     supersedesFk: foreignKey({
       name: 'bom_headers_supersedes_fk',
       columns: [table.supersedesBomHeaderId, table.orgId],

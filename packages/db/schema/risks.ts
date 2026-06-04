@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, foreignKey, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
 import { product } from './product.js';
@@ -12,9 +12,7 @@ export const risks = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     title: text('title').notNull(),
     description: text('description').notNull(),
     likelihood: integer('likelihood').notNull(),
@@ -42,6 +40,11 @@ export const risks = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'risks_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     orgProductStateIdx: index('risks_org_product_state_idx').on(
       table.orgId,
       table.productCode,

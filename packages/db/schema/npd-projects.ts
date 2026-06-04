@@ -1,4 +1,4 @@
-import { check, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
@@ -21,7 +21,7 @@ export const npdProjects = pgTable(
     owner: text('owner'),
     targetLaunch: date('target_launch'),
     notes: text('notes'),
-    productCode: text('product_code').references(() => product.productCode),
+    productCode: text('product_code'),
     startFrom: text('start_from'),
     cloneSource: text('clone_source'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -34,6 +34,12 @@ export const npdProjects = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    // NO ACTION on delete (preserved): product is soft-deleted only.
+    productFk: foreignKey({
+      name: 'npd_projects_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }),
     orgCodeUnique: uniqueIndex('npd_projects_org_code_unique').on(table.orgId, table.code),
     orgGateIdx: index('npd_projects_org_gate_idx').on(table.orgId, table.currentGate),
     currentGateCheck: check(

@@ -1,4 +1,4 @@
-import { index, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { foreignKey, index, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations } from './baseline.js';
@@ -8,9 +8,7 @@ export const prodDetail = pgTable(
   'prod_detail',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id),
@@ -39,6 +37,11 @@ export const prodDetail = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'prod_detail_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     productCodeIdx: index('prod_detail_product_code_idx').on(table.productCode),
     orgProductCodeIdx: index('prod_detail_org_product_code_idx').on(table.orgId, table.productCode),
   }),

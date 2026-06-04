@@ -29,9 +29,7 @@ export const factoryReleaseStatus = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => npdProjects.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'restrict' }),
+    productCode: text('product_code').notNull(),
     releaseStatus: text('release_status').notNull().default('pending_npd_release'),
     factoryAvailableAt: timestamp('factory_available_at', { withTimezone: true }),
     factoryApprovedBy: uuid('factory_approved_by').references(() => users.id, { onDelete: 'restrict' }),
@@ -48,6 +46,11 @@ export const factoryReleaseStatus = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'factory_release_status_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('restrict'),
     bundleUnique: unique('factory_release_status_bundle_unique').on(
       table.orgId,
       table.projectId,

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { foreignKey, index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations } from './baseline.js';
@@ -12,9 +12,7 @@ export const allergenCascadeRebuildJobs = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     sourceEventId: uuid('source_event_id').notNull(),
     sourceEventType: text('source_event_type').notNull(),
     status: text('status').notNull().default('pending'),
@@ -23,6 +21,11 @@ export const allergenCascadeRebuildJobs = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'allergen_cascade_rebuild_jobs_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     dedupUnique: unique('allergen_cascade_rebuild_jobs_dedup_unique').on(
       table.orgId,
       table.productCode,

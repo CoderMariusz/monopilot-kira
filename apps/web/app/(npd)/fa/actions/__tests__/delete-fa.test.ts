@@ -157,7 +157,7 @@ async function insertProduct(productCode: string, orgId = seed.orgAId, userId = 
     `insert into public.product
        (org_id, product_code, product_name, department_number, created_by_user, app_version)
      values ($1::uuid, $2, $3, 'NPD', $4::uuid, 'delete-fa-test')
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            product_name = excluded.product_name,
            department_number = excluded.department_number,

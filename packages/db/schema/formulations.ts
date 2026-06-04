@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import {
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -29,7 +30,7 @@ export const formulations = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => npdProjects.id, { onDelete: 'cascade' }),
-    productCode: text('product_code').references(() => product.productCode, { onDelete: 'set null' }),
+    productCode: text('product_code'),
     currentVersionId: uuid('current_version_id').references(
       (): AnyPgColumn => formulationVersions.id,
       { onDelete: 'set null' },
@@ -41,6 +42,14 @@ export const formulations = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    // ON DELETE NO ACTION (was single-col SET NULL): a composite SET NULL would
+    // null org_id (NOT NULL) and fail. product is soft-deleted only, so NO ACTION
+    // is the safe, integrity-preserving choice. See migration 142 header note.
+    productFk: foreignKey({
+      name: 'formulations_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }),
     orgProjectIdx: index('formulations_org_project_idx').on(table.orgId, table.projectId),
   }),
 );

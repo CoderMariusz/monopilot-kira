@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import {
   check,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -20,9 +21,7 @@ export const faBuilderOutputs = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
-    productCode: text('product_code')
-      .notNull()
-      .references(() => product.productCode, { onDelete: 'cascade' }),
+    productCode: text('product_code').notNull(),
     filePath: text('file_path').notNull(),
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
     generatedByUser: uuid('generated_by_user')
@@ -33,6 +32,11 @@ export const faBuilderOutputs = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
+    productFk: foreignKey({
+      name: 'fa_builder_outputs_product_code_fkey',
+      columns: [table.orgId, table.productCode],
+      foreignColumns: [product.orgId, product.productCode],
+    }).onDelete('cascade'),
     currentIdx: index('fa_builder_outputs_current_idx')
       .on(table.orgId, table.productCode, sql`${table.generatedAt} desc`)
       .where(sql`${table.supersededAt} is null`),

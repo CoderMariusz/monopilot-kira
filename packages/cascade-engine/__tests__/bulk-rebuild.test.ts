@@ -84,7 +84,7 @@ async function seedBase(pool: pg.Pool) {
        ('FA-T099-PROC-A', $1, 'Proc A', 'RM0001', $2),
        ('FA-T099-UNTOUCHED-A', $1, 'Untouched A', 'RM404', $2),
        ('FA-T099-RM-B', $3, 'RM B', 'RM1939', $4)
-     on conflict (product_code) do update
+     on conflict (org_id, product_code) do update
        set org_id = excluded.org_id,
            product_name = excluded.product_name,
            ingredient_codes = excluded.ingredient_codes,
@@ -192,9 +192,12 @@ run('allergen bulk rebuild SQL helper', () => {
     await trustOrg(owner, sessionToken, orgA);
 
     await owner.query(
+      // Per-org PK (migration 142): the composite FK requires a product row in
+      // the SAME org. 'FA-T099-RM-B' is the orgB-scoped product; use it so this
+      // orgB job row is valid (RLS visibility is what this test exercises).
       `insert into public.allergen_cascade_rebuild_jobs
          (org_id, product_code, source_event_id, source_event_type)
-       values ($1, 'FA-T099-RM-A1', gen_random_uuid(), 'reference.allergens_by_rm.bulk_changed')
+       values ($1, 'FA-T099-RM-B', gen_random_uuid(), 'reference.allergens_by_rm.bulk_changed')
        on conflict do nothing`,
       [orgB],
     );

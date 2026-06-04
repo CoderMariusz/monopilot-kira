@@ -62,7 +62,7 @@ async function seedOrg(orgId: string, roleId: string, userId: string, projectId:
   await owner.query(
     `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
      values ($1, $2, $3, 1, $4)
-     on conflict (product_code) do update set org_id = excluded.org_id, created_by_user = excluded.created_by_user`,
+     on conflict (org_id, product_code) do update set org_id = excluded.org_id, created_by_user = excluded.created_by_user`,
     [productCode, orgId, `T-078 ${productCode}`, userId],
   );
   await owner.query(
