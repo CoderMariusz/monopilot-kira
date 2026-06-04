@@ -197,6 +197,34 @@ export const Permission = {
   PRODUCTION_D365_DLQ_REPLAY: 'production.d365_dlq.replay',
   /** Production OEE read permission; PRD 08-PRODUCTION §13 (RBAC). */
   PRODUCTION_OEE_READ: 'production.oee.read',
+
+  // Warehouse (05-warehouse) — License Plate (LP) / GRN / FEFO / stock-move family.
+  /** Warehouse LP create (per-warehouse numbering) permission; PRD 05-WAREHOUSE §5.2, §7. */
+  WAREHOUSE_LP_CREATE: 'warehouse.lp.create',
+  /** Warehouse LP split permission; PRD 05-WAREHOUSE §6.1, §8.2. */
+  WAREHOUSE_LP_SPLIT: 'warehouse.lp.split',
+  /** Warehouse LP merge (catch-weight sum) permission; PRD 05-WAREHOUSE §6.1. */
+  WAREHOUSE_LP_MERGE: 'warehouse.lp.merge',
+  /** Warehouse LP reserve (RM root only) permission; PRD 05-WAREHOUSE §6.1, §10. */
+  WAREHOUSE_LP_RESERVE: 'warehouse.lp.reserve',
+  /** Warehouse LP consume-to-WO permission (gated by 09-quality T-064); PRD 05-WAREHOUSE §6.1. */
+  WAREHOUSE_LP_CONSUME: 'warehouse.lp.consume',
+  /** Warehouse LP block (qa hold) permission; PRD 05-WAREHOUSE §6.1. */
+  WAREHOUSE_LP_BLOCK: 'warehouse.lp.block',
+  /** Warehouse LP ship transition permission; PRD 05-WAREHOUSE §6.1, §13. */
+  WAREHOUSE_LP_SHIP: 'warehouse.lp.ship',
+  /** Warehouse LP force-unlock (WH-101, elevated) permission; PRD 05-WAREHOUSE §6.6. */
+  WAREHOUSE_LP_FORCE_UNLOCK: 'warehouse.lp.force_unlock',
+  /** Warehouse GRN receive (from PO/TO) permission; PRD 05-WAREHOUSE §7. */
+  WAREHOUSE_GRN_RECEIVE: 'warehouse.grn.receive',
+  /** Warehouse stock move permission; PRD 05-WAREHOUSE §8. */
+  WAREHOUSE_STOCK_MOVE: 'warehouse.stock.move',
+  /** Warehouse stock adjustment (>10% manager-approval gate) permission; PRD 05-WAREHOUSE §8.7. */
+  WAREHOUSE_STOCK_ADJUST: 'warehouse.stock.adjust',
+  /** Warehouse inventory browser read permission (server-side value gate); PRD 05-WAREHOUSE §14. */
+  WAREHOUSE_INVENTORY_READ: 'warehouse.inventory.read',
+  /** Warehouse FEFO deviation override (reason_code required) permission; PRD 05-WAREHOUSE §9.3. */
+  WAREHOUSE_FEFO_OVERRIDE: 'warehouse.fefo.override',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -313,6 +341,28 @@ export const ALL_PRODUCTION_PERMISSIONS = [
   Permission.PRODUCTION_ALLERGEN_GATE_SIGN_SECOND,
   Permission.PRODUCTION_D365_DLQ_REPLAY,
   Permission.PRODUCTION_OEE_READ,
+] as readonly Permission[];
+
+/**
+ * Warehouse (05-warehouse) module permission group; PRD 05-WAREHOUSE §5.2/§6/§7/§8/§9/§13/§14.
+ * 13 LP/GRN/FEFO/stock-move page/action permissions (T-058). Recognised by the ESLint enum-lock
+ * guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130). Seeded to the
+ * org-admin role family + warehouse operator/scanner roles by migration 192.
+ */
+export const ALL_WAREHOUSE_PERMISSIONS = [
+  Permission.WAREHOUSE_LP_CREATE,
+  Permission.WAREHOUSE_LP_SPLIT,
+  Permission.WAREHOUSE_LP_MERGE,
+  Permission.WAREHOUSE_LP_RESERVE,
+  Permission.WAREHOUSE_LP_CONSUME,
+  Permission.WAREHOUSE_LP_BLOCK,
+  Permission.WAREHOUSE_LP_SHIP,
+  Permission.WAREHOUSE_LP_FORCE_UNLOCK,
+  Permission.WAREHOUSE_GRN_RECEIVE,
+  Permission.WAREHOUSE_STOCK_MOVE,
+  Permission.WAREHOUSE_STOCK_ADJUST,
+  Permission.WAREHOUSE_INVENTORY_READ,
+  Permission.WAREHOUSE_FEFO_OVERRIDE,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {

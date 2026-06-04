@@ -147,6 +147,13 @@ export enum EventType {
   UNIT_OF_MEASURE_CREATED = 'unit_of_measure.created',
   UNIT_OF_MEASURE_SOFT_DELETED = 'unit_of_measure.soft_deleted',
   USER_INVITED = 'user.invited',
+  // 05-warehouse LP lifecycle events (PRD 05-WAREHOUSE §7.6, §11.4; producer prefix warehouse.*).
+  // 05-warehouse is the sole emitter. Consumers: 08-production, 06-scanner, 09-quality,
+  // 10-finance (FIFO/WAC valuation), 11-shipping, 12-reporting, 15-OEE.
+  WAREHOUSE_LP_RECEIVED = 'warehouse.lp.received',
+  WAREHOUSE_LP_TRANSITIONED = 'warehouse.lp.transitioned',
+  WAREHOUSE_MATERIAL_CONSUMED = 'warehouse.material.consumed',
+  WAREHOUSE_LP_SHIPPED = 'warehouse.lp.shipped',
   WO_READY = 'wo.ready',
 }
 
@@ -190,6 +197,19 @@ export const ALL_PRODUCTION_EVENTS = [
   EventType.PRODUCTION_CHANGEOVER_SIGNED,
   EventType.PRODUCTION_ALLERGEN_CHANGEOVER_VALIDATED,
   EventType.PRODUCTION_OEE_SNAPSHOT,
+] as const;
+
+/**
+ * Locked 05-warehouse event group. Subset of `EventType` — the canonical License Plate (LP)
+ * lifecycle vocabulary that 05-warehouse (and ONLY 05-warehouse) emits. warehouse.material.consumed
+ * is emitted ONLY after the 09-quality T-064 consume gate passes. Referenced by the warehouse
+ * module sign-off contract.
+ */
+export const ALL_WAREHOUSE_EVENTS = [
+  EventType.WAREHOUSE_LP_RECEIVED,
+  EventType.WAREHOUSE_LP_TRANSITIONED,
+  EventType.WAREHOUSE_MATERIAL_CONSUMED,
+  EventType.WAREHOUSE_LP_SHIPPED,
 ] as const;
 
 /**

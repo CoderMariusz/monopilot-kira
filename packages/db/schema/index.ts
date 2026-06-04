@@ -271,3 +271,9 @@ export type { WoOutput, NewWoOutput, WoMaterialConsumption, NewWoMaterialConsump
 // 08-production waste/downtime/changeover/allergen/OEE (migs 183-185). oee_snapshots producer = 08 (D-OEE-1).
 export { downtimeSourceEnum, woWasteLog, downtimeEvents, changeoverEvents, allergenChangeoverValidations, oeeSnapshots } from './production/index.js';
 export type { WoWasteLog, NewWoWasteLog, DowntimeEvent, NewDowntimeEvent, ChangeoverEvent, NewChangeoverEvent, AllergenChangeoverValidation, NewAllergenChangeoverValidation, OeeSnapshot, NewOeeSnapshot } from './production/index.js';
+
+// 05-warehouse — License Plate (LP) + FEFO inventory read model (migration 191). LP is the
+// universal lot/quantity unit (ADR-001) consumed by 06-scanner / 08-production / 09-quality /
+// 10-finance / 11-shipping. Soft FKs to warehouses/items/locations/work_orders avoid cycles.
+export { licensePlates, vInventoryAvailable } from './warehouse-lp.js';
+export type { LicensePlate, NewLicensePlate, InventoryAvailableRow } from './warehouse-lp.js';

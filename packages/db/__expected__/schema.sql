@@ -3085,6 +3085,20 @@ COMMENT ON FUNCTION public.lab_results_atp_emit_fail() IS 'T-026: emits quality.
 
 
 --
+-- Name: license_plates_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.license_plates_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: mfg_op_allergen_additions_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5076,6 +5090,123 @@ CREATE FUNCTION public.seed_units_of_measure_on_org_insert() RETURNS trigger
     AS $$
 begin
   perform public.seed_units_of_measure_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
+-- Name: seed_warehouse_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_warehouse_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- Complete warehouse.* family (PRD §3 RBAC matrix). Mirrors ALL_WAREHOUSE_PERMISSIONS.
+  v_all_perms text[] := array[
+    'warehouse.lp.create',
+    'warehouse.lp.split',
+    'warehouse.lp.merge',
+    'warehouse.lp.reserve',
+    'warehouse.lp.consume',
+    'warehouse.lp.block',
+    'warehouse.lp.ship',
+    'warehouse.lp.force_unlock',
+    'warehouse.grn.receive',
+    'warehouse.stock.move',
+    'warehouse.stock.adjust',
+    'warehouse.inventory.read',
+    'warehouse.fefo.override'
+  ];
+  -- Operator/scanner-facing subset: receives, creates/splits/merges LPs, reserves, consumes,
+  -- moves stock, reads inventory, and may ship. NOT the elevated/approval strings
+  -- (force_unlock = WH-101 elevated; stock.adjust = >10% manager gate; fefo.override = deviation
+  -- reason audit). SoD: those stay admin-only.
+  v_operator_perms text[] := array[
+    'warehouse.lp.create',
+    'warehouse.lp.split',
+    'warehouse.lp.merge',
+    'warehouse.lp.reserve',
+    'warehouse.lp.consume',
+    'warehouse.lp.block',
+    'warehouse.lp.ship',
+    'warehouse.grn.receive',
+    'warehouse.stock.move',
+    'warehouse.inventory.read'
+  ];
+  -- org-admin role family across naming conventions used in this codebase.
+  v_admin_roles text[] := array['org.access.admin','org.platform.admin','owner','admin','org_admin'];
+  -- warehouse operator/scanner role family (defensive — codes vary; grant is a no-op if absent).
+  v_operator_roles text[] := array[
+    'operator','warehouse_operator','warehouse_clerk','scanner','scanner_operator',
+    'production_operator','line_operator'
+  ];
+begin
+  -- --- Normalized storage (role_permissions) ---
+  -- admin family: full set.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_all_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- operator/scanner family: operator subset.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_operator_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- --- Legacy jsonb cache (roles.permissions) ---
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_all_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_admin_roles) or r.slug = any(v_admin_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_operator_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
+end;
+$$;
+
+
+--
+-- Name: seed_warehouse_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_warehouse_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_warehouse_permissions_for_org(new.id);
   return new;
 end;
 $$;
@@ -8540,6 +8671,60 @@ CREATE VIEW public.launch_alerts WITH (security_invoker='true') AS
 
 
 --
+-- Name: license_plates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.license_plates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    warehouse_id uuid NOT NULL,
+    lp_number text NOT NULL,
+    lp_code text,
+    product_id uuid NOT NULL,
+    quantity numeric(18,6) NOT NULL,
+    reserved_qty numeric(18,6) DEFAULT 0 NOT NULL,
+    uom text NOT NULL,
+    catch_weight_kg numeric(18,6),
+    status text DEFAULT 'available'::text NOT NULL,
+    qa_status text DEFAULT 'pending'::text NOT NULL,
+    batch_number text,
+    supplier_batch_number text,
+    gtin text,
+    expiry_date timestamp with time zone,
+    best_before_date timestamp with time zone,
+    shelf_life_mode_snapshot text,
+    date_code_rendered text,
+    location_id uuid,
+    origin text DEFAULT 'grn'::text NOT NULL,
+    parent_lp_id uuid,
+    grn_id uuid,
+    wo_id uuid,
+    reserved_for_wo_id uuid,
+    consumed_by_wo_id uuid,
+    source_so_id uuid,
+    locked_by uuid,
+    locked_at timestamp with time zone,
+    ext_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    private_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT license_plates_origin_check CHECK ((origin = ANY (ARRAY['grn'::text, 'production'::text, 'transfer'::text, 'adjustment'::text, 'split'::text, 'merge'::text]))),
+    CONSTRAINT license_plates_qa_status_check CHECK ((qa_status = ANY (ARRAY['pending'::text, 'released'::text, 'on_hold'::text, 'rejected'::text]))),
+    CONSTRAINT license_plates_quantity_nonneg_check CHECK ((quantity >= (0)::numeric)),
+    CONSTRAINT license_plates_reserved_qty_le_quantity_check CHECK ((reserved_qty <= quantity)),
+    CONSTRAINT license_plates_reserved_qty_nonneg_check CHECK ((reserved_qty >= (0)::numeric)),
+    CONSTRAINT license_plates_schema_version_check CHECK ((schema_version >= 1)),
+    CONSTRAINT license_plates_status_check CHECK ((status = ANY (ARRAY['received'::text, 'available'::text, 'reserved'::text, 'allocated'::text, 'consumed'::text, 'blocked'::text, 'merged'::text, 'shipped'::text, 'returned'::text, 'quarantine'::text])))
+);
+
+ALTER TABLE ONLY public.license_plates FORCE ROW LEVEL SECURITY;
+
+
+--
 -- Name: line_machines; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9259,7 +9444,7 @@ CREATE TABLE public.outbox_events (
     dead_lettered_at timestamp with time zone,
     last_error_text text,
     dedup_key text,
-    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'catch_weight.variance_exceeded'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.atp_swab_failed'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.d365_sync.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'wo.ready'::text])))
+    CONSTRAINT outbox_events_event_type_check CHECK ((event_type = ANY (ARRAY['audit.recorded'::text, 'bom.initial_version_created'::text, 'bom.version_submitted'::text, 'brief.completed_for_project'::text, 'brief.converted'::text, 'brief.created'::text, 'catch_weight.variance_exceeded'::text, 'compliance_doc.deleted'::text, 'compliance_doc.expired'::text, 'compliance_doc.expiring'::text, 'compliance_doc.uploaded'::text, 'd365.cache.refreshed'::text, 'fa.allergens_changed'::text, 'fa.built'::text, 'fa.built_reset'::text, 'fa.cascade'::text, 'fa.core_closed'::text, 'fa.created'::text, 'fa.deleted'::text, 'fa.dept_closed'::text, 'fa.dept_reopened'::text, 'fa.edit'::text, 'fa.intermediate_code_changed'::text, 'fa.recipe_changed'::text, 'fa.template_applied'::text, 'fg.allergens_changed'::text, 'fg.bom.released'::text, 'fg.created'::text, 'fg.edit'::text, 'fg.intermediate_code_changed'::text, 'fg.release_blocked'::text, 'fg.released_to_factory'::text, 'formulation.locked'::text, 'formulation.submitted_for_trial'::text, 'lp.received'::text, 'manufacturing_operations.created'::text, 'manufacturing_operations.deactivated'::text, 'manufacturing_operations.reset_to_seed'::text, 'manufacturing_operations.updated'::text, 'npd.allergens.bulk_rebuild_completed'::text, 'npd.builder.released_records_created'::text, 'npd.fg_candidate_mapped'::text, 'npd.gate.advanced'::text, 'npd.gate.approved'::text, 'npd.gate.reverted'::text, 'npd.project.brief_mapped'::text, 'npd.project.created'::text, 'npd.project.legacy_stages_closed'::text, 'npd.project.release_requested'::text, 'onboarding.first_wo_recorded'::text, 'onboarding.step.advance'::text, 'onboarding.step.back'::text, 'onboarding.step.jump'::text, 'onboarding.step.restart'::text, 'onboarding.step.skip'::text, 'org.created'::text, 'org.mfa_enrollment.forced'::text, 'org.security_policy.updated'::text, 'production.allergen_changeover.validated'::text, 'production.changeover.signed'::text, 'production.consume.blocked'::text, 'production.consume.completed'::text, 'production.downtime.recorded'::text, 'production.oee.snapshot'::text, 'production.output.recorded'::text, 'production.waste.recorded'::text, 'production.wo.closed'::text, 'production.wo.completed'::text, 'production.wo.started'::text, 'quality.atp_swab_failed'::text, 'quality.recorded'::text, 'reference.allergens_added_by_process.bulk_changed'::text, 'reference.allergens_by_rm.bulk_changed'::text, 'reference.csv.committed'::text, 'reference.row.soft_deleted'::text, 'reference.row.upserted'::text, 'risk.created'::text, 'role.assigned'::text, 'rule.deployed'::text, 'settings.core_flag.updated'::text, 'settings.d365_sync.updated'::text, 'settings.dept_override.updated'::text, 'settings.ip_allowlist.changed'::text, 'settings.line.upserted'::text, 'settings.location.deleted'::text, 'settings.location.imported'::text, 'settings.location.upserted'::text, 'settings.machine.upserted'::text, 'settings.module.disabled'::text, 'settings.module.enabled'::text, 'settings.module.toggled'::text, 'settings.notification_channel_updated'::text, 'settings.notification_digest_updated'::text, 'settings.notification_rule_updated'::text, 'settings.org.created'::text, 'settings.org.updated'::text, 'settings.reference.row_updated'::text, 'settings.role.assigned'::text, 'settings.rule.deployed'::text, 'settings.rule_variant.updated'::text, 'settings.schema.migration_requested'::text, 'settings.scim.token_created'::text, 'settings.sso.config_changed'::text, 'settings.upgrade.completed'::text, 'settings.upgrade.promoted'::text, 'settings.upgrade.rolled_back'::text, 'settings.upgrade.scheduled'::text, 'settings.user.accepted'::text, 'settings.user.deactivated'::text, 'settings.user.invitation_resent'::text, 'settings.user.invited'::text, 'settings.warehouse.deactivated'::text, 'shipment.created'::text, 'technical.factory_spec.approved'::text, 'tenant.cohort.advanced'::text, 'tenant.migration.run'::text, 'tenant.migration.run.failed'::text, 'unit_of_measure.conversion_created'::text, 'unit_of_measure.created'::text, 'unit_of_measure.soft_deleted'::text, 'user.invited'::text, 'warehouse.lp.received'::text, 'warehouse.lp.shipped'::text, 'warehouse.lp.transitioned'::text, 'warehouse.material.consumed'::text, 'wo.ready'::text])))
 );
 
 ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
@@ -9269,7 +9454,7 @@ ALTER TABLE ONLY public.outbox_events FORCE ROW LEVEL SECURITY;
 -- Name: CONSTRAINT outbox_events_event_type_check ON outbox_events; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Regenerated from events.enum.ts DB_EVENT_TYPES (122 types incl production.*).';
+COMMENT ON CONSTRAINT outbox_events_event_type_check ON public.outbox_events IS 'Regenerated from events.enum.ts DB_EVENT_TYPES (126 types incl warehouse.*).';
 
 
 --
@@ -10125,6 +10310,39 @@ CREATE TABLE public.users (
 );
 
 ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: v_inventory_available; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_inventory_available WITH (security_invoker='true') AS
+ SELECT id AS lp_id,
+    org_id,
+    site_id,
+    warehouse_id,
+    product_id,
+    lp_number,
+    status,
+    qa_status,
+    quantity,
+    reserved_qty,
+    (quantity - reserved_qty) AS available_qty,
+    uom,
+    batch_number,
+    expiry_date,
+    best_before_date,
+    location_id
+   FROM public.license_plates lp
+  WHERE ((status = 'available'::text) AND (qa_status = 'released'::text) AND ((quantity - reserved_qty) > (0)::numeric))
+  ORDER BY org_id, warehouse_id, product_id, expiry_date, lp_number;
+
+
+--
+-- Name: VIEW v_inventory_available; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_inventory_available IS 'FEFO read model (WH §9.2). security_invoker view over license_plates: pickable on-hand (status=available, qa_status=released, available_qty>0) pre-ordered by expiry NULLS LAST then lp_number. Backed by license_plates_fefo_idx.';
 
 
 --
@@ -11666,6 +11884,22 @@ ALTER TABLE ONLY public.items
 
 ALTER TABLE ONLY public.lab_results
     ADD CONSTRAINT lab_results_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: license_plates license_plates_org_warehouse_lp_number_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_org_warehouse_lp_number_uq UNIQUE (org_id, warehouse_id, lp_number);
+
+
+--
+-- Name: license_plates license_plates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_pkey PRIMARY KEY (id);
 
 
 --
@@ -14577,6 +14811,55 @@ CREATE INDEX integration_settings_org_idx ON public.integration_settings USING b
 
 
 --
+-- Name: license_plates_fefo_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_fefo_idx ON public.license_plates USING btree (org_id, warehouse_id, product_id, status, expiry_date);
+
+
+--
+-- Name: license_plates_grn_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_grn_idx ON public.license_plates USING btree (grn_id) WHERE (grn_id IS NOT NULL);
+
+
+--
+-- Name: license_plates_location_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_location_idx ON public.license_plates USING btree (org_id, location_id);
+
+
+--
+-- Name: license_plates_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_org_idx ON public.license_plates USING btree (org_id);
+
+
+--
+-- Name: license_plates_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_org_site_idx ON public.license_plates USING btree (org_id, site_id);
+
+
+--
+-- Name: license_plates_parent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_parent_idx ON public.license_plates USING btree (parent_lp_id) WHERE (parent_lp_id IS NOT NULL);
+
+
+--
+-- Name: license_plates_wo_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX license_plates_wo_idx ON public.license_plates USING btree (wo_id) WHERE (wo_id IS NOT NULL);
+
+
+--
 -- Name: line_machines_machine_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15753,6 +16036,13 @@ CREATE TRIGGER lab_results_atp_emit_fail AFTER INSERT OR UPDATE ON public.lab_re
 
 
 --
+-- Name: license_plates license_plates_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER license_plates_set_updated_at BEFORE UPDATE ON public.license_plates FOR EACH ROW EXECUTE FUNCTION public.license_plates_set_updated_at();
+
+
+--
 -- Name: manufacturing_operation_allergen_additions mfg_op_allergen_additions_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16002,6 +16292,13 @@ CREATE TRIGGER trg_zzz_seed_settings_rbac_matrix AFTER INSERT ON public.organiza
 --
 
 CREATE TRIGGER trg_zzz_seed_technical_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_technical_permissions_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_warehouse_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_warehouse_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_warehouse_permissions_on_org_insert();
 
 
 --
@@ -17328,6 +17625,38 @@ ALTER TABLE ONLY public.lab_results
 
 ALTER TABLE ONLY public.lab_results
     ADD CONSTRAINT lab_results_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: license_plates license_plates_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: license_plates license_plates_locked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_locked_by_fkey FOREIGN KEY (locked_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: license_plates license_plates_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: license_plates license_plates_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.license_plates
+    ADD CONSTRAINT license_plates_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -19873,6 +20202,19 @@ CREATE POLICY lab_results_org_context_insert ON public.lab_results FOR INSERT TO
 --
 
 CREATE POLICY lab_results_org_context_select ON public.lab_results FOR SELECT TO app_user USING ((org_id = app.current_org_id()));
+
+
+--
+-- Name: license_plates; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.license_plates ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: license_plates license_plates_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY license_plates_org_context ON public.license_plates TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
