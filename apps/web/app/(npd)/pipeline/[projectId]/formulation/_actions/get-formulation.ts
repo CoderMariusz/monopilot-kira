@@ -23,6 +23,10 @@ type FormulationRow = {
 type IngredientRow = {
   id: string;
   rm_code: string;
+  /** Lane-B: FK to the real items master row (null for legacy free text). */
+  item_id: string | null;
+  /** Lane-B: display name from the joined items row (empty when no item). */
+  item_name: string | null;
   qty_kg: string | null;
   pct: string | null;
   cost_per_kg_eur: string | null;
@@ -98,16 +102,19 @@ export async function getFormulation(input: { projectId?: unknown }): Promise<Ge
       const ingredients = row.version_id
         ? await client.query<IngredientRow>(
             `select
-               id::text,
-               rm_code,
-               qty_kg::text,
-               pct::text,
-               cost_per_kg_eur::text,
-               allergens_inherited,
-               sequence
-             from public.formulation_ingredients
-            where version_id = $1::uuid
-            order by sequence`,
+               fi.id::text,
+               fi.rm_code,
+               fi.item_id::text,
+               it.name as item_name,
+               fi.qty_kg::text,
+               fi.pct::text,
+               fi.cost_per_kg_eur::text,
+               fi.allergens_inherited,
+               fi.sequence
+             from public.formulation_ingredients fi
+             left join public.items it on it.id = fi.item_id
+            where fi.version_id = $1::uuid
+            order by fi.sequence`,
             [row.version_id],
           )
         : { rows: [] };

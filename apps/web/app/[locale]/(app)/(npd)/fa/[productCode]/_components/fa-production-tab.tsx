@@ -50,6 +50,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -64,6 +65,12 @@ import {
 } from '@monopilot/ui/Select';
 
 import { updateFaCell } from '../../../../../../(npd)/fa/actions/update-fa-cell';
+import {
+  addProdDetailComponent,
+  removeProdDetailComponent,
+} from '../../../../../../(npd)/fa/actions/add-prod-detail-component';
+import { searchItems, type ItemPickerOption } from '../../../../../../(npd)/fa/actions/search-items';
+import { ItemPicker, type ItemPickerLabels, type ItemSearchFn } from '../../../_components/item-picker';
 
 // ---------------------------------------------------------------------------
 // Types (schema-driven — mirror Reference.DeptColumns metadata + prod_detail)
@@ -135,6 +142,13 @@ export type FaProductionTabLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  /** "+ Add production component" affordance + empty-state CTA. */
+  addComponent: string;
+  emptyCtaBody: string;
+  removeComponent: string;
+  removeError: string;
+  /** Item-picker (combobox over the real items master) labels. */
+  picker: ItemPickerLabels;
   /** Per-column human label keyed by physical column key. */
   fields: Record<string, string>;
 };
@@ -158,6 +172,16 @@ export type FaProductionTabProps = {
     value: unknown,
     meta: { componentIndex: number },
   ) => Promise<unknown>;
+  /** Server-side production-write permission (drives the add/remove affordances). */
+  canWrite?: boolean;
+  /** Test/wiring seam: item-search action (defaults to org-scoped searchItems). */
+  onSearchItems?: ItemSearchFn;
+  /** Test/wiring seam: add-component action (defaults to addProdDetailComponent). */
+  onAddComponent?: typeof addProdDetailComponent;
+  /** Test/wiring seam: remove-component action (defaults to removeProdDetailComponent). */
+  onRemoveComponent?: typeof removeProdDetailComponent;
+  /** Refresh callback after add/remove (defaults to router.refresh in the page). */
+  onMutated?: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -353,9 +377,25 @@ export function FaProductionTab({
   labels,
   state = 'ready',
   onPersistCell,
+  canWrite = false,
+  onSearchItems,
+  onAddComponent,
+  onRemoveComponent,
+  onMutated,
 }: FaProductionTabProps) {
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
   const locked = !packSizeFilled;
+
+  const searchAction: ItemSearchFn = onSearchItems ?? searchItems;
+  const addAction = onAddComponent ?? addProdDetailComponent;
+  const removeAction = onRemoveComponent ?? removeProdDetailComponent;
+
+  // Default refresh after add/remove re-renders the server component (re-reads the
+  // real prod_detail rows). useRouter() is always called at the top (Rules of
+  // Hooks). In the app it returns the App Router; in RTL the test mocks
+  // next/navigation (or passes an explicit onMutated).
+  const router = useRouter();
+  const mutated = onMutated ?? (() => router.refresh());
 
   // Initial per-component string values, keyed by row id then column key.
   const initial = React.useMemo(() => {
@@ -372,9 +412,36 @@ export function FaProductionTab({
 
   const [form, setForm] = React.useState<Record<string, Record<string, string>>>(initial);
   const [saving, setSaving] = React.useState(false);
+  const [mutating, setMutating] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ tone: 'success' | 'error'; text: string } | null>(
     null,
   );
+
+  async function handleAddComponent(item: ItemPickerOption) {
+    setMutating(true);
+    setFeedback(null);
+    try {
+      await addAction({ productCode, itemId: item.id });
+      mutated?.();
+    } catch {
+      setFeedback({ tone: 'error', text: labels.saveError });
+    } finally {
+      setMutating(false);
+    }
+  }
+
+  async function handleRemoveComponent(prodDetailId: string) {
+    setMutating(true);
+    setFeedback(null);
+    try {
+      await removeAction({ productCode, prodDetailId });
+      mutated?.();
+    } catch {
+      setFeedback({ tone: 'error', text: labels.removeError });
+    } finally {
+      setMutating(false);
+    }
+  }
 
   // Re-sync when the server-loaded rows change (e.g. after a revalidate).
   React.useEffect(() => {
@@ -421,6 +488,20 @@ export function FaProductionTab({
 
   const dataLoaded = state === 'ready' || state === 'empty';
 
+  // "+ Add production component" picker — only shown when the user can write and
+  // the Production tab is not locked by the Pack_Size gate. Opens the combobox
+  // over the REAL items master and creates a prod_detail row on select.
+  const addPicker =
+    canWrite && !locked ? (
+      <ItemPicker
+        labels={labels.picker}
+        searchItemsAction={searchAction}
+        itemTypes={['rm', 'intermediate', 'co_product']}
+        disabled={mutating}
+        onSelect={handleAddComponent}
+      />
+    ) : null;
+
   return (
     <section
       data-testid="fa-production-tab"
@@ -455,6 +536,7 @@ export function FaProductionTab({
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">{labels.subtitle}</p>
           </div>
+          {dataLoaded && rows.length > 0 ? addPicker : null}
         </CardHeader>
 
         <CardContent>
@@ -469,7 +551,8 @@ export function FaProductionTab({
                 🏭
               </span>
               <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-              <p className="text-xs text-slate-500">{labels.emptyBody}</p>
+              <p className="text-xs text-slate-500">{labels.emptyCtaBody}</p>
+              {addPicker ? <div className="mt-2">{addPicker}</div> : null}
             </div>
           ) : (
             <div className="space-y-4">
@@ -492,7 +575,7 @@ export function FaProductionTab({
                         {toFieldString(row.componentWeight)}g
                       </span>
                     ) : null}
-                    <span className="ml-auto">
+                    <span className="ml-auto flex items-center gap-2">
                       {row.v06Status === 'pass' ? (
                         <Badge tone="success" data-testid="fa-prod-v06-pass">
                           {labels.v06Pass}
@@ -502,6 +585,18 @@ export function FaProductionTab({
                           {labels.v06Warn}
                         </Badge>
                       )}
+                      {canWrite && !locked ? (
+                        <Button
+                          type="button"
+                          className="btn--ghost"
+                          data-testid="fa-prod-remove"
+                          aria-label={`${labels.removeComponent} ${row.intermediateCode}`}
+                          disabled={mutating}
+                          onClick={() => handleRemoveComponent(row.id)}
+                        >
+                          <span aria-hidden="true">✕</span>
+                        </Button>
+                      ) : null}
                     </span>
                   </div>
 

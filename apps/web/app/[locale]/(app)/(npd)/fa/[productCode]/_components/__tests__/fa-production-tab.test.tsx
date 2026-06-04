@@ -58,6 +58,12 @@ vi.mock('../../../../../../../(npd)/fa/actions/update-fa-cell', () => ({
   ValidationError: class ValidationError extends Error {},
 }));
 
+// Lane-B: the production tab calls useRouter().refresh() to re-read prod_detail
+// rows after add/remove — mock next/navigation so the island renders in RTL.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+}));
+
 import {
   FaProductionTab,
   type FaProductionTabLabels,
@@ -370,5 +376,77 @@ describe('FaProductionTab — i18n', () => {
     renderReady({ labels: { ...LABELS, save: 'Zapisz produkcję' } });
     expect(screen.getByRole('button', { name: 'Zapisz produkcję' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save Production' })).not.toBeInTheDocument();
+  });
+});
+
+// Lane-B: "+ Add production component" affordance backed by a REAL item picker.
+const ADD_LABELS: FaProductionTabLabels = {
+  ...LABELS,
+  addComponent: '+ Add production component',
+  emptyCtaBody: 'Add a production component from the items master.',
+  removeComponent: 'Remove component',
+  removeError: 'Could not remove the component',
+  picker: {
+    trigger: '+ Add production component',
+    searchLabel: 'Search items',
+    searchPlaceholder: 'Search by code or name…',
+    loading: 'Searching…',
+    empty: 'No matching items',
+    cancel: 'Cancel',
+    error: 'Item search failed',
+  },
+};
+
+describe('FaProductionTab — Lane-B add/remove component (real item picker)', () => {
+  it('hides the add affordance when the user cannot write Production', () => {
+    renderReady({ labels: ADD_LABELS, canWrite: false });
+    expect(screen.queryByTestId('item-picker-trigger')).not.toBeInTheDocument();
+  });
+
+  it('opens the item picker and adds the chosen real item as a component', async () => {
+    const user = userEvent.setup();
+    const onSearchItems = vi.fn(async () => [
+      { id: 'item-1', itemCode: 'PR8801', name: 'Prosciutto', itemType: 'intermediate', status: 'active', costPerKgEur: '28.00' },
+    ]);
+    const onAddComponent = vi.fn(async () => ({ id: 'pd-1', intermediateCode: 'PR8801', componentIndex: 2, itemId: 'item-1' }));
+    const onMutated = vi.fn();
+
+    renderReady({
+      labels: ADD_LABELS,
+      canWrite: true,
+      onSearchItems,
+      onAddComponent,
+      onMutated,
+    });
+
+    await user.click(screen.getByTestId('item-picker-trigger'));
+    // The picker debounces the search; the option appears once the REAL items
+    // master query (org-scoped search action) resolves.
+    const option = await screen.findByTestId('item-picker-option');
+    expect(onSearchItems).toHaveBeenCalled();
+    expect(option).toHaveTextContent('PR8801');
+    await user.click(option);
+
+    expect(onAddComponent).toHaveBeenCalledWith({ productCode: 'FA-1001', itemId: 'item-1' });
+    expect(onMutated).toHaveBeenCalled();
+  });
+
+  it('shows the add CTA in the empty state and removes a component when permitted', async () => {
+    const user = userEvent.setup();
+    const onRemoveComponent = vi.fn(async () => ({ removed: true }));
+    const onMutated = vi.fn();
+
+    // Empty state CTA renders the picker trigger.
+    const { unmount } = renderReady({ labels: ADD_LABELS, canWrite: true, state: 'empty', rows: [] });
+    expect(screen.getByTestId('fa-production-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('item-picker-trigger')).toBeInTheDocument();
+    unmount();
+
+    // Remove button on a populated component.
+    renderReady({ labels: ADD_LABELS, canWrite: true, onRemoveComponent, onMutated });
+    const removeBtn = screen.getByTestId('fa-prod-remove');
+    await user.click(removeBtn);
+    expect(onRemoveComponent).toHaveBeenCalledWith({ productCode: 'FA-1001', prodDetailId: 'row-1' });
+    expect(onMutated).toHaveBeenCalled();
   });
 });

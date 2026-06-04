@@ -47,8 +47,11 @@ import {
   isDecimalString,
   type EditableIngredient,
   type IngredientField,
+  type IngredientRowLabels,
   type RowError,
 } from './ingredient-row';
+import { searchItems, type ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
+import { type ItemSearchFn } from '../../../../_components/item-picker';
 import {
   AllergenPanel,
   EU14_ALLERGEN_CODES,
@@ -82,6 +85,8 @@ export type FormulationEditorData = {
   ingredients: Array<{
     id: string;
     rmCode: string;
+    /** Lane-B: FK to the real items master row (null for legacy free-text rows). */
+    itemId?: string | null;
     name: string;
     pct: string | null;
     costPerKgEur: string | null;
@@ -147,6 +152,9 @@ export type FormulationLabels = {
   forbidden: string;
   locked: string;
   noAllergen: string;
+  /** Lane-B: ingredient-row item-picker labels (combobox over the items master). */
+  chooseItem: string;
+  picker: IngredientRowLabels['picker'];
 };
 
 export type SaveDraftAction = (input: {
@@ -154,6 +162,8 @@ export type SaveDraftAction = (input: {
   versionId: string;
   ingredients: Array<{
     rmCode: string;
+    /** Lane-B: real items-master FK (null when no item is wired). */
+    itemId: string | null;
     qtyKg: string | null;
     pct: string | null;
     costPerKgEur: string | null;
@@ -266,6 +276,7 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
   return data.ingredients.map((ing) => ({
     id: ing.id,
     rmCode: ing.rmCode,
+    itemId: ing.itemId ?? null,
     name: ing.name,
     pct: ing.pct ?? '',
     costPerKgEur: ing.costPerKgEur ?? '',
@@ -343,6 +354,7 @@ export function FormulationEditor({
   canEdit = false,
   saveDraftAction,
   recomputeAction,
+  searchItemsAction,
 }: {
   state?: PageState;
   data: FormulationEditorData | null;
@@ -358,7 +370,10 @@ export function FormulationEditor({
   canEdit?: boolean;
   saveDraftAction?: SaveDraftAction;
   recomputeAction?: RecomputeAction;
+  /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
+  searchItemsAction?: ItemSearchFn;
 }) {
+  const searchAction: ItemSearchFn = searchItemsAction ?? searchItems;
   const locked = data?.state === 'locked';
   const editable = canEdit && !locked && state === 'ready';
 
@@ -441,6 +456,7 @@ export function FormulationEditor({
           versionId,
           ingredients: current.map((r, i) => ({
             rmCode: r.rmCode,
+            itemId: r.itemId,
             qtyKg: isDecimalString(r.pct) ? null : null,
             pct: isDecimalString(r.pct) ? r.pct : null,
             costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
@@ -496,6 +512,7 @@ export function FormulationEditor({
       {
         id: `new-${Date.now()}-${prev.length}`,
         rmCode: '',
+        itemId: null,
         name: '',
         pct: '0',
         costPerKgEur: '0',
@@ -504,6 +521,40 @@ export function FormulationEditor({
       },
     ]);
   }, [editable]);
+
+  /**
+   * Lane-B: a real item was chosen for an ingredient row — wire item_id and
+   * populate code/name/cost (and the inherited allergen, if the item carries one
+   * — items expose cost; allergen profiles are read elsewhere so we keep the
+   * existing allergen unless cleared). Triggers a debounced save like any edit.
+   */
+  const handleSelectItem = React.useCallback(
+    (index: number, item: ItemPickerOption) => {
+      setRows((prev) =>
+        prev.map((r, i) =>
+          i === index
+            ? {
+                ...r,
+                itemId: item.id,
+                rmCode: item.itemCode,
+                name: item.name,
+                costPerKgEur: item.costPerKgEur ?? r.costPerKgEur,
+              }
+            : r,
+        ),
+      );
+      setErrors((prev) => {
+        const next = { ...prev };
+        const row = rowsRef.current[index];
+        if (row && next[row.id]?.rmCode) {
+          next[row.id] = { ...next[row.id], rmCode: undefined };
+        }
+        return next;
+      });
+      scheduleSave();
+    },
+    [scheduleSave],
+  );
 
   const handleDelete = React.useCallback(
     (index: number) => {
@@ -672,7 +723,9 @@ export function FormulationEditor({
                       labels={labels}
                       disabled={!editable}
                       error={errors[ingredient.id]}
+                      searchItemsAction={searchAction}
                       onChange={handleChange}
+                      onSelectItem={handleSelectItem}
                       onCommit={handleCommit}
                       onDelete={handleDelete}
                     />

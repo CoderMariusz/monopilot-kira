@@ -100,7 +100,13 @@ runIntegrationSuite('T-028 V03/V04 validator DB smoke', () => {
         `select code, status from public.d365_import_cache order by code`,
       );
 
-      expect(packSizes.rows).toEqual([{ value: '250g' }]);
+      // Cross-org isolation: orgA must see its own '250g' row and never orgB's
+      // exclusive '500g'. Since migration 156's org-insert trigger now seeds a
+      // PackSizes baseline into every new org, orgA also carries the baseline —
+      // so assert containment of the org-scoped row + absence of the cross-org row.
+      const packValues = packSizes.rows.map((row) => row.value);
+      expect(packValues).toContain('250g');
+      expect(packValues).not.toContain('500g');
       expect(materials.rows).toEqual([{ code: 'RM123', status: 'Found' }]);
 
       await expect(

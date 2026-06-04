@@ -188,11 +188,15 @@ runIntegrationTest('Reference lookup tables', () => {
           select line, supported_pack_sizes
           from "Reference"."Lines_By_PackSize"
           where supported_pack_sizes @> array['250g']::text[]
+            and line = 'L1'
         `,
       );
       return result.rows;
     });
 
+    // Scoped to the inserted L1 row: migration 156's org-insert trigger seeds a
+    // baseline of lines (L2..L5) that also support '250g', so the unscoped
+    // containment query now returns more than one row by design.
     expect(rows).toEqual([{ line: 'L1', supported_pack_sizes: ['250g', '500g'] }]);
   });
 

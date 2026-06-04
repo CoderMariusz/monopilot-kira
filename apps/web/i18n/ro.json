@@ -1448,7 +1448,8 @@
         "technical": "Tehnic",
         "mrp": "MRP",
         "procurement": "Achiziții",
-        "history": "Istoric"
+        "history": "Istoric",
+        "locked": "Blocat"
       }
     },
     "dashboard": {

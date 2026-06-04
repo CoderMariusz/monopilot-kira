@@ -1448,7 +1448,8 @@
         "technical": "Techniczne",
         "mrp": "MRP",
         "procurement": "Zakupy",
-        "history": "Historia"
+        "history": "Historia",
+        "locked": "Zablokowane"
       }
     },
     "dashboard": {

@@ -1448,7 +1448,8 @@
         "technical": "Technical",
         "mrp": "MRP",
         "procurement": "Procurement",
-        "history": "History"
+        "history": "History",
+        "locked": "Locked"
       }
     },
     "dashboard": {

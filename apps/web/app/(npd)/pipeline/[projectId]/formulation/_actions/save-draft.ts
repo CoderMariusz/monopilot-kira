@@ -7,6 +7,8 @@ const logger = createLogger({ name: 'npd-formulation-lifecycle' });
 
 type IngredientInput = {
   rmCode: string;
+  /** Lane-B: optional FK to the real items master row (null for legacy free text). */
+  itemId: string | null;
   qtyKg: string | null;
   pct: string | null;
   costPerKgEur: string | null;
@@ -58,13 +60,30 @@ export async function saveDraft(input: {
 
       await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
       for (const ingredient of ingredients) {
+        // Lane-B: when an item_id is supplied, re-resolve it org-scoped (RLS) so a
+        // caller cannot attach an item from another org; an invalid id stores null
+        // (the rm_code still carries the display code) rather than failing the save.
+        let itemId: string | null = null;
+        if (ingredient.itemId) {
+          const itemRes = await ctx.client.query<{ id: string }>(
+            `select id from public.items
+              where org_id = app.current_org_id()
+                and id = $1::uuid
+                and item_type in ('rm', 'intermediate', 'co_product')
+              limit 1`,
+            [ingredient.itemId],
+          );
+          itemId = itemRes.rows[0]?.id ?? null;
+        }
+
         await ctx.client.query(
           `insert into public.formulation_ingredients
-             (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, allergens_inherited, sequence)
-           values ($1::uuid, $2, $3::numeric, $4::numeric, $5::numeric, $6::text[], $7::integer)`,
+             (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, allergens_inherited, sequence)
+           values ($1::uuid, $2, $3::uuid, $4::numeric, $5::numeric, $6::numeric, $7::text[], $8::integer)`,
           [
             versionId,
             ingredient.rmCode,
+            itemId,
             ingredient.qtyKg,
             ingredient.pct,
             ingredient.costPerKgEur,
@@ -125,21 +144,31 @@ function parseIngredient(value: unknown): IngredientInput | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
   const rmCode = normalizeRmCode(candidate.rmCode);
+  const itemId = normalizeUuidOrNull(candidate.itemId);
   const qtyKg = normalizeNumeric(candidate.qtyKg);
   const pct = normalizeNumeric(candidate.pct);
   const costPerKgEur = normalizeNumeric(candidate.costPerKgEur);
   const sequence = candidate.sequence;
   const allergensInherited = parseTextArray(candidate.allergensInherited);
-  if (!rmCode || qtyKg === undefined || pct === undefined || costPerKgEur === undefined) return null;
+  if (!rmCode || itemId === undefined || qtyKg === undefined || pct === undefined || costPerKgEur === undefined) {
+    return null;
+  }
   if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) return null;
   if (!allergensInherited) return null;
-  return { rmCode, qtyKg, pct, costPerKgEur, sequence, allergensInherited };
+  return { rmCode, itemId, qtyKg, pct, costPerKgEur, sequence, allergensInherited };
 }
 
 function normalizeRmCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed.length <= 80 ? trimmed : null;
+}
+
+/** Lane-B: optional uuid → string | null (valid/absent) or undefined (malformed → reject). */
+function normalizeUuidOrNull(value: unknown): string | null | undefined {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') return undefined;
+  return parseUuid(value) ?? undefined;
 }
 
 function normalizeNumeric(value: unknown): string | null | undefined {

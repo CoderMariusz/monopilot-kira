@@ -16,6 +16,7 @@ import {
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
+import { items } from './items.js';
 import { npdProjects } from './npd-projects.js';
 import { product } from './product.js';
 
@@ -107,6 +108,9 @@ export const formulationIngredients = pgTable(
       .notNull()
       .references(() => formulationVersions.id, { onDelete: 'cascade' }),
     rmCode: text('rm_code').notNull(),
+    // Lane-B: optional FK to the real items master row this ingredient represents.
+    // rm_code stays the human display code; item_id wires the real item.
+    itemId: uuid('item_id').references(() => items.id, { onDelete: 'set null' }),
     qtyKg: numeric('qty_kg'),
     pct: numeric('pct'),
     costPerKgEur: numeric('cost_per_kg_eur'),
@@ -124,6 +128,7 @@ export const formulationIngredients = pgTable(
       table.versionId,
       table.sequence,
     ),
+    itemIdIdx: index('formulation_ingredients_item_id_idx').on(table.itemId),
     rmCodeNonemptyCheck: check(
       'formulation_ingredients_rm_code_nonempty_check',
       sql`length(trim(${table.rmCode})) > 0`,

@@ -2,6 +2,7 @@ import { foreignKey, index, integer, numeric, pgTable, text, timestamp, uuid } f
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
 import { organizations } from './baseline.js';
+import { items } from './items.js';
 import { product } from './product.js';
 
 export const prodDetail = pgTable(
@@ -13,6 +14,9 @@ export const prodDetail = pgTable(
       .notNull()
       .references(() => organizations.id),
     intermediateCode: text('intermediate_code').notNull(),
+    // Lane-B: optional FK to the real items master row this component represents.
+    // intermediate_code stays the human display code; item_id wires the real item.
+    itemId: uuid('item_id').references(() => items.id, { onDelete: 'set null' }),
     componentIndex: integer('component_index').notNull(),
     manufacturingOperation1: text('manufacturing_operation_1'),
     manufacturingOperation2: text('manufacturing_operation_2'),
@@ -44,6 +48,7 @@ export const prodDetail = pgTable(
     }).onDelete('cascade'),
     productCodeIdx: index('prod_detail_product_code_idx').on(table.productCode),
     orgProductCodeIdx: index('prod_detail_org_product_code_idx').on(table.orgId, table.productCode),
+    itemIdIdx: index('prod_detail_item_id_idx').on(table.itemId),
   }),
 );
 

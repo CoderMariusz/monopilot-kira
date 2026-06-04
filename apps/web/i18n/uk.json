@@ -1448,7 +1448,8 @@
         "technical": "Технічне",
         "mrp": "MRP",
         "procurement": "Закупівлі",
-        "history": "Історія"
+        "history": "Історія",
+        "locked": "Заблоковано"
       }
     },
     "dashboard": {

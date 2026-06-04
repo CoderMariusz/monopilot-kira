@@ -149,7 +149,9 @@ describe('FormulationEditor — parity (recipe.jsx:124-264)', () => {
     const rows = screen.getAllByTestId('ingredient-row');
     expect(rows).toHaveLength(2);
     const first = within(rows[0]);
-    expect(first.getByDisplayValue('RM-1001')).toBeInTheDocument();
+    // Lane-B: the ingredient code is now a real item reference (display, not a
+    // free-text input) — the rmCode renders as text, chosen via the ItemPicker.
+    expect(first.getByText('RM-1001')).toBeInTheDocument();
     expect(first.getByDisplayValue('85')).toBeInTheDocument();
     expect(first.getByDisplayValue('4.20')).toBeInTheDocument();
     // contribution = (85/100 * 4.20) = 3.570 €, NUMERIC-exact string (no float).

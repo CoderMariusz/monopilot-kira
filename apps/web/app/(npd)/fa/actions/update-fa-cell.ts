@@ -85,6 +85,17 @@ export async function updateFaCell(
       newValue,
     );
 
+    // Lane-B: editing the Core recipe component list must actually MATERIALIZE
+    // Production rows. The recipe→prod_detail sync (previously dead code in
+    // cascade-engine) is now the org-scoped, idempotent SQL function
+    // sync_prod_detail_rows (migration 157): it adds/removes/reorders prod_detail
+    // rows to match product.recipe_components and wires item_id from the items
+    // master by code. This is what turns "Production rows derive from Core recipe
+    // components" from a promise into real rows.
+    if (column.column_key === 'recipe_components') {
+      await syncProdDetailRows(context, parsed.data.productCode);
+    }
+
     await writeEditOutbox(context, parsed.data.productCode, column.column_key, result);
     safeRevalidatePath(`/npd/fa/${parsed.data.productCode}`);
     safeRevalidatePath('/npd/fa');
@@ -272,6 +283,18 @@ async function updateProductCell(
     newValue: row.new_value,
     builtReset: row.built_reset,
   };
+}
+
+/**
+ * Lane-B: materialize/refresh prod_detail rows from the product's recipe_components
+ * via the migration-157 SECURITY DEFINER function. The function is org-scoped to
+ * app.current_org_id() internally, so it runs safely inside the app-role transaction.
+ */
+async function syncProdDetailRows(ctx: OrgContextLike, productCode: string): Promise<void> {
+  await ctx.client.query(`select public.sync_prod_detail_rows($1, $2)`, [
+    productCode,
+    'update-fa-cell-recipe-sync-v1',
+  ]);
 }
 
 async function writeEditOutbox(

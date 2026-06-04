@@ -212,6 +212,64 @@ async function readDeptColumns(
   return rows.map((row, i) => mapDeptColumn(row, i));
 }
 
+// ---------------------------------------------------------------------------
+// Dropdown options — load the real, org-scoped option list for every distinct
+// `dropdown_source` the loaded DeptColumns reference. The Selects in every dept
+// tab read `dropdowns[col.dropdownSource] ?? []`, so without this they render
+// empty (the "Pack Size *" stuck-Core bug). Sourced from "Reference".<source>
+// inside the SAME org-context tx (RLS pinned via app.current_org_id()) — NO
+// hardcoded arrays, NO service-role bypass.
+// ---------------------------------------------------------------------------
+
+/** dropdown_source → (Reference table, value column). */
+const DROPDOWN_SOURCE_TABLE: Record<string, { table: string; valueColumn: string }> = {
+  PackSizes: { table: 'PackSizes', valueColumn: 'value' },
+  Templates: { table: 'Templates', valueColumn: 'template_name' },
+  Lines_By_PackSize: { table: 'Lines_By_PackSize', valueColumn: 'line' },
+  Equipment_Setup_By_Line_Pack: {
+    table: 'Equipment_Setup_By_Line_Pack',
+    valueColumn: 'equipment_setup',
+  },
+  CloseConfirm: { table: 'CloseConfirm', valueColumn: 'value' },
+  ManufacturingOperations: { table: 'ManufacturingOperations', valueColumn: 'operation_name' },
+};
+
+/**
+ * For each distinct dropdown_source present in the loaded columns, query the
+ * matching "Reference".<table> org-scoped and return a Record keyed by the
+ * dropdown_source string. Unknown sources are skipped (no throw) so a future
+ * DeptColumns source can't 500 the whole page.
+ */
+async function readDropdowns(
+  ctx: OrgContextLike,
+  columns: GenericDeptColumn[][],
+): Promise<Record<string, string[]>> {
+  const sources = new Set<string>();
+  for (const group of columns) {
+    for (const col of group) {
+      if (col.dropdownSource) sources.add(col.dropdownSource);
+    }
+  }
+
+  const result: Record<string, string[]> = {};
+  for (const source of sources) {
+    const mapping = DROPDOWN_SOURCE_TABLE[source];
+    if (!mapping) continue;
+    // Table + column names are from a fixed allow-list above (never user input),
+    // so the identifier interpolation is safe; the org filter is RLS-pinned.
+    const { rows } = await ctx.client.query<{ value: string | null }>(
+      `select ${mapping.valueColumn} as value
+         from "Reference"."${mapping.table}"
+        where org_id = app.current_org_id()
+        order by ${mapping.valueColumn}`,
+    );
+    result[source] = rows
+      .map((row) => (row.value == null ? '' : String(row.value)))
+      .filter((value) => value.trim() !== '');
+  }
+  return result;
+}
+
 /** Read the full product row as a JSON object keyed by physical column. */
 async function readProductValues(
   ctx: OrgContextLike,
@@ -270,6 +328,10 @@ type DeptData = {
   technical: GenericDeptColumn[];
   procurement: GenericDeptColumn[];
   prodRows: ProdDetailRow[];
+  /** Real, org-scoped dropdown options keyed by dropdown_source. */
+  dropdowns: Record<string, string[]>;
+  /** Server-resolved npd.production.write — drives the Production add/remove affordances. */
+  canWriteProduction: boolean;
 };
 
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
@@ -350,6 +412,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         technical,
         procurement,
         prodRows,
+        canWriteProduction,
       ] = await Promise.all([
         readProductValues(ctx, productCode),
         readDeptColumns(ctx, 'Core'),
@@ -359,10 +422,24 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         readDeptColumns(ctx, 'Technical'),
         readDeptColumns(ctx, 'Procurement'),
         readProdDetailRows(ctx, productCode),
+        hasPermission(ctx, 'npd.production.write'),
       ]);
 
       const coreDone = String(values.closed_core ?? '').toLowerCase() === 'yes';
       const prodDone = String(values.closed_production ?? '').toLowerCase() === 'yes';
+
+      // Real dropdown options for every dropdown_source referenced by the loaded
+      // columns — read in the SAME org-context tx (RLS-pinned). Without this the
+      // schema-driven Selects (Pack Size *, Template, Line, Equipment, Closed_*)
+      // render empty and Core can never be closed.
+      const dropdowns = await readDropdowns(ctx, [
+        core,
+        planning,
+        commercial,
+        production,
+        technical,
+        procurement,
+      ]);
 
       const dept: DeptData = {
         values,
@@ -375,6 +452,8 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         technical,
         procurement,
         prodRows,
+        dropdowns,
+        canWriteProduction,
       };
 
       // History inside the SAME org-context transaction (no second round-trip).
@@ -715,6 +794,22 @@ async function buildProductionLabels(
     emptyBody: p('emptyBody', 'Production rows derive from Core recipe components.'),
     error: p('error', 'Unable to load Production.'),
     forbidden: p('forbidden', 'You cannot edit Production.'),
+    addComponent: p('addComponent', '+ Add production component'),
+    emptyCtaBody: p(
+      'emptyCtaBody',
+      'Add a production component from the items master, or edit the Core recipe.',
+    ),
+    removeComponent: p('removeComponent', 'Remove component'),
+    removeError: p('removeError', 'Could not remove the component'),
+    picker: {
+      trigger: p('addComponent', '+ Add production component'),
+      searchLabel: p('picker.searchLabel', 'Search items'),
+      searchPlaceholder: p('picker.searchPlaceholder', 'Search by code or name…'),
+      loading: p('picker.loading', 'Searching…'),
+      empty: p('picker.empty', 'No matching items'),
+      cancel: p('picker.cancel', 'Cancel'),
+      error: p('picker.error', 'Item search failed'),
+    },
     fields: fieldLabelsFor(columns, p),
   };
 }
@@ -838,6 +933,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     technical: [],
     procurement: [],
     prodRows: [],
+    dropdowns: {},
+    canWriteProduction: false,
   };
 
   const load: FaDetailLoad = injected
@@ -915,7 +1012,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         productCode={fa.productCode}
         columns={dept.core as FaCoreColumn[]}
         values={dept.values}
-        dropdowns={{}}
+        dropdowns={dept.dropdowns}
         labels={coreLabels}
         state="ready"
       />
@@ -925,7 +1022,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         productCode={fa.productCode}
         columns={dept.planning as FaPlanningColumn[]}
         values={dept.values}
-        dropdowns={{}}
+        dropdowns={dept.dropdowns}
         labels={planningLabels}
         state="ready"
       />
@@ -948,8 +1045,9 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         packSizeFilled={packSizeFilled}
         columns={dept.production as FaProductionColumn[]}
         rows={dept.prodRows}
-        dropdowns={{}}
+        dropdowns={dept.dropdowns}
         labels={productionLabels}
+        canWrite={dept.canWriteProduction}
         state="ready"
       />
     ),
@@ -958,7 +1056,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         productCode={fa.productCode}
         columns={dept.technical as FaTechnicalColumn[]}
         values={dept.values}
-        dropdowns={{}}
+        dropdowns={dept.dropdowns}
         labels={technicalLabels}
         state="ready"
         allergenSlot={allergenSlot}
@@ -969,7 +1067,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         productCode={fa.productCode}
         columns={dept.procurement as FaProcurementColumn[]}
         values={dept.values}
-        dropdowns={{}}
+        dropdowns={dept.dropdowns}
         closedCore={closedCore}
         closedProduction={closedProduction}
         labels={procurementLabels}

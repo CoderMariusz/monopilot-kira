@@ -97,11 +97,27 @@ const DEFAULT_LABELS: FormulationLabels = {
   forbidden: 'You do not have permission to edit this formulation.',
   locked: 'This version is locked and cannot be edited.',
   noAllergen: '—',
+  chooseItem: 'Choose item',
+  picker: {
+    trigger: 'Pick item',
+    searchLabel: 'Search items',
+    searchPlaceholder: 'Search by code or name…',
+    loading: 'Searching…',
+    empty: 'No matching items',
+    cancel: 'Cancel',
+    error: 'Item search failed',
+  },
 };
 
-const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof FormulationLabels>;
+// Scalar (string) label keys only — the nested `picker` object is assigned
+// separately because the per-key translate pass is string-valued.
+type ScalarLabelKey = Exclude<keyof FormulationLabels, 'picker'>;
 
-function translateLabel(t: (key: string) => string, key: keyof FormulationLabels): string {
+const LABEL_KEYS = (Object.keys(DEFAULT_LABELS) as Array<keyof FormulationLabels>).filter(
+  (k): k is ScalarLabelKey => k !== 'picker',
+);
+
+function translateLabel(t: (key: string) => string, key: ScalarLabelKey): string {
   try {
     const value = t(key);
     return value === key ? DEFAULT_LABELS[key] : value;
@@ -113,10 +129,14 @@ function translateLabel(t: (key: string) => string, key: keyof FormulationLabels
 async function buildLabels(locale: string): Promise<FormulationLabels> {
   try {
     const t = await getTranslations({ locale, namespace: 'npd.formulationEditor' });
-    return LABEL_KEYS.reduce((labels, key) => {
-      labels[key] = translateLabel(t, key);
-      return labels;
-    }, {} as FormulationLabels);
+    const scalar = LABEL_KEYS.reduce(
+      (labels, key) => {
+        labels[key] = translateLabel(t, key);
+        return labels;
+      },
+      {} as Record<ScalarLabelKey, string>,
+    );
+    return { ...(scalar as Omit<FormulationLabels, 'picker'>), picker: { ...DEFAULT_LABELS.picker } };
   } catch {
     return { ...DEFAULT_LABELS };
   }
@@ -391,8 +411,9 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       return {
         id: ing.id,
         rmCode: ing.rm_code,
-        // rm_code is the canonical key; a friendly name is not on this row (T-063).
-        name: '',
+        // Lane-B: item_id wires the real items-master row; name comes from the join.
+        itemId: ing.item_id,
+        name: ing.item_name ?? '',
         pct: ing.pct,
         costPerKgEur: ing.cost_per_kg_eur,
         allergen: ing.allergens_inherited?.[0] ?? null,

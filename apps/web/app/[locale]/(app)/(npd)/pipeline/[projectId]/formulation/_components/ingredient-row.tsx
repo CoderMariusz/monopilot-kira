@@ -27,13 +27,22 @@ import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
 import { TableCell, TableRow } from '@monopilot/ui/Table';
 
-export type IngredientField = 'rmCode' | 'name' | 'pct' | 'costPerKgEur';
+import {
+  ItemPicker,
+  type ItemPickerLabels,
+  type ItemSearchFn,
+} from '../../../../_components/item-picker';
+import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
+
+export type IngredientField = 'rmCode' | 'name' | 'pct' | 'costPerKgEur' | 'itemId';
 
 export type EditableIngredient = {
   /** Stable client key (DB id for persisted rows, generated id for new rows). */
   id: string;
   rmCode: string;
-  /** Display label (raw-material name); not persisted by saveDraft (rm_code is the key). */
+  /** Lane-B: FK to the real items master row this ingredient represents (or null). */
+  itemId: string | null;
+  /** Display label (raw-material name); populated from the picked item. */
   name: string;
   /** Decimal STRING percentage (% w/w). */
   pct: string;
@@ -52,6 +61,10 @@ export type IngredientRowLabels = {
   noAllergen: string;
   pctRangeError: string;
   rmCodeRequired: string;
+  /** "Choose item" affordance text shown when no item is picked yet. */
+  chooseItem: string;
+  /** Item-picker (combobox over the real items master) labels. */
+  picker: ItemPickerLabels;
 };
 
 /**
@@ -77,7 +90,9 @@ export function IngredientRow({
   labels,
   disabled,
   error,
+  searchItemsAction,
   onChange,
+  onSelectItem,
   onCommit,
   onDelete,
 }: {
@@ -86,7 +101,11 @@ export function IngredientRow({
   labels: IngredientRowLabels;
   disabled: boolean;
   error: RowError | undefined;
+  /** Org-scoped item-search Server Action for the ingredient picker. */
+  searchItemsAction: ItemSearchFn;
   onChange: (index: number, field: IngredientField, value: string) => void;
+  /** Lane-B: a real item was chosen — wire item_id + populate code/name/cost/allergen. */
+  onSelectItem: (index: number, item: ItemPickerOption) => void;
   onCommit: (index: number) => void;
   onDelete: (index: number) => void;
 }) {
@@ -97,15 +116,30 @@ export function IngredientRow({
   return (
     <TableRow data-testid="ingredient-row" data-sequence={ingredient.sequence}>
       <TableCell>
-        <Input
-          aria-label={labels.colIngredient}
-          value={ingredient.rmCode}
-          disabled={disabled}
-          aria-invalid={error?.rmCode ? true : undefined}
-          aria-describedby={error?.rmCode ? rmErrorId : undefined}
-          onChange={(e) => onChange(index, 'rmCode', e.target.value)}
-          onBlur={() => onCommit(index)}
-        />
+        {/* Lane-B: a "component"/ingredient must be a REAL item from the items
+            master — the free-text rmCode <Input> is replaced by the ItemPicker
+            combobox. The chosen item's code/name/cost/allergen populate the row. */}
+        <div className="flex items-center gap-2" data-field="rmCode">
+          {ingredient.rmCode ? (
+            <span
+              className="font-mono text-xs font-semibold text-blue-700"
+              aria-label={labels.colIngredient}
+              data-item-id={ingredient.itemId ?? undefined}
+            >
+              {ingredient.rmCode}
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400">{labels.chooseItem}</span>
+          )}
+          <ItemPicker
+            labels={labels.picker}
+            searchItemsAction={searchItemsAction}
+            itemTypes={['rm', 'intermediate', 'co_product']}
+            disabled={disabled}
+            triggerClassName="btn--ghost btn-sm"
+            onSelect={(item) => onSelectItem(index, item)}
+          />
+        </div>
         {ingredient.name ? (
           <div className="mt-0.5 font-mono text-[10px] text-slate-500">{ingredient.name}</div>
         ) : null}
