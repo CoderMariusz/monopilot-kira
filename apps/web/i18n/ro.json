@@ -1430,6 +1430,32 @@
       "error": "Nu se poate încărca lista de verificare a porții. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a vizualiza această listă de verificare a porții."
     },
+    "advanceGateModal": {
+      "title": "Avansare poartă",
+      "gateTransition": "Tranziție poartă",
+      "currentTag": "Curentă",
+      "targetTag": "Țintă",
+      "approvalRequired": "Aprobare necesară — un manager/director trebuie să aprobe această poartă.",
+      "checklistSummary": "Rezumat listă de verificare — {gate}: {label}",
+      "done": "Finalizat",
+      "blocking": "Blocant",
+      "optional": "Opțional",
+      "requiredComplete": "{done} din {total} elemente obligatorii finalizate",
+      "blockersTitle": "{count} blocaj(e)",
+      "readyAlert": "Niciun blocaj — gata de avansare!",
+      "notesLabel": "Note privind avansarea porții",
+      "notesPlaceholder": "Rezumați finalizarea, condițiile sau observațiile pentru pista de audit…",
+      "notesHint": "Necesar pentru pista de audit",
+      "cancel": "Anulează",
+      "advance": "Avansează la {gate}: {nextLabel}",
+      "advancing": "Se procesează…",
+      "successTitle": "Poartă avansată la {gate}: {nextLabel}",
+      "successBody": "Jurnal de audit actualizat",
+      "loading": "Se încarcă detaliile porții…",
+      "empty": "Nicio listă de verificare configurată pentru această poartă.",
+      "error": "Nu s-a putut avansa poarta. Încercați din nou.",
+      "forbidden": "Nu aveți permisiunea de a avansa această poartă."
+    },
     "briefModals": {
       "create": {
         "title": "Brief nou",

@@ -1430,6 +1430,32 @@
       "error": "Unable to load the gate checklist. Try again.",
       "forbidden": "You do not have permission to view this gate checklist."
     },
+    "advanceGateModal": {
+      "title": "Advance gate",
+      "gateTransition": "Gate transition",
+      "currentTag": "Current",
+      "targetTag": "Target",
+      "approvalRequired": "Approval required — a Manager/Director must sign off on this gate.",
+      "checklistSummary": "Checklist summary — {gate}: {label}",
+      "done": "Done",
+      "blocking": "Blocking",
+      "optional": "Optional",
+      "requiredComplete": "{done} of {total} required items complete",
+      "blockersTitle": "{count} blocker(s)",
+      "readyAlert": "No blockers — ready to advance!",
+      "notesLabel": "Gate advancement notes",
+      "notesPlaceholder": "Summarise completion, conditions, or observations for the audit trail…",
+      "notesHint": "Required for the audit trail",
+      "cancel": "Cancel",
+      "advance": "Advance to {gate}: {nextLabel}",
+      "advancing": "Processing…",
+      "successTitle": "Gate advanced to {gate}: {nextLabel}",
+      "successBody": "Audit log updated",
+      "loading": "Loading gate details…",
+      "empty": "No checklist configured for this gate.",
+      "error": "Could not advance the gate. Try again.",
+      "forbidden": "You do not have permission to advance this gate."
+    },
     "briefModals": {
       "create": {
         "title": "New brief",
