@@ -231,7 +231,7 @@ runIntegrationTest('099 NPD shared BOM builder behavior', () => {
         select
           (select count(*)::text from public.bom_headers where product_id = $1 and origin_module = 'npd') as header_count,
           (select count(*)::text from public.bom_lines where bom_header_id = $2) as line_count,
-          (select count(*)::text from public.outbox_events where org_id = $3 and event_type = 'bom.initial_version_created' and aggregate_id = $2) as event_count
+          (select count(*)::text from public.outbox_events where org_id = $3 and event_type = 'bom.initial_version_created' and aggregate_id = $2::text) as event_count
       `,
       [productCode, first.rows[0]?.bom_header_id, orgA],
     );

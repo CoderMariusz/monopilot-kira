@@ -195,7 +195,7 @@ runIntegrationTest('085 NPD stage-gate core tables', () => {
     const codeUnique = await adminPool.query<{ constraint_name: string; columns: string[] }>(
       `
         select tc.constraint_name,
-               array_agg(kcu.column_name order by kcu.ordinal_position) as columns
+               array_agg(kcu.column_name::text order by kcu.ordinal_position) as columns
         from information_schema.table_constraints tc
         join information_schema.key_column_usage kcu
           on kcu.constraint_schema = tc.constraint_schema
