@@ -1,0 +1,545 @@
+/**
+ * T-080 — FactorySpec + shared-BOM bundle approval/rejection SERVICE.
+ *
+ * This is the atomic core of the Technical release bundle: a factory_spec version
+ * (migration 165) is approved TOGETHER WITH a specific shared-BOM version (bom_headers,
+ * migration 090/159) — never one side alone. It runs inside a caller-supplied
+ * org-context transaction (the `'use server'` actions in
+ * `apps/web/actions/technical/release-bundles/*.ts` open it via `withOrgContext`), so
+ * every read/write is RLS-scoped by `app.current_org_id()` and every state change +
+ * outbox row commits or rolls back as one unit.
+ *
+ * Behaviour (acceptance criteria):
+ *   AC1  approve: factory_spec(in_review) + BOM(draft|in_review, RM-usable) → both move
+ *        to canonical factory-usable status, linked by one evidence bundle id, and the
+ *        Technical release adapter (T-081) sets the NPD soft uuid
+ *        `factory_release_status.active_factory_spec_id` when the FG is NPD-originated.
+ *   AC2  if the factory_spec fails its release blocker, the whole approval is rejected
+ *        ATOMICALLY — neither factory_spec nor BOM is released.
+ *   AC3  D365 disabled → local Technical release still works; D365 sync state is optional
+ *        integration metadata and is never required to approve.
+ *   AC4  released bundle edit → clone-on-write a new draft version; released rows stay
+ *        immutable (guarded by `factory-spec-release-guards` + the migration-165 trigger).
+ *   AC5  caller lacking the Technical approval permission → explicit authorization error.
+ *
+ * Red lines: shared BOM SSOT (no second BOM model / no NPD-owned factory_spec path);
+ * never release only one side; D365 never required; never mutate an approved/released
+ * row in place; FG canonical (no FA-* ids); `d365_item_id` is TEXT soft ref only.
+ */
+
+import { z } from 'zod';
+
+import { signEvent } from '@monopilot/e-sign';
+import {
+  guardBusinessFieldEdit,
+  guardStatusTransition,
+} from './factory-spec-release-guards';
+
+// ── RBAC permission gating the bundle approval (PRD 03-TECHNICAL §3) ───────────
+// The bundle = factory_spec (internal product spec) + its BOM version. The
+// product-spec approval string is the workflow-authorization permission seeded to the
+// org-admin family by migration 154. Rejection requires the same approval authority.
+export const FACTORY_SPEC_APPROVE_PERMISSION = 'technical.product_spec.approve';
+export const BOM_APPROVE_PERMISSION = 'technical.bom.approve';
+
+export const APP_VERSION = 'technical-release-bundle-v1';
+
+// e-sign intent for the bundle approval (CFR 21 Part 11). Mirrors the existing
+// `tech.fa.release` intent vocabulary in packages/e-sign/src/types.ts.
+export const BUNDLE_APPROVE_INTENT = 'tech.fa.release';
+
+export type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+export interface BundleServiceContext {
+  userId: string;
+  orgId: string;
+  client: QueryClient;
+}
+
+export type BundleActionError =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'invalid_state'
+  | 'release_blocked'
+  | 'released_record_immutable'
+  | 'esign_failed'
+  | 'persistence_failed';
+
+export interface ApproveBundleData {
+  factorySpecId: string;
+  bomHeaderId: string;
+  factorySpecStatus: 'approved_for_factory';
+  bomStatus: 'technical_approved';
+  evidenceBundleId: string;
+  signatureId: string;
+  /** Set when the FG is NPD-originated and the release adapter closed the loop. */
+  factoryReleaseStatusId: string | null;
+}
+
+export type ApproveBundleResult =
+  | { ok: true; data: ApproveBundleData }
+  | { ok: false; error: BundleActionError; message?: string };
+
+export interface RejectBundleData {
+  factorySpecId: string;
+  bomHeaderId: string;
+  factorySpecStatus: string;
+  bomStatus: string;
+}
+
+export type RejectBundleResult =
+  | { ok: true; data: RejectBundleData }
+  | { ok: false; error: BundleActionError; message?: string };
+
+// ── Input schemas ─────────────────────────────────────────────────────────────
+export const ApproveBundleInput = z.object({
+  factorySpecId: z.string().uuid(),
+  bomHeaderId: z.string().uuid(),
+  /** CFR 21 Part 11 e-signature PIN (server-verified; never persisted). */
+  pin: z.string().min(1),
+  /** Mandatory free-text reason for the approval signature. */
+  reason: z.string().trim().min(1).max(512),
+});
+export type ApproveBundleInputType = z.infer<typeof ApproveBundleInput>;
+
+export const RejectBundleInput = z.object({
+  factorySpecId: z.string().uuid(),
+  bomHeaderId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(512),
+});
+export type RejectBundleInputType = z.infer<typeof RejectBundleInput>;
+
+function isPgError(err: unknown): err is { code: string } {
+  return typeof err === 'object' && err !== null && typeof (err as { code?: unknown }).code === 'string';
+}
+
+async function hasPermission(ctx: BundleServiceContext, permission: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
+      limit 1`,
+    [ctx.userId, ctx.orgId, permission],
+  );
+  return rows.length > 0;
+}
+
+type FactorySpecRow = {
+  id: string;
+  fg_item_id: string;
+  status: string;
+  bom_header_id: string | null;
+  bom_version: number | null;
+};
+
+type BomRow = {
+  id: string;
+  status: string;
+  version: number;
+  product_id: string | null;
+  npd_project_id: string | null;
+};
+
+async function loadFactorySpec(client: QueryClient, id: string): Promise<FactorySpecRow | null> {
+  const { rows } = await client.query<FactorySpecRow>(
+    `select id, fg_item_id, status, bom_header_id, bom_version
+       from public.factory_specs
+      where id = $1::uuid`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+async function loadBom(client: QueryClient, id: string): Promise<BomRow | null> {
+  const { rows } = await client.query<BomRow>(
+    `select id, status, version, product_id, npd_project_id
+       from public.bom_headers
+      where id = $1::uuid`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * RM usability gate for the BOM (red line: "BOM is draft/reviewable with passing RM
+ * usability"). T-074 owns the full RM usability validator; here we apply the part that
+ * is enforceable against the migrated schema: every BOM line that references an item
+ * (item_id FK from migration 159) must point at an ACTIVE item. A line whose item is
+ * deactivated/blocked makes the BOM non-usable and the bundle approval must fail
+ * (release_blocked), not silently release.
+ */
+async function bomRmUsabilityFails(client: QueryClient, bomHeaderId: string): Promise<boolean> {
+  const { rows } = await client.query<{ blocked: number }>(
+    `select count(*)::int as blocked
+       from public.bom_lines l
+       join public.items i on i.id = l.item_id
+      where l.bom_header_id = $1::uuid
+        and i.status <> 'active'`,
+    [bomHeaderId],
+  );
+  return (rows[0]?.blocked ?? 0) > 0;
+}
+
+async function emitOutbox(
+  client: QueryClient,
+  params: {
+    orgId: string;
+    eventType: string;
+    aggregateType: string;
+    aggregateId: string;
+    payload: Record<string, unknown>;
+  },
+): Promise<number> {
+  const { rows } = await client.query<{ id: number | string }>(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, $3, $4, $5::jsonb, $6)
+     returning id`,
+    [
+      params.orgId,
+      params.eventType,
+      params.aggregateType,
+      params.aggregateId,
+      JSON.stringify(params.payload),
+      APP_VERSION,
+    ],
+  );
+  const id = rows[0]?.id;
+  const numeric = typeof id === 'string' ? Number(id) : id;
+  if (typeof numeric !== 'number' || !Number.isFinite(numeric)) {
+    throw new Error('failed to emit technical.factory_spec.approved');
+  }
+  return numeric;
+}
+
+async function writeAudit(
+  client: QueryClient,
+  params: {
+    orgId: string;
+    actorUserId: string;
+    action: string;
+    resourceId: string;
+    afterState: unknown;
+  },
+): Promise<void> {
+  await client.query(
+    `insert into public.audit_log
+       (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+     values ($1::uuid, $2::uuid, 'user', $3, 'factory_spec', $4, null, $5::jsonb, 'standard')`,
+    [params.orgId, params.actorUserId, params.action, params.resourceId, JSON.stringify(params.afterState)],
+  );
+}
+
+/**
+ * Technical release adapter (T-081, DB side): close the loop with the NPD canonical
+ * release model. When the FG is NPD-originated (the BOM carries an npd_project_id +
+ * product_id) and an NPD `factory_release_status` row exists for that bundle, set its
+ * SOFT uuid `active_factory_spec_id` (+ active_bom_header_id) and move it to the
+ * canonical `approved_for_factory` value with the same evidence event. NO hard FK from
+ * NPD to factory_specs — the column is a soft uuid (migration 125).
+ *
+ * Returns the factory_release_status id when the loop was closed, else null (a
+ * pure-Technical FG with no NPD project has no release record to update).
+ */
+async function closeNpdReleaseLoop(
+  client: QueryClient,
+  params: {
+    orgId: string;
+    bom: BomRow;
+    factorySpecId: string;
+    releaseEventId: number;
+    approvedBy: string;
+  },
+): Promise<string | null> {
+  if (!params.bom.npd_project_id || !params.bom.product_id) return null;
+
+  const { rows } = await client.query<{ id: string }>(
+    `update public.factory_release_status
+        set release_status = 'approved_for_factory',
+            active_bom_header_id = $4::uuid,
+            active_factory_spec_id = $5::uuid,
+            factory_available_at = now(),
+            factory_approved_by = $6::uuid,
+            release_event_id = $7,
+            release_blockers = '[]'::jsonb
+      where org_id = $1::uuid
+        and project_id = $2::uuid
+        and product_code = $3
+      returning id`,
+    [
+      params.orgId,
+      params.bom.npd_project_id,
+      params.bom.product_id,
+      params.bom.id,
+      params.factorySpecId,
+      params.approvedBy,
+      params.releaseEventId,
+    ],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Approve the factory_spec + BOM bundle atomically. Must be called inside an org-context
+ * transaction (the action wrapper provides it).
+ */
+export async function approveReleaseBundle(
+  ctx: BundleServiceContext,
+  rawInput: unknown,
+): Promise<ApproveBundleResult> {
+  const parsed = ApproveBundleInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  // AC5 — authorization preflight (Settings policy). Lacking the approval permission is
+  // an explicit, non-leaky authorization error.
+  if (!(await hasPermission(ctx, FACTORY_SPEC_APPROVE_PERMISSION))) {
+    return { ok: false, error: 'forbidden' };
+  }
+
+  const spec = await loadFactorySpec(ctx.client, input.factorySpecId);
+  const bom = await loadBom(ctx.client, input.bomHeaderId);
+  // RLS scopes both SELECTs to the caller's org; a missing row is not_found (never leaks
+  // cross-org existence).
+  if (!spec || !bom) return { ok: false, error: 'not_found' };
+
+  // AC4 — never mutate a factory-usable (immutable) row in place.
+  const editGuard = guardBusinessFieldEdit(spec.status);
+  if (!editGuard.ok && editGuard.code === 'RELEASED_RECORD_IMMUTABLE') {
+    return { ok: false, error: 'released_record_immutable', message: editGuard.message };
+  }
+
+  // The bundle approval is the in_review → approved_for_factory transition.
+  const transition = guardStatusTransition(spec.status, 'approved_for_factory');
+  if (!transition.ok) {
+    if (transition.code === 'RELEASED_RECORD_IMMUTABLE') {
+      return { ok: false, error: 'released_record_immutable', message: transition.message };
+    }
+    return { ok: false, error: 'invalid_state', message: transition.message };
+  }
+
+  // The BOM side must itself be approvable (draft/in_review). Released only one side =
+  // red line: both must be eligible or neither moves.
+  if (!['draft', 'in_review'].includes(bom.status)) {
+    return {
+      ok: false,
+      error: 'invalid_state',
+      message: `BOM ${bom.id} is ${bom.status}; the bundle requires a draft/in_review BOM`,
+    };
+  }
+
+  // AC2 — release blocker on either side rejects the whole approval atomically. RM
+  // usability is the BOM-side blocker we can enforce against the migrated schema.
+  if (await bomRmUsabilityFails(ctx.client, bom.id)) {
+    return {
+      ok: false,
+      error: 'release_blocked',
+      message: 'BOM has lines referencing inactive items (RM usability failed)',
+    };
+  }
+
+  // AC1 (link) — one evidence bundle id ties the factory_spec and the BOM together. We
+  // use the e-sign signature id as the immutable evidence anchor.
+  let signatureId: string;
+  try {
+    const receipt = await signEvent(
+      {
+        signerUserId: ctx.userId,
+        pin: input.pin,
+        intent: BUNDLE_APPROVE_INTENT,
+        subject: {
+          factorySpecId: spec.id,
+          bomHeaderId: bom.id,
+          fgItemId: spec.fg_item_id,
+          bomVersion: bom.version,
+        },
+        nonce: `${spec.id}:${bom.id}:approve`,
+        reason: input.reason,
+      },
+      { client: ctx.client as never },
+    );
+    signatureId = receipt.signatureId;
+  } catch (err) {
+    // EPinFailedError / EReplayError → esign_failed (never leak which).
+    return { ok: false, error: 'esign_failed', message: err instanceof Error ? err.name : 'esign_failed' };
+  }
+
+  try {
+    // Approve the factory_spec version (in place is legal here: in_review is mutable; the
+    // migration-165 trigger only guards already-approved rows).
+    const updatedSpec = await ctx.client.query<{ id: string }>(
+      `update public.factory_specs
+          set status = 'approved_for_factory',
+              bom_header_id = $2::uuid,
+              bom_version = $3::integer,
+              approved_by = $4::uuid,
+              approved_at = now()
+        where id = $1::uuid
+          and status = 'in_review'
+        returning id`,
+      [spec.id, bom.id, bom.version, ctx.userId],
+    );
+    if (updatedSpec.rows.length === 0) {
+      // Concurrent transition / state changed under us.
+      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer in_review' };
+    }
+
+    // Approve the BOM version in the SAME transaction (both sides or neither).
+    const updatedBom = await ctx.client.query<{ id: string }>(
+      `update public.bom_headers
+          set status = 'technical_approved',
+              approved_by = $2::uuid,
+              approved_at = now()
+        where id = $1::uuid
+          and status in ('draft', 'in_review')
+        returning id`,
+      [bom.id, ctx.userId],
+    );
+    if (updatedBom.rows.length === 0) {
+      throw new Error('bom_no_longer_approvable'); // forces rollback → neither released
+    }
+
+    // AC1 — emit the canonical Technical event. The outbox INSERT is in the same txn as
+    // the state change (atomic; rollback drops the event with the state).
+    const releaseEventId = await emitOutbox(ctx.client, {
+      orgId: ctx.orgId,
+      eventType: 'technical.factory_spec.approved',
+      aggregateType: 'factory_spec',
+      aggregateId: spec.id,
+      payload: {
+        factorySpecId: spec.id,
+        bomHeaderId: bom.id,
+        bomVersion: bom.version,
+        fgItemId: spec.fg_item_id,
+        signatureId,
+        approvedBy: ctx.userId,
+      },
+    });
+
+    // T-081 adapter (DB side): set the NPD soft uuid + close the canonical loop.
+    const factoryReleaseStatusId = await closeNpdReleaseLoop(ctx.client, {
+      orgId: ctx.orgId,
+      bom,
+      factorySpecId: spec.id,
+      releaseEventId,
+      approvedBy: ctx.userId,
+    });
+
+    await writeAudit(ctx.client, {
+      orgId: ctx.orgId,
+      actorUserId: ctx.userId,
+      action: 'factory_spec.bundle_approved',
+      resourceId: spec.id,
+      afterState: {
+        factorySpecId: spec.id,
+        bomHeaderId: bom.id,
+        bomVersion: bom.version,
+        signatureId,
+        releaseEventId,
+        factoryReleaseStatusId,
+      },
+    });
+
+    return {
+      ok: true,
+      data: {
+        factorySpecId: spec.id,
+        bomHeaderId: bom.id,
+        factorySpecStatus: 'approved_for_factory',
+        bomStatus: 'technical_approved',
+        evidenceBundleId: signatureId,
+        signatureId,
+        factoryReleaseStatusId,
+      },
+    };
+  } catch (err) {
+    if (isPgError(err) && err.code === '23514') {
+      // A CHECK (e.g. the migration-165 clone-on-write trigger) rejected the write.
+      return { ok: false, error: 'invalid_state' };
+    }
+    console.error('[technical/release-bundle] approve persistence_failed', {
+      factorySpecId: input.factorySpecId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Reject the bundle atomically: neither side is released. The factory_spec returns to a
+ * working `draft` state (so it can be re-worked) and the BOM is left untouched in its
+ * current draft/in_review state. No `technical.factory_spec.approved` event is emitted.
+ */
+export async function rejectReleaseBundle(
+  ctx: BundleServiceContext,
+  rawInput: unknown,
+): Promise<RejectBundleResult> {
+  const parsed = RejectBundleInput.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  const input = parsed.data;
+
+  if (!(await hasPermission(ctx, FACTORY_SPEC_APPROVE_PERMISSION))) {
+    return { ok: false, error: 'forbidden' };
+  }
+
+  const spec = await loadFactorySpec(ctx.client, input.factorySpecId);
+  const bom = await loadBom(ctx.client, input.bomHeaderId);
+  if (!spec || !bom) return { ok: false, error: 'not_found' };
+
+  // Cannot reject an already factory-usable bundle (immutable; clone-on-write instead).
+  const editGuard = guardBusinessFieldEdit(spec.status);
+  if (!editGuard.ok && editGuard.code === 'RELEASED_RECORD_IMMUTABLE') {
+    return { ok: false, error: 'released_record_immutable', message: editGuard.message };
+  }
+  if (!['draft', 'in_review'].includes(spec.status)) {
+    return { ok: false, error: 'invalid_state', message: `factory_spec is ${spec.status}` };
+  }
+
+  try {
+    const updated = await ctx.client.query<{ id: string }>(
+      `update public.factory_specs
+          set status = 'draft'
+        where id = $1::uuid
+          and status in ('draft', 'in_review')
+        returning id`,
+      [spec.id],
+    );
+    if (updated.rows.length === 0) {
+      return { ok: false, error: 'invalid_state', message: 'factory_spec no longer rejectable' };
+    }
+
+    await writeAudit(ctx.client, {
+      orgId: ctx.orgId,
+      actorUserId: ctx.userId,
+      action: 'factory_spec.bundle_rejected',
+      resourceId: spec.id,
+      afterState: { factorySpecId: spec.id, bomHeaderId: bom.id, reason: input.reason },
+    });
+
+    return {
+      ok: true,
+      data: {
+        factorySpecId: spec.id,
+        bomHeaderId: bom.id,
+        factorySpecStatus: 'draft',
+        bomStatus: bom.status, // BOM left untouched — neither side released.
+      },
+    };
+  } catch (err) {
+    console.error('[technical/release-bundle] reject persistence_failed', {
+      factorySpecId: input.factorySpecId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}

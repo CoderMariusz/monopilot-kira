@@ -202,8 +202,13 @@ export type {
 } from './item-allergens.js';
 export { labResults } from './lab.js';
 export type { LabResult, NewLabResult } from './lab.js';
-export { supplierSpecs } from './supplier-specs.js';
-export type { NewSupplierSpec, SupplierSpec } from './supplier-specs.js';
+export { supplierSpecs, supplierSpecReviewProposals } from './supplier-specs.js';
+export type {
+  NewSupplierSpec,
+  SupplierSpec,
+  NewSupplierSpecReviewProposal,
+  SupplierSpecReviewProposal,
+} from './supplier-specs.js';
 export { routingOperations, routings } from './routing.js';
 export type { NewRouting, NewRoutingOperation, Routing, RoutingOperation } from './routing.js';
 export { d365SyncDlq, d365SyncJobs } from './d365-sync.js';

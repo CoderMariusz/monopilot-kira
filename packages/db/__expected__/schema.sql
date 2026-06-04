@@ -927,6 +927,104 @@ $$;
 
 
 --
+-- Name: approve_supplier_spec_review(uuid, uuid, text, date, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.approve_supplier_spec_review(p_proposal_id uuid, p_approved_by uuid, p_new_spec_version text DEFAULT NULL::text, p_new_expiry_date date DEFAULT NULL::date, p_review_notes text DEFAULT NULL::text) RETURNS uuid
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_proposal public.supplier_spec_review_proposals%rowtype;
+  v_base public.supplier_specs%rowtype;
+  v_new_spec_id uuid;
+begin
+  select *
+    into v_proposal
+  from public.supplier_spec_review_proposals proposal
+  where proposal.id = p_proposal_id
+    and proposal.org_id = v_org_id
+  for update;
+
+  if v_proposal.id is null then
+    raise exception 'supplier spec review proposal not found in current org: %', p_proposal_id
+      using errcode = 'P0002';
+  end if;
+
+  if v_proposal.proposal_status <> 'pending' then
+    raise exception 'supplier spec review proposal % is not pending (status %)',
+      p_proposal_id, v_proposal.proposal_status
+      using errcode = '23514';
+  end if;
+
+  select *
+    into v_base
+  from public.supplier_specs spec
+  where spec.id = v_proposal.supplier_spec_id
+    and spec.org_id = v_org_id
+  for update;
+
+  if v_base.id is null then
+    raise exception 'targeted supplier_spec not found in current org: %', v_proposal.supplier_spec_id
+      using errcode = 'P0002';
+  end if;
+
+  -- Supersede the prior active+approved spec for the same (org,item,supplier) so the new
+  -- active+approved row does not violate supplier_specs_one_active_approved.
+  update public.supplier_specs spec
+     set lifecycle_status = 'superseded'
+   where spec.org_id = v_org_id
+     and spec.item_id = v_base.item_id
+     and spec.supplier_code = v_base.supplier_code
+     and spec.lifecycle_status = 'active'
+     and spec.review_status = 'approved';
+
+  -- Clone-on-write: a NEW supplier_spec row carrying the approved revision.
+  insert into public.supplier_specs (
+    org_id, site_id, item_id, supplier_code, supplier_status,
+    spec_document_url, document_sha256, document_mime_type,
+    spec_version, issued_date, effective_from, expiry_date,
+    lifecycle_status, review_status, review_notes,
+    approved_by, approved_at,
+    declared_allergens, declared_attrs, certificate_refs,
+    uploaded_by
+  )
+  values (
+    v_org_id, v_base.site_id, v_base.item_id, v_base.supplier_code, 'approved',
+    v_base.spec_document_url, v_base.document_sha256, v_base.document_mime_type,
+    coalesce(p_new_spec_version, v_base.spec_version || '-rev'),
+    v_base.issued_date, current_date, coalesce(p_new_expiry_date, v_base.expiry_date),
+    'active', 'approved', coalesce(p_review_notes, 'Approved from supplier spec review proposal.'),
+    p_approved_by, pg_catalog.now(),
+    v_base.declared_allergens,
+    v_base.declared_attrs || v_proposal.proposed_attrs,
+    v_base.certificate_refs,
+    p_approved_by
+  )
+  returning id into v_new_spec_id;
+
+  update public.supplier_spec_review_proposals proposal
+     set proposal_status = 'approved',
+         reviewed_by = p_approved_by,
+         reviewed_at = pg_catalog.now(),
+         review_notes = coalesce(p_review_notes, proposal.review_notes),
+         resulting_supplier_spec_id = v_new_spec_id
+   where proposal.id = p_proposal_id
+     and proposal.org_id = v_org_id;
+
+  return v_new_spec_id;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION approve_supplier_spec_review(p_proposal_id uuid, p_approved_by uuid, p_new_spec_version text, p_new_expiry_date date, p_review_notes text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.approve_supplier_spec_review(p_proposal_id uuid, p_approved_by uuid, p_new_spec_version text, p_new_expiry_date date, p_review_notes text) IS 'T-075: Technical-only governed approval. Clones a new active+approved supplier_spec from a proposal and supersedes the prior active+approved spec (preserving single-active uniqueness).';
+
+
+--
 -- Name: audit_events_impersonation_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1177,6 +1275,138 @@ $$;
 
 
 --
+-- Name: bom_factory_release_bundle_decision(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_factory_release_bundle_decision(p_bom_header_id uuid, p_factory_spec_id uuid, p_split_allowed boolean DEFAULT false) RETURNS TABLE(decision text, reason text, bom_ready boolean, factory_spec_ready boolean)
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_bom_status text;
+  v_spec_status text;
+  v_bom_ready boolean;
+  v_spec_ready boolean;
+begin
+  select header.status into v_bom_status
+  from public.bom_headers header
+  where header.id = p_bom_header_id and header.org_id = v_org_id;
+
+  if v_bom_status is null then
+    raise exception 'BOM version not found in current org: %', p_bom_header_id
+      using errcode = 'P0002';
+  end if;
+
+  select spec.status into v_spec_status
+  from public.factory_specs spec
+  where spec.id = p_factory_spec_id and spec.org_id = v_org_id;
+
+  if v_spec_status is null then
+    raise exception 'factory_spec version not found in current org: %', p_factory_spec_id
+      using errcode = 'P0002';
+  end if;
+
+  -- A BOM is release-ready when Technical has approved/activated it.
+  v_bom_ready  := v_bom_status in ('technical_approved', 'active');
+  -- A factory_spec is release-ready when it is factory-usable.
+  v_spec_ready := v_spec_status in ('approved_for_factory', 'released_to_factory');
+
+  if v_bom_ready and v_spec_ready then
+    return query select 'approve'::text, null::text, v_bom_ready, v_spec_ready;
+    return;
+  end if;
+
+  -- One side ready, the other not => partial. Only an explicit split unblocks the ready side.
+  if (v_bom_ready or v_spec_ready) and p_split_allowed then
+    return query select 'approve'::text, 'SPLIT_APPROVED'::text, v_bom_ready, v_spec_ready;
+    return;
+  end if;
+
+  if (v_bom_ready or v_spec_ready) and not p_split_allowed then
+    return query select 'reject'::text, 'PARTIAL_RELEASE_NOT_ALLOWED'::text, v_bom_ready, v_spec_ready;
+    return;
+  end if;
+
+  -- Neither ready: surface the BOM reason first (deterministic), else the spec reason.
+  if not v_bom_ready then
+    return query select 'reject'::text, 'BOM_NOT_APPROVED'::text, v_bom_ready, v_spec_ready;
+    return;
+  end if;
+
+  return query select 'reject'::text, 'FACTORY_SPEC_NOT_APPROVED'::text, v_bom_ready, v_spec_ready;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION bom_factory_release_bundle_decision(p_bom_header_id uuid, p_factory_spec_id uuid, p_split_allowed boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.bom_factory_release_bundle_decision(p_bom_header_id uuid, p_factory_spec_id uuid, p_split_allowed boolean) IS 'T-073: atomic FactorySpec+BOM release decision. Rejects partial release unless a Technical approver explicitly splits the bundle. Read-only; caller applies the transition.';
+
+
+--
+-- Name: bom_generator_jobs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_generator_jobs_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: bom_headers_enforce_status_transition(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_headers_enforce_status_transition() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_ok boolean;
+begin
+  if tg_op <> 'UPDATE' then
+    return new;
+  end if;
+
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  v_ok := case old.status
+    when 'draft'              then new.status in ('in_review', 'technical_approved', 'active', 'archived')
+    when 'in_review'          then new.status in ('draft', 'technical_approved', 'active', 'archived')
+    when 'technical_approved' then new.status in ('in_review', 'active', 'superseded', 'archived')
+    when 'active'             then new.status in ('superseded', 'archived')
+    when 'superseded'         then new.status in ('archived')
+    when 'archived'           then false
+    else false
+  end;
+
+  if not v_ok then
+    raise exception
+      'invalid BOM version status transition % -> % (clone-on-write: an immutable version may only terminalize, never re-open; create a new draft version instead)',
+      old.status, new.status
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION bom_headers_enforce_status_transition(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.bom_headers_enforce_status_transition() IS 'T-073: BOM version state-machine guard. Allows only valid forward lifecycle transitions; rejects illegal jumps/backward moves. Complements the 090 content-immutability trigger.';
+
+
+--
 -- Name: bom_headers_reject_approved_content_update(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1245,6 +1475,125 @@ begin
   raise exception 'unsupported bom_lines immutability trigger operation: %', tg_op;
 end;
 $$;
+
+
+--
+-- Name: bom_request_version_edit(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bom_request_version_edit(p_source_bom_header_id uuid, p_requested_by uuid, p_notes text DEFAULT NULL::text) RETURNS TABLE(decision text, bom_header_id uuid, status text, version integer, supersedes_bom_header_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_src public.bom_headers%rowtype;
+  v_new_id uuid;
+  v_decision text;
+begin
+  select *
+    into v_src
+  from public.bom_headers header
+  where header.id = p_source_bom_header_id
+    and header.org_id = v_org_id;
+
+  if v_src.id is null then
+    raise exception 'BOM version not found in current org: %', p_source_bom_header_id
+      using errcode = 'P0002';
+  end if;
+
+  if v_src.status not in ('technical_approved', 'active') then
+    raise exception
+      'BOM version % is in status % and is directly editable; clone-on-write only applies to technical_approved/active versions',
+      p_source_bom_header_id, v_src.status
+      using errcode = '23514';
+  end if;
+
+  -- Idempotency: reuse an existing in-flight superseding draft/in_review version if present.
+  select header.id
+    into v_new_id
+  from public.bom_headers header
+  where header.org_id = v_org_id
+    and header.supersedes_bom_header_id = v_src.id
+    and header.status in ('draft', 'in_review')
+  order by header.created_at
+  limit 1;
+
+  if v_new_id is not null then
+    v_decision := 'existing';
+  else
+    v_decision := 'cloned';
+
+    insert into public.bom_headers (
+      org_id, product_id, npd_project_id, fa_code, origin_module, status, version,
+      supersedes_bom_header_id, yield_pct, effective_from,
+      technical_review_requested_by, technical_review_requested_at, notes, created_by_user
+    )
+    values (
+      v_org_id, v_src.product_id, v_src.npd_project_id, v_src.fa_code, 'technical', 'in_review',
+      v_src.version + 1, v_src.id, v_src.yield_pct, current_date,
+      p_requested_by, pg_catalog.now(),
+      coalesce(p_notes, 'Technical post-release edit; new version pending Technical approval (clone-on-write).'),
+      p_requested_by
+    )
+    returning id into v_new_id;
+
+    insert into public.bom_lines (
+      org_id, bom_header_id, line_no, component_code, component_type, item_id, quantity, uom,
+      scrap_pct, manufacturing_operation_name, sequence, is_phantom, source, notes
+    )
+    select
+      line.org_id, v_new_id, line.line_no, line.component_code, line.component_type, line.item_id,
+      line.quantity, line.uom, line.scrap_pct, line.manufacturing_operation_name, line.sequence,
+      line.is_phantom, 'superseded_copy', 'Copied from prior immutable BOM version (clone-on-write).'
+    from public.bom_lines line
+    where line.org_id = v_org_id
+      and line.bom_header_id = v_src.id
+    order by line.line_no;
+
+    insert into public.bom_co_products (
+      org_id, bom_header_id, co_product_item_id, quantity, uom, allocation_pct, is_byproduct, site_id
+    )
+    select
+      cp.org_id, v_new_id, cp.co_product_item_id, cp.quantity, cp.uom, cp.allocation_pct,
+      cp.is_byproduct, cp.site_id
+    from public.bom_co_products cp
+    where cp.org_id = v_org_id
+      and cp.bom_header_id = v_src.id;
+
+    -- Reuse the already-registered outbox event (migration 151 SoT). No new event type.
+    insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+    select
+      v_org_id, 'bom.version_submitted', 'bom', v_new_id,
+      jsonb_build_object(
+        'previous_bom_header_id', v_src.id,
+        'bom_header_id', v_new_id,
+        'status', 'in_review',
+        'origin', 'technical_clone_on_write',
+        'requires_technical_approval', true
+      ),
+      'db-168'
+    where not exists (
+      select 1 from public.outbox_events event
+      where event.org_id = v_org_id
+        and event.event_type = 'bom.version_submitted'
+        and event.aggregate_id = v_new_id::text
+    );
+  end if;
+
+  return query
+  select v_decision, header.id, header.status, header.version, header.supersedes_bom_header_id
+  from public.bom_headers header
+  where header.id = v_new_id
+    and header.org_id = v_org_id;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION bom_request_version_edit(p_source_bom_header_id uuid, p_requested_by uuid, p_notes text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.bom_request_version_edit(p_source_bom_header_id uuid, p_requested_by uuid, p_notes text) IS 'T-073: generic clone-on-write for the shared BOM SSOT. Clones an immutable (technical_approved/active) version into a new in_review draft routed to Technical approval; never mutates the source. Returns a typed decision (cloned|existing).';
 
 
 --
@@ -2669,6 +3018,53 @@ $$;
 
 
 --
+-- Name: reject_supplier_spec_review(uuid, uuid, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reject_supplier_spec_review(p_proposal_id uuid, p_reviewed_by uuid, p_review_notes text DEFAULT NULL::text, p_block boolean DEFAULT false) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_proposal public.supplier_spec_review_proposals%rowtype;
+begin
+  select *
+    into v_proposal
+  from public.supplier_spec_review_proposals proposal
+  where proposal.id = p_proposal_id
+    and proposal.org_id = v_org_id
+  for update;
+
+  if v_proposal.id is null then
+    raise exception 'supplier spec review proposal not found in current org: %', p_proposal_id
+      using errcode = 'P0002';
+  end if;
+
+  if v_proposal.proposal_status <> 'pending' then
+    raise exception 'supplier spec review proposal % is not pending (status %)',
+      p_proposal_id, v_proposal.proposal_status
+      using errcode = '23514';
+  end if;
+
+  update public.supplier_spec_review_proposals proposal
+     set proposal_status = case when p_block then 'blocked' else 'rejected' end,
+         reviewed_by = p_reviewed_by,
+         reviewed_at = pg_catalog.now(),
+         review_notes = p_review_notes
+   where proposal.id = p_proposal_id
+     and proposal.org_id = v_org_id;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION reject_supplier_spec_review(p_proposal_id uuid, p_reviewed_by uuid, p_review_notes text, p_block boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reject_supplier_spec_review(p_proposal_id uuid, p_reviewed_by uuid, p_review_notes text, p_block boolean) IS 'T-075: reject/block a supplier spec review proposal; the prior active+approved spec is left untouched (AC7).';
+
+
+--
 -- Name: request_npd_released_bom_edit(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3002,6 +3398,35 @@ $$;
 --
 
 COMMENT ON FUNCTION public.seed_alert_thresholds_on_org_insert() IS 'T-050: Trigger function — seeds default AlertThreshold rows for every new org on INSERT.';
+
+
+--
+-- Name: seed_allergen_cascade_rule_for_org(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_allergen_cascade_rule_for_org() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+declare
+  v_definition jsonb := jsonb_build_object(
+    'rule_code', 'technical.allergen_cascade',
+    'description', 'Technical allergen full cascade: RM/intermediate profile change -> active BOM parents -> cascaded FG profile rows; manufacturing-op additions UNIONed; manual_override rows never overwritten.',
+    'trigger_event', 'technical.item_allergen_profile.changed',
+    'sources', jsonb_build_array('item_allergen_profiles', 'manufacturing_operation_allergen_additions', 'bom_headers', 'bom_lines'),
+    'target', 'item_allergen_profiles',
+    'cascaded_source_label', 'cascaded',
+    'override_protected_source', 'manual_override',
+    'kpi_max_ms', 5000,
+    'handler', 'apps/web/lib/technical/allergens/cascade.ts'
+  );
+begin
+  insert into public.rule_definitions (org_id, rule_code, rule_type, tier, definition_json, version)
+  values (new.id, 'technical.allergen_cascade', 'cascading', 'L1', v_definition, 1)
+  on conflict (org_id, rule_code, version) do nothing;
+  return new;
+end
+$$;
 
 
 --
@@ -4314,6 +4739,108 @@ $$;
 
 
 --
+-- Name: supplier_spec_resolved_lifecycle(text, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case
+    when p_expiry_date is not null and p_expiry_date < current_date
+         and p_lifecycle_status in ('draft', 'active')
+      then 'expired'
+    else p_lifecycle_status
+  end;
+$$;
+
+
+--
+-- Name: FUNCTION supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date) IS 'T-075: resolves effective lifecycle — an active/draft spec past its expiry_date resolves to expired (AC2).';
+
+
+--
+-- Name: supplier_spec_review_proposals_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.supplier_spec_review_proposals_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: supplier_spec_rm_usability(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.supplier_spec_rm_usability(p_supplier_spec_id uuid) RETURNS TABLE(usable boolean, reason text)
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare
+  v_org_id uuid := app.current_org_id();
+  v_spec public.supplier_specs%rowtype;
+  v_effective_lifecycle text;
+begin
+  select *
+    into v_spec
+  from public.supplier_specs spec
+  where spec.id = p_supplier_spec_id
+    and spec.org_id = v_org_id;
+
+  if v_spec.id is null then
+    return query select false, 'NOT_FOUND'::text;
+    return;
+  end if;
+
+  if v_spec.lifecycle_status = 'blocked'
+     or v_spec.review_status = 'blocked'
+     or v_spec.spec_review_blocked then
+    return query select false, 'SPEC_BLOCKED'::text;
+    return;
+  end if;
+
+  if v_spec.supplier_status <> 'approved' then
+    return query select false, 'SUPPLIER_NOT_APPROVED'::text;
+    return;
+  end if;
+
+  if v_spec.review_status <> 'approved' then
+    return query select false, 'NOT_REVIEW_APPROVED'::text;
+    return;
+  end if;
+
+  v_effective_lifecycle :=
+    public.supplier_spec_resolved_lifecycle(v_spec.lifecycle_status, v_spec.expiry_date);
+
+  if v_effective_lifecycle <> 'active' then
+    -- Surface EXPIRED specifically; any other non-active resolves to the generic lifecycle code.
+    if v_effective_lifecycle = 'expired' then
+      return query select false, 'EXPIRED'::text;
+    else
+      return query select false, ('LIFECYCLE_' || upper(v_effective_lifecycle))::text;
+    end if;
+    return;
+  end if;
+
+  return query select true, 'OK'::text;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION supplier_spec_rm_usability(p_supplier_spec_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.supplier_spec_rm_usability(p_supplier_spec_id uuid) IS 'T-075: typed RM-usability decision (usable, reason). reason in OK|SUPPLIER_NOT_APPROVED|EXPIRED|NOT_REVIEW_APPROVED|SPEC_BLOCKED|NOT_FOUND.';
+
+
+--
 -- Name: supplier_specs_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5528,6 +6055,52 @@ COMMENT ON TABLE public.bom_co_products IS 'T-002: co-products (positive market 
 --
 
 COMMENT ON COLUMN public.bom_co_products.site_id IS 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
+
+
+--
+-- Name: bom_generator_jobs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.bom_generator_jobs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    scope text NOT NULL,
+    output_mode text NOT NULL,
+    status text DEFAULT 'queued'::text NOT NULL,
+    expected_count integer DEFAULT 0 NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    result_urls jsonb DEFAULT '[]'::jsonb NOT NULL,
+    error_message text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT bom_generator_jobs_expected_count_check CHECK ((expected_count >= 0)),
+    CONSTRAINT bom_generator_jobs_output_mode_check CHECK ((output_mode = ANY (ARRAY['per_fg'::text, 'single_batch'::text]))),
+    CONSTRAINT bom_generator_jobs_payload_object_check CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT bom_generator_jobs_result_urls_array_check CHECK ((jsonb_typeof(result_urls) = 'array'::text)),
+    CONSTRAINT bom_generator_jobs_scope_check CHECK ((scope = ANY (ARRAY['all_complete'::text, 'selected'::text]))),
+    CONSTRAINT bom_generator_jobs_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'failed'::text])))
+);
+
+ALTER TABLE ONLY public.bom_generator_jobs FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE bom_generator_jobs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.bom_generator_jobs IS 'T-016: async BOM Generator job queue. The POST /api/technical/bom-generator Server Action enqueues ONE row (status queued) carrying the V-TEC-15-filtered FG scope + output mode; the worker builds the XLSX artifact(s) and stamps result_urls. XLSX is NEVER built inside the request. Internal BOM explode/compose — distinct from NPD D365 Builder. Shared BOM SSOT; D365 integration only.';
+
+
+--
+-- Name: COLUMN bom_generator_jobs.site_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.bom_generator_jobs.site_id IS 'Day-1 multi-site column (uuid NULL). 14-multi-site/T-030 backfills + tightens to NOT NULL + composite (org_id, site_id) RLS. No FK / RLS predicate here.';
 
 
 --
@@ -7792,10 +8365,98 @@ CREATE TABLE public.organizations (
     onboarding_state jsonb DEFAULT '{}'::jsonb,
     onboarding_completed_at timestamp with time zone,
     updated_at timestamp with time zone DEFAULT now(),
+    legal_name text,
+    vat text,
+    regon text,
+    industry text,
+    street text,
+    city text,
+    zip text,
+    country text,
+    email text,
+    phone text,
+    website text,
     CONSTRAINT organizations_industry_code_check CHECK ((industry_code = ANY (ARRAY['bakery'::text, 'pharma'::text, 'fmcg'::text, 'generic'::text])))
 );
 
 ALTER TABLE ONLY public.organizations FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: COLUMN organizations.legal_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.legal_name IS 'Full registered company name (Settings -> Company profile).';
+
+
+--
+-- Name: COLUMN organizations.vat; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.vat IS 'VAT / NIP tax identification number.';
+
+
+--
+-- Name: COLUMN organizations.regon; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.regon IS 'REGON registry number (PL).';
+
+
+--
+-- Name: COLUMN organizations.industry; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.industry IS 'Industry label shown on the company profile.';
+
+
+--
+-- Name: COLUMN organizations.street; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.street IS 'Registered address -- street line.';
+
+
+--
+-- Name: COLUMN organizations.city; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.city IS 'Registered address -- city.';
+
+
+--
+-- Name: COLUMN organizations.zip; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.zip IS 'Registered address -- postal/ZIP code.';
+
+
+--
+-- Name: COLUMN organizations.country; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.country IS 'Registered address -- country.';
+
+
+--
+-- Name: COLUMN organizations.email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.email IS 'Primary company contact email.';
+
+
+--
+-- Name: COLUMN organizations.phone; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.phone IS 'Primary company contact phone.';
+
+
+--
+-- Name: COLUMN organizations.website; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.organizations.website IS 'Company website URL.';
 
 
 --
@@ -8311,6 +8972,44 @@ CREATE TABLE public.shipment (
 );
 
 ALTER TABLE ONLY public.shipment FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: supplier_spec_review_proposals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.supplier_spec_review_proposals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    site_id uuid,
+    supplier_spec_id uuid NOT NULL,
+    source text DEFAULT 'po_actual'::text NOT NULL,
+    proposal_status text DEFAULT 'pending'::text NOT NULL,
+    proposed_attrs jsonb DEFAULT '{}'::jsonb NOT NULL,
+    observed_notes text,
+    is_non_conformance boolean DEFAULT false NOT NULL,
+    reviewed_by uuid,
+    reviewed_at timestamp with time zone,
+    review_notes text,
+    resulting_supplier_spec_id uuid,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    schema_version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT supplier_spec_review_proposals_proposed_attrs_object_check CHECK ((jsonb_typeof(proposed_attrs) = 'object'::text)),
+    CONSTRAINT supplier_spec_review_proposals_resulting_spec_consistency_check CHECK ((((proposal_status = 'approved'::text) AND (resulting_supplier_spec_id IS NOT NULL)) OR ((proposal_status <> 'approved'::text) AND (resulting_supplier_spec_id IS NULL)))),
+    CONSTRAINT supplier_spec_review_proposals_source_check CHECK ((source = ANY (ARRAY['po_actual'::text, 'technical'::text, 'import'::text]))),
+    CONSTRAINT supplier_spec_review_proposals_status_check CHECK ((proposal_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'blocked'::text])))
+);
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: TABLE supplier_spec_review_proposals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.supplier_spec_review_proposals IS 'T-075: non-mutating PO/Technical review proposal channel for supplier_specs. PO actuals create proposals (review/non-conformance) but never overwrite supplier_specs; the only governed mutation path is approve_supplier_spec_review (Technical).';
 
 
 --
@@ -9234,6 +9933,14 @@ ALTER TABLE ONLY public.bom_co_products
 
 ALTER TABLE ONLY public.bom_co_products
     ADD CONSTRAINT bom_co_products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bom_generator_jobs bom_generator_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_generator_jobs
+    ADD CONSTRAINT bom_generator_jobs_pkey PRIMARY KEY (id);
 
 
 --
@@ -10189,6 +10896,14 @@ ALTER TABLE ONLY public.shipment
 
 
 --
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: supplier_specs supplier_specs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10887,6 +11602,20 @@ CREATE INDEX bom_co_products_org_item_idx ON public.bom_co_products USING btree 
 --
 
 CREATE INDEX bom_co_products_org_site_idx ON public.bom_co_products USING btree (org_id, site_id);
+
+
+--
+-- Name: bom_generator_jobs_org_site_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_generator_jobs_org_site_idx ON public.bom_generator_jobs USING btree (org_id, site_id);
+
+
+--
+-- Name: bom_generator_jobs_org_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bom_generator_jobs_org_status_idx ON public.bom_generator_jobs USING btree (org_id, status, created_at);
 
 
 --
@@ -11636,6 +12365,27 @@ CREATE INDEX idx_routings_item ON public.routings USING btree (item_id);
 --
 
 CREATE INDEX idx_routings_org_item ON public.routings USING btree (org_id, item_id, status);
+
+
+--
+-- Name: idx_supplier_spec_review_proposals_org_site; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_spec_review_proposals_org_site ON public.supplier_spec_review_proposals USING btree (org_id, site_id);
+
+
+--
+-- Name: idx_supplier_spec_review_proposals_org_spec; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_spec_review_proposals_org_spec ON public.supplier_spec_review_proposals USING btree (org_id, supplier_spec_id);
+
+
+--
+-- Name: idx_supplier_spec_review_proposals_org_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_supplier_spec_review_proposals_org_status ON public.supplier_spec_review_proposals USING btree (org_id, proposal_status);
 
 
 --
@@ -12647,6 +13397,20 @@ CREATE TRIGGER bom_co_products_set_updated_at BEFORE UPDATE ON public.bom_co_pro
 
 
 --
+-- Name: bom_generator_jobs bom_generator_jobs_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER bom_generator_jobs_set_updated_at BEFORE UPDATE ON public.bom_generator_jobs FOR EACH ROW EXECUTE FUNCTION public.bom_generator_jobs_set_updated_at();
+
+
+--
+-- Name: bom_headers bom_headers_aa_enforce_status_transition; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER bom_headers_aa_enforce_status_transition BEFORE UPDATE ON public.bom_headers FOR EACH ROW EXECUTE FUNCTION public.bom_headers_enforce_status_transition();
+
+
+--
 -- Name: bom_headers bom_headers_reject_approved_content_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12850,6 +13614,13 @@ CREATE TRIGGER routings_set_updated_at BEFORE UPDATE ON public.routings FOR EACH
 
 
 --
+-- Name: organizations seed_allergen_cascade_rule_after_org_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER seed_allergen_cascade_rule_after_org_insert AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_allergen_cascade_rule_for_org();
+
+
+--
 -- Name: organizations seed_allergens_eu14_after_org_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12861,6 +13632,13 @@ CREATE TRIGGER seed_allergens_eu14_after_org_insert AFTER INSERT ON public.organ
 --
 
 CREATE TRIGGER seed_system_roles_on_org_insert AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_system_roles_on_org_insert();
+
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER supplier_spec_review_proposals_set_updated_at BEFORE UPDATE ON public.supplier_spec_review_proposals FOR EACH ROW EXECUTE FUNCTION public.supplier_spec_review_proposals_set_updated_at();
 
 
 --
@@ -13326,6 +14104,22 @@ ALTER TABLE ONLY public.bom_co_products
 
 ALTER TABLE ONLY public.bom_co_products
     ADD CONSTRAINT bom_co_products_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: bom_generator_jobs bom_generator_jobs_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_generator_jobs
+    ADD CONSTRAINT bom_generator_jobs_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: bom_generator_jobs bom_generator_jobs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.bom_generator_jobs
+    ADD CONSTRAINT bom_generator_jobs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -14793,6 +15587,46 @@ ALTER TABLE ONLY public.shipment
 
 
 --
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_resulting_spec_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_resulting_spec_fk FOREIGN KEY (resulting_supplier_spec_id) REFERENCES public.supplier_specs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_spec_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.supplier_spec_review_proposals
+    ADD CONSTRAINT supplier_spec_review_proposals_spec_org_fk FOREIGN KEY (supplier_spec_id) REFERENCES public.supplier_specs(id) ON DELETE CASCADE;
+
+
+--
 -- Name: supplier_specs supplier_specs_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15472,6 +16306,19 @@ CREATE POLICY bom_co_products_org_context ON public.bom_co_products TO app_user 
   WHERE ((header.id = bom_co_products.bom_header_id) AND (header.org_id = app.current_org_id())))))) WITH CHECK (((org_id = app.current_org_id()) AND (EXISTS ( SELECT 1
    FROM public.bom_headers header
   WHERE ((header.id = bom_co_products.bom_header_id) AND (header.org_id = app.current_org_id()))))));
+
+
+--
+-- Name: bom_generator_jobs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.bom_generator_jobs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: bom_generator_jobs bom_generator_jobs_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY bom_generator_jobs_org_context ON public.bom_generator_jobs TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
@@ -16769,6 +17616,19 @@ ALTER TABLE public.shipment ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY shipment_org_context ON public.shipment TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
+
+
+--
+-- Name: supplier_spec_review_proposals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.supplier_spec_review_proposals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: supplier_spec_review_proposals supplier_spec_review_proposals_org_context; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY supplier_spec_review_proposals_org_context ON public.supplier_spec_review_proposals TO app_user USING ((org_id = app.current_org_id())) WITH CHECK ((org_id = app.current_org_id()));
 
 
 --
