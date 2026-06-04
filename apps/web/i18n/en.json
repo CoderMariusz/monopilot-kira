@@ -911,6 +911,35 @@
       "emptyBody": "Factory Articles are the master NPD record created from a converted Brief. Create one or clear filters.",
       "error": "Unable to load Factory Articles. Try again after the backend is available.",
       "forbidden": "You do not have permission to view Factory Articles."
+    },
+    "nutrition": {
+      "title": "Nutrition declaration (per 100g)",
+      "subtitle": "Computed per-100g + per-portion values",
+      "exportCsv": "Export CSV",
+      "generateLabel": "Generate label PDF",
+      "generateLabelDisabledHint": "Label PDF export is not yet available (deferred)",
+      "colNutrient": "Nutrient",
+      "colPer100g": "Per 100g",
+      "colPerPortion": "Per portion",
+      "colStatus": "Status",
+      "statusOk": "OK",
+      "statusWarn": "At limit",
+      "allergenTitle": "Allergen declaration",
+      "allergenColAllergen": "Allergen",
+      "allergenColSource": "Source ingredient",
+      "allergenColPresence": "Presence",
+      "presenceContains": "Contains",
+      "presenceMayContain": "May contain",
+      "presenceFreeFrom": "Free from",
+      "presenceUnknown": "Unknown",
+      "allergenEmpty": "No allergens declared",
+      "nutriScoreTitle": "Nutri-Score",
+      "nutriScoreGradeLabel": "Nutri-Score grade {grade}",
+      "loading": "Loading nutrition data…",
+      "empty": "No nutrition data yet",
+      "emptyBody": "Nutrition values are computed once the formulation is complete.",
+      "error": "Unable to load nutrition data.",
+      "forbidden": "You do not have permission to view nutrition data."
     }
   }
 }

@@ -911,6 +911,35 @@
       "emptyBody": "Фабричні артикули — це головний запис NPD, створений із конвертованого Brief. Створіть новий або очистіть фільтри.",
       "error": "Не вдалося завантажити фабричні артикули. Спробуйте пізніше, коли бекенд буде доступний.",
       "forbidden": "У вас немає дозволу на перегляд фабричних артикулів."
+    },
+    "nutrition": {
+      "title": "Декларація поживної цінності (на 100 г)",
+      "subtitle": "Обчислені значення на 100 г та на порцію",
+      "exportCsv": "Експорт CSV",
+      "generateLabel": "Створити етикетку PDF",
+      "generateLabelDisabledHint": "Експорт етикетки PDF поки недоступний (відкладено)",
+      "colNutrient": "Поживна речовина",
+      "colPer100g": "На 100 г",
+      "colPerPortion": "На порцію",
+      "colStatus": "Статус",
+      "statusOk": "OK",
+      "statusWarn": "На межі",
+      "allergenTitle": "Декларація алергенів",
+      "allergenColAllergen": "Алерген",
+      "allergenColSource": "Інгредієнт-джерело",
+      "allergenColPresence": "Наявність",
+      "presenceContains": "Містить",
+      "presenceMayContain": "Може містити",
+      "presenceFreeFrom": "Не містить",
+      "presenceUnknown": "Невідомо",
+      "allergenEmpty": "Алергени не задекларовано",
+      "nutriScoreTitle": "Nutri-Score",
+      "nutriScoreGradeLabel": "Оцінка Nutri-Score {grade}",
+      "loading": "Завантаження поживних даних…",
+      "empty": "Поживних даних ще немає",
+      "emptyBody": "Поживні значення обчислюються після завершення рецептури.",
+      "error": "Не вдалося завантажити поживні дані.",
+      "forbidden": "У вас немає дозволу переглядати поживні дані."
     }
   }
 }

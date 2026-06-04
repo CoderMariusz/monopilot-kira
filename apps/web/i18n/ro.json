@@ -911,6 +911,35 @@
       "emptyBody": "Articolele de fabrică sunt înregistrarea principală NPD creată dintr-un Brief convertit. Creează unul sau șterge filtrele.",
       "error": "Nu se pot încărca articolele de fabrică. Încearcă din nou după ce backend-ul este disponibil.",
       "forbidden": "Nu ai permisiunea de a vizualiza articolele de fabrică."
+    },
+    "nutrition": {
+      "title": "Declarație nutrițională (la 100 g)",
+      "subtitle": "Valori calculate la 100 g și pe porție",
+      "exportCsv": "Exportă CSV",
+      "generateLabel": "Generează etichetă PDF",
+      "generateLabelDisabledHint": "Exportul etichetei PDF nu este încă disponibil (amânat)",
+      "colNutrient": "Nutrient",
+      "colPer100g": "La 100 g",
+      "colPerPortion": "Pe porție",
+      "colStatus": "Stare",
+      "statusOk": "OK",
+      "statusWarn": "La limită",
+      "allergenTitle": "Declarație de alergeni",
+      "allergenColAllergen": "Alergen",
+      "allergenColSource": "Ingredient sursă",
+      "allergenColPresence": "Prezență",
+      "presenceContains": "Conține",
+      "presenceMayContain": "Poate conține",
+      "presenceFreeFrom": "Fără",
+      "presenceUnknown": "Necunoscut",
+      "allergenEmpty": "Niciun alergen declarat",
+      "nutriScoreTitle": "Nutri-Score",
+      "nutriScoreGradeLabel": "Calificativ Nutri-Score {grade}",
+      "loading": "Se încarcă datele nutriționale…",
+      "empty": "Nu există încă date nutriționale",
+      "emptyBody": "Valorile nutriționale sunt calculate după finalizarea rețetei.",
+      "error": "Datele nutriționale nu au putut fi încărcate.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza datele nutriționale."
     }
   }
 }
