@@ -69,6 +69,7 @@ const expectedNpdPermissions = [
   'npd.schema.edit',
   'npd.rule.edit',
   'npd.risk.write',
+  'npd.allergen.write',
   'npd.compliance_doc.write',
   'npd.formulation.create_draft',
   'npd.formulation.lock',
@@ -78,6 +79,19 @@ const expectedNpdPermissions = [
   'npd.gate.approve',
   'npd.bom.export',
   'gdpr.erasure.execute',
+] as const;
+
+const expectedTechnicalPermissions = [
+  'technical.items.create',
+  'technical.items.edit',
+  'technical.items.deactivate',
+  'technical.bom.create',
+  'technical.bom.approve',
+  'technical.bom.version_publish',
+  'technical.bom.generate_batch',
+  'technical.allergens.edit',
+  'technical.cost.edit',
+  'technical.d365.sync_trigger',
 ] as const;
 
 const settingsExtPermissionPattern = /^(settings\.[a-z_][a-z_0-9]*\.[a-z_][a-z_0-9]*|npd\.released_product_edit\.(request|authorize)|technical\.product_spec\.approve)$/;
@@ -98,6 +112,7 @@ const expectedCanonicalPermissions = [
   ...expectedSettingsCorePermissions,
   ...expectedSettingsExtPermissions,
   ...expectedNpdPermissions,
+  ...expectedTechnicalPermissions,
 ] as const;
 
 type PermissionsModule = {
@@ -107,6 +122,7 @@ type PermissionsModule = {
   ALL_SETTINGS_CORE_PERMISSIONS: readonly string[];
   ALL_SETTINGS_EXT_PERMISSIONS: readonly string[];
   ALL_NPD_PERMISSIONS: readonly string[];
+  ALL_TECHNICAL_PERMISSIONS: readonly string[];
   SOD_EXCLUSIVE_PAIRS: readonly (readonly [string, string])[];
   normalizePermission: (input: string) => string;
 };
@@ -193,7 +209,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_NPD_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_NPD_PERMISSIONS).toEqual(expectedNpdPermissions);
-    expect(ALL_NPD_PERMISSIONS).toHaveLength(18);
+    expect(ALL_NPD_PERMISSIONS).toHaveLength(19);
     expect(new Set(ALL_NPD_PERMISSIONS).size).toBe(ALL_NPD_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 
@@ -212,6 +228,39 @@ describe('rbac permission source of truth', () => {
       /export\s+const\s+ALL_NPD_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
     );
     expect(npdExport?.[0]).toContain('ALL_NPD_PERMISSIONS');
+  });
+
+  it('exports the technical permissions as a typed Permission array literal (T-091 §3)', async () => {
+    const { ALL_PERMISSIONS, ALL_TECHNICAL_PERMISSIONS, Permission } = await loadPermissionsModule();
+
+    // AC1 — all 10 strings present exactly once.
+    expect(ALL_TECHNICAL_PERMISSIONS).toEqual(expectedTechnicalPermissions);
+    // AC3 — typed readonly Permission[] with length === 10.
+    expect(ALL_TECHNICAL_PERMISSIONS).toHaveLength(10);
+    expect(new Set(ALL_TECHNICAL_PERMISSIONS).size).toBe(ALL_TECHNICAL_PERMISSIONS.length);
+
+    // AC2 — regex + uniqueness across the whole enum.
+    expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
+    // d365 carries digits in the middle segment, exactly like the canonical
+    // npd.d365_builder.execute string, so it is verified against the locked
+    // lowercase-dotted format (which permits digits after the first char of a
+    // segment) rather than the digit-free 3-segment shorthand.
+    const technicalWithDigits = ['technical.d365.sync_trigger'];
+    for (const permission of ALL_TECHNICAL_PERMISSIONS) {
+      expect(ALL_PERMISSIONS).toContain(permission);
+      expect(permission.startsWith('technical.')).toBe(true);
+      if (technicalWithDigits.includes(permission)) {
+        expect(permission).toMatch(/^[a-z]+(\.[a-z_][a-z_0-9]*)+$/);
+      } else {
+        expect(permission).toMatch(/^[a-z_]+\.[a-z_]+\.[a-z_]+$/);
+      }
+    }
+
+    const source = readFileSync(permissionsModulePath, 'utf8');
+    const technicalExport = source.match(
+      /export\s+const\s+ALL_TECHNICAL_PERMISSIONS\s*=\s*\[[\s\S]*?\]\s*(?:satisfies|as)\s+readonly\s+Permission\[\]/,
+    );
+    expect(technicalExport?.[0]).toContain('ALL_TECHNICAL_PERMISSIONS');
   });
 
   it('keeps every canonical permission in the locked lowercase dotted format', async () => {

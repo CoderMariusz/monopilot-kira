@@ -23,6 +23,8 @@ export { loginAttempts, orgSecurityPolicies, passwordHistory } from './security.
 export { scimTokens, adminIpAllowlist } from './sso-scim-ip.js';
 export { product } from './product.js';
 export type { NewProduct, Product } from './product.js';
+export { items } from './items.js';
+export type { Item, NewItem } from './items.js';
 export { faBuilderOutputs } from './fa-builder-outputs.js';
 export type { FaBuilderOutput, NewFaBuilderOutput } from './fa-builder-outputs.js';
 export { faStatusOverall } from './fa-status-overall.js';

@@ -139,6 +139,28 @@ export const Permission = {
   // GDPR
   /** GDPR Art.17 right-to-erasure execution (admin); PRD 01-NPD §15 Compliance + Foundation §15 GDPR. Gates the redact-user Server Action (T-089). */
   GDPR_ERASURE_EXECUTE: 'gdpr.erasure.execute',
+
+  // Technical (03-technical / factory specification)
+  /** Technical item-master create permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_ITEMS_CREATE: 'technical.items.create',
+  /** Technical item-master edit permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_ITEMS_EDIT: 'technical.items.edit',
+  /** Technical item-master deactivate permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_ITEMS_DEACTIVATE: 'technical.items.deactivate',
+  /** Technical shared-BOM create permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_BOM_CREATE: 'technical.bom.create',
+  /** Technical shared-BOM approval permission (draft→technical_approved); PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_BOM_APPROVE: 'technical.bom.approve',
+  /** Technical shared-BOM version publish permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_BOM_VERSION_PUBLISH: 'technical.bom.version_publish',
+  /** Technical shared-BOM batch generation permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_BOM_GENERATE_BATCH: 'technical.bom.generate_batch',
+  /** Technical allergen profile edit permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_ALLERGENS_EDIT: 'technical.allergens.edit',
+  /** Technical cost-per-kg edit permission (dual-owned with finance); PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_COST_EDIT: 'technical.cost.edit',
+  /** Technical D365 sync trigger permission; PRD 03-TECHNICAL §3 (RBAC). */
+  TECHNICAL_D365_SYNC_TRIGGER: 'technical.d365.sync_trigger',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -208,6 +230,26 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_GATE_APPROVE,
   Permission.NPD_BOM_EXPORT,
   Permission.GDPR_ERASURE_EXECUTE,
+] as readonly Permission[];
+
+/**
+ * Technical (03-technical) module permission group; PRD 03-TECHNICAL §3 (RBAC).
+ * The `technical.product_spec.approve` workflow-authorization string remains in
+ * ALL_SETTINGS_EXT_PERMISSIONS (Settings/Auth-owned PO decision); this group covers
+ * the 10 page/action permissions added by T-091. Recognised by the ESLint enum-lock
+ * guard via the ALL_<MODULE>_PERMISSIONS export convention (02-settings T-130).
+ */
+export const ALL_TECHNICAL_PERMISSIONS = [
+  Permission.TECHNICAL_ITEMS_CREATE,
+  Permission.TECHNICAL_ITEMS_EDIT,
+  Permission.TECHNICAL_ITEMS_DEACTIVATE,
+  Permission.TECHNICAL_BOM_CREATE,
+  Permission.TECHNICAL_BOM_APPROVE,
+  Permission.TECHNICAL_BOM_VERSION_PUBLISH,
+  Permission.TECHNICAL_BOM_GENERATE_BATCH,
+  Permission.TECHNICAL_ALLERGENS_EDIT,
+  Permission.TECHNICAL_COST_EDIT,
+  Permission.TECHNICAL_D365_SYNC_TRIGGER,
 ] as readonly Permission[];
 
 export const LegacyPermissionAlias = {
