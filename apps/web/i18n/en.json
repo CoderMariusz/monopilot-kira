@@ -1817,6 +1817,32 @@
         "comments": "Comments"
       }
     },
+    "faProcurementTab": {
+      "title": "Procurement section",
+      "subtitle": "Supplier, price and lead time. Price unlocks after Core and Production are closed.",
+      "closedBadge": "✓ Closed",
+      "openBadge": "Open",
+      "priceBlockedTitle": "V-NPD-PROC-001",
+      "priceBlockedBody": "Price entry unlocks after Core AND Production are both closed. Business rule: price depends on final components.",
+      "priceBlockedHint": "Locked until Core and Production are closed.",
+      "save": "Save Procurement",
+      "saving": "Saving…",
+      "saveSuccess": "Procurement section saved.",
+      "saveError": "Could not save the Procurement section.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading Procurement section…",
+      "empty": "No Procurement fields configured",
+      "emptyBody": "This organisation has no Procurement department columns yet.",
+      "error": "Unable to load the Procurement section.",
+      "forbidden": "You do not have permission to edit the Procurement section.",
+      "fields": {
+        "price_per_kg": "Price (€/kg)",
+        "lead_time_days": "Lead time (days)",
+        "supplier": "Supplier",
+        "proc_shelf_life_days": "Proc. shelf life (days)",
+        "closed_procurement": "Closed Procurement"
+      }
+    },
     "faRightPanel": {
       "title": "Validation status",
       "subtitle": "Right-panel summary for this Factory Article.",

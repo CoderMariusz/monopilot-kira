@@ -1817,6 +1817,32 @@
         "comments": "Comentarii"
       }
     },
+    "faProcurementTab": {
+      "title": "Secțiunea aprovizionare",
+      "subtitle": "Furnizor, preț și termen de livrare. Prețul se deblochează după închiderea secțiunilor Nucleu și Producție.",
+      "closedBadge": "✓ Închis",
+      "openBadge": "Deschis",
+      "priceBlockedTitle": "V-NPD-PROC-001",
+      "priceBlockedBody": "Introducerea prețului se deblochează după închiderea secțiunilor Nucleu ȘI Producție. Regulă de business: prețul depinde de componentele finale.",
+      "priceBlockedHint": "Blocat până la închiderea secțiunilor Nucleu și Producție.",
+      "save": "Salvează aprovizionarea",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea aprovizionare a fost salvată.",
+      "saveError": "Nu s-a putut salva secțiunea aprovizionare.",
+      "selectPlaceholder": "Selectează…",
+      "loading": "Se încarcă secțiunea aprovizionare…",
+      "empty": "Niciun câmp de aprovizionare configurat",
+      "emptyBody": "Această organizație nu are încă coloane pentru departamentul de aprovizionare.",
+      "error": "Secțiunea aprovizionare nu a putut fi încărcată.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea aprovizionare.",
+      "fields": {
+        "price_per_kg": "Preț (€/kg)",
+        "lead_time_days": "Termen de livrare (zile)",
+        "supplier": "Furnizor",
+        "proc_shelf_life_days": "Termen valabilitate aprovizionare (zile)",
+        "closed_procurement": "Aprovizionare închisă"
+      }
+    },
     "faRightPanel": {
       "title": "Stare validare",
       "subtitle": "Rezumatul panoului lateral pentru acest articol de fabrică.",
