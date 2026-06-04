@@ -339,6 +339,7 @@ export default function MachinesListScreen({
         </div>
         <Button
           type="button"
+          className="btn-primary"
           disabled={!canUpdateInfra}
           aria-label={canUpdateInfra ? labels.addMachine : `${labels.addMachine} — ${labels.insufficientPermission}`}
           onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
@@ -392,10 +393,10 @@ export default function MachinesListScreen({
                 </SelectContent>
               </Select>
             </div>
-            <Button type="button" disabled={bulkDisabled} aria-label={activateLabel} onClick={() => runBulkAction('activate')}>
+            <Button type="button" className="btn-secondary" disabled={bulkDisabled} aria-label={activateLabel} onClick={() => runBulkAction('activate')}>
               {pendingAction === 'activate' ? labels.bulkActivatePending : labels.bulkActivate}
             </Button>
-            <Button type="button" disabled={bulkDisabled} aria-label={deactivateLabel} onClick={() => runBulkAction('deactivate')}>
+            <Button type="button" className="btn-secondary" disabled={bulkDisabled} aria-label={deactivateLabel} onClick={() => runBulkAction('deactivate')}>
               {pendingAction === 'deactivate' ? labels.bulkDeactivatePending : labels.bulkDeactivate}
             </Button>
           </div>
@@ -470,7 +471,7 @@ export default function MachinesListScreen({
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" disabled={!canUpdateInfra || createPending || locations.length === 0} aria-label={canUpdateInfra ? labels.createMachine : `${labels.createMachine} — ${labels.insufficientPermission}`}>
+                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending || locations.length === 0} aria-label={canUpdateInfra ? labels.createMachine : `${labels.createMachine} — ${labels.insufficientPermission}`}>
                   {createPending ? labels.createMachinePending : labels.createMachine}
                 </Button>
               </div>

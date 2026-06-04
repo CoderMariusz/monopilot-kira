@@ -301,6 +301,7 @@ export default function WarehouseListScreen({
           <div className="flex gap-2" aria-label={labels.actionsLabel}>
             <Button
               type="button"
+              className="btn-primary"
               onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
               disabled={!canUpdateInfra}
               aria-label={canUpdateInfra ? `+ ${labels.addWarehouse}` : `+ ${labels.addWarehouse} — ${labels.insufficientPermission}`}
@@ -309,6 +310,7 @@ export default function WarehouseListScreen({
             </Button>
             <Button
               type="button"
+              className="btn-secondary"
               onClick={() => void bulkDeactivate()}
               disabled={!canUpdateInfra || selected.size === 0 || pending}
               aria-label={deactivateButtonName}
@@ -536,7 +538,7 @@ export default function WarehouseListScreen({
               </label>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
+                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createWarehouse : `${labels.createWarehouse} — ${labels.insufficientPermission}`}>
                   {createPending ? labels.createWarehousePending : labels.createWarehouse}
                 </Button>
               </div>

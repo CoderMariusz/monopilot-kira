@@ -42,6 +42,7 @@ type SchemaColumnRow = {
   column_code: string;
   data_type: string;
   presentation_json: unknown;
+  validation_json: unknown;
 };
 
 type ReferenceDataRow = {
@@ -101,8 +102,27 @@ function normalizeTableCode(value: string) {
   return value.startsWith('reference.') ? value.slice('reference.'.length) : value;
 }
 
+function enumValuesFromSchema(row: SchemaColumnRow): string[] | undefined {
+  if (row.data_type !== 'enum') return undefined;
+  const validation = row.validation_json;
+  if (validation && typeof validation === 'object') {
+    const candidate =
+      (validation as { enum_values?: unknown }).enum_values ?? (validation as { values?: unknown }).values;
+    if (Array.isArray(candidate) && candidate.length > 0) return candidate.map(String);
+  }
+  return undefined;
+}
+
 function mapColumns(rows: SchemaColumnRow[]): ReferenceColumn[] {
-  return rows.map((row) => ({ key: row.column_code, label: labelFromPresentation(row), type: columnType(row) }));
+  return rows.map((row) => {
+    const enumOptions = enumValuesFromSchema(row);
+    return {
+      key: row.column_code,
+      label: labelFromPresentation(row),
+      type: columnType(row),
+      ...(enumOptions ? { enumOptions } : {}),
+    };
+  });
 }
 
 function mapRows(rows: ReferenceDataRow[]): ReferenceRow[] {
@@ -114,7 +134,11 @@ function mapRows(rows: ReferenceDataRow[]): ReferenceRow[] {
   }));
 }
 
-async function buildLabels(locale: string, namespace: string): Promise<ReferenceDataLabels> {
+async function buildLabels(
+  locale: string,
+  namespace: string,
+  enumColumnKeys: string[] = [],
+): Promise<ReferenceDataLabels> {
   const fallback: ReferenceDataLabels = {
     title: 'Reference data',
     subtitle: 'Schema-driven configuration table.',
@@ -178,6 +202,25 @@ async function buildLabels(locale: string, namespace: string): Promise<Reference
     }
   };
 
+  // Localized labels for schema enum option values. Translation shape:
+  //   settings.<namespace>.<column>.options.<value> = "Localized label"
+  // Flattened to `<column>.<value>` so the CRUD modal can resolve a dropdown
+  // option label. Resolved per enum column so it does not depend on reading the
+  // whole namespace root (next-intl t.raw requires a concrete key).
+  const optionLabels: Record<string, string> = {};
+  for (const columnKey of enumColumnKeys) {
+    try {
+      const options = typeof t.raw === 'function' ? (t.raw(`${columnKey}.options`) as unknown) : null;
+      if (options && typeof options === 'object') {
+        for (const [value, label] of Object.entries(options as Record<string, unknown>)) {
+          if (typeof label === 'string' && label.trim()) optionLabels[`${columnKey}.${value}`] = label;
+        }
+      }
+    } catch {
+      // No option labels for this column — humanized fallback applies in the modal.
+    }
+  }
+
   return {
     title: safeT('title', fallback.title),
     subtitle: safeT('subtitle', fallback.subtitle),
@@ -199,6 +242,7 @@ async function buildLabels(locale: string, namespace: string): Promise<Reference
     no: safeT('no', fallback.no),
     rowKey: safeT('rowKey', fallback.rowKey),
     rowKeyHelp: safeT('rowKeyHelp', fallback.rowKeyHelp),
+    ...(Object.keys(optionLabels).length ? { optionLabels } : {}),
     modal: {
       edit: {
         title: safeT('modal.edit.title', fallback.modal?.edit?.title ?? ''),
@@ -242,7 +286,7 @@ async function readReferenceData(config: SingleReferenceScreenConfig): Promise<R
       const schemaTableCodes = [tableCode, `reference.${tableCode}`];
       const [schemaResult, countResult, rowResult, permissionResult] = await Promise.all([
         client.query<SchemaColumnRow>(
-          `select table_code, column_code, data_type, presentation_json
+          `select table_code, column_code, data_type, presentation_json, validation_json
              from public.reference_schemas
             where table_code = any($1::text[])
               and deprecated_at is null
@@ -302,7 +346,9 @@ async function readReferenceData(config: SingleReferenceScreenConfig): Promise<R
 }
 
 export async function SingleReferenceScreen({ locale, config }: { locale: string; config: SingleReferenceScreenConfig }) {
-  const [labels, data] = await Promise.all([buildLabels(locale, config.labelNamespace), readReferenceData(config)]);
+  const data = await readReferenceData(config);
+  const enumColumnKeys = data.table.columns.filter((column) => column.enumOptions?.length).map((column) => column.key);
+  const labels = await buildLabels(locale, config.labelNamespace, enumColumnKeys);
 
   return (
     <ReferenceDataScreen

@@ -198,7 +198,14 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     const inviteUserAction = vi.fn().mockResolvedValue({ ok: true, data: { email: 'new@example.com', expiresAt: '2026-06-01T00:00:00Z' } });
     const { unmount } = renderScreen({ inviteUserAction });
 
-    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    // BUG 2: the route CTA must render with the prominent primary variant
+    // (shared .btn-primary in globals.css), not the low-contrast bare .btn.
+    const inviteCta = screen.getByRole('button', { name: /invite user/i });
+    expect(inviteCta).toHaveClass('btn-primary');
+    const exportCta = screen.getByRole('button', { name: /^export$/i });
+    expect(exportCta).toHaveClass('btn-secondary');
+
+    await user.click(inviteCta);
     // Exactly ONE invite dialog is rendered (the duplicate competing modal that
     // caused the focus war / close-on-click is gone).
     const dialogs = await screen.findAllByRole('dialog', { name: /invite team member/i });

@@ -14,6 +14,13 @@ export type ReferenceColumn = {
   key: string;
   label: string;
   type: 'text' | 'boolean' | 'badge';
+  /**
+   * Allowed values when this column is a schema enum (reference_schemas.data_type
+   * = 'enum', validation_json.enum_values). Drives a dropdown in the CRUD modal so
+   * an out-of-enum value can never be submitted (would otherwise return
+   * invalid_input from the reference upsert Server Action).
+   */
+  enumOptions?: string[];
 };
 
 export type ReferenceTable = {
@@ -54,6 +61,11 @@ export type ReferenceDataLabels = {
   no: string;
   rowKey: string;
   rowKeyHelp: string;
+  /**
+   * Localized labels for schema enum option values, keyed by `<columnKey>.<value>`
+   * (e.g. `category.preparation`). Falls back to a humanized value when absent.
+   */
+  optionLabels?: Record<string, string>;
   modal?: {
     edit?: React.ComponentProps<typeof RefRowEditModal>['labels'];
     delete?: React.ComponentProps<typeof DeleteReferenceDataModal>['labels'];
@@ -99,7 +111,12 @@ type ModalColumn = {
   required?: boolean;
   readOnlyWhenEditing?: boolean;
   help?: string;
+  options?: Array<{ value: string; label: string }>;
 };
+
+function humanizeOptionLabel(value: string) {
+  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 type ModalRow = {
   tableCode: string;
@@ -149,12 +166,26 @@ function modalColumns(labels: ReferenceDataLabels, table?: ReferenceTable): Moda
     help: labels.rowKeyHelp,
   };
 
-  const dataColumns = (table?.columns ?? []).map((column) => ({
-    columnCode: column.key,
-    label: column.label,
-    type: column.type === 'boolean' ? 'boolean' : 'text',
-    required: /name|display|code/i.test(column.key),
-  } satisfies ModalColumn));
+  const dataColumns = (table?.columns ?? []).map((column) => {
+    if (column.enumOptions && column.enumOptions.length > 0) {
+      return {
+        columnCode: column.key,
+        label: column.label,
+        type: 'enum',
+        required: /name|display|code/i.test(column.key),
+        options: column.enumOptions.map((value) => ({
+          value,
+          label: labels.optionLabels?.[`${column.key}.${value}`] ?? humanizeOptionLabel(value),
+        })),
+      } satisfies ModalColumn;
+    }
+    return {
+      columnCode: column.key,
+      label: column.label,
+      type: column.type === 'boolean' ? 'boolean' : 'text',
+      required: /name|display|code/i.test(column.key),
+    } satisfies ModalColumn;
+  });
 
   return [rowKeyColumn, ...dataColumns];
 }
@@ -268,12 +299,13 @@ export function ReferenceDataScreen({
           <p>{labels.subtitle}</p>
         </div>
         <div data-testid="reference-data-actions" className="flex items-center gap-2">
-          <a className="btn" href={`/settings/reference/${activeTableCode}/import`}>
+          <a className="btn btn-secondary" href={`/settings/reference/${activeTableCode}/import`}>
             {labels.importCsv}
           </a>
-          <Button type="button">{labels.exportCsv}</Button>
+          <Button type="button" className="btn-secondary">{labels.exportCsv}</Button>
           <Button
             type="button"
+            className="btn-primary"
             disabled={!canEditReferenceData}
             title={!canEditReferenceData ? labels.permissionDenied : undefined}
             onClick={() => {

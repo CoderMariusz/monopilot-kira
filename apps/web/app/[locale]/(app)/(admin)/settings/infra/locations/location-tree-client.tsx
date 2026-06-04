@@ -219,7 +219,7 @@ export function LocationTreeScreen({
             <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
           </div>
           {canUpdateInfra ? (
-            <Button type="button" onClick={() => openDialog('add')} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
+            <Button type="button" onClick={() => openDialog('add')} className="btn-primary">
               {labels.addLocation}
             </Button>
           ) : (
@@ -251,7 +251,7 @@ export function LocationTreeScreen({
                 {labels.csvFile}
                 <Input id="location-csv-file" name="csvFile" aria-label={labels.csvFile} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" type="file" accept=".csv,text/csv" disabled={!canImport} />
               </label>
-              <Button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600" disabled={!canImport} aria-label={!canImport ? labels.insufficientPermissions : labels.importCsv}>{labels.importCsv}</Button>
+              <Button type="submit" className="btn-primary" disabled={!canImport} aria-label={!canImport ? labels.insufficientPermissions : labels.importCsv}>{labels.importCsv}</Button>
             </div>
           </div>
         </form>
@@ -330,7 +330,7 @@ export function LocationTreeScreen({
               ) : null}
               {formError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
             </div>
-            <div className="mt-5 flex justify-end gap-2"><Button type="button" onClick={() => setDialogMode(null)}>{labels.cancel}</Button><Button type="submit" disabled={!valid}>{dialogMode === 'edit' ? labels.saveChanges : labels.createLocation}</Button></div>
+            <div className="mt-5 flex justify-end gap-2"><Button type="button" className="btn-secondary" onClick={() => setDialogMode(null)}>{labels.cancel}</Button><Button type="submit" className="btn-primary" disabled={!valid}>{dialogMode === 'edit' ? labels.saveChanges : labels.createLocation}</Button></div>
           </form>
         </div>
       ) : null}

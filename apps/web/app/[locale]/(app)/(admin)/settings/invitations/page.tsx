@@ -12,14 +12,17 @@
  * the RTL test path — the client component is rendered directly with those props.
  * Otherwise the route prefetches real data and hands it to the client as a
  * controlled component (no client-side fetch round-trip, no skeleton-first flash).
+ *
+ * Structural consolidation (F4): the canonical client island now lives at
+ * ./invitations-screen.client.tsx (co-located in the localized tree). The legacy
+ * non-localized (admin)/settings/invitations/page.tsx is a redirect shim that
+ * points here.
  */
 import {
   listInvitations,
   type ListInvitationsResult,
 } from '../../../../../../actions/users/invitations-lifecycle';
-import InvitationsClient from '../../../../../(admin)/settings/invitations/page';
-
-import type { ComponentProps } from 'react';
+import InvitationsClient, { type InvitationsScreenProps } from './invitations-screen.client';
 
 const VIEW_PERMISSION = 'settings.users.view';
 const INVITE_PERMISSION = 'settings.users.invite';
@@ -38,14 +41,12 @@ type PendingInvitation = {
   inviteToken?: string;
 };
 
-type InvitationsClientProps = ComponentProps<typeof InvitationsClient>;
-
 type RouteProps = {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type PageInput = Partial<InvitationsClientProps> & RouteProps;
+type PageInput = Partial<InvitationsScreenProps> & RouteProps;
 
 export const dynamic = 'force-dynamic';
 
@@ -124,7 +125,7 @@ export default async function LocalizedInvitationsPage(props: PageInput = {}) {
   // Controlled mode (RTL test harness passes data props directly): render the
   // client as-is so behaviour assertions exercise the production component.
   if (isControlled) {
-    return <InvitationsClient {...(props as InvitationsClientProps)} />;
+    return <InvitationsClient {...(props as InvitationsScreenProps)} />;
   }
 
   // SSR mode: prefetch real org-scoped invitations and render the client as a

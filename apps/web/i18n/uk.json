@@ -686,6 +686,15 @@
       "no": "Ні",
       "rowKey": "Ключ",
       "rowKeyHelp": "Великі літери, мін. 2 символи. Унікальний у таблиці.",
+      "category": {
+        "options": {
+          "preparation": "Підготовка",
+          "processing": "Обробка",
+          "packaging": "Пакування",
+          "quality": "Якість",
+          "logistics": "Логістика"
+        }
+      },
       "modal": {
         "edit": {
           "title": "Додати крок процесу",

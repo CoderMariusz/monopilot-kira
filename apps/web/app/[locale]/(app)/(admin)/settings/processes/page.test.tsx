@@ -66,10 +66,19 @@ function wireLiveRead(script: DbScript) {
   );
 }
 
+// Mirrors the seeded reference.processes schema (packages/db/seeds/reference-schemas.sql:120
+// / migration 073): category is an enum whose validation_json.enum_values is the
+// closed set the upsert Server Action validates against.
 const liveSchema: FakeRow[] = [
-  { table_code: 'reference.processes', column_code: 'process_code', data_type: 'text', presentation_json: { label: 'Process code' } },
-  { table_code: 'reference.processes', column_code: 'name', data_type: 'text', presentation_json: { label: 'Name' } },
-  { table_code: 'reference.processes', column_code: 'category', data_type: 'enum', presentation_json: { label: 'Category' } },
+  { table_code: 'reference.processes', column_code: 'process_code', data_type: 'text', presentation_json: { label: 'Process code' }, validation_json: { required: true } },
+  { table_code: 'reference.processes', column_code: 'name', data_type: 'text', presentation_json: { label: 'Name' }, validation_json: { required: true } },
+  {
+    table_code: 'reference.processes',
+    column_code: 'category',
+    data_type: 'enum',
+    presentation_json: { label: 'Category' },
+    validation_json: { required: false, enum_values: ['preparation', 'processing', 'packaging', 'quality', 'logistics'] },
+  },
 ];
 
 const liveRows: FakeRow[] = [
@@ -122,16 +131,25 @@ describe('/settings/processes schema-driven reference screen', () => {
     await user.click(screen.getByRole('button', { name: /add process/i }));
 
     const dialog = await screen.findByTestId('ref-row-edit-modal');
-    expect(dialog).toHaveAccessibleName('Add process');
+    expect(dialog).toHaveAccessibleName('Add process step');
     expect(within(dialog).getByText('Reference table · processes')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent(/settings\.processes/);
 
-    await user.type(within(dialog).getByLabelText('Row key'), 'BLENDING');
+    await user.type(within(dialog).getByLabelText('Key'), 'BLENDING');
     await user.type(within(dialog).getByLabelText('Process code'), 'BLENDING');
     await user.type(within(dialog).getByLabelText('Name'), 'Ingredient blending');
-    await user.type(within(dialog).getByLabelText('Category'), 'preparation');
+
+    // BUG 1: Category is a dropdown of the schema enum_values, not a free textbox —
+    // selecting a valid value is the only way to set it, so invalid_input is
+    // impossible by construction.
+    const categoryField = within(dialog).getByTestId('ref-row-field-category');
+    expect(within(categoryField).queryByRole('textbox'), 'Category must not be a free-text input').toBeNull();
+    const categoryCombobox = within(categoryField).getByRole('combobox');
+    expect(categoryCombobox).toBeInTheDocument();
+    await user.click(within(categoryField).getByRole('option', { name: /preparation/i }));
+
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     expect(mocks.upsertReferenceRow).toHaveBeenCalledWith({
@@ -143,6 +161,36 @@ describe('/settings/processes schema-driven reference screen', () => {
         category: 'preparation',
       },
     });
+  });
+
+  it('renders the Category field as a dropdown limited to the schema enum_values (no free text)', async () => {
+    const user = userEvent.setup();
+    wireLiveRead({
+      schema: [
+        { table_code: 'reference.processes', column_code: 'process_code', data_type: 'text', presentation_json: { label: 'Process code' } },
+        { table_code: 'reference.processes', column_code: 'name', data_type: 'text', presentation_json: { label: 'Name' } },
+        {
+          table_code: 'reference.processes',
+          column_code: 'category',
+          data_type: 'enum',
+          presentation_json: { label: 'Category' },
+          validation_json: { required: false, enum_values: ['preparation', 'processing', 'packaging', 'quality', 'logistics'] },
+        },
+      ],
+      rows: [],
+      canEdit: true,
+    });
+
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: /add process/i }));
+    const dialog = await screen.findByTestId('ref-row-edit-modal');
+    const categoryField = within(dialog).getByTestId('ref-row-field-category');
+
+    // Exactly the five seeded/zod-validated categories — no more, no less.
+    const options = within(categoryField).getAllByRole('option');
+    const optionValues = options.map((o) => o.getAttribute('data-value'));
+    expect(optionValues).toEqual(['preparation', 'processing', 'packaging', 'quality', 'logistics']);
+    expect(within(categoryField).queryByRole('textbox')).toBeNull();
   });
 
   it('defines every settings.processes key used by the shared reference CRUD modal in all runtime locales', () => {
@@ -208,6 +256,19 @@ describe('/settings/processes schema-driven reference screen', () => {
           expect(value, `${locale} settings.processes.${key} must be translated`).toEqual(expect.any(String));
           expect(value, `${locale} settings.processes.${key} must not leak a raw key`).not.toMatch(/^settings\.processes/);
         }
+      }
+    }
+  });
+
+  it('defines a localized label for every category enum value in all runtime locales (BUG 1)', () => {
+    const categoryValues = ['preparation', 'processing', 'packaging', 'quality', 'logistics'];
+    for (const locale of ['en', 'pl', 'ro', 'uk']) {
+      const runtime = JSON.parse(readFileSync(join(process.cwd(), 'i18n', `${locale}.json`), 'utf8')) as Record<string, unknown>;
+      const processes = (runtime.settings as Record<string, unknown>).processes as Record<string, unknown>;
+      const category = processes.category as Record<string, unknown> | undefined;
+      const options = category?.options as Record<string, unknown> | undefined;
+      for (const value of categoryValues) {
+        expect(options?.[value], `${locale} settings.processes.category.options.${value} must be translated`).toEqual(expect.any(String));
       }
     }
   });

@@ -345,6 +345,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
         <div className="flex flex-wrap gap-2" aria-label="Production line actions">
           <Button
             type="button"
+            className="btn-primary"
             disabled={!canUpdateInfra}
             aria-label={canUpdateInfra ? labels.addLine : `${labels.addLine} — ${labels.insufficientPermission}`}
             onClick={() => canUpdateInfra && setCreateDialogOpen(true)}
@@ -353,6 +354,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
           </Button>
           <Button
             type="button"
+            className="btn-secondary"
             disabled={!canUpdateInfra || pending || selectedVisibleCount === 0}
             aria-label={!canUpdateInfra ? labels.insufficientPermission : labels.bulkActivate}
             onClick={() => void bulkActivate()}
@@ -522,7 +524,7 @@ export default function LinesScreen({ labels: labelsProp, lines, machines, canUp
               </fieldset>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="dry-run" onClick={() => setCreateDialogOpen(false)} disabled={createPending}>{labels.cancel}</Button>
-                <Button type="submit" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createLine : `${labels.createLine} — ${labels.insufficientPermission}`}>
+                <Button type="submit" className="btn-primary" disabled={!canUpdateInfra || createPending} aria-label={canUpdateInfra ? labels.createLine : `${labels.createLine} — ${labels.insufficientPermission}`}>
                   {createPending ? labels.createLinePending : labels.createLine}
                 </Button>
               </div>

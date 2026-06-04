@@ -28,6 +28,11 @@ const CANONICAL_PATHS: Record<string, string> = {
   // tree. Guard the canonical sources so the assertions exercise live code.
   'users/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/users/users-screen.client.tsx'),
   'security/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/security/security-screen.client.tsx'),
+  // Structural consolidation (F4): the non-localized Invitations / Manufacturing
+  // Operations routes were reduced to redirect shims; the real production screens
+  // live in the localized tree. Guard the canonical sources.
+  'invitations/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/invitations/invitations-screen.client.tsx'),
+  'reference/manufacturing-operations/page.tsx': resolve(appRoot, '[locale]/(app)/(admin)/settings/reference/manufacturing-operations/page.tsx'),
 };
 
 function read(relativePath: string): string {
@@ -100,10 +105,14 @@ describe('admin/settings no production fixture defaults', () => {
     expect(source).toMatch(/policiesNotWired/);
   });
 
-  it('manufacturing-operations/page.tsx renders an unavailable-state alert when operations data is not wired', () => {
+  it('manufacturing-operations/page.tsx (canonical localized) reads real data via listManufacturingOperations and handles ok===false', () => {
+    // F4 consolidation: the canonical is now the localized server page (CANONICAL_PATHS above).
+    // The non-localized duplicate is a redirect shim. The localized server page must:
+    //   - call listManufacturingOperations (not a fixture)
+    //   - handle result.ok === false (honest error/permission-denied state)
     const source = read('reference/manufacturing-operations/page.tsx');
-    expect(source).toMatch(/settings-manufacturing-operations-unavailable/);
-    expect(source).toMatch(/operationsUnavailable/);
+    expect(source).toMatch(/listManufacturingOperations/);
+    expect(source).toMatch(/result\.ok\s*===?\s*false/);
   });
 });
 

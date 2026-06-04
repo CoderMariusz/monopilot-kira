@@ -686,6 +686,15 @@
       "no": "Nie",
       "rowKey": "Klucz",
       "rowKeyHelp": "Wielkie litery, min. 2 znaki. Unikalne w tabeli.",
+      "category": {
+        "options": {
+          "preparation": "Przygotowanie",
+          "processing": "Przetwarzanie",
+          "packaging": "Pakowanie",
+          "quality": "Jakość",
+          "logistics": "Logistyka"
+        }
+      },
       "modal": {
         "edit": {
           "title": "Dodaj krok procesu",

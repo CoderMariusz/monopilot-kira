@@ -196,7 +196,7 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
 
   return (
     <>
-      <Button type="button" data-modal-id="SM-UOM-ADD" onClick={() => setOpen(true)}>
+      <Button type="button" className="btn-primary" data-modal-id="SM-UOM-ADD" onClick={() => setOpen(true)}>
         {labels.addUnit}
       </Button>
       <Dialog
@@ -206,10 +206,10 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
         modalId="SM-UOM-ADD"
         footer={
           <>
-            <Button type="button" onClick={() => setOpen(false)}>
+            <Button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
               {labels.cancel}
             </Button>
-            <Button type="submit" form="settings-units-add-unit-form" disabled={pending}>
+            <Button type="submit" className="btn-primary" form="settings-units-add-unit-form" disabled={pending}>
               {labels.saveUnit}
             </Button>
           </>
@@ -307,10 +307,10 @@ function AddConversionDialog({ labels, unitCodes }: { labels: UnitsManagerLabels
         modalId="SM-UOM-CONV-ADD"
         footer={
           <>
-            <Button type="button" onClick={() => setOpen(false)}>
+            <Button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
               {labels.cancel}
             </Button>
-            <Button type="submit" form="settings-units-add-conversion-form" disabled={pending}>
+            <Button type="submit" className="btn-primary" form="settings-units-add-conversion-form" disabled={pending}>
               {labels.saveConversion}
             </Button>
           </>

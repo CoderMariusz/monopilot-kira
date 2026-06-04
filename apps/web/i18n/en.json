@@ -686,6 +686,15 @@
       "no": "No",
       "rowKey": "Key",
       "rowKeyHelp": "Uppercase, min 2 chars. Unique in table.",
+      "category": {
+        "options": {
+          "preparation": "Preparation",
+          "processing": "Processing",
+          "packaging": "Packaging",
+          "quality": "Quality",
+          "logistics": "Logistics"
+        }
+      },
       "modal": {
         "edit": {
           "title": "Add process step",

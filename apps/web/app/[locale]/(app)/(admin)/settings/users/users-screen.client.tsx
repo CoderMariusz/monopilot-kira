@@ -346,10 +346,10 @@ function InviteDialog({
         </Modal.Body>
         <Modal.Footer>
           <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
-            <Button type="button" onClick={() => onOpenChange(false)}>
+            <Button type="button" className="btn-secondary" onClick={() => onOpenChange(false)}>
               {labels.cancel}
             </Button>
-            <Button type="submit" disabled={isPending || !inviteUserAction}>
+            <Button type="submit" className="btn-primary" disabled={isPending || !inviteUserAction}>
               {labels.sendInvitation}
             </Button>
           </div>
@@ -470,8 +470,8 @@ function RoleAssignDialog({
         </Modal.Body>
         <Modal.Footer>
           <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
-            <Button type="button" onClick={onClose}>{labels.cancel}</Button>
-            <Button type="submit" disabled={isPending || !draft || !roleId || roleId === draft.user.roleId || !assignRoleAction}>
+            <Button type="button" className="btn-secondary" onClick={onClose}>{labels.cancel}</Button>
+            <Button type="submit" className="btn-primary" disabled={isPending || !draft || !roleId || roleId === draft.user.roleId || !assignRoleAction}>
               {title}
             </Button>
           </div>
@@ -545,7 +545,7 @@ export default function SettingsUsersScreen({
         title={interpolate(labels.noUsersTitle, { role: labels.emptyRoleName[selectedRole] })}
         body={labels.noUsersBody}
         action={(
-          <Button type="button" className="mt-4" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
+          <Button type="button" className="btn-primary mt-4" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
             {labels.inviteUser}
           </Button>
         )}
@@ -563,10 +563,10 @@ export default function SettingsUsersScreen({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button type="button" onClick={exportVisibleUsers}>
+          <Button type="button" className="btn-secondary" onClick={exportVisibleUsers}>
             {labels.export}
           </Button>
-          <Button type="button" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
+          <Button type="button" className="btn-primary" onClick={openInviteDialog} disabled={!data.canInviteUsers}>
             + {labels.inviteUser}
           </Button>
         </div>

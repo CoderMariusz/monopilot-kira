@@ -686,6 +686,15 @@
       "no": "Nu",
       "rowKey": "Cheie",
       "rowKeyHelp": "Majuscule, min. 2 caractere. Unic în tabel.",
+      "category": {
+        "options": {
+          "preparation": "Pregătire",
+          "processing": "Procesare",
+          "packaging": "Ambalare",
+          "quality": "Calitate",
+          "logistics": "Logistică"
+        }
+      },
       "modal": {
         "edit": {
           "title": "Adăugare pas de proces",
