@@ -43,7 +43,6 @@ export function getMfaMasterKeyFromEnv(): string {
     }
     // Non-prod: warn loudly so devs notice, but do not throw — local/CI
     // workflows may run without MFA configured.
-    // eslint-disable-next-line no-console
     console.warn(
       '[mfa] MFA_MASTER_KEY is unset — TOTP enrol/verify will fail until it is provided. (Allowed only outside production.)',
     );

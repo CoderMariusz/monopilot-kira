@@ -196,7 +196,6 @@ function annotateOrgContextError(phase: string, err: unknown): never {
     routine: pg?.routine,
     severity: pg?.severity,
   };
-  // eslint-disable-next-line no-console -- intentional: surfaces the real root cause in Vercel runtime logs
   console.error('[withOrgContext] phase_failed', diag);
   throw err;
 }

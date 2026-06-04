@@ -50,6 +50,13 @@ const expectedCanonicalEvents = [
   'tenant.cohort.advanced',
   // T-003 — settings outbox events
   ...expectedSettingsEvents,
+  'reference.allergens_by_rm.bulk_changed',
+  'reference.allergens_added_by_process.bulk_changed',
+  'npd.allergens.bulk_rebuild_completed',
+  'npd.fg_candidate_mapped',
+  'npd.gate.advanced',
+  'npd.gate.approved',
+  'npd.gate.reverted',
 ] as const;
 
 type EventsModule = {

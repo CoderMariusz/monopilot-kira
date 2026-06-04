@@ -43,6 +43,10 @@ export enum EventType {
   REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
   REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
   NPD_ALLERGENS_BULK_REBUILD_COMPLETED = 'npd.allergens.bulk_rebuild_completed',
+  NPD_FG_CANDIDATE_MAPPED = 'npd.fg_candidate_mapped',
+  NPD_GATE_ADVANCED = 'npd.gate.advanced',
+  NPD_GATE_APPROVED = 'npd.gate.approved',
+  NPD_GATE_REVERTED = 'npd.gate.reverted',
 }
 
 export const ALL_SETTINGS_EVENTS = [
