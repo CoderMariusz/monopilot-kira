@@ -59,7 +59,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-045 | fa_bom_view + bom_export_csv Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-028 |
 | T-046 | ROOT: D365 integration UI group | ⬜ PENDING | Blocked by T-044 |
 | T-047 | Wizard step Server Actions (validate/dataPreview/build) | ⬜ PENDING | Blocked by T-042, T-043, T-044, T-045, T-080, T-081 |
-| T-048 | dashboard_summary + launch_alerts + missing_requirements view | ⬜ PENDING | Blocked by T-001, T-049 |
+| T-048 | dashboard_summary + launch_alerts + missing_requirements view | ✅ DONE | DONE 2026-06-04 (Wave C). dashboard_summary/launch_alerts/missing_required_cols views (mig 106, security_invoker) — merged |
 | T-049 | Reference.AlertThresholds + d365_import_cache tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.AlertThresholds + d365_import_cache (mig 084) — merged (canonical AlertThresholds owner) |
 | T-050 | Reference.AlertThresholds default seed | ✅ DONE | DONE 2026-06-04 (Wave B). AlertThresholds default seed (mig 096, Sonnet, 9/9, matches T-049 threshold_key) — merged |
 | T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ⬜ PENDING | Blocked by T-048, T-049, T-050 |
@@ -68,15 +68,15 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
 | T-055 | Reference.GateChecklistTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.GateChecklistTemplates (mig 092) — merged |
 | T-056 | Default G0-G4 GateChecklistTemplates seed | ✅ DONE | DONE 2026-06-04 (Wave B). Default G0-G4 GateChecklistTemplates seed (mig 101, Sonnet, 9/9 idempotent) — merged |
-| T-057 | createProject + listProjects + getProject Server Actions | ⬜ PENDING | Blocked by T-054, T-055, T-056 |
+| T-057 | createProject + listProjects + getProject Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). createProject/list/get Server Actions + npd.project.created event (mig 103) — Codex+rework (typecheck fix, code constraint→(org_id,code) fixing T-054 global-unique bug, real integration tests). merged |
 | T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ⬜ PENDING | Blocked by T-054, T-057, T-095 |
 | T-059 | UI: Pipeline Kanban view | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-060 | ROOT: Pipeline views group | ⬜ PENDING | Blocked by T-057, T-059 |
 | T-061 | ROOT: Gate screen components group | ⬜ PENDING | Blocked by T-057, T-058 |
 | T-062 | E2E: project create → advance G0..G2 → approve G3 | ⬜ PENDING | Blocked by T-057, T-058, T-059, T-061, T-095, T-096, T-097 |
 | T-063 | formulations + formulation_versions + formulation_ingredients tables | ✅ DONE | DONE 2026-06-04 (Wave B). formulations+versions+ingredients+audit+cache (mig 093, 5 tables, NUMERIC, DEFERRABLE circular FK) — merged. Nit: audit_log org-link FK (T-064 follow) |
-| T-064 | Formulation lifecycle Server Actions | ⬜ PENDING | Blocked by T-063 |
-| T-065 | Formulation pure-function compute (cost/nutrition/allergen) | ⬜ PENDING | Blocked by T-063 |
+| T-064 | Formulation lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation lifecycle actions (draft/trial/lock) + mig 104 (formulation.* outbox events + locked-ingredient immutability trigger) — Codex+rework (replaced mock-only tests with REAL DB integration). merged |
+| T-065 | Formulation pure-function compute (cost/nutrition/allergen) | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation pure compute (cost/nutrition/allergen) @monopilot/domain + recompute/compare actions — Opus impl-hard + rework (nutrition load via NEW Reference.RawMaterials mig 107, money string-only, version existence checks, seq-keyed diff). Codex review. NUMERIC-exact. merged |
 | T-066 | UI: FormulationEditor (RecipeScreen prototype) | ⬜ PENDING | Blocked by T-064 |
 | T-067 | ROOT: FormulationEditor live panels | ⬜ PENDING | Blocked by T-065, T-066 |
 | T-068 | E2E: formulation edit → submit-for-trial → lock | ⬜ PENDING | Blocked by T-064, T-065, T-066, T-067 |
@@ -84,7 +84,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-070 | costing_breakdowns + costing_waterfall_steps tables | ✅ DONE | DONE 2026-06-03 (Wave A1). costing_breakdowns + waterfall_steps (mig 087, NUMERIC-exact) — merged |
 | T-071 | DEFERRED/CROSS-MODULE: Sensory schema (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-072 | Nutrition computation Server Action + Nutri-Score | ⬜ PENDING | Blocked by T-069 |
-| T-073 | Costing 9-step waterfall + scenario Server Action | ⬜ PENDING | Blocked by T-070, T-049, T-050 |
+| T-073 | Costing 9-step waterfall + scenario Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Costing 9-step waterfall + scenario action (apps/web/lib/costing) + mig 108 (scenario params jsonb) — Opus impl-hard + rework (exact margin gate, persist params, bounds). Codex review. NUMERIC-exact. merged |
 | T-074 | UI: NutritionScreen | ⬜ PENDING | Blocked by T-072 |
 | T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
@@ -92,7 +92,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-078 | Approval criteria (C1-C7) evaluator Server Action | ⬜ PENDING | Blocked by T-064, T-072, T-073, T-077 |
 | T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
 | T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
-| T-081 | risks CRUD + lifecycle Server Actions | ⬜ PENDING | Blocked by T-080 |
+| T-081 | risks CRUD + lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). risks CRUD Server Actions + risk.created event (mig 105) — merged |
 | T-082 | UI: RiskRegisterScreen + RiskAddModal | ⬜ PENDING | Blocked by T-081 |
 | T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
 | T-084 | Compliance docs upload + signed URL + soft-delete | ⬜ PENDING | Blocked by T-083 |
