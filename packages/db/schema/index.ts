@@ -115,6 +115,8 @@ export { complianceDocs } from './compliance-docs.js';
 export type { ComplianceDoc, NewComplianceDoc } from './compliance-docs.js';
 export { bomHeaders, bomLines } from './shared-bom.js';
 export type { BomHeader, BomLine, NewBomHeader, NewBomLine } from './shared-bom.js';
+export { faBomView } from './fa-bom-view.js';
+export type { FaBomView } from './fa-bom-view.js';
 export { factoryReleaseStatus } from './factory-release-status.js';
 export type {
   FactoryReleaseStatus,
