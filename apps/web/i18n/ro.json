@@ -1847,6 +1847,48 @@
         "Complete": "Finalizat",
         "Built": "Construit"
       }
+    },
+    "faProductionTab": {
+      "title": "Detalii producție",
+      "componentsCount": "{count} componente",
+      "subtitle": "Editările resetează automat indicatorul Built.",
+      "lockedTitle": "Blocat",
+      "lockedBody": "Pack_Size trebuie completat în Core înainte ca câmpurile Proces/Randament să devină editabile.",
+      "v06Pass": "V06 ✓",
+      "v06Warn": "V06 ⚠",
+      "aggregateTitle": "Agregat (doar citire)",
+      "autoHint": "Derivat automat — doar citire.",
+      "singleComponent": "(o singură componentă)",
+      "save": "Salvează producția",
+      "saving": "Se salvează…",
+      "saveSuccess": "Secțiunea de producție a fost salvată.",
+      "saveError": "Secțiunea de producție nu a putut fi salvată.",
+      "selectPlaceholder": "Selectează…",
+      "loading": "Se încarcă secțiunea de producție…",
+      "empty": "Încă nu există componente de producție",
+      "emptyBody": "Acest produs nu are încă componente ProdDetail.",
+      "error": "Secțiunea de producție nu a putut fi încărcată.",
+      "forbidden": "Nu aveți permisiunea de a edita secțiunea de producție.",
+      "fields": {
+        "manufacturing_operation_1": "Proces 1",
+        "manufacturing_operation_2": "Proces 2",
+        "manufacturing_operation_3": "Proces 3",
+        "manufacturing_operation_4": "Proces 4",
+        "operation_yield_1": "Randament P1 %",
+        "operation_yield_2": "Randament P2 %",
+        "operation_yield_3": "Randament P3 %",
+        "operation_yield_4": "Randament P4 %",
+        "intermediate_code_p1": "Cod PR P1 (auto)",
+        "intermediate_code_p2": "Cod PR P2 (auto)",
+        "intermediate_code_p3": "Cod PR P3 (auto)",
+        "intermediate_code_p4": "Cod PR P4 (auto)",
+        "line": "Linie",
+        "equipment_setup": "Dieset (auto)",
+        "yield_line": "Randament linie %",
+        "resource_requirement": "Personal",
+        "rate": "Ritm",
+        "intermediate_code_final": "Cod PR final (auto)"
+      }
     }
   }
 }

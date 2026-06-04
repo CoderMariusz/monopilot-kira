@@ -1847,6 +1847,48 @@
         "Complete": "Complete",
         "Built": "Built"
       }
+    },
+    "faProductionTab": {
+      "title": "Production detail",
+      "componentsCount": "{count} component(s)",
+      "subtitle": "Edits reset Built flag automatically.",
+      "lockedTitle": "Blocked",
+      "lockedBody": "Pack_Size must be filled in Core before Process/Yield fields become editable.",
+      "v06Pass": "V06 ✓",
+      "v06Warn": "V06 ⚠",
+      "aggregateTitle": "Aggregate (read-only)",
+      "autoHint": "Auto-derived — read-only.",
+      "singleComponent": "(single component)",
+      "save": "Save Production",
+      "saving": "Saving…",
+      "saveSuccess": "Production section saved.",
+      "saveError": "Could not save the Production section.",
+      "selectPlaceholder": "Select…",
+      "loading": "Loading Production section…",
+      "empty": "No production components yet",
+      "emptyBody": "This product has no ProdDetail components yet.",
+      "error": "Unable to load the Production section.",
+      "forbidden": "You do not have permission to edit the Production section.",
+      "fields": {
+        "manufacturing_operation_1": "Process 1",
+        "manufacturing_operation_2": "Process 2",
+        "manufacturing_operation_3": "Process 3",
+        "manufacturing_operation_4": "Process 4",
+        "operation_yield_1": "Yield P1 %",
+        "operation_yield_2": "Yield P2 %",
+        "operation_yield_3": "Yield P3 %",
+        "operation_yield_4": "Yield P4 %",
+        "intermediate_code_p1": "PR code P1 (auto)",
+        "intermediate_code_p2": "PR code P2 (auto)",
+        "intermediate_code_p3": "PR code P3 (auto)",
+        "intermediate_code_p4": "PR code P4 (auto)",
+        "line": "Line",
+        "equipment_setup": "Dieset (auto)",
+        "yield_line": "Yield Line %",
+        "resource_requirement": "Staffing",
+        "rate": "Rate",
+        "intermediate_code_final": "PR Code Final (auto)"
+      }
     }
   }
 }

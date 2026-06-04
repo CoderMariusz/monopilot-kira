@@ -1847,6 +1847,48 @@
         "Complete": "Завершено",
         "Built": "Зібрано"
       }
+    },
+    "faProductionTab": {
+      "title": "Деталі виробництва",
+      "componentsCount": "Компонентів: {count}",
+      "subtitle": "Редагування автоматично скидає прапорець Built.",
+      "lockedTitle": "Заблоковано",
+      "lockedBody": "Pack_Size має бути заповнений у Core, перш ніж поля Процес/Вихід стануть редагованими.",
+      "v06Pass": "V06 ✓",
+      "v06Warn": "V06 ⚠",
+      "aggregateTitle": "Сукупно (лише читання)",
+      "autoHint": "Автоматично обчислено — лише читання.",
+      "singleComponent": "(один компонент)",
+      "save": "Зберегти виробництво",
+      "saving": "Збереження…",
+      "saveSuccess": "Розділ виробництва збережено.",
+      "saveError": "Не вдалося зберегти розділ виробництва.",
+      "selectPlaceholder": "Оберіть…",
+      "loading": "Завантаження розділу виробництва…",
+      "empty": "Ще немає виробничих компонентів",
+      "emptyBody": "Цей продукт ще не має компонентів ProdDetail.",
+      "error": "Не вдалося завантажити розділ виробництва.",
+      "forbidden": "У вас немає дозволу редагувати розділ виробництва.",
+      "fields": {
+        "manufacturing_operation_1": "Процес 1",
+        "manufacturing_operation_2": "Процес 2",
+        "manufacturing_operation_3": "Процес 3",
+        "manufacturing_operation_4": "Процес 4",
+        "operation_yield_1": "Вихід P1 %",
+        "operation_yield_2": "Вихід P2 %",
+        "operation_yield_3": "Вихід P3 %",
+        "operation_yield_4": "Вихід P4 %",
+        "intermediate_code_p1": "Код PR P1 (авто)",
+        "intermediate_code_p2": "Код PR P2 (авто)",
+        "intermediate_code_p3": "Код PR P3 (авто)",
+        "intermediate_code_p4": "Код PR P4 (авто)",
+        "line": "Лінія",
+        "equipment_setup": "Dieset (авто)",
+        "yield_line": "Вихід лінії %",
+        "resource_requirement": "Персонал",
+        "rate": "Темп",
+        "intermediate_code_final": "Кінцевий код PR (авто)"
+      }
     }
   }
 }

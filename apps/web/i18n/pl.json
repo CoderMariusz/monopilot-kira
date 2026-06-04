@@ -1847,6 +1847,48 @@
         "Complete": "Ukończony",
         "Built": "Zbudowany"
       }
+    },
+    "faProductionTab": {
+      "title": "Szczegóły produkcji",
+      "componentsCount": "Komponenty: {count}",
+      "subtitle": "Edycje automatycznie resetują flagę Built.",
+      "lockedTitle": "Zablokowane",
+      "lockedBody": "Pack_Size musi być wypełniony w sekcji Core, zanim pola Proces/Wydajność staną się edytowalne.",
+      "v06Pass": "V06 ✓",
+      "v06Warn": "V06 ⚠",
+      "aggregateTitle": "Zbiorczo (tylko do odczytu)",
+      "autoHint": "Wyliczane automatycznie — tylko do odczytu.",
+      "singleComponent": "(pojedynczy komponent)",
+      "save": "Zapisz produkcję",
+      "saving": "Zapisywanie…",
+      "saveSuccess": "Sekcja produkcji zapisana.",
+      "saveError": "Nie udało się zapisać sekcji produkcji.",
+      "selectPlaceholder": "Wybierz…",
+      "loading": "Ładowanie sekcji produkcji…",
+      "empty": "Brak komponentów produkcyjnych",
+      "emptyBody": "Ten produkt nie ma jeszcze komponentów ProdDetail.",
+      "error": "Nie można załadować sekcji produkcji.",
+      "forbidden": "Nie masz uprawnień do edycji sekcji produkcji.",
+      "fields": {
+        "manufacturing_operation_1": "Proces 1",
+        "manufacturing_operation_2": "Proces 2",
+        "manufacturing_operation_3": "Proces 3",
+        "manufacturing_operation_4": "Proces 4",
+        "operation_yield_1": "Wydajność P1 %",
+        "operation_yield_2": "Wydajność P2 %",
+        "operation_yield_3": "Wydajność P3 %",
+        "operation_yield_4": "Wydajność P4 %",
+        "intermediate_code_p1": "Kod PR P1 (auto)",
+        "intermediate_code_p2": "Kod PR P2 (auto)",
+        "intermediate_code_p3": "Kod PR P3 (auto)",
+        "intermediate_code_p4": "Kod PR P4 (auto)",
+        "line": "Linia",
+        "equipment_setup": "Dieset (auto)",
+        "yield_line": "Wydajność linii %",
+        "resource_requirement": "Obsada",
+        "rate": "Tempo",
+        "intermediate_code_final": "Końcowy kod PR (auto)"
+      }
     }
   }
 }
