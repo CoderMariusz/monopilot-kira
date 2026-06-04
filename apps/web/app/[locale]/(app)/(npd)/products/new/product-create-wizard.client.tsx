@@ -27,7 +27,7 @@ import {
 /** Allow only same-origin absolute paths (open-redirect / locale-break guard). */
 function safeReturnTo(raw: string | undefined): string | null {
   if (!raw) return null;
-  let decoded = raw;
+  let decoded: string;
   try {
     decoded = decodeURIComponent(raw);
   } catch {
@@ -35,7 +35,21 @@ function safeReturnTo(raw: string | undefined): string | null {
   }
   // Must be a root-relative path and not protocol-relative ("//host").
   if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
-  return decoded;
+  // Backslashes and ASCII controls/whitespace (incl. tab "%09", CR/LF) get
+  // normalized by URL parsers into an external origin — e.g. "/\evil.example.com"
+  // and "/%09//evil.example.com" both resolve off-site. Reject them outright.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0020\u007f\\]/.test(decoded)) return null;
+  // Defense in depth: resolve against the real origin and require it stays same-origin.
+  try {
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const resolved = new URL(decoded, origin);
+    if (resolved.origin !== origin) return null;
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 export type ProductCreateWizardProps = {

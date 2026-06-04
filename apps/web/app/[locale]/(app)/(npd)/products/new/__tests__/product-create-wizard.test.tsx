@@ -100,6 +100,31 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
   });
 
+  it('ignores a backslash open-redirect (/\\evil.example.com) and falls back to /{locale}/fa', async () => {
+    const user = userEvent.setup();
+    const action = vi.fn(async () => ({ productCode: 'FA5609' }));
+    // "%2F%5Cevil.example.com" decodes to "/\evil.example.com", which URL parsers
+    // normalize into "https://evil.example.com/".
+    render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" returnTo="%2F%5Cevil.example.com" />);
+
+    await fillAndCreate(user);
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+  });
+
+  it('ignores a tab/control-char open-redirect (/%09//evil) and falls back to /{locale}/fa', async () => {
+    const user = userEvent.setup();
+    const action = vi.fn(async () => ({ productCode: 'FA5609' }));
+    // "%2F%09%2F%2Fevil.example.com" decodes to "/\t//evil.example.com".
+    render(
+      <ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" returnTo="%2F%09%2F%2Fevil.example.com" />,
+    );
+
+    await fillAndCreate(user);
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
+  });
+
   it('lands on the new FG detail route when no returnTo is provided', async () => {
     const user = userEvent.setup();
     const action = vi.fn(async () => ({ productCode: 'FA5609' }));
