@@ -83,6 +83,11 @@ export type {
   FaAllergenOverride,
   NewFaAllergenOverride,
 } from './fa-allergen-overrides.js';
+export { allergenCascadeRebuildJobs } from './allergen-cascade-rebuild.js';
+export type {
+  AllergenCascadeRebuildJob,
+  NewAllergenCascadeRebuildJob,
+} from './allergen-cascade-rebuild.js';
 export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
 export { gateChecklistItems } from './gate-checklist-items.js';

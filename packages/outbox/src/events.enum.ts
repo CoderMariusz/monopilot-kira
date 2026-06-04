@@ -40,6 +40,9 @@ export enum EventType {
   SETTINGS_NOTIFICATION_DIGEST_UPDATED = 'settings.notification_digest_updated',
   SETTINGS_SSO_CONFIG_CHANGED = 'settings.sso.config_changed',
   SETTINGS_SCIM_TOKEN_CREATED = 'settings.scim.token_created',
+  REFERENCE_ALLERGENS_BY_RM_BULK_CHANGED = 'reference.allergens_by_rm.bulk_changed',
+  REFERENCE_ALLERGENS_ADDED_BY_PROCESS_BULK_CHANGED = 'reference.allergens_added_by_process.bulk_changed',
+  NPD_ALLERGENS_BULK_REBUILD_COMPLETED = 'npd.allergens.bulk_rebuild_completed',
 }
 
 export const ALL_SETTINGS_EVENTS = [
