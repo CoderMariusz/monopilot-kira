@@ -29,7 +29,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ✅ DONE | DONE 2026-06-04 (Wave B). IsAllRequiredFilled + Done_<Dept> + fa_status_overall view (mig 097, security_invoker, schema-driven) — merged |
 | T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
 | T-017 | Server Action closeDeptSection | ✅ DONE | DONE 2026-06-04 (Wave C). closeDeptSection Server Action — merged |
-| T-018 | Autofilter logic + reopenDeptSection Server Action | ⬜ PENDING | Blocked by T-001, T-006, T-017 |
+| T-018 | Autofilter logic + reopenDeptSection Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Autofilter logic + reopenDeptSection Server Action (mig 136) + fa.dept_reopened event — merged |
 | T-019 | UI: FA list page (fa_list prototype) | ⬜ PENDING | Blocked by T-001, T-018; no fa/page.tsx |
 | T-020 | ROOT: FA detail page shell group | ⏸ BLOCKED | page.tsx + fa-tabs.tsx + fa-right-panel.tsx exist but all tab content is "deferred-empty"; no real data; no parity evidence |
 | T-021 | UI: FA Create modal | ⬜ PENDING | Blocked by T-008 |
@@ -44,7 +44,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-030 | brief + brief_lines tables (NPD-b schema) | ✅ DONE | DONE 2026-06-03 (Wave A1). brief + brief_lines (mig 081) — merged; npd_project_id now nullable no-FK (npd_projects owned by T-054; FK deferred to Wave C) |
 | T-031 | Server Actions: createBrief + saveBriefDraft | ✅ DONE | DONE 2026-06-04 (Wave C). createBrief + saveBriefDraft Server Actions — Codex+rework (mock→REAL integration tests, transactional idempotency-resume). merged |
 | T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
-| T-033 | Server Action convertBriefToFa | ⬜ PENDING | Blocked by T-001, T-002, T-008, T-030, T-031, T-032 |
+| T-033 | Server Action convertBriefToFa | ✅ DONE | DONE 2026-06-04 (Wave C). convertBriefToFa Server Action (mig 137 brief-to-fa-audit) + brief.completed_for_project event + V08 mapping validator — REAL integration test. merged |
 | T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
 | T-035 | UI: Brief Create + Brief Convert modals | ⬜ PENDING | Blocked by T-031, T-033, T-095 |
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
@@ -89,7 +89,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-077 | Reference.ApprovalChainTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.ApprovalChainTemplates (mig 098, zod) — merged |
-| T-078 | Approval criteria (C1-C7) evaluator Server Action | ⬜ PENDING | Blocked by T-064, T-072, T-073, T-077 |
+| T-078 | Approval criteria (C1-C7) evaluator Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Approval criteria C1-C7 evaluator Server Action — merged |
 | T-079 | UI: ApprovalScreen | ⬜ PENDING | Blocked by T-061, T-078 |
 | T-080 | risks table + V18 built-blocker trigger | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). risks + V18 built-blocker trigger (mig 088) — trigger verified blocks+allows; merged. Note: downgrade-guard may interact w/ T-009 reset_built (Wave C) |
 | T-081 | risks CRUD + lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). risks CRUD Server Actions + risk.created event (mig 105) — merged |
@@ -110,7 +110,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-096 | releaseNpdProjectToFactory | ⬜ PENDING | Blocked by T-056, T-058, T-092, T-093, T-095, T-097 |
 | T-097 | Shared factory release status/read model and events | ✅ DONE | DONE 2026-06-04 (Wave C). Shared factory release status read-model (mig 125) + events — Opus review PASS (canonical boundaries clean, Technical-approval gate at DB trigger, D365 no-op). merged |
 | T-098 | Full Brief→Project→G3 FG→G4 release→Technical E2E | ⬜ PENDING | Blocked by most of the above |
-| T-099 | Allergens cascade bulk-rebuild worker | ⬜ PENDING | Blocked by T-011, T-012, T-013 |
+| T-099 | Allergens cascade bulk-rebuild worker | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade bulk-rebuild worker (mig 139) — merged (post-merge import-path fixed) |
 | T-100 | Stage-Gate G4 Launched closeout + Trial/Pilot/Handover | ⬜ PENDING | Blocked by T-058, T-093, T-095, T-096, T-097, T-098 |
 | T-101 | Add npd permission strings to enum | ✅ DONE | DONE 2026-06-04 (Wave B). npd.* permission enum + eslint baseline (no migration — code) — 10/10; T-006 seed verified FULLY consistent. merged |
 | T-102 | UI: FA Procurement tab | ⬜ PENDING | Tab button in fa-tabs.tsx; no content component; blocked by T-009, T-014, T-016, T-020 |
