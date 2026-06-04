@@ -30,7 +30,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
 | T-017 | Server Action closeDeptSection | ✅ DONE | DONE 2026-06-04 (Wave C). closeDeptSection Server Action — merged |
 | T-018 | Autofilter logic + reopenDeptSection Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Autofilter logic + reopenDeptSection Server Action (mig 136) + fa.dept_reopened event — merged |
-| T-019 | UI: FA list page (fa_list prototype) | ⬜ PENDING | Blocked by T-001, T-018; no fa/page.tsx |
+| T-019 | UI: FA list page (fa_list prototype) | ✅ DONE | DONE 2026-06-04 (Wave D pilot). FA list page — prototype parity (fa-screens.jsx:177-297, structural mapping), real product data via withOrgContext, 12 RTL, tsc0/lint0, i18n en/pl/ro/uk, 4 states+permission-denied. kira-ui (Opus). Codex-review + live axe deferred to Gate-5. Deviations: kanban omitted (scope), didnt use listFaByDept (insufficient cols), product.deleted_at absent (list-fa-by-dept helper latent bug) |
 | T-020 | ROOT: FA detail page shell group | ⏸ BLOCKED | page.tsx + fa-tabs.tsx + fa-right-panel.tsx exist but all tab content is "deferred-empty"; no real data; no parity evidence |
 | T-021 | UI: FA Create modal | ⬜ PENDING | Blocked by T-008 |
 | T-022 | UI: Dept Close modal | ⬜ PENDING | Blocked by T-015, T-017 |
