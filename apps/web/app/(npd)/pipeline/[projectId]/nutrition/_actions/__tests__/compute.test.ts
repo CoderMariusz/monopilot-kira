@@ -1,0 +1,191 @@
+import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getAppConnection, getOwnerConnection } from '@monopilot/db/clients.js';
+
+const databaseUrl = process.env.DATABASE_URL;
+const runIntegration = databaseUrl ? describe : describe.skip;
+
+const tenantId = '17200000-0000-4000-8000-000000000000';
+const orgA = '17200000-0000-4000-8000-00000000000a';
+const userA = '17200000-0000-4000-8000-0000000000aa';
+const roleA = '17200000-0000-4000-8000-0000000001aa';
+const productA = 'FA-T072-COMPUTE';
+const projectA = '17200000-0000-4000-8000-0000000000p1'.replace('p', 'a');
+const formulationA = '17200000-0000-4000-8000-0000000000f1'.replace('f', 'b');
+const versionA = '17200000-0000-4000-8000-0000000000v1'.replace('v', 'c');
+
+const ctxHolder: { orgId: string; userId: string; sessionToken: string; client: pg.PoolClient | null } = {
+  orgId: orgA,
+  userId: userA,
+  sessionToken: '',
+  client: null,
+};
+
+vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
+  withOrgContext: async (action: (ctx: unknown) => Promise<unknown>) => {
+    if (!ctxHolder.client) throw new Error('test client not initialised');
+    return action({
+      orgId: ctxHolder.orgId,
+      userId: ctxHolder.userId,
+      sessionToken: ctxHolder.sessionToken,
+      client: ctxHolder.client,
+    });
+  },
+}));
+
+let ownerPool: pg.Pool;
+let appPool: pg.Pool;
+let appClient: pg.PoolClient;
+
+async function seed(pool: pg.Pool) {
+  await pool.query(
+    `insert into public.tenants (id, name, region_cluster, data_plane_url)
+       values ($1, 'T072 Compute Tenant', 'eu', 'https://t072-compute.example.test')
+     on conflict (id) do update set name = excluded.name`,
+    [tenantId],
+  );
+  await pool.query(
+    `insert into public.organizations (id, tenant_id, name, industry_code)
+       values ($1, $2, 'T072 Compute Org A', 'bakery')
+     on conflict (id) do update set tenant_id = excluded.tenant_id, name = excluded.name`,
+    [orgA, tenantId],
+  );
+  await pool.query(
+    `insert into public.roles (id, org_id, code, name, permissions, is_system)
+       values ($1, $2, 'nutrition_compute_action', 'T072 Compute Role', '[]'::jsonb, true)
+     on conflict (org_id, code) do update set name = excluded.name`,
+    [roleA, orgA],
+  );
+  await pool.query(
+    `insert into public.users (id, org_id, email, name, role_id)
+       values ($1, $2, 'nutrition-compute-t072@example.test', 'T072 Compute User', $3)
+     on conflict (id) do update set org_id = excluded.org_id, email = excluded.email`,
+    [userA, orgA, roleA],
+  );
+  await pool.query(
+    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
+       values ($1, $2, 'T072 Compute Product', 1, $3)
+     on conflict (product_code) do update
+       set org_id = excluded.org_id,
+           product_name = excluded.product_name,
+           created_by_user = excluded.created_by_user`,
+    [productA, orgA, userA],
+  );
+  await pool.query(
+    `insert into public.npd_projects (id, org_id, code, name, type, product_code, created_by_user)
+       values ($1, $2, 'T072-COMPUTE', 'T072 Compute Project', 'npd', $3, $4)
+     on conflict (id) do update
+       set org_id = excluded.org_id,
+           product_code = excluded.product_code,
+           name = excluded.name`,
+    [projectA, orgA, productA, userA],
+  );
+  await pool.query(
+    `insert into public.formulations (id, org_id, project_id, product_code, created_by_user)
+       values ($1, $2, $3, $4, $5)
+     on conflict (id) do update
+       set org_id = excluded.org_id,
+           project_id = excluded.project_id,
+           product_code = excluded.product_code`,
+    [formulationA, orgA, projectA, productA, userA],
+  );
+  await pool.query(
+    `insert into public.formulation_versions (id, formulation_id, version_number, state)
+       values ($1, $2, 1, 'draft')
+     on conflict (formulation_id, version_number) do update set state = excluded.state`,
+    [versionA, formulationA],
+  );
+  await pool.query(
+    `insert into "Reference"."RawMaterials" (org_id, rm_code, display_name, nutrition_per_100g)
+       values
+         ($1, 'RM-T072-1', 'RM T072 1', $2::jsonb),
+         ($1, 'RM-T072-2', 'RM T072 2', $3::jsonb),
+         ($1, 'RM-T072-3', 'RM T072 3', $4::jsonb)
+     on conflict (org_id, rm_code) do update
+       set nutrition_per_100g = excluded.nutrition_per_100g`,
+    [
+      orgA,
+      JSON.stringify({ energy_kj: '300', fat_g: '9', saturates_g: '3', carbs_g: '30', sugars_g: '6', protein_g: '12', salt_g: '0.9' }),
+      JSON.stringify({ energy_kj: '600', fat_g: '18', saturates_g: '6', carbs_g: '60', sugars_g: '12', protein_g: '24', salt_g: '1.8' }),
+      JSON.stringify({ energy_kj: '900', fat_g: '27', saturates_g: '9', carbs_g: '90', sugars_g: '18', protein_g: '36', salt_g: '2.7' }),
+    ],
+  );
+}
+
+runIntegration('computeNutrition action', () => {
+  let computeNutrition: typeof import('../compute').computeNutrition;
+
+  beforeAll(async () => {
+    ownerPool = getOwnerConnection();
+    appPool = getAppConnection();
+    await seed(ownerPool);
+
+    ctxHolder.sessionToken = randomUUID();
+    await ownerPool.query(
+      `insert into app.session_org_contexts (session_token, org_id)
+       values ($1, $2)
+       on conflict (session_token) do update set org_id = excluded.org_id`,
+      [ctxHolder.sessionToken, orgA],
+    );
+    appClient = await appPool.connect();
+    await appClient.query('begin');
+    await appClient.query('select app.set_org_context($1::uuid, $2::uuid)', [ctxHolder.sessionToken, orgA]);
+    ctxHolder.client = appClient;
+
+    ({ computeNutrition } = await import('../compute'));
+  });
+
+  afterAll(async () => {
+    if (appClient) {
+      await appClient.query('rollback').catch(() => undefined);
+      appClient.release();
+    }
+    await appPool?.end().catch(() => undefined);
+    await ownerPool?.end().catch(() => undefined);
+  });
+
+  beforeEach(async () => {
+    await appClient.query('delete from public.nutri_score_results where formulation_version_id = $1::uuid', [versionA]);
+    await appClient.query('delete from public.nutrition_profiles where formulation_version_id = $1::uuid', [versionA]);
+    await appClient.query('delete from public.formulation_ingredients where version_id = $1::uuid', [versionA]);
+    await appClient.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, pct, sequence)
+       values
+         ($1::uuid, 'RM-T072-1', 33.3, 1),
+         ($1::uuid, 'RM-T072-2', 33.3, 2),
+         ($1::uuid, 'RM-T072-3', 33.3, 3)`,
+      [versionA],
+    );
+  });
+
+  it('upserts exactly seven nutrition profile rows when run twice for the same version', async () => {
+    const first = await computeNutrition({ projectId: projectA, formulationVersionId: versionA, portionGrams: '40' });
+    const second = await computeNutrition({ projectId: projectA, formulationVersionId: versionA, portionGrams: '40' });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.data.nutrients).toHaveLength(7);
+    expect(second.data.nutrients.find((row) => row.nutrientCode === 'energy_kj')?.per100g).toBe('599.40');
+
+    const profiles = await appClient.query<{ count: string; energy: string }>(
+      `select count(*)::text as count,
+              max(per_100g_value) filter (where nutrient_code = 'energy_kj')::text as energy
+         from public.nutrition_profiles
+        where formulation_version_id = $1::uuid`,
+      [versionA],
+    );
+    expect(profiles.rows[0]).toEqual({ count: '7', energy: '599.40' });
+
+    const scores = await appClient.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.nutri_score_results
+        where formulation_version_id = $1::uuid`,
+      [versionA],
+    );
+    expect(scores.rows[0]?.count).toBe('1');
+  });
+});
