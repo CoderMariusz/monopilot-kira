@@ -1,0 +1,27 @@
+{
+  "component": "DashboardCounters",
+  "tool": "jsdom structural assertions (RTL)",
+  "axeBlocker": "Full @axe-core scan deferred to the Playwright parity run (T-135); jest-axe/axe-core are not direct deps of the web package and adding them is out of T-132 scope.",
+  "states": [
+    {
+      "state": "ready",
+      "accessibleName": true,
+      "liveRole": null
+    },
+    {
+      "state": "empty",
+      "accessibleName": true,
+      "liveRole": "status"
+    },
+    {
+      "state": "error",
+      "accessibleName": true,
+      "liveRole": "alert"
+    },
+    {
+      "state": "forbidden",
+      "accessibleName": true,
+      "liveRole": "alert"
+    }
+  ]
+}

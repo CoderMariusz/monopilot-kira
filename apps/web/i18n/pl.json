@@ -1997,6 +1997,23 @@
         "date_codes_per_week": "Kody dat na tydzień",
         "closed_planning": "Planowanie zamknięte"
       }
+    },
+    "dashboardKpi": {
+      "regionLabel": "Wskaźniki KPI panelu NPD",
+      "totalTitle": "Aktywne wyroby gotowe (FG)",
+      "totalBadge": "Wszystkie FG",
+      "doneTitle": "Zakończone",
+      "doneBadge": "Gotowe",
+      "pendingTitle": "Oczekujące",
+      "pendingBadge": "Do uzupełnienia",
+      "blockedTitle": "Zablokowane",
+      "blockedBadge": "Zablokowane",
+      "overdueTitle": "Alerty po terminie",
+      "overdueBadgeActive": "Po terminie",
+      "overdueBadgeClear": "Na czas",
+      "empty": "Brak aktywnych wyrobów gotowych.",
+      "error": "Nie można załadować wskaźników KPI. Spróbuj ponownie, gdy backend będzie dostępny.",
+      "forbidden": "Nie masz uprawnień do wyświetlania tych wskaźników KPI."
     }
   }
 }

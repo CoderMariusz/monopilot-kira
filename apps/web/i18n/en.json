@@ -1997,6 +1997,23 @@
         "date_codes_per_week": "Date codes per week",
         "closed_planning": "Closed Planning"
       }
+    },
+    "dashboardKpi": {
+      "regionLabel": "NPD dashboard KPI counters",
+      "totalTitle": "Total active FGs",
+      "totalBadge": "All FGs",
+      "doneTitle": "Done",
+      "doneBadge": "Ready",
+      "pendingTitle": "Pending",
+      "pendingBadge": "Awaiting fill",
+      "blockedTitle": "Blocked",
+      "blockedBadge": "Blocked",
+      "overdueTitle": "Overdue alerts",
+      "overdueBadgeActive": "Overdue",
+      "overdueBadgeClear": "On track",
+      "empty": "No active Finished Goods yet.",
+      "error": "Unable to load KPI counters. Try again once the backend is available.",
+      "forbidden": "You do not have permission to view these KPIs."
     }
   }
 }

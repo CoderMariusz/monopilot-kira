@@ -1997,6 +1997,23 @@
         "date_codes_per_week": "Коди дат на тиждень",
         "closed_planning": "Планування закрито"
       }
+    },
+    "dashboardKpi": {
+      "regionLabel": "Лічильники KPI панелі NPD",
+      "totalTitle": "Активні готові вироби (FG)",
+      "totalBadge": "Усі FG",
+      "doneTitle": "Виконано",
+      "doneBadge": "Готово",
+      "pendingTitle": "Очікує",
+      "pendingBadge": "Потребує заповнення",
+      "blockedTitle": "Заблоковано",
+      "blockedBadge": "Заблоковано",
+      "overdueTitle": "Прострочені сповіщення",
+      "overdueBadgeActive": "Прострочено",
+      "overdueBadgeClear": "У графіку",
+      "empty": "Поки немає активних готових виробів.",
+      "error": "Не вдалося завантажити лічильники KPI. Спробуйте ще раз, коли бекенд буде доступний.",
+      "forbidden": "У вас немає дозволу переглядати ці KPI."
     }
   }
 }

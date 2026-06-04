@@ -1997,6 +1997,23 @@
         "date_codes_per_week": "Coduri de dată pe săptămână",
         "closed_planning": "Planificare închisă"
       }
+    },
+    "dashboardKpi": {
+      "regionLabel": "Indicatori KPI ai tabloului NPD",
+      "totalTitle": "Produse finite active (FG)",
+      "totalBadge": "Toate FG",
+      "doneTitle": "Finalizate",
+      "doneBadge": "Gata",
+      "pendingTitle": "În așteptare",
+      "pendingBadge": "De completat",
+      "blockedTitle": "Blocate",
+      "blockedBadge": "Blocate",
+      "overdueTitle": "Alerte întârziate",
+      "overdueBadgeActive": "Întârziat",
+      "overdueBadgeClear": "La timp",
+      "empty": "Nu există încă produse finite active.",
+      "error": "Indicatorii KPI nu pot fi încărcați. Încearcă din nou când backendul este disponibil.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza acești indicatori KPI."
     }
   }
 }
