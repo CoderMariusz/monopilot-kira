@@ -34,7 +34,7 @@ export const npdProjects = pgTable(
     schemaVersion: integer('schema_version').notNull().default(1),
   },
   (table) => ({
-    codeUnique: uniqueIndex('npd_projects_code_key').on(table.code),
+    orgCodeUnique: uniqueIndex('npd_projects_org_code_unique').on(table.orgId, table.code),
     orgGateIdx: index('npd_projects_org_gate_idx').on(table.orgId, table.currentGate),
     currentGateCheck: check(
       'npd_projects_current_gate_check',
