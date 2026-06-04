@@ -151,7 +151,7 @@ runIntegrationTest('085 NPD stage-gate core tables', () => {
     await adminPool?.end();
   });
 
-  it('creates npd_projects with required columns, code uniqueness, FA FK, and forced org RLS', async () => {
+  it('creates npd_projects with required columns, per-org code uniqueness, FA FK, and forced org RLS', async () => {
     const columns = await adminPool.query<{ column_name: string; is_nullable: 'YES' | 'NO' }>(
       `
         select column_name, is_nullable
@@ -192,20 +192,26 @@ runIntegrationTest('085 NPD stage-gate core tables', () => {
     expect(columnNames.has('tenant_id')).toBe(false);
     expect(columns.rows.find((row) => row.column_name === 'org_id')?.is_nullable).toBe('NO');
 
-    const codeUnique = await adminPool.query<{ constraint_name: string }>(
+    const codeUnique = await adminPool.query<{ constraint_name: string; columns: string[] }>(
       `
-        select tc.constraint_name
+        select tc.constraint_name,
+               array_agg(kcu.column_name order by kcu.ordinal_position) as columns
         from information_schema.table_constraints tc
-        join information_schema.constraint_column_usage ccu
-          on ccu.constraint_schema = tc.constraint_schema
-         and ccu.constraint_name = tc.constraint_name
+        join information_schema.key_column_usage kcu
+          on kcu.constraint_schema = tc.constraint_schema
+         and kcu.constraint_name = tc.constraint_name
+         and kcu.table_schema = tc.table_schema
+         and kcu.table_name = tc.table_name
         where tc.table_schema = 'public'
           and tc.table_name = 'npd_projects'
           and tc.constraint_type = 'UNIQUE'
-          and ccu.column_name = 'code'
+        group by tc.constraint_name
       `,
     );
-    expect(codeUnique.rowCount).toBeGreaterThan(0);
+    expect(codeUnique.rows).toContainEqual({
+      constraint_name: 'npd_projects_org_code_unique',
+      columns: ['org_id', 'code'],
+    });
 
     const productFk = await adminPool.query<{ foreign_table_name: string; foreign_column_name: string }>(
       `

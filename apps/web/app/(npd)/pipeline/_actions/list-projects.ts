@@ -1,0 +1,94 @@
+'use server';
+
+import { withOrgContext } from '../../../../lib/auth/with-org-context';
+import {
+  PROJECT_VIEW_PERMISSION,
+  type OrgContextLike,
+  type ProjectGate,
+  type ProjectPriority,
+  type ProjectRow,
+  type ProjectSummary,
+  hasPermission,
+  mapProjectRow,
+  normalizeSearch,
+  parseGate,
+  parsePriority,
+  trimOptionalString,
+} from './shared';
+
+export type ListProjectsInput = {
+  gate?: ProjectGate | null;
+  owner?: string | null;
+  prio?: ProjectPriority | null;
+  search?: string | null;
+};
+
+export type ListProjectsResult =
+  | { ok: true; data: { projects: ProjectSummary[] } }
+  | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' };
+
+export async function listProjects(rawInput: unknown = {}): Promise<ListProjectsResult> {
+  const input = parseListProjectsInput(rawInput);
+  if (!input) return { ok: false, error: 'INVALID_INPUT' };
+
+  try {
+    return await withOrgContext<ListProjectsResult>(async (ctx): Promise<ListProjectsResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasPermission(context, PROJECT_VIEW_PERMISSION))) {
+        return { ok: false, error: 'FORBIDDEN' };
+      }
+
+      const { rows } = await context.client.query<ProjectRow>(
+        `select p.id,
+                p.code,
+                p.name,
+                p.type,
+                p.current_gate,
+                p.current_stage,
+                p.prio,
+                p.owner,
+                p.target_launch::text as target_launch,
+                p.notes,
+                p.created_at::text as created_at,
+                count(gci.id)::text as checklist_total,
+                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed
+           from public.npd_projects p
+           left join public.gate_checklist_items gci
+             on gci.project_id = p.id
+            and gci.org_id = app.current_org_id()
+          where p.org_id = app.current_org_id()
+            and ($1::text is null or p.current_gate = $1)
+            and ($2::text is null or p.owner = $2)
+            and ($3::text is null or p.prio = $3)
+            and (
+              $4::text is null
+              or p.name ilike '%' || $4 || '%'
+              or p.code ilike '%' || $4 || '%'
+            )
+          group by p.id
+          order by p.created_at desc, p.code desc`,
+        [input.gate, input.owner, input.prio, input.search],
+      );
+
+      return { ok: true, data: { projects: rows.map(mapProjectRow) } };
+    });
+  } catch {
+    return { ok: false, error: 'PERSISTENCE_FAILED' };
+  }
+}
+
+function parseListProjectsInput(rawInput: unknown): ListProjectsInput | null {
+  if (rawInput === undefined || rawInput === null) return {};
+  if (typeof rawInput !== 'object' || Array.isArray(rawInput)) return null;
+  const input = rawInput as Record<string, unknown>;
+  const gate = parseGate(input.gate);
+  const owner = trimOptionalString(input.owner, 120);
+  const prio = input.prio === undefined || input.prio === null || input.prio === '' ? null : parsePriority(input.prio);
+  const search = normalizeSearch(input.search);
+
+  if (gate === null && input.gate !== undefined && input.gate !== null && input.gate !== '') return null;
+  if (owner === undefined || prio === null && input.prio !== undefined && input.prio !== null && input.prio !== '') return null;
+  if (search === undefined) return null;
+
+  return { gate, owner, prio, search };
+}
