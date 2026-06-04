@@ -34,7 +34,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-020 | ROOT: FA detail page shell group | ⏸ BLOCKED | page.tsx + fa-tabs.tsx + fa-right-panel.tsx exist but all tab content is "deferred-empty"; no real data; no parity evidence |
 | T-021 | UI: FA Create modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). FA Create modal — wired to createFa (T-008), V01/V02 feedback, parity (modals.jsx:9-43), real action, RTL, tsc0, i18n npd.faCreate. kira-ui |
 | T-022 | UI: Dept Close modal | ✅ DONE | DONE 2026-06-04 (parallel ramp). Dept Close modal — readiness via Reference.DeptColumns required-check, wired closeDeptSection (T-017), parity (modals.jsx:143-191), RTL, tsc0, i18n npd.deptClose. kira-ui |
-| T-023 | UI: FA Core tab (schema-driven form) | ⬜ PENDING | Blocked by T-009, T-010, T-012, T-014, T-020 |
+| T-023 | UI: FA Core tab (schema-driven form) | ✅ DONE | DONE 2026-06-04 (ramp 4). FA Core tab (schema-driven form) standalone — fields from Reference.DeptColumns via T-014 runtime, updateFaCell(T-009), parity (fa-screens.jsx:455-517), 15 RTL, tsc0, i18n npd.faCoreTab. kira-ui. wiring=T-105 |
 | T-024 | UI: FA Production tab + ProdDetail rows editor | ⬜ PENDING | Blocked by T-002, T-004, T-010, T-011, T-020 |
 | T-025 | ROOT: FA planning/commercial tabs group | ⬜ PENDING | Blocked by T-009, T-014, T-016, T-020 |
 | T-026 | UI: FA Technical tab shell | ⬜ PENDING | Blocked by T-014, T-020, T-025 |
@@ -124,10 +124,10 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-110 | UI: ApprovalHistoryTimeline | ✅ DONE | DONE 2026-06-04 (ramp 3). ApprovalHistoryTimeline — real gate_approvals (packages/queries listApprovalHistory), e-sign disclosure, parity (gate-screens.jsx:525-616), RTL+integration, tsc0, i18n npd.approvalHistory. kira-ui |
 | T-111 | WIRING: Gate screen | ⬜ PENDING | Blocked by T-107–T-110 |
 | T-112 | PARITY: Gate screen components | ⬜ PENDING | Blocked by T-111 |
-| T-113 | UI: NutritionPanel (per-100g traffic-light bars) | ⬜ PENDING | Blocked by T-065 |
-| T-114 | UI: CostPanel | ⬜ PENDING | Blocked by T-065 |
-| T-115 | UI: AllergenPanel (EU14 presence badges) | ⬜ PENDING | Blocked by T-065 |
-| T-116 | UI: CompositionBar (horizontal stacked %) | ⬜ PENDING | Blocked by T-065 |
+| T-113 | UI: NutritionPanel (per-100g traffic-light bars) | ✅ DONE | DONE 2026-06-04 (ramp 4). NutritionPanel (per-100g traffic-light) standalone — props from T-065 compute, NUMERIC-exact, parity (recipe.jsx:26-65), 17 RTL, tsc0, i18n npd.nutritionPanel. kira-ui. wiring=T-117 |
+| T-114 | UI: CostPanel | ✅ DONE | DONE 2026-06-04 (ramp 4). CostPanel standalone — cost/kg+margin from T-065, NUMERIC-exact, parity (recipe.jsx:67-101), 20 RTL, tsc0, i18n npd.costPanel. kira-ui. wiring=T-117 |
+| T-115 | UI: AllergenPanel (EU14 presence badges) | ✅ DONE | DONE 2026-06-04 (ramp 4). AllergenPanel (EU14 badges) standalone — from T-038 cascade/T-065, parity (recipe.jsx:103-122), 8 RTL, tsc0, i18n npd.allergenPanel. kira-ui. wiring=T-117 |
+| T-116 | UI: CompositionBar (horizontal stacked %) | ✅ DONE | DONE 2026-06-04 (ramp 4). CompositionBar (stacked %) standalone — formulation_ingredients pct exact, parity (recipe.jsx:230-250), 14 RTL, tsc0, i18n npd.compositionBar. kira-ui. wiring=T-117 |
 | T-117 | WIRING: FormulationEditor panels | ⬜ PENDING | Blocked by T-066, T-113–T-116 |
 | T-118 | PARITY: FormulationEditor panels | ⬜ PENDING | Blocked by T-113–T-117 |
 | T-119 | UI: Brief list page | ✅ DONE | DONE 2026-06-04 (parallel ramp). Brief list page — real brief rows org-scoped, Linked-Project column (e2e-spine), parity (brief-screens.jsx:7-82), RTL, tsc0, i18n npd.briefList. kira-ui |
@@ -148,6 +148,6 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-134 | WIRING: NPD Dashboard page assembly | ⬜ PENDING | Blocked by T-132, T-133 |
 | T-135 | PARITY: NPD Dashboard Playwright + axe | ⬜ PENDING | Blocked by T-132–T-134 |
 | T-136 | UI: FA detail page shell + tabs container | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). FA detail shell + tabs container — real product core (composite PK), 8 dept tabs, history tab preserved (T-027), parity (fa-screens.jsx:300-401), RTL, tsc0, i18n npd.faDetail. kira-ui |
-| T-137 | UI: FA right panel sidebar | ⏸ BLOCKED | fa-right-panel.tsx exists with mock data; no real data; no modal wiring; no parity evidence |
+| T-137 | UI: FA right panel sidebar | ✅ DONE | DONE 2026-06-04 (ramp 4). FA right panel sidebar standalone — real product summary via withOrgContext, parity (fa-screens.jsx:404-452), 15 RTL, tsc0, i18n npd.faRightPanel. kira-ui. wiring=T-138. NOTE: 2 parallel FA route trees ([locale] live + (npd) dup) — consolidate at module-close |
 | T-138 | WIRING: FA detail shell + right panel + tabs layout | ⬜ PENDING | Blocked by T-136, T-137; page.tsx does not compose fa-right-panel |
 | T-139 | PARITY: FA detail shell Playwright + axe | ⬜ PENDING | Blocked by T-136–T-138 |
