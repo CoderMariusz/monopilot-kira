@@ -220,3 +220,47 @@ export type {
   NewTechnicalSensoryEvaluation,
   TechnicalSensoryEvaluation,
 } from './technical-sensory-evaluations.js';
+
+// 04-planning-basic — scheduling-core schema (T-004 + T-005).
+export { woMaterials, woOperations, workOrders } from './work-orders.js';
+export type {
+  NewWoMaterial,
+  NewWoOperation,
+  NewWorkOrder,
+  WoMaterial,
+  WoOperation,
+  WorkOrder,
+} from './work-orders.js';
+export { scheduleOutputs, woDependencies, woStatusHistory } from './schedule-outputs.js';
+export type {
+  NewScheduleOutput,
+  NewWoDependency,
+  NewWoStatusHistory,
+  ScheduleOutput,
+  WoDependency,
+  WoStatusHistory,
+} from './schedule-outputs.js';
+// 04-planning-basic — MRP-core (mig 178) + rough-cut capacity (mig 179).
+export {
+  mrpRuns,
+  mrpRequirements,
+  mrpPlannedOrders,
+  reorderThresholds,
+} from './planning-mrp.js';
+export type {
+  MrpRun,
+  NewMrpRun,
+  MrpRequirement,
+  NewMrpRequirement,
+  MrpPlannedOrder,
+  NewMrpPlannedOrder,
+  ReorderThreshold,
+  NewReorderThreshold,
+} from './planning-mrp.js';
+export { capacityPlans, capacityPlanLines } from './planning-capacity.js';
+export type {
+  CapacityPlan,
+  NewCapacityPlan,
+  CapacityPlanLine,
+  NewCapacityPlanLine,
+} from './planning-capacity.js';

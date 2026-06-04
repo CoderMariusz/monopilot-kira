@@ -14,6 +14,7 @@
     "./ReasonInput": "./src/ReasonInput.tsx",
     "./Button": "./src/Button.tsx",
     "./TabsCounted": "./src/TabsCounted.tsx",
+    "./Tabs": "./src/Tabs.tsx",
     "./EmptyState": "./src/EmptyState.tsx",
     "./DryRunButton": "./src/DryRunButton.tsx",
     "./CompactActivity": "./src/CompactActivity.tsx",

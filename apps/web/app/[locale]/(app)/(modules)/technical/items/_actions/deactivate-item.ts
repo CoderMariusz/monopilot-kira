@@ -55,7 +55,13 @@ export async function deactivateItem(rawInput: unknown): Promise<DeactivateItemR
         action: 'item.deactivated',
         resourceId: input.id,
         beforeState: { status: before.rows[0]?.status },
-        afterState: { status: 'blocked' },
+        // TEC-081 / V-TEC-05: capture the deactivation reason + notes in the audit
+        // chain (no items column added). reason/notes are absent for legacy callers.
+        afterState: {
+          status: 'blocked',
+          reason: input.reason ?? null,
+          notes: input.notes ?? null,
+        },
       });
 
       safeRevalidatePath('/technical/items');

@@ -124,7 +124,26 @@ export type UpdateItemResult =
 // ── Deactivate input ──────────────────────────────────────────────────────────
 // "Deactivate" = move status to 'blocked' (the closest non-destructive lifecycle
 // terminal in items_status_check; the table has no soft-delete column). Idempotent.
-export const DeactivateItemInput = z.object({ id: z.string().uuid() });
+//
+// TEC-081 / V-TEC-05: a deactivation carries a `reason` (Discontinued / Recipe
+// Change / D365 Mismatch / Other) plus optional free-text `notes` (required when
+// reason = 'other'). Both are recorded in audit_log.after_state — they do NOT add
+// a column to public.items (no migration). `reason`/`notes` are OPTIONAL on the
+// schema for back-compat with the existing one-arg callers, but the UI always
+// supplies a reason and the cross-field rule below enforces notes-on-other.
+export const DEACTIVATE_REASONS = ['discontinued', 'recipe_change', 'd365_mismatch', 'other'] as const;
+export type DeactivateReason = (typeof DEACTIVATE_REASONS)[number];
+
+export const DeactivateItemInput = z
+  .object({
+    id: z.string().uuid(),
+    reason: z.enum(DEACTIVATE_REASONS).optional(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .refine((value) => value.reason !== 'other' || (value.notes?.length ?? 0) >= 10, {
+    path: ['notes'],
+    message: 'notes is required (min 10 chars) when reason is "other"',
+  });
 export type DeactivateItemInputType = z.input<typeof DeactivateItemInput>;
 
 export type DeactivateItemResult =

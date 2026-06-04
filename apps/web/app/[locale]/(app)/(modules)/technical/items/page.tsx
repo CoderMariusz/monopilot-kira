@@ -16,15 +16,101 @@
  * intermediate items in the universal `items` table).
  */
 
+import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
+
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { listItems } from './_actions/list-items';
 import type { ItemListItem, ItemStatus, ItemType } from './_actions/shared';
+import type { DeactivateLabels } from './_components/deactivate-modal';
+import type { ItemWizardLabels } from './_components/item-create-wizard';
 import { ItemRowActions, NewItemButton } from './_components/items-manager.client';
 
 export const dynamic = 'force-dynamic';
+
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
+function buildWizardLabels(t: Translator): ItemWizardLabels {
+  return {
+    title: t('create.title'),
+    subtitle: t('create.subtitle'),
+    cancel: t('create.cancel'),
+    back: t('create.back'),
+    next: t('create.next'),
+    create: t('create.create'),
+    creating: t('create.creating'),
+    steps: {
+      basic: t('create.steps.basic'),
+      classification: t('create.steps.classification'),
+      weight: t('create.steps.weight'),
+      review: t('create.steps.review'),
+    },
+    fields: {
+      itemCode: t('create.fields.itemCode'),
+      itemCodeHelp: t('create.fields.itemCodeHelp'),
+      name: t('create.fields.name'),
+      description: t('create.fields.description'),
+      itemType: t('create.fields.itemType'),
+      status: t('create.fields.status'),
+      uomBase: t('create.fields.uomBase'),
+      uomSecondary: t('create.fields.uomSecondary'),
+      productGroup: t('create.fields.productGroup'),
+      weightMode: t('create.fields.weightMode'),
+      nominalWeight: t('create.fields.nominalWeight'),
+      grossWeightMax: t('create.fields.grossWeightMax'),
+      varianceTolerance: t('create.fields.varianceTolerance'),
+      shelfLifeDays: t('create.fields.shelfLifeDays'),
+      shelfLifeMode: t('create.fields.shelfLifeMode'),
+    },
+    catchHint: t('create.catchHint'),
+    review: { ready: t('create.review.ready') },
+    errors: {
+      codeRequired: t('create.errors.codeRequired'),
+      nameRequired: t('create.errors.nameRequired'),
+      uomRequired: t('create.errors.uomRequired'),
+    },
+    actionErrors: {
+      already_exists: t('errors.already_exists'),
+      forbidden: t('errors.forbidden'),
+      invalid_input: t('errors.invalid_input'),
+      not_found: t('errors.not_found'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+}
+
+function buildDeactivateLabels(t: Translator): DeactivateLabels {
+  return {
+    title: t('deactivate.title'),
+    subtitle: t('deactivate.subtitle'),
+    warning: t('deactivate.warning'),
+    reason: t('deactivate.reason'),
+    reasonRequired: t('deactivate.reasonRequired'),
+    reasons: {
+      discontinued: t('deactivate.reasons.discontinued'),
+      recipe_change: t('deactivate.reasons.recipe_change'),
+      d365_mismatch: t('deactivate.reasons.d365_mismatch'),
+      other: t('deactivate.reasons.other'),
+    },
+    notes: t('deactivate.notes'),
+    notesRequired: t('deactivate.notesRequired'),
+    confirmLabel: t('deactivate.confirmLabel'),
+    confirmMismatch: t('deactivate.confirmMismatch'),
+    cancel: t('deactivate.cancel'),
+    confirm: t('deactivate.confirm'),
+    deactivating: t('deactivate.deactivating'),
+    actionErrors: {
+      already_exists: t('errors.already_exists'),
+      forbidden: t('errors.forbidden'),
+      invalid_input: t('errors.invalid_input'),
+      not_found: t('errors.not_found'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+}
 
 const ITEM_TYPE_LABELS: Record<ItemType, string> = {
   rm: 'Raw material',
@@ -71,10 +157,18 @@ function ItemsTable({
   items,
   canEdit,
   canDeactivate,
+  editLabel,
+  deactivateLabel,
+  wizardLabels,
+  deactivateLabels,
 }: {
   items: ItemListItem[];
   canEdit: boolean;
   canDeactivate: boolean;
+  editLabel: string;
+  deactivateLabel: string;
+  wizardLabels: ItemWizardLabels;
+  deactivateLabels: DeactivateLabels;
 }) {
   return (
     <Card className="rounded-xl border bg-white shadow-sm">
@@ -97,7 +191,14 @@ function ItemsTable({
           <TableBody>
             {items.map((item) => (
               <TableRow key={item.id}>
-                <TableCell className="font-mono text-sm">{item.itemCode}</TableCell>
+                <TableCell className="font-mono text-sm">
+                  <Link
+                    href={`items/${encodeURIComponent(item.itemCode)}`}
+                    className="text-blue-600 underline-offset-4 hover:underline"
+                  >
+                    {item.itemCode}
+                  </Link>
+                </TableCell>
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell>
                   <Badge variant={TYPE_VARIANT[item.itemType]}>{ITEM_TYPE_LABELS[item.itemType]}</Badge>
@@ -109,7 +210,15 @@ function ItemsTable({
                   <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABELS[item.status]}</Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <ItemRowActions item={item} canEdit={canEdit} canDeactivate={canDeactivate} />
+                  <ItemRowActions
+                    item={item}
+                    canEdit={canEdit}
+                    canDeactivate={canDeactivate}
+                    editLabel={editLabel}
+                    deactivateLabel={deactivateLabel}
+                    wizardLabels={wizardLabels}
+                    deactivateLabels={deactivateLabels}
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -122,6 +231,13 @@ function ItemsTable({
 
 export default async function TechnicalItemsPage() {
   const { items, canCreate, canEdit, canDeactivate, state } = await listItems();
+  const t = await getTranslations('technical.items');
+
+  const wizardLabels = buildWizardLabels(t);
+  const deactivateLabels = buildDeactivateLabels(t);
+  const newItemLabel = t('create.open');
+  const editLabel = t('detail.edit');
+  const deactivateLabel = t('detail.deactivate');
 
   return (
     <main data-screen="technical-items" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
@@ -133,7 +249,7 @@ export default async function TechnicalItemsPage() {
             master consumed by BOMs, NPD components and specifications.
           </p>
         </div>
-        {canCreate ? <NewItemButton /> : null}
+        {canCreate ? <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} /> : null}
       </header>
 
       {state === 'error' ? (
@@ -152,12 +268,20 @@ export default async function TechnicalItemsPage() {
           </CardHeader>
           {canCreate ? (
             <CardContent className="px-6 pb-6">
-              <NewItemButton />
+              <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} />
             </CardContent>
           ) : null}
         </Card>
       ) : (
-        <ItemsTable items={items} canEdit={canEdit} canDeactivate={canDeactivate} />
+        <ItemsTable
+          items={items}
+          canEdit={canEdit}
+          canDeactivate={canDeactivate}
+          editLabel={editLabel}
+          deactivateLabel={deactivateLabel}
+          wizardLabels={wizardLabels}
+          deactivateLabels={deactivateLabels}
+        />
       )}
 
       {!canCreate && !canEdit && !canDeactivate ? (

@@ -36,6 +36,12 @@ export const BOM_GENERATE_BATCH_PERMISSION = 'technical.bom.generate_batch';
 
 export const APP_VERSION = 'technical-bom-v1';
 
+// ── BOM list pagination (TEC-020 / T-037) ─────────────────────────────────────
+// Lives here (a plain module) so it can be imported by both the 'use server'
+// reader (queries.ts) and the page RSC without violating the "only async exports"
+// rule of 'use server' files.
+export const BOM_LIST_PAGE_SIZE = 50;
+
 // ── Outbox event types (must exist in the locked enum SoT) ────────────────────
 export const EVENT_BOM_VERSION_SUBMITTED = 'bom.version_submitted';
 export const EVENT_FG_BOM_RELEASED = 'fg.bom.released';

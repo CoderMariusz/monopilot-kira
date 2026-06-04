@@ -1,0 +1,240 @@
+/**
+ * T-034 — TEC-012 Item Detail page (RSC).
+ *
+ * Real Supabase-backed detail view of ONE public.items row (org-scoped via
+ * getItem → withOrgContext + RLS, `app.current_org_id()`). Renders the 8-tab
+ * detail shell (overview wired from the real row; the other seven deferred until
+ * their owning slices land), the localized header, and RBAC-gated Edit / Deactivate
+ * actions. This route unblocks every per-item deep-link (previously 404).
+ *
+ * Prototype parity: prototypes/design/Monopilot Design System/technical/
+ * other-screens.jsx:354-477 (`MaterialDetailScreen`, TEC-004) — PageHeader
+ * (title `code · name`, breadcrumb, sub, actions) + `tabs-bar` + per-tab panels.
+ * Extended to the PRD TEC-012 8-tab contract (docs/prd/03-TECHNICAL-PRD.md:630).
+ *
+ * States: ready (overview + tabs), not-found (no row for code), error (load
+ * failed), permission-denied (Edit/Deactivate hidden when the caller lacks
+ * technical.items.{edit,deactivate}). i18n: technical.items.detail/create/
+ * deactivate namespaces (en/pl/ro/uk).
+ */
+
+import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
+
+import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
+import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
+
+import { getItem } from '../_actions/get-item';
+import type { ItemStatus, ItemType } from '../_actions/shared';
+import { ItemDetailActions } from './_components/item-detail-actions';
+import { ItemDetailTabs, type ItemDetailTabsLabels } from './_components/item-detail-tabs';
+import { ItemOverviewTab, type ItemOverviewLabels } from './_components/item-overview-tab';
+import type { DeactivateLabels } from '../_components/deactivate-modal';
+import type { ItemWizardLabels } from '../_components/item-create-wizard';
+
+export const dynamic = 'force-dynamic';
+
+const STATUS_VARIANT: Record<ItemStatus, BadgeVariant> = {
+  draft: 'muted',
+  active: 'success',
+  deprecated: 'warning',
+  blocked: 'danger',
+};
+
+const TYPE_LABEL: Record<ItemType, string> = {
+  rm: 'Raw material',
+  intermediate: 'Intermediate',
+  fg: 'Finished good',
+  co_product: 'Co-product',
+  byproduct: 'By-product',
+};
+
+type PageProps = {
+  params: Promise<{ locale: string; item_code: string }>;
+};
+
+export default async function TechnicalItemDetailPage({ params }: PageProps) {
+  const { item_code: rawCode } = await params;
+  const itemCode = decodeURIComponent(rawCode);
+
+  const t = await getTranslations('technical.items');
+  const result = await getItem(itemCode);
+
+  // ── not-found / error states ────────────────────────────────────────────────
+  if (result.state === 'not_found' || result.state === 'error') {
+    const isError = result.state === 'error';
+    return (
+      <main data-screen="technical-item-detail" className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+        <Link href="../items" className="text-sm text-blue-600 hover:underline">
+          ← {t('detail.back')}
+        </Link>
+        <Card className="rounded-xl border bg-white shadow-sm">
+          <CardHeader className="space-y-1 px-6 py-6">
+            <h1 className="text-lg font-semibold tracking-tight">
+              {isError ? t('detail.error') : t('detail.notFound')}
+            </h1>
+            {!isError ? (
+              <CardContent className="px-0 text-sm text-muted-foreground">
+                {t('detail.notFoundBody', { code: itemCode })}
+              </CardContent>
+            ) : null}
+          </CardHeader>
+        </Card>
+      </main>
+    );
+  }
+
+  const { item, canEdit, canDeactivate } = result;
+
+  // ── localized label bundles for the client islands ──────────────────────────
+  const tabsLabels: ItemDetailTabsLabels = {
+    tablistLabel: t('detail.tablistLabel'),
+    tabs: {
+      overview: t('detail.tabs.overview'),
+      bom: t('detail.tabs.bom'),
+      allergens: t('detail.tabs.allergens'),
+      cost: t('detail.tabs.cost'),
+      routing: t('detail.tabs.routing'),
+      supplierSpecs: t('detail.tabs.supplierSpecs'),
+      labResults: t('detail.tabs.labResults'),
+      d365: t('detail.tabs.d365'),
+    },
+    deferred: t('detail.deferred'),
+    deferredBody: t('detail.deferredBody'),
+  };
+
+  const overviewLabels: ItemOverviewLabels = {
+    identification: t('detail.overview.identification'),
+    commercial: t('detail.overview.commercial'),
+    code: t('detail.overview.code'),
+    name: t('detail.overview.name'),
+    type: t('detail.overview.type'),
+    status: t('detail.overview.status'),
+    uomBase: t('detail.overview.uomBase'),
+    uomSecondary: t('detail.overview.uomSecondary'),
+    productGroup: t('detail.overview.productGroup'),
+    description: t('detail.overview.description'),
+    weightMode: t('detail.overview.weightMode'),
+    nominalWeight: t('detail.overview.nominalWeight'),
+    grossWeightMax: t('detail.overview.grossWeightMax'),
+    varianceTolerance: t('detail.overview.varianceTolerance'),
+    shelfLife: t('detail.overview.shelfLife'),
+    costPerKg: t('detail.overview.costPerKg'),
+    updated: t('detail.overview.updated'),
+    none: t('detail.overview.none'),
+  };
+
+  const wizardLabels: ItemWizardLabels = {
+    title: t('create.title'),
+    subtitle: t('create.subtitle'),
+    cancel: t('create.cancel'),
+    back: t('create.back'),
+    next: t('create.next'),
+    create: t('create.create'),
+    creating: t('create.creating'),
+    steps: {
+      basic: t('create.steps.basic'),
+      classification: t('create.steps.classification'),
+      weight: t('create.steps.weight'),
+      review: t('create.steps.review'),
+    },
+    fields: {
+      itemCode: t('create.fields.itemCode'),
+      itemCodeHelp: t('create.fields.itemCodeHelp'),
+      name: t('create.fields.name'),
+      description: t('create.fields.description'),
+      itemType: t('create.fields.itemType'),
+      status: t('create.fields.status'),
+      uomBase: t('create.fields.uomBase'),
+      uomSecondary: t('create.fields.uomSecondary'),
+      productGroup: t('create.fields.productGroup'),
+      weightMode: t('create.fields.weightMode'),
+      nominalWeight: t('create.fields.nominalWeight'),
+      grossWeightMax: t('create.fields.grossWeightMax'),
+      varianceTolerance: t('create.fields.varianceTolerance'),
+      shelfLifeDays: t('create.fields.shelfLifeDays'),
+      shelfLifeMode: t('create.fields.shelfLifeMode'),
+    },
+    catchHint: t('create.catchHint'),
+    review: { ready: t('create.review.ready') },
+    errors: {
+      codeRequired: t('create.errors.codeRequired'),
+      nameRequired: t('create.errors.nameRequired'),
+      uomRequired: t('create.errors.uomRequired'),
+    },
+    actionErrors: {
+      already_exists: t('errors.already_exists'),
+      forbidden: t('errors.forbidden'),
+      invalid_input: t('errors.invalid_input'),
+      not_found: t('errors.not_found'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+
+  const deactivateLabels: DeactivateLabels = {
+    title: t('deactivate.title'),
+    subtitle: t('deactivate.subtitle'),
+    warning: t('deactivate.warning'),
+    reason: t('deactivate.reason'),
+    reasonRequired: t('deactivate.reasonRequired'),
+    reasons: {
+      discontinued: t('deactivate.reasons.discontinued'),
+      recipe_change: t('deactivate.reasons.recipe_change'),
+      d365_mismatch: t('deactivate.reasons.d365_mismatch'),
+      other: t('deactivate.reasons.other'),
+    },
+    notes: t('deactivate.notes'),
+    notesRequired: t('deactivate.notesRequired'),
+    confirmLabel: t('deactivate.confirmLabel'),
+    confirmMismatch: t('deactivate.confirmMismatch'),
+    cancel: t('deactivate.cancel'),
+    confirm: t('deactivate.confirm'),
+    deactivating: t('deactivate.deactivating'),
+    actionErrors: {
+      already_exists: t('errors.already_exists'),
+      forbidden: t('errors.forbidden'),
+      invalid_input: t('errors.invalid_input'),
+      not_found: t('errors.not_found'),
+      persistence_failed: t('errors.persistence_failed'),
+    },
+  };
+
+  return (
+    <main data-screen="technical-item-detail" className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <nav className="text-xs text-muted-foreground" aria-label="Breadcrumb">
+            <Link href="../items" className="hover:underline">
+              {t('detail.breadcrumb')}
+            </Link>{' '}
+            › <span className="font-mono">{item.itemCode}</span>
+          </nav>
+          <h1 className="mt-1 flex items-center gap-3 text-2xl font-semibold tracking-tight">
+            <span className="font-mono">{item.itemCode}</span>
+            <span className="text-slate-400">·</span>
+            <span>{item.name}</span>
+            <Badge variant={STATUS_VARIANT[item.status]}>{item.status}</Badge>
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('detail.subtitle', { type: TYPE_LABEL[item.itemType] })}
+          </p>
+        </div>
+        <ItemDetailActions
+          item={item}
+          canEdit={canEdit}
+          canDeactivate={canDeactivate}
+          editLabel={t('detail.edit')}
+          deactivateLabel={t('detail.deactivate')}
+          wizardLabels={wizardLabels}
+          deactivateLabels={deactivateLabels}
+        />
+      </header>
+
+      <ItemDetailTabs
+        itemCode={item.itemCode}
+        labels={tabsLabels}
+        panels={{ overview: <ItemOverviewTab item={item} labels={overviewLabels} /> }}
+      />
+    </main>
+  );
+}

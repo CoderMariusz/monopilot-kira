@@ -19,11 +19,11 @@ type D365SyncPageProps = {
   updateD365SyncConfig?: (input: UpdateD365SyncConfigInput) => Promise<{ ok: true } | { ok: false; message: string }>;
 };
 
-// The worker-owned dead-letter queue tooling lives at the existing
-// settings/d365-dlq route. The previous '/integrations/d365/dead-letter' target
-// did not resolve to any page; point honestly at the route that exists.
+// The DLQ manager (T-058 / TEC-073) lives under the canonical
+// settings/integrations/d365/dlq namespace (decision D-1). The legacy
+// settings/d365-dlq path now redirects here.
 function dlqHrefForLocale(locale: string) {
-  return `/${locale}/settings/d365-dlq`;
+  return `/${locale}/settings/integrations/d365/dlq`;
 }
 
 // Defaults applied until a worker-owned D365 sync-config record exists for the
