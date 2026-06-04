@@ -61,6 +61,9 @@ export const nutritionProfiles = pgTable(
       table.productCode,
       table.nutrientCode,
     ),
+    orgProductVersionNutrientUnique: unique('nutrition_profiles_org_product_version_nutrient_unique')
+      .on(table.orgId, table.productCode, table.formulationVersionId, table.nutrientCode)
+      .nullsNotDistinct(),
     nonnegativeValuesCheck: check(
       'nutrition_profiles_nonnegative_values_check',
       sql`${table.per100gValue} >= 0 and ${table.perPortionValue} >= 0`,
@@ -116,6 +119,9 @@ export const nutriScoreResults = pgTable(
   (table) => ({
     orgProductComputedUnique: unique('nutri_score_results_org_product_computed_unique')
       .on(table.orgId, table.productCode, table.formulationVersionId, table.computedAt)
+      .nullsNotDistinct(),
+    orgProductVersionUnique: unique('nutri_score_results_org_product_version_unique')
+      .on(table.orgId, table.productCode, table.formulationVersionId)
       .nullsNotDistinct(),
     orgProductComputedIdx: index('nutri_score_results_org_product_computed_idx').on(
       table.orgId,
