@@ -1463,6 +1463,26 @@
       "locked": "Această versiune este blocată și nu poate fi editată.",
       "noAllergen": "—"
     },
+    "costPanel": {
+      "title": "Cost și marjă",
+      "live": "live",
+      "rawMaterial": "Materie primă",
+      "afterYield": "După randament ({yieldPct}%)",
+      "processing": "Procesare ({overheadPct}%)",
+      "packaging": "Ambalaj",
+      "totalCost": "Cost total / kg",
+      "perKgSuffix": "/ kg",
+      "targetPrice": "Preț țintă (pachet 200g)",
+      "expectedYield": "Randament estimat %",
+      "revenuePerKg": "Venit / kg (la prețul țintă)",
+      "marginPerKg": "Marjă / kg",
+      "marginPct": "Marjă %",
+      "loading": "Se încarcă costul…",
+      "empty": "Niciun cost încă",
+      "emptyBody": "Adăugați costurile ingredientelor pentru a vedea marja live.",
+      "error": "Nu se poate încărca defalcarea costurilor.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza costurile."
+    },
     "gateChecklist": {
       "title": "Listă de verificare poartă",
       "currentGate": "Poarta curentă:",

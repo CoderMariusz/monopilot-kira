@@ -1463,6 +1463,26 @@
       "locked": "Ta wersja jest zablokowana i nie można jej edytować.",
       "noAllergen": "—"
     },
+    "costPanel": {
+      "title": "Koszt i marża",
+      "live": "na żywo",
+      "rawMaterial": "Surowiec",
+      "afterYield": "Po uzysku ({yieldPct}%)",
+      "processing": "Przetwarzanie ({overheadPct}%)",
+      "packaging": "Opakowanie",
+      "totalCost": "Koszt całkowity / kg",
+      "perKgSuffix": "/ kg",
+      "targetPrice": "Cena docelowa (opak. 200g)",
+      "expectedYield": "Oczekiwany uzysk %",
+      "revenuePerKg": "Przychód / kg (przy cenie docelowej)",
+      "marginPerKg": "Marża / kg",
+      "marginPct": "Marża %",
+      "loading": "Ładowanie kosztu…",
+      "empty": "Brak kosztu",
+      "emptyBody": "Dodaj koszty składników, aby zobaczyć marżę na żywo.",
+      "error": "Nie można załadować zestawienia kosztów.",
+      "forbidden": "Nie masz uprawnień do wyświetlania kosztów."
+    },
     "gateChecklist": {
       "title": "Lista kontrolna bramki",
       "currentGate": "Bieżąca bramka:",
