@@ -1484,6 +1484,26 @@
       "locked": "This version is locked and cannot be edited.",
       "noAllergen": "—"
     },
+    "costPanel": {
+      "title": "Cost & margin",
+      "live": "live",
+      "rawMaterial": "Raw material",
+      "afterYield": "After yield ({yieldPct}%)",
+      "processing": "Processing ({overheadPct}%)",
+      "packaging": "Packaging",
+      "totalCost": "Total cost / kg",
+      "perKgSuffix": "/ kg",
+      "targetPrice": "Target price (200g pack)",
+      "expectedYield": "Expected yield %",
+      "revenuePerKg": "Revenue / kg (at target price)",
+      "marginPerKg": "Margin / kg",
+      "marginPct": "Margin %",
+      "loading": "Loading cost…",
+      "empty": "No cost yet",
+      "emptyBody": "Add ingredient costs to see the live margin.",
+      "error": "Unable to load the cost breakdown.",
+      "forbidden": "You do not have permission to view costs."
+    },
     "gateChecklist": {
       "title": "Gate checklist",
       "currentGate": "Current gate:",
