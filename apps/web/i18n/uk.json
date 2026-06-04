@@ -668,13 +668,147 @@
       "title": "Process steps",
       "subtitle": "Schema-driven manufacturing process-step reference data.",
       "addRow": "+ Add process",
-      "empty": "No process steps configured yet."
+      "empty": "No process steps configured yet.",
+      "importCsv": "Імпорт CSV",
+      "exportCsv": "Експорт CSV",
+      "edit": "Редагувати",
+      "delete": "Видалити",
+      "rowsSuffix": "рядків",
+      "updatedPrefix": "Оновлено",
+      "loading": "Завантаження кроків процесу…",
+      "error": "Неможливо завантажити кроки процесу.",
+      "permissionDenied": "У вас немає дозволу на редагування кроків процесу.",
+      "actions": "Дії",
+      "enabled": "Активний",
+      "disabled": "Неактивний",
+      "yes": "Так",
+      "no": "Ні",
+      "rowKey": "Ключ",
+      "rowKeyHelp": "Великі літери, мін. 2 символи. Унікальний у таблиці.",
+      "modal": {
+        "edit": {
+          "title": "Додати крок процесу",
+          "editTitle": "Редагувати крок процесу — {rowKey}",
+          "referenceTable": "Довідкова таблиця · {tableCode}",
+          "cancel": "Скасувати",
+          "save": "Зберегти",
+          "saving": "Збереження…",
+          "loading": "⟳ Завантаження рядка…",
+          "loadingLabel": "Завантаження кроку процесу",
+          "noSchema": "Немає полів схеми для {tableCode}",
+          "rowKeyInvalid": "Має бути великий буквено-цифровий / підкреслення / тире, ≥ 2 символи",
+          "rowKeyRequired": "Ключ рядка є обов'язковим",
+          "minChars": "Мін. 2 символи",
+          "selectPlaceholder": "Оберіть…",
+          "saveFailed": "Неможливо зберегти крок процесу."
+        },
+        "delete": {
+          "title": "Видалити {code}?",
+          "cancel": "Скасувати",
+          "confirmLabel": "Введіть DELETE для підтвердження",
+          "confirmButton": "Видалити назавжди",
+          "deleting": "Видалення…",
+          "confirmCheckbox": "Підтвердити",
+          "warning": "Цю дію неможливо скасувати. {code} — {name} буде назавжди видалено з {table}.",
+          "affectedRows": "{count} рядків, що посилаються на цей код, стануть осиротілими.",
+          "precheckError": "Неможливо перевірити посилаючі рядки",
+          "submitFailed": "Неможливо видалити крок процесу.",
+          "success": "Крок процесу видалено"
+        }
+      }
     },
     "partners": {
       "title": "Suppliers & customers",
       "subtitle": "Schema-driven business-partner reference data (suppliers, customers).",
       "addRow": "+ Add partner",
-      "empty": "No business partners configured yet."
+      "empty": "No business partners configured yet.",
+      "importCsv": "Імпорт CSV",
+      "exportCsv": "Експорт CSV",
+      "edit": "Редагувати",
+      "delete": "Видалити",
+      "rowsSuffix": "рядків",
+      "updatedPrefix": "Оновлено",
+      "loading": "Завантаження бізнес-партнерів…",
+      "error": "Неможливо завантажити бізнес-партнерів.",
+      "permissionDenied": "У вас немає дозволу на редагування бізнес-партнерів.",
+      "actions": "Дії",
+      "enabled": "Активний",
+      "disabled": "Неактивний",
+      "yes": "Так",
+      "no": "Ні",
+      "rowKey": "Ключ",
+      "rowKeyHelp": "Великі літери, мін. 2 символи. Унікальний у таблиці.",
+      "modal": {
+        "edit": {
+          "title": "Додати партнера",
+          "editTitle": "Редагувати партнера — {rowKey}",
+          "referenceTable": "Довідкова таблиця · {tableCode}",
+          "cancel": "Скасувати",
+          "save": "Зберегти",
+          "saving": "Збереження…",
+          "loading": "⟳ Завантаження рядка…",
+          "loadingLabel": "Завантаження рядка партнера",
+          "noSchema": "Немає полів схеми для {tableCode}",
+          "rowKeyInvalid": "Має бути великий буквено-цифровий / підкреслення / тире, ≥ 2 символи",
+          "rowKeyRequired": "Ключ рядка є обов'язковим",
+          "minChars": "Мін. 2 символи",
+          "selectPlaceholder": "Оберіть…",
+          "saveFailed": "Неможливо зберегти партнера."
+        },
+        "delete": {
+          "title": "Видалити {code}?",
+          "cancel": "Скасувати",
+          "confirmLabel": "Введіть DELETE для підтвердження",
+          "confirmButton": "Видалити назавжди",
+          "deleting": "Видалення…",
+          "confirmCheckbox": "Підтвердити",
+          "warning": "Цю дію неможливо скасувати. {code} — {name} буде назавжди видалено з {table}.",
+          "affectedRows": "{count} рядків, що посилаються на цей код, стануть осиротілими.",
+          "precheckError": "Неможливо перевірити посилаючі рядки",
+          "submitFailed": "Неможливо видалити партнера.",
+          "success": "Партнера видалено"
+        }
+      }
+    },
+    "d365": {
+      "sync": {
+        "title": "Конфігурація синхронізації D365",
+        "subtitle": "Розклад вилучення, черга push, політика повторних спроб і доступ до черги мертвих листів.",
+        "save": "Зберегти конфігурацію синхронізації",
+        "saved": "Конфігурацію синхронізації D365 збережено",
+        "forbiddenTitle": "403 — Потрібен доступ власника",
+        "sections": {
+          "polling": "Опитування та синхронізація",
+          "retry": "Політика повторних спроб",
+          "dlq": "Черга мертвих листів"
+        },
+        "fields": {
+          "pullCron": "Розклад cron вилучення",
+          "batchSize": "Розмір пакету",
+          "pushQueue": "Черга push",
+          "maxAttempts": "Макс. кількість спроб",
+          "retryBackoff": "Затримка повторної спроби"
+        }
+      }
+    },
+    "integrations": {
+      "d365": {
+        "connection": {
+          "title": "Підключення D365",
+          "subtitle": "Dynamics 365 Finance & Operations — кінцева точка, автентифікація, розклад опитування.",
+          "testConnection": "Тестувати підключення",
+          "save": "Зберегти конфігурацію",
+          "rotateSecret": "Ротація секрету",
+          "secretRotated": "Секрет клієнта D365 змінено",
+          "urlInvalid": "Невірний URL",
+          "loading": "Завантаження підключення D365…",
+          "empty": "Підключення D365 не налаштовано.",
+          "error": "Неможливо завантажити підключення D365.",
+          "missingPrerequisites": "Відсутні передумови підключення D365. Налаштуйте кінцеву точку, орендаря Azure AD, ідентифікатор клієнта та посилання на секрет перед збереженням або увімкненням синхронізації.",
+          "preflightIncomplete": "D365 не може бути увімкнено, поки не налаштовано всі п'ять довідкових констант.",
+          "preflightMissing": "Відсутні константи D365:"
+        }
+      }
     }
   },
   "navigation": {
