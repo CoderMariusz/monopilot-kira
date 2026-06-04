@@ -14,7 +14,14 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// next/navigation is used by the "+ Create FG" button to push ?modal=faCreate (G-1).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/en/fa',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 import { FaListTable, type FaListRow, type FaListLabels } from '../fa-list-table';
 

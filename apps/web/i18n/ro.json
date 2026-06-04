@@ -958,6 +958,22 @@
       "error": "Nu se pot încărca produsele finite. Încearcă din nou după ce backend-ul este disponibil.",
       "forbidden": "Nu ai permisiunea de a vizualiza produsele finite."
     },
+    "faCreateModal": {
+      "title": "Creează produs finit",
+      "subtitle": "V01 · Formatul codului FG validat la ieșirea din câmp. V02 · Numele produsului este obligatoriu.",
+      "fieldProductCode": "Cod FG",
+      "fieldProductCodeHint": "Trebuie să înceapă cu FA urmat de litere mari/cifre (ex. FA5609).",
+      "fieldProductName": "Nume produs",
+      "fieldProductNameHint": "Maxim 200 de caractere",
+      "rangeHint": "Intervale: FA5600+ este rezervat pentru fluxul NPD 2026.",
+      "cancel": "Anulează",
+      "create": "Creează FG",
+      "creating": "Se creează…",
+      "errorV01": "Codul FG trebuie să înceapă cu FA urmat de litere mari/cifre (ex. FA5609).",
+      "errorV02": "Numele produsului este obligatoriu (maxim 200 de caractere).",
+      "errorDuplicate": "Codul FG există deja. Alegeți un alt cod.",
+      "errorGeneric": "Nu s-a putut crea produsul finit. Încercați din nou."
+    },
     "briefList": {
       "title": "Briefuri NPD",
       "subtitle": "Briefurile sunt înregistrări de admisie pre-FG",

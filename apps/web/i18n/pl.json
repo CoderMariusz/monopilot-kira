@@ -958,6 +958,22 @@
       "error": "Nie można załadować wyrobów gotowych. Spróbuj ponownie, gdy zaplecze będzie dostępne.",
       "forbidden": "Nie masz uprawnień do przeglądania wyrobów gotowych."
     },
+    "faCreateModal": {
+      "title": "Utwórz wyrób gotowy",
+      "subtitle": "V01 · Format kodu FG sprawdzany po opuszczeniu pola. V02 · Nazwa produktu wymagana.",
+      "fieldProductCode": "Kod FG",
+      "fieldProductCodeHint": "Musi zaczynać się od FA, a następnie wielkie litery/cyfry (np. FA5609).",
+      "fieldProductName": "Nazwa produktu",
+      "fieldProductNameHint": "Maks. 200 znaków",
+      "rangeHint": "Zakresy: FA5600+ jest zarezerwowany dla potoku NPD 2026.",
+      "cancel": "Anuluj",
+      "create": "Utwórz FG",
+      "creating": "Tworzenie…",
+      "errorV01": "Kod FG musi zaczynać się od FA, a następnie wielkie litery/cyfry (np. FA5609).",
+      "errorV02": "Nazwa produktu jest wymagana (maks. 200 znaków).",
+      "errorDuplicate": "Kod FG już istnieje. Wybierz inny kod.",
+      "errorGeneric": "Nie udało się utworzyć wyrobu gotowego. Spróbuj ponownie."
+    },
     "briefList": {
       "title": "Briefy NPD",
       "subtitle": "Briefy to wstępne zgłoszenia przed FG",
