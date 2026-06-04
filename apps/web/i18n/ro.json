@@ -1893,6 +1893,8 @@
       "deptClose": "Închide departament",
       "d365Build": "Construiește D365",
       "actionsDeferred": "Disponibil după lansarea fluxului de acțiuni.",
+      "deptCloseDisabledHint": "Nu ai permisiunea de a închide departamente.",
+      "d365DisabledHint": "Produsul trebuie să fie mai întâi Finalizat (toate cele 7 departamente închise).",
       "loading": "Se încarcă rezumatul…",
       "empty": "Fără rezumat",
       "emptyBody": "Niciun produs finit nu corespunde acestui cod în organizația ta.",
@@ -1905,6 +1907,13 @@
         "Complete": "Finalizat",
         "Built": "Construit"
       }
+    },
+    "faDetailModals": {
+      "deptCloseTitle": "Închide departamentul",
+      "deptCloseDeferred": "Fluxul de închidere a departamentului se deschide aici.",
+      "d365BuildTitle": "Construiește ieșirea D365",
+      "d365BuildDeferred": "Fluxul de construire D365 se deschide aici.",
+      "close": "Anulează"
     },
     "faProductionTab": {
       "title": "Detalii producție",

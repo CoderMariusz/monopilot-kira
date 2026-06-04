@@ -1893,6 +1893,8 @@
       "deptClose": "Zamknij dział",
       "d365Build": "Buduj D365",
       "actionsDeferred": "Dostępne po wdrożeniu procesu akcji.",
+      "deptCloseDisabledHint": "Nie masz uprawnień do zamykania działów.",
+      "d365DisabledHint": "Wyrób musi być najpierw Ukończony (wszystkie 7 działów zamkniętych).",
       "loading": "Ładowanie podsumowania…",
       "empty": "Brak podsumowania",
       "emptyBody": "Żaden wyrób gotowy nie pasuje do tego kodu w Twojej organizacji.",
@@ -1905,6 +1907,13 @@
         "Complete": "Ukończony",
         "Built": "Zbudowany"
       }
+    },
+    "faDetailModals": {
+      "deptCloseTitle": "Zamknij dział",
+      "deptCloseDeferred": "Tutaj otwiera się proces zamykania działu.",
+      "d365BuildTitle": "Zbuduj wyjście D365",
+      "d365BuildDeferred": "Tutaj otwiera się proces budowy D365.",
+      "close": "Anuluj"
     },
     "faProductionTab": {
       "title": "Szczegóły produkcji",
