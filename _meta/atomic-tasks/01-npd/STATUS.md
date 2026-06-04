@@ -21,11 +21,11 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-007 | outbox_events emitter wrapper for fa.* events | ✅ DONE | DONE 2026-06-04 (Wave B). outbox emitFaEvent wrapper for fa.*/brief.* events (mig 102) — tx-scoped, idempotent, app_user insert org-RLS-checked; 25+4 green. merged |
 | T-008 | Server Action createFa | ✅ DONE | DONE 2026-06-04 (Wave C). createFa Server Action + V01/V02 validators — REAL integration test (mutation-verified non-vacuous), single-tx product+outbox. merged. Nit: product_code is GLOBAL PK (multi-tenant concern, see module-close) |
 | T-009 | Server Action updateFaCell + reset_built trigger | ⬜ PENDING | Blocked by T-001, T-003, T-006, T-007 |
-| T-010 | Cascade Chain 1: Pack_Size → Line → Equipment_Setup | ⬜ PENDING | Blocked by T-001, T-005 |
-| T-011 | Cascade Chain 2: Manufacturing_Operation → Intermediate | ⬜ PENDING | Blocked by T-001, T-002, T-004 |
-| T-012 | Cascade Chain 3: Recipe_Components → Ingredient_Code | ⬜ PENDING | Blocked by T-001, T-002 |
+| T-010 | Cascade Chain 1: Pack_Size → Line → Equipment_Setup | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 1 Pack_Size→Line→Equipment (mig 127, packages/cascade-engine) + fa.cascade event — merged |
+| T-011 | Cascade Chain 2: Manufacturing_Operation → Intermediate | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 2 Manufacturing_Operation→Intermediate (packages/cascade-engine/chain2 + V06 suffix-match validator) — merged (scaffold conflict resolved) |
+| T-012 | Cascade Chain 3: Recipe_Components → Ingredient_Code | ✅ DONE | DONE 2026-06-04 (Wave C). Cascade Chain 3 Recipe_Components→Ingredient_Code (mig 129, cascade-engine/chain3) + fa.recipe_changed event — merged (type-fixed post-merge) |
 | T-013 | Cascade Chain 4: Template → ApplyTemplate to ProdDetail | ⬜ PENDING | Blocked by T-001, T-002, T-005, T-011 |
-| T-014 | Schema-driven Zod runtime from Reference.DeptColumns | ⬜ PENDING | Blocked by T-003, T-005 |
+| T-014 | Schema-driven Zod runtime from Reference.DeptColumns | ✅ DONE | DONE 2026-06-04 (Wave C). Schema-driven Zod runtime from Reference.DeptColumns (mig 123, packages/schema-runtime) — Codex+rework (getAppConnection RLS, boolean/formula handling). merged |
 | T-015 | IsAllRequiredFilled + Done_<Dept> + Status_Overall view | ✅ DONE | DONE 2026-06-04 (Wave B). IsAllRequiredFilled + Done_<Dept> + fa_status_overall view (mig 097, security_invoker, schema-driven) — merged |
 | T-016 | Reference.DeptColumns Apex baseline seed (69 cols) | ✅ DONE | DONE 2026-06-04 (Wave B). DeptColumns Apex baseline seed 69 cols (mig 095, Sonnet, 6/6, idempotent) — merged |
 | T-017 | Server Action closeDeptSection | ⬜ PENDING | Blocked by T-001, T-006, T-007, T-015 |
