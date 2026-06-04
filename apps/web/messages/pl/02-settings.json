@@ -359,6 +359,7 @@
       "columnAddress": "Address",
       "columnStatus": "Status",
       "columnActiveWoCount": "Active WO count",
+      "openLocations": "Open locations for {name}",
       "selectWarehouse": "Select {name}",
       "bulkActivate": "Bulk Activate",
       "bulkDeactivate": "Bulk Deactivate",
@@ -434,6 +435,7 @@
       "addLocation": "+ Dodaj lokalizację",
       "editLocation": "Edytuj",
       "addChild": "+ Podrzędna",
+      "deleteLocation": "Usuń",
       "selectedLocation": "Wybrana lokalizacja",
       "selectedParent": "Nadrzędna",
       "selectedDepth": "Poziom głębokości",
@@ -443,6 +445,8 @@
       "readOnly": "Tylko odczyt — do edycji wymagane settings.infra.update",
       "dialogAddTitle": "Dodaj lokalizację",
       "dialogEditTitle": "Edytuj lokalizację",
+      "dialogDeleteTitle": "Usuń lokalizację",
+      "dialogDeleteBody": "Usunąć {name}? Tej operacji nie można cofnąć.",
       "fieldCode": "Kod",
       "fieldName": "Nazwa",
       "fieldParent": "Lokalizacja nadrzędna",
@@ -452,6 +456,7 @@
       "depthExceeded": "Maksymalna głębokość lokalizacji dla tego tenant to 3 poziomy (magazyn → strefa → bin).",
       "cancel": "Anuluj",
       "createLocation": "Utwórz lokalizację",
+      "confirmDelete": "Usuń lokalizację",
       "saveChanges": "Zapisz zmiany",
       "active": "Active",
       "lpsTableTitle": "LPs at this location",
@@ -472,7 +477,10 @@
       "fieldCodeHelp": "Alphanumeric + hyphen, max 20 chars, unique within warehouse",
       "fieldBarcodeHelp": "Auto-generated if blank — for location QR / Code128 printing",
       "upsertSuccess": "Location saved.",
-      "upsertError": "Location save failed."
+      "upsertError": "Location save failed.",
+      "deleteSuccess": "Location deleted.",
+      "deleteError": "Location delete failed.",
+      "deleteHasChildren": "Delete child locations first."
     }
   },
   "schema": {

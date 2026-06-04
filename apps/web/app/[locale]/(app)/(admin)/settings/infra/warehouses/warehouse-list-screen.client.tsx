@@ -65,6 +65,7 @@ export type WarehouseLabels = {
   columnAddress: string;
   columnStatus: string;
   columnActiveWoCount: string;
+  openLocations: string;
   selectWarehouse: string;
   bulkActivate: string;
   bulkDeactivate: string;
@@ -113,6 +114,7 @@ export type WarehouseLabels = {
 
 export default function WarehouseListScreen({
   labels,
+  locale = 'en',
   initialWarehouses,
   canUpdateInfra,
   createWarehouse,
@@ -120,6 +122,7 @@ export default function WarehouseListScreen({
   state,
 }: {
   labels: WarehouseLabels;
+  locale?: string;
   initialWarehouses: Warehouse[];
   canUpdateInfra: boolean;
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
@@ -157,6 +160,15 @@ export default function WarehouseListScreen({
       { value: 'deactivated', label: labels.statusDeactivated },
     ],
     [labels.statusActive, labels.statusAll, labels.statusDeactivated],
+  );
+  const binAssignmentOptions = React.useMemo<SelectOption[]>(
+    () => [
+      { value: 'FEFO', label: labels.binAssignmentFefo },
+      { value: 'FIFO', label: labels.binAssignmentFifo },
+      { value: 'LIFO', label: labels.binAssignmentLifo },
+      { value: 'Manual', label: labels.binAssignmentManual },
+    ],
+    [labels.binAssignmentFefo, labels.binAssignmentFifo, labels.binAssignmentLifo, labels.binAssignmentManual],
   );
 
   const visibleRows = React.useMemo(() => {
@@ -408,7 +420,11 @@ export default function WarehouseListScreen({
                         />
                       </TableCell>
                       <TableCell className="px-4 py-4 font-mono text-xs text-slate-700">{warehouse.code}</TableCell>
-                      <TableCell className="px-4 py-4 font-medium text-slate-950">{warehouse.name}</TableCell>
+                      <TableCell className="px-4 py-4 font-medium text-slate-950">
+                        <a href={`/${locale}/settings/infra/locations?warehouseId=${encodeURIComponent(warehouse.id)}`} className="text-blue-700 hover:underline" aria-label={formatTemplate(labels.openLocations, { name: warehouse.name })}>
+                          {warehouse.name}
+                        </a>
+                      </TableCell>
                       <TableCell className="px-4 py-4 text-slate-600">{site}</TableCell>
                       <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.zones)}</TableCell>
                       <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.bins)}</TableCell>
@@ -448,12 +464,7 @@ export default function WarehouseListScreen({
           </div>
           <div className="mt-4 divide-y divide-slate-100">
             <StorageRuleRow label={labels.binAssignmentStrategy}>
-              <select id="bin-assignment-strategy" aria-label={labels.binAssignmentStrategy} defaultValue="FEFO" className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-                <option value="FEFO">{labels.binAssignmentFefo}</option>
-                <option value="FIFO">{labels.binAssignmentFifo}</option>
-                <option value="LIFO">{labels.binAssignmentLifo}</option>
-                <option value="Manual">{labels.binAssignmentManual}</option>
-              </select>
+              <Select id="bin-assignment-strategy" defaultValue="FEFO" options={binAssignmentOptions} aria-label={labels.binAssignmentStrategy} />
             </StorageRuleRow>
             <StorageRuleRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
               <TogglePill on={false} />

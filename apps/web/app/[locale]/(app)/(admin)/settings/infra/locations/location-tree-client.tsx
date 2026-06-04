@@ -5,11 +5,14 @@ import React from 'react';
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import Input from '@monopilot/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 
 export type Warehouse = { id: string; code: string; name: string };
 export type LocationRow = { id: string; warehouseId: string; parentId: string | null; name: string; level: number; path: string; locationType?: string | null };
 export type UpsertLocationInput = { id?: string; warehouseId: string; parentId: string | null; code: string; name: string; level: number; locationType: string; active?: boolean; barcode?: string | null };
 export type UpsertLocationResult = { ok: true; data: { id: string; path: string; level: number } } | { ok: false; error: string };
+export type DeleteLocationInput = { locationId: string; warehouseId: string };
+export type DeleteLocationResult = { ok: true; data: { locationId: string; warehouseId: string } } | { ok: false; error: string };
 export type LocationTreeLabels = {
   title: string;
   subtitle: string;
@@ -23,6 +26,7 @@ export type LocationTreeLabels = {
   addLocation: string;
   editLocation: string;
   addChild: string;
+  deleteLocation: string;
   selectedLocation: string;
   selectedParent: string;
   selectedDepth: string;
@@ -32,6 +36,8 @@ export type LocationTreeLabels = {
   readOnly: string;
   dialogAddTitle: string;
   dialogEditTitle: string;
+  dialogDeleteTitle: string;
+  dialogDeleteBody: string;
   fieldCode: string;
   fieldName: string;
   fieldParent: string;
@@ -41,6 +47,7 @@ export type LocationTreeLabels = {
   depthExceeded: string;
   cancel: string;
   createLocation: string;
+  confirmDelete: string;
   saveChanges: string;
   csvFile: string;
   insufficientPermissions: string;
@@ -74,6 +81,9 @@ export type LocationTreeLabels = {
   fieldBarcodeHelp: string;
   upsertSuccess: string;
   upsertError: string;
+  deleteSuccess: string;
+  deleteError: string;
+  deleteHasChildren: string;
 };
 
 type TreeNode = LocationRow & { children: TreeNode[] };
@@ -95,6 +105,7 @@ export function LocationTreeScreen({
   importToast,
   upsertToast,
   upsertLocation,
+  deleteLocation,
 }: {
   labels: LocationTreeLabels;
   warehouses: Warehouse[];
@@ -110,6 +121,7 @@ export function LocationTreeScreen({
   importToast: { role: 'status' | 'alert'; message: string } | null;
   upsertToast: { role: 'status' | 'alert'; message: string } | null;
   upsertLocation: (input: UpsertLocationInput) => Promise<UpsertLocationResult> | UpsertLocationResult;
+  deleteLocation: (input: DeleteLocationInput) => Promise<DeleteLocationResult> | DeleteLocationResult;
 }) {
   const [rows, setRows] = React.useState<LocationRow[]>(() => [...locations]);
   const visibleRows = rows.filter((location) => selectedWarehouseId === 'all' || location.warehouseId === selectedWarehouseId);
@@ -118,6 +130,7 @@ export function LocationTreeScreen({
   const [selected, setSelected] = React.useState<string | null>(selectedLocationId ?? firstSelected?.id ?? null);
   const selectedLocation = visibleRows.find((location) => location.id === selected) ?? firstSelected;
   const [dialogMode, setDialogMode] = React.useState<DialogMode | null>(activeDialog);
+  const [deleteCandidate, setDeleteCandidate] = React.useState<LocationRow | null>(null);
   const [editingLocation, setEditingLocation] = React.useState<LocationRow | null>(null);
   const [form, setForm] = React.useState({ code: '', name: '', parentId: parentLocationId ?? selectedLocation?.id ?? '', locationType: 'storage', active: true, barcode: '' });
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -129,6 +142,14 @@ export function LocationTreeScreen({
   const nextLevel = parentLocation ? parentLocation.level + 1 : 1;
   const valid = form.code.trim().length > 0 && form.name.trim().length > 0 && !depthExceeded;
   const warehouseOptions = [{ value: 'all', label: labels.allWarehouses }, ...warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))];
+  const parentOptions = React.useMemo<SelectOption[]>(
+    () => [{ value: 'root', label: '—' }, ...visibleRows.filter((location) => location.id !== editingLocation?.id).map((location) => ({ value: location.id, label: location.path.replace(/\./g, ' › ') }))],
+    [editingLocation?.id, visibleRows],
+  );
+  const typeOptions = React.useMemo<SelectOption[]>(
+    () => ['storage', 'transit', 'receiving', 'production_line'].map((value) => ({ value, label: value })),
+    [],
+  );
   const bins = selectedLocation && selectedLocation.level === 2 ? visibleRows.filter((location) => location.parentId === selectedLocation.id) : [];
 
   function openDialog(mode: DialogMode, location?: LocationRow | null) {
@@ -173,6 +194,19 @@ export function LocationTreeScreen({
     setSelected(saved.id);
     setDialogMode(null);
     setEditingLocation(null);
+  }
+
+  async function confirmDeleteLocation() {
+    if (!deleteCandidate || !canUpdateInfra) return;
+    const result = await deleteLocation({ locationId: deleteCandidate.id, warehouseId: deleteCandidate.warehouseId });
+    if (!result.ok) {
+      setFormError(result.error === 'has_child_locations' ? labels.deleteHasChildren : labels.deleteError);
+      return;
+    }
+    setRows((current) => current.filter((row) => row.id !== deleteCandidate.id));
+    setSelected((current) => (current === deleteCandidate.id ? null : current));
+    setDeleteCandidate(null);
+    setFormError(null);
   }
 
   return (
@@ -238,7 +272,7 @@ export function LocationTreeScreen({
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline">{selectedLocation.locationType ?? 'storage'}</Badge>
                       <Badge variant="success">● {labels.active}</Badge>
-                      {canUpdateInfra ? <><Button type="button" onClick={() => openDialog('edit', selectedLocation)}>{labels.editLocation}</Button><Button type="button" onClick={() => openDialog('child', selectedLocation)}>{labels.addChild}</Button></> : null}
+                      {canUpdateInfra ? <><Button type="button" onClick={() => openDialog('edit', selectedLocation)}>{labels.editLocation}</Button><Button type="button" onClick={() => openDialog('child', selectedLocation)}>{labels.addChild}</Button><Button type="button" className="border border-red-200 bg-red-50 text-red-700" onClick={() => { setDeleteCandidate(selectedLocation); setFormError(null); }}>{labels.deleteLocation}</Button></> : null}
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-4">
@@ -274,8 +308,21 @@ export function LocationTreeScreen({
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-code">{labels.fieldCode}<Input id="location-code" value={form.code} maxLength={20} required onChange={(event) => { const value = event.currentTarget.value.toUpperCase(); setForm((current) => ({ ...current, code: value })); }} className="font-mono" /><span className="text-xs text-slate-500">{labels.fieldCodeHelp}</span></label>
               <label className="grid gap-1 text-sm font-medium" htmlFor="location-name">{labels.fieldName}<Input id="location-name" value={form.name} maxLength={80} required onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, name: value })); }} /></label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-medium" htmlFor="location-parent">{labels.fieldParent}<select id="location-parent" value={form.parentId} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, parentId: value })); }} aria-invalid={depthExceeded} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">—</option>{visibleRows.filter((location) => location.id !== editingLocation?.id).map((location) => <option key={location.id} value={location.id}>{location.path.replace(/\./g, ' › ')}</option>)}</select>{depthExceeded ? <span className="text-xs font-medium text-red-700">{labels.depthExceeded}</span> : null}</label>
-                <label className="grid gap-1 text-sm font-medium" htmlFor="location-type">{labels.fieldType}<select id="location-type" value={form.locationType} onChange={(event) => { const value = event.currentTarget.value; setForm((current) => ({ ...current, locationType: value })); }} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"><option value="storage">storage</option><option value="transit">transit</option><option value="receiving">receiving</option><option value="production_line">production_line</option></select></label>
+                <div className="grid gap-1 text-sm font-medium">
+                  <span id="location-parent-label">{labels.fieldParent}</span>
+                  <Select value={form.parentId || 'root'} options={parentOptions} onValueChange={(value) => { setForm((current) => ({ ...current, parentId: value === 'root' ? '' : value })); }} aria-labelledby="location-parent-label" aria-label={labels.fieldParent}>
+                    <SelectTrigger className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" aria-label={labels.fieldParent}><SelectValue /></SelectTrigger>
+                    <SelectContent>{parentOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {depthExceeded ? <span className="text-xs font-medium text-red-700">{labels.depthExceeded}</span> : null}
+                </div>
+                <div className="grid gap-1 text-sm font-medium">
+                  <span id="location-type-label">{labels.fieldType}</span>
+                  <Select value={form.locationType} options={typeOptions} onValueChange={(value) => { setForm((current) => ({ ...current, locationType: value })); }} aria-labelledby="location-type-label" aria-label={labels.fieldType}>
+                    <SelectTrigger className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" aria-label={labels.fieldType}><SelectValue /></SelectTrigger>
+                    <SelectContent>{typeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm font-medium" htmlFor="location-active"><input id="location-active" type="checkbox" checked={form.active} onChange={(event) => { const checked = event.currentTarget.checked; setForm((current) => ({ ...current, active: checked })); }} />{labels.fieldActive}</label>
               {form.code || form.name ? (
@@ -285,6 +332,20 @@ export function LocationTreeScreen({
             </div>
             <div className="mt-5 flex justify-end gap-2"><Button type="button" onClick={() => setDialogMode(null)}>{labels.cancel}</Button><Button type="submit" disabled={!valid}>{dialogMode === 'edit' ? labels.saveChanges : labels.createLocation}</Button></div>
           </form>
+        </div>
+      ) : null}
+
+      {deleteCandidate && canUpdateInfra ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="location-delete-dialog-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h2 id="location-delete-dialog-title" className="text-lg font-semibold">{labels.dialogDeleteTitle}</h2>
+            <p className="mt-3 text-sm text-slate-600">{formatLabel(labels.dialogDeleteBody, { name: deleteCandidate.name })}</p>
+            {formError ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" onClick={() => { setDeleteCandidate(null); setFormError(null); }}>{labels.cancel}</Button>
+              <Button type="button" className="border border-red-200 bg-red-600 text-white" onClick={() => void confirmDeleteLocation()}>{labels.confirmDelete}</Button>
+            </div>
+          </div>
         </div>
       ) : null}
     </main>

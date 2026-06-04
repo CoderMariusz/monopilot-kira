@@ -94,6 +94,7 @@ export enum EventType {
   SETTINGS_DEPT_OVERRIDE_UPDATED = 'settings.dept_override.updated',
   SETTINGS_IP_ALLOWLIST_CHANGED = 'settings.ip_allowlist.changed',
   SETTINGS_LINE_UPSERTED = 'settings.line.upserted',
+  SETTINGS_LOCATION_DELETED = 'settings.location.deleted',
   SETTINGS_LOCATION_IMPORTED = 'settings.location.imported',
   SETTINGS_LOCATION_UPSERTED = 'settings.location.upserted',
   SETTINGS_MACHINE_UPSERTED = 'settings.machine.upserted',

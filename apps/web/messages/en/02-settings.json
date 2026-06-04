@@ -359,6 +359,7 @@
       "columnAddress": "Address",
       "columnStatus": "Status",
       "columnActiveWoCount": "Active WO count",
+      "openLocations": "Open locations for {name}",
       "selectWarehouse": "Select {name}",
       "bulkActivate": "Bulk Activate",
       "bulkDeactivate": "Bulk Deactivate",
@@ -434,6 +435,7 @@
       "addLocation": "+ Add location",
       "editLocation": "Edit",
       "addChild": "+ Child",
+      "deleteLocation": "Delete",
       "selectedLocation": "Selected location",
       "selectedParent": "Parent",
       "selectedDepth": "Depth level",
@@ -443,6 +445,8 @@
       "readOnly": "Read-only — settings.infra.update required to edit",
       "dialogAddTitle": "Add location",
       "dialogEditTitle": "Edit location",
+      "dialogDeleteTitle": "Delete location",
+      "dialogDeleteBody": "Delete {name}? This cannot be undone.",
       "fieldCode": "Code",
       "fieldName": "Name",
       "fieldParent": "Parent location",
@@ -452,6 +456,7 @@
       "depthExceeded": "Maximum location depth for this tenant is 3 levels (warehouse → zone → bin).",
       "cancel": "Cancel",
       "createLocation": "Create location",
+      "confirmDelete": "Delete location",
       "saveChanges": "Save changes",
       "active": "Active",
       "lpsTableTitle": "LPs at this location",
@@ -472,7 +477,10 @@
       "fieldCodeHelp": "Alphanumeric + hyphen, max 20 chars, unique within warehouse",
       "fieldBarcodeHelp": "Auto-generated if blank — for location QR / Code128 printing",
       "upsertSuccess": "Location saved.",
-      "upsertError": "Location save failed."
+      "upsertError": "Location save failed.",
+      "deleteSuccess": "Location deleted.",
+      "deleteError": "Location delete failed.",
+      "deleteHasChildren": "Delete child locations first."
     }
   },
   "schema": {
