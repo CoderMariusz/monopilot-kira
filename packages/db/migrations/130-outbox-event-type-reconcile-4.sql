@@ -21,6 +21,7 @@ alter table public.outbox_events add constraint outbox_events_event_type_check c
       'fa.created',
       'fa.dept_closed',
       'fa.intermediate_code_changed',
+      'fa.recipe_changed',
       'fg.allergens_changed',
       'fg.bom.released',
       'fg.created',
