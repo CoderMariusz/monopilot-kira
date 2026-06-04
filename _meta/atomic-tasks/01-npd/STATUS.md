@@ -50,7 +50,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
 | T-037 | fa_allergen_overrides table + audit chain | ✅ DONE | DONE 2026-06-04 (Wave B). fa_allergen_overrides + append-only audit chain (mig 094) — Codex+rework (revoke UPD/DEL, SECURITY DEFINER supersede trigger, 9/9), merged |
 | T-038 | Allergen cascade engine + fa_allergen_cascade view | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade ENGINE + fa_allergen_cascade view (mig 114) — Opus+rework (product.allergens/may_contain cols, update_fa_allergen_set fn+action, may_contain separate, conditional only-confirmed, fa.allergens_changed event-on-change, 18 tests). Codex review. NEW perm npd.allergen.write needs seed (module-close) |
-| T-039 | Server Actions: setAllergenOverride + V07 validator | ⬜ PENDING | Blocked by T-006, T-037, T-038 |
+| T-039 | Server Actions: setAllergenOverride + V07 validator | ✅ DONE | DONE 2026-06-04 (Wave C). setAllergenOverride + V07 validator (packages/validation) + REAL action integration test — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-040 | UI: Allergen Cascade widget + Override modal | ⬜ PENDING | Blocked by T-026, T-038, T-039 |
 | T-041 | Reference.D365_Constants table + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.D365_Constants + Apex seed (mig 083) — merged |
 | T-042 | exceljs Builder generator: 8 tabs per FA | ⬜ PENDING | Blocked by T-001, T-002, T-041 |
@@ -62,7 +62,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-048 | dashboard_summary + launch_alerts + missing_requirements view | ✅ DONE | DONE 2026-06-04 (Wave C). dashboard_summary/launch_alerts/missing_required_cols views (mig 106, security_invoker) — merged |
 | T-049 | Reference.AlertThresholds + d365_import_cache tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.AlertThresholds + d365_import_cache (mig 084) — merged (canonical AlertThresholds owner) |
 | T-050 | Reference.AlertThresholds default seed | ✅ DONE | DONE 2026-06-04 (Wave B). AlertThresholds default seed (mig 096, Sonnet, 9/9, matches T-049 threshold_key) — merged |
-| T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ⬜ PENDING | Blocked by T-048, T-049, T-050 |
+| T-051 | Dashboard Server Actions: getDashboardSummary + getAlerts | ✅ DONE | DONE 2026-06-04 (Wave C). Dashboard Server Actions getDashboardSummary+getAlerts + d365.cache.refreshed event (mig 118) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-052 | ROOT: NPD Dashboard page group | ⏸ BLOCKED | dashboard-counters.tsx + dashboard-pipeline-preview.tsx exist as stubs; no dashboard page.tsx; no real data |
 | T-053 | E2E: dashboard refresh + alert thresholds smoke | ⬜ PENDING | Blocked by T-051, T-052 |
 | T-054 | npd_projects + gate_checklist_items + gate_approvals tables | ✅ DONE | DONE 2026-06-03 (Wave A1). npd_projects + gate_checklist_items + gate_approvals (mig 085) — merged; brief FK deferred |
@@ -95,13 +95,13 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-081 | risks CRUD + lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). risks CRUD Server Actions + risk.created event (mig 105) — merged |
 | T-082 | UI: RiskRegisterScreen + RiskAddModal | ⬜ PENDING | Blocked by T-081 |
 | T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
-| T-084 | Compliance docs upload + signed URL + soft-delete | ⬜ PENDING | Blocked by T-083 |
+| T-084 | Compliance docs upload + signed URL + soft-delete | ✅ DONE | DONE 2026-06-04 (Wave C). Compliance docs upload + signed URL + soft-delete + compliance_doc.* events (mig 119) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ⬜ PENDING | Blocked by T-083 |
 | T-086 | UI: ComplianceDocsScreen + DocUploadModal | ⬜ PENDING | Blocked by T-084 |
 | T-087 | E2E: V18 built-blocker (high-risk → cannot build) | ⬜ PENDING | Blocked by T-080, T-081, T-082 |
 | T-088 | E2E: compliance doc upload → expiry job → dashboard | ⬜ PENDING | Blocked by T-084, T-085, T-086 |
 | T-089 | GDPR right-to-erasure function | ✅ DONE | DONE 2026-06-04 (Wave C). NPD GDPR right-to-erasure (mig 115/116) — Opus+rework (production cron registration, gdpr.erasure.execute enum+baseline+seed, prod_detail branch). Codex review. SATISFIES foundation T-115 |
-| T-090 | d365_import_cache_meta view + scheduled sync worker | ⬜ PENDING | Blocked by T-049 |
+| T-090 | d365_import_cache_meta view + scheduled sync worker | ✅ DONE | DONE 2026-06-04 (Wave C). d365_import_cache_meta view + scheduled sync worker (mig 120, apps/worker) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-091 | E2E: dashboard interactive controls | ⬜ PENDING | Blocked by T-052, T-051 |
 | T-092 | Shared BOM SSOT schema | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). Shared BOM SSOT bom_headers+bom_lines (mig 090, NUMERIC-exact, versioned) — Codex+rework (INSERT immutability guard), merged. Existing bom_item(014) is R13 placeholder, no collision |
 | T-093 | API/backfill: NPD Builder writes initial shared BOM | ✅ DONE | DONE 2026-06-04 (Wave B). NPD Builder writes initial shared BOM + bom.* events (mig 099) — merged; immutability/idempotency/RLS verified |
