@@ -911,6 +911,35 @@
       "emptyBody": "Artykuły fabryczne to główny rekord NPD utworzony z przekonwertowanego Briefu. Utwórz nowy lub wyczyść filtry.",
       "error": "Nie można załadować artykułów fabrycznych. Spróbuj ponownie, gdy zaplecze będzie dostępne.",
       "forbidden": "Nie masz uprawnień do przeglądania artykułów fabrycznych."
+    },
+    "nutrition": {
+      "title": "Deklaracja wartości odżywczych (na 100 g)",
+      "subtitle": "Obliczone wartości na 100 g i na porcję",
+      "exportCsv": "Eksportuj CSV",
+      "generateLabel": "Generuj etykietę PDF",
+      "generateLabelDisabledHint": "Eksport etykiety PDF nie jest jeszcze dostępny (odroczony)",
+      "colNutrient": "Składnik",
+      "colPer100g": "Na 100 g",
+      "colPerPortion": "Na porcję",
+      "colStatus": "Status",
+      "statusOk": "OK",
+      "statusWarn": "Na granicy",
+      "allergenTitle": "Deklaracja alergenów",
+      "allergenColAllergen": "Alergen",
+      "allergenColSource": "Składnik źródłowy",
+      "allergenColPresence": "Obecność",
+      "presenceContains": "Zawiera",
+      "presenceMayContain": "Może zawierać",
+      "presenceFreeFrom": "Wolny od",
+      "presenceUnknown": "Nieznane",
+      "allergenEmpty": "Brak zadeklarowanych alergenów",
+      "nutriScoreTitle": "Nutri-Score",
+      "nutriScoreGradeLabel": "Ocena Nutri-Score {grade}",
+      "loading": "Ładowanie danych odżywczych…",
+      "empty": "Brak danych odżywczych",
+      "emptyBody": "Wartości odżywcze są obliczane po ukończeniu receptury.",
+      "error": "Nie można załadować danych odżywczych.",
+      "forbidden": "Nie masz uprawnień do wyświetlania danych odżywczych."
     }
   }
 }

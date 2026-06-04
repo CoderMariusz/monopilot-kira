@@ -1,0 +1,83 @@
+{
+  "task": "T-074",
+  "screen": "NutritionScreen",
+  "prototype_anchor": "prototypes/design/Monopilot Design System/npd/other-stages.jsx:4-80",
+  "prototype_anchor_verified": "wc -l = 537 lines; range 4-80 exists",
+  "prototype_index_entry": "_meta/prototype-labels/prototype-index-npd.json#nutrition_screen",
+  "production_files": {
+    "page_rsc": "apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/nutrition/page.tsx",
+    "component": "apps/web/app/[locale]/(app)/(npd)/pipeline/[projectId]/nutrition/_components/nutrition-screen.tsx"
+  },
+  "structural_mapping": [
+    {
+      "prototype": "other-stages.jsx:17-41 — Card 'Nutrition declaration (per 100g)' with 5-col <table> (Nutrient/Per100g/PerPortion/Target/Status), 7 mock rows",
+      "production": "Card + @monopilot/ui Table (TableHeader/Body/Row/Head/Cell). 7 rows server-derived from public.nutrition_profiles JOIN Reference.Nutrients (display_order). data-testid=nutrition-table / nutrition-row.",
+      "status": "MATCH (Target column dropped — see deviation D1)"
+    },
+    {
+      "prototype": "other-stages.jsx:21-22 — 'Export CSV' (ghost) + 'Generate label PDF' (secondary) buttons",
+      "production": "Two @monopilot/ui Buttons. Export CSV enabled (client blob download: header + 7 rows). Generate label PDF disabled with title hint (Phase C4 deferred per risk_red_lines).",
+      "status": "MATCH (PDF intentionally disabled)"
+    },
+    {
+      "prototype": "other-stages.jsx:34-36 — status badge '✓ OK' (green) / '⚠ At limit' (amber)",
+      "production": "@monopilot/ui Badge variant success/warning + TEXT label (statusOk/statusWarn). Color is never the sole signal (a11y).",
+      "status": "MATCH"
+    },
+    {
+      "prototype": "other-stages.jsx:44-55 — Card 'Allergen declaration' with <table> (Allergen/Source/%/Cross-contact)",
+      "production": "Card data-testid=allergen-card + Table from public.nutrition_allergens (presence enum → Badge). Columns: Allergen/Source ingredient/Presence.",
+      "status": "MATCH (cols adapted to real schema — see deviation D2)"
+    },
+    {
+      "prototype": "other-stages.jsx:57-76 — Card 'Nutri-Score preview', A-E colored scale + active grade letter + driver note + 'Run what-if'",
+      "production": "Card data-testid=nutri-score-card. A-E scale (gradeTone green→red), active letter marked data-active + scale/ring + sr-only 'Nutri-Score grade {grade}'. Grade from public.nutri_score_results (latest).",
+      "status": "MATCH (driver note + 'Run what-if' dropped — see deviation D3)"
+    }
+  ],
+  "required_states": {
+    "loading": "loading.html — role=status aria-live=polite",
+    "empty": "empty.html — empty + emptyBody copy",
+    "populated": "populated.html — full table + Nutri-Score + allergens",
+    "error": "error.html — role=alert destructive copy",
+    "permission_denied": "permission_denied.html — role=alert forbidden copy (RBAC resolved server-side, table never rendered)"
+  },
+  "real_data_wiring": {
+    "tables": [
+      "public.npd_projects (projectId -> product_code)",
+      "public.nutrition_profiles",
+      "Reference.Nutrients",
+      "public.nutri_score_results",
+      "public.nutrition_allergens"
+    ],
+    "access": "withOrgContext -> app.set_org_context -> RLS app.current_org_id() as app_user. No mocks, no hardcoded rows.",
+    "validated_against": "clone @141 monopilot_d2_t_074 — all 5 read queries EXPLAIN-plan successfully; Reference.Nutrients returns the canonical 7 rows."
+  },
+  "deviations": [
+    {
+      "id": "D1",
+      "what": "Prototype 'Target' column + per-row OK/At-limit derived from a target.",
+      "why": "No per-nutrient target column exists in the T-069 schema (086-nutrition.sql). Status is NOT fabricated — all computed rows render 'ok'. The Status column + traffic-light component are retained and exercised (warn path covered by RTL fixture) so the pattern is ready when a targets table lands.",
+      "follow_up": "Add per-nutrient targets (Reference) + derive status server-side in a later task."
+    },
+    {
+      "id": "D2",
+      "what": "Allergen table columns differ: prototype shows %/Cross-contact; production shows Presence enum.",
+      "why": "public.nutrition_allergens stores presence (contains/may_contain/free_from/unknown) + no %/cross-contact columns. source_ingredient is selected as null (not stored on this table). free_from rows are filtered out of the declaration.",
+      "follow_up": "Wire % + cross-contact when the allergen-cascade source (fa_allergen_overrides / line history) is joined in."
+    },
+    {
+      "id": "D3",
+      "what": "Nutri-Score driver note ('Driven by salt content…') and 'Run what-if' button omitted.",
+      "why": "Driver text needs the score sub-components (not persisted in nutri_score_results, which stores grade + computed_score only); 'Run what-if' is the costing what-if interaction (out of scope here, read-only screen).",
+      "follow_up": "Surface driver breakdown when score sub-components are persisted; wire what-if alongside costing screen."
+    }
+  ],
+  "a11y": {
+    "color_not_sole_signal": "status badges carry text (OK/At limit); Nutri-Score active grade has sr-only 'Nutri-Score grade {grade}' announcement",
+    "table_semantics": "scope=col on all TableHead cells",
+    "live_regions": "loading=role=status aria-live=polite; error/permission=role=alert",
+    "axe_blocker": "Full axe-core/playwright scan deferred to module Gate-5 live-deploy (needs running server + auth + seed). RTL DOM snapshots provided as fallback per AC4."
+  },
+  "playwright_blocker": "Playwright happy-path/trace capture requires Next server + Supabase auth + seeded nutrition rows (module-level Gate-5). At the component-task layer that stack is unavailable; RTL per-state DOM snapshots + parity_report are the AC4 fallback evidence."
+}
