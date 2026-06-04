@@ -1424,7 +1424,9 @@ begin
   v_ok := case old.status
     when 'draft'              then new.status in ('in_review', 'technical_approved', 'active', 'archived')
     when 'in_review'          then new.status in ('draft', 'technical_approved', 'active', 'archived')
-    when 'technical_approved' then new.status in ('in_review', 'active', 'superseded', 'archived')
+    -- 208: in_review REMOVED — an approved (immutable) version may only terminalize, never re-open
+    -- in place. Post-approval edits must clone a NEW version via bom_request_version_edit().
+    when 'technical_approved' then new.status in ('active', 'superseded', 'archived')
     when 'active'             then new.status in ('superseded', 'archived')
     when 'superseded'         then new.status in ('archived')
     when 'archived'           then false
@@ -1447,7 +1449,7 @@ $$;
 -- Name: FUNCTION bom_headers_enforce_status_transition(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.bom_headers_enforce_status_transition() IS 'T-073: BOM version state-machine guard. Allows only valid forward lifecycle transitions; rejects illegal jumps/backward moves. Complements the 090 content-immutability trigger.';
+COMMENT ON FUNCTION public.bom_headers_enforce_status_transition() IS 'T-073 (corrected by 208): BOM version state-machine guard. Allows only valid forward lifecycle transitions; an immutable technical_approved/active version may ONLY terminalize (active/superseded/archived) — it may NOT re-open to in_review/draft in place (clone-on-write via bom_request_version_edit). Complements the 090 content-immutability trigger.';
 
 
 --
@@ -5137,6 +5139,119 @@ CREATE FUNCTION public.seed_system_roles_on_org_insert() RETURNS trigger
 
 
 --
+-- Name: seed_technical_operator_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_technical_operator_permissions_for_org(p_org_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+declare
+  -- Operator-facing subset: the day-to-day technical authoring acts (NOT governance/approval).
+  v_operator_perms text[] := array[
+    'technical.items.create',
+    'technical.items.edit',
+    'technical.bom.create',
+    'technical.allergens.edit',
+    'technical.cost.edit'
+  ];
+  -- Lead subset: the operator subset PLUS the approval/governance strings. Equals the full
+  -- technical.* family seeded to admins by 154.
+  v_lead_perms text[] := array[
+    'technical.items.create',
+    'technical.items.edit',
+    'technical.items.deactivate',
+    'technical.bom.create',
+    'technical.bom.approve',
+    'technical.bom.version_publish',
+    'technical.bom.generate_batch',
+    'technical.allergens.edit',
+    'technical.cost.edit',
+    'technical.d365.sync_trigger',
+    'technical.product_spec.approve'
+  ];
+  -- technical operator role family (defensive — codes vary; grant is a no-op if absent).
+  v_operator_roles text[] := array['technical','technical_operator'];
+  -- technical lead/manager role family (defensive). quality_lead already approves product specs
+  -- (role-seed.ts) so it belongs to the lead family for the full governance subset.
+  v_lead_roles text[] := array['technical_manager','technical_lead','quality_lead'];
+begin
+  -- --- Normalized storage (role_permissions) ---
+  -- operator family: operator subset.
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_operator_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- lead family: lead subset (= full technical.* family).
+  insert into public.role_permissions (role_id, permission)
+  select r.id, p.permission
+  from public.roles r
+  cross join unnest(v_lead_perms) as p(permission)
+  where r.org_id = p_org_id
+    and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles))
+  on conflict (role_id, permission) do nothing;
+
+  -- --- Legacy jsonb cache (roles.permissions) ---
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_operator_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_operator_roles) or r.slug = any(v_operator_roles));
+
+  update public.roles r
+     set permissions = coalesce(
+       (
+         select jsonb_agg(distinct merged.permission order by merged.permission)
+         from (
+           select jsonb_array_elements_text(coalesce(r.permissions, '[]'::jsonb)) as permission
+           union all
+           select unnest(v_lead_perms)
+         ) merged
+       ),
+       '[]'::jsonb
+     )
+   where r.org_id = p_org_id
+     and (r.code = any(v_lead_roles) or r.slug = any(v_lead_roles));
+end;
+$$;
+
+
+--
+-- Name: FUNCTION seed_technical_operator_permissions_for_org(p_org_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.seed_technical_operator_permissions_for_org(p_org_id uuid) IS 'Migration 207: grants the technical.* operator subset to the technical operator role family and the full technical.* family to the technical lead family (technical_manager/technical_lead/quality_lead), in both role_permissions and the legacy roles.permissions jsonb. Operator-completeness layer for 154 (which seeds the org-admin family only). Idempotent.';
+
+
+--
+-- Name: seed_technical_operator_permissions_on_org_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.seed_technical_operator_permissions_on_org_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+begin
+  perform public.seed_technical_operator_permissions_for_org(new.id);
+  return new;
+end;
+$$;
+
+
+--
 -- Name: seed_technical_permissions_for_org(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5422,7 +5537,7 @@ $$;
 --
 
 CREATE FUNCTION public.supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date) RETURNS text
-    LANGUAGE sql IMMUTABLE
+    LANGUAGE sql STABLE
     AS $$
   select case
     when p_expiry_date is not null and p_expiry_date < current_date
@@ -5437,7 +5552,7 @@ $$;
 -- Name: FUNCTION supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date) IS 'T-075: resolves effective lifecycle — an active/draft spec past its expiry_date resolves to expired (AC2).';
+COMMENT ON FUNCTION public.supplier_spec_resolved_lifecycle(p_lifecycle_status text, p_expiry_date date) IS 'Resolve the EFFECTIVE supplier_spec lifecycle status: an active/draft spec whose expiry_date is in the past is reported as expired (AC2). STABLE (reads current_date) — corrected from IMMUTABLE by migration 206.';
 
 
 --
@@ -16927,6 +17042,13 @@ CREATE TRIGGER trg_zzz_seed_settings_infra_permissions AFTER INSERT ON public.or
 --
 
 CREATE TRIGGER trg_zzz_seed_settings_rbac_matrix AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_settings_rbac_matrix_on_org_insert();
+
+
+--
+-- Name: organizations trg_zzz_seed_technical_operator_permissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_zzz_seed_technical_operator_permissions AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.seed_technical_operator_permissions_on_org_insert();
 
 
 --
