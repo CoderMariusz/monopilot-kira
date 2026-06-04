@@ -32,6 +32,9 @@ const expectedCanonicalEvents = [
   'fg.created',
   'fg.allergens_changed',
   'fg.intermediate_code_changed',
+  'risk.created',
+  'compliance_doc.uploaded',
+  'compliance_doc.deleted',
   'bom.initial_version_created',
   'fg.bom.released',
   'bom.version_submitted',
@@ -91,7 +94,7 @@ describe('outbox event type source of truth', () => {
     const { ALL_EVENTS } = await loadEventsModule();
 
     for (const eventType of ALL_EVENTS) {
-      expect(eventType).toMatch(/^[a-z]+(\.[a-z_]+)+$/);
+      expect(eventType).toMatch(/^[a-z_]+(\.[a-z_]+)+$/);
     }
   });
 
