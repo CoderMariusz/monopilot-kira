@@ -1,0 +1,429 @@
+'use client';
+
+/**
+ * T-082 — RiskRegisterScreen (SCR-12 Risk register, per-FA).
+ *
+ * Prototype parity source (1:1):
+ *   prototypes/design/Monopilot Design System/npd/docs-screens.jsx:56-106 (RiskRegisterScreen)
+ *
+ * Translation notes (from the prototype):
+ *   - window.NPD_RISKS[fa.fa_code]      → server-side withOrgContext read of public.risks (page.tsx → listRisks)
+ *   - badge(score) High/Med/Low helper  → RiskBucketBadge: score>=6 danger, >=3 warning, else muted (color + text)
+ *   - statusBadge(status) Open/Mit/Closed→ shadcn Badge variants mapped from risks.state enum
+ *   - openModal('riskAdd', {fa})         → RiskAddModal create mode (wired to createRisk action)
+ *   - openModal('riskAdd', {fa, risk})   → RiskAddModal edit mode (wired to updateRisk action)
+ *   - raw column layout                  → shadcn Table primitives
+ *
+ * Domain extension (MON-domain-npd V18): a High-bucket Open risk blocks `built`.
+ * The screen surfaces a non-blocking advisory banner so the FA owner knows why the
+ * D365 Builder / built transition will refuse — the enforcement itself lives server-side.
+ *
+ * RBAC: `canWrite` is resolved server-side (page.tsx) and never trusted from the
+ * client — the Add-risk / Edit controls are omitted when false (no render-then-disable).
+ */
+
+import React from 'react';
+
+import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
+import { Button } from '@monopilot/ui/Button';
+import { EmptyState } from '@monopilot/ui/EmptyState';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import { RiskAddModal } from './risk-add-modal';
+import type { CreateRiskAction, UpdateRiskAction } from './risk-add-modal';
+
+export type RiskBucket = 'High' | 'Med' | 'Low';
+export type RiskState = 'Open' | 'Mitigated' | 'Closed';
+export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
+
+export type RiskRow = {
+  id: string;
+  productCode: string;
+  title: string;
+  description: string;
+  likelihood: number;
+  impact: number;
+  score: number;
+  bucket: RiskBucket;
+  state: RiskState;
+  mitigation: string | null;
+  owner: string | null;
+};
+
+export type RiskRegisterLabels = {
+  title: string;
+  subtitle: string;
+  addRisk: string;
+  filterState: string;
+  filterBucket: string;
+  clearFilters: string;
+  stateAll: string;
+  bucketAll: string;
+  colScore: string;
+  colDescription: string;
+  colLikelihood: string;
+  colImpact: string;
+  colStatus: string;
+  colOwner: string;
+  colMitigation: string;
+  colActions: string;
+  edit: string;
+  bucketHigh: string;
+  bucketMed: string;
+  bucketLow: string;
+  stateOpen: string;
+  stateMitigated: string;
+  stateClosed: string;
+  builtBlocked: string;
+  builtBlockedBody: string;
+  loading: string;
+  empty: string;
+  emptyBody: string;
+  error: string;
+  forbidden: string;
+  // modal labels (passed through to RiskAddModal)
+  modalTitleAdd: string;
+  modalTitleEdit: string;
+  fieldDescription: string;
+  fieldDescriptionHint: string;
+  fieldLikelihood: string;
+  fieldImpact: string;
+  fieldMitigation: string;
+  fieldMitigationHint: string;
+  fieldOwner: string;
+  fieldStatus: string;
+  fieldReason: string;
+  fieldReasonHint: string;
+  scoreLabel: string;
+  likelihoodLow: string;
+  likelihoodMed: string;
+  likelihoodHigh: string;
+  impactLow: string;
+  impactMed: string;
+  impactHigh: string;
+  cancel: string;
+  save: string;
+  create: string;
+  mitigate: string;
+  close: string;
+  reopen: string;
+  errorRequired: string;
+  errorTooLong: string;
+  errorReasonShort: string;
+};
+
+const BUCKET_VALUES: RiskBucket[] = ['High', 'Med', 'Low'];
+const STATE_VALUES: RiskState[] = ['Open', 'Mitigated', 'Closed'];
+
+function bucketVariant(bucket: RiskBucket): BadgeVariant {
+  switch (bucket) {
+    case 'High':
+      return 'danger';
+    case 'Med':
+      return 'warning';
+    default:
+      return 'muted';
+  }
+}
+
+function bucketLabel(bucket: RiskBucket, labels: RiskRegisterLabels): string {
+  switch (bucket) {
+    case 'High':
+      return labels.bucketHigh;
+    case 'Med':
+      return labels.bucketMed;
+    default:
+      return labels.bucketLow;
+  }
+}
+
+function stateVariant(state: RiskState): BadgeVariant {
+  switch (state) {
+    case 'Open':
+      return 'warning';
+    case 'Mitigated':
+      return 'success';
+    default:
+      return 'muted';
+  }
+}
+
+function stateLabel(state: RiskState, labels: RiskRegisterLabels): string {
+  switch (state) {
+    case 'Open':
+      return labels.stateOpen;
+    case 'Mitigated':
+      return labels.stateMitigated;
+    default:
+      return labels.stateClosed;
+  }
+}
+
+/** Bucket badge — color is paired with a text label so severity is never color-only (a11y). */
+function RiskBucketBadge({ bucket, score, labels }: { bucket: RiskBucket; score: number; labels: RiskRegisterLabels }) {
+  const label = bucketLabel(bucket, labels);
+  return (
+    <Badge
+      variant={bucketVariant(bucket)}
+      data-testid="risk-bucket-badge"
+      data-bucket={bucket}
+      aria-label={`${label} · ${score}`}
+    >
+      {label} · {score}
+    </Badge>
+  );
+}
+
+function StateNotice({ state, labels }: { state: PageState; labels: RiskRegisterLabels }) {
+  if (state === 'loading') {
+    return (
+      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+        {labels.loading}
+      </div>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <div role="alert" className="p-6 text-sm text-red-700">
+        {labels.error}
+      </div>
+    );
+  }
+  if (state === 'permission_denied') {
+    return (
+      <div role="alert" className="p-6 text-sm text-red-700">
+        {labels.forbidden}
+      </div>
+    );
+  }
+  return null;
+}
+
+type ModalIntent = { mode: 'create' } | { mode: 'edit'; risk: RiskRow };
+
+export function RiskRegisterScreen({
+  productCode,
+  rows,
+  labels,
+  canWrite,
+  state = 'ready',
+  createRiskAction,
+  updateRiskAction,
+}: {
+  productCode: string;
+  rows: RiskRow[];
+  labels: RiskRegisterLabels;
+  canWrite: boolean;
+  state?: PageState;
+  createRiskAction?: CreateRiskAction;
+  updateRiskAction?: UpdateRiskAction;
+}) {
+  const [stateFilter, setStateFilter] = React.useState('all');
+  const [bucketFilter, setBucketFilter] = React.useState('all');
+  const [modal, setModal] = React.useState<ModalIntent | null>(null);
+
+  const filtered = React.useMemo(() => {
+    return rows.filter((row) => {
+      if (stateFilter !== 'all' && row.state !== stateFilter) return false;
+      if (bucketFilter !== 'all' && row.bucket !== bucketFilter) return false;
+      return true;
+    });
+  }, [rows, stateFilter, bucketFilter]);
+
+  // V18 built-blocker: any High-bucket Open risk blocks the FA `built` transition.
+  // Only meaningful once data is actually loaded (ready/empty) — never during
+  // loading/error/permission_denied where the row set is not authoritative.
+  const dataLoaded = state === 'ready' || state === 'empty';
+  const builtBlocked = React.useMemo(
+    () => dataLoaded && rows.some((row) => row.bucket === 'High' && row.state === 'Open'),
+    [dataLoaded, rows],
+  );
+
+  function clearFilters() {
+    setStateFilter('all');
+    setBucketFilter('all');
+  }
+
+  const stateOptions = [
+    { value: 'all', label: labels.stateAll },
+    ...STATE_VALUES.map((value) => ({ value, label: stateLabel(value, labels) })),
+  ];
+  const bucketOptions = [
+    { value: 'all', label: labels.bucketAll },
+    ...BUCKET_VALUES.map((value) => ({ value, label: bucketLabel(value, labels) })),
+  ];
+
+  const showTable = dataLoaded;
+
+  return (
+    <main
+      data-testid="risk-register-screen"
+      aria-labelledby="risk-register-title"
+      className="mx-auto w-full max-w-6xl space-y-4 p-6"
+    >
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+            NPD / {productCode} / {labels.title}
+          </nav>
+          <h1 id="risk-register-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+            {labels.title}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+        </div>
+        {canWrite ? (
+          <Button type="button" aria-label={labels.addRisk} onClick={() => setModal({ mode: 'create' })}>
+            {labels.addRisk}
+          </Button>
+        ) : null}
+      </header>
+
+      {builtBlocked ? (
+        <div
+          role="alert"
+          data-testid="risk-built-blocker"
+          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        >
+          <span className="font-semibold">{labels.builtBlocked}</span> — {labels.builtBlockedBody}
+        </div>
+      ) : null}
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" role="group" aria-labelledby="risk-register-title">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-1 text-sm font-medium text-slate-700">
+            <span id="risk-bucket-label">{labels.filterBucket}</span>
+            <Select value={bucketFilter} onValueChange={setBucketFilter} options={bucketOptions}>
+              <SelectTrigger aria-label={labels.filterBucket}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {bucketOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1 text-sm font-medium text-slate-700">
+            <span id="risk-state-label">{labels.filterState}</span>
+            <Select value={stateFilter} onValueChange={setStateFilter} options={stateOptions}>
+              <SelectTrigger aria-label={labels.filterState}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {stateOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" onClick={clearFilters}>
+            {labels.clearFilters}
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        {!showTable ? (
+          <StateNotice state={state} labels={labels} />
+        ) : filtered.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              icon="⚠"
+              title={labels.empty}
+              body={labels.emptyBody}
+              action={
+                canWrite
+                  ? { label: labels.addRisk, onClick: () => setModal({ mode: 'create' }) }
+                  : { label: labels.clearFilters, onClick: clearFilters }
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-auto">
+            <Table aria-label={labels.title} className="w-full border-collapse text-left text-sm">
+              <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <TableRow>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colScore}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colDescription}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3 text-center">{labels.colLikelihood}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3 text-center">{labels.colImpact}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colStatus}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colOwner}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colMitigation}</TableHead>
+                  <TableHead scope="col" className="px-3 py-3">{labels.colActions}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
+                {filtered.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-testid={`risk-row-${row.id}`}
+                    data-bucket={row.bucket}
+                    data-state={row.state}
+                    className="align-middle hover:bg-slate-50"
+                  >
+                    <TableCell className="px-3 py-2">
+                      <RiskBucketBadge bucket={row.bucket} score={row.score} labels={labels} />
+                    </TableCell>
+                    <TableCell className="px-3 py-2 font-medium text-slate-950">{row.title}</TableCell>
+                    <TableCell className="px-3 py-2 text-center font-mono text-xs text-slate-600">
+                      {row.likelihood}
+                    </TableCell>
+                    <TableCell className="px-3 py-2 text-center font-mono text-xs text-slate-600">
+                      {row.impact}
+                    </TableCell>
+                    <TableCell className="px-3 py-2">
+                      <Badge variant={stateVariant(row.state)} aria-label={stateLabel(row.state, labels)}>
+                        {stateLabel(row.state, labels)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2 text-xs text-slate-600">
+                      {row.owner ?? <span className="text-slate-400">—</span>}
+                    </TableCell>
+                    <TableCell className="px-3 py-2 text-xs text-slate-600">
+                      {row.mitigation ?? <span className="text-slate-400">—</span>}
+                    </TableCell>
+                    <TableCell className="px-3 py-2 whitespace-nowrap">
+                      {canWrite ? (
+                        <Button
+                          type="button"
+                          className="btn--ghost text-sm"
+                          aria-label={`${labels.edit} ${row.title}`}
+                          onClick={() => setModal({ mode: 'edit', risk: row })}
+                        >
+                          {labels.edit}
+                        </Button>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
+
+      {modal ? (
+        <RiskAddModal
+          open
+          mode={modal.mode}
+          productCode={productCode}
+          risk={modal.mode === 'edit' ? modal.risk : undefined}
+          labels={labels}
+          onClose={() => setModal(null)}
+          createRiskAction={createRiskAction}
+          updateRiskAction={updateRiskAction}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+export default RiskRegisterScreen;
