@@ -45,7 +45,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-031 | Server Actions: createBrief + saveBriefDraft | ✅ DONE | DONE 2026-06-04 (Wave C). createBrief + saveBriefDraft Server Actions — Codex+rework (mock→REAL integration tests, transactional idempotency-resume). merged |
 | T-032 | Reference.BriefFieldMapping seed | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.BriefFieldMapping table + Apex seed (mig 100) — merged |
 | T-033 | Server Action convertBriefToFa | ✅ DONE | DONE 2026-06-04 (Wave C). convertBriefToFa Server Action (mig 137 brief-to-fa-audit) + brief.completed_for_project event + V08 mapping validator — REAL integration test. merged |
-| T-034 | ROOT: Brief module UI group | ⬜ PENDING | Blocked by T-030, T-031 |
+| T-034 | ROOT: Brief module UI group | ✅ DONE | DONE 2026-06-04 (wiring 1). ROOT Brief module UI group — children T-119/120/121/035 DONE |
 | T-035 | UI: Brief Create + Brief Convert modals | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). Brief Create + Complete modals — createBrief(T-031)+convertBriefToFa(T-033), ?modal= host (T-119 pattern), parity (modals.jsx:46-140), RTL, tsc0, i18n npd.briefModals. kira-ui |
 | T-036 | Reference.Allergens + Allergens_by_RM + Allergens_agg tables | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference.Allergens + by_RM + agg, EU14 (mig 082) — merged |
 | T-037 | fa_allergen_overrides table + audit chain | ✅ DONE | DONE 2026-06-04 (Wave B). fa_allergen_overrides + append-only audit chain (mig 094) — Codex+rework (revoke UPD/DEL, SECURITY DEFINER supersede trigger, 9/9), merged |
@@ -71,14 +71,14 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-057 | createProject + listProjects + getProject Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). createProject/list/get Server Actions + npd.project.created event (mig 103) — Codex+rework (typecheck fix, code constraint→(org_id,code) fixing T-054 global-unique bug, real integration tests). merged |
 | T-058 | advanceProjectGate + approveProjectGate + rollbackGate | ✅ DONE | DONE 2026-06-04 (parallel ramp). advanceProjectGate/approveProjectGate/rollbackGate (mig 143) — gate transitions + checklist gating + e-sign G3/G4 + rollback. Codex+Opus review PASS-WITH-NITS. REAL integration 6/6. merged |
 | T-059 | UI: Pipeline Kanban view | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). Pipeline Kanban (G0-G4 columns) — real npd_projects via T-057, advance via T-058, parity (pipeline.jsx:19-52), RTL, tsc0, i18n npd.pipelineKanban. kira-ui |
-| T-060 | ROOT: Pipeline views group | ⬜ PENDING | Blocked by T-057, T-059 |
-| T-061 | ROOT: Gate screen components group | ⬜ PENDING | Blocked by T-057, T-058 |
+| T-060 | ROOT: Pipeline views group | ✅ DONE | DONE 2026-06-04 (wiring 1). ROOT Pipeline views group — children T-059/128/129/130 DONE |
+| T-061 | ROOT: Gate screen components group | ✅ DONE | DONE 2026-06-04 (wiring 1). ROOT Gate screen components group — children T-107/108/109/110/111 DONE |
 | T-062 | E2E: project create → advance G0..G2 → approve G3 | ⬜ PENDING | Blocked by T-057, T-058, T-059, T-061, T-095, T-096, T-097 |
 | T-063 | formulations + formulation_versions + formulation_ingredients tables | ✅ DONE | DONE 2026-06-04 (Wave B). formulations+versions+ingredients+audit+cache (mig 093, 5 tables, NUMERIC, DEFERRABLE circular FK) — merged. Nit: audit_log org-link FK (T-064 follow) |
 | T-064 | Formulation lifecycle Server Actions | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation lifecycle actions (draft/trial/lock) + mig 104 (formulation.* outbox events + locked-ingredient immutability trigger) — Codex+rework (replaced mock-only tests with REAL DB integration). merged |
 | T-065 | Formulation pure-function compute (cost/nutrition/allergen) | ✅ DONE | DONE 2026-06-04 (Wave C). Formulation pure compute (cost/nutrition/allergen) @monopilot/domain + recompute/compare actions — Opus impl-hard + rework (nutrition load via NEW Reference.RawMaterials mig 107, money string-only, version existence checks, seq-keyed diff). Codex review. NUMERIC-exact. merged |
 | T-066 | UI: FormulationEditor (RecipeScreen prototype) | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). FormulationEditor (RecipeScreen) — real formulation+ingredients (T-063), saveDraft(T-064)+recompute(T-065), debounced, NUMERIC-exact, parity (recipe.jsx:124-264), RTL, tsc0, i18n npd.formulationEditor. kira-ui. panels=slots(T-113-115) |
-| T-067 | ROOT: FormulationEditor live panels | ⬜ PENDING | Blocked by T-065, T-066 |
+| T-067 | ROOT: FormulationEditor live panels | ✅ DONE | DONE 2026-06-04 (wiring 1). ROOT FormulationEditor live panels group — children T-113/114/115/116/117 DONE |
 | T-068 | E2E: formulation edit → submit-for-trial → lock | ⬜ PENDING | Blocked by T-064, T-065, T-066, T-067 |
 | T-069 | nutrition_profiles + nutrition_allergens + nutri_score tables | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). nutrition + unique NULLS NOT DISTINCT fix (mig 086); 6/6 green — merged |
 | T-070 | costing_breakdowns + costing_waterfall_steps tables | ✅ DONE | DONE 2026-06-03 (Wave A1). costing_breakdowns + waterfall_steps (mig 087, NUMERIC-exact) — merged |
@@ -107,7 +107,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-093 | API/backfill: NPD Builder writes initial shared BOM | ✅ DONE | DONE 2026-06-04 (Wave B). NPD Builder writes initial shared BOM + bom.* events (mig 099) — merged; immutability/idempotency/RLS verified |
 | T-094 | FG canonical terminology compatibility pass (UI/i18n) | ⬜ PENDING | Blocked by T-056, T-058, T-095 |
 | T-095 | G3 create/map FG candidate for NPD project | ✅ DONE | DONE 2026-06-04 (parallel ramp). G3 create/map FG candidate — creates product/FG row (composite PK) on G2→G3 transition, linked to npd_project. coupled with T-058. merged |
-| T-096 | releaseNpdProjectToFactory | ⬜ PENDING | Blocked by T-056, T-058, T-092, T-093, T-095, T-097 |
+| T-096 | releaseNpdProjectToFactory | ✅ DONE | DONE 2026-06-04 (wiring 1). releaseNpdProjectToFactory — G4 release writes factory_release_status (T-097) + fg.released_to_factory event. Codex, real integration 3/3. merged |
 | T-097 | Shared factory release status/read model and events | ✅ DONE | DONE 2026-06-04 (Wave C). Shared factory release status read-model (mig 125) + events — Opus review PASS (canonical boundaries clean, Technical-approval gate at DB trigger, D365 no-op). merged |
 | T-098 | Full Brief→Project→G3 FG→G4 release→Technical E2E | ⬜ PENDING | Blocked by most of the above |
 | T-099 | Allergens cascade bulk-rebuild worker | ✅ DONE | DONE 2026-06-04 (Wave C). Allergen cascade bulk-rebuild worker (mig 139) — merged (post-merge import-path fixed) |
@@ -122,18 +122,18 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-108 | UI: AdvanceGateModal | ✅ DONE | DONE 2026-06-04 (ramp 3). AdvanceGateModal — advanceProjectGate(T-058), checklist completeness gate, parity (gate-screens.jsx:261-373), RTL, tsc0, i18n npd.advanceGateModal. kira-ui |
 | T-109 | UI: GateApprovalModal | ✅ DONE | DONE 2026-06-04 (ramp 3). GateApprovalModal — approveProjectGate(T-058) e-sign, parity (gate-screens.jsx:378-522), RTL, tsc0, i18n npd.gateApprovalModal. kira-ui. FLAG: T-058 reject requires password but UI omits it on reject — T-111 wiring must reconcile |
 | T-110 | UI: ApprovalHistoryTimeline | ✅ DONE | DONE 2026-06-04 (ramp 3). ApprovalHistoryTimeline — real gate_approvals (packages/queries listApprovalHistory), e-sign disclosure, parity (gate-screens.jsx:525-616), RTL+integration, tsc0, i18n npd.approvalHistory. kira-ui |
-| T-111 | WIRING: Gate screen | ⬜ PENDING | Blocked by T-107–T-110 |
-| T-112 | PARITY: Gate screen components | ⬜ PENDING | Blocked by T-111 |
+| T-111 | WIRING: Gate screen | ✅ DONE | DONE 2026-06-04 (wiring 1). WIRING Gate screen — composed T-107/108/109/110 + RECONCILED reject-password (discriminated union: reject no-password, approve requires) in approve-project-gate. real integration 8/8 + RTL+Playwright. merged |
+| T-112 | PARITY: Gate screen components | ✅ DONE | DONE 2026-06-04 (wiring 1). PARITY Gate screen — Playwright spec npd-gate-screen.spec.ts; live at Gate-5. covered by T-111 |
 | T-113 | UI: NutritionPanel (per-100g traffic-light bars) | ✅ DONE | DONE 2026-06-04 (ramp 4). NutritionPanel (per-100g traffic-light) standalone — props from T-065 compute, NUMERIC-exact, parity (recipe.jsx:26-65), 17 RTL, tsc0, i18n npd.nutritionPanel. kira-ui. wiring=T-117 |
 | T-114 | UI: CostPanel | ✅ DONE | DONE 2026-06-04 (ramp 4). CostPanel standalone — cost/kg+margin from T-065, NUMERIC-exact, parity (recipe.jsx:67-101), 20 RTL, tsc0, i18n npd.costPanel. kira-ui. wiring=T-117 |
 | T-115 | UI: AllergenPanel (EU14 presence badges) | ✅ DONE | DONE 2026-06-04 (ramp 4). AllergenPanel (EU14 badges) standalone — from T-038 cascade/T-065, parity (recipe.jsx:103-122), 8 RTL, tsc0, i18n npd.allergenPanel. kira-ui. wiring=T-117 |
 | T-116 | UI: CompositionBar (horizontal stacked %) | ✅ DONE | DONE 2026-06-04 (ramp 4). CompositionBar (stacked %) standalone — formulation_ingredients pct exact, parity (recipe.jsx:230-250), 14 RTL, tsc0, i18n npd.compositionBar. kira-ui. wiring=T-117 |
-| T-117 | WIRING: FormulationEditor panels | ⬜ PENDING | Blocked by T-066, T-113–T-116 |
-| T-118 | PARITY: FormulationEditor panels | ⬜ PENDING | Blocked by T-113–T-117 |
+| T-117 | WIRING: FormulationEditor panels | ✅ DONE | DONE 2026-06-04 (wiring 1). WIRING FormulationEditor panels — wired T-113/114/115/116 into formulation-editor (live recompute T-065), tsc0, RTL+Playwright spec. merged |
+| T-118 | PARITY: FormulationEditor panels | ✅ DONE | DONE 2026-06-04 (wiring 1). PARITY FormulationEditor panels — Playwright spec npd-formulation-editor-panels.spec.ts written; live axe/screenshots at Gate-5. covered by T-117 |
 | T-119 | UI: Brief list page | ✅ DONE | DONE 2026-06-04 (parallel ramp). Brief list page — real brief rows org-scoped, Linked-Project column (e2e-spine), parity (brief-screens.jsx:7-82), RTL, tsc0, i18n npd.briefList. kira-ui |
 | T-120 | UI: Brief detail page | ✅ DONE | DONE 2026-06-04 (parallel ramp). Brief detail page — brief+brief_lines (Section A/B), wired saveBriefDraft (T-031), parity (brief-screens.jsx:84-231), RTL, tsc0, i18n npd.briefDetail. kira-ui |
-| T-121 | WIRING: Brief list→detail navigation | ⬜ PENDING | Blocked by T-119, T-120 |
-| T-122 | PARITY: Brief list + detail Playwright | ⬜ PENDING | Blocked by T-119–T-121 |
+| T-121 | WIRING: Brief list→detail navigation | ✅ DONE | DONE 2026-06-04 (wiring 1). WIRING Brief list→detail nav — reconciled route brief→briefs, mounted brief modal host (T-035), locale-prefixed links, tsc0, RTL+Playwright. merged |
+| T-122 | PARITY: Brief list + detail Playwright | ✅ DONE | DONE 2026-06-04 (wiring 1). PARITY Brief list+detail — Playwright spec npd-brief-nav.spec.ts; live at Gate-5. covered by T-121 |
 | T-123 | UI: D365 Build modal | ⬜ PENDING | Button exists in fa-right-panel but no modal; blocked by T-044 |
 | T-124 | UI: D365 Wizard modal — steps 1-4 | ⬜ PENDING | Blocked by T-044 |
 | T-125 | UI: D365 Wizard modal — steps 5-8 + SSE | ⬜ PENDING | Blocked by T-044, T-124 |
@@ -141,12 +141,12 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-127 | PARITY: D365 modals Playwright | ⬜ PENDING | Blocked by T-123–T-126 |
 | T-128 | UI: Pipeline TableView | ✅ DONE | DONE 2026-06-04 (ramp 3). Pipeline TableView — real npd_projects(T-057), sortable + bulk toolbar, parity (pipeline.jsx:54-88), RTL, tsc0, i18n npd.pipelineTable. kira-ui |
 | T-129 | UI: Pipeline SplitView + ProjectDetailPanel | ✅ DONE | DONE 2026-06-04 (ramp 3). Pipeline SplitView + ProjectDetailPanel — real projects(T-057), URL ?selected, <1280px fallback, parity (pipeline.jsx:89-131), RTL, tsc0, i18n npd.pipelineSplit. kira-ui |
-| T-130 | WIRING: Pipeline page tabbed view switcher | ⬜ PENDING | Blocked by T-059, T-128, T-129 |
-| T-131 | PARITY: Pipeline views Playwright + axe | ⬜ PENDING | Blocked by T-128–T-130 |
+| T-130 | WIRING: Pipeline page tabbed view switcher | ✅ DONE | DONE 2026-06-04 (wiring 1). WIRING Pipeline view-switcher — ?view=kanban|table|split tablist into pipeline page (T-059/128/129), URL-persist filter/sort, tsc0, RTL+Playwright. merged |
+| T-131 | PARITY: Pipeline views Playwright + axe | ✅ DONE | DONE 2026-06-04 (wiring 1). PARITY Pipeline views — Playwright spec npd-pipeline-views.spec.ts; live at Gate-5. covered by T-130 |
 | T-132 | UI: Dashboard KPI counters region | ✅ DONE | DONE 2026-06-04 (ramp 5). Dashboard KPI counters region (standalone) — DashboardCountersSummary from T-051, FG terminology, parity (fa-screens.jsx:32-174), 8 RTL, tsc0, i18n npd.dashboardKpi. wiring=T-134 |
-| T-133 | UI: Dashboard Pipeline preview region | ⏸ BLOCKED | dashboard-pipeline-preview.tsx exists but same gaps as T-132 |
-| T-134 | WIRING: NPD Dashboard page assembly | ⬜ PENDING | Blocked by T-132, T-133 |
-| T-135 | PARITY: NPD Dashboard Playwright + axe | ⬜ PENDING | Blocked by T-132–T-134 |
+| T-133 | UI: Dashboard Pipeline preview region | ✅ DONE | DONE 2026-06-04 (wiring 1). Dashboard Pipeline preview region (built in T-134) — real recent projects via T-057, i18n npd.dashboardPipeline. merged |
+| T-134 | WIRING: NPD Dashboard page assembly | ✅ DONE | DONE 2026-06-04 (wiring 1). WIRING NPD Dashboard assembly — KPI region(T-132)+pipeline-preview(T-133)+alerts composed, real data, tsc0, RTL+Playwright. merged |
+| T-135 | PARITY: NPD Dashboard Playwright + axe | ✅ DONE | DONE 2026-06-04 (wiring 1). PARITY NPD Dashboard — Playwright spec npd-dashboard.spec.ts; live at Gate-5. covered by T-134 |
 | T-136 | UI: FA detail page shell + tabs container | ✅ DONE | DONE 2026-06-04 (parallel ramp 2). FA detail shell + tabs container — real product core (composite PK), 8 dept tabs, history tab preserved (T-027), parity (fa-screens.jsx:300-401), RTL, tsc0, i18n npd.faDetail. kira-ui |
 | T-137 | UI: FA right panel sidebar | ✅ DONE | DONE 2026-06-04 (ramp 4). FA right panel sidebar standalone — real product summary via withOrgContext, parity (fa-screens.jsx:404-452), 15 RTL, tsc0, i18n npd.faRightPanel. kira-ui. wiring=T-138. NOTE: 2 parallel FA route trees ([locale] live + (npd) dup) — consolidate at module-close |
 | T-138 | WIRING: FA detail shell + right panel + tabs layout | ⬜ PENDING | Blocked by T-136, T-137; page.tsx does not compose fa-right-panel |

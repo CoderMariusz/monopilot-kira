@@ -28,7 +28,7 @@ for sec in ('dependencies','devDependencies','scripts'):
 json.dump(o,open(f,'w'),indent=2); open(f,'a').write('\n')
 PY
 }
-for T in T-024 T-026 T-102 T-103 T-104 T-132; do
+for T in T-117 T-130 T-134 T-121 T-111; do
   W=/Users/mariuszkrawczyk/Projects/kira-wt/$T
   git -C "$W" add -A >/dev/null 2>&1
   git -C "$W" commit -q -m "feat(01-npd): $T (Wave D UI) — parity, real data, tsc0. kira-ui
