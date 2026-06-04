@@ -994,6 +994,27 @@
       "error": "Unable to load nutrition data.",
       "forbidden": "You do not have permission to view nutrition data."
     },
+    "nutritionPanel": {
+      "title": "Nutrition per 100g",
+      "liveNote": "· live",
+      "exportLabel": "Export label",
+      "targetsNote": "Targets: Protein ≥ {protein} · Salt ≤ {salt} · Fat ≤ {fat} per 100g",
+      "withinTarget": "Within target",
+      "overTarget": "Over target",
+      "overMax": "Over max",
+      "energyLabel": "Energy",
+      "fatLabel": "Fat",
+      "saturatesLabel": "Saturates",
+      "carbsLabel": "Carbs",
+      "sugarsLabel": "Sugars",
+      "proteinLabel": "Protein",
+      "saltLabel": "Salt",
+      "loading": "Loading nutrition…",
+      "empty": "No nutrition data yet",
+      "emptyBody": "Nutrition is computed once ingredients have nutrition values.",
+      "error": "Unable to load nutrition.",
+      "forbidden": "You do not have permission to view nutrition."
+    },
     "costing": {
       "title": "Cost breakdown",
       "subtitle": "Waterfall from raw materials to final cost per kg",
