@@ -129,6 +129,11 @@ export type {
   FactoryReleaseStatus,
   NewFactoryReleaseStatus,
 } from './factory-release-status.js';
+export { npdLegacyCloseout } from './npd-legacy-closeout.js';
+export type {
+  NewNpdLegacyCloseout,
+  NpdLegacyCloseout,
+} from './npd-legacy-closeout.js';
 export {
   formulationAuditLog,
   formulationCalcCache,

@@ -51,11 +51,21 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
                 p.notes,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
-                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed
+                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed,
+                c.id as closeout_id,
+                c.trial_shelf_life_set,
+                c.trial_allergens_cascade_recomputed_at::text as trial_allergens_cascade_recomputed_at,
+                c.pilot_wo_id::text as pilot_wo_id,
+                c.handoff_g4_esign_id::text as handoff_g4_esign_id,
+                c.handoff_bom_header_id::text as handoff_bom_header_id,
+                c.packaging_mrp_complete
            from public.npd_projects p
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
             and gci.org_id = app.current_org_id()
+           left join public.npd_legacy_closeout c
+             on c.npd_project_id = p.id
+            and c.org_id = app.current_org_id()
           where p.org_id = app.current_org_id()
             and ($1::text is null or p.current_gate = $1)
             and ($2::text is null or p.owner = $2)
@@ -65,7 +75,9 @@ export async function listProjects(rawInput: unknown = {}): Promise<ListProjects
               or p.name ilike '%' || $4 || '%'
               or p.code ilike '%' || $4 || '%'
             )
-          group by p.id
+          group by p.id, c.id, c.trial_shelf_life_set, c.trial_allergens_cascade_recomputed_at,
+                   c.pilot_wo_id, c.handoff_g4_esign_id, c.handoff_bom_header_id,
+                   c.packaging_mrp_complete
           order by p.created_at desc, p.code desc`,
         [input.gate, input.owner, input.prio, input.search],
       );

@@ -33,6 +33,7 @@ export type KanbanProject = {
   owner: string | null;
   targetLaunch: string | null;
   progressPercent: number;
+  closeoutStatus?: import('./launched-card-closeout-pill').LegacyCloseoutStatus | null;
 };
 
 /**

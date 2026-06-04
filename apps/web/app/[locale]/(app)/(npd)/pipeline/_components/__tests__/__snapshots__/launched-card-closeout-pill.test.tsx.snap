@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`LaunchedCardCloseoutPill — prototype closeout extension > renders the four sub-indicators in Trial / Pilot / Handoff / Packaging order with complete green dots 1`] = `
+<div>
+  <div
+    aria-label="Trial Pilot Handoff Packaging closeout status"
+    class="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1"
+    data-prototype-anchor="net-new:no-prototype-precedent (context: npd/pipeline.jsx:19-52)"
+    data-testid="launched-closeout-pill"
+  >
+    <span
+      class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600"
+      data-testid="closeout-dot-trial"
+    >
+      <span
+        aria-hidden="true"
+        class="h-2 w-2 rounded-full bg-emerald-500"
+      />
+      Trial
+    </span>
+    <span
+      class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600"
+      data-testid="closeout-dot-pilot"
+    >
+      <span
+        aria-hidden="true"
+        class="h-2 w-2 rounded-full bg-emerald-500"
+      />
+      Pilot
+    </span>
+    <span
+      class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600"
+      data-testid="closeout-dot-handoff"
+    >
+      <span
+        aria-hidden="true"
+        class="h-2 w-2 rounded-full bg-emerald-500"
+      />
+      Handoff
+    </span>
+    <span
+      class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600"
+      data-testid="closeout-dot-packaging"
+    >
+      <span
+        aria-hidden="true"
+        class="h-2 w-2 rounded-full bg-emerald-500"
+      />
+      Packaging
+    </span>
+  </div>
+</div>
+`;
