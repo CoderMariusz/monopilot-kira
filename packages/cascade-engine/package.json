@@ -1,0 +1,29 @@
+{
+  "name": "cascade-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@monopilot/db": "workspace:*",
+    "@monopilot/validation": "workspace:*",
+    "@types/pg": "^8.20.0",
+    "pg": "8.16.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^20.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^9.39.4",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8"
+  }
+}
