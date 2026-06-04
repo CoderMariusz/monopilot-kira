@@ -2239,5 +2239,721 @@
       "statusBlocked": "Zablokowane",
       "statusDone": "Gotowe"
     }
+  },
+  "technical": {
+    "dashboard": {
+      "title": "Panel techniczny",
+      "subtitle": "Kondycja technicznych danych podstawowych: aktywne rekordy, zatwierdzenia, nadpisania alergenów, synchronizacja D365 i przeglądy kosztów.",
+      "breadcrumb": {
+        "technical": "Techniczne",
+        "dashboard": "Panel"
+      },
+      "error": "Nie można załadować panelu technicznego. Spróbuj ponownie.",
+      "kpi": {
+        "activeItems": {
+          "label": "Aktywne pozycje",
+          "sub": "Surowce, półprodukty i wyroby gotowe"
+        },
+        "pendingBom": {
+          "label": "Oczekujące zatwierdzenia BOM",
+          "sub": "Wersje robocze i w recenzji oczekujące na zatwierdzenie"
+        },
+        "allergenOverrides": {
+          "label": "Otwarte nadpisania alergenów",
+          "sub": "Ręczne nadpisania profili alergenowych pozycji"
+        },
+        "d365Sync": {
+          "label": "Status synchronizacji D365",
+          "sub": "Najnowsze zadanie synchronizacji"
+        },
+        "costReview": {
+          "label": "Kolejka przeglądu kosztów",
+          "sub": "Maszynowe zmiany kosztów oczekujące na przegląd"
+        }
+      },
+      "d365Status": {
+        "pending": "Oczekuje",
+        "running": "W toku",
+        "completed": "Zakończono",
+        "failed": "Błąd",
+        "dead_lettered": "Odrzucone",
+        "none": "Brak synchronizacji"
+      },
+      "recentChanges": {
+        "title": "Ostatnie zmiany",
+        "empty": "Brak ostatnich zmian technicznych.",
+        "col": {
+          "when": "Kiedy",
+          "resource": "Typ",
+          "action": "Zmiana",
+          "reference": "Ref"
+        }
+      },
+      "d365Health": {
+        "title": "Kondycja D365",
+        "open": "Otwórz integrację D365 →"
+      },
+      "quickActions": {
+        "title": "Szybkie akcje",
+        "createItem": "Utwórz pozycję",
+        "createBom": "Nowy BOM",
+        "denied": "Nie masz uprawnień do tworzenia pozycji ani BOM."
+      },
+      "nav": {
+        "label": "Sekcje techniczne",
+        "items": {
+          "title": "Pozycje",
+          "desc": "Surowce, półprodukty, wyroby gotowe, koprodukty i produkty uboczne."
+        },
+        "bom": {
+          "title": "Receptury (BOM)",
+          "desc": "Współdzielone źródło prawdy BOM — wersje, linie i koprodukty."
+        },
+        "allergen": {
+          "title": "Alergeny",
+          "desc": "Profile alergenowe pozycji, nadpisania i ryzyko zanieczyszczeń."
+        },
+        "cost": {
+          "title": "Koszt na kg",
+          "desc": "Koszt standardowy i historia kosztów pozycji (współwłasność z Finansami)."
+        },
+        "routings": {
+          "title": "Marszruty",
+          "desc": "Operacje produkcyjne i definicje marszrut."
+        },
+        "factorySpecs": {
+          "title": "Specyfikacje fabryczne",
+          "desc": "Pakiety zatwierdzeń i wydane specyfikacje (własność Techniczne)."
+        },
+        "sensory": {
+          "title": "Sensoryka",
+          "desc": "Schemat sensoryczny i zapisy ocen."
+        },
+        "d365": {
+          "title": "Integracja D365",
+          "desc": "Zadania synchronizacji, mapowanie kodów i kolejka błędów (w Ustawieniach)."
+        }
+      },
+      "resourceType": {
+        "item": "Pozycja",
+        "bom": "BOM",
+        "bom_header": "BOM",
+        "factory_spec": "Spec. fabryczna",
+        "routing": "Marszruta",
+        "allergen": "Alergen",
+        "item_cost": "Koszt"
+      }
+    },
+    "items": {
+      "detail": {
+        "breadcrumb": "Pozycje",
+        "subtitle": "Master techniczny dla {type}. Używany w BOM, komponentach NPD i specyfikacjach klienta.",
+        "back": "Powrót do pozycji",
+        "edit": "Edytuj",
+        "deactivate": "Dezaktywuj",
+        "whereUsed": "Gdzie używane",
+        "notFound": "Nie znaleziono pozycji",
+        "notFoundBody": "Brak pozycji o kodzie {code} w tej organizacji.",
+        "error": "Nie można wczytać tej pozycji. Spróbuj ponownie.",
+        "tablistLabel": "Sekcje szczegółów pozycji",
+        "deferred": "Wkrótce",
+        "deferredBody": "Ta sekcja zostanie dostarczona w późniejszym etapie.",
+        "tabs": {
+          "overview": "Przegląd",
+          "bom": "BOM",
+          "allergens": "Alergeny",
+          "cost": "Historia kosztów",
+          "routing": "Marszruta",
+          "supplierSpecs": "Specyfikacje dostawcy",
+          "labResults": "Wyniki laboratoryjne",
+          "d365": "Status D365"
+        },
+        "overview": {
+          "identification": "Identyfikacja",
+          "commercial": "Handel i waga",
+          "code": "Kod",
+          "name": "Nazwa",
+          "type": "Typ",
+          "status": "Status",
+          "uomBase": "Jednostka bazowa",
+          "uomSecondary": "Jednostka dodatkowa",
+          "productGroup": "Grupa produktowa",
+          "description": "Opis",
+          "weightMode": "Tryb wagi",
+          "nominalWeight": "Waga nominalna",
+          "grossWeightMax": "Maks. waga brutto",
+          "varianceTolerance": "Tolerancja odchylenia",
+          "shelfLife": "Termin przydatności",
+          "shelfLifeDays": "{days} d",
+          "costPerKg": "Koszt / kg",
+          "updated": "Zaktualizowano",
+          "none": "—"
+        }
+      },
+      "create": {
+        "title": "Utwórz pozycję",
+        "subtitle": "Uniwersalny master pozycji — łączy się z BOM, specyfikacją i matrycą alergenów.",
+        "open": "+ Nowa pozycja",
+        "cancel": "Anuluj",
+        "back": "Wstecz",
+        "next": "Dalej",
+        "create": "Utwórz pozycję",
+        "creating": "Tworzenie…",
+        "steps": {
+          "basic": "Podstawowe",
+          "classification": "Klasyfikacja",
+          "weight": "Waga i termin",
+          "review": "Przegląd i utworzenie"
+        },
+        "fields": {
+          "itemCode": "Kod pozycji",
+          "itemCodeHelp": "Znaki alfanumeryczne z separatorami . _ -. Unikalny w organizacji.",
+          "name": "Nazwa",
+          "description": "Krótki opis",
+          "itemType": "Typ pozycji",
+          "status": "Status",
+          "uomBase": "Jednostka bazowa",
+          "uomSecondary": "Jednostka dodatkowa",
+          "productGroup": "Grupa produktowa",
+          "weightMode": "Tryb wagi",
+          "nominalWeight": "Waga nominalna",
+          "grossWeightMax": "Maks. waga brutto",
+          "varianceTolerance": "Tolerancja odchylenia (%)",
+          "shelfLifeDays": "Termin przydatności (dni)",
+          "shelfLifeMode": "Tryb terminu przydatności"
+        },
+        "catchHint": "Waga zmienna wymaga wagi nominalnej, maks. wagi brutto i tolerancji odchylenia.",
+        "review": {
+          "ready": "Gotowe do utworzenia. Zostanie zapisany wpis audytowy."
+        },
+        "errors": {
+          "codeRequired": "Kod pozycji jest wymagany (min 1 znak).",
+          "nameRequired": "Nazwa jest wymagana (min 1 znak).",
+          "uomRequired": "Jednostka bazowa jest wymagana."
+        }
+      },
+      "deactivate": {
+        "title": "Dezaktywuj pozycję",
+        "subtitle": "Usuwa {code} z aktywnych list wyboru. Otwarte ZP są kontynuowane; nowe ZP nie mogą być tworzone.",
+        "warning": "{name} zostanie zablokowana. BOM-y pozostają do audytu. Status zostanie ustawiony na zablokowany.",
+        "reason": "Powód",
+        "reasonRequired": "Wybierz powód.",
+        "reasons": {
+          "discontinued": "Wycofana",
+          "recipe_change": "Zmiana receptury",
+          "d365_mismatch": "Niezgodność D365",
+          "other": "Inny"
+        },
+        "notes": "Notatki",
+        "notesRequired": "Notatki są wymagane, gdy powód to Inny (min 10 znaków).",
+        "confirmLabel": "Wpisz kod pozycji {code}, aby potwierdzić",
+        "confirmMismatch": "Wpisany kod nie pasuje.",
+        "cancel": "Anuluj",
+        "confirm": "Dezaktywuj",
+        "deactivating": "Dezaktywacja…"
+      },
+      "errors": {
+        "already_exists": "Pozycja o tym kodzie już istnieje w tej organizacji.",
+        "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+        "invalid_input": "Sprawdź wartości i spróbuj ponownie.",
+        "not_found": "Ta pozycja już nie istnieje.",
+        "persistence_failed": "Nie można zapisać. Spróbuj ponownie."
+      }
+    },
+    "allergens": {
+      "tab": {
+        "title": "Allergen profile",
+        "subtitle": "Per-item allergen declaration (EU FIC 1169/2011 — 14 mandatory allergens). Auto-cascaded badges are read-only; manual overrides are additive and require a reason.",
+        "declareCta": "Declare / override",
+        "sourceHeading": {
+          "cascaded": "Auto-cascaded (BOM + process)",
+          "brief_declared": "Brief-declared",
+          "supplier_spec": "Supplier spec",
+          "lab_result": "Lab result",
+          "manual_override": "Manual override"
+        },
+        "readOnlyTag": "Read-only",
+        "overrideTag": "Override",
+        "loading": "Loading allergen profile…",
+        "empty": "No allergens declared yet",
+        "emptyBody": "Allergens cascade automatically from BOM components and process additions; declare a manual override to add one to the final label.",
+        "error": "Unable to load the allergen profile. Please try again.",
+        "forbidden": "You can view allergens but cannot edit this item’s profile.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        },
+        "modal": {
+          "title": "Declare allergen",
+          "subtitle": "Override the auto-cascade to declare the final product label.",
+          "autoNote": "Auto-suggestions come from BOM component allergen flags. Override here to declare the final product label — the cascade source is preserved.",
+          "fieldAllergen": "Allergen",
+          "fieldIntensity": "Presence",
+          "fieldConfidence": "Confidence",
+          "fieldReason": "Override reason",
+          "reasonPlaceholder": "Explain why the auto-cascade is overridden…",
+          "reasonRequired": "A reason is required for a manual override (V-TEC-42).",
+          "cancel": "Cancel",
+          "save": "Save declaration",
+          "saving": "Saving…",
+          "saveError": "Could not save the override. Please try again.",
+          "selectPlaceholder": "Select an allergen…",
+          "intensity": {
+            "contains": "Contains",
+            "may_contain": "May contain",
+            "trace": "Trace"
+          },
+          "confidence": {
+            "declared": "Declared",
+            "tested": "Tested",
+            "assumed": "Assumed"
+          }
+        }
+      },
+      "audit": {
+        "title": "Manual override audit",
+        "subtitle": "Append-only history of manual allergen overrides — one immutable row per (item × allergen × actor × timestamp).",
+        "colItem": "Item",
+        "colAllergen": "Allergen",
+        "colAction": "Action",
+        "colIntensity": "Presence",
+        "colReason": "Reason",
+        "colActor": "Actor",
+        "colTimestamp": "When",
+        "actionSet": "Set",
+        "actionClear": "Cleared",
+        "actionAdjustIntensity": "Adjusted presence",
+        "actionAdjustConfidence": "Adjusted confidence",
+        "reviewCta": "Review / re-override",
+        "loading": "Loading override history…",
+        "empty": "No manual overrides recorded",
+        "emptyBody": "When an allergen is manually overridden, an immutable audit row is appended here with the actor and timestamp.",
+        "error": "Unable to load the override audit. Please try again.",
+        "forbidden": "You do not have permission to review allergen overrides.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        }
+      },
+      "config": {
+        "title": "Allergens configuration",
+        "subtitle": "Manufacturing-operation allergen additions and the line × allergen cross-contamination risk matrix (EU FIC 1169/2011).",
+        "tabMatrix": "Contamination matrix",
+        "tabOps": "Process additions",
+        "colLine": "Production line",
+        "legendContains": "High risk",
+        "legendMayContain": "Medium risk",
+        "legendAbsent": "No entry",
+        "gapBanner": "{count} line × allergen combinations have no contamination-risk entry.",
+        "gapLink": "View gaps",
+        "riskLevel": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "segregated": "Segregated"
+        },
+        "riskNone": "No entry",
+        "loading": "Loading allergens configuration…",
+        "empty": "No lines or operations configured yet",
+        "emptyBody": "Add production lines (Settings → Infrastructure) and manufacturing operations to build the contamination-risk matrix.",
+        "error": "Unable to load the allergens configuration. Please try again.",
+        "forbidden": "You do not have permission to view the allergens configuration.",
+        "readOnlyTag": "Read-only",
+        "opsTitle": "Process allergen additions",
+        "opsColOperation": "Manufacturing operation",
+        "opsColAllergen": "Allergen",
+        "opsColReason": "Reason",
+        "opsEmpty": "No process-added allergens configured.",
+        "saveError": "Could not save the change. Please try again.",
+        "cellAria": "Contamination risk for"
+      }
+    },
+    "bom": {
+      "edit": {
+        "addComponent": "Dodaj komponent do BOM",
+        "addComponentSubtitle": "Wyszukaj w kartotece materiałów i ustaw ilość / odpad",
+        "searchPlaceholder": "Szukaj po kodzie lub nazwie (RM-, PM-, WIP-…)",
+        "noMaterials": "Brak pasujących materiałów.",
+        "loadingMaterials": "Przeszukiwanie kartoteki materiałów…",
+        "quantity": "Ilość",
+        "quantityPerPack": "Ilość ({uom} na 1 opakowanie)",
+        "scrapPct": "Odpad %",
+        "manufacturingOperation": "Operacja produkcyjna",
+        "manufacturingOperationPlaceholder": "Wybierz operację",
+        "manufacturingOperationRequired": "Wybierz operację produkcyjną przed zapisem.",
+        "quantityInvalid": "Ilość musi być większa od 0.",
+        "checkingUsability": "Sprawdzanie przydatności komponentu…",
+        "usabilityBlocked": "Komponent zablokowany ({code}): {message}",
+        "usableOk": "Komponent jest przydatny.",
+        "addAction": "Dodaj komponent",
+        "saveVersionTitle": "Zapisz wersję BOM",
+        "saveVersionSubtitle": "{product} · bieżąca v{version}",
+        "versionLabel": "Etykieta wersji",
+        "changeReason": "Powód zmiany",
+        "changeReasonHelp": "Powiązane ze snapshotami WO w Planowaniu — min. 10 znaków.",
+        "changeReasonPlaceholder": "np. Aktualizacja % tłuszczu (22% → 21%) — ECO-2045.",
+        "saveVersion": "Zapisz wersję",
+        "previousVersionNote": "Poprzednia wersja (v{version}) pozostaje dostępna tylko do odczytu dla istniejących zleceń.",
+        "newDraftNotice": "Ten BOM ma status {status}. Zapis utworzy nową wersję roboczą — wydana wersja nigdy nie jest edytowana w miejscu.",
+        "cancel": "Anuluj",
+        "close": "Zamknij",
+        "saveError": "Nie udało się zapisać. Spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do wykonania tej akcji.",
+        "conflict": "Ta wersja koliduje z istniejącą. Odśwież i spróbuj ponownie."
+      },
+      "diff": {
+        "title": "Różnice wersji BOM",
+        "subtitle": "Porównanie v{from} → v{to}",
+        "loading": "Ładowanie różnic…",
+        "noDifferences": "Brak różnic",
+        "error": "Nie udało się wczytać różnic wersji.",
+        "notFound": "Jedna z wybranych wersji nie istnieje.",
+        "headerChanges": "Zmiany nagłówka",
+        "lines": "Komponenty",
+        "coProducts": "Produkty uboczne",
+        "added": "Dodane",
+        "removed": "Usunięte",
+        "changed": "Zmienione",
+        "before": "{label} · przed",
+        "after": "{label} · bieżąca",
+        "field": "Pole",
+        "quantity": "Ilość",
+        "scrap": "Odpad %",
+        "allocation": "Alokacja %",
+        "uom": "JM",
+        "type": "Typ",
+        "close": "Zamknij"
+      },
+      "generator": {
+        "title": "Generuj partię BOM",
+        "subtitle": "Rozwiń i złóż wewnętrzne BOM dla ukończonych wyrobów gotowych.",
+        "scope": "Zakres",
+        "scopeAllComplete": "Wszystkie ukończone FG",
+        "scopeSelected": "Wybrane FG",
+        "outputMode": "Tryb wyjścia",
+        "outputPerFg": "Jeden plik na FG",
+        "outputSingleBatch": "Pojedyncza łączona partia",
+        "pickFgs": "Wyroby gotowe (Status Overall = Complete)",
+        "searchFgs": "Szukaj wyrobów gotowych…",
+        "noEligibleFgs": "Brak dostępnych ukończonych wyrobów gotowych.",
+        "loadingFgs": "Ładowanie wyrobów gotowych…",
+        "selectAtLeastOne": "Wybierz co najmniej jeden wyrób gotowy.",
+        "confirm": "Generuj",
+        "cancel": "Anuluj",
+        "submitting": "Kolejkowanie…",
+        "successToast": "Partia w kolejce ({count}). Zadanie {jobId}.",
+        "viewJob": "Zobacz status zadania",
+        "error": "Nie udało się zakolejkować partii. Spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do generowania partii BOM."
+      }
+    },
+    "bomList": {
+      "breadcrumbRoot": "Technologia",
+      "title": "BOM-y i receptury",
+      "subtitle": "Listy materiałowe wyrobów gotowych — składniki, koprodukty, wersje, zatwierdzenia i wykorzystanie, z współdzielonego SSOT BOM.",
+      "newBom": "+ Nowy BOM",
+      "generateBoms": "Generuj BOM-y",
+      "kpiActive": "Aktywne BOM-y",
+      "kpiTotalSuffix": "z {n} łącznie",
+      "kpiDraft": "Szkic",
+      "kpiInReview": "W przeglądzie",
+      "tabAll": "Wszystkie",
+      "tabDraft": "Szkic",
+      "tabActive": "Aktywne",
+      "tabInReview": "W przeglądzie",
+      "tabArchived": "Zarchiwizowane",
+      "colCode": "Kod FG",
+      "colProduct": "Produkt",
+      "colCategory": "Kategoria",
+      "colVersion": "Wer.",
+      "colYield": "Wydajność",
+      "colUpdated": "Zaktualizowano",
+      "colStatus": "Status",
+      "componentsMeta": "{n} składników",
+      "statusDraft": "Szkic",
+      "statusInReview": "W przeglądzie",
+      "statusApproved": "Zatwierdzony",
+      "statusActive": "Aktywny",
+      "statusSuperseded": "Zastąpiony",
+      "statusArchived": "Zarchiwizowany",
+      "searchPlaceholder": "Filtruj po nazwie lub kodzie FG…",
+      "emptyTitle": "Brak BOM-ów",
+      "emptyBody": "Utwórz BOM lub wygeneruj go z ukończonego produktu NPD, aby rozpocząć.",
+      "noMatchTitle": "Żaden BOM nie pasuje do filtra",
+      "noMatchBody": "Wyczyść wyszukiwanie lub wybierz inną zakładkę statusu.",
+      "loading": "Ładowanie BOM-ów…",
+      "error": "Nie udało się załadować BOM-ów. Spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do przeglądania BOM-ów."
+    },
+    "bomDetail": {
+      "breadcrumbRoot": "BOM-y i receptury",
+      "versionBadge": "v{n}",
+      "yieldLabel": "Wydajność",
+      "tabComponents": "Składniki",
+      "tabCoProducts": "Koprodukty",
+      "tabSnapshots": "Migawki",
+      "tabVersions": "Wersje",
+      "tabApproval": "Zatwierdzenie",
+      "tabWhereUsed": "Wykorzystanie",
+      "tabRecipeSheet": "Karta receptury",
+      "colLine": "#",
+      "colComponent": "Składnik",
+      "colType": "Typ",
+      "colQty": "Ilość",
+      "colUom": "JM",
+      "colScrap": "Odpad",
+      "colOperation": "Operacja",
+      "phantomBadge": "fantom",
+      "colCoProduct": "Pozycja koproduktu",
+      "colAllocation": "Alokacja",
+      "byproductBadge": "Produkt uboczny",
+      "coProductBadge": "Koprodukt",
+      "colSnapshot": "Migawka",
+      "colWorkOrder": "Zlecenie produkcyjne",
+      "colSnapshotAt": "Wykonano",
+      "noWorkOrder": "—",
+      "colVersion": "Wersja",
+      "colStatus": "Status",
+      "colEffective": "Obowiązuje od",
+      "colApprovedBy": "Zatwierdził",
+      "current": "Bieżąca",
+      "approvalTitle": "Zatwierdzenie",
+      "approvalStatus": "Status",
+      "approvalApprovedBy": "Zatwierdził",
+      "approvalApprovedAt": "Zatwierdzono",
+      "approvalPending": "Oczekuje na zatwierdzenie",
+      "approvalChainTitle": "Ścieżka zatwierdzenia",
+      "approvalChain": "NPD → Technolog → QA → Kierownik produkcji",
+      "colParent": "Użyty w (FG)",
+      "colParentVersion": "Wersja",
+      "colUsageQty": "Ilość na rodzica",
+      "recipeTitle": "Karta receptury",
+      "recipeBatch": "BOM {code} · v{version} · Wydajność {yield}%",
+      "recipeComponents": "Składniki",
+      "recipeNotes": "Uwagi",
+      "statusDraft": "Szkic",
+      "statusInReview": "W przeglądzie",
+      "statusApproved": "Zatwierdzony",
+      "statusActive": "Aktywny",
+      "statusSuperseded": "Zastąpiony",
+      "statusArchived": "Zarchiwizowany",
+      "emptyComponents": "Ta wersja BOM nie ma pozycji składników.",
+      "emptyCoProducts": "Brak koproduktów lub produktów ubocznych w tej wersji BOM.",
+      "emptySnapshots": "Dla tej wersji nie wykonano jeszcze żadnych migawek zleceń.",
+      "emptyWhereUsed": "Ten FG nie jest używany jako składnik w żadnym innym BOM.",
+      "loading": "Ładowanie BOM…",
+      "error": "Nie udało się załadować tego BOM. Spróbuj ponownie.",
+      "notFound": "Nie znaleziono BOM.",
+      "forbidden": "Nie masz uprawnień do przeglądania tego BOM."
+    }
+  },
+  "Technical": {
+    "factorySpecs": {
+      "title": "Specyfikacje fabryczne",
+      "subtitle": "Specyfikacje produkcyjne należące do działu Technicznego (factory_spec / internal_product_spec) na wyrób gotowy — wersjonowane, wydawane po zatwierdzeniu technicznym.",
+      "newSpec": "+ Nowa specyfikacja",
+      "col": {
+        "spec": "Spec",
+        "product": "Produkt",
+        "category": "Kategoria",
+        "version": "Wer.",
+        "shelfLife": "Termin",
+        "storage": "Przechowywanie",
+        "status": "Status",
+        "actions": "Akcje"
+      },
+      "status": {
+        "draft": "Szkic",
+        "in_review": "W przeglądzie",
+        "approved_for_factory": "Zatwierdzona do produkcji",
+        "released_to_factory": "Wydana do produkcji",
+        "superseded": "Zastąpiona",
+        "archived": "Zarchiwizowana"
+      },
+      "empty": {
+        "title": "Brak specyfikacji fabrycznych",
+        "body": "Utwórz specyfikację fabryczną lub zatwierdź szkic z NPD do użytku produkcyjnego."
+      },
+      "error": "Nie można załadować specyfikacji fabrycznych. Spróbuj ponownie.",
+      "permissionView": "Możesz przeglądać specyfikacje fabryczne, ale nie możesz ich zatwierdzać do produkcji.",
+      "review": "Przegląd",
+      "modal": {
+        "title": "Przegląd specyfikacji · {spec}",
+        "subtitle": "{name} · v{version}",
+        "releaseStatus": "Status wydania",
+        "pairedBom": "Powiązany BOM",
+        "noBom": "Brak powiązanego BOM",
+        "bomVersion": "BOM v{version}",
+        "shelfLife": "Termin przydatności",
+        "storage": "Przechowywanie",
+        "source": "Źródło",
+        "cloneOnWrite": "Ta wersja jest wydana i niezmienna. Edycja tworzy nową wersję (clone-on-write), która wraca do zatwierdzenia technicznego przed użyciem produkcyjnym.",
+        "blockersTitle": "Blokery użyteczności RM i wydania",
+        "noBlockers": "Brak blokerów wydania.",
+        "g4Note": "Sama Bramka-4 NPD nie odblokowuje użytku produkcyjnego — wymagane jest powiązane zatwierdzenie FactorySpec + BOM przez Technical.",
+        "openBundle": "Otwórz zatwierdzanie pakietu",
+        "close": "Zamknij",
+        "markReviewed": "Oznacz jako sprawdzone",
+        "permissionDenied": "Nie masz uprawnień technicznych do zatwierdzenia tej specyfikacji do produkcji."
+      }
+    },
+    "releaseBundle": {
+      "title": "Zatwierdź pakiet FactorySpec + BOM",
+      "subtitle": "{fg} · powiązane wydanie techniczne",
+      "cloneBanner": "Zastosowano clone-on-write. Zatwierdzenie pakietu wydaje FactorySpec + BOM do użytku produkcyjnego lokalnie — niezależnie od D365.",
+      "factorySpec": "factory_spec",
+      "sharedBom": "wspólny BOM",
+      "specId": "Id spec",
+      "owner": "Właściciel",
+      "lastEdit": "Ostatnia edycja",
+      "bomId": "Id BOM",
+      "version": "Wersja",
+      "clonedFrom": "Sklonowano z",
+      "blockersTitle": "Blokery i kontrola wstępna",
+      "noBlockers": "Brak blokerów — pakiet gotowy do zatwierdzenia technicznego.",
+      "approveDisabled": "Zatwierdzanie wyłączone — usuń {count} bloker(ów) powyżej (supplier_spec, RBAC, kontrola wydania).",
+      "historyTitle": "Historia zatwierdzeń / odrzuceń",
+      "noHistory": "Brak historii zatwierdzeń.",
+      "approveOption": "Zatwierdź pakiet",
+      "approveHelp": "Wydaje pakiet FactorySpec + BOM do użytku produkcyjnego. Lokalne wydanie techniczne — synchronizacja D365 jest opcjonalna/informacyjna.",
+      "rejectOption": "Odrzuć pakiet",
+      "rejectHelp": "Oba artefakty wracają do szkicu; autor zostaje powiadomiony z podanym powodem.",
+      "rejectReason": "Powód odrzucenia",
+      "rejectReasonHelp": "Rejestrowane w audycie, min. 10 znaków.",
+      "approveReason": "Powód zatwierdzenia",
+      "approveReasonHelp": "Rejestrowane w audycie wraz z e-podpisem.",
+      "pin": "PIN e-podpisu",
+      "pinHelp": "Twoje hasło/PIN potwierdza zatwierdzenie (CFR 21 część 11). Weryfikowane po stronie serwera, nigdy nieprzechowywane.",
+      "d365Disabled": "Integracja D365 jest wyłączona. Lokalne zatwierdzenie techniczne nadal odblokowuje użytek produkcyjny — synchronizacja D365 jest tylko informacyjna.",
+      "cancel": "Anuluj",
+      "approveAction": "Zatwierdź pakiet",
+      "approveBlocked": "Zatwierdź (zablokowane)",
+      "rejectAction": "Odrzuć pakiet",
+      "permissionDenied": "Nie masz uprawnień technicznych do zatwierdzenia tego pakietu.",
+      "loading": "Ładowanie pakietu…",
+      "error": "Nie można załadować pakietu wydania. Spróbuj ponownie.",
+      "approved": "Pakiet zatwierdzony — FactorySpec i BOM wydane do użytku produkcyjnego.",
+      "rejected": "Pakiet odrzucony — oba artefakty wróciły do szkicu.",
+      "actionError": "Nie udało się wykonać akcji. Spróbuj ponownie.",
+      "blocker": {
+        "rm": "Użyteczność RM",
+        "rbac": "Autoryzacja",
+        "release": "Kontrola wydania",
+        "supplier": "Spec dostawcy"
+      }
+    },
+    "shelfLife": {
+      "title": "Konfiguracja terminu przydatności",
+      "subtitle": "Reguły „należy spożyć do” vs. „najlepiej spożyć przed” dla produktu. Preset regulacyjny określa wymagany prawnie tryb.",
+      "breadcrumb": {
+        "technical": "Techniczny",
+        "shelfLife": "Termin przydatności"
+      },
+      "override": "Nadpisz",
+      "notConfigured": "Nieskonfigurowano",
+      "days": "dni",
+      "mode": {
+        "useBy": "use_by",
+        "bestBefore": "best_before"
+      },
+      "col": {
+        "product": "Produkt",
+        "mode": "Tryb",
+        "duration": "Czas",
+        "dateCode": "Kod daty",
+        "notes": "Uwagi",
+        "actions": ""
+      },
+      "kpi": {
+        "region": "Podsumowanie terminów przydatności",
+        "products": "Wyroby gotowe",
+        "productsSub": "z regułami",
+        "useBy": "Reguły „spożyć do”",
+        "useBySub": "łatwo psujące się",
+        "bestBefore": "„Najlepiej przed”",
+        "bestBeforeSub": "temp. otoczenia / mrożone",
+        "unconfigured": "Nieskonfigurowane",
+        "unconfiguredSub": "brak reguły"
+      },
+      "modal": {
+        "title": "Nadpisz termin przydatności",
+        "warning": "Nadpisanie odbiega od presetu regulacyjnego — wymaga akceptacji QA i jest zapisywane w dzienniku audytu.",
+        "current": "Bieżący termin",
+        "newDays": "Nowy termin (dni)",
+        "mode": "Tryb",
+        "dateCode": "Format kodu daty",
+        "reason": "Powód nadpisania",
+        "reasonHelp": "Minimum 10 znaków — zapisywane w audycie.",
+        "reasonPlaceholder": "np. Zmiana parametrów MAP (30% CO₂) potwierdzona badaniem mikrobiologicznym nr 2026/04/17-A.",
+        "preview": "Podgląd kodu daty na dziś",
+        "cancel": "Anuluj",
+        "apply": "Zastosuj nadpisanie"
+      },
+      "regulatoryNote": "Źródło presetu regulacyjnego: Rozp. (UE) 1169/2011 · wytyczne PL HACCP GHP/GMP. Zmiana presetu uruchamia zlecenie zmiany inżynieryjnej.",
+      "state": {
+        "error": "Nie udało się wczytać reguł terminów przydatności. Spróbuj ponownie.",
+        "emptyTitle": "Brak wyrobów gotowych",
+        "emptyBody": "Utwórz wyrób gotowy w kartotece pozycji, aby skonfigurować jego termin przydatności.",
+        "readOnly": "Możesz przeglądać reguły terminów, ale nie masz uprawnień do ich nadpisywania."
+      },
+      "error": {
+        "invalid": "Sprawdź wartości i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do nadpisania terminu przydatności.",
+        "notFound": "Ten produkt już nie istnieje.",
+        "generic": "Nie udało się zapisać. Spróbuj ponownie."
+      }
+    },
+    "sensory": {
+      "title": "Ocena sensoryczna",
+      "subtitle": "Model odczytu sensoryki należący do działu technicznego. Akceptacja NPD i bramki zwolnienia QA czytają ten stan; ten ekran nie przejmuje bramki NPD.",
+      "breadcrumb": {
+        "technical": "Techniczny",
+        "sensory": "Sensoryka"
+      },
+      "readOnlyNote": "Tylko do odczytu. Sensoryka to raportowany model odczytu — właścicielem bramki pozostaje NPD i czyta ten status tylko do odczytu.",
+      "tableLabel": "Oceny sensoryczne",
+      "kpi": {
+        "region": "Podsumowanie sensoryki",
+        "total": "Podmioty",
+        "blocked": "Zablokowane",
+        "pending": "Oczekujące",
+        "notRequired": "Niewymagane"
+      },
+      "col": {
+        "subject": "Podmiot",
+        "type": "Typ",
+        "policy": "Polityka",
+        "evaluated": "Oceniono",
+        "status": "Status",
+        "blockedReason": "Powód blokady"
+      },
+      "subject": {
+        "product": "Produkt",
+        "project": "Projekt",
+        "workOrder": "Zlecenie",
+        "item": "Pozycja / WG"
+      },
+      "policy": {
+        "required": "Wymagana",
+        "optional": "Opcjonalna"
+      },
+      "status": {
+        "required": "Wymagana",
+        "pending": "Oczekuje",
+        "pass": "Pozytywna",
+        "fail": "Negatywna",
+        "hold": "Wstrzymana",
+        "notRequired": "Niewymagana"
+      },
+      "sourceNote": "Źródło: technical_sensory_evaluations (model odczytu działu technicznego). fail / hold wystawiają SENSORIAL_BLOCKED dla bramek zwolnienia.",
+      "state": {
+        "error": "Nie udało się wczytać ocen sensorycznych. Spróbuj ponownie.",
+        "emptyTitle": "Brak ocen sensorycznych",
+        "emptyBody": "Podmioty sensoryczne pojawią się tutaj po zarejestrowaniu oceny. Do tego czasu NPD traktuje sensorykę jako niewymaganą.",
+        "denied": "Nie masz uprawnień do przeglądania ocen sensorycznych."
+      }
+    }
   }
 }

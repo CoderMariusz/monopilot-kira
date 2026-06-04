@@ -2239,5 +2239,721 @@
       "statusBlocked": "Blocked",
       "statusDone": "Done"
     }
+  },
+  "technical": {
+    "dashboard": {
+      "title": "Technical dashboard",
+      "subtitle": "Health of the technical master data: active records, approvals, allergen overrides, D365 sync and cost reviews.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "dashboard": "Dashboard"
+      },
+      "error": "Unable to load the technical dashboard. Please try again.",
+      "kpi": {
+        "activeItems": {
+          "label": "Active items",
+          "sub": "Raw materials, intermediates and finished goods"
+        },
+        "pendingBom": {
+          "label": "Pending BOM approvals",
+          "sub": "Drafts and in-review versions awaiting approval"
+        },
+        "allergenOverrides": {
+          "label": "Open allergen overrides",
+          "sub": "Manual overrides on item allergen profiles"
+        },
+        "d365Sync": {
+          "label": "D365 sync status",
+          "sub": "Latest synchronisation job"
+        },
+        "costReview": {
+          "label": "Cost review queue",
+          "sub": "Machine-generated cost changes awaiting review"
+        }
+      },
+      "d365Status": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "dead_lettered": "Dead-lettered",
+        "none": "No sync yet"
+      },
+      "recentChanges": {
+        "title": "Recent changes",
+        "empty": "No recent technical changes yet.",
+        "col": {
+          "when": "When",
+          "resource": "Type",
+          "action": "Change",
+          "reference": "Ref"
+        }
+      },
+      "d365Health": {
+        "title": "D365 health",
+        "open": "Open D365 integration →"
+      },
+      "quickActions": {
+        "title": "Quick actions",
+        "createItem": "Create item",
+        "createBom": "New BOM",
+        "denied": "You do not have permission to create items or BOMs."
+      },
+      "nav": {
+        "label": "Technical sections",
+        "items": {
+          "title": "Items",
+          "desc": "Raw materials, intermediates, finished goods, co-products and by-products."
+        },
+        "bom": {
+          "title": "Bills of materials",
+          "desc": "Shared BOM SSOT — versions, lines and co-products."
+        },
+        "allergen": {
+          "title": "Allergens",
+          "desc": "Per-item allergen profiles, overrides and contamination risk."
+        },
+        "cost": {
+          "title": "Cost per kg",
+          "desc": "Standard cost and item cost history (dual-owned with Finance)."
+        },
+        "routings": {
+          "title": "Routings",
+          "desc": "Manufacturing operations and routing definitions."
+        },
+        "factorySpecs": {
+          "title": "Factory specs",
+          "desc": "Technical-owned approval bundles and released specifications."
+        },
+        "sensory": {
+          "title": "Sensory",
+          "desc": "Sensory schema and evaluation records."
+        },
+        "d365": {
+          "title": "D365 integration",
+          "desc": "Sync jobs, code mapping and dead-letter queue (in Settings)."
+        }
+      },
+      "resourceType": {
+        "item": "Item",
+        "bom": "BOM",
+        "bom_header": "BOM",
+        "factory_spec": "Factory spec",
+        "routing": "Routing",
+        "allergen": "Allergen",
+        "item_cost": "Cost"
+      }
+    },
+    "items": {
+      "detail": {
+        "breadcrumb": "Items",
+        "subtitle": "Technical master for {type}. Used in BOMs, NPD components and customer specs.",
+        "back": "Back to items",
+        "edit": "Edit",
+        "deactivate": "Deactivate",
+        "whereUsed": "Where-used",
+        "notFound": "Item not found",
+        "notFoundBody": "No item with code {code} exists in this organization.",
+        "error": "Unable to load this item. Please try again.",
+        "tablistLabel": "Item detail sections",
+        "deferred": "Coming soon",
+        "deferredBody": "This section is delivered in a later slice.",
+        "tabs": {
+          "overview": "Overview",
+          "bom": "BOM",
+          "allergens": "Allergens",
+          "cost": "Cost history",
+          "routing": "Routing",
+          "supplierSpecs": "Supplier specs",
+          "labResults": "Lab results",
+          "d365": "D365 status"
+        },
+        "overview": {
+          "identification": "Identification",
+          "commercial": "Commercial & weight",
+          "code": "Code",
+          "name": "Name",
+          "type": "Type",
+          "status": "Status",
+          "uomBase": "Base UoM",
+          "uomSecondary": "Secondary UoM",
+          "productGroup": "Product group",
+          "description": "Description",
+          "weightMode": "Weight mode",
+          "nominalWeight": "Nominal weight",
+          "grossWeightMax": "Gross weight max",
+          "varianceTolerance": "Variance tolerance",
+          "shelfLife": "Shelf life",
+          "shelfLifeDays": "{days} d",
+          "costPerKg": "Cost / kg",
+          "updated": "Updated",
+          "none": "—"
+        }
+      },
+      "create": {
+        "title": "Create item",
+        "subtitle": "Universal item master — links to BOM, spec and allergen matrix.",
+        "open": "+ New item",
+        "cancel": "Cancel",
+        "back": "Back",
+        "next": "Next",
+        "create": "Create item",
+        "creating": "Creating…",
+        "steps": {
+          "basic": "Basic info",
+          "classification": "Classification",
+          "weight": "Weight & shelf life",
+          "review": "Review & create"
+        },
+        "fields": {
+          "itemCode": "Item code",
+          "itemCodeHelp": "Alphanumeric with . _ - separators. Unique per organization.",
+          "name": "Name",
+          "description": "Short description",
+          "itemType": "Item type",
+          "status": "Status",
+          "uomBase": "Base UoM",
+          "uomSecondary": "Secondary UoM",
+          "productGroup": "Product group",
+          "weightMode": "Weight mode",
+          "nominalWeight": "Nominal weight",
+          "grossWeightMax": "Gross weight max",
+          "varianceTolerance": "Variance tolerance (%)",
+          "shelfLifeDays": "Shelf life (days)",
+          "shelfLifeMode": "Shelf-life mode"
+        },
+        "catchHint": "Catch weight requires nominal weight, gross weight max and a variance tolerance.",
+        "review": {
+          "ready": "Ready to create. An audit record will be logged."
+        },
+        "errors": {
+          "codeRequired": "Item code is required (min 1 char).",
+          "nameRequired": "Name is required (min 1 char).",
+          "uomRequired": "Base UoM is required."
+        }
+      },
+      "deactivate": {
+        "title": "Deactivate item",
+        "subtitle": "Removes {code} from active pick-lists. Open WOs continue; no new WOs can be created.",
+        "warning": "{name} will be blocked. BOMs remain for audit. This sets status to blocked.",
+        "reason": "Reason",
+        "reasonRequired": "Select a reason.",
+        "reasons": {
+          "discontinued": "Discontinued",
+          "recipe_change": "Recipe change",
+          "d365_mismatch": "D365 mismatch",
+          "other": "Other"
+        },
+        "notes": "Notes",
+        "notesRequired": "Notes are required when the reason is Other (min 10 chars).",
+        "confirmLabel": "Type the item code {code} to confirm",
+        "confirmMismatch": "The entered code does not match.",
+        "cancel": "Cancel",
+        "confirm": "Deactivate",
+        "deactivating": "Deactivating…"
+      },
+      "errors": {
+        "already_exists": "An item with that code already exists in this organization.",
+        "forbidden": "You do not have permission to perform this action.",
+        "invalid_input": "Please check the values and try again.",
+        "not_found": "That item no longer exists.",
+        "persistence_failed": "Could not save. Please try again."
+      }
+    },
+    "allergens": {
+      "tab": {
+        "title": "Allergen profile",
+        "subtitle": "Per-item allergen declaration (EU FIC 1169/2011 — 14 mandatory allergens). Auto-cascaded badges are read-only; manual overrides are additive and require a reason.",
+        "declareCta": "Declare / override",
+        "sourceHeading": {
+          "cascaded": "Auto-cascaded (BOM + process)",
+          "brief_declared": "Brief-declared",
+          "supplier_spec": "Supplier spec",
+          "lab_result": "Lab result",
+          "manual_override": "Manual override"
+        },
+        "readOnlyTag": "Read-only",
+        "overrideTag": "Override",
+        "loading": "Loading allergen profile…",
+        "empty": "No allergens declared yet",
+        "emptyBody": "Allergens cascade automatically from BOM components and process additions; declare a manual override to add one to the final label.",
+        "error": "Unable to load the allergen profile. Please try again.",
+        "forbidden": "You can view allergens but cannot edit this item’s profile.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        },
+        "modal": {
+          "title": "Declare allergen",
+          "subtitle": "Override the auto-cascade to declare the final product label.",
+          "autoNote": "Auto-suggestions come from BOM component allergen flags. Override here to declare the final product label — the cascade source is preserved.",
+          "fieldAllergen": "Allergen",
+          "fieldIntensity": "Presence",
+          "fieldConfidence": "Confidence",
+          "fieldReason": "Override reason",
+          "reasonPlaceholder": "Explain why the auto-cascade is overridden…",
+          "reasonRequired": "A reason is required for a manual override (V-TEC-42).",
+          "cancel": "Cancel",
+          "save": "Save declaration",
+          "saving": "Saving…",
+          "saveError": "Could not save the override. Please try again.",
+          "selectPlaceholder": "Select an allergen…",
+          "intensity": {
+            "contains": "Contains",
+            "may_contain": "May contain",
+            "trace": "Trace"
+          },
+          "confidence": {
+            "declared": "Declared",
+            "tested": "Tested",
+            "assumed": "Assumed"
+          }
+        }
+      },
+      "audit": {
+        "title": "Manual override audit",
+        "subtitle": "Append-only history of manual allergen overrides — one immutable row per (item × allergen × actor × timestamp).",
+        "colItem": "Item",
+        "colAllergen": "Allergen",
+        "colAction": "Action",
+        "colIntensity": "Presence",
+        "colReason": "Reason",
+        "colActor": "Actor",
+        "colTimestamp": "When",
+        "actionSet": "Set",
+        "actionClear": "Cleared",
+        "actionAdjustIntensity": "Adjusted presence",
+        "actionAdjustConfidence": "Adjusted confidence",
+        "reviewCta": "Review / re-override",
+        "loading": "Loading override history…",
+        "empty": "No manual overrides recorded",
+        "emptyBody": "When an allergen is manually overridden, an immutable audit row is appended here with the actor and timestamp.",
+        "error": "Unable to load the override audit. Please try again.",
+        "forbidden": "You do not have permission to review allergen overrides.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        }
+      },
+      "config": {
+        "title": "Allergens configuration",
+        "subtitle": "Manufacturing-operation allergen additions and the line × allergen cross-contamination risk matrix (EU FIC 1169/2011).",
+        "tabMatrix": "Contamination matrix",
+        "tabOps": "Process additions",
+        "colLine": "Production line",
+        "legendContains": "High risk",
+        "legendMayContain": "Medium risk",
+        "legendAbsent": "No entry",
+        "gapBanner": "{count} line × allergen combinations have no contamination-risk entry.",
+        "gapLink": "View gaps",
+        "riskLevel": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "segregated": "Segregated"
+        },
+        "riskNone": "No entry",
+        "loading": "Loading allergens configuration…",
+        "empty": "No lines or operations configured yet",
+        "emptyBody": "Add production lines (Settings → Infrastructure) and manufacturing operations to build the contamination-risk matrix.",
+        "error": "Unable to load the allergens configuration. Please try again.",
+        "forbidden": "You do not have permission to view the allergens configuration.",
+        "readOnlyTag": "Read-only",
+        "opsTitle": "Process allergen additions",
+        "opsColOperation": "Manufacturing operation",
+        "opsColAllergen": "Allergen",
+        "opsColReason": "Reason",
+        "opsEmpty": "No process-added allergens configured.",
+        "saveError": "Could not save the change. Please try again.",
+        "cellAria": "Contamination risk for"
+      }
+    },
+    "bom": {
+      "edit": {
+        "addComponent": "Add component to BOM",
+        "addComponentSubtitle": "Search the material master and set quantity / scrap",
+        "searchPlaceholder": "Search by code or name (RM-, PM-, WIP-…)",
+        "noMaterials": "No materials match.",
+        "loadingMaterials": "Searching the material master…",
+        "quantity": "Quantity",
+        "quantityPerPack": "Quantity ({uom} per 1 pack)",
+        "scrapPct": "Scrap %",
+        "manufacturingOperation": "Manufacturing operation",
+        "manufacturingOperationPlaceholder": "Select an operation",
+        "manufacturingOperationRequired": "Pick a manufacturing operation before saving.",
+        "quantityInvalid": "Quantity must be greater than 0.",
+        "checkingUsability": "Checking component usability…",
+        "usabilityBlocked": "Component blocked ({code}): {message}",
+        "usableOk": "Component is usable.",
+        "addAction": "Add component",
+        "saveVersionTitle": "Save BOM version",
+        "saveVersionSubtitle": "{product} · current v{version}",
+        "versionLabel": "Version label",
+        "changeReason": "Change reason",
+        "changeReasonHelp": "Referenced from Planning WO snapshots — min 10 chars.",
+        "changeReasonPlaceholder": "e.g. Updated fat % (22% → 21%) — ECO-2045.",
+        "saveVersion": "Save version",
+        "previousVersionNote": "Previous version (v{version}) stays available read-only for existing work orders.",
+        "newDraftNotice": "This BOM is {status}. Saving creates a new draft version — the released version is never edited in place.",
+        "cancel": "Cancel",
+        "close": "Close",
+        "saveError": "Could not save. Please try again.",
+        "forbidden": "You do not have permission to perform this action.",
+        "conflict": "This version conflicts with an existing one. Refresh and retry."
+      },
+      "diff": {
+        "title": "BOM version diff",
+        "subtitle": "Comparing v{from} → v{to}",
+        "loading": "Loading diff…",
+        "noDifferences": "No differences",
+        "error": "Could not load the version diff.",
+        "notFound": "One of the selected versions does not exist.",
+        "headerChanges": "Header changes",
+        "lines": "Components",
+        "coProducts": "Co-products",
+        "added": "Added",
+        "removed": "Removed",
+        "changed": "Changed",
+        "before": "{label} · before",
+        "after": "{label} · current",
+        "field": "Field",
+        "quantity": "Quantity",
+        "scrap": "Scrap %",
+        "allocation": "Allocation %",
+        "uom": "UoM",
+        "type": "Type",
+        "close": "Close"
+      },
+      "generator": {
+        "title": "Generate BOM batch",
+        "subtitle": "Explode and compose internal BOMs for completed finished goods.",
+        "scope": "Scope",
+        "scopeAllComplete": "All completed FGs",
+        "scopeSelected": "Selected FGs",
+        "outputMode": "Output mode",
+        "outputPerFg": "One file per FG",
+        "outputSingleBatch": "Single combined batch",
+        "pickFgs": "Finished goods (Status Overall = Complete)",
+        "searchFgs": "Search finished goods…",
+        "noEligibleFgs": "No completed finished goods are available.",
+        "loadingFgs": "Loading finished goods…",
+        "selectAtLeastOne": "Select at least one finished good.",
+        "confirm": "Generate",
+        "cancel": "Cancel",
+        "submitting": "Queuing…",
+        "successToast": "Batch queued ({count}). Job {jobId}.",
+        "viewJob": "View job status",
+        "error": "Could not queue the batch. Please try again.",
+        "forbidden": "You do not have permission to generate BOM batches."
+      }
+    },
+    "bomList": {
+      "breadcrumbRoot": "Technical",
+      "title": "BOMs & recipes",
+      "subtitle": "Bills of materials for finished goods — components, co-products, versions, approval and where-used, sourced from the shared BOM SSOT.",
+      "newBom": "+ New BOM",
+      "generateBoms": "Generate BOMs",
+      "kpiActive": "Active BOMs",
+      "kpiTotalSuffix": "of {n} total",
+      "kpiDraft": "Draft",
+      "kpiInReview": "In review",
+      "tabAll": "All",
+      "tabDraft": "Draft",
+      "tabActive": "Active",
+      "tabInReview": "In review",
+      "tabArchived": "Archived",
+      "colCode": "FG code",
+      "colProduct": "Product",
+      "colCategory": "Category",
+      "colVersion": "Ver.",
+      "colYield": "Yield",
+      "colUpdated": "Updated",
+      "colStatus": "Status",
+      "componentsMeta": "{n} components",
+      "statusDraft": "Draft",
+      "statusInReview": "In review",
+      "statusApproved": "Approved",
+      "statusActive": "Active",
+      "statusSuperseded": "Superseded",
+      "statusArchived": "Archived",
+      "searchPlaceholder": "Filter by name or FG code…",
+      "emptyTitle": "No BOMs yet",
+      "emptyBody": "Create a BOM or generate one from a completed NPD product to get started.",
+      "noMatchTitle": "No BOMs match this filter",
+      "noMatchBody": "Clear the search or try a different status tab.",
+      "loading": "Loading BOMs…",
+      "error": "Unable to load BOMs. Please try again.",
+      "forbidden": "You do not have permission to view BOMs."
+    },
+    "bomDetail": {
+      "breadcrumbRoot": "BOMs & recipes",
+      "versionBadge": "v{n}",
+      "yieldLabel": "Yield",
+      "tabComponents": "Components",
+      "tabCoProducts": "Co-products",
+      "tabSnapshots": "Snapshots",
+      "tabVersions": "Versions",
+      "tabApproval": "Approval",
+      "tabWhereUsed": "Where-used",
+      "tabRecipeSheet": "Recipe sheet",
+      "colLine": "#",
+      "colComponent": "Component",
+      "colType": "Type",
+      "colQty": "Qty",
+      "colUom": "UoM",
+      "colScrap": "Scrap",
+      "colOperation": "Operation",
+      "phantomBadge": "phantom",
+      "colCoProduct": "Co-product item",
+      "colAllocation": "Allocation",
+      "byproductBadge": "By-product",
+      "coProductBadge": "Co-product",
+      "colSnapshot": "Snapshot",
+      "colWorkOrder": "Work order",
+      "colSnapshotAt": "Taken at",
+      "noWorkOrder": "—",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colEffective": "Effective from",
+      "colApprovedBy": "Approved by",
+      "current": "Current",
+      "approvalTitle": "Approval",
+      "approvalStatus": "Status",
+      "approvalApprovedBy": "Approved by",
+      "approvalApprovedAt": "Approved at",
+      "approvalPending": "Pending approval",
+      "approvalChainTitle": "Approval chain",
+      "approvalChain": "NPD → Technologist → QA → Production lead",
+      "colParent": "Used in (FG)",
+      "colParentVersion": "Version",
+      "colUsageQty": "Qty per parent",
+      "recipeTitle": "Recipe sheet",
+      "recipeBatch": "BOM {code} · v{version} · Yield {yield}%",
+      "recipeComponents": "Components",
+      "recipeNotes": "Notes",
+      "statusDraft": "Draft",
+      "statusInReview": "In review",
+      "statusApproved": "Approved",
+      "statusActive": "Active",
+      "statusSuperseded": "Superseded",
+      "statusArchived": "Archived",
+      "emptyComponents": "This BOM version has no component lines.",
+      "emptyCoProducts": "No co-products or by-products on this BOM version.",
+      "emptySnapshots": "No work-order snapshots have been taken for this version yet.",
+      "emptyWhereUsed": "This FG is not used as a component in any other BOM.",
+      "loading": "Loading BOM…",
+      "error": "Unable to load this BOM. Please try again.",
+      "notFound": "BOM not found.",
+      "forbidden": "You do not have permission to view this BOM."
+    }
+  },
+  "Technical": {
+    "factorySpecs": {
+      "title": "Factory specifications",
+      "subtitle": "Technical-owned production specifications (factory_spec / internal_product_spec) per finished good — versioned, released on Technical approval.",
+      "newSpec": "+ New specification",
+      "col": {
+        "spec": "Spec",
+        "product": "Product",
+        "category": "Category",
+        "version": "Ver.",
+        "shelfLife": "Shelf life",
+        "storage": "Storage",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "status": {
+        "draft": "Draft",
+        "in_review": "In review",
+        "approved_for_factory": "Approved for factory",
+        "released_to_factory": "Released to factory",
+        "superseded": "Superseded",
+        "archived": "Archived"
+      },
+      "empty": {
+        "title": "No factory specifications yet",
+        "body": "Create a factory specification, or approve an NPD-seeded draft for factory use."
+      },
+      "error": "Unable to load factory specifications. Please try again.",
+      "permissionView": "You can view factory specifications but cannot approve them for factory use.",
+      "review": "Review",
+      "modal": {
+        "title": "Review specification · {spec}",
+        "subtitle": "{name} · v{version}",
+        "releaseStatus": "Release status",
+        "pairedBom": "Paired BOM",
+        "noBom": "No BOM paired yet",
+        "bomVersion": "BOM v{version}",
+        "shelfLife": "Shelf life",
+        "storage": "Storage",
+        "source": "Source",
+        "cloneOnWrite": "This version is released and immutable. Editing creates a new version (clone-on-write) that returns to Technical approval before factory use.",
+        "blockersTitle": "RM usability & release blockers",
+        "noBlockers": "No release blockers.",
+        "g4Note": "NPD Gate-4 alone does not unlock factory use — a paired Technical FactorySpec + BOM approval is required.",
+        "openBundle": "Open bundle approval",
+        "close": "Close",
+        "markReviewed": "Mark reviewed",
+        "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+      }
+    },
+    "releaseBundle": {
+      "title": "Approve FactorySpec + BOM bundle",
+      "subtitle": "{fg} · paired Technical release",
+      "cloneBanner": "Clone-on-write applied. Approving this bundle releases the FactorySpec + BOM to factory use locally — independent of D365.",
+      "factorySpec": "factory_spec",
+      "sharedBom": "shared BOM",
+      "specId": "Spec id",
+      "owner": "Owner",
+      "lastEdit": "Last edit",
+      "bomId": "BOM id",
+      "version": "Version",
+      "clonedFrom": "Cloned from",
+      "blockersTitle": "Blockers & preflight",
+      "noBlockers": "No blockers — bundle is ready for Technical approval.",
+      "approveDisabled": "Approve disabled — resolve {count} blocker(s) above (supplier_spec, RBAC, release guard).",
+      "historyTitle": "Approval / rejection history",
+      "noHistory": "No approval history yet.",
+      "approveOption": "Approve bundle",
+      "approveHelp": "Releases the FactorySpec + BOM bundle to factory use. Local Technical release — D365 sync is optional/informational.",
+      "rejectOption": "Reject bundle",
+      "rejectHelp": "Both artifacts return to draft; the author is notified with the reason below.",
+      "rejectReason": "Reject reason",
+      "rejectReasonHelp": "Audit-logged, minimum 10 characters.",
+      "approveReason": "Approval reason",
+      "approveReasonHelp": "Audit-logged with your e-signature.",
+      "pin": "e-signature PIN",
+      "pinHelp": "Your password/PIN confirms this approval (CFR 21 Part 11). It is verified server-side and never stored.",
+      "d365Disabled": "D365 integration is disabled. Local Technical approval still unlocks factory use — D365 sync is informational only.",
+      "cancel": "Cancel",
+      "approveAction": "Approve bundle",
+      "approveBlocked": "Approve (blocked)",
+      "rejectAction": "Reject bundle",
+      "permissionDenied": "You do not have the Technical permission to approve this bundle.",
+      "loading": "Loading bundle…",
+      "error": "Unable to load the release bundle. Please try again.",
+      "approved": "Bundle approved — FactorySpec and BOM released to factory use.",
+      "rejected": "Bundle rejected — both artifacts returned to draft.",
+      "actionError": "Could not complete the action. Please try again.",
+      "blocker": {
+        "rm": "RM usability",
+        "rbac": "Authorization",
+        "release": "Release guard",
+        "supplier": "Supplier spec"
+      }
+    },
+    "shelfLife": {
+      "title": "Shelf-life configuration",
+      "subtitle": "Per-product use-by vs. best-before rules. The regulatory preset controls which mode is legally required.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "shelfLife": "Shelf life"
+      },
+      "override": "Override",
+      "notConfigured": "Not configured",
+      "days": "days",
+      "mode": {
+        "useBy": "use_by",
+        "bestBefore": "best_before"
+      },
+      "col": {
+        "product": "Product",
+        "mode": "Mode",
+        "duration": "Duration",
+        "dateCode": "Date code",
+        "notes": "Notes",
+        "actions": ""
+      },
+      "kpi": {
+        "region": "Shelf-life summary",
+        "products": "Finished goods",
+        "productsSub": "with rules",
+        "useBy": "Use-by rules",
+        "useBySub": "perishable",
+        "bestBefore": "Best-before",
+        "bestBeforeSub": "ambient / frozen",
+        "unconfigured": "Unconfigured",
+        "unconfiguredSub": "no rule yet"
+      },
+      "modal": {
+        "title": "Override shelf life",
+        "warning": "Override leaves the regulatory preset — requires QA sign-off and is logged to the audit trail.",
+        "current": "Current shelf life",
+        "newDays": "New shelf life (days)",
+        "mode": "Mode",
+        "dateCode": "Date-code format",
+        "reason": "Override reason",
+        "reasonHelp": "Minimum 10 characters — audit-logged.",
+        "reasonPlaceholder": "e.g. MAP parameter change (30% CO₂) confirmed by microbiological study no. 2026/04/17-A.",
+        "preview": "Date-code preview for today",
+        "cancel": "Cancel",
+        "apply": "Apply override"
+      },
+      "regulatoryNote": "Regulatory preset source: Regulation (EU) 1169/2011 · PL HACCP GHP/GMP guidelines. Changing a preset triggers an engineering change order.",
+      "state": {
+        "error": "Unable to load shelf-life rules. Please try again.",
+        "emptyTitle": "No finished goods yet",
+        "emptyBody": "Create a finished good in the item master to configure its shelf life.",
+        "readOnly": "You can view shelf-life rules but do not have permission to override them."
+      },
+      "error": {
+        "invalid": "Please check the values and try again.",
+        "forbidden": "You do not have permission to override shelf life.",
+        "notFound": "That product no longer exists.",
+        "generic": "Could not save. Please try again."
+      }
+    },
+    "sensory": {
+      "title": "Sensory evaluation",
+      "subtitle": "Technical-owned sensory read model. NPD approval and Quality release guards read this state; this screen never moves the NPD gate.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "sensory": "Sensory"
+      },
+      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
+      "tableLabel": "Sensory evaluations",
+      "kpi": {
+        "region": "Sensory summary",
+        "total": "Subjects",
+        "blocked": "Blocked",
+        "pending": "Awaiting",
+        "notRequired": "Not required"
+      },
+      "col": {
+        "subject": "Subject",
+        "type": "Type",
+        "policy": "Policy",
+        "evaluated": "Evaluated",
+        "status": "Status",
+        "blockedReason": "Blocked reason"
+      },
+      "subject": {
+        "product": "Product",
+        "project": "Project",
+        "workOrder": "Work order",
+        "item": "Item / FG"
+      },
+      "policy": {
+        "required": "Required",
+        "optional": "Optional"
+      },
+      "status": {
+        "required": "Required",
+        "pending": "Pending",
+        "pass": "Pass",
+        "fail": "Fail",
+        "hold": "Hold",
+        "notRequired": "Not required"
+      },
+      "sourceNote": "Source: technical_sensory_evaluations (Technical-owned read model). fail / hold surface SENSORIAL_BLOCKED for downstream release guards.",
+      "state": {
+        "error": "Unable to load sensory evaluations. Please try again.",
+        "emptyTitle": "No sensory evaluations yet",
+        "emptyBody": "Sensory subjects appear here once an evaluation is recorded. Until then NPD treats sensory as not required.",
+        "denied": "You do not have permission to view sensory evaluations."
+      }
+    }
   }
 }

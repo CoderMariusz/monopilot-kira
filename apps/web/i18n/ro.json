@@ -2239,5 +2239,721 @@
       "statusBlocked": "Blocat",
       "statusDone": "Finalizat"
     }
+  },
+  "technical": {
+    "dashboard": {
+      "title": "Tablou tehnic",
+      "subtitle": "Starea datelor tehnice de bază: înregistrări active, aprobări, suprascrieri de alergeni, sincronizare D365 și revizuiri de cost.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "dashboard": "Tablou"
+      },
+      "error": "Nu s-a putut încărca tabloul tehnic. Încercați din nou.",
+      "kpi": {
+        "activeItems": {
+          "label": "Articole active",
+          "sub": "Materii prime, intermediare și produse finite"
+        },
+        "pendingBom": {
+          "label": "Aprobări BOM în așteptare",
+          "sub": "Schițe și versiuni în revizuire în așteptarea aprobării"
+        },
+        "allergenOverrides": {
+          "label": "Suprascrieri de alergeni deschise",
+          "sub": "Suprascrieri manuale ale profilurilor de alergeni"
+        },
+        "d365Sync": {
+          "label": "Stare sincronizare D365",
+          "sub": "Cea mai recentă sarcină de sincronizare"
+        },
+        "costReview": {
+          "label": "Coadă revizuire costuri",
+          "sub": "Modificări de cost generate automat în așteptarea revizuirii"
+        }
+      },
+      "d365Status": {
+        "pending": "În așteptare",
+        "running": "În curs",
+        "completed": "Finalizat",
+        "failed": "Eșuat",
+        "dead_lettered": "Respins",
+        "none": "Încă nicio sincronizare"
+      },
+      "recentChanges": {
+        "title": "Modificări recente",
+        "empty": "Încă nu există modificări tehnice recente.",
+        "col": {
+          "when": "Când",
+          "resource": "Tip",
+          "action": "Modificare",
+          "reference": "Ref"
+        }
+      },
+      "d365Health": {
+        "title": "Sănătate D365",
+        "open": "Deschide integrarea D365 →"
+      },
+      "quickActions": {
+        "title": "Acțiuni rapide",
+        "createItem": "Creează articol",
+        "createBom": "BOM nou",
+        "denied": "Nu aveți permisiunea de a crea articole sau BOM-uri."
+      },
+      "nav": {
+        "label": "Secțiuni tehnice",
+        "items": {
+          "title": "Articole",
+          "desc": "Materii prime, intermediare, produse finite, co-produse și subproduse."
+        },
+        "bom": {
+          "title": "Liste de materiale (BOM)",
+          "desc": "Sursă unică partajată BOM — versiuni, linii și co-produse."
+        },
+        "allergen": {
+          "title": "Alergeni",
+          "desc": "Profiluri de alergeni pe articol, suprascrieri și risc de contaminare."
+        },
+        "cost": {
+          "title": "Cost pe kg",
+          "desc": "Cost standard și istoric de cost al articolelor (co-deținut cu Finanțe)."
+        },
+        "routings": {
+          "title": "Rute",
+          "desc": "Operațiuni de producție și definiții de rute."
+        },
+        "factorySpecs": {
+          "title": "Specificații de fabrică",
+          "desc": "Pachete de aprobare și specificații lansate (deținute de Tehnic)."
+        },
+        "sensory": {
+          "title": "Senzorial",
+          "desc": "Schemă senzorială și înregistrări de evaluare."
+        },
+        "d365": {
+          "title": "Integrare D365",
+          "desc": "Sarcini de sincronizare, mapare de coduri și coadă de erori (în Setări)."
+        }
+      },
+      "resourceType": {
+        "item": "Articol",
+        "bom": "BOM",
+        "bom_header": "BOM",
+        "factory_spec": "Spec. fabrică",
+        "routing": "Rută",
+        "allergen": "Alergen",
+        "item_cost": "Cost"
+      }
+    },
+    "items": {
+      "detail": {
+        "breadcrumb": "Articole",
+        "subtitle": "Master tehnic pentru {type}. Utilizat în BOM-uri, componente NPD și specificații client.",
+        "back": "Înapoi la articole",
+        "edit": "Editează",
+        "deactivate": "Dezactivează",
+        "whereUsed": "Unde este folosit",
+        "notFound": "Articol negăsit",
+        "notFoundBody": "Niciun articol cu codul {code} nu există în această organizație.",
+        "error": "Articolul nu a putut fi încărcat. Încercați din nou.",
+        "tablistLabel": "Secțiuni detalii articol",
+        "deferred": "În curând",
+        "deferredBody": "Această secțiune este livrată într-o etapă ulterioară.",
+        "tabs": {
+          "overview": "Prezentare",
+          "bom": "BOM",
+          "allergens": "Alergeni",
+          "cost": "Istoric cost",
+          "routing": "Rutare",
+          "supplierSpecs": "Specificații furnizor",
+          "labResults": "Rezultate laborator",
+          "d365": "Stare D365"
+        },
+        "overview": {
+          "identification": "Identificare",
+          "commercial": "Comercial și greutate",
+          "code": "Cod",
+          "name": "Nume",
+          "type": "Tip",
+          "status": "Stare",
+          "uomBase": "UM de bază",
+          "uomSecondary": "UM secundară",
+          "productGroup": "Grup de produse",
+          "description": "Descriere",
+          "weightMode": "Mod greutate",
+          "nominalWeight": "Greutate nominală",
+          "grossWeightMax": "Greutate brută max",
+          "varianceTolerance": "Toleranță variație",
+          "shelfLife": "Termen de valabilitate",
+          "shelfLifeDays": "{days} z",
+          "costPerKg": "Cost / kg",
+          "updated": "Actualizat",
+          "none": "—"
+        }
+      },
+      "create": {
+        "title": "Creează articol",
+        "subtitle": "Master universal de articole — se leagă la BOM, specificație și matrice alergeni.",
+        "open": "+ Articol nou",
+        "cancel": "Anulează",
+        "back": "Înapoi",
+        "next": "Înainte",
+        "create": "Creează articol",
+        "creating": "Se creează…",
+        "steps": {
+          "basic": "Informații de bază",
+          "classification": "Clasificare",
+          "weight": "Greutate și valabilitate",
+          "review": "Verificare și creare"
+        },
+        "fields": {
+          "itemCode": "Cod articol",
+          "itemCodeHelp": "Alfanumeric cu separatori . _ -. Unic per organizație.",
+          "name": "Nume",
+          "description": "Descriere scurtă",
+          "itemType": "Tip articol",
+          "status": "Stare",
+          "uomBase": "UM de bază",
+          "uomSecondary": "UM secundară",
+          "productGroup": "Grup de produse",
+          "weightMode": "Mod greutate",
+          "nominalWeight": "Greutate nominală",
+          "grossWeightMax": "Greutate brută max",
+          "varianceTolerance": "Toleranță variație (%)",
+          "shelfLifeDays": "Termen de valabilitate (zile)",
+          "shelfLifeMode": "Mod termen de valabilitate"
+        },
+        "catchHint": "Greutatea variabilă necesită greutate nominală, greutate brută max și o toleranță de variație.",
+        "review": {
+          "ready": "Gata de creare. Se va înregistra o intrare de audit."
+        },
+        "errors": {
+          "codeRequired": "Codul articolului este necesar (min 1 caracter).",
+          "nameRequired": "Numele este necesar (min 1 caracter).",
+          "uomRequired": "UM de bază este necesară."
+        }
+      },
+      "deactivate": {
+        "title": "Dezactivează articol",
+        "subtitle": "Elimină {code} din listele active de selecție. CL deschise continuă; nu se pot crea CL noi.",
+        "warning": "{name} va fi blocat. BOM-urile rămân pentru audit. Aceasta setează starea la blocat.",
+        "reason": "Motiv",
+        "reasonRequired": "Selectați un motiv.",
+        "reasons": {
+          "discontinued": "Întrerupt",
+          "recipe_change": "Schimbare rețetă",
+          "d365_mismatch": "Nepotrivire D365",
+          "other": "Altul"
+        },
+        "notes": "Note",
+        "notesRequired": "Notele sunt necesare când motivul este Altul (min 10 caractere).",
+        "confirmLabel": "Tastați codul articolului {code} pentru a confirma",
+        "confirmMismatch": "Codul introdus nu se potrivește.",
+        "cancel": "Anulează",
+        "confirm": "Dezactivează",
+        "deactivating": "Se dezactivează…"
+      },
+      "errors": {
+        "already_exists": "Un articol cu acel cod există deja în această organizație.",
+        "forbidden": "Nu aveți permisiunea de a efectua această acțiune.",
+        "invalid_input": "Verificați valorile și încercați din nou.",
+        "not_found": "Acel articol nu mai există.",
+        "persistence_failed": "Nu s-a putut salva. Încercați din nou."
+      }
+    },
+    "allergens": {
+      "tab": {
+        "title": "Allergen profile",
+        "subtitle": "Per-item allergen declaration (EU FIC 1169/2011 — 14 mandatory allergens). Auto-cascaded badges are read-only; manual overrides are additive and require a reason.",
+        "declareCta": "Declare / override",
+        "sourceHeading": {
+          "cascaded": "Auto-cascaded (BOM + process)",
+          "brief_declared": "Brief-declared",
+          "supplier_spec": "Supplier spec",
+          "lab_result": "Lab result",
+          "manual_override": "Manual override"
+        },
+        "readOnlyTag": "Read-only",
+        "overrideTag": "Override",
+        "loading": "Loading allergen profile…",
+        "empty": "No allergens declared yet",
+        "emptyBody": "Allergens cascade automatically from BOM components and process additions; declare a manual override to add one to the final label.",
+        "error": "Unable to load the allergen profile. Please try again.",
+        "forbidden": "You can view allergens but cannot edit this item’s profile.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        },
+        "modal": {
+          "title": "Declare allergen",
+          "subtitle": "Override the auto-cascade to declare the final product label.",
+          "autoNote": "Auto-suggestions come from BOM component allergen flags. Override here to declare the final product label — the cascade source is preserved.",
+          "fieldAllergen": "Allergen",
+          "fieldIntensity": "Presence",
+          "fieldConfidence": "Confidence",
+          "fieldReason": "Override reason",
+          "reasonPlaceholder": "Explain why the auto-cascade is overridden…",
+          "reasonRequired": "A reason is required for a manual override (V-TEC-42).",
+          "cancel": "Cancel",
+          "save": "Save declaration",
+          "saving": "Saving…",
+          "saveError": "Could not save the override. Please try again.",
+          "selectPlaceholder": "Select an allergen…",
+          "intensity": {
+            "contains": "Contains",
+            "may_contain": "May contain",
+            "trace": "Trace"
+          },
+          "confidence": {
+            "declared": "Declared",
+            "tested": "Tested",
+            "assumed": "Assumed"
+          }
+        }
+      },
+      "audit": {
+        "title": "Manual override audit",
+        "subtitle": "Append-only history of manual allergen overrides — one immutable row per (item × allergen × actor × timestamp).",
+        "colItem": "Item",
+        "colAllergen": "Allergen",
+        "colAction": "Action",
+        "colIntensity": "Presence",
+        "colReason": "Reason",
+        "colActor": "Actor",
+        "colTimestamp": "When",
+        "actionSet": "Set",
+        "actionClear": "Cleared",
+        "actionAdjustIntensity": "Adjusted presence",
+        "actionAdjustConfidence": "Adjusted confidence",
+        "reviewCta": "Review / re-override",
+        "loading": "Loading override history…",
+        "empty": "No manual overrides recorded",
+        "emptyBody": "When an allergen is manually overridden, an immutable audit row is appended here with the actor and timestamp.",
+        "error": "Unable to load the override audit. Please try again.",
+        "forbidden": "You do not have permission to review allergen overrides.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        }
+      },
+      "config": {
+        "title": "Allergens configuration",
+        "subtitle": "Manufacturing-operation allergen additions and the line × allergen cross-contamination risk matrix (EU FIC 1169/2011).",
+        "tabMatrix": "Contamination matrix",
+        "tabOps": "Process additions",
+        "colLine": "Production line",
+        "legendContains": "High risk",
+        "legendMayContain": "Medium risk",
+        "legendAbsent": "No entry",
+        "gapBanner": "{count} line × allergen combinations have no contamination-risk entry.",
+        "gapLink": "View gaps",
+        "riskLevel": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "segregated": "Segregated"
+        },
+        "riskNone": "No entry",
+        "loading": "Loading allergens configuration…",
+        "empty": "No lines or operations configured yet",
+        "emptyBody": "Add production lines (Settings → Infrastructure) and manufacturing operations to build the contamination-risk matrix.",
+        "error": "Unable to load the allergens configuration. Please try again.",
+        "forbidden": "You do not have permission to view the allergens configuration.",
+        "readOnlyTag": "Read-only",
+        "opsTitle": "Process allergen additions",
+        "opsColOperation": "Manufacturing operation",
+        "opsColAllergen": "Allergen",
+        "opsColReason": "Reason",
+        "opsEmpty": "No process-added allergens configured.",
+        "saveError": "Could not save the change. Please try again.",
+        "cellAria": "Contamination risk for"
+      }
+    },
+    "bom": {
+      "edit": {
+        "addComponent": "Adaugă componentă în BOM",
+        "addComponentSubtitle": "Caută în nomenclatorul de materiale și setează cantitatea / rebutul",
+        "searchPlaceholder": "Caută după cod sau denumire (RM-, PM-, WIP-…)",
+        "noMaterials": "Niciun material nu corespunde.",
+        "loadingMaterials": "Se caută în nomenclatorul de materiale…",
+        "quantity": "Cantitate",
+        "quantityPerPack": "Cantitate ({uom} per 1 pachet)",
+        "scrapPct": "Rebut %",
+        "manufacturingOperation": "Operațiune de fabricație",
+        "manufacturingOperationPlaceholder": "Selectează o operațiune",
+        "manufacturingOperationRequired": "Alege o operațiune de fabricație înainte de salvare.",
+        "quantityInvalid": "Cantitatea trebuie să fie mai mare decât 0.",
+        "checkingUsability": "Se verifică utilizabilitatea componentei…",
+        "usabilityBlocked": "Componentă blocată ({code}): {message}",
+        "usableOk": "Componenta este utilizabilă.",
+        "addAction": "Adaugă componentă",
+        "saveVersionTitle": "Salvează versiunea BOM",
+        "saveVersionSubtitle": "{product} · curent v{version}",
+        "versionLabel": "Etichetă versiune",
+        "changeReason": "Motivul modificării",
+        "changeReasonHelp": "Referențiat din snapshot-urile WO din Planificare — min. 10 caractere.",
+        "changeReasonPlaceholder": "ex. Actualizare % grăsime (22% → 21%) — ECO-2045.",
+        "saveVersion": "Salvează versiunea",
+        "previousVersionNote": "Versiunea anterioară (v{version}) rămâne disponibilă doar pentru citire pentru comenzile existente.",
+        "newDraftNotice": "Acest BOM este {status}. Salvarea creează o nouă versiune draft — versiunea lansată nu este editată pe loc.",
+        "cancel": "Anulează",
+        "close": "Închide",
+        "saveError": "Nu s-a putut salva. Încearcă din nou.",
+        "forbidden": "Nu ai permisiunea de a efectua această acțiune.",
+        "conflict": "Această versiune intră în conflict cu una existentă. Reîmprospătează și reîncearcă."
+      },
+      "diff": {
+        "title": "Diferențe versiuni BOM",
+        "subtitle": "Comparare v{from} → v{to}",
+        "loading": "Se încarcă diferențele…",
+        "noDifferences": "Nicio diferență",
+        "error": "Nu s-au putut încărca diferențele de versiune.",
+        "notFound": "Una dintre versiunile selectate nu există.",
+        "headerChanges": "Modificări antet",
+        "lines": "Componente",
+        "coProducts": "Co-produse",
+        "added": "Adăugate",
+        "removed": "Eliminate",
+        "changed": "Modificate",
+        "before": "{label} · înainte",
+        "after": "{label} · curent",
+        "field": "Câmp",
+        "quantity": "Cantitate",
+        "scrap": "Rebut %",
+        "allocation": "Alocare %",
+        "uom": "UM",
+        "type": "Tip",
+        "close": "Închide"
+      },
+      "generator": {
+        "title": "Generează lot BOM",
+        "subtitle": "Explodează și compune BOM-uri interne pentru produsele finite finalizate.",
+        "scope": "Domeniu",
+        "scopeAllComplete": "Toate FG finalizate",
+        "scopeSelected": "FG selectate",
+        "outputMode": "Mod de ieșire",
+        "outputPerFg": "Un fișier per FG",
+        "outputSingleBatch": "Un singur lot combinat",
+        "pickFgs": "Produse finite (Status Overall = Complete)",
+        "searchFgs": "Caută produse finite…",
+        "noEligibleFgs": "Nu există produse finite finalizate disponibile.",
+        "loadingFgs": "Se încarcă produsele finite…",
+        "selectAtLeastOne": "Selectează cel puțin un produs finit.",
+        "confirm": "Generează",
+        "cancel": "Anulează",
+        "submitting": "Se pune în coadă…",
+        "successToast": "Lot în coadă ({count}). Job {jobId}.",
+        "viewJob": "Vezi starea job-ului",
+        "error": "Nu s-a putut pune lotul în coadă. Încearcă din nou.",
+        "forbidden": "Nu ai permisiunea de a genera loturi BOM."
+      }
+    },
+    "bomList": {
+      "breadcrumbRoot": "Tehnic",
+      "title": "BOM-uri și rețete",
+      "subtitle": "Liste de materiale pentru produse finite — componente, co-produse, versiuni, aprobare și utilizare, din SSOT-ul BOM partajat.",
+      "newBom": "+ BOM nou",
+      "generateBoms": "Generează BOM-uri",
+      "kpiActive": "BOM-uri active",
+      "kpiTotalSuffix": "din {n} total",
+      "kpiDraft": "Ciornă",
+      "kpiInReview": "În revizuire",
+      "tabAll": "Toate",
+      "tabDraft": "Ciornă",
+      "tabActive": "Active",
+      "tabInReview": "În revizuire",
+      "tabArchived": "Arhivate",
+      "colCode": "Cod FG",
+      "colProduct": "Produs",
+      "colCategory": "Categorie",
+      "colVersion": "Ver.",
+      "colYield": "Randament",
+      "colUpdated": "Actualizat",
+      "colStatus": "Stare",
+      "componentsMeta": "{n} componente",
+      "statusDraft": "Ciornă",
+      "statusInReview": "În revizuire",
+      "statusApproved": "Aprobat",
+      "statusActive": "Activ",
+      "statusSuperseded": "Înlocuit",
+      "statusArchived": "Arhivat",
+      "searchPlaceholder": "Filtrează după nume sau cod FG…",
+      "emptyTitle": "Niciun BOM încă",
+      "emptyBody": "Creează un BOM sau generează unul dintr-un produs NPD finalizat pentru a începe.",
+      "noMatchTitle": "Niciun BOM nu corespunde acestui filtru",
+      "noMatchBody": "Șterge căutarea sau încearcă altă filă de stare.",
+      "loading": "Se încarcă BOM-urile…",
+      "error": "Nu s-au putut încărca BOM-urile. Încearcă din nou.",
+      "forbidden": "Nu ai permisiunea de a vizualiza BOM-urile."
+    },
+    "bomDetail": {
+      "breadcrumbRoot": "BOM-uri și rețete",
+      "versionBadge": "v{n}",
+      "yieldLabel": "Randament",
+      "tabComponents": "Componente",
+      "tabCoProducts": "Co-produse",
+      "tabSnapshots": "Instantanee",
+      "tabVersions": "Versiuni",
+      "tabApproval": "Aprobare",
+      "tabWhereUsed": "Utilizare",
+      "tabRecipeSheet": "Fișă rețetă",
+      "colLine": "#",
+      "colComponent": "Componentă",
+      "colType": "Tip",
+      "colQty": "Cant.",
+      "colUom": "UM",
+      "colScrap": "Pierderi",
+      "colOperation": "Operație",
+      "phantomBadge": "fantomă",
+      "colCoProduct": "Articol co-produs",
+      "colAllocation": "Alocare",
+      "byproductBadge": "Sub-produs",
+      "coProductBadge": "Co-produs",
+      "colSnapshot": "Instantaneu",
+      "colWorkOrder": "Comandă de lucru",
+      "colSnapshotAt": "Preluat la",
+      "noWorkOrder": "—",
+      "colVersion": "Versiune",
+      "colStatus": "Stare",
+      "colEffective": "Valabil de la",
+      "colApprovedBy": "Aprobat de",
+      "current": "Curentă",
+      "approvalTitle": "Aprobare",
+      "approvalStatus": "Stare",
+      "approvalApprovedBy": "Aprobat de",
+      "approvalApprovedAt": "Aprobat la",
+      "approvalPending": "În așteptarea aprobării",
+      "approvalChainTitle": "Lanț de aprobare",
+      "approvalChain": "NPD → Tehnolog → QA → Șef de producție",
+      "colParent": "Utilizat în (FG)",
+      "colParentVersion": "Versiune",
+      "colUsageQty": "Cant. per părinte",
+      "recipeTitle": "Fișă rețetă",
+      "recipeBatch": "BOM {code} · v{version} · Randament {yield}%",
+      "recipeComponents": "Componente",
+      "recipeNotes": "Note",
+      "statusDraft": "Ciornă",
+      "statusInReview": "În revizuire",
+      "statusApproved": "Aprobat",
+      "statusActive": "Activ",
+      "statusSuperseded": "Înlocuit",
+      "statusArchived": "Arhivat",
+      "emptyComponents": "Această versiune BOM nu are linii de componente.",
+      "emptyCoProducts": "Niciun co-produs sau sub-produs în această versiune BOM.",
+      "emptySnapshots": "Încă nu s-au preluat instantanee de comenzi pentru această versiune.",
+      "emptyWhereUsed": "Acest FG nu este folosit ca componentă în niciun alt BOM.",
+      "loading": "Se încarcă BOM…",
+      "error": "Nu s-a putut încărca acest BOM. Încearcă din nou.",
+      "notFound": "BOM negăsit.",
+      "forbidden": "Nu ai permisiunea de a vizualiza acest BOM."
+    }
+  },
+  "Technical": {
+    "factorySpecs": {
+      "title": "Specificații de fabrică",
+      "subtitle": "Specificații de producție deținute de Tehnic (factory_spec / internal_product_spec) per produs finit — versionate, lansate la aprobarea tehnică.",
+      "newSpec": "+ Specificație nouă",
+      "col": {
+        "spec": "Spec",
+        "product": "Produs",
+        "category": "Categorie",
+        "version": "Ver.",
+        "shelfLife": "Termen",
+        "storage": "Depozitare",
+        "status": "Status",
+        "actions": "Acțiuni"
+      },
+      "status": {
+        "draft": "Schiță",
+        "in_review": "În revizuire",
+        "approved_for_factory": "Aprobat pentru fabrică",
+        "released_to_factory": "Lansat în fabrică",
+        "superseded": "Înlocuit",
+        "archived": "Arhivat"
+      },
+      "empty": {
+        "title": "Nicio specificație de fabrică încă",
+        "body": "Creați o specificație de fabrică sau aprobați o schiță NPD pentru utilizare în fabrică."
+      },
+      "error": "Nu se pot încărca specificațiile de fabrică. Încercați din nou.",
+      "permissionView": "Puteți vizualiza specificațiile de fabrică, dar nu le puteți aproba pentru utilizare în fabrică.",
+      "review": "Revizuire",
+      "modal": {
+        "title": "Revizuire specificație · {spec}",
+        "subtitle": "{name} · v{version}",
+        "releaseStatus": "Status lansare",
+        "pairedBom": "BOM asociat",
+        "noBom": "Niciun BOM asociat încă",
+        "bomVersion": "BOM v{version}",
+        "shelfLife": "Termen de valabilitate",
+        "storage": "Depozitare",
+        "source": "Sursă",
+        "cloneOnWrite": "Această versiune este lansată și imutabilă. Editarea creează o versiune nouă (clone-on-write) care revine la aprobarea tehnică înainte de utilizarea în fabrică.",
+        "blockersTitle": "Blocaje de utilizabilitate RM și lansare",
+        "noBlockers": "Niciun blocaj de lansare.",
+        "g4Note": "Doar Poarta-4 NPD nu deblochează utilizarea în fabrică — este necesară o aprobare asociată FactorySpec + BOM de către Tehnic.",
+        "openBundle": "Deschide aprobarea pachetului",
+        "close": "Închide",
+        "markReviewed": "Marchează revizuit",
+        "permissionDenied": "Nu aveți permisiunea tehnică de a aproba această specificație pentru fabrică."
+      }
+    },
+    "releaseBundle": {
+      "title": "Aprobă pachetul FactorySpec + BOM",
+      "subtitle": "{fg} · lansare tehnică asociată",
+      "cloneBanner": "Clone-on-write aplicat. Aprobarea acestui pachet lansează FactorySpec + BOM pentru utilizare în fabrică local — independent de D365.",
+      "factorySpec": "factory_spec",
+      "sharedBom": "BOM partajat",
+      "specId": "Id spec",
+      "owner": "Proprietar",
+      "lastEdit": "Ultima editare",
+      "bomId": "Id BOM",
+      "version": "Versiune",
+      "clonedFrom": "Clonat din",
+      "blockersTitle": "Blocaje și preverificare",
+      "noBlockers": "Niciun blocaj — pachetul este gata pentru aprobare tehnică.",
+      "approveDisabled": "Aprobare dezactivată — rezolvați {count} blocaj(e) de mai sus (supplier_spec, RBAC, gardă de lansare).",
+      "historyTitle": "Istoric aprobări / respingeri",
+      "noHistory": "Niciun istoric de aprobare încă.",
+      "approveOption": "Aprobă pachetul",
+      "approveHelp": "Lansează pachetul FactorySpec + BOM pentru utilizare în fabrică. Lansare tehnică locală — sincronizarea D365 este opțională/informativă.",
+      "rejectOption": "Respinge pachetul",
+      "rejectHelp": "Ambele artefacte revin la schiță; autorul este notificat cu motivul de mai jos.",
+      "rejectReason": "Motiv respingere",
+      "rejectReasonHelp": "Înregistrat în audit, minim 10 caractere.",
+      "approveReason": "Motiv aprobare",
+      "approveReasonHelp": "Înregistrat în audit cu semnătura electronică.",
+      "pin": "PIN semnătură electronică",
+      "pinHelp": "Parola/PIN-ul confirmă această aprobare (CFR 21 Partea 11). Verificat pe server, niciodată stocat.",
+      "d365Disabled": "Integrarea D365 este dezactivată. Aprobarea tehnică locală deblochează în continuare utilizarea în fabrică — sincronizarea D365 este doar informativă.",
+      "cancel": "Anulează",
+      "approveAction": "Aprobă pachetul",
+      "approveBlocked": "Aprobă (blocat)",
+      "rejectAction": "Respinge pachetul",
+      "permissionDenied": "Nu aveți permisiunea tehnică de a aproba acest pachet.",
+      "loading": "Se încarcă pachetul…",
+      "error": "Nu se poate încărca pachetul de lansare. Încercați din nou.",
+      "approved": "Pachet aprobat — FactorySpec și BOM lansate pentru utilizare în fabrică.",
+      "rejected": "Pachet respins — ambele artefacte au revenit la schiță.",
+      "actionError": "Acțiunea nu a putut fi finalizată. Încercați din nou.",
+      "blocker": {
+        "rm": "Utilizabilitate RM",
+        "rbac": "Autorizare",
+        "release": "Gardă de lansare",
+        "supplier": "Spec furnizor"
+      }
+    },
+    "shelfLife": {
+      "title": "Configurare termen de valabilitate",
+      "subtitle": "Reguli „a se consuma până la” vs. „a se consuma de preferință înainte de” per produs. Presetul de reglementare stabilește modul cerut legal.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "shelfLife": "Termen de valabilitate"
+      },
+      "override": "Suprascrie",
+      "notConfigured": "Neconfigurat",
+      "days": "zile",
+      "mode": {
+        "useBy": "use_by",
+        "bestBefore": "best_before"
+      },
+      "col": {
+        "product": "Produs",
+        "mode": "Mod",
+        "duration": "Durată",
+        "dateCode": "Cod dată",
+        "notes": "Note",
+        "actions": ""
+      },
+      "kpi": {
+        "region": "Sumar termen de valabilitate",
+        "products": "Produse finite",
+        "productsSub": "cu reguli",
+        "useBy": "Reguli „până la”",
+        "useBySub": "perisabile",
+        "bestBefore": "„De preferință înainte”",
+        "bestBeforeSub": "ambiant / congelat",
+        "unconfigured": "Neconfigurate",
+        "unconfiguredSub": "fără regulă"
+      },
+      "modal": {
+        "title": "Suprascrie termenul de valabilitate",
+        "warning": "Suprascrierea deviază de la presetul de reglementare — necesită aprobare QA și este înregistrată în jurnalul de audit.",
+        "current": "Termen curent",
+        "newDays": "Termen nou (zile)",
+        "mode": "Mod",
+        "dateCode": "Format cod dată",
+        "reason": "Motivul suprascrierii",
+        "reasonHelp": "Minimum 10 caractere — înregistrat în audit.",
+        "reasonPlaceholder": "ex. Modificare parametri MAP (30% CO₂) confirmată prin studiul microbiologic nr. 2026/04/17-A.",
+        "preview": "Previzualizare cod dată pentru azi",
+        "cancel": "Anulează",
+        "apply": "Aplică suprascrierea"
+      },
+      "regulatoryNote": "Sursa presetului de reglementare: Regulamentul (UE) 1169/2011 · ghiduri PL HACCP GHP/GMP. Schimbarea unui preset declanșează un ordin de modificare tehnică.",
+      "state": {
+        "error": "Nu s-au putut încărca regulile de valabilitate. Încercați din nou.",
+        "emptyTitle": "Niciun produs finit încă",
+        "emptyBody": "Creați un produs finit în nomenclatorul de articole pentru a-i configura termenul de valabilitate.",
+        "readOnly": "Puteți vizualiza regulile de valabilitate, dar nu aveți permisiunea de a le suprascrie."
+      },
+      "error": {
+        "invalid": "Verificați valorile și încercați din nou.",
+        "forbidden": "Nu aveți permisiunea de a suprascrie termenul de valabilitate.",
+        "notFound": "Acest produs nu mai există.",
+        "generic": "Salvarea a eșuat. Încercați din nou."
+      }
+    },
+    "sensory": {
+      "title": "Evaluare senzorială",
+      "subtitle": "Model de citire senzorială deținut de departamentul tehnic. Aprobarea NPD și barierele de eliberare QA citesc această stare; acest ecran nu preia bariera NPD.",
+      "breadcrumb": {
+        "technical": "Tehnic",
+        "sensory": "Senzorial"
+      },
+      "readOnlyNote": "Doar pentru citire. Senzorialul este un model de citire raportat — NPD rămâne proprietarul barierei și citește acest status doar pentru citire.",
+      "tableLabel": "Evaluări senzoriale",
+      "kpi": {
+        "region": "Sumar senzorial",
+        "total": "Subiecte",
+        "blocked": "Blocate",
+        "pending": "În așteptare",
+        "notRequired": "Nenecesare"
+      },
+      "col": {
+        "subject": "Subiect",
+        "type": "Tip",
+        "policy": "Politică",
+        "evaluated": "Evaluat",
+        "status": "Status",
+        "blockedReason": "Motiv blocare"
+      },
+      "subject": {
+        "product": "Produs",
+        "project": "Proiect",
+        "workOrder": "Comandă de lucru",
+        "item": "Articol / PF"
+      },
+      "policy": {
+        "required": "Necesară",
+        "optional": "Opțională"
+      },
+      "status": {
+        "required": "Necesară",
+        "pending": "În așteptare",
+        "pass": "Trecut",
+        "fail": "Eșuat",
+        "hold": "Suspendat",
+        "notRequired": "Nenecesară"
+      },
+      "sourceNote": "Sursa: technical_sensory_evaluations (model de citire tehnic). fail / hold emit SENSORIAL_BLOCKED pentru barierele de eliberare.",
+      "state": {
+        "error": "Nu s-au putut încărca evaluările senzoriale. Încercați din nou.",
+        "emptyTitle": "Nicio evaluare senzorială încă",
+        "emptyBody": "Subiectele senzoriale apar aici după înregistrarea unei evaluări. Până atunci, NPD tratează senzorialul ca nenecesar.",
+        "denied": "Nu aveți permisiunea de a vizualiza evaluările senzoriale."
+      }
+    }
   }
 }

@@ -36,35 +36,35 @@
 | T-029 | Wiring: D365 push worker + DLQ retry | ✅ | push.ts + dlq/[id]/retry route; backoff 1s/5s/25s |
 | T-030 | API: D365 connection test + feature flag | ✅ | gate.ts assertD365Enabled (V-TEC-70/72/73) + test-connection.ts |
 | T-031 | API: Variance tracking nightly job | ⬜ | catch-weight variance cron absent |
-| T-032 | UI: TEC-010 Item List page | ⏸ | technical/items/page.tsx real data, BUT no parity evidence/RTL parity test |
-| T-033 | UI: TEC-011 Item Create Wizard modal | ⏸ | items-manager.client.tsx single-form, NOT the 4-step wizard (modals.jsx:22-136) |
-| T-034 | UI: TEC-012 Item Detail page | ⬜ | no /items/[item_code] route → deep-links 404 — RISK |
-| T-035 | UI: TEC-081 Item Deactivate modal | ⏸ | inline confirm, not a modal w/ type-to-confirm |
-| T-036 | UI: TEC-080 Technical Dashboard | ⏸ | technical/page.tsx count skeleton, NOT the 5-KPI TEC-080 |
-| T-037 | UI: TEC-020 BOM List screen | ⬜ | no /technical/bom route (only _actions exist) |
-| T-038 | UI: TEC-021 BOM Detail page with 7 tabs | ⬜ | absent |
-| T-039 | UI: TEC-022 BOM Edit modals | ⬜ | absent |
-| T-040 | UI: TEC-023 BOM Version Diff | ⬜ | absent (diff API exists) |
-| T-041 | UI: TEC-024 BOM Generator modal | ⬜ | absent (generator API exists) |
+| T-032 | UI: TEC-010 Item List page | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-033 | UI: TEC-011 Item Create Wizard modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-034 | UI: TEC-012 Item Detail page | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-035 | UI: TEC-081 Item Deactivate modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-036 | UI: TEC-080 Technical Dashboard | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-037 | UI: TEC-020 BOM List screen | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-038 | UI: TEC-021 BOM Detail page with 7 tabs | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-039 | UI: TEC-022 BOM Edit modals | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-040 | UI: TEC-023 BOM Version Diff | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-041 | UI: TEC-024 BOM Generator modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-042 | UI: TEC-082 BOM Version Delete modal | ⬜ | absent |
 | T-043 | UI: TEC-083 BOM Graph (where-used) | ⬜ | absent |
 | T-044 | UI: TEC-084 Recipe Sheet print view | ⬜ | absent |
 | T-045 | UI: TEC-089 BOM Change History timeline | ⬜ | absent |
-| T-046 | UI: TEC-030 Shelf Life Config | ⬜ | absent |
-| T-047 | UI: TEC-040 Allergen Profile Editor | ⬜ | absent (allergen API exists) |
-| T-048 | UI: TEC-042 Manufacturing Op Allergen Additions | ⬜ | absent |
-| T-049 | UI: TEC-044 Allergen Manual Override Audit | ⬜ | absent |
-| T-050 | UI: TEC-050 Cost History + Cost Edit | ⬜ | absent (cost API exists) |
-| T-051 | UI: TEC-060 Routing List + Edit modal | ⬜ | absent (routings API exists) |
-| T-052 | UI: TEC-062 Routing Cost Preview + Resource Util | ⬜ | absent |
+| T-046 | UI: TEC-030 Shelf Life Config | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-047 | UI: TEC-040 Allergen Profile Editor | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-048 | UI: TEC-042 Manufacturing Op Allergen Additions | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-049 | UI: TEC-044 Allergen Manual Override Audit | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-050 | UI: TEC-050 Cost History + Cost Edit | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-051 | UI: TEC-060 Routing List + Edit modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-052 | UI: TEC-062 Routing Cost Preview + Resource Util | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-053 | UI: TEC-087 Tooling/Equipment Setup List | ⬜ | absent |
 | T-054 | UI: TEC-088 Maintenance Cross-Link Panel | ⬜ | absent; cross-dep 13-maintenance |
 | T-055 | UI: TEC-070 D365 Sync Dashboard + Manual Trigger | ⏸ | built+tested under /settings/integrations/d365/sync; D-1 namespace unresolved |
 | T-056 | UI: TEC-072 D365 Sync Audit Log | ⏸ | built+tested under /settings/integrations/d365/audit; D-1 unresolved |
 | T-057 | UI: TEC-090 D365 Field Mapping admin | ⏸ | built+tested under /settings/integrations/d365/mapping; D-1 unresolved |
-| T-058 | UI: TEC-073 DLQ Manager | ⏸ | settings/d365-dlq is SettingsRouteStub; retry API exists, full UI unbuilt |
-| T-059 | UI: TEC-091 D365 Drift Resolution | ⬜ | absent |
-| T-060 | UI: TEC-085 factory_specs Review modal | ⬜ | absent (factory_specs schema+API exist) |
+| T-058 | UI: TEC-073 DLQ Manager | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-059 | UI: TEC-091 D365 Drift Resolution | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
+| T-060 | UI: TEC-085 factory_specs Review modal | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-061 | UI: TEC-093 Nutrition Panel (cross-tagged NPD) | ⬜ | absent; cross-dep 01-NPD |
 | T-062 | UI: TEC-094 Recipe Costing preview (cross-tagged Finance) | ⬜ | absent; cross-dep 10-finance |
 | T-063 | UI: TEC-095 Traceability Search foundation | ⬜ | absent; cross-dep 05-warehouse |
@@ -94,7 +94,7 @@
 | T-087 | UI: TEC-031 Regulatory Compliance Dashboard | ⬜ | absent |
 | T-088 | UI: TEC-045 Lab Results Log spec-driven | ⬜ | absent; blocked by T-067 |
 | T-089 | UI: TEC-052 Cost Import from D365 spec-driven | ⬜ | absent (T-028 import API exists) |
-| T-090 | UI: FactorySpec+BOM bundle approval panel | ⬜ | absent (T-079/T-080 backend exist) |
+| T-090 | UI: FactorySpec+BOM bundle approval panel | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-091 | Add technical permission strings to enum (p0-blocker) | ✅ | permissions.enum.ts ALL_TECHNICAL_PERMISSIONS (11 strings) |
-| T-092 | UI: TEC Sensory Evaluation screen (consumes T-084) | ⬜ | absent (T-084 read model exists) |
+| T-092 | UI: TEC Sensory Evaluation screen (consumes T-084) | 🔄 | Wave-C 2026-06-04: UI built, prototype-anchored + RTL green; pending live Gate-5 |
 | T-093 | Seed: grant technical.* to org-admin role family | ✅ | mig 154-technical-permission-seed (org-admin family, both stores + trigger + backfill) |

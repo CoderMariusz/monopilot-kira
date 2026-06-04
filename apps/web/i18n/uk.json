@@ -2239,5 +2239,721 @@
       "statusBlocked": "Заблоковано",
       "statusDone": "Готово"
     }
+  },
+  "technical": {
+    "dashboard": {
+      "title": "Технічна панель",
+      "subtitle": "Стан технічних основних даних: активні записи, затвердження, перевизначення алергенів, синхронізація D365 та перегляд витрат.",
+      "breadcrumb": {
+        "technical": "Технічне",
+        "dashboard": "Панель"
+      },
+      "error": "Не вдалося завантажити технічну панель. Спробуйте ще раз.",
+      "kpi": {
+        "activeItems": {
+          "label": "Активні позиції",
+          "sub": "Сировина, напівфабрикати та готова продукція"
+        },
+        "pendingBom": {
+          "label": "Очікувані затвердження BOM",
+          "sub": "Чернетки та версії на розгляді, що очікують затвердження"
+        },
+        "allergenOverrides": {
+          "label": "Відкриті перевизначення алергенів",
+          "sub": "Ручні перевизначення профілів алергенів позицій"
+        },
+        "d365Sync": {
+          "label": "Статус синхронізації D365",
+          "sub": "Останнє завдання синхронізації"
+        },
+        "costReview": {
+          "label": "Черга перегляду витрат",
+          "sub": "Машинні зміни витрат, що очікують перегляду"
+        }
+      },
+      "d365Status": {
+        "pending": "Очікує",
+        "running": "Виконується",
+        "completed": "Завершено",
+        "failed": "Помилка",
+        "dead_lettered": "Відхилено",
+        "none": "Ще немає синхронізації"
+      },
+      "recentChanges": {
+        "title": "Останні зміни",
+        "empty": "Поки немає останніх технічних змін.",
+        "col": {
+          "when": "Коли",
+          "resource": "Тип",
+          "action": "Зміна",
+          "reference": "Реф"
+        }
+      },
+      "d365Health": {
+        "title": "Стан D365",
+        "open": "Відкрити інтеграцію D365 →"
+      },
+      "quickActions": {
+        "title": "Швидкі дії",
+        "createItem": "Створити позицію",
+        "createBom": "Новий BOM",
+        "denied": "У вас немає дозволу створювати позиції або BOM."
+      },
+      "nav": {
+        "label": "Технічні розділи",
+        "items": {
+          "title": "Позиції",
+          "desc": "Сировина, напівфабрикати, готова продукція, копродукти та побічні продукти."
+        },
+        "bom": {
+          "title": "Специфікації (BOM)",
+          "desc": "Спільне джерело істини BOM — версії, рядки та копродукти."
+        },
+        "allergen": {
+          "title": "Алергени",
+          "desc": "Профілі алергенів позицій, перевизначення та ризик забруднення."
+        },
+        "cost": {
+          "title": "Вартість за кг",
+          "desc": "Стандартна вартість та історія витрат позицій (спільне володіння з Фінансами)."
+        },
+        "routings": {
+          "title": "Маршрути",
+          "desc": "Виробничі операції та визначення маршрутів."
+        },
+        "factorySpecs": {
+          "title": "Заводські специфікації",
+          "desc": "Пакети затверджень та випущені специфікації (власність Технічного)."
+        },
+        "sensory": {
+          "title": "Сенсорика",
+          "desc": "Сенсорна схема та записи оцінювання."
+        },
+        "d365": {
+          "title": "Інтеграція D365",
+          "desc": "Завдання синхронізації, зіставлення кодів та черга помилок (у Налаштуваннях)."
+        }
+      },
+      "resourceType": {
+        "item": "Позиція",
+        "bom": "BOM",
+        "bom_header": "BOM",
+        "factory_spec": "Заводська спец.",
+        "routing": "Маршрут",
+        "allergen": "Алерген",
+        "item_cost": "Вартість"
+      }
+    },
+    "items": {
+      "detail": {
+        "breadcrumb": "Позиції",
+        "subtitle": "Технічний майстер для {type}. Використовується в BOM, компонентах NPD та специфікаціях клієнта.",
+        "back": "Назад до позицій",
+        "edit": "Редагувати",
+        "deactivate": "Деактивувати",
+        "whereUsed": "Де використовується",
+        "notFound": "Позицію не знайдено",
+        "notFoundBody": "Позиції з кодом {code} немає в цій організації.",
+        "error": "Не вдалося завантажити цю позицію. Спробуйте ще раз.",
+        "tablistLabel": "Розділи деталей позиції",
+        "deferred": "Незабаром",
+        "deferredBody": "Цей розділ буде доставлено на пізнішому етапі.",
+        "tabs": {
+          "overview": "Огляд",
+          "bom": "BOM",
+          "allergens": "Алергени",
+          "cost": "Історія витрат",
+          "routing": "Маршрут",
+          "supplierSpecs": "Специфікації постачальника",
+          "labResults": "Лабораторні результати",
+          "d365": "Статус D365"
+        },
+        "overview": {
+          "identification": "Ідентифікація",
+          "commercial": "Комерція та вага",
+          "code": "Код",
+          "name": "Назва",
+          "type": "Тип",
+          "status": "Статус",
+          "uomBase": "Базова ОВ",
+          "uomSecondary": "Додаткова ОВ",
+          "productGroup": "Група продуктів",
+          "description": "Опис",
+          "weightMode": "Режим ваги",
+          "nominalWeight": "Номінальна вага",
+          "grossWeightMax": "Макс. вага брутто",
+          "varianceTolerance": "Допуск відхилення",
+          "shelfLife": "Термін придатності",
+          "shelfLifeDays": "{days} д",
+          "costPerKg": "Вартість / кг",
+          "updated": "Оновлено",
+          "none": "—"
+        }
+      },
+      "create": {
+        "title": "Створити позицію",
+        "subtitle": "Універсальний майстер позицій — пов'язується з BOM, специфікацією та матрицею алергенів.",
+        "open": "+ Нова позиція",
+        "cancel": "Скасувати",
+        "back": "Назад",
+        "next": "Далі",
+        "create": "Створити позицію",
+        "creating": "Створення…",
+        "steps": {
+          "basic": "Основне",
+          "classification": "Класифікація",
+          "weight": "Вага та термін",
+          "review": "Перегляд і створення"
+        },
+        "fields": {
+          "itemCode": "Код позиції",
+          "itemCodeHelp": "Алфавітно-цифрові з роздільниками . _ -. Унікальний у межах організації.",
+          "name": "Назва",
+          "description": "Короткий опис",
+          "itemType": "Тип позиції",
+          "status": "Статус",
+          "uomBase": "Базова ОВ",
+          "uomSecondary": "Додаткова ОВ",
+          "productGroup": "Група продуктів",
+          "weightMode": "Режим ваги",
+          "nominalWeight": "Номінальна вага",
+          "grossWeightMax": "Макс. вага брутто",
+          "varianceTolerance": "Допуск відхилення (%)",
+          "shelfLifeDays": "Термін придатності (дні)",
+          "shelfLifeMode": "Режим терміну придатності"
+        },
+        "catchHint": "Змінна вага вимагає номінальної ваги, макс. ваги брутто та допуску відхилення.",
+        "review": {
+          "ready": "Готово до створення. Буде записано аудиторський запис."
+        },
+        "errors": {
+          "codeRequired": "Код позиції обов'язковий (мін. 1 символ).",
+          "nameRequired": "Назва обов'язкова (мін. 1 символ).",
+          "uomRequired": "Базова ОВ обов'язкова."
+        }
+      },
+      "deactivate": {
+        "title": "Деактивувати позицію",
+        "subtitle": "Видаляє {code} з активних списків вибору. Відкриті ВЗ продовжуються; нові ВЗ створити не можна.",
+        "warning": "{name} буде заблоковано. BOM залишаються для аудиту. Це встановлює статус «заблоковано».",
+        "reason": "Причина",
+        "reasonRequired": "Виберіть причину.",
+        "reasons": {
+          "discontinued": "Знято з виробництва",
+          "recipe_change": "Зміна рецептури",
+          "d365_mismatch": "Невідповідність D365",
+          "other": "Інше"
+        },
+        "notes": "Примітки",
+        "notesRequired": "Примітки обов'язкові, коли причина «Інше» (мін. 10 символів).",
+        "confirmLabel": "Введіть код позиції {code} для підтвердження",
+        "confirmMismatch": "Введений код не збігається.",
+        "cancel": "Скасувати",
+        "confirm": "Деактивувати",
+        "deactivating": "Деактивація…"
+      },
+      "errors": {
+        "already_exists": "Позиція з таким кодом уже існує в цій організації.",
+        "forbidden": "У вас немає дозволу на виконання цієї дії.",
+        "invalid_input": "Перевірте значення та спробуйте ще раз.",
+        "not_found": "Цієї позиції більше не існує.",
+        "persistence_failed": "Не вдалося зберегти. Спробуйте ще раз."
+      }
+    },
+    "allergens": {
+      "tab": {
+        "title": "Allergen profile",
+        "subtitle": "Per-item allergen declaration (EU FIC 1169/2011 — 14 mandatory allergens). Auto-cascaded badges are read-only; manual overrides are additive and require a reason.",
+        "declareCta": "Declare / override",
+        "sourceHeading": {
+          "cascaded": "Auto-cascaded (BOM + process)",
+          "brief_declared": "Brief-declared",
+          "supplier_spec": "Supplier spec",
+          "lab_result": "Lab result",
+          "manual_override": "Manual override"
+        },
+        "readOnlyTag": "Read-only",
+        "overrideTag": "Override",
+        "loading": "Loading allergen profile…",
+        "empty": "No allergens declared yet",
+        "emptyBody": "Allergens cascade automatically from BOM components and process additions; declare a manual override to add one to the final label.",
+        "error": "Unable to load the allergen profile. Please try again.",
+        "forbidden": "You can view allergens but cannot edit this item’s profile.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        },
+        "modal": {
+          "title": "Declare allergen",
+          "subtitle": "Override the auto-cascade to declare the final product label.",
+          "autoNote": "Auto-suggestions come from BOM component allergen flags. Override here to declare the final product label — the cascade source is preserved.",
+          "fieldAllergen": "Allergen",
+          "fieldIntensity": "Presence",
+          "fieldConfidence": "Confidence",
+          "fieldReason": "Override reason",
+          "reasonPlaceholder": "Explain why the auto-cascade is overridden…",
+          "reasonRequired": "A reason is required for a manual override (V-TEC-42).",
+          "cancel": "Cancel",
+          "save": "Save declaration",
+          "saving": "Saving…",
+          "saveError": "Could not save the override. Please try again.",
+          "selectPlaceholder": "Select an allergen…",
+          "intensity": {
+            "contains": "Contains",
+            "may_contain": "May contain",
+            "trace": "Trace"
+          },
+          "confidence": {
+            "declared": "Declared",
+            "tested": "Tested",
+            "assumed": "Assumed"
+          }
+        }
+      },
+      "audit": {
+        "title": "Manual override audit",
+        "subtitle": "Append-only history of manual allergen overrides — one immutable row per (item × allergen × actor × timestamp).",
+        "colItem": "Item",
+        "colAllergen": "Allergen",
+        "colAction": "Action",
+        "colIntensity": "Presence",
+        "colReason": "Reason",
+        "colActor": "Actor",
+        "colTimestamp": "When",
+        "actionSet": "Set",
+        "actionClear": "Cleared",
+        "actionAdjustIntensity": "Adjusted presence",
+        "actionAdjustConfidence": "Adjusted confidence",
+        "reviewCta": "Review / re-override",
+        "loading": "Loading override history…",
+        "empty": "No manual overrides recorded",
+        "emptyBody": "When an allergen is manually overridden, an immutable audit row is appended here with the actor and timestamp.",
+        "error": "Unable to load the override audit. Please try again.",
+        "forbidden": "You do not have permission to review allergen overrides.",
+        "intensity": {
+          "contains": "Contains",
+          "may_contain": "May contain",
+          "trace": "Trace"
+        }
+      },
+      "config": {
+        "title": "Allergens configuration",
+        "subtitle": "Manufacturing-operation allergen additions and the line × allergen cross-contamination risk matrix (EU FIC 1169/2011).",
+        "tabMatrix": "Contamination matrix",
+        "tabOps": "Process additions",
+        "colLine": "Production line",
+        "legendContains": "High risk",
+        "legendMayContain": "Medium risk",
+        "legendAbsent": "No entry",
+        "gapBanner": "{count} line × allergen combinations have no contamination-risk entry.",
+        "gapLink": "View gaps",
+        "riskLevel": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "segregated": "Segregated"
+        },
+        "riskNone": "No entry",
+        "loading": "Loading allergens configuration…",
+        "empty": "No lines or operations configured yet",
+        "emptyBody": "Add production lines (Settings → Infrastructure) and manufacturing operations to build the contamination-risk matrix.",
+        "error": "Unable to load the allergens configuration. Please try again.",
+        "forbidden": "You do not have permission to view the allergens configuration.",
+        "readOnlyTag": "Read-only",
+        "opsTitle": "Process allergen additions",
+        "opsColOperation": "Manufacturing operation",
+        "opsColAllergen": "Allergen",
+        "opsColReason": "Reason",
+        "opsEmpty": "No process-added allergens configured.",
+        "saveError": "Could not save the change. Please try again.",
+        "cellAria": "Contamination risk for"
+      }
+    },
+    "bom": {
+      "edit": {
+        "addComponent": "Додати компонент до BOM",
+        "addComponentSubtitle": "Знайдіть у довіднику матеріалів і вкажіть кількість / відходи",
+        "searchPlaceholder": "Пошук за кодом або назвою (RM-, PM-, WIP-…)",
+        "noMaterials": "Немає відповідних матеріалів.",
+        "loadingMaterials": "Пошук у довіднику матеріалів…",
+        "quantity": "Кількість",
+        "quantityPerPack": "Кількість ({uom} на 1 упаковку)",
+        "scrapPct": "Відходи %",
+        "manufacturingOperation": "Виробнича операція",
+        "manufacturingOperationPlaceholder": "Оберіть операцію",
+        "manufacturingOperationRequired": "Оберіть виробничу операцію перед збереженням.",
+        "quantityInvalid": "Кількість має бути більшою за 0.",
+        "checkingUsability": "Перевірка придатності компонента…",
+        "usabilityBlocked": "Компонент заблоковано ({code}): {message}",
+        "usableOk": "Компонент придатний.",
+        "addAction": "Додати компонент",
+        "saveVersionTitle": "Зберегти версію BOM",
+        "saveVersionSubtitle": "{product} · поточна v{version}",
+        "versionLabel": "Мітка версії",
+        "changeReason": "Причина зміни",
+        "changeReasonHelp": "Використовується зі знімків WO в Плануванні — мін. 10 символів.",
+        "changeReasonPlaceholder": "напр. Оновлення % жиру (22% → 21%) — ECO-2045.",
+        "saveVersion": "Зберегти версію",
+        "previousVersionNote": "Попередня версія (v{version}) залишається доступною лише для читання для наявних замовлень.",
+        "newDraftNotice": "Цей BOM має статус {status}. Збереження створить нову чернеткову версію — випущена версія ніколи не редагується на місці.",
+        "cancel": "Скасувати",
+        "close": "Закрити",
+        "saveError": "Не вдалося зберегти. Спробуйте ще раз.",
+        "forbidden": "У вас немає дозволу на цю дію.",
+        "conflict": "Ця версія конфліктує з наявною. Оновіть і повторіть спробу."
+      },
+      "diff": {
+        "title": "Порівняння версій BOM",
+        "subtitle": "Порівняння v{from} → v{to}",
+        "loading": "Завантаження різниці…",
+        "noDifferences": "Немає відмінностей",
+        "error": "Не вдалося завантажити різницю версій.",
+        "notFound": "Однієї з обраних версій не існує.",
+        "headerChanges": "Зміни заголовка",
+        "lines": "Компоненти",
+        "coProducts": "Супутні продукти",
+        "added": "Додано",
+        "removed": "Видалено",
+        "changed": "Змінено",
+        "before": "{label} · до",
+        "after": "{label} · поточна",
+        "field": "Поле",
+        "quantity": "Кількість",
+        "scrap": "Відходи %",
+        "allocation": "Розподіл %",
+        "uom": "ОВ",
+        "type": "Тип",
+        "close": "Закрити"
+      },
+      "generator": {
+        "title": "Згенерувати пакет BOM",
+        "subtitle": "Розгорніть і складіть внутрішні BOM для завершених готових виробів.",
+        "scope": "Обсяг",
+        "scopeAllComplete": "Усі завершені FG",
+        "scopeSelected": "Обрані FG",
+        "outputMode": "Режим виводу",
+        "outputPerFg": "Один файл на FG",
+        "outputSingleBatch": "Єдиний об’єднаний пакет",
+        "pickFgs": "Готові вироби (Status Overall = Complete)",
+        "searchFgs": "Пошук готових виробів…",
+        "noEligibleFgs": "Немає доступних завершених готових виробів.",
+        "loadingFgs": "Завантаження готових виробів…",
+        "selectAtLeastOne": "Оберіть щонайменше один готовий виріб.",
+        "confirm": "Згенерувати",
+        "cancel": "Скасувати",
+        "submitting": "Постановка в чергу…",
+        "successToast": "Пакет у черзі ({count}). Завдання {jobId}.",
+        "viewJob": "Переглянути статус завдання",
+        "error": "Не вдалося поставити пакет у чергу. Спробуйте ще раз.",
+        "forbidden": "У вас немає дозволу генерувати пакети BOM."
+      }
+    },
+    "bomList": {
+      "breadcrumbRoot": "Технічний",
+      "title": "Специфікації та рецептури",
+      "subtitle": "Специфікації матеріалів для готової продукції — компоненти, ко-продукти, версії, затвердження та використання зі спільного SSOT BOM.",
+      "newBom": "+ Нова специфікація",
+      "generateBoms": "Згенерувати BOM",
+      "kpiActive": "Активні BOM",
+      "kpiTotalSuffix": "з {n} усього",
+      "kpiDraft": "Чернетка",
+      "kpiInReview": "На розгляді",
+      "tabAll": "Усі",
+      "tabDraft": "Чернетка",
+      "tabActive": "Активні",
+      "tabInReview": "На розгляді",
+      "tabArchived": "Архівовані",
+      "colCode": "Код FG",
+      "colProduct": "Продукт",
+      "colCategory": "Категорія",
+      "colVersion": "Вер.",
+      "colYield": "Вихід",
+      "colUpdated": "Оновлено",
+      "colStatus": "Статус",
+      "componentsMeta": "{n} компонентів",
+      "statusDraft": "Чернетка",
+      "statusInReview": "На розгляді",
+      "statusApproved": "Затверджено",
+      "statusActive": "Активний",
+      "statusSuperseded": "Замінено",
+      "statusArchived": "Архівовано",
+      "searchPlaceholder": "Фільтрувати за назвою або кодом FG…",
+      "emptyTitle": "Ще немає BOM",
+      "emptyBody": "Створіть BOM або згенеруйте його з завершеного продукту NPD, щоб почати.",
+      "noMatchTitle": "Жоден BOM не відповідає цьому фільтру",
+      "noMatchBody": "Очистіть пошук або спробуйте іншу вкладку статусу.",
+      "loading": "Завантаження BOM…",
+      "error": "Не вдалося завантажити BOM. Спробуйте ще раз.",
+      "forbidden": "У вас немає дозволу переглядати BOM."
+    },
+    "bomDetail": {
+      "breadcrumbRoot": "Специфікації та рецептури",
+      "versionBadge": "v{n}",
+      "yieldLabel": "Вихід",
+      "tabComponents": "Компоненти",
+      "tabCoProducts": "Ко-продукти",
+      "tabSnapshots": "Знімки",
+      "tabVersions": "Версії",
+      "tabApproval": "Затвердження",
+      "tabWhereUsed": "Використання",
+      "tabRecipeSheet": "Картка рецептури",
+      "colLine": "#",
+      "colComponent": "Компонент",
+      "colType": "Тип",
+      "colQty": "Кільк.",
+      "colUom": "ОВ",
+      "colScrap": "Відходи",
+      "colOperation": "Операція",
+      "phantomBadge": "фантом",
+      "colCoProduct": "Позиція ко-продукту",
+      "colAllocation": "Розподіл",
+      "byproductBadge": "Побічний продукт",
+      "coProductBadge": "Ко-продукт",
+      "colSnapshot": "Знімок",
+      "colWorkOrder": "Виробниче замовлення",
+      "colSnapshotAt": "Зроблено",
+      "noWorkOrder": "—",
+      "colVersion": "Версія",
+      "colStatus": "Статус",
+      "colEffective": "Діє з",
+      "colApprovedBy": "Затвердив",
+      "current": "Поточна",
+      "approvalTitle": "Затвердження",
+      "approvalStatus": "Статус",
+      "approvalApprovedBy": "Затвердив",
+      "approvalApprovedAt": "Затверджено",
+      "approvalPending": "Очікує затвердження",
+      "approvalChainTitle": "Ланцюг затвердження",
+      "approvalChain": "NPD → Технолог → QA → Керівник виробництва",
+      "colParent": "Використано в (FG)",
+      "colParentVersion": "Версія",
+      "colUsageQty": "Кільк. на батька",
+      "recipeTitle": "Картка рецептури",
+      "recipeBatch": "BOM {code} · v{version} · Вихід {yield}%",
+      "recipeComponents": "Компоненти",
+      "recipeNotes": "Примітки",
+      "statusDraft": "Чернетка",
+      "statusInReview": "На розгляді",
+      "statusApproved": "Затверджено",
+      "statusActive": "Активний",
+      "statusSuperseded": "Замінено",
+      "statusArchived": "Архівовано",
+      "emptyComponents": "Ця версія BOM не має рядків компонентів.",
+      "emptyCoProducts": "Немає ко-продуктів або побічних продуктів у цій версії BOM.",
+      "emptySnapshots": "Для цієї версії ще не зроблено знімків замовлень.",
+      "emptyWhereUsed": "Цей FG не використовується як компонент у жодному іншому BOM.",
+      "loading": "Завантаження BOM…",
+      "error": "Не вдалося завантажити цей BOM. Спробуйте ще раз.",
+      "notFound": "BOM не знайдено.",
+      "forbidden": "У вас немає дозволу переглядати цей BOM."
+    }
+  },
+  "Technical": {
+    "factorySpecs": {
+      "title": "Виробничі специфікації",
+      "subtitle": "Виробничі специфікації, що належать Технічному відділу (factory_spec / internal_product_spec) на готовий виріб — версіоновані, випускаються після технічного затвердження.",
+      "newSpec": "+ Нова специфікація",
+      "col": {
+        "spec": "Спец",
+        "product": "Продукт",
+        "category": "Категорія",
+        "version": "Вер.",
+        "shelfLife": "Термін",
+        "storage": "Зберігання",
+        "status": "Статус",
+        "actions": "Дії"
+      },
+      "status": {
+        "draft": "Чернетка",
+        "in_review": "На розгляді",
+        "approved_for_factory": "Затверджено для виробництва",
+        "released_to_factory": "Випущено у виробництво",
+        "superseded": "Замінено",
+        "archived": "Архівовано"
+      },
+      "empty": {
+        "title": "Поки немає виробничих специфікацій",
+        "body": "Створіть виробничу специфікацію або затвердіть чернетку з NPD для виробничого використання."
+      },
+      "error": "Не вдалося завантажити виробничі специфікації. Спробуйте ще раз.",
+      "permissionView": "Ви можете переглядати виробничі специфікації, але не можете їх затверджувати для виробництва.",
+      "review": "Перегляд",
+      "modal": {
+        "title": "Перегляд специфікації · {spec}",
+        "subtitle": "{name} · v{version}",
+        "releaseStatus": "Статус випуску",
+        "pairedBom": "Пов'язаний BOM",
+        "noBom": "Поки немає пов'язаного BOM",
+        "bomVersion": "BOM v{version}",
+        "shelfLife": "Термін придатності",
+        "storage": "Зберігання",
+        "source": "Джерело",
+        "cloneOnWrite": "Ця версія випущена та незмінна. Редагування створює нову версію (clone-on-write), яка повертається на технічне затвердження перед виробничим використанням.",
+        "blockersTitle": "Блокери придатності RM та випуску",
+        "noBlockers": "Немає блокерів випуску.",
+        "g4Note": "Лише Ворота-4 NPD не розблоковують виробниче використання — потрібне пов'язане затвердження FactorySpec + BOM Технічним відділом.",
+        "openBundle": "Відкрити затвердження пакета",
+        "close": "Закрити",
+        "markReviewed": "Позначити переглянутим",
+        "permissionDenied": "У вас немає технічного дозволу на затвердження цієї специфікації для виробництва."
+      }
+    },
+    "releaseBundle": {
+      "title": "Затвердити пакет FactorySpec + BOM",
+      "subtitle": "{fg} · пов'язаний технічний випуск",
+      "cloneBanner": "Застосовано clone-on-write. Затвердження цього пакета випускає FactorySpec + BOM для виробничого використання локально — незалежно від D365.",
+      "factorySpec": "factory_spec",
+      "sharedBom": "спільний BOM",
+      "specId": "Id спец",
+      "owner": "Власник",
+      "lastEdit": "Остання редакція",
+      "bomId": "Id BOM",
+      "version": "Версія",
+      "clonedFrom": "Клоновано з",
+      "blockersTitle": "Блокери та попередня перевірка",
+      "noBlockers": "Немає блокерів — пакет готовий до технічного затвердження.",
+      "approveDisabled": "Затвердження вимкнено — усуньте {count} блокер(ів) вище (supplier_spec, RBAC, гарда випуску).",
+      "historyTitle": "Історія затверджень / відхилень",
+      "noHistory": "Поки немає історії затверджень.",
+      "approveOption": "Затвердити пакет",
+      "approveHelp": "Випускає пакет FactorySpec + BOM для виробничого використання. Локальний технічний випуск — синхронізація D365 необов'язкова/інформаційна.",
+      "rejectOption": "Відхилити пакет",
+      "rejectHelp": "Обидва артефакти повертаються до чернетки; автор сповіщається із зазначеною причиною.",
+      "rejectReason": "Причина відхилення",
+      "rejectReasonHelp": "Реєструється в аудиті, мінімум 10 символів.",
+      "approveReason": "Причина затвердження",
+      "approveReasonHelp": "Реєструється в аудиті з вашим е-підписом.",
+      "pin": "PIN е-підпису",
+      "pinHelp": "Ваш пароль/PIN підтверджує це затвердження (CFR 21 Частина 11). Перевіряється на сервері, ніколи не зберігається.",
+      "d365Disabled": "Інтеграцію D365 вимкнено. Локальне технічне затвердження все одно розблоковує виробниче використання — синхронізація D365 лише інформаційна.",
+      "cancel": "Скасувати",
+      "approveAction": "Затвердити пакет",
+      "approveBlocked": "Затвердити (заблоковано)",
+      "rejectAction": "Відхилити пакет",
+      "permissionDenied": "У вас немає технічного дозволу на затвердження цього пакета.",
+      "loading": "Завантаження пакета…",
+      "error": "Не вдалося завантажити пакет випуску. Спробуйте ще раз.",
+      "approved": "Пакет затверджено — FactorySpec і BOM випущено для виробничого використання.",
+      "rejected": "Пакет відхилено — обидва артефакти повернулися до чернетки.",
+      "actionError": "Не вдалося виконати дію. Спробуйте ще раз.",
+      "blocker": {
+        "rm": "Придатність RM",
+        "rbac": "Авторизація",
+        "release": "Гарда випуску",
+        "supplier": "Спец постачальника"
+      }
+    },
+    "shelfLife": {
+      "title": "Налаштування терміну придатності",
+      "subtitle": "Правила «вжити до» проти «найкраще спожити до» для продукту. Регуляторний пресет визначає юридично необхідний режим.",
+      "breadcrumb": {
+        "technical": "Технічний",
+        "shelfLife": "Термін придатності"
+      },
+      "override": "Перевизначити",
+      "notConfigured": "Не налаштовано",
+      "days": "дн.",
+      "mode": {
+        "useBy": "use_by",
+        "bestBefore": "best_before"
+      },
+      "col": {
+        "product": "Продукт",
+        "mode": "Режим",
+        "duration": "Тривалість",
+        "dateCode": "Код дати",
+        "notes": "Примітки",
+        "actions": ""
+      },
+      "kpi": {
+        "region": "Підсумок термінів придатності",
+        "products": "Готова продукція",
+        "productsSub": "з правилами",
+        "useBy": "Правила «вжити до»",
+        "useBySub": "швидкопсувні",
+        "bestBefore": "«Найкраще до»",
+        "bestBeforeSub": "кімнатні / заморожені",
+        "unconfigured": "Не налаштовано",
+        "unconfiguredSub": "без правила"
+      },
+      "modal": {
+        "title": "Перевизначити термін придатності",
+        "warning": "Перевизначення відхиляється від регуляторного пресету — потребує підтвердження QA та реєструється в журналі аудиту.",
+        "current": "Поточний термін",
+        "newDays": "Новий термін (дні)",
+        "mode": "Режим",
+        "dateCode": "Формат коду дати",
+        "reason": "Причина перевизначення",
+        "reasonHelp": "Мінімум 10 символів — реєструється в аудиті.",
+        "reasonPlaceholder": "напр. Зміна параметрів MAP (30% CO₂), підтверджена мікробіологічним дослідженням № 2026/04/17-A.",
+        "preview": "Попередній перегляд коду дати на сьогодні",
+        "cancel": "Скасувати",
+        "apply": "Застосувати перевизначення"
+      },
+      "regulatoryNote": "Джерело регуляторного пресету: Регламент (ЄС) 1169/2011 · настанови PL HACCP GHP/GMP. Зміна пресету ініціює інженерне розпорядження про зміну.",
+      "state": {
+        "error": "Не вдалося завантажити правила термінів придатності. Спробуйте ще раз.",
+        "emptyTitle": "Ще немає готової продукції",
+        "emptyBody": "Створіть готовий продукт у довіднику позицій, щоб налаштувати його термін придатності.",
+        "readOnly": "Ви можете переглядати правила термінів, але не маєте дозволу їх перевизначати."
+      },
+      "error": {
+        "invalid": "Перевірте значення та спробуйте ще раз.",
+        "forbidden": "У вас немає дозволу перевизначати термін придатності.",
+        "notFound": "Цей продукт більше не існує.",
+        "generic": "Не вдалося зберегти. Спробуйте ще раз."
+      }
+    },
+    "sensory": {
+      "title": "Сенсорна оцінка",
+      "subtitle": "Модель читання сенсорики, що належить технічному відділу. Затвердження NPD та бар’єри випуску QA читають цей стан; цей екран не перебирає бар’єр NPD.",
+      "breadcrumb": {
+        "technical": "Технічний",
+        "sensory": "Сенсорика"
+      },
+      "readOnlyNote": "Лише для читання. Сенсорика — це звітна модель читання; власником бар’єру залишається NPD і читає цей статус лише для читання.",
+      "tableLabel": "Сенсорні оцінки",
+      "kpi": {
+        "region": "Підсумок сенсорики",
+        "total": "Об’єкти",
+        "blocked": "Заблоковано",
+        "pending": "Очікують",
+        "notRequired": "Не потрібні"
+      },
+      "col": {
+        "subject": "Об’єкт",
+        "type": "Тип",
+        "policy": "Політика",
+        "evaluated": "Оцінено",
+        "status": "Статус",
+        "blockedReason": "Причина блокування"
+      },
+      "subject": {
+        "product": "Продукт",
+        "project": "Проєкт",
+        "workOrder": "Робоче замовлення",
+        "item": "Позиція / ГП"
+      },
+      "policy": {
+        "required": "Потрібна",
+        "optional": "Необов’язкова"
+      },
+      "status": {
+        "required": "Потрібна",
+        "pending": "Очікує",
+        "pass": "Пройдено",
+        "fail": "Не пройдено",
+        "hold": "Призупинено",
+        "notRequired": "Не потрібна"
+      },
+      "sourceNote": "Джерело: technical_sensory_evaluations (модель читання технічного відділу). fail / hold видають SENSORIAL_BLOCKED для бар’єрів випуску.",
+      "state": {
+        "error": "Не вдалося завантажити сенсорні оцінки. Спробуйте ще раз.",
+        "emptyTitle": "Ще немає сенсорних оцінок",
+        "emptyBody": "Сенсорні об’єкти з’являться тут після реєстрації оцінки. До того часу NPD вважає сенсорику не потрібною.",
+        "denied": "У вас немає дозволу переглядати сенсорні оцінки."
+      }
+    }
   }
 }
