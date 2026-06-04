@@ -69,6 +69,12 @@ export type FaRightPanelProps = {
   // Test/storybook injection seam: bypasses the org-context read when provided.
   summary?: FaSummary;
   loadState?: FaRightPanelLoad['state'];
+  /**
+   * T-138 wiring slot: when the layout provides a wired actions node (the client
+   * `FaRightPanelActions`), it REPLACES the deferred-disabled action seams. When
+   * omitted (T-137 standalone), the panel keeps the disabled deferred seams.
+   */
+  actionsSlot?: import('react').ReactNode;
 };
 
 // ---------------------------------------------------------------------------
@@ -362,6 +368,7 @@ export async function FaRightPanel(props: FaRightPanelProps) {
     <aside
       aria-label={labels.title}
       className={ASIDE_CLASS}
+      data-testid="fa-right-panel"
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
     >
       {/* Card 1 — Validation/Status + key facts (prototype lines 437-452) */}
@@ -438,27 +445,35 @@ export async function FaRightPanel(props: FaRightPanelProps) {
           </h3>
         </CardHeader>
         <CardContent className="space-y-2 px-4 py-4">
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              className="justify-center"
-              disabled
-              data-testid="fa-right-panel-action-deptClose"
-              title={labels.actionsDeferred}
-            >
-              {labels.deptClose}
-            </Button>
-            <Button
-              type="button"
-              className="justify-center"
-              disabled
-              data-testid="fa-right-panel-action-d365Build"
-              title={labels.actionsDeferred}
-            >
-              {labels.d365Build}
-            </Button>
-          </div>
-          <p className="text-[11px] text-slate-400">{labels.actionsDeferred}</p>
+          {props.actionsSlot !== undefined ? (
+            // T-138: wired client actions (route to ?modal=deptClose|d365Build).
+            props.actionsSlot
+          ) : (
+            <>
+              {/* T-137 standalone: deferred-disabled affordances (no modal wiring). */}
+              <div className="grid gap-2">
+                <Button
+                  type="button"
+                  className="justify-center"
+                  disabled
+                  data-testid="fa-right-panel-action-deptClose"
+                  title={labels.actionsDeferred}
+                >
+                  {labels.deptClose}
+                </Button>
+                <Button
+                  type="button"
+                  className="justify-center"
+                  disabled
+                  data-testid="fa-right-panel-action-d365Build"
+                  title={labels.actionsDeferred}
+                >
+                  {labels.d365Build}
+                </Button>
+              </div>
+              <p className="text-[11px] text-slate-400">{labels.actionsDeferred}</p>
+            </>
+          )}
         </CardContent>
       </Card>
     </aside>

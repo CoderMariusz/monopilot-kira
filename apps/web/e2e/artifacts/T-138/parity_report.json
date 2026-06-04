@@ -1,0 +1,33 @@
+{
+  "task": "T-138",
+  "title": "FA detail layout: shell + tabs (T-136) + right panel (T-137) → two-column, persistent right panel, modal routing",
+  "root_parent": "T-020",
+  "parity_anchors": [
+    "prototypes/design/Monopilot Design System/npd/fa-screens.jsx:300-452 (fa_detail + fa_right_panel)",
+    "prototype-index-npd.json#fa_detail",
+    "fa-screens.jsx:400 two-column grid `1fr 280px` → layout `lg:grid-cols-[minmax(0,1fr)_280px]`",
+    "fa-screens.jsx:344-362 header Build-D365 / Delete launchers → right-panel quick actions (deptClose / d365Build)",
+    "fa-screens.jsx:347-349 Build D365 disabled until status_overall === Complete"
+  ],
+  "data_source": "REAL public.product via withOrgContext (RLS app.current_org_id(), app_user). RBAC npd.fa.read / npd.fa.close / npd.fa.build resolved server-side. NO mocks.",
+  "persistence_mechanism": "FaRightPanel + FaDetailModalHost owned by layout.tsx (RSC). Next.js App Router re-renders the PAGE on a query-only ?tab= navigation but PRESERVES the enclosing layout, so the right-panel instance never remounts across Core → Technical tab switches.",
+  "modal_routing": "right-panel quick actions push ?modal=deptClose | ?modal=d365Build (the established T-035/T-121 query-trigger pattern); FaDetailModalHost maps URL state → dialog; close strips ?modal=.",
+  "generated_at": "2026-06-04T10:45:00.000Z",
+  "evidence": {
+    "dom_snapshots": [
+      "_meta/atomic-tasks/01-npd/evidence/T-138/dom-shell.html",
+      "_meta/atomic-tasks/01-npd/evidence/T-138/dom-modal-deptClose.html",
+      "_meta/atomic-tasks/01-npd/evidence/T-138/dom-modal-d365Build.html",
+      "_meta/atomic-tasks/01-npd/evidence/T-138/dom-forbidden-actions.html",
+      "_meta/atomic-tasks/01-npd/evidence/T-138/dom-empty.html"
+    ],
+    "playwright_spec": "apps/web/e2e/npd-fa-detail-layout.spec.ts",
+    "playwright_status": "AUTHORED — 4 tests SKIP (BLOCKED_AUTH) without PLAYWRIGHT_BASE_URL + auth storage; live parity execution deferred to T-139 live-preview run.",
+    "axe_status": "DEFERRED to T-139 live run (no live preview in this slice). RTL asserts accessible names: status/built badges carry aria-label; action buttons carry aria-disabled + title; right panel uses role=complementary."
+  },
+  "acceptance_criteria": {
+    "AC1_two_column_left_tabs_right_sticky_panel": "PASS (RTL fa-detail-layout.test.tsx: children left + complementary sticky aside inside fa-detail-shell)",
+    "AC2_right_panel_no_remount_across_tab_switch": "PASS (RTL: right panel rendered BY layout alongside children; layout preserved across ?tab= per Next.js; E2E persist-probe asserts stable DOM node)",
+    "AC3_actions_open_correct_modal_via_provider": "PASS (RTL: Dept Close → ?modal=deptClose, D365 Build → ?modal=d365Build; modal host opens fa-modal-deptClose / fa-modal-d365Build)"
+  }
+}

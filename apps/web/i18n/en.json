@@ -1893,6 +1893,8 @@
       "deptClose": "Dept Close",
       "d365Build": "D365 Build",
       "actionsDeferred": "Available once the action workflow ships.",
+      "deptCloseDisabledHint": "You do not have permission to close departments.",
+      "d365DisabledHint": "FA must be Complete first (all 7 departments closed).",
       "loading": "Loading summary…",
       "empty": "No summary",
       "emptyBody": "No Finished Good matches this code in your organisation.",
@@ -1905,6 +1907,13 @@
         "Complete": "Complete",
         "Built": "Built"
       }
+    },
+    "faDetailModals": {
+      "deptCloseTitle": "Close department",
+      "deptCloseDeferred": "The department-close workflow opens here.",
+      "d365BuildTitle": "Build D365 output",
+      "d365BuildDeferred": "The D365 build workflow opens here.",
+      "close": "Cancel"
     },
     "faProductionTab": {
       "title": "Production detail",
