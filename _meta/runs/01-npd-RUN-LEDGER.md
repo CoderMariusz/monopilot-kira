@@ -135,3 +135,10 @@ Mig numbers from 103+. Watch: T-009 reset_built vs T-080 V18 downgrade-guard int
 - **Remaining Wave C** (~20): T-008 createFa, T-009 updateFaCell+reset_built, T-010/011/012/013 cascade chains, T-014 schema-driven Zod, T-017 closeDeptSection, T-018 reopen, T-029 deleteFa, T-033 convertBriefToFa, T-039 setAllergenOverride, T-042 exceljs builder(Opus), T-044 buildD365, T-045 bom_export, T-047 wizard actions, T-051 dashboard actions, T-058 advanceGate, T-078 approval criteria, T-084 compliance upload, T-085 expiry cron, T-090 d365 import sync, T-095 G3 FG, T-096 release-to-factory, T-097 factory release RM, T-099 allergen bulk-rebuild, T-100 G4 closeout.
 - **Then Wave D** (UI ~30, Opus impl-ui + prototype parity — heavy) + **Wave E** (wiring/E2E ~30) + consensus + Gate-5 + sign-off.
 - Time note: at ~03:30 with 41/139, the full module will NOT complete by 5am — this is a multi-session long-run. State is fully checkpointed; resume from here.
+
+### Module-close HIGH (added 2026-06-04): product_code global PK
+T-001's `product` table uses `product_code` as a GLOBAL primary key (mig 075) — two orgs cannot share a
+product code (multi-tenant defect, same class as the npd_projects.code bug fixed in T-057). HUMAN DECISION
+needed: are product codes globally unique by design (SKU-like) or per-org? If per-org, migrate PK→(org_id,
+product_code) + update all FKs (prod_detail, compliance_docs, factory_release_status, etc. reference
+product(product_code)). Flagged by T-008 review. Do NOT silently change — affects many FKs.

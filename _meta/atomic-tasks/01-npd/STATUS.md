@@ -19,7 +19,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-005 | Reference lookup tables (PackSizes, Templates, LineTypes) | ✅ DONE | DONE 2026-06-03 (Wave A1). Reference lookups PackSizes/Templates/Lines/Equip/CloseConfirm (mig 079) — merged; AlertThresholds removed (owned by T-049) |
 | T-006 | Reference.RolePermissions schema + Apex seed | ✅ DONE | DONE 2026-06-03 (Wave A1 rework). RolePermissions seed → npd.* namespace per T-101 + legacy-string cleanup; matrix per PRD §2.2; merged. NOTE: re-verify vs T-101 final enum when T-101 built |
 | T-007 | outbox_events emitter wrapper for fa.* events | ✅ DONE | DONE 2026-06-04 (Wave B). outbox emitFaEvent wrapper for fa.*/brief.* events (mig 102) — tx-scoped, idempotent, app_user insert org-RLS-checked; 25+4 green. merged |
-| T-008 | Server Action createFa | ⬜ PENDING | Blocked by T-001, T-006, T-007 |
+| T-008 | Server Action createFa | ✅ DONE | DONE 2026-06-04 (Wave C). createFa Server Action + V01/V02 validators — REAL integration test (mutation-verified non-vacuous), single-tx product+outbox. merged. Nit: product_code is GLOBAL PK (multi-tenant concern, see module-close) |
 | T-009 | Server Action updateFaCell + reset_built trigger | ⬜ PENDING | Blocked by T-001, T-003, T-006, T-007 |
 | T-010 | Cascade Chain 1: Pack_Size → Line → Equipment_Setup | ⬜ PENDING | Blocked by T-001, T-005 |
 | T-011 | Cascade Chain 2: Manufacturing_Operation → Intermediate | ⬜ PENDING | Blocked by T-001, T-002, T-004 |
@@ -96,7 +96,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-082 | UI: RiskRegisterScreen + RiskAddModal | ⬜ PENDING | Blocked by T-081 |
 | T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
 | T-084 | Compliance docs upload + signed URL + soft-delete | ✅ DONE | DONE 2026-06-04 (Wave C). Compliance docs upload + signed URL + soft-delete + compliance_doc.* events (mig 119) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
-| T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ⬜ PENDING | Blocked by T-083 |
+| T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ✅ DONE | DONE 2026-06-04 (Wave C). compliance_docs expiry-scan cron (mig 124, apps/worker) + compliance_doc.expired/expiring events — merged |
 | T-086 | UI: ComplianceDocsScreen + DocUploadModal | ⬜ PENDING | Blocked by T-084 |
 | T-087 | E2E: V18 built-blocker (high-risk → cannot build) | ⬜ PENDING | Blocked by T-080, T-081, T-082 |
 | T-088 | E2E: compliance doc upload → expiry job → dashboard | ⬜ PENDING | Blocked by T-084, T-085, T-086 |
@@ -108,7 +108,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-094 | FG canonical terminology compatibility pass (UI/i18n) | ⬜ PENDING | Blocked by T-056, T-058, T-095 |
 | T-095 | G3 create/map FG candidate for NPD project | ⬜ PENDING | Blocked by T-031, T-054, T-057, T-058 |
 | T-096 | releaseNpdProjectToFactory | ⬜ PENDING | Blocked by T-056, T-058, T-092, T-093, T-095, T-097 |
-| T-097 | Shared factory release status/read model and events | ⬜ PENDING | Blocked by T-092, T-093 |
+| T-097 | Shared factory release status/read model and events | ✅ DONE | DONE 2026-06-04 (Wave C). Shared factory release status read-model (mig 125) + events — Opus review PASS (canonical boundaries clean, Technical-approval gate at DB trigger, D365 no-op). merged |
 | T-098 | Full Brief→Project→G3 FG→G4 release→Technical E2E | ⬜ PENDING | Blocked by most of the above |
 | T-099 | Allergens cascade bulk-rebuild worker | ⬜ PENDING | Blocked by T-011, T-012, T-013 |
 | T-100 | Stage-Gate G4 Launched closeout + Trial/Pilot/Handover | ⬜ PENDING | Blocked by T-058, T-093, T-095, T-096, T-097, T-098 |
