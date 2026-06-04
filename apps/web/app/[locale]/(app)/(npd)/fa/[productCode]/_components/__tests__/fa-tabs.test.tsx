@@ -15,6 +15,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type FaTabsProps = {
   productCode: string;
+  // T-105: the Core-close gate (default false) locks dept tabs; the T-136 shell
+  // contract (order / deferred-empty / activation) is asserted on the UNLOCKED
+  // shell, so these tests render with coreDone+prodDone = true.
+  coreDone?: boolean;
+  prodDone?: boolean;
 };
 
 type FaTabsComponent = (props: FaTabsProps) => React.ReactElement;
@@ -93,7 +98,7 @@ function setUrlTab(tab: string | null) {
 async function renderFaTabs(tab: string | null = null) {
   setUrlTab(tab);
   const FaTabs = await loadFaTabs();
-  return render(React.createElement(FaTabs, { productCode: 'FA-RED-001' }));
+  return render(React.createElement(FaTabs, { productCode: 'FA-RED-001', coreDone: true, prodDone: true }));
 }
 
 describe('T-136 FA detail tabs shell', () => {
@@ -147,12 +152,12 @@ describe('T-136 FA detail tabs shell', () => {
 
     expect(routerPush).toHaveBeenCalledWith(expect.stringMatching(/\?tab=production(?:$|&)/));
 
-    rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001' }));
+    rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001', coreDone: true, prodDone: true }));
     expect(screen.getByRole('tab', { name: 'Production' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: /production/i })).toHaveTextContent(/deferred-empty|tab content deferred/i);
 
     setUrlTab('core');
-    rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001' }));
+    rerender(React.createElement(FaTabs, { productCode: 'FA-RED-001', coreDone: true, prodDone: true }));
 
     expect(screen.getByRole('tab', { name: 'Core' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: /core/i })).toHaveTextContent(/deferred-empty|tab content deferred/i);

@@ -71,8 +71,20 @@ const FA_ROW = {
  * Wire withOrgContext so the callback receives a client whose first query is the
  * RBAC permission probe and the second is the FA core row read.
  */
-function wireOrgContext(opts: { canRead?: boolean; faRow?: Record<string, unknown> | null } = {}) {
-  const { canRead = true, faRow = FA_ROW } = opts;
+function wireOrgContext(
+  opts: { canRead?: boolean; faRow?: Record<string, unknown> | null; coreDone?: boolean } = {},
+) {
+  const { canRead = true, faRow = FA_ROW, coreDone = true } = opts;
+  // T-105: the to_jsonb(product) read drives the dept tabs + the Core/Production
+  // close gate. Default the gate open so the tab-order assertion sees UNLOCKED
+  // labels (locking is asserted separately in fa-tabs-wiring.test.tsx).
+  const productJson = faRow
+    ? {
+        ...faRow,
+        closed_core: coreDone ? 'Yes' : null,
+        closed_production: coreDone ? 'Yes' : null,
+      }
+    : null;
   withOrgContextMock.mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) => {
     let call = 0;
     const client = {
@@ -81,10 +93,15 @@ function wireOrgContext(opts: { canRead?: boolean; faRow?: Record<string, unknow
         if (/role_permissions|permissions|user_roles/i.test(sql)) {
           return { rows: canRead ? [{ ok: true }] : [] };
         }
+        // to_jsonb(product) value read (drives dept tabs + close gate).
+        if (/to_jsonb\(p\.\*\)/i.test(sql)) {
+          return { rows: productJson ? [{ product_json: productJson }] : [] };
+        }
         // FA core row read.
         if (/from\s+public\.(product|fa)/i.test(sql) && /product_code/i.test(sql)) {
           return { rows: faRow ? [faRow] : [] };
         }
+        // DeptColumns / prod_detail / history reads → empty in this jsdom suite.
         return { rows: [] };
       }),
     };
