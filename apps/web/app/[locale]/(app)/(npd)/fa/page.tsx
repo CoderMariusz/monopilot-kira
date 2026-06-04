@@ -23,7 +23,7 @@ import {
   type FaListRow,
   type PageState,
 } from './_components/fa-list-table';
-import { FaCreateHost } from './_components/fa-create-host';
+import { buildFaCreateModalProps } from './_components/fa-create-host';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -241,19 +241,21 @@ export default async function FaListPage(propsInput: unknown = {}) {
 
   const canCreate = props.canCreate ?? loaded.canCreate;
 
+  // NF fix: resolve the create-modal labels + (RBAC-gated) Server Action on the
+  // server and hand them to FaListTable, which renders the FaCreateModal INLINE
+  // in the same client island as the "+ Create FG" button. No separate `?modal=`
+  // island → the button opens the dialog on a fresh hard load, not only after an
+  // SPA navigation. The real createFa action is provided only when permitted.
+  const createModal = await buildFaCreateModalProps(locale, canCreate);
+
   return (
-    <>
-      <FaListTable
-        rows={loaded.rows}
-        labels={labels}
-        canCreate={canCreate}
-        state={props.state ?? loaded.state}
-      />
-      {/* G-1 wiring: mount the FA create modal host. It maps the `?modal=faCreate`
-          trigger the list pushes to the injected FaCreateModal. Rendered inside
-          the same RSC so RBAC (canCreate) + labels are server-resolved; the real
-          createFa Server Action is injected only when permitted. */}
-      {await FaCreateHost({ locale, canCreate })}
-    </>
+    <FaListTable
+      rows={loaded.rows}
+      labels={labels}
+      canCreate={canCreate}
+      state={props.state ?? loaded.state}
+      createModalLabels={createModal.labels}
+      createFaAction={createModal.action}
+    />
   );
 }

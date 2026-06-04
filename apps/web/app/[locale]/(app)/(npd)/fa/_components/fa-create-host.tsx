@@ -1,27 +1,31 @@
 /**
- * G-1 fix — FA create modal server host (wiring).
+ * NF fix — FA create modal server wiring (labels + Server Action provider).
  *
- * Server Component that bridges the RSC boundary to the client `?modal=faCreate`
- * host (fa-create-modal-host.tsx). It:
+ * Server-only helper (no JSX island of its own anymore). It:
  *   - builds the FaCreateModal labels (next-intl with graceful prototype
  *     fallback, all four locales), and
- *   - injects the real createFa Server Action (T-008,
+ *   - exposes the real createFa Server Action (T-008,
  *     apps/web/app/(npd)/fa/actions/create-fa.ts — imported, never authored
- *     here) ONLY when the caller may create (RBAC `canCreate` is resolved
- *     server-side by fa/page.tsx and passed down; never render-then-disable, the
- *     action is simply absent when forbidden so the client form can never create
- *     what the server would reject).
+ *     here).
  *
- * This wires the previously-orphaned FaCreateModal (G-1: the "+ Create FG"
- * button was dead) into the FG list page, mirroring the brief modals host
- * (apps/web/app/[locale]/(app)/(npd)/briefs/_components/brief-modals-host.tsx).
+ * The page (fa/page.tsx) calls `buildFaCreateModalProps(locale)` and passes the
+ * result into FaListTable, which renders the FaCreateModal INLINE in the same
+ * client island as the "+ Create FG" button. This is the NF root-cause fix:
+ * the previous design mounted the modal in a SEPARATE `?modal=` client island,
+ * so the button was dead on a fresh hard load (it only worked after an SPA nav,
+ * once both islands had hydrated and the router round-trip could reach the other
+ * island). Collapsing trigger + modal into one island makes the button robust on
+ * first paint.
+ *
+ * RBAC is still enforced server-side: page.tsx injects the Server Action ONLY
+ * when `canCreate` is true (resolved server-side); the client form can never
+ * create what the server would reject.
  *
  * Prototype parity source (1:1): modals.jsx:9-43 (FACreateModal / MODAL-01).
  */
 
 import { getTranslations } from 'next-intl/server';
 
-import { FaCreateModalHost } from './fa-create-modal-host';
 import { type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
 import { createFa } from '../../../../../(npd)/fa/actions/create-fa';
 
@@ -54,7 +58,7 @@ function translateLabel(t: (key: string) => string, key: keyof FaCreateLabels): 
   }
 }
 
-async function buildLabels(locale: string): Promise<FaCreateLabels> {
+export async function buildFaCreateLabels(locale: string): Promise<FaCreateLabels> {
   try {
     const t = await getTranslations({ locale, namespace: 'npd.faCreateModal' });
     return LABEL_KEYS.reduce((labels, key) => {
@@ -68,22 +72,25 @@ async function buildLabels(locale: string): Promise<FaCreateLabels> {
 
 // Server Action adapter (RHF input → T-008 createFa). Keeps the client modal a
 // pure form; the action is a server reference passed across the boundary.
-const createFaAction: CreateFaAction = async (input) => {
+export const createFaAction: CreateFaAction = async (input) => {
   'use server';
   return createFa(input);
 };
 
-export type FaCreateHostProps = {
-  locale: string;
-  /** RBAC resolved server-side by fa/page.tsx (npd.fa.create / fg.create). */
-  canCreate: boolean;
+export type FaCreateModalProps = {
+  labels: FaCreateLabels;
+  /** Provided only when the caller may create (RBAC resolved server-side). */
+  action: CreateFaAction | undefined;
 };
 
-export async function FaCreateHost({ locale, canCreate }: FaCreateHostProps): Promise<React.ReactElement> {
-  const labels = await buildLabels(locale);
-
-  // RBAC: inject the Server Action ONLY when permitted.
-  return <FaCreateModalHost labels={labels} createFaAction={canCreate ? createFaAction : undefined} />;
+/**
+ * Build the props FaListTable needs to render the create modal inline.
+ * RBAC: the Server Action is provided ONLY when `canCreate` is true.
+ */
+export async function buildFaCreateModalProps(
+  locale: string,
+  canCreate: boolean,
+): Promise<FaCreateModalProps> {
+  const labels = await buildFaCreateLabels(locale);
+  return { labels, action: canCreate ? createFaAction : undefined };
 }
-
-export default FaCreateHost;

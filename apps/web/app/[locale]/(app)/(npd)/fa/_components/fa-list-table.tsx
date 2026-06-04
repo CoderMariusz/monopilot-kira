@@ -8,10 +8,14 @@
  *
  * Translation notes (from the prototype):
  *   - window.NPD_FAS                 → server-side withOrgContext read of public.product (page.tsx)
- *   - openModal('faCreate')          → router.push(?modal=faCreate); the FaCreateHost
- *                                       (mounted by page.tsx) maps that URL state to the
- *                                       injected FaCreateModal (G-1 wiring); gated by
- *                                       server-supplied canCreate
+ *   - openModal('faCreate')          → local React state (useState) opens the inlined
+ *                                       FaCreateModal in THIS client island. See the
+ *                                       "Robust open mechanism" note below — the modal is
+ *                                       rendered here (not in a separate `?modal=` island)
+ *                                       so the "+ Create FG" button works on a fresh hard
+ *                                       load, not only after an SPA navigation. The URL
+ *                                       `?modal=faCreate` is still honoured as a deep-link
+ *                                       seed. Gated by server-supplied canCreate.
  *   - onOpenFA(code)                 → next/link row navigation to /(npd)/fa/[productCode]
  *   - inline status badge helper     → shadcn Badge variants (status pill)
  *   - dept ✓/◐/⊘/– glyphs            → accessible dept indicator (icon + sr-only label, color is never sole signal)
@@ -32,6 +36,15 @@ import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
+
+const LOCALES = ['en', 'pl', 'ro', 'uk'];
+
+function localePrefixFrom(pathname: string | null): string {
+  const segment = (pathname ?? '/').split('/')[1] ?? '';
+  return LOCALES.includes(segment) ? `/${segment}` : '';
+}
 
 export type FaStatusOverall = 'Built' | 'Complete' | 'Alert' | 'InProgress' | 'Pending';
 export type DeptState = 'done' | 'inprog' | 'blocked' | 'pending';
@@ -199,11 +212,24 @@ export function FaListTable({
   labels,
   canCreate,
   state = 'ready',
+  createModalLabels,
+  createFaAction,
 }: {
   rows: FaListRow[];
   labels: FaListLabels;
   canCreate: boolean;
   state?: PageState;
+  /**
+   * FaCreateModal labels, server-resolved (next-intl) by page.tsx. When present
+   * the "+ Create FG" modal is rendered inline in this client island.
+   */
+  createModalLabels?: FaCreateLabels;
+  /**
+   * Real createFa Server Action (T-008), injected by page.tsx ONLY when the
+   * caller may create (RBAC resolved server-side). Absent ⇒ Create is disabled;
+   * RBAC is never decided or trusted on the client.
+   */
+  createFaAction?: CreateFaAction;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -212,6 +238,41 @@ export function FaListTable({
   const [search, setSearch] = React.useState('');
   const [deptFilter, setDeptFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
+
+  // Robust open mechanism (NF root-cause fix):
+  //   The modal open state lives HERE, in the same client island as the button.
+  //   The button's onClick flips local state synchronously — it never depends on
+  //   a router round-trip reaching a separate `?modal=` island. This guarantees
+  //   the button works on a fresh HARD LOAD (the previous split-island wiring was
+  //   dead for real users on first paint and only worked after an SPA nav).
+  //   The URL `?modal=faCreate` is honoured purely as a deep-link/SSR SEED so the
+  //   dialog also mounts open on initial paint when linked directly.
+  const seedOpen = (searchParams?.get('modal') ?? null) === 'faCreate';
+  const [createOpen, setCreateOpen] = React.useState(seedOpen);
+
+  function openCreate() {
+    setCreateOpen(true);
+    // Reflect the open state in the URL so a deep link / refresh re-opens it and
+    // back-button closes it — best-effort, never required for the dialog to open.
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.set('modal', 'faCreate');
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function closeCreate() {
+    setCreateOpen(false);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('modal');
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : (pathname ?? '/'));
+  }
+
+  function onCreated(productCode: string) {
+    setCreateOpen(false);
+    // Canonical FA detail route: /[locale]/fa/[productCode].
+    const localePrefix = localePrefixFrom(pathname);
+    router.push(`${localePrefix}/fa/${productCode}`);
+  }
 
   const filtered = React.useMemo(() => {
     return rows.filter((row) => {
@@ -234,15 +295,6 @@ export function FaListTable({
     setSearch('');
     setDeptFilter('all');
     setStatusFilter('all');
-  }
-
-  // G-1 wiring: the "+ Create FG" button opens the FaCreateModal via the
-  // `?modal=faCreate` query trigger (mirrors the brief openModal pattern). The
-  // FaCreateHost mounted by page.tsx maps this URL state to the injected modal.
-  function openModal(modal: string) {
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    params.set('modal', modal);
-    router.push(`${pathname}?${params.toString()}`);
   }
 
   const deptOptions = [
@@ -273,7 +325,7 @@ export function FaListTable({
           </p>
         </div>
         {canCreate ? (
-          <Button type="button" aria-label={labels.createFa} onClick={() => openModal('faCreate')}>
+          <Button type="button" aria-label={labels.createFa} onClick={openCreate}>
             {labels.createFa}
           </Button>
         ) : null}
@@ -433,6 +485,24 @@ export function FaListTable({
           </div>
         )}
       </section>
+
+      {/*
+        Robust create modal — rendered INLINE in this client island so the
+        "+ Create FG" button (above) opens it via local state on a fresh hard
+        load. RBAC: only present when the caller may create (canCreate) AND the
+        server-resolved labels are supplied; the real createFa action is injected
+        by page.tsx only when permitted (absent ⇒ Create disabled). Never trusted
+        from the client.
+      */}
+      {canCreate && createModalLabels ? (
+        <FaCreateModal
+          open={createOpen}
+          labels={createModalLabels}
+          createFaAction={createFaAction}
+          onCreated={onCreated}
+          onClose={closeCreate}
+        />
+      ) : null}
     </main>
   );
 }
