@@ -1430,6 +1430,32 @@
       "error": "Nie można załadować listy kontrolnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do wyświetlenia tej listy kontrolnej bramki."
     },
+    "advanceGateModal": {
+      "title": "Przejście do następnej bramki",
+      "gateTransition": "Przejście bramki",
+      "currentTag": "Bieżąca",
+      "targetTag": "Docelowa",
+      "approvalRequired": "Wymagane zatwierdzenie — kierownik/dyrektor musi zatwierdzić tę bramkę.",
+      "checklistSummary": "Podsumowanie listy kontrolnej — {gate}: {label}",
+      "done": "Gotowe",
+      "blocking": "Blokujące",
+      "optional": "Opcjonalne",
+      "requiredComplete": "Ukończono {done} z {total} wymaganych pozycji",
+      "blockersTitle": "Blokady: {count}",
+      "readyAlert": "Brak blokad — gotowe do przejścia!",
+      "notesLabel": "Notatki dotyczące przejścia bramki",
+      "notesPlaceholder": "Podsumuj ukończenie, warunki lub uwagi na potrzeby ścieżki audytu…",
+      "notesHint": "Wymagane na potrzeby ścieżki audytu",
+      "cancel": "Anuluj",
+      "advance": "Przejdź do {gate}: {nextLabel}",
+      "advancing": "Przetwarzanie…",
+      "successTitle": "Przejście do bramki {gate}: {nextLabel}",
+      "successBody": "Zaktualizowano dziennik audytu",
+      "loading": "Ładowanie szczegółów bramki…",
+      "empty": "Brak skonfigurowanej listy kontrolnej dla tej bramki.",
+      "error": "Nie można przejść do następnej bramki. Spróbuj ponownie.",
+      "forbidden": "Nie masz uprawnień do przechodzenia tej bramki."
+    },
     "briefModals": {
       "create": {
         "title": "Nowy brief",
