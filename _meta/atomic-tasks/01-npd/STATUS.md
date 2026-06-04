@@ -86,7 +86,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-072 | Nutrition computation Server Action + Nutri-Score | ✅ DONE | DONE 2026-06-04 (Wave C). Nutrition compute Server Action + Nutri-Score (mig 110, @monopilot/domain) — Codex, REAL integration tests, NUMERIC-exact. merged. Nit: Nutri-Score fiber/FVN=0 (RM schema lacks cols, deviation) |
 | T-073 | Costing 9-step waterfall + scenario Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Costing 9-step waterfall + scenario action (apps/web/lib/costing) + mig 108 (scenario params jsonb) — Opus impl-hard + rework (exact margin gate, persist params, bounds). Codex review. NUMERIC-exact. merged |
 | T-074 | UI: NutritionScreen | ✅ DONE | DONE 2026-06-04 (Wave D). NutritionScreen (per-100g traffic-light + Nutri-Score) — real data (nutrition_profiles+Reference.Nutrients+nutri_score_results), prototype parity (other-stages.jsx:4-80), 16 RTL, tsc0, i18n npd.nutrition x4, parity-evidence harness. kira-ui. axe/Codex-review deferred to Gate-5 |
-| T-075 | UI: CostingScreen | ⬜ PENDING | Blocked by T-073 |
+| T-075 | UI: CostingScreen | ✅ DONE | DONE 2026-06-04 (Wave D). CostingScreen — 9-step waterfall + margin-warn, real costing data (composite-PK join), NUMERIC-exact, new @monopilot/ui Slider, parity (other-stages.jsx:83-163), 20 RTL, tsc0, i18n npd.costing x4. kira-ui. axe deferred Gate-5 |
 | T-076 | DEFERRED/CROSS-MODULE: Sensory UI (Technical-owned) | ⬜ PENDING | Deferred by design; owned by 03-technical |
 | T-077 | Reference.ApprovalChainTemplates table | ✅ DONE | DONE 2026-06-04 (Wave B). Reference.ApprovalChainTemplates (mig 098, zod) — merged |
 | T-078 | Approval criteria (C1-C7) evaluator Server Action | ✅ DONE | DONE 2026-06-04 (Wave C). Approval criteria C1-C7 evaluator Server Action — merged |
@@ -97,7 +97,7 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-083 | compliance_docs table + storage policy | ✅ DONE | DONE 2026-06-04 (Wave A1 batch-2). compliance_docs + storage policy + expiry/soft-delete (mig 089) — merged; ready for T-085 expiry cron |
 | T-084 | Compliance docs upload + signed URL + soft-delete | ✅ DONE | DONE 2026-06-04 (Wave C). Compliance docs upload + signed URL + soft-delete + compliance_doc.* events (mig 119) — merged (batch-3: red-line+real-test self-review at time-boundary, not full subagent) |
 | T-085 | compliance_docs_expiry_scan SECURITY DEFINER cron | ✅ DONE | DONE 2026-06-04 (Wave C). compliance_docs expiry-scan cron (mig 124, apps/worker) + compliance_doc.expired/expiring events — merged |
-| T-086 | UI: ComplianceDocsScreen + DocUploadModal | ⬜ PENDING | Blocked by T-084 |
+| T-086 | UI: ComplianceDocsScreen + DocUploadModal | ✅ DONE | DONE 2026-06-04 (Wave D). ComplianceDocsScreen + DocUploadModal — real compliance_docs (T-084), expiry status badges (T-085 thresholds), signed-URL download, §19 MIME/20MB validation, parity (docs-screens.jsx:6-53 + modals.jsx:667-689), 17 RTL, tsc0, i18n npd.compliance x4. kira-ui. axe deferred |
 | T-087 | E2E: V18 built-blocker (high-risk → cannot build) | ⬜ PENDING | Blocked by T-080, T-081, T-082 |
 | T-088 | E2E: compliance doc upload → expiry job → dashboard | ⬜ PENDING | Blocked by T-084, T-085, T-086 |
 | T-089 | GDPR right-to-erasure function | ✅ DONE | DONE 2026-06-04 (Wave C). NPD GDPR right-to-erasure (mig 115/116) — Opus+rework (production cron registration, gdpr.erasure.execute enum+baseline+seed, prod_detail branch). Codex review. SATISFIES foundation T-115 |
