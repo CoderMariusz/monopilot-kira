@@ -4,7 +4,7 @@
   "generated_at": "2026-05-14T00:00:00Z",
   "generator": "prd-decompose-bootstrap-14-multi-site",
   "pipeline_name": "kira_dev",
-  "task_count": 31,
+  "task_count": 32,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -36,7 +36,8 @@
     "tasks/T-028.json",
     "tasks/T-029.json",
     "tasks/T-030.json",
-    "tasks/T-031.json"
+    "tasks/T-031.json",
+    "tasks/T-032.json"
   ],
   "coverage_file": "coverage.md"
 }

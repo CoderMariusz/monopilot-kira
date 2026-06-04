@@ -42,7 +42,7 @@ canonical_spec: _meta/audits/2026-05-14-tenant-context-remediation.md
 |---|---|---|
 | Drizzle schema (module barrel) | `packages/db/schema/<module>.ts` | NOT `packages/db/src/schema/` — actual project uses `packages/db/schema/` (verified 2026-05-14). Re-exported via `packages/db/schema/index.ts`. |
 | Schema barrel index | `packages/db/schema/index.ts` | Append re-export for every new schema file |
-| Migration (numbered) | `packages/db/migrations/NNNN-<descriptor>.sql` | Three-digit zero-pad through 999, then four-digit. Highest existing number wins — bump by 1. Hyphens, lowercase. |
+| Migration (numbered) | `packages/db/migrations/NNN-<descriptor>.sql` | **Runner regex is `^(\d{3})-[a-z0-9-]+\.sql$`** — three-digit prefix, hyphen, lowercase a-z0-9, `.sql`. A `0NN_` underscore name or a 4-digit prefix is **silently skipped** (never runs) and/or sorts wrong. Highest existing number wins — `git ls-files packages/db/migrations \| sort \| tail`, bump by 1. |
 | Test (contract) | `packages/db/__tests__/<table>.test.ts` or `packages/<module>/__tests__/<table>.test.ts` | testcontainers Postgres 16 + run migration + assert behaviour |
 | Cross-module schema | `packages/<module>/src/schema/*.ts` | Allowed when a domain package owns its own read-models (e.g., `packages/reporting/src/schema/reporting-views.ts`). Re-export from `packages/db/schema/index.ts` only if business tables. |
 
@@ -255,6 +255,8 @@ If the project ships a contract test (`_foundation/__tests__/marker-discipline.t
 - Putting `site_id` on a table where the module is not multi-site — bloat + index churn + breaks composite-index PRD anchors.
 - Bare `numeric` for money columns — variance KPIs round wrong; reviewer hard-fails per F1 fixer notes.
 - Adding seed data inside the migration — that is T5-seed, separate task.
+- **Editing an already-applied migration** — migrations are checksum-tracked; mutating an applied file makes the runner refuse or skip silently and the live schema drifts from the repo. ALWAYS add a new forward migration (next number) instead of editing a shipped one. (This + a fail-silent build deployed a stale schema to 02-settings live.)
+- **Naming a migration `0NN_*` or with a 4-digit prefix** — the runner regex `^(\d{3})-[a-z0-9-]+\.sql$` skips it silently (it never runs), so the table is missing live while local tests that re-run all SQL still pass. Use a 3-digit prefix ≥ current HEAD, hyphen-separated, lowercase.
 
 ## Cross-links
 

@@ -85,3 +85,20 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 - 09-QUALITY quality_holds, hold_items — absent; blocks T-006, T-012
 - 05-WAREHOUSE license_plates — T-002 ⬜ per module STATUS; blocks T-007
 - 15-OEE oee_daily_summary — module not audited; absent; blocks T-011, T-019
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-028 | Seed rpt.* permissions onto roles (NNN-reporting-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-001 enum. |
+
+Refinements / gaps (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| MON-domain-reporting skill (S-1, X-6) | skill gap | ⬜ TODO | Author `.claude/skills/MON-domain-reporting/SKILL.md` (read-only sink, MV discipline, KPI glossary SoT, export+retention, org_id, access gate, catalog metadata, parity) + register in MON-INDEX. Run /kira:skills-overhaul. |
+| Upstream site_id pre-flight (S-2, F-1) | pre-flight gate | ⬜ TODO | Add to T-003/006/007: assert upstream site_id exists before MV creation, else block on day-1 retrofit OR degrade to org-only grouping with tracked follow-up ALTER (CONCURRENTLY refresh hinges on the unique-index shape). |
+| UI route path (X-3) | consolidation pass | ⬜ TODO | Rewrite reporting T3-ui paths `apps/web/app/reporting/...` → `apps/web/app/[locale]/(app)/(modules)/reporting/...`. |

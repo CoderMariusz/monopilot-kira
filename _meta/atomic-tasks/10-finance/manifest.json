@@ -4,7 +4,7 @@
   "generated_at": "2026-05-14T00:00:00Z",
   "generator": "module-bootstrap-2026-05-14",
   "pipeline_name": "kira_dev",
-  "task_count": 32,
+  "task_count": 33,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -37,7 +37,8 @@
     "tasks/T-029.json",
     "tasks/T-030.json",
     "tasks/T-031.json",
-    "tasks/T-032.json"
+    "tasks/T-032.json",
+    "tasks/T-033.json"
   ],
   "coverage_file": "coverage.md"
 }

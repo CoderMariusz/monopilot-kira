@@ -1,0 +1,101 @@
+{
+  "title": "T-034 — Allergen-label validators (V-SHIP-LBL-01..05) + SSCC-ASN allergen element",
+  "prompt": "# T-034 — Allergen-label validators (V-SHIP-LBL-01..05)\n\n## Goal\nPRD §4.1 #6 lists allergen labelling on packing slip + BOL + SSCC ASN as a P1 Must, and §11 defines V-SHIP-LBL-01..05. Existing T-023 covers bold allergen list rendering on BOL/packing-slip PDFs, but no task owns the validator suite as a testable unit, nor the SSCC ASN Allergens GTIN-linked element (§13.3). Closes finding S-1. Scope = P1 validators + the allergen data-element shape only (the full retailer ASN file EDI-856/EPCIS JSON-LD is P2).\n\n## Implementation contract\n- `apps/web/lib/services/shipping-allergen-label-validator.ts` [create] — pure functions implementing V-SHIP-LBL-01..05; consumes products.allergens (03-TECH) + customers.allergen_restrictions; calls allergen_cascade_v1 (03-TECH rule).\n  - V-SHIP-LBL-01: allergen list matches BOM cascade (via allergen_cascade_v1)\n  - V-SHIP-LBL-02..04: no missing EU-14 allergens; customer-restriction conflict → segregation warning on picking sequence\n  - V-SHIP-LBL-05: format validation\n- unit tests [create] asserting each rule (pass + fail + segregation-warning paths).\n- wire into T-023 (BOL/packing-slip generation) and T-013/T-016 (pick segregation warning) as a function call.\n\n## Out of scope\n- Retailer ASN transport file (EDI-856 / EPCIS JSON-LD) — P2 Epic 11-G/11-L.\n- GS1 Digital Link QR — P2 (D-SHP-16).\n\n## GS1 sourcing rule\nThe SSCC ASN allergen element references the product GTIN; any SSCC/GTIN identifier MUST read the GS1 company prefix from `organizations.gs1_company_prefix` (02-settings) — never from local config or a hardcoded value.\n\n## Acceptance criteria\n- AC1 — All five V-SHIP-LBL rules have RED-first unit tests, green.\n- AC2 — BOL/packing-slip generation (T-023) rejects/flags per validators.\n- AC3 — Pick flow shows segregation warning on customer-restricted allergen conflict.",
+  "labels": [
+    "prd",
+    "allergen",
+    "validators",
+    "T2-api",
+    "sidecar",
+    "new-task",
+    "compliance"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-034",
+    "source_prd": "docs/prd/11-SHIPPING-PRD.md",
+    "prd_refs": [
+      "§4.1",
+      "§11",
+      "§13.3"
+    ],
+    "category": "api",
+    "subcategory": "validators",
+    "task_type": "T2-api",
+    "parent_feature": "11-shipping-f-documents",
+    "context_budget": "40k",
+    "estimated_effort": "4-6h",
+    "description": "New task: allergen-label validator suite V-SHIP-LBL-01..05 (pure functions) + SSCC ASN allergen data element shape (P1), wired into T-023 BOL/packing-slip + T-013/T-016 pick segregation. Source: sidecar m11-T-033 stub (finding S-1). ASN transport file stays P2.",
+    "details": "V-SHIP-LBL-01 list==BOM cascade (allergen_cascade_v1); 02..04 missing EU-14 + customer-restriction conflict→segregation warning; 05 format. Consumes products.allergens (03-TECH) + customers.allergen_restrictions. P2 excluded: EDI-856/EPCIS ASN file, GS1 Digital Link QR.",
+    "scope_files": [
+      "apps/web/lib/services/shipping-allergen-label-validator.ts [create]",
+      "apps/web/lib/services/__tests__/shipping-allergen-label-validator.test.ts [create]",
+      "_meta/atomic-tasks/11-shipping/tasks/T-023.json [modify]"
+    ],
+    "out_of_scope": [
+      "Retailer ASN transport file (EDI-856 / EPCIS JSON-LD) — P2 Epic 11-G/11-L.",
+      "GS1 Digital Link QR — P2 (D-SHP-16)."
+    ],
+    "dependencies": [
+      "T-001",
+      "T-006",
+      "T-023"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "03-technical",
+        "task_id": "T-084",
+        "reason": "allergen_cascade_v1 rule + products.allergens consumed by the validators (resolve exact 03-TECH task id during consolidation)."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-001",
+        "reason": "product FG allergens SSOT."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "All five V-SHIP-LBL rules have RED-first unit tests, green.",
+      "BOL/packing-slip generation (T-023) rejects/flags per validators.",
+      "Pick flow shows segregation warning on customer-restricted allergen conflict."
+    ],
+    "test_strategy": [
+      "RED: unit tests for each V-SHIP-LBL rule (pass + fail + segregation-warning) before implementation.",
+      "GREEN: implement pure validator functions; wire into T-023 + T-013/T-016."
+    ],
+    "risk_red_lines": [
+      "Keep ASN transport (EDI-856/EPCIS) out of scope — P2.",
+      "Consume 03-TECH allergen_cascade_v1; do not duplicate the cascade logic.",
+      "Validators are pure functions (no DB writes)."
+    ],
+    "skills": [
+      "MON-domain-shipping",
+      "MON-integrations-compliance",
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "medium"
+  }
+}

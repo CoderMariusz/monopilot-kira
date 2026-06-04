@@ -39,6 +39,15 @@ is canonical (matches the app shell + next-intl routing the skeleton uses); the 
 tree is likely stale/duplicate. During the module: consolidate onto the localized tree (don't leave dead
 duplicate routes), confirm every AppSidebar/settings sub-nav link resolves to a real localized page with real data.
 
+## RBAC permission SEED (P0 — caused 403-everywhere live in this module)
+Adding `settings.*` strings to `permissions.enum.ts` does NOT grant them; the live preview returned 403 on
+every settings page until a seed migration ran. Ship a wave-1 P0 `NNN-settings-permission-seed.sql` (mirror
+migrations `116`/`146`/`148`/`150`) that GRANTs every `settings.*` perm to the **org-admin role family**
+(`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin` — the deployed `admin@monopilot.test` is on
+`org.access.admin`, NOT `admin`) in BOTH `role_permissions` and the legacy `roles.permissions` jsonb, with an
+org-insert trigger + backfill. The strings GRANTed must equal the strings the pages CHECK (vocabulary divergence
+= silent 403). Full pattern: `MON-multi-tenant-site` §"Granting permissions (the SEED half)".
+
 ## Domain ownership / canonical (don't cross)
 - RBAC: `packages/rbac` `grantRole`/`revokeRole` are canonical (SoD/dual-control/jti guards) — call them,
   never fork. Permission strings via `permissions.enum.ts` (append-serialize; settings adds `settings.*`).

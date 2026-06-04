@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T00:00:00Z",
   "generator": "manual-wave0-readiness-95-plus-technical-ui-parity-patch",
   "pipeline_name": "kira_dev",
-  "task_count": 91,
+  "task_count": 93,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -96,7 +96,9 @@
     "tasks/T-088.json",
     "tasks/T-089.json",
     "tasks/T-090.json",
-    "tasks/T-091.json"
+    "tasks/T-091.json",
+    "tasks/T-092.json",
+    "tasks/T-093.json"
   ],
   "coverage_file": "coverage.md",
   "notes": [
@@ -106,6 +108,8 @@
     "T-084 sensory contract added",
     "T-085..T-089 spec-driven tasks close Technical no-prototype blockers",
     "T-090 split UI half of factory_spec+BOM bundle approval",
-    "UI evidence policy applied across 00-03 UI tasks"
+    "UI evidence policy applied across 00-03 UI tasks",
+    "T-092 sensory UI added 2026-06-04 (sidecar prep) — closes orphaned 01-npd T-076 deferral; consumes T-084; source _meta/runs/sidecar/proposed-tasks/plan-sensory-ui.md",
+    "T-093 technical-permission-seed RBAC GRANT added 2026-06-04 (sidecar prep) — X-1 reachability fix; grants technical.* (T-091) to org-admin role family; models migration 149"
   ]
 }

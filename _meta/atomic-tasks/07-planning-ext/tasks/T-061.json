@@ -1,0 +1,92 @@
+{
+  "title": "T-061 — Provision + wire planner-solver host (deploy target + env contract + circuit breaker)",
+  "prompt": "# T-061 — Planner-solver hosting + env contract\n\n## Goal\nPRD §285: the Python solver runs in a separate Python microservice, NOT in Next.js / Vercel. Current tasks only SCAFFOLD it (T-021 code+Dockerfile, T-012 dispatch, T-022/T-023 algorithms); NO task says where it runs → the scheduler cannot run end-to-end. Closes 07-F1. NOTE: contains a HOSTING DECISION (Fly.io/Render/Cloud Run/Railway).\n\n## Scope\n1. Decide + document host for services/planner-solver (ADR note): always-on or fast-cold-start container, Postgres connectivity to Supabase pooler (eu-central-2), secret-based auth.\n2. Env contract: add PLANNER_SOLVER_URL + PLANNER_SOLVER_SECRET to Vercel env + .env schema; document in Mon-vercel/deploy docs.\n3. Next.js side integration: dispatch reads the solver URL/secret, calls the solver, degrades gracefully (circuit breaker → run stays queued/failed with typed error, never 500s).\n4. Deploy hook: CI/CD or documented manual step to build+push the solver image (kept out of the Next-only Vercel build).\n5. Health probe: wire solver /health into a readiness check.\n\n## Acceptance criteria\n- AC1 — A scheduler run dispatched from the deployed Next.js app reaches the deployed solver and returns assignments end-to-end on preview env (live evidence).\n- AC2 — Solver-down: run row → typed failed/queued state with user-visible message; no unhandled 500.\n- AC3 — Env vars present in Vercel preview; secret never logged (pino redaction).\n\n## Note\nSame hosting question applies to the P2 Prophet forecaster (T-054) — fold into the same decision or explicitly defer with P2.",
+  "labels": [
+    "prd",
+    "ops",
+    "infra",
+    "T2-api",
+    "sidecar",
+    "decision-embedded",
+    "high-risk"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-061",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
+    "prd_refs": [
+      "§285"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "07-planning-ext-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Decide + provision the planner-solver host (NOT Vercel) + env contract (PLANNER_SOLVER_URL/SECRET) + graceful degrade circuit breaker + deploy hook + health probe. Solver is un-runnable as currently tasked. Source: sidecar m07-solver-hosting stub. Contains a hosting DECISION — see STATUS 🔒 row; same host covers P2 forecaster T-054.",
+    "details": "Decide + provision the planner-solver host (NOT Vercel) + env contract (PLANNER_SOLVER_URL/SECRET) + graceful degrade circuit breaker + deploy hook + health probe. Solver is un-runnable as currently tasked. Source: sidecar m07-solver-hosting stub. Contains a hosting DECISION — see STATUS 🔒 row; same host covers P2 forecaster T-054.",
+    "scope_files": [
+      "services/planner-solver/* [modify]",
+      ".env.example [modify]",
+      "apps/web/lib/scheduler/dispatch.ts [modify]",
+      "docs/workflow/* [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [
+      "T-021",
+      "T-012",
+      "T-062"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "reason": "apps/worker may host the dispatch if reconciled through the worker rather than direct HTTP (see T-062)."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Scheduler run reaches the deployed solver and returns assignments end-to-end on preview env (live evidence).",
+      "Solver-down → typed failed/queued state with user message; no unhandled 500.",
+      "Env vars present in Vercel preview; secret never logged."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Do NOT run FastAPI inside Vercel functions.",
+      "Solver connects with least-privilege DB role; respect RLS/org scoping.",
+      "No secrets in client bundle or logs."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

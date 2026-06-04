@@ -1,0 +1,94 @@
+{
+  "title": "T-062 — Reconcile scheduler→solver dispatch onto the canonical outbox/worker primitive",
+  "prompt": "# T-062 — Reconcile solver dispatch to outbox/worker\n\n## Goal\nThe scheduler async path uses Postgres NOTIFY (T-012) + a LISTEN listener.py (T-021), which does not survive Vercel serverless boundaries and has no DLQ/retry/durability. 00-FOUNDATION already shipped the canonical durable async path: outbox + apps/worker + queue (T-111/T-112 with DLQ at attempts≥5, idempotency, retry). Closes 07-F3.\n\n## Scope (pick one, document as an ADR note)\n- Option A (preferred): dispatch via outbox event scheduler.run.requested → apps/worker consumer calls the deployed solver over authenticated HTTP (T-061). Update T-012 to enqueue an outbox event instead of NOTIFY; retire/repurpose listener.py (T-021) to a plain HTTP /solve handler.\n- Option B (only if A rejected): keep LISTEN/NOTIFY but add a documented exception + recovery sweep + confirmation the listener runs in a persistent process (not Vercel).\n\n## Acceptance criteria\n- AC1 — Decision recorded (ADR-style) referencing T-111/T-112.\n- AC2 — Option A: a run requested while the solver is down is retried and eventually delivered (or DLQ'd after N attempts) — integration test.\n- AC3 — No reliance on a persistent LISTEN connection inside Vercel web functions; run-level idempotency (T-024) preserved end-to-end.",
+  "labels": [
+    "prd",
+    "architecture",
+    "outbox",
+    "T2-api",
+    "sidecar",
+    "high-risk"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-062",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
+    "prd_refs": [
+      "§285"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "07-planning-ext-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Reconcile scheduler→solver dispatch from Postgres NOTIFY/LISTEN onto the canonical outbox + apps/worker primitive (T-111/T-112) for DLQ/retry/idempotency; or document an explicit exception. Source: sidecar m07-solver-dispatch-reconcile stub.",
+    "details": "Reconcile scheduler→solver dispatch from Postgres NOTIFY/LISTEN onto the canonical outbox + apps/worker primitive (T-111/T-112) for DLQ/retry/idempotency; or document an explicit exception. Source: sidecar m07-solver-dispatch-reconcile stub.",
+    "scope_files": [
+      "_meta/atomic-tasks/07-planning-ext/tasks/T-012.json [modify]",
+      "_meta/atomic-tasks/07-planning-ext/tasks/T-021.json [modify]",
+      "apps/worker/* [create]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [
+      "T-012",
+      "T-021",
+      "T-024"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "reason": "apps/worker JobRegistry hosts the scheduler.run.requested consumer."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-112",
+        "reason": "outbox primitive provides DLQ/retry/idempotency for solver dispatch."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Decision recorded (ADR) referencing T-111/T-112.",
+      "Option A: run requested while solver down is retried and eventually delivered or DLQ'd after N attempts (integration test).",
+      "No persistent LISTEN inside Vercel web functions; T-024 idempotency preserved."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Do NOT introduce a third async mechanism.",
+      "Preserve at-least-once + idempotent-replay semantics of the outbox."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

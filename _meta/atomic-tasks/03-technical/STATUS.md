@@ -94,4 +94,6 @@
 | T-088 | UI: TEC-045 Lab Results Log spec-driven | ⬜ | Blocked by T-005 |
 | T-089 | UI: TEC-052 Cost Import from D365 spec-driven | ⬜ | Blocked by T-003 + T-028 |
 | T-090 | UI: FactorySpec+BOM bundle approval panel | ⬜ | Blocked by T-079 + T-080 |
-| T-091 | Add technical permission strings to enum (p0-blocker) | ⏸ | 1/10 strings in enum (`technical.product_spec.approve`); `ALL_TECHNICAL_PERMISSIONS` export absent; 9 strings + export missing |
+| T-091 | Add technical permission strings to enum (p0-blocker) | ⏸ | Only `technical.product_spec.approve` present (and misclassified under `ALL_SETTINGS_EXT_PERMISSIONS`); **9 of the 10 §3 strings missing** (items.create/edit/deactivate, bom.create/approve/version_publish/generate_batch, allergens.edit, cost.edit, d365.sync_trigger) + `ALL_TECHNICAL_PERMISSIONS` export absent. Scope also covers consolidating `technical.product_spec.approve` into the technical family. Enum-only is NOT enough — pair with the T-093 grant seed. |
+| T-092 | UI: TEC Sensory Evaluation screen (consumes T-084) | ⬜ | NEW (sidecar prep 2026-06-04). Closes orphaned 01-npd T-076 sensory-UI deferral (no owning impl task existed); consumes T-084 read model; read-only badge to NPD (no gate-ownership move). Blocked by T-084. |
+| T-093 | Seed: grant technical.* to org-admin role family (technical-permission-seed.sql) | ⬜ | NEW (sidecar prep 2026-06-04). X-1 reachability fix — enum strings alone 403 every technical page for the org admin at Gate-5. Models migration 149-npd-permissions-org-admin-seed.sql. Blocked by T-091. |

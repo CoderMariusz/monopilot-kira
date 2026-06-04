@@ -185,6 +185,20 @@ See `_meta/audits/2026-05-14-permission-enum-addition.md` for the full pattern a
 
 Do NOT add `// eslint-disable-next-line` for this rule — reviewers reject it (T-130 risk red line).
 
+### Granting permissions (the SEED half — the #1 recurring LIVE bug)
+
+**Adding a permission string to `permissions.enum.ts` does NOT grant it to anyone.** The enum is just vocabulary. If you stop after the enum-lock steps above, the deployed app returns **403 on every page that CHECKs the new permission** — and vitest+tsc are both green, so only Gate-5 live click-through catches it. This hit BOTH 01-npd and 02-settings.
+
+Every module that introduces permission strings MUST ship a wave-1 P0 seed migration `NNN-<module>-permission-seed.sql` (mirror existing migrations `116` / `146` / `148` / `150`) that:
+
+1. **GRANTs the module's perms to the org-admin role family — not just `admin`.** The deployed test admin is on role **`org.access.admin`**, NOT `admin`. Grant to the whole family so any admin-shaped role works:
+   `org.access.admin`, `org.platform.admin`, `owner`, `admin`, `org_admin` — plus the relevant operator roles for the module.
+2. **Writes to BOTH stores:** the canonical `role_permissions` table AND the legacy `roles.permissions` jsonb column. Some code paths still read the jsonb; granting only one leaves a half-broken authz surface.
+3. **Adds an org-insert trigger + a backfill.** The trigger grants the perms to admin roles of every newly-created org; the backfill loops existing orgs so already-provisioned tenants (incl. the live test org) get them immediately.
+4. **Uses the EXACT strings the pages CHECK.** Vocabulary divergence — the page checks `settings.users.manage` but the seed grants `settings.user.manage` — is a silent 403 and was a root cause in both npd and settings. Grep the module's `hasPermission(...)` / RBAC-gate call sites and seed precisely those strings.
+
+This is a wave-1 P0 task in `07-MODULE-EXECUTION.md` §"Wave-1 P0 standing tasks" — schedule it before the feature waves, not after. RBAC writes/grants still go through `packages/rbac` canonical helpers where a runtime grant is needed; the seed migration handles the bootstrap/backfill DDL.
+
 ## Cross-module impact when adding site_id
 
 T-030 spans 21 tables across 9 modules. Before adding `site_id` to a new business table:

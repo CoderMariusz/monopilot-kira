@@ -116,3 +116,20 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 | T-045 | SCN-083 Co-product registration UI | ⬜ | blocked: T-042 MISSING |
 | T-046 | SCN-084 Waste registration UI | ⬜ | blocked: T-042 MISSING |
 | T-047 | SCN-070–073 QA scanner UI | ⬜ | blocked: T-043 MISSING |
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-050 | Seed scanner.* permissions onto roles (NNN-scanner-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed (BLOCKER B1). **wave-1 p0**, after T-049 enum + per §12.5; wire nav permission_key → scanner.access. |
+| T-051 | Scanner production writes delegate to 08-production (canonical-owner fix) | ⬜ PENDING | BLOCKER B4. Retag T-042 + audit T-039 so wo_outputs/wo_waste_log/wo_material_consumption writes delegate to 08-production. After 08 exposes output/waste/consume services + 09 T-064 gate. |
+
+Decisions / gaps (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| T-000 scanner workspace | 🔒 DECISION | BLOCKED — HARD BLOCKER B3 | apps/web `(scanner)` route-group (T-134, recommended) vs new apps/scanner workspace. Must decide BEFORE ANY 06 task — paths load-bearing for ~31 UI tasks + parity evidence. Record in `_meta/decisions/`. |
+| MON-domain-scanner skill | X-6 gap | ⬜ TODO | Author `.claude/skills/MON-domain-scanner/SKILL.md` before Wave-B / Codex consensus gate (run /kira:skills-overhaul). |

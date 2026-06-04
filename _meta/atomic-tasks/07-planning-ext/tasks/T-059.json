@@ -1,0 +1,88 @@
+{
+  "title": "T-059 — Wire scheduler.* RBAC across all scheduler routes/pages",
+  "prompt": "# T-059 — Wire scheduler.* RBAC across scheduler routes/pages\n\n## Goal\nMirror 04 T-033: implement/reuse `assertPermission(action, ctx)` reading the role→permission matrix from 02-SETTINGS, wired into every `/api/scheduler/*` route handler (T-012..T-020), every assignment mutation (approve/override/reject/bulk), and every page-level guard (T-030..T-052). Closes X-1 + 07-F2 (07 currently has NEITHER wiring nor seed).\n\n## Scope\n- Permission set per PRD §3.1/§3.2: the 11 scheduler.* strings from T-058 (run, dry_run, assignment.approve, .override, .reject, .bulk_approve, matrix.edit, .publish, .import, forecast.upload, settings.edit).\n- Role gates: Planner Advanced (run/approve/override), Scheduling Officer (dry_run/reject), Admin (all).\n\n## Acceptance criteria\n- AC1 — Each scheduler route returns 403 for a role lacking the perm, 2xx for a role with it (integration tests, real Postgres).\n- AC2 — Page guards redirect/deny ungranted roles.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "rbac-wiring",
+    "T2-api",
+    "sidecar",
+    "wave-1",
+    "sidecar-X1"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-059",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
+    "prd_refs": [
+      "§3.1",
+      "§3.2"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "07-planning-ext-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Wire assertPermission across all /api/scheduler routes + assignment mutations + page guards (mirror 04 T-033). 07 has neither RBAC wiring nor seed today. Source: sidecar m07-rbac-grant-seed stub (T-059 of two).",
+    "details": "Wire assertPermission across all /api/scheduler routes + assignment mutations + page guards (mirror 04 T-033). 07 has neither RBAC wiring nor seed today. Source: sidecar m07-rbac-grant-seed stub (T-059 of two).",
+    "scope_files": [
+      "apps/web/app/api/scheduler/* [modify]",
+      "apps/web/app/[locale]/(app)/(modules)/scheduler/**/page.tsx [modify]",
+      "packages/rbac/src/assert-permission.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [
+      "T-058",
+      "T-060"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "role→permission matrix owned by 02-settings; wiring reads it."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Each scheduler route returns 403 for a role lacking the perm, 2xx for a role with it (integration tests, real Postgres).",
+      "Page guards redirect/deny ungranted roles."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "org_id Wave0 lock; app.current_org_id() scoping; no hardcoded role UUIDs."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

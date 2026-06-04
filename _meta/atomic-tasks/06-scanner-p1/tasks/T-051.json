@@ -1,0 +1,90 @@
+{
+  "title": "T-051 — Scanner production writes delegate to 08-production (canonical-owner fix)",
+  "prompt": "# T-051 — Scanner delegates wo_outputs/wo_waste_log writes to 08-production\n\n## Goal\nRetag T-042 (and audit T-039) so scanner endpoints CALL the 08-production service for any wo_outputs / wo_waste_log / wo_material_consumption write, never INSERT/UPDATE those tables directly. Closes BLOCKER B4 (canonical-owner HARD RULE violation): wo_outputs + wo_waste_log are owned by 08-production; scanner is only the UI trigger.\n\n## Implementation contract\n1. Rewrite T-042 implementation contract + ACs: output/co-product call the 08-production output service; waste calls the 08-production waste service. Scanner service only orchestrates (validate WO state, build payload, emit scanner audit) and delegates the canonical write.\n2. Add a red-line to T-042 + T-039: do not INSERT/UPDATE wo_outputs / wo_waste_log / wo_material_consumption directly — delegate to 08-production via its cross-module contract.\n3. Verify the 08-production task set EXPOSES the consumable services (output/co-product/waste/consume). If absent, raise a cross-module gap against 08.\n4. Audit T-039 consume-to-WO: scanner owns only the 05-warehouse LP side (LP transition + stock_moves(consume_to_wo) + lp_genealogy(consume) + warehouse.material.consumed outbox, AFTER 09-quality T-064 consume gate); WO-side counter update is delegated, not owned.\n\n## Acceptance criteria\n- AC1 — Scanner output: the wo_outputs row is created by the 08-production service (single writer); scanner created only LP + genealogy + scanner_audit_log + outbox.\n- AC2 — Scanner waste: wo_waste_log written by 08-production; no LP created; no direct scanner INSERT into wo_waste_log.\n- AC3 — Consume-to-WO (T-039): warehouse owns LP transition/stock_moves/genealogy + warehouse.material.consumed (post T-064 gate); WO-side counter delegated, not owned by scanner.\n",
+  "labels": [
+    "prd",
+    "canonical-owner",
+    "scanner",
+    "T2-api",
+    "sidecar",
+    "blocker-B4"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-051",
+    "source_prd": "docs/prd/06-SCANNER-P1-PRD.md",
+    "prd_refs": [
+      "§9.8"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "06-scanner-p1-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Retag scanner T-042 (and audit T-039) so wo_outputs/wo_waste_log/wo_material_consumption writes delegate to 08-production; scanner owns only LP + scanner_audit_log + outbox + LP-side of consume. Source: sidecar m06-T051 stub. Closes BLOCKER B4.",
+    "details": "Retag scanner T-042 (and audit T-039) so wo_outputs/wo_waste_log/wo_material_consumption writes delegate to 08-production; scanner owns only LP + scanner_audit_log + outbox + LP-side of consume. Source: sidecar m06-T051 stub. Closes BLOCKER B4.",
+    "scope_files": [
+      "_meta/atomic-tasks/06-scanner-p1/tasks/T-042.json [modify]",
+      "_meta/atomic-tasks/06-scanner-p1/tasks/T-039.json [modify]",
+      "apps/web/lib/services/scanner/scanner-output.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "08-production",
+        "task_id": "T-042",
+        "reason": "08-production owns wo_outputs/wo_waste_log writes; scanner must call its output/waste services (verify they are exposed; raise gap if absent)."
+      },
+      {
+        "module": "09-quality",
+        "task_id": "T-064",
+        "reason": "warehouse.material.consumed outbox emitted ONLY after the 09-quality consume gate passes."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Scanner output: wo_outputs created by 08-production service (single writer); scanner only created LP + genealogy + scanner_audit_log + outbox.",
+      "Scanner waste: wo_waste_log written by 08-production; no direct scanner INSERT.",
+      "Consume-to-WO: warehouse owns LP side post-T-064 gate; WO-side counter delegated."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Scanner must NOT own any wo_* canonical table write.",
+      "material.consumed outbox emitted ONLY after 09-quality T-064 consume gate passes."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

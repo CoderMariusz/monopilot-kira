@@ -97,3 +97,19 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 - **⏸ STUB:** 1 (T-053 — skeleton landing page only)
 - **✅ DONE:** 0
 - **Blockers for first task:** T-001 (enums) must land before T-002–T-012; T-023 has a package path mismatch requiring reconciliation.
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-059 | Seed warehouse.* permissions onto roles (NNN-warehouse-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed (BLOCKER B1). **wave-1 p0**, after T-058 enum. Per-role grants per PRD §3; org-admin full set; wire nav permission_key. |
+| T-060 | Consolidate GS1/barcode parser to packages/gs1 | ⬜ PENDING | **do FIRST**, before T-023 and SCN T-003. Resolves triple-conflict (barcode-parser / scanner-utils / lib/utils) → one shared `packages/gs1`. |
+
+Refinements (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| Migration renumber (X-2) | consolidation pass | ⬜ TODO | Renumber warehouse migrations to ≥ current HEAD (149) before build; runner regex `^(\d{3})-[a-z0-9-]+\.sql$` — stale `0NN_` numbers sort before HEAD and silently never run. |

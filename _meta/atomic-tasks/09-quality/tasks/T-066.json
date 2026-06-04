@@ -1,0 +1,105 @@
+{
+  "title": "T-066 — Seed quality.* permissions onto roles (NNN-09-quality-permission-seed.sql)",
+  "prompt": "# T-066 — Seed quality.* permissions onto roles (NNN-09-quality-permission-seed.sql)\n\n## Goal\nAdd an idempotent SQL seed migration that GRANTS the 13 `quality.*` permission strings (added by T-065) to the org roles named in the PRD RBAC matrix, so the live click-through (DoD) does not 403. Closes cross-cutting audit finding X-1 (RBAC unseeded).\n\n## Implementation contract\n- New migration `NNN-09-quality-permission-seed.sql` numbered contiguously ABOVE the current HEAD (runner regex `^(\\d{3})-[a-z0-9-]+\\.sql$`; pick the next free number ≥ HEAD at run start so it is not silently skipped — the 01-npd deploy gotcha).\n- Idempotent `INSERT INTO public.role_permissions (role_id, permission) ... ON CONFLICT DO NOTHING`, org-scoped, including the Apex bootstrap org.\n- Resolve role_id by role key/name (do NOT hardcode role UUIDs).\n- Grant matrix derived from PRD `§3` RBAC table: least-privilege per role; org-admin role family receives the full `quality.*` set (mirror migration 149 org-admin pattern).\n- Wire the module's nav `permission_key` in `apps/web/lib/navigation/module-registry.ts` to the base read permission if it is currently null, so nav RBAC gating is no longer a no-op.\n\n## Acceptance criteria (Given-When-Then)\n- AC1 — Given the migration runs, when role_permissions is queried for a fresh org, then each of the 13 `quality.*` permissions is granted to at least the PRD `§3` roles, and org-admin holds all 13.\n- AC2 — Given a seeded least-privilege role, when it hits a granted action, then allowed; when it hits an ungranted elevated action, then 403 (reachability proven both directions, integration test on real local Postgres).\n- AC3 — Given the migration re-runs, when applied twice, then it is a no-op (idempotent).\n- AC4 — Given `assertPermission`/`requirePermission` path, then it returns allow for granted, Forbidden for ungranted; `pnpm db:test` green; RLS unaffected.\n\n## Test strategy (RED first)\n1. Add an integration test asserting grant/deny both directions for a seeded role on real local Postgres (`pnpm db:up && pnpm db:test`) — RED before the migration.\n2. Add the seed migration; re-run — GREEN.\n3. Re-run the migration to prove idempotency.\n\n## Risk red lines\n- Grants MUST be in a DB migration (reach Supabase on deploy), not app-code only.\n- Do NOT over-grant: respect PRD `§3` least-privilege; only org-admin gets the full set; no write perms to viewer/read-only roles.\n- Migration number must be ≥ current HEAD and contiguous (avoid the silent-never-runs gotcha — X-2).\n- org_id Wave0 lock; `app.current_org_id()` scoping; no hardcoded role UUIDs.\n\n## Closeout evidence required\n- changed_files (with line counts)\n- exact RED→GREEN test commands and outputs\n- acceptance_criteria_status (one row per AC)\n- deviations_from_prd (or \"none\")\n- git_status\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "rbac-seed",
+    "T1-schema",
+    "p0-blocker",
+    "wave-1",
+    "sidecar-X1"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-066",
+    "source_prd": "docs/prd/09-QUALITY-PRD.md",
+    "prd_refs": [
+      "§3"
+    ],
+    "category": "auth",
+    "subcategory": "rbac-grant-seed",
+    "task_type": "T1-schema",
+    "parent_feature": "09-quality-rbac-permission-seed",
+    "context_budget": "30k",
+    "estimated_effort": "2-3h",
+    "description": "Add an idempotent SQL seed migration that GRANTS the 13 `quality.*` permission strings (added by T-065) to the org roles named in the PRD RBAC matrix. Closes cross-cutting finding X-1 (RBAC unseeded): module adds permission enum strings but no migration grants them to roles, so every page builds green then 403s on the live deploy. Models on packages/db/migrations/146-npd-allergen-write-permission-seed.sql and 148-settings-infra-permission-seed.sql (idempotent INSERT INTO role_permissions ... ON CONFLICT DO NOTHING).",
+    "details": "Seed role_permissions grants for the 13 `quality.*` strings per PRD §3 role matrix. Pattern: idempotent INSERT ... ON CONFLICT DO NOTHING, org-scoped (incl. Apex bootstrap org), role_id resolved by role key (no hardcoded UUIDs). org-admin family gets full set (mirror mig 149). Migration numbered ≥ HEAD contiguous (X-2). Source: sidecar CONSOLIDATED-FINDINGS X-1 + proposed-tasks stub for 09-quality.",
+    "scope_files": [
+      "packages/db/migrations/NNN-09-quality-permission-seed.sql [create]",
+      "packages/db/__tests__/09-quality-permission-seed.test.ts [create]",
+      "apps/web/lib/navigation/module-registry.ts [modify]"
+    ],
+    "out_of_scope": [
+      "Do not add/rename permission enum strings (that is the enum task).",
+      "Do not grant write/elevated perms to viewer/read-only roles.",
+      "Do not hardcode role UUIDs.",
+      "Do not change RLS policies."
+    ],
+    "dependencies": [
+      "T-065"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "Settings owns the permission enum + role_permissions schema (mig 080). Seed inserts into that table."
+      },
+      {
+        "module": "00-foundation",
+        "task_id": "T-125",
+        "reason": "app.current_org_id() / withOrgContext used for org-scoped grant resolution and the grant/deny integration test."
+      }
+    ],
+    "parallel_safe_with": [
+      "other modules' §3 permission-seed tasks"
+    ],
+    "acceptance_criteria": [
+      "Migration grants each of the 13 quality.* permissions to the PRD §3 roles; org-admin holds all 13.",
+      "A seeded least-privilege role is allowed on a granted action and 403 on an ungranted elevated action (integration test, real Postgres).",
+      "Migration is idempotent (re-run = no-op).",
+      "pnpm db:test green; RLS unaffected; nav permission_key wired if previously null."
+    ],
+    "test_strategy": [
+      "RED: integration test asserting grant/deny both directions for a seeded role on real local Postgres before the migration.",
+      "GREEN: add the seed migration; re-run.",
+      "Re-run the migration to prove idempotency."
+    ],
+    "risk_red_lines": [
+      "Grants must be in a DB migration, not app-code only.",
+      "Respect PRD least-privilege; only org-admin gets the full set.",
+      "Migration number ≥ HEAD and contiguous (X-2 silent-never-runs gotcha).",
+      "org_id Wave0 lock; app.current_org_id() scoping; no hardcoded role UUIDs."
+    ],
+    "skills": [
+      "Mon-rls",
+      "Mon-supabase",
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

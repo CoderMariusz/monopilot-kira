@@ -7,7 +7,7 @@
   "module": "15-oee",
   "prd_version": "v3.2.1",
   "audit_input": "_meta/audits/2026-05-14-prd-vs-tasks-coverage-gaps.md",
-  "task_count": 25,
+  "task_count": 26,
   "sub_modules": {
     "15-OEE-a": "Permissions enum + read-only consumer surface + reference tables (shift_configs, oee_alert_thresholds, shift_patterns, org_non_production_days) + Nakajima Big Loss taxonomy + role-permission seed",
     "15-OEE-b": "Materialized views (oee_shift_metrics, oee_daily_summary) + shift_aggregator_v1 DSL rule + apps/worker 15-min refresh job",
@@ -115,7 +115,8 @@
     "tasks/T-022.json",
     "tasks/T-023.json",
     "tasks/T-024.json",
-    "tasks/T-025.json"
+    "tasks/T-025.json",
+    "tasks/T-026.json"
   ],
   "coverage_file": "coverage.md"
 }

@@ -136,6 +136,19 @@ Also read it before any cross-module task whose `cross_module_dependency` points
   spec; Technical owns ongoing factory-spec correctness (BOM SSOT hand-off contract). Production/Planning
   consume the released read-model (`npd.fg.released`), they do not read NPD internals.
 
+## Recurring live-bugs this module is prone to (P0 — fix proactively)
+These passed vitest+tsc but broke the npd run live (see `docs/workflow/02-QUALITY-GATES.md` §checklist):
+- **RBAC seed → 403-everywhere.** The `npd.*` perms must be GRANTed (not just enum-added) to the org-admin role
+  family (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin` — deployed admin is on
+  `org.access.admin`, NOT `admin`) + NPD operator roles, in BOTH `role_permissions` and legacy `roles.permissions`
+  jsonb, with org-insert trigger + backfill. Ship a wave-1 P0 `NNN-npd-permission-seed.sql` (mirror `116`/`146`/
+  `148`/`150`). Strings GRANTed must equal strings the pages CHECK. → `MON-multi-tenant-site` §SEED.
+- **Migration renumbering.** This run renumbered `0010` → `075+` because hardcoded/4-digit prefixes silently never
+  ran (runner regex `^(\d{3})-[a-z0-9-]+\.sql$`). Rebuild the local gate DB to canon HEAD and number new
+  migrations 3-digit ≥ HEAD; never edit an applied one. → `MON-t1-schema`.
+- **`'use server'` non-async exports** (error classes/consts) break `next build` — keep them in a sibling. → `MON-t2-api`.
+- **i18n 4-locale parity** for every `npd.*` `t('key')`. → `MON-t3-ui`.
+
 ## Gates recap (per task G1-G4, + G5 per module before sign-off)
 G1 real tests run + captured (DB-gated suites against a real/local Postgres — foundation's pattern) ·
 G2 prototype parity (above) · G3 deps DONE in STATUS · G4 cross-provider review (Opus↔Codex).

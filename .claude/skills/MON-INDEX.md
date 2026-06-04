@@ -38,7 +38,9 @@
 
 | Module folder | Domain skill | Critical invariants |
 |---|---|---|
-| 02-settings | [[MON-domain-settings]] | HEAVY UI: prototype parity + real Supabase data (NO hardcode) per screen; consolidate the dual settings route trees onto `[locale]/(app)/(admin)/settings` |
+| 01-npd | [[MON-domain-npd]] | HEAVY UI: prototype parity + real Supabase data; FG/product SSOT + fa view; allergen cascade; ship the `npd.*` RBAC SEED (P0) + 3-digit migration renumber |
+| 02-settings | [[MON-domain-settings]] | HEAVY UI: prototype parity + real Supabase data (NO hardcode) per screen; consolidate the dual settings route trees onto `[locale]/(app)/(admin)/settings`; ship the `settings.*` RBAC SEED (P0) |
+| 03-technical | [[MON-domain-technical]] | item master (critical-path root `items`) + shared BOM SSOT version state machine + Technical-owned factory_specs (bundle approval emits `technical.factory_spec.approved`); released edits clone-on-write; cost NUMERIC dual-owned w/ Finance; D365 OPTIONAL/export-only; HEAVY UI parity + real data |
 | 04-planning-basic + 07-planning-ext | [[MON-domain-planning]] | `schedule_outputs` NOT `wo_outputs`; V-PLAN-WO-CYCLE rule |
 | 05-warehouse | [[MON-domain-warehouse]] | LP universal unit; FEFO; consume gate cross |
 | 08-production | [[MON-domain-production]] | `wo_outputs` CANONICAL owner; `oee_snapshots` PRIMARY producer |
@@ -48,7 +50,7 @@
 | 13-maintenance | [[MON-domain-maintenance]] | LOTO + calibration DUAL e-sign (T-124) |
 | 15-oee | [[MON-domain-oee]] | READ-ONLY consumer (D-OEE-1) — never write `oee_snapshots` |
 
-Modules NOT yet domain-mapped (covered by layer skills only): 00-foundation, 01-npd, 02-settings, 03-technical, 06-scanner-p1, 12-reporting, 14-multi-site. Add `MON-domain-{npd,settings,...}` if/when domain density justifies a dedicated skill.
+Modules NOT yet domain-mapped (covered by layer skills only): 00-foundation, 06-scanner-p1, 12-reporting, 14-multi-site. Add `MON-domain-{...}` if/when domain density justifies a dedicated skill. (01-npd, 02-settings, 03-technical now mapped — authored at module-run kickoff.)
 
 ### By cross-cutting concern
 
@@ -115,6 +117,7 @@ Modules NOT yet domain-mapped (covered by layer skills only): 00-foundation, 01-
 ### Scenario: "Add a new permission string"
 1. [[MON-multi-tenant-site]] §ESLint enum-lock — STRICT process (edit `permissions.enum.ts`, run baseline test, dispatch per-module enum task)
 2. Per-module perm-enum task — see Settings T-130 `cross_module_dependencies` for current task IDs
+3. **[[MON-multi-tenant-site]] §"Granting permissions (the SEED half)" — MANDATORY.** The enum string is just vocabulary; without a `NNN-<module>-permission-seed.sql` that GRANTs it to the org-admin role family the live app is 403-everywhere (the #1 recurring live bug; vitest+tsc stay green). Schedule the seed as a wave-1 P0 task.
 
 ---
 
@@ -162,10 +165,14 @@ MON-project-overview  (entry point)
 | MON-domain-planning | 174 | opus | domain |
 | MON-domain-maintenance | 163 | opus | domain |
 | MON-domain-oee | 129 | opus | domain |
+| MON-domain-technical | 175 | opus | domain |
 | prd-decompose-hybrid (legacy) | 154 | opus | meta |
 | prototype-labeling (legacy) | 304 | haiku | meta |
 
-**Total:** 18 skills, ~3,800 lines.
+**Total:** 19 skills, ~4,000 lines.
+
+> Note: `MON-domain-npd` and `MON-domain-settings` also exist (authored at their module-run kickoffs) but
+> predate this inventory table refresh; add their rows on next overhaul.
 
 ---
 

@@ -1,0 +1,88 @@
+{
+  "title": "T-060 — Consolidate GS1/barcode parser to one shared package (packages/gs1)",
+  "prompt": "# T-060 — Consolidate GS1/barcode parser to packages/gs1\n\n## Goal\nDesignate the existing `packages/gs1/` (parse.ts + check-digit.ts) as the single shared GS1-128/GTIN/AI parser consumed by both 05-warehouse (T-023 GRN auto-fill) and 06-scanner (T-003). Extend it to the full PRD AI set and retarget both task references. Closes the cross-module triple-conflict (packages/barcode-parser, packages/scanner-utils/gs1-parser.ts, lib/utils/gs1-parser.ts all proposed but packages/gs1 already exists).\n\n## Implementation contract\n1. Audit `packages/gs1/parse.ts` + `check-digit.ts` against PRD 05 §7.4/§15.2 and 06 §10 AI list (01/10/17/11/21/37/310x/3103/3922; P2: 00/13/15, QR, DataMatrix).\n2. Add missing AIs + `detectBarcodeType()` + `parseGS1()` returning the §10.3 `ParsedGS1` shape; ≥20 fixtures/AI incl. missing-GS, bad checksum, leading-zero weight, mixed-case batch, UTF-8.\n3. Update WH T-023 + SCN T-003 scope_files + prompts to import from `packages/gs1/`; retire `packages/barcode-parser/` and `packages/scanner-utils/gs1-parser.ts` references.\n\n## Acceptance criteria\n- AC1 — WH GRN auto-fill and SCN scan parse the same GS1-128 string via the same parser → identical AI maps.\n- AC2 — ≥20 fixtures per P1 AI pass incl. edge cases; GTIN-14 mod-10 validates.\n- AC3 — T-023 and SCN T-003 reference `packages/gs1/`; no `packages/barcode-parser/` or `packages/scanner-utils/gs1-parser.ts` path remains.\n",
+  "labels": [
+    "prd",
+    "gs1",
+    "barcode",
+    "T2-api",
+    "sidecar",
+    "do-first"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "docs/prd/05-WAREHOUSE-PRD.md",
+    "prd_refs": [
+      "§7.4",
+      "§15.2"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "05-warehouse-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Designate packages/gs1/ as the single shared GS1/GTIN/AI parser for WH T-023 + SCN T-003; extend to full PRD AI set; retire packages/barcode-parser + packages/scanner-utils/gs1-parser.ts. Source: sidecar m05-T060 stub. Do this BEFORE T-023 and SCN T-003.",
+    "details": "Designate packages/gs1/ as the single shared GS1/GTIN/AI parser for WH T-023 + SCN T-003; extend to full PRD AI set; retire packages/barcode-parser + packages/scanner-utils/gs1-parser.ts. Source: sidecar m05-T060 stub. Do this BEFORE T-023 and SCN T-003.",
+    "scope_files": [
+      "packages/gs1/parse.ts [modify]",
+      "packages/gs1/check-digit.ts [modify]",
+      "packages/gs1/__tests__/parse.test.ts [create]",
+      "_meta/atomic-tasks/05-warehouse/tasks/T-023.json [modify]",
+      "_meta/atomic-tasks/06-scanner-p1/tasks/T-003.json [modify]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "06-scanner-p1",
+        "task_id": "T-003",
+        "reason": "Scanner GS1 parse must import the same packages/gs1 parser; retarget its refs."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "WH GRN auto-fill and SCN scan return identical AI maps from the same packages/gs1 parser.",
+      "≥20 fixtures per P1 AI pass incl. edge cases; GTIN-14 mod-10 validates.",
+      "No packages/barcode-parser or packages/scanner-utils/gs1-parser.ts path remains in T-023 / SCN T-003."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Do not create a second parser package — one shared packages/gs1.",
+      "Do not hardcode the Y2K boundary differently between WH and SCN (YY<50→20YY)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "medium"
+  }
+}

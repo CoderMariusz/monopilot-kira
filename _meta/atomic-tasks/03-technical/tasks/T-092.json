@@ -1,0 +1,125 @@
+{
+  "title": "T-092 — UI: TEC Sensory Evaluation screen (consumes T-084 read model)",
+  "prompt": "# T-092 — UI: TEC Sensory Evaluation screen (consumes T-084 read model)\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §0, §5, §17, prototypes/design/03-TECHNICAL-UX.md\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\nPrototype: `prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx:472-569` (`lab_results_log_screen` — sensory has no dedicated isolated prototype; reuse this read-model status-list layout-primitive + `_meta/prototype-labels/translation-notes-technical.md`).\n\n## Goal\nBuild the Technical-owned Sensory Evaluation UI — the orphaned deferral that 01-npd punted here (npd T-071 schema + T-076 UI both re-owned by 03-technical; only the schema/contract task T-084 exists). This task gives the Sensory read model (required / pending / pass / fail / hold / not_required) an actual screen, and surfaces a read-only sensory status badge to NPD approval.\n\nConsumes the T-084 Technical sensory read model ONLY — it does NOT add a new sensory write path and does NOT move NPD gate ownership into Technical. The screen shows per-product/project/work-order sensory evidence with the 5 required UI states; the NPD-facing surface is a read-only badge.\n\n## Implementation contract\nRead Server Component / Server Action through `withOrgContext` (org-scoped, RLS via app.current_org_id()) against the T-084 read model. No mocks/hardcode. Translate the spec-driven prototype scaffold to shadcn/ui; implement loading / empty / error / permission-denied / optimistic states. See acceptance_criteria + Risk red lines.\n\n## Files\n- app/(app)/technical/sensory/page.tsx [create]\n- app/(app)/technical/sensory/_components/sensory-status-badge.tsx [create]\n- tests/ui/tec-sensory.test.tsx [create]\n\n## Out of scope\n- Any sensory WRITE path / external lab/sensory vendor integration (T-084 is read-only contract).\n- Moving NPD gate ownership into Technical (NPD consumes the badge read-only).\n- Sensory schema/contract itself (T-084 — must land first).\n\n## Acceptance criteria\n1. Given the screen renders, when compared with the layout-primitive prototype `prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx:472-569` (`lab_results_log_screen` — the read-model status-list pattern reused for sensory: verdict pills + pass/fail visualization), then it satisfies structural parity, visual parity, and interaction parity against the PRD §0/§5/§17 sensory read-model layout (PRD/UX is canonical, prototype is layout-primitive only), and applies the Technical red-line overlay (FG not FA). Verified by RTL.\n2. Given org policy requires sensory for a product, when the page loads via the T-084 read model, then required/pending/pass/fail/hold states render from REAL Supabase data (no mock).\n3. Given sensory is not_required, when rendered, then the badge shows not_required and no fake Technical evidence is implied.\n4. Given a fail/hold result, when rendered, then the SENSORIAL_BLOCKED reason is surfaced for downstream release guards.\n5. Given a user without sensory read access, when on the page, then the permission-denied state renders (no data leak).\n6. UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence.\n\n## Test strategy\n- RED tests for parity + 5 UI states + read-model mapping (required/not_required/pass/fail/hold).\n- Run: pnpm vitest run tests/ui/tec-sensory.test.tsx\n- For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout.\n\n## Risk red lines\n- Do not move NPD gate ownership into Technical — NPD consumes the badge read-only.\n- Do not add a sensory write path or external lab/sensory vendor integration.\n- FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.\n- D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.\n- Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.\n- Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.\n- Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.\n- Do not use raw HTML <select> — use shadcn Select.\n- Do not use inline styles — use Tailwind classes; conditional via cn()/cva().\n- Do not import @radix-ui/* outside packages/ui (ESLint guard).\n\n## Prototype parity\n- Layout-primitive anchor: `prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx:472-569` (`lab_results_log_screen` read-model status-list pattern; sensory has no dedicated isolated prototype) — see `_meta/prototype-labels/prototype-index-technical.json` + `_meta/prototype-labels/translation-notes-technical.md` for shadcn translation guidance.\n- Evidence policy: `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md` — closeout must include screenshot artifacts + Playwright trace/video where applicable, plus axe results or documented blocker.\n",
+  "labels": [
+    "prd",
+    "ui",
+    "ui-sensory",
+    "T3-ui",
+    "spec-driven",
+    "ui-parity",
+    "cross-module-deferral"
+  ],
+  "priority": 50,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-092",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
+    "prd_refs": [
+      "§0",
+      "§5",
+      "§17",
+      "prototypes/design/03-TECHNICAL-UX.md"
+    ],
+    "category": "ui",
+    "subcategory": "sensory-evaluation",
+    "task_type": "T3-ui",
+    "parent_feature": "03-TECHNICAL Sensory (orphaned 01-npd T-071/T-076 deferral)",
+    "context_budget": "25k",
+    "estimated_effort": "2-3h",
+    "description": "Technical-owned Sensory Evaluation UI consuming the T-084 read model; surfaces required/pending/pass/fail/hold/not_required + a read-only NPD badge. Closes the orphaned 01-npd T-076 sensory-UI deferral (no owning impl task existed).",
+    "details": "01-npd deferred BOTH T-071 (sensory schema) and T-076 (sensory UI) to 03-technical (01-npd STATUS lines 85, 90 — canonical owner = 03-technical). 03-technical owns the schema/contract via T-084 but it EXPLICITLY excludes UI ('schema/API contract and tests only; no UI/prototype implementation'). Without this task the sensory UI silently never gets built. Source proposal: _meta/runs/sidecar/proposed-tasks/plan-sensory-ui.md. This task consumes T-084 only (no new sensory write path) and keeps gate ownership in NPD (read-only badge to NPD approval).",
+    "scope_files": [
+      "app/(app)/technical/sensory/page.tsx",
+      "app/(app)/technical/sensory/_components/sensory-status-badge.tsx",
+      "tests/ui/tec-sensory.test.tsx"
+    ],
+    "out_of_scope": [
+      "Any sensory WRITE path / external lab/sensory vendor integration (T-084 is read-only).",
+      "Moving NPD gate ownership into Technical (NPD consumes the badge read-only).",
+      "Sensory schema/contract itself (T-084)."
+    ],
+    "dependencies": [
+      "T-084"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-076",
+        "reason": "01-npd deferred the sensory UI here (canonical owner = 03-technical per 01-npd STATUS). 01-npd is the read consumer of the badge; this task fulfills that deferral."
+      },
+      {
+        "module": "01-npd",
+        "task_id": "T-071",
+        "reason": "01-npd deferred the sensory schema here too; 03-technical T-084 owns the schema/contract this UI consumes."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the screen renders, when compared with the layout-primitive prototype `prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx:472-569` (`lab_results_log_screen` — the read-model status-list pattern reused for sensory: verdict pills + pass/fail visualization), then it satisfies structural parity, visual parity, and interaction parity against the PRD §0/§5/§17 sensory read-model layout (PRD/UX is canonical, prototype is layout-primitive only), and applies the Technical red-line overlay (FG not FA). Verified by RTL.",
+      "Given org policy requires sensory for a product, when the page loads via the T-084 read model, then required/pending/pass/fail/hold states render from REAL Supabase data (no mock).",
+      "Given sensory is not_required, when rendered, then the badge shows not_required and no fake Technical evidence is implied.",
+      "Given a fail/hold result, when rendered, then the SENSORIAL_BLOCKED reason is surfaced for downstream release guards.",
+      "Given a user without sensory read access, when on the page, then the permission-denied state renders (no data leak).",
+      "UI closeout includes screenshot/artifact evidence and Playwright trace/artifacts where applicable per `_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md`; if Playwright is unavailable, document the blocker and provide RTL/snapshot fallback evidence."
+    ],
+    "test_strategy": [
+      "RED tests for parity + 5 UI states + read-model mapping (required/not_required/pass/fail/hold).",
+      "Run: pnpm vitest run tests/ui/tec-sensory.test.tsx",
+      "For UI parity, capture screenshots/artifacts and Playwright trace/video/artifacts where applicable; attach artifact paths in closeout."
+    ],
+    "risk_red_lines": [
+      "Do not move NPD gate ownership into Technical — NPD consumes the badge read-only.",
+      "Do not add a sensory write path or external lab/sensory vendor integration.",
+      "FG is canonical; FA is legacy alias only — do not introduce FA-* identifiers in new schemas, code, labels, tests.",
+      "D365 is optional integration; never use D365 IDs as hard FKs — d365_item_id is TEXT soft reference only.",
+      "Released BOM/factory_spec edits clone-on-write a new version; never mutate an approved/released row in place.",
+      "Shared BOM SSOT is canonical — Technical, NPD, Planning, Production, Warehouse and Finance read the same bom_headers/lines/co_products tables.",
+      "Do not paste prototype JSX verbatim — translate to production shadcn primitives per `_meta/prototype-labels/translation-notes-technical.md`.",
+      "Do not use raw HTML <select> — use shadcn Select.",
+      "Do not use inline styles — use Tailwind classes; conditional via cn()/cva().",
+      "Do not import @radix-ui/* outside packages/ui (ESLint guard)."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "acp-frontend",
+      "acp-ui-parity",
+      "MON-domain-technical",
+      "MON-t3-ui",
+      "Mon-ui"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status",
+        "prototype_reference",
+        "visual_parity_evidence",
+        "screenshot_or_dom_diff_artifacts",
+        "playwright_artifacts",
+        "parity_screenshots",
+        "axe_report",
+        "deviation_log"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-ui",
+      "reviewer": "codex-review"
+    },
+    "ui_evidence_policy": "_meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md",
+    "prototype_match": false,
+    "prototype_index_entry": "lab_results_log_screen",
+    "risk_tier": "high"
+  }
+}

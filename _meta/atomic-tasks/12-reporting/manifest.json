@@ -4,7 +4,7 @@
   "generated_at": "2026-05-14T00:00:00Z",
   "generator": "prd-decompose-hybrid-bootstrap",
   "pipeline_name": "kira_dev",
-  "task_count": 27,
+  "task_count": 28,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -32,7 +32,8 @@
     "tasks/T-024.json",
     "tasks/T-025.json",
     "tasks/T-026.json",
-    "tasks/T-027.json"
+    "tasks/T-027.json",
+    "tasks/T-028.json"
   ],
   "coverage_file": "coverage.md",
   "sub_modules": {

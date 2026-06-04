@@ -165,6 +165,13 @@ export async function releaseSO(raw: unknown): Promise<ReleaseSOResult> {
 | Differentiating "user not in org" vs "user lacks role" in error | Both return `forbidden` — never leak existence |
 | Mixing read + write Server Action with no idempotency guard | Add state guard (`where status <> 'released'`) or replay-nonce (e-sign) |
 | Returning raw DB row | Whitelist fields in `data` payload — never echo internal columns |
+| `export class XError {}` / `export const FOO = {...}` in a `'use server'` file | Only `export async function` is legal in a `'use server'` module — move classes/consts to a non-`'use server'` sibling |
+
+## `'use server'` export rule (breaks `next build`, NOT caught by tsc/vitest)
+
+A file with the `'use server'` directive at the top may **only export async functions** — Next.js compiles every export into a callable server-action reference. Exporting an error **class**, a const object, an enum, or a non-async function compiles fine under `tsc` and passes `vitest`, but **fails `next build`** ("A 'use server' file can only export async functions"). This is a recurring live-only break (01-npd): green local, red Vercel build.
+
+Rule: keep the action file `'use server'` with only `export async function` declarations. Put shared error classes, error-code constants, zod schemas you want to re-export, and discriminated-union types in a **non-`'use server'` sibling module** (e.g. `apps/web/app/<route>/_actions/errors.ts` with no directive) and import them into the action file. Types (`export type`) are erased at compile time and are fine, but a runtime `export class` / `export const` is not. Always run `pnpm --filter web exec next build` locally before deploy to catch this.
 
 ## withOrgContext (T-125)
 

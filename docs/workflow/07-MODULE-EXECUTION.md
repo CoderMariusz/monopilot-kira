@@ -54,6 +54,14 @@ graph dictates; the above is the expected shape.
    (`get_runtime_logs` + Supabase `get_logs`) for any failure. Only present once the
    live click-through is clean or each failure is a recorded external gap.
 
+## Wave-1 P0 standing tasks (every module — do not skip)
+
+Before the feature waves, every module's plan MUST include these P0 tasks. They are the recurring-live-bug guards from `02-QUALITY-GATES.md` §"Recurring live-bug checklist" turned into scheduled work:
+
+1. **`NNN-<module>-permission-seed.sql` (RBAC seed) — the single most-missed task.** Adding permission ENUM strings does NOT grant them; without this seed the live app is **403-everywhere**. The migration GRANTs the module's perms to the org-admin role family (`org.access.admin` / `org.platform.admin` / `owner` / `admin` / `org_admin` — the deployed admin is on `org.access.admin`, NOT `admin`) + the relevant operator roles, in **both** `role_permissions` and the legacy `roles.permissions` jsonb, with an **org-insert trigger + backfill** for existing orgs. Mirror migrations `116`/`146`/`148`/`150`. Verify the strings GRANTed are byte-for-byte the strings the module's pages CHECK (vocabulary divergence = silent 403).
+2. **i18n key-parity check** — every `t('key')` the module adds exists in all four `apps/web/i18n/{en,pl,ro,uk}.json`.
+3. **Local `next build`** — run before the first deploy to catch route collisions + `'use server'` non-async exports that vitest/tsc miss.
+
 ## Module Sign-off Report (committed + pushed + phone push, then STOP)
 
 At module completion, write `_meta/runs/<NN-module>-SIGNOFF.md` and push a phone

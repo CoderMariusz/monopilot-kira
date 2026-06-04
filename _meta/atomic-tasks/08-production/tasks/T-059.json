@@ -1,0 +1,88 @@
+{
+  "title": "T-059 — Pin the downtime.created event contract (08-production → 13-maintenance)",
+  "prompt": "# T-059 — Pin the downtime.created event Zod contract\n\n## Goal\n13-maintenance T-017 (auto-MWO from downtime) consumes outbox downtime.created but there is NO task that pins the canonical Zod payload. Its red-lines say 'do not invent a downtime schema if 08 has not published one — use a STUB and escalate'. Owning module = 08-production (producer). Mirror the 09-quality T-064 contract-pin pattern. Closes the m13-downtime-event-contract gap.\n\n## Scope\n- Define `packages/events/src/downtime.ts` Zod contract with fields: id, equipment_id, severity, reporter_user_id, reason, create_maintenance_task.\n- Register downtime.created in the event catalog (00-foundation T-111 enum).\n- 13-maintenance T-017 imports the canonical contract instead of a local stub.\n\n## Acceptance criteria\n- AC1 — One canonical downtime.created Zod schema in packages/events.\n- AC2 — T-017 imports it; event registered in catalog enum.\n- AC3 — Producer emits a payload validated by the schema (unit test).",
+  "labels": [
+    "prd",
+    "event-contract",
+    "outbox",
+    "T2-api",
+    "sidecar",
+    "cross-module"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-059",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§9.6"
+    ],
+    "category": "api",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T2-api",
+    "parent_feature": "08-production-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Pin the canonical downtime.created Zod contract in packages/events + register in the 00-foundation event catalog enum; 13-maintenance T-017 imports it instead of a local stub. Owner = 08-production (producer). Source: sidecar m13-downtime-event-contract stub (finding F-4 class).",
+    "details": "Pin the canonical downtime.created Zod contract in packages/events + register in the 00-foundation event catalog enum; 13-maintenance T-017 imports it instead of a local stub. Owner = 08-production (producer). Source: sidecar m13-downtime-event-contract stub (finding F-4 class).",
+    "scope_files": [
+      "packages/events/src/downtime.ts [create]",
+      "packages/events/__tests__/downtime.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "00-foundation",
+        "task_id": "T-111",
+        "reason": "event catalog enum owned by 00-foundation; downtime.created must be registered there."
+      },
+      {
+        "module": "13-maintenance",
+        "task_id": "T-017",
+        "reason": "consumer (auto-MWO) imports this canonical contract instead of a local stub."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "One canonical downtime.created Zod schema in packages/events.",
+      "13-maintenance T-017 imports it; event registered in catalog enum.",
+      "Producer emits a schema-validated payload (unit test)."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "downtime.created is producer-owned by 08-production; consumers import, never redefine."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "medium"
+  }
+}

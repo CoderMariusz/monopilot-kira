@@ -1,0 +1,114 @@
+{
+  "title": "T-093 — Seed: grant technical.* permissions to org-admin role family (technical-permission-seed.sql)",
+  "prompt": "# T-093 — Seed: grant technical.* permissions to the org-admin role family\n\nPRD: docs/prd/03-TECHNICAL-PRD.md §3 (RBAC)\nProject root: /Users/mariuszkrawczyk/Projects/monopilot-kira\n\n## Goal\nAdd an idempotent SQL seed migration `packages/db/migrations/<NNN>-technical-permission-seed.sql` (next free number; current highest is 151-outbox-event-type-enum-sot.sql, so use 152+) that GRANTS the technical.* permission family (added to the enum by T-091) to the org-admin role family, in BOTH the normalized `role_permissions` table AND the legacy `roles.permissions` jsonb cache, for every existing org, with an AFTER INSERT trigger so new orgs inherit it. This closes the X-1 unreachable-feature class: enum strings alone do NOT grant access — without this seed every technical page 403s for the org admin at Gate-5 (the exact live-deploy failure 01-npd hit; same class as migrations 116/146/148/149).\n\n## Why this is required (X-1 standard)\nMigration 080's NPD/role seed grants permissions to role CODES like npd_manager/core_user/admin, but the deployed org administrator is on the canonical org-admin role family ('org.access.admin' / 'org.platform.admin' / 'owner' / 'admin' / 'org_admin'), which receives NONE of the technical.* strings. Models EXACTLY on `packages/db/migrations/149-npd-permissions-org-admin-seed.sql`.\n\n## Permission strings to grant (the technical.* family from T-091, count=11)\n- technical.items.create\n- technical.items.edit\n- technical.items.deactivate\n- technical.bom.create\n- technical.bom.approve\n- technical.bom.version_publish\n- technical.bom.generate_batch\n- technical.allergens.edit\n- technical.cost.edit\n- technical.d365.sync_trigger\n- technical.product_spec.approve  (the pre-existing 11th technical string — include so the org admin can approve product specs)\n\n## Implementation contract\n- Create `public.seed_technical_permissions_for_org(p_org_id uuid)` SECURITY DEFINER, `set search_path = pg_catalog`, granting the v_perms array above to roles where `r.code = any(v_admin_roles) or r.slug = any(v_admin_roles)` with `v_admin_roles := array['org.access.admin','org.platform.admin','owner','admin','org_admin']`.\n  - Normalized: `insert into public.role_permissions (role_id, permission) select ... on conflict (role_id, permission) do nothing`.\n  - Legacy jsonb cache: `update public.roles set permissions = jsonb_agg(distinct ...)` union of existing + v_perms (set-deduplicated, sorted).\n- `revoke all on function ... from public; revoke all on function ... from app_user;` for both functions.\n- Create the on-insert trigger function + `drop trigger if exists trg_zzz_seed_technical_permissions on public.organizations; create trigger trg_zzz_seed_technical_permissions after insert on public.organizations for each row execute function ...` (zzz prefix so it fires after the 080 role-creating trigger).\n- Backfill loop over every existing org.\n- org_id Wave0 lock; RLS via app.current_org_id() (functions are SECURITY DEFINER, not app_user-callable).\n\n## Files\n- packages/db/migrations/<NNN>-technical-permission-seed.sql [create]\n- packages/db/__tests__/technical-permission-seed.test.ts (or the repo's db-test location) [create] — integration test against real/local Postgres (pnpm db:up && pnpm db:test).\n\n## Out of scope\n- Adding the enum strings (T-091 owns the enum).\n- Granting technical.* to non-admin functional roles (operator/technician matrix) — this seed is the org-admin reachability fix; finer role matrices are a follow-up if PRD §3 specifies them.\n- Any factory_spec / BOM / cost table change.\n\n## Acceptance criteria\n1. Given the migration runs, when re-run, then it is idempotent (no-op; ON CONFLICT DO NOTHING + jsonb set-dedup).\n2. Given an org admin (role 'org.access.admin' or 'admin'), when permissions resolve after the seed, then all 11 technical.* strings are granted in BOTH role_permissions and roles.permissions jsonb (integration test, real Postgres).\n3. Given a newly inserted org, when the AFTER INSERT trigger fires, then the org-admin role inherits the technical.* family (no manual backfill needed).\n4. Given a non-admin role, when permissions resolve, then it does NOT receive technical.* from this seed.\n5. `pnpm db:up && pnpm db:test` green; RLS unaffected.\n\n## Test strategy (RED first)\n1. Write the integration test asserting the org-admin role resolves technical.bom.approve = allowed and a non-admin role = denied; run RED (seed not yet applied) — must fail.\n2. Add the migration; re-run — must pass.\n3. Run `pnpm db:up && pnpm db:test`; capture actual output.\n\n## Risk red lines\n- org_id Wave0 lock; app.current_org_id() scoping; functions SECURITY DEFINER + revoked from app_user/public.\n- No hardcoded role UUIDs — match by role code/slug.\n- Do not grant technical.* to the service/system role or to functional non-admin roles in this seed.\n- Idempotent only — never DELETE/REVOKE existing grants.\n- Enum strings must already exist (T-091) — this task does not edit the enum.\n",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "rbac-grant-seed",
+    "T1-schema",
+    "T5-seed",
+    "p0-blocker",
+    "x-1-reachability"
+  ],
+  "priority": 90,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-093",
+    "source_prd": "docs/prd/03-TECHNICAL-PRD.md",
+    "prd_refs": [
+      "§3"
+    ],
+    "category": "auth",
+    "subcategory": "permissions-grant-seed",
+    "task_type": "T1-schema",
+    "parent_feature": "03-technical-rbac-grant-seed",
+    "context_budget": "25k",
+    "estimated_effort": "1-2h",
+    "description": "Idempotent SQL seed migration granting the technical.* permission family to the org-admin role family (X-1 reachability fix). Models on migration 149-npd-permissions-org-admin-seed.sql. Without it every technical page 403s for the org admin at Gate-5.",
+    "details": "Closes audit finding: enum strings alone are not enough; a grant seed must wire technical.* (T-091) onto the org-admin role family in both role_permissions and roles.permissions jsonb. Model: packages/db/migrations/149-npd-permissions-org-admin-seed.sql (same class as 116/146/148). v_admin_roles := array['org.access.admin','org.platform.admin','owner','admin','org_admin']. Grant the 11 technical.* strings (10 from T-091 + the pre-existing technical.product_spec.approve). Highest migration today is 151; use the next free number (152+).",
+    "permission_strings": [
+      "technical.items.create",
+      "technical.items.edit",
+      "technical.items.deactivate",
+      "technical.bom.create",
+      "technical.bom.approve",
+      "technical.bom.version_publish",
+      "technical.bom.generate_batch",
+      "technical.allergens.edit",
+      "technical.cost.edit",
+      "technical.d365.sync_trigger",
+      "technical.product_spec.approve"
+    ],
+    "scope_files": [
+      "packages/db/migrations/<NNN>-technical-permission-seed.sql [create]",
+      "packages/db/__tests__/technical-permission-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Adding the enum strings (T-091 owns the enum).",
+      "Granting technical.* to non-admin functional roles (operator/technician matrix).",
+      "Any factory_spec / BOM / cost table change."
+    ],
+    "dependencies": [
+      "T-091"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-080-rbac-schema",
+        "reason": "Settings RBAC schema (role_permissions table + roles.permissions jsonb + org-insert role-seeding trigger from migration 080) must exist — it does (DONE)."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Given the migration runs, when re-run, then it is idempotent (no-op; ON CONFLICT DO NOTHING + jsonb set-dedup).",
+      "Given an org admin (role 'org.access.admin' or 'admin'), when permissions resolve after the seed, then all 11 technical.* strings are granted in BOTH role_permissions and roles.permissions jsonb (integration test, real Postgres).",
+      "Given a newly inserted org, when the AFTER INSERT trigger fires, then the org-admin role inherits the technical.* family (no manual backfill needed).",
+      "Given a non-admin role, when permissions resolve, then it does NOT receive technical.* from this seed.",
+      "pnpm db:up && pnpm db:test green; RLS unaffected."
+    ],
+    "test_strategy": [
+      "RED: integration test asserting org-admin resolves technical.bom.approve = allowed and a non-admin role = denied; run before the migration — must fail.",
+      "GREEN: add the migration; re-run — must pass.",
+      "Run `pnpm db:up && pnpm db:test`; capture actual output."
+    ],
+    "risk_red_lines": [
+      "org_id Wave0 lock; app.current_org_id() scoping; functions SECURITY DEFINER + revoked from app_user/public.",
+      "No hardcoded role UUIDs — match by role code/slug.",
+      "Do not grant technical.* to the service/system role or to functional non-admin roles in this seed.",
+      "Idempotent only — never DELETE/REVOKE existing grants.",
+      "Enum strings must already exist (T-091) — this task does not edit the enum."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review",
+      "MON-domain-technical",
+      "MON-t1-schema",
+      "MON-multi-tenant-site",
+      "Mon-rls"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

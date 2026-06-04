@@ -4,7 +4,7 @@
   "generated_at": "2026-05-14T00:00:00Z",
   "generator": "prd-decompose-hybrid (bootstrap 2026-05-14)",
   "pipeline_name": "kira_dev",
-  "task_count": 32,
+  "task_count": 34,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -37,52 +37,97 @@
     "tasks/T-029.json",
     "tasks/T-030.json",
     "tasks/T-031.json",
-    "tasks/T-032.json"
+    "tasks/T-032.json",
+    "tasks/T-033.json",
+    "tasks/T-034.json"
   ],
   "submodules": {
     "11-shipping-a": {
       "name": "Customer domain (customers + contacts + addresses + allergen restrictions)",
-      "tasks": ["T-001", "T-002", "T-003", "T-004", "T-005"]
+      "tasks": [
+        "T-001",
+        "T-002",
+        "T-003",
+        "T-004",
+        "T-005"
+      ]
     },
     "11-shipping-b": {
       "name": "Sales Orders (schema + status machine + wizard + list + detail)",
-      "tasks": ["T-006", "T-007", "T-008", "T-009", "T-010"]
+      "tasks": [
+        "T-006",
+        "T-007",
+        "T-008",
+        "T-009",
+        "T-010"
+      ]
     },
     "11-shipping-c": {
       "name": "Allocation + Quality Hold gate (FEFO + D-SHP-13)",
-      "tasks": ["T-011", "T-012", "T-013", "T-014"]
+      "tasks": [
+        "T-011",
+        "T-012",
+        "T-013",
+        "T-014"
+      ]
     },
     "11-shipping-d": {
       "name": "Pick + Wave (schema + APIs + UI)",
-      "tasks": ["T-015", "T-016", "T-017"]
+      "tasks": [
+        "T-015",
+        "T-016",
+        "T-017"
+      ]
     },
     "11-shipping-e": {
       "name": "Pack + SSCC-18 + Ship confirm",
-      "tasks": ["T-018", "T-019", "T-020", "T-021", "T-022"]
+      "tasks": [
+        "T-018",
+        "T-019",
+        "T-020",
+        "T-021",
+        "T-022"
+      ]
     },
     "11-shipping-f": {
       "name": "Documents (packing slip + BOL + POD) + BRCGS 7y retention",
-      "tasks": ["T-023", "T-024", "T-025"]
+      "tasks": [
+        "T-023",
+        "T-024",
+        "T-025"
+      ]
     },
     "11-shipping-g": {
       "name": "RMA Phase 1",
-      "tasks": ["T-026"]
+      "tasks": [
+        "T-026"
+      ]
     },
     "11-shipping-h": {
       "name": "Carriers + Shipping Settings",
-      "tasks": ["T-027", "T-028"]
+      "tasks": [
+        "T-027",
+        "T-028"
+      ]
     },
     "11-shipping-i": {
       "name": "INTEGRATIONS Stage 3 D365 SalesOrder Confirm Push (outbox + DLQ + dispatcher)",
-      "tasks": ["T-029"]
+      "tasks": [
+        "T-029"
+      ]
     },
     "11-shipping-j": {
       "name": "Dashboard + cross-cutting + E2E spine",
-      "tasks": ["T-030", "T-032"]
+      "tasks": [
+        "T-030",
+        "T-032"
+      ]
     },
     "11-shipping-k": {
       "name": "Permissions enum delta (p0-blocker)",
-      "tasks": ["T-031"]
+      "tasks": [
+        "T-031"
+      ]
     }
   },
   "p0_blockers": [
@@ -139,22 +184,61 @@
     {
       "wave": 1,
       "title": "Permissions + schema foundations",
-      "tasks": ["T-031", "T-001", "T-006", "T-011", "T-015", "T-018", "T-026 (schema portion)"]
+      "tasks": [
+        "T-031",
+        "T-001",
+        "T-006",
+        "T-011",
+        "T-015",
+        "T-018",
+        "T-026 (schema portion)"
+      ]
     },
     {
       "wave": 2,
       "title": "Server Actions backend (depends on wave 1 schema)",
-      "tasks": ["T-002", "T-007", "T-012", "T-013", "T-016", "T-019", "T-020", "T-023", "T-025 (server action)", "T-026 (server actions)", "T-027", "T-029"]
+      "tasks": [
+        "T-002",
+        "T-007",
+        "T-012",
+        "T-013",
+        "T-016",
+        "T-019",
+        "T-020",
+        "T-023",
+        "T-025 (server action)",
+        "T-026 (server actions)",
+        "T-027",
+        "T-029"
+      ]
     },
     {
       "wave": 3,
       "title": "UI (depends on wave 2 Server Actions)",
-      "tasks": ["T-003", "T-004", "T-005", "T-008", "T-009", "T-010", "T-014", "T-017", "T-021", "T-022", "T-024", "T-025 (UI)", "T-026 (UI)", "T-028", "T-030"]
+      "tasks": [
+        "T-003",
+        "T-004",
+        "T-005",
+        "T-008",
+        "T-009",
+        "T-010",
+        "T-014",
+        "T-017",
+        "T-021",
+        "T-022",
+        "T-024",
+        "T-025 (UI)",
+        "T-026 (UI)",
+        "T-028",
+        "T-030"
+      ]
     },
     {
       "wave": 4,
       "title": "E2E spine",
-      "tasks": ["T-032"]
+      "tasks": [
+        "T-032"
+      ]
     }
   ]
 }

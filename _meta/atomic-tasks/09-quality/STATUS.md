@@ -103,3 +103,22 @@ Exception: T-013 is 🟡 STUB (Wave-0 skeleton landing exists but is not the tas
 | T-063 | Cross-module contract: warehouse.grn.* → quality | ⬜ | No contract test |
 | T-064 | Cross-module contract: 08-PROD WO consume gate on v_active_holds | ⬜ | `packages/server/` does not exist; holdsGuard absent — HIGH RISK |
 | T-065 | Add quality permission strings to RBAC enum | ⬜ | `packages/rbac/src/permissions.enum.ts` exists but has zero `quality.*` entries |
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-066 | Seed quality.* permissions onto roles (NNN-quality-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-065 enum. |
+
+Refinements (no new task — edit existing):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| T-065 sequencing (Q-5) | metadata + wave plan | ⬜ TODO | Add `"p0_blockers":["T-065"]` to manifest (mirror 11-shipping); place T-065 in **wave 1** before any T2-api task. |
+| Path correction (Q-3, X-3) | corpus find/replace | ⬜ TODO | Rewrite `apps/web/src/...` → `apps/web/app/[locale]/(app)/(modules)/quality/...` in all 09 task JSONs; do NOT touch packages/* paths. |
+| T-050 xdeps (Q-1) | edit task | ⬜ TODO | Add cross_module_dependencies: 03-technical (lab_results base, ALTER only) + 08-production (allergen_changeover_validations producer §9.8 E7). Resolve exact ids in consolidate. |
+| T-025 xdeps (Q-2) | edit task | ⬜ TODO | Add soft xdep 01-npd T-001 (quality_inspections.product_id FK → items SSOT). |
+| Nav wiring (Q-4) | clarify owner | ⬜ TODO | Add AC to T-013 (or tiny T4 task): register `/quality` nav entry gated on any quality.* perm, or confirm 02-settings/Wave-0 owns the modules menu. |

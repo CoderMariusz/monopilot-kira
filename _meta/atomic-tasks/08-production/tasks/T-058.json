@@ -1,0 +1,85 @@
+{
+  "title": "T-058 — Harden NPD pilot_wo_id ↔ work_order contract (own work_order grants)",
+  "prompt": "# T-058 — Harden NPD pilot_wo_id ↔ work_order contract\n\n## Goal\nnpd mig 144 added pilot_wo_id (plain uuid soft link, no FK) + `grant select on public.work_order to app_user` with the comment '08-production owns work_order writes/RLS', but no 08 task formalizes this. Closes finding F-4 (unowned-contract anti-pattern, mirror the 09-quality T-064 contract-pin pattern 08 already uses for holds).\n\n## Scope (after work_order table exists)\n- Decide & implement: keep pilot_wo_id as a soft UUID link, OR add a real FK npd_legacy_closeout.pilot_wo_id → work_order(id) once work_order exists.\n- 08-production OWNS `grant select on public.work_order to app_user` (move the grant out of npd mig 144's scope into a production migration; the npd grant becomes a no-op / superseded).\n- Provide a read adapter / contract pin so npd resolves pilot/trial WO state without writing to work_order.\n\n## Acceptance criteria\n- AC1 — Single owner (08) for work_order grants + RLS.\n- AC2 — npd pilot link is either a verified FK or a documented soft link with an existence-check contract (not 'ownership').\n- AC3 — Regression test for the npd→pilot WO read.",
+  "labels": [
+    "prd",
+    "canonical-owner",
+    "schema",
+    "T1-schema",
+    "sidecar",
+    "high-risk"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-058",
+    "source_prd": "docs/prd/08-PRODUCTION-PRD.md",
+    "prd_refs": [
+      "§9"
+    ],
+    "category": "schema",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T1-schema",
+    "parent_feature": "08-production-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "08-production owns work_order grants/RLS; formalize the npd pilot_wo_id soft link (verified FK or documented soft link with existence-check contract) + move the work_order grant out of npd mig 144 into a production migration. Source: sidecar plan-prod-npd-pilot-wo stub (finding F-4). Blocked by 08 work_order table.",
+    "details": "08-production owns work_order grants/RLS; formalize the npd pilot_wo_id soft link (verified FK or documented soft link with existence-check contract) + move the work_order grant out of npd mig 144 into a production migration. Source: sidecar plan-prod-npd-pilot-wo stub (finding F-4). Blocked by 08 work_order table.",
+    "scope_files": [
+      "packages/db/migrations/NNN-production-work-order-grant.sql [create]",
+      "packages/db/src/contracts/pilot-wo-read.ts [create]",
+      "packages/db/__tests__/npd-pilot-wo-read.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [],
+    "cross_module_dependencies": [
+      {
+        "module": "01-npd",
+        "task_id": "T-097",
+        "reason": "01-npd is the consumer of the pilot_wo_id link (mig 144); read adapter serves npd."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Single owner (08) for work_order grants + RLS.",
+      "npd pilot link is a verified FK or a documented soft link with an existence-check contract.",
+      "Regression test for the npd→pilot WO read passes."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Canonical owner of work_order = 08-production; npd must not write to work_order.",
+      "Blocked by 08 work_order table existence."
+    ],
+    "skills": [
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

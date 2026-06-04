@@ -60,3 +60,20 @@
 
 ## Carry-forward backlog
 None (first STATUS.md; no prior carry-forwards to migrate).
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-033 | Seed fin.* permissions onto roles (NNN-finance-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-001 enum. |
+
+Decisions / refinements (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| NUMERIC money precision (S-1) | 🔒 DECISION | BLOCKED — blocker for 10-a start | skill MON-domain-finance says money `NUMERIC(18,4)`/qty `(14,3)`/FX `(12,6)` (HARD RULE) but PRD §6.4 + task DDL use `(15,4)`/`(12,3)`/`(15,6)`. Pick ONE scale and align skill + PRD + every 10-finance task DDL (recommended: adopt the skill's (18,4)/(14,3); amend T-002/009/015/021/024/027). |
+| UI route path (S-2, X-3) | consolidation pass | ⬜ TODO | Rewrite finance T3-ui paths `apps/web/app/finance/...` → `apps/web/app/[locale]/(app)/(modules)/finance/...` (T-019/020/025/026/030/031). |
+| NPD waterfall ↔ std_cost (S-3) | P2 note | 🔒 DEFERRED | Margin reconcile is P2 (Epic 10-G/10-H) — intentional, no P1 action. P2 wave consumes NPD waterfall target + reuses 12-reporting fiscal calendar. |

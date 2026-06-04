@@ -106,3 +106,20 @@ Last updated: 2026-06-02 (Reality audit — ground-truth pass)
 - `apps/web/app/[locale]/(app)/(modules)/oee/page.tsx` — ModuleStubNotice placeholder
 - `apps/web/app/[locale]/(app)/(admin)/settings/d365-dlq/page.tsx` — SettingsRouteStub
 - `apps/web/app/[locale]/(app)/(admin)/settings/shifts/page.tsx` — SettingsRouteStub
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-057 | Seed production.* permissions onto roles (NNN-production-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-056 enum. Operator/Shift Lead/Quality Lead/Prod Manager matrix; system role for oee_snapshots/D365 (never humans). |
+| T-058 | Harden NPD pilot_wo_id ↔ work_order contract (own work_order grants) | ⬜ PENDING | F-4. After work_order table exists. 08 owns the `grant select on work_order` (move out of npd mig 144); npd pilot link = verified FK or documented soft link. |
+| T-059 | Pin downtime.created event contract (→ 13-maintenance) | ⬜ PENDING | Producer-owned contract pin in packages/events + register in 00-foundation T-111 catalog enum; 13-MNT T-017 imports it. Mirror 09 T-064 pattern. |
+
+Decisions (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| oee_snapshots.site_id owner | 🔒 DECISION (D-1) | BLOCKED | Per F-5 + D-1: if site_id added by owning module, 08 (producer) ships `oee_snapshots.site_id` ALTER+index; if central retrofit, 14-multi-site T-030 owns it. 15-oee T-002 de-scoped to read-only either way. See 15-oee STATUS. |

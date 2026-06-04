@@ -71,3 +71,20 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 |---|---|---|---|
 | T-024 | Integration test: shift_aggregator → MV → outbox → consumers | ⬜ | Blocked by T-006/T-008; apps/web/__tests__/integration/ absent |
 | T-025 | Playwright E2E + seed fixtures: OEE-001/002/003 happy path | ⬜ | Blocked by T-014/T-015; apps/web/e2e/oee/ absent |
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-026 | Seed oee.* permissions onto roles (NNN-oee-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-001 enum. |
+
+Decisions / refinements (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| oee_snapshots schema ownership (S-1, F-5) | 🔒 DECISION (gated on D-1) | BLOCKED | T-002 currently ALTERs + re-policies producer-owned `oee_snapshots` (D-OEE-1 violation, though PRD §9.1 authorizes it to 15-OEE). Move the site_id ALTER+index+RLS to **08-production** (table owner); reduce T-002 to a pre-flight existence assertion + read-only Drizzle Select schema. Hard-blocked anyway until 08 T-008 creates the table. |
+| RLS graceful degrade (S-2, F-1) | refinement | ⬜ TODO | T-002/003/004 RLS reference `site_user_access`/`sites` (14-multi-site) which may not exist yet. Gate the site sub-select behind `IF EXISTS` or ship as a 14-triggered follow-up; org-level isolation must still apply pre-14. |
+| UI route path (X-3) | consolidation pass | ⬜ TODO | Rewrite oee T3-ui paths (`apps/web/app/(oee)/...` in T-023 etc.) → `apps/web/app/[locale]/(app)/(modules)/oee/...`. |

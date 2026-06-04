@@ -113,3 +113,19 @@
 > ⚠️ STRUCTURAL NOTE: All task scope_files use `src/` paths that do not exist in this monorepo.
 > Implementer must remap to: `packages/db/` (schema/migrations), `apps/web/actions/planning/` (actions),
 > `apps/web/app/[locale]/(app)/(modules)/planning/` (pages), `apps/web/components/planning/` (components).
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-067 | Seed planning.* permissions onto roles (NNN-planning-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-066 enum. Mirrors mig 146/148/149. |
+
+Refinements / decisions (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| Path remap (X-3) | consolidation pass | ⬜ TODO | Remap all `src/` scope_files to `packages/db/` + `apps/web/app/[locale]/(app)/(modules)/planning/...`; fix malformed T-060 ref-string. Run during kira:consolidate, NOT a build task. Already flagged in STATUS structural note above. |
+| T-045 MRP scope drift | 🔒 DECISION | BLOCKED | PRD §"Decyzje odroczone" defers MRP/reorder-points; T-045 ships `reorder_thresholds` + netting against a synthetic `§MRP-gap` anchor. Decide: (A) accept-into-PRD (add §4.x + follow-up T-068, keep P1, seed `planning.material_demand.read`/`thresholds.write`) or (B) defer T-045 to P2. Do not ship the schema to P1 without A or B. |

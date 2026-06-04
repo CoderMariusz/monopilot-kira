@@ -120,6 +120,20 @@ Hard invariants — violation = immediate revert.
 - **GDPR registry + dispatcher:** foundation T-113/T-114. Every PII-touching task wires into the registry.
 - **Outbox + worker:** foundation T-111 (worker scaffold) + T-112 (outbox consumer). All `*.event` emission goes through outbox, not direct queue writes.
 - **Rate-limit:** foundation T-121 middleware. All public-facing actions cite it.
+- **Canonical-owner delegation:** a consumer module never writes/ALTERs a producer's table (`wo_outputs`→08, `oee_snapshots`→08, `schedule_outputs`→planning). Delegate via the producer's Server Action or read-only query — cross-owner writes pass local tests but corrupt ownership invariants live.
+
+## Recurring live-bug checklist (passes vitest+tsc, breaks live — read before any module run)
+
+Every item below shipped GREEN locally yet broke on the Vercel+Supabase preview; only Gate-5 (live click-through as the org-admin test user) caught them. Full detail + fixes: `docs/workflow/02-QUALITY-GATES.md` §"Recurring live-bug checklist"; per-class depth in the linked skill.
+
+1. **RBAC unseeded / mis-targeted — #1 recurring live bug → 403 everywhere.** Adding a permission ENUM string ≠ granting it. Every module needs a wave-1 P0 `NNN-<module>-permission-seed.sql` that GRANTs perms to the **org-admin role family** (`org.access.admin`/`org.platform.admin`/`owner`/`admin`/`org_admin` — the deployed admin is on `org.access.admin`, NOT `admin`) + operator roles, in BOTH `role_permissions` and the legacy `roles.permissions` jsonb, with org-insert trigger + backfill; and the seeded strings must equal the strings the pages CHECK. → `MON-multi-tenant-site` §"Granting permissions (the SEED half)".
+2. **`'use server'` files may only export async functions** (error classes/consts break `next build`). → `MON-t2-api`.
+3. **Route collisions break `next build`** — route groups `(group)` add no path segment; run `next build` locally. → `MON-t3-ui`.
+4. **Migration numbering** — runner regex `^(\d{3})-[a-z0-9-]+\.sql$`; `0NN_`/4-digit names silently never run; never edit an applied migration. → `MON-t1-schema`.
+5. **Outbox event vocabulary is ENUM-AUTHORITATIVE** (`events.enum.ts` → DB CHECK → `check-drift.test.ts`); unknown event = action `persistence_failed` / worker poison-pill. → `MON-foundation-primitives`.
+6. **i18n 4-locale key parity** — a missing `t('key')` renders the raw key live. → `MON-t3-ui`.
+7. **PWA/serwist + Turbopack** — if the SW isn't emitted, `/sw.js` 404s as `text/html` and registration throws `SecurityError` on every page; guard SW registration + confirm `sw.js` is built.
+8. **Canonical-owner delegation** (see lock above).
 
 ## When to dispatch which MON-* skill
 

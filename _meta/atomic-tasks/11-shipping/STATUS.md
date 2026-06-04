@@ -44,3 +44,21 @@ First populated by reality audit 2026-06-02. No prior STATUS.md existed.
 | T-030 | UI: shipping_dashboard page (SHIP-022) | ⏸ BLOCKED | Skeleton landing page at shipping/page.tsx reads public.shipment count; no dashboard widgets; not SHIP-022 contract |
 | T-031 | Add ship.* permission strings to packages/rbac | ⬜ PENDING | No ship.* entries in packages/rbac/src/permissions.enum.ts; must be done before T-002/T-012/T-016/T-020 |
 | T-032 | E2E Playwright: SO → Alloc → Pick → Pack → Ship-confirm → D365 dispatch happy path | ⬜ PENDING | Blocked by all of T-001–T-031; no spec file exists |
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-033 | Seed ship.* permissions onto roles (NNN-shipping-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-031 enum. |
+| T-034 | Allergen-label validators (V-SHIP-LBL-01..05) + SSCC-ASN allergen element | ⬜ PENDING | S-1 NEW task (11-shipping-f). After T-001/T-006/T-023; consumes 03-TECH allergen_cascade_v1. ASN transport file stays P2. |
+
+Refinements (no new task — split existing):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| T-029 split (S-3) | split + prereq check | ⬜ TODO — HIGH | Split into T-029a (schema: shipping_outbox_events + shipping_push_dlq, reuse 08 outbox_status_enum) + T-029b (D365 dispatcher in apps/worker). Schedule strictly AFTER 00-foundation T-111 + T-112; confirm an owner for `packages/events` + `packages/integrations-d365`. |
+| T-026 split (S-2) | split | ⬜ TODO | RMA compound → T-026a (schema) / T-026b (Server Actions, cross-writes 05/08/09) / T-026c (UI). |
+| T-027 split (S-4) | optional split | ⬜ TODO (low) | carriers compound → T-027a (schema) / T-027b (API+UI); only if wave-balancing benefits. |

@@ -114,6 +114,11 @@ INSERT into outbox **MUST be in the same transaction** as the state change. Othe
 
 **Never `JSON.parse(payload)`** at consume time — parse via the Zod schema declared for that event type. Untyped consumers are how silent contract drift starts.
 
+**Event vocabulary is ENUM-AUTHORITATIVE (live-bug class).** `packages/outbox/src/events.enum.ts` is the single source of truth; the DB `CHECK` constraint on `outbox_events.event_type` is generated from it and `check-drift.test.ts` is the gate that keeps them in sync. Consequences if you emit an `event_type` NOT in the enum + CHECK:
+- the outbox INSERT violates the CHECK → the **whole Server Action transaction rolls back** and the caller gets `persistence_failed` (the user-visible action just fails);
+- if the value somehow reaches the queue, the worker can't route it and **poison-pills** the dispatch loop.
+So: when you emit a new event, add it to `events.enum.ts` AND the generated CHECK in the same change, and let `check-drift.test.ts` confirm parity. The consumer/cron MUST process **per-row inside try/catch with dead-letter** (`outbox_dead_letter`) so one malformed/unknown row can never stall the whole queue.
+
 ## Event naming convention (embedded summary)
 
 Authority: `_meta/specs/event-naming-convention.md`. Rules:

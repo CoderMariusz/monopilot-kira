@@ -60,3 +60,20 @@ These 00-foundation tasks are declared as requirements in the manifest and are n
 - `00-foundation T-121` — rate-limit primitive (blocks T-028)
 - `00-foundation T-116..T-118` — observability (blocks T-028)
 - `00-foundation T-123` — Playwright setup (blocks T-030)
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-031 | Seed mnt.* permissions onto roles (NNN-maintenance-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-001 enum. |
+
+Refinements / gaps (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| downtime.created contract | cross-module pin | ⬜ TODO | Producer-owned by **08-production** (registered there as 08 T-059). T-017 must import the canonical `packages/events/src/downtime.ts` contract instead of a local stub. |
+| apps/worker phantom (X-5) | scaffold | ⬜ TODO | T-009 (PM cron) + T-017 (downtime consumer) target `apps/worker/src/maintenance/*` which does not exist. Confirm 00-foundation T-111/T-112 create the app shell + handler registration; else add a foundation scaffold task. |
+| Migration renumber (X-2) | consolidation pass | ⬜ TODO | Audit 13 T1-schema migration numbers in the same pass as 14 (re-sequence to ≥ HEAD, `NNN-name.sql`). |

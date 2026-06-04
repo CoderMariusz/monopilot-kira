@@ -94,3 +94,23 @@ Existing migrations use pattern `NNN-name.sql` (three-digit + hyphen, max curren
 
 ## Carry-forwards to 00-foundation
 - T-001 creates a foundation extension (app.current_site_id() + withSiteContext). The `00-foundation/coverage.md` section `## Tenant-context extension — site_id (14-multi-site dependency T-001)` is declared in T-001 but not yet written.
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-032 | Seed multi_site.* permissions onto roles (NNN-multisite-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-031 enum. |
+
+Decisions / gaps (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| site_id strategy (D-1) | 🔒 DECISION (P0, dominant) | BLOCKED | 0/149 migrations contain site_id; PRD assumes day-1 column. Decide: (A) day-1 rule + checked-in `operational_tables` registry now (recommended) — make T-030 registry-driven + retrofit 01-npd/02-settings; or (B) catalog-driven discovery. Touches 00-foundation + every module 04–15. Also clarify production_shifts (D-MS-9) owner. |
+| oee_snapshots.site_id owner (F-5) | 🔒 DECISION (gated on D-1) | BLOCKED | If D-1=(A): 08-production owns the ALTER. If D-1=(B): 14 T-030 owns it. 15-oee performs ZERO DDL either way. See 08-production + 15-oee STATUS. |
+| packages/domain phantom (X-5) | scaffold | ⬜ TODO | T-009/010/011/013/014 import `@monopilot/domain` which does not exist. Likely a 00-foundation scaffold task (or 14-a prereq) — blocks 14-b/14-c. |
+| apps/worker phantom (X-5) | scaffold | ⬜ TODO | T-011/T-030 target `apps/worker/src/jobs/*`; confirm 00-foundation T-111/T-112 own it. |
+| Migration renumber (X-2) | consolidation pass | ⬜ TODO | Re-sequence all 14 migrations `0040_..0053_` → `150-...` (≥ HEAD, hyphen pattern) in dependency order; fix T-030's 20-vs-21 table-count inconsistency. |
+| MON-domain-multisite skill (X-6) | skill gap | ⬜ TODO | Author `.claude/skills/MON-domain-multisite/SKILL.md` (IST state machine, lanes/rate-cards, replication, D-MS-1..18, site_id strategy, F-5 owner rule). Run /kira:skills-overhaul. |

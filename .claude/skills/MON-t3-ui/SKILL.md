@@ -110,6 +110,7 @@ Pattern reference; extend per the `_meta/prototype-labels/translation-notes-<mod
 - Do **not** import `@radix-ui/*` outside `packages/ui` (Foundation ESLint rule)
 - Do **not** use raw HTML `<select>` — shadcn `<Select>` only
 - Do **not** bypass RBAC server-side — never trust client session for permission gates
+- Do **not** create two `page.tsx` that resolve to the same URL — **route groups `(group)` add NO path segment**, so `(admin)/settings/page.tsx` and `[locale]/(app)/(admin)/settings/page.tsx` collide and fail `next build` (green vitest, red Vercel). Consolidate onto one tree (settings uses the localized `[locale]/(app)/(admin)/settings` tree). Run `pnpm --filter web exec next build` locally before deploy.
 
 ## Required UI states (every screen)
 
@@ -128,6 +129,7 @@ All 5 states **must** be exercised by either RTL or Playwright tests. Skeleton p
 ## i18n (next-intl)
 
 - Locale files: `apps/web/i18n/en.json`, `pl.json`, `ro.json`, `uk.json`. **All four** must contain every new key (CI fails on missing-key drift).
+- **i18n completeness is a live-bug class:** every `t('key')` you reference MUST have a value in ALL FOUR files. A missing key does not throw — next-intl renders the **raw key string** ("settings.users.invite") in the UI, so buttons show garbage labels and the screen looks broken live while vitest/tsc stay green. Never ship a `t('...')` call without adding its value to en/pl/ro/uk. After authoring, grep your new `t('` calls and confirm each resolves in all four locale files.
 - Key format: `<module>.<feature>.<element>`, e.g. `maintenance.dashboard.kpi.mwo_open.title`.
 - Server Components: `import { getTranslations } from 'next-intl/server'`; pass strings down as props, do **not** call `useTranslations` in RSC.
 - Client Components: `useTranslations('<module>.<feature>')`.

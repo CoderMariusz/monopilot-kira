@@ -1,0 +1,89 @@
+{
+  "title": "T-060 — Seed scheduler.* permissions onto roles (NNN-scheduler-permission-seed.sql)",
+  "prompt": "# T-060 — Seed scheduler.* permissions onto roles\n\n## Goal\nIdempotent grant migration (pattern 148-settings-infra-permission-seed.sql) granting the 11 scheduler.* strings to Planner Advanced / Scheduling Officer / Admin for the default/Apex org. Closes X-1 + 07-F2.\n\n## Acceptance criteria\n- AC1 — Idempotent; seeded Planner Advanced resolves scheduler.run = allowed; viewer = denied.\n- AC2 — DoD live click-through to /scheduler does not 403 for a seeded planner.\n\n## Red lines\n- Migration number ≥ HEAD contiguous; org_id Wave0 lock; app.current_org_id() scoping; no hardcoded role UUIDs; no write perms to viewers.",
+  "labels": [
+    "prd",
+    "auth",
+    "permissions",
+    "rbac-seed",
+    "T1-schema",
+    "p0-blocker",
+    "wave-1",
+    "sidecar-X1"
+  ],
+  "priority": 80,
+  "max_attempts": 3,
+  "pipeline_name": "kira_dev",
+  "pipeline_inputs": {
+    "root_path": "/Users/mariuszkrawczyk/Projects/monopilot-kira",
+    "prd_task_id": "T-060",
+    "source_prd": "docs/prd/07-PLANNING-EXT-PRD.md",
+    "prd_refs": [
+      "§3.1",
+      "§3.2"
+    ],
+    "category": "auth",
+    "subcategory": "sidecar-refinement",
+    "task_type": "T1-schema",
+    "parent_feature": "07-planning-ext-sidecar",
+    "context_budget": "40k",
+    "estimated_effort": "3-4h",
+    "description": "Idempotent seed migration granting the 11 scheduler.* strings to Planner Advanced/Scheduling Officer/Admin + org-admin full set. Source: sidecar m07-rbac-grant-seed stub (T-060 of two).",
+    "details": "Idempotent seed migration granting the 11 scheduler.* strings to Planner Advanced/Scheduling Officer/Admin + org-admin full set. Source: sidecar m07-rbac-grant-seed stub (T-060 of two).",
+    "scope_files": [
+      "packages/db/migrations/NNN-scheduler-permission-seed.sql [create]",
+      "packages/db/__tests__/scheduler-permission-seed.test.ts [create]"
+    ],
+    "out_of_scope": [
+      "Do not change unrelated task scope."
+    ],
+    "dependencies": [
+      "T-058"
+    ],
+    "cross_module_dependencies": [
+      {
+        "module": "02-settings",
+        "task_id": "T-001",
+        "reason": "role_permissions schema + enum owned by 02-settings."
+      }
+    ],
+    "parallel_safe_with": [],
+    "acceptance_criteria": [
+      "Idempotent; seeded Planner Advanced resolves scheduler.run=allowed, viewer=denied.",
+      "DoD live click-through to /scheduler does not 403 for a seeded planner."
+    ],
+    "test_strategy": [
+      "RED-first per the implementation contract; capture actual test output."
+    ],
+    "risk_red_lines": [
+      "Migration number ≥ HEAD contiguous (X-2).",
+      "org_id Wave0 lock; app.current_org_id() scoping; no hardcoded role UUIDs; no write perms to viewers."
+    ],
+    "skills": [
+      "Mon-rls",
+      "Mon-supabase",
+      "test-driven-development"
+    ],
+    "checkpoint_policy": {
+      "required_checkpoints": [
+        "RED",
+        "GREEN",
+        "REVIEW",
+        "CLOSEOUT"
+      ],
+      "closeout_requires": [
+        "changed_files",
+        "test_commands_and_results",
+        "acceptance_criteria_status",
+        "deviations_from_prd",
+        "git_status"
+      ]
+    },
+    "routing_hints": {
+      "writer": "impl-standard",
+      "reviewer": "review-codex-work"
+    },
+    "prototype_match": false,
+    "risk_tier": "high"
+  }
+}

@@ -106,3 +106,22 @@
 ## Scope-file path warning
 
 Tasks T-012..T-051 use `apps/web/src/app/...` and `apps/web/src/components/...` but the repo uses `apps/web/app/...` (no `src/` layer). Implementers must resolve this path discrepancy before starting — likely adjust to `apps/web/app/` and `apps/web/components/`.
+
+
+## Sidecar fold-in (2026-06-04)
+
+New tracked tasks:
+
+| Task | Title | Status | Note / Sequence |
+|---|---|---|---|
+| T-059 | Wire scheduler.* RBAC across routes/pages | ⬜ PENDING | X-1 + 07-F2. **wave-1**, mirror 04 T-033; after T-058 enum + T-060 seed. |
+| T-060 | Seed scheduler.* permissions onto roles (NNN-scheduler-permission-seed.sql) | ⬜ PENDING | X-1 + 07-F2. **wave-1 p0**, after T-058 enum. |
+| T-061 | Provision + wire planner-solver host + env contract + circuit breaker | ⬜ PENDING | 07-F1. Blocks the whole scheduler. **Contains a hosting DECISION** (see 🔒 below). After T-021/T-012/T-062. |
+| T-062 | Reconcile solver dispatch to outbox/worker | ⬜ PENDING | 07-F3. Replace Postgres NOTIFY/LISTEN with outbox + apps/worker (T-111/T-112). Before/with T-061. |
+
+Decisions / refinements (no new task):
+
+| Item | Type | Status | Note |
+|---|---|---|---|
+| Solver hosting target | 🔒 DECISION | BLOCKED | Where does the FastAPI solver run (NOT Vercel — Fly.io/Render/Cloud Run/Railway)? Carried inside T-061; same host covers P2 forecaster T-054. |
+| Path remap (X-3) | consolidation pass | ⬜ TODO | Remap T-012..T-052 `apps/web/src/...` → `apps/web/app/...` / `apps/web/components/...` before build. Already flagged in STATUS path warning above. |

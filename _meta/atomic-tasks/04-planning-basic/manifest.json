@@ -4,7 +4,7 @@
   "generated_at": "2026-05-03T00:00:00Z",
   "generator": "wave-next-3-planning-hardening",
   "pipeline_name": "kira_dev",
-  "task_count": 66,
+  "task_count": 67,
   "tasks": [
     "tasks/T-001.json",
     "tasks/T-002.json",
@@ -71,7 +71,8 @@
     "tasks/T-063.json",
     "tasks/T-064.json",
     "tasks/T-065.json",
-    "tasks/T-066.json"
+    "tasks/T-066.json",
+    "tasks/T-067.json"
   ],
   "coverage_file": "coverage.md",
   "readiness_target": "95%+ full 04 planning basic"
