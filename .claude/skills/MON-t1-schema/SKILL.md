@@ -55,7 +55,7 @@ canonical_spec: _meta/audits/2026-05-14-tenant-context-remediation.md
 | `current_setting('app.current_org_id')` | `app.current_org_id()` | Same. GUC read resolves NULL → silent zero-row leakage. |
 | `SET LOCAL app.current_org_id = $1` | `select app.set_org_context($1::uuid, $2::uuid)` | Spoofable GUC writes bypass session-token trust store. |
 | `RLS by tenant_id` | `RLS via app.current_org_id() on org_id column` | Phrasing locked to canonical citation. |
-| `RLS policy on materialized view` | Service-layer filter `where org_id = app.current_org_id()` | Postgres MVs cannot host policies; enforce in `packages/<module>/src/queries/*.ts` (see 12-REPORTING T-003 pattern). |
+| `RLS policy on materialized view` / granting `app_user` SELECT on a raw MV | `security_invoker` wrapper VIEW `v_<mv>` filtering `where org_id = app.current_org_id()`, grant the view (revoke the raw MV) | MVs can't host policies AND `REFRESH` runs as owner across all orgs → raw grant = cross-org leak. See migs 221/228 + "Supabase-applyable migration gotchas". Service-layer filter alone is not enough if the raw MV is grantable. |
 | Bare `NUMERIC` for money | `NUMERIC(18,4)` for money, `NUMERIC(18,6)` for unit-cost | Drift causes rounding errors in variance_gbp / weighted-avg KPIs. |
 | Single-column `(org_id)` index when business pkey includes more | Composite `(org_id, <site_id?>, <business_keys>)` | Wave0 reads always include `org_id`; planner must hit composite. |
 | `policy_name` without `_org_context` suffix | `<table>_org_context` | F1 fixer convention; pg_policies AC greps for the suffix. |
@@ -169,14 +169,71 @@ Notes:
 - Index names: `<table>_<purpose>_idx` (lowercase, snake_case).
 - `revoke all from public` is required for fail-closed default.
 
-## Audit triggers
+## Audit + updated_at triggers  ⚠️ CORRECTED 2026-06-05 (this caused a live deploy failure)
 
-Foundation contract (T-009 in audit-events migration, T-040 carry-forward):
+**There is NO generic `app.audit_event()` row-trigger function in this repo.** Verified: no
+migration defines `create function app.audit_event` (004-audit.sql ships only the `audit_events`
+TABLE + `public.audit_events_impersonation_guard()`). Attaching `... execute function
+app.audit_event()` will pass a superuser local Postgres but **FAIL the Vercel fail-loud migrate on
+Supabase** with `function app.audit_event() does not exist` (this is exactly how migration 204
+broke deploy `eb011dc8` on 2026-06-05; migs 197/199/181 all document the same). The canonical R13
+audit pattern is:
 
-- Function `app.audit_event()` (defined in `packages/db/migrations/004-audit.sql`) reads `app.current_org_id()` for the audit row's `org_id`, `current_setting('app.current_user_id', true)` for `actor_user_id`, `current_setting('app.request_id', true)` for `request_id`.
-- Trigger attach is **per table**: `create trigger <table>_audit after insert or update or delete ... execute function app.audit_event();`
-- Do NOT re-declare `app.audit_event()` — assume it exists (foundation T-009 ships it). If your task adds a new column to `audit_events`, that is a Foundation-scope task, not T1-schema.
-- `retention_class` defaults to `'standard'`. To opt into `'security'` retention for e-sign-adjacent tables, your task JSON must explicitly request a per-row override; this is non-default and rare.
+1. **Audit COLUMNS** on the table: `created_by uuid`, `updated_by uuid`, `created_at timestamptz
+   not null default pg_catalog.now()`, `updated_at timestamptz not null default pg_catalog.now()`.
+2. **A module-local `updated_at` trigger** — define your OWN inline fn, do NOT call a shared one
+   (there is also NO shared `app.set_updated_at()`; references to it in 063/064/072 are comments):
+   ```sql
+   create or replace function public.<module>_set_updated_at()
+   returns trigger language plpgsql as $$
+   begin new.updated_at := pg_catalog.now(); return new; end; $$;
+
+   drop trigger if exists <table>_set_updated_at on public.<table>;
+   create trigger <table>_set_updated_at
+     before update on public.<table>
+     for each row execute function public.<module>_set_updated_at();
+   ```
+3. **Mutating-action `audit_events` rows are written by the Server Action layer** (T2-api), NOT a
+   DB row trigger. `retention_class` defaults `'standard'`; opt into `'security'` for e-sign/security
+   surfaces. The columns are `(org_id, actor_user_id, actor_type, action, resource_type,
+   resource_id, before_state, after_state, retention_class)`; `actor_type ∈
+   ('user','system','scim','impersonation')`, `retention_class ∈
+   ('security','standard','operational','ephemeral')`.
+
+## Supabase-applyable migration gotchas (the migration role is NOT superuser)
+
+Vercel build runs `pnpm --filter @monopilot/db migrate` fail-loud against Supabase as a
+non-superuser role. A migration that works on local superuser Postgres can still break the deploy.
+Avoid (all caused real failures or are known landmines):
+
+- ❌ `app.audit_event()` / `app.set_updated_at()` — don't exist (see above). Use module-local fns.
+- ❌ `LEAKPROOF` on a function — "only superuser can define a leakproof function" (broke mig 215).
+  Drop the keyword; it's only a planner hint. `SECURITY DEFINER STABLE` is fine.
+- ❌ `ALTER FUNCTION ... OWNER TO service_role` / any owner-change in schema public — wrap in a
+  `DO $$ BEGIN ... EXCEPTION WHEN insufficient_privilege THEN ... END $$;` guard (mig 124 precedent).
+- ❌ `CREATE EXTENSION` — not permitted; extensions are pre-provisioned.
+- ✅ **Materialized-view unique index for `REFRESH ... CONCURRENTLY`** must use **plain columns,
+  NOT expressions** (`coalesce(...)` functional indexes are rejected). If the unique key has
+  nullable columns, add a real `site_key` column (`coalesce(site_id,'000…'::uuid)`) to the MV and
+  index that — a plain-column index — which requires recreating the MV. (QG-12 stayed deferred
+  because the functional-index shortcut silently breaks concurrent refresh.)
+- ✅ **Cross-org safety for MVs**: a materialized view cannot host an RLS policy and `REFRESH` runs
+  as the owner across ALL orgs. Do NOT grant `app_user` SELECT on the raw MV. Instead ship a
+  `security_invoker` wrapper view and grant THAT (see the corrected MV row in Hard rules):
+  ```sql
+  create or replace view public.v_<mv> with (security_invoker = true) as
+    select * from public.<mv> where org_id = app.current_org_id();
+  revoke select on public.<mv> from app_user;  grant select on public.v_<mv> to app_user;
+  ```
+  (Pattern shipped in migs 221 reporting + 228 oee, fixing QG-02/QG-06 cross-org leaks.)
+- ✅ **Outbox CHECK**: if your migration recreates `outbox_events_event_type_check`, it must list
+  the FULL `DB_EVENT_TYPES` union, not just your module's events — each module narrowly recreating
+  it drops the others (drift). Regenerate from `packages/outbox/src/events.enum.ts DB_EVENT_TYPES`;
+  the highest-numbered migration that touches the CHECK wins (see mig 217).
+- ✅ **Canonical-owner table-name collisions**: before `create table public.X`, confirm no other
+  module already owns `X` (e.g. `spare_parts_stock` clashed between 05-warehouse + 13-maintenance →
+  renamed maintenance's to `maintenance_spare_parts_stock`). `if not exists` SILENTLY skips a
+  second creator, leaving the table with the wrong module's columns — a latent bug, not an error.
 
 ## Multi-site extension
 

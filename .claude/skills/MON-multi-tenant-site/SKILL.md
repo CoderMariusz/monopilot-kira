@@ -89,8 +89,19 @@ app.set_org_context(session_token uuid, org_id uuid) RETURNS uuid  -- SECURITY D
 
 -- packages/db/migrations/0040_site_context.sql (T-001 of 14-multi-site)
 app.set_site_context(session_token uuid, site uuid) RETURNS void  -- SECURITY DEFINER
-app.current_site_id() RETURNS uuid  -- SECURITY DEFINER STABLE LEAKPROOF
+app.current_site_id() RETURNS uuid  -- SECURITY DEFINER STABLE  (NOT leakproof — see below)
 ```
+
+> ⚠️ **NO `LEAKPROOF`** (corrected 2026-06-05). Only a superuser may define a leakproof function;
+> the Supabase migration role is not superuser, so `LEAKPROOF` breaks the fail-loud deploy
+> ("only superuser can define a leakproof function" — it broke mig 215). It is only a planner hint;
+> `SECURITY DEFINER STABLE` is sufficient. Same family as the mig-124 owner-change gotcha.
+>
+> ⚠️ **SECURITY DEFINER fns that accept a caller-supplied `org_id` MUST guard it** — `if p_org_id
+> is null or p_org_id <> app.current_org_id() then raise exception ... using errcode='42501'; end
+> if;` at the top. A definer fn bypasses RLS, so an unguarded `p_org_id` arg lets any `app_user`
+> act on another org (this was a real cross-org hole in the SSCC `next_sscc_serial`/`generate_sscc`
+> functions — fixed by adding the guard). Prefer deriving org from `app.current_org_id()` over an arg.
 
 **Argument order matters:** `session_token` FIRST, `org_id`/`site` SECOND. The setter verifies the session-token row exists in the trust store (`app.session_org_contexts` / `app.session_site_contexts`) and raises PG 28000 on mismatch. `app.current_user_id` for audit triggers is set via a separate `SET LOCAL app.current_user_id = $userId` inside the `withOrgContext` wrapper — it is NOT bundled into the setter signature.
 
@@ -196,6 +207,7 @@ Every module that introduces permission strings MUST ship a wave-1 P0 seed migra
 2. **Writes to BOTH stores:** the canonical `role_permissions` table AND the legacy `roles.permissions` jsonb column. Some code paths still read the jsonb; granting only one leaves a half-broken authz surface.
 3. **Adds an org-insert trigger + a backfill.** The trigger grants the perms to admin roles of every newly-created org; the backfill loops existing orgs so already-provisioned tenants (incl. the live test org) get them immediately.
 4. **Uses the EXACT strings the pages CHECK.** Vocabulary divergence — the page checks `settings.users.manage` but the seed grants `settings.user.manage` — is a silent 403 and was a root cause in both npd and settings. Grep the module's `hasPermission(...)` / RBAC-gate call sites and seed precisely those strings.
+5. **Matches admin/operator/etc roles by `r.code` OR `r.slug`** — roles are seeded with `slug` as the primary identifier (mig 017); `code` is secondary. A seed JOIN that matches on `r.code = any(...)` ALONE silently grants nothing on orgs whose admin role's `code` differs from its `slug` → live 403 everywhere (this was bug QG-01: the OEE seed matched code-only; finance/maintenance/shipping seeds correctly use `(r.code = any(v_admin) OR r.slug = any(v_admin))`). Always include BOTH; copy the predicate from `199-finance-schema-and-rbac-seed.sql`. The admin family is `('org.access.admin','org.platform.admin','owner','admin','org_admin')`.
 
 This is a wave-1 P0 task in `07-MODULE-EXECUTION.md` §"Wave-1 P0 standing tasks" — schedule it before the feature waves, not after. RBAC writes/grants still go through `packages/rbac` canonical helpers where a runtime grant is needed; the seed migration handles the bootstrap/backfill DDL.
 

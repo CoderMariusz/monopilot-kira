@@ -166,6 +166,18 @@ export async function releaseSO(raw: unknown): Promise<ReleaseSOResult> {
 | Mixing read + write Server Action with no idempotency guard | Add state guard (`where status <> 'released'`) or replay-nonce (e-sign) |
 | Returning raw DB row | Whitelist fields in `data` payload — never echo internal columns |
 | `export class XError {}` / `export const FOO = {...}` in a `'use server'` file | Only `export async function` is legal in a `'use server'` module — move classes/consts to a non-`'use server'` sibling |
+| `z.coerce.number()` / `z.number()` for money/qty/kg, then `String(v)` or float-bind | **NUMERIC-exact red line:** accept a decimal STRING (`z.string().refine(/^-?\d+(\.\d+)?$/)`), bind raw `::numeric` — never a JS number (IEEE-754 drift / exponential notation corrupts the value before Postgres). Was P0-3 (cost SSOT) + register-output/record-waste. |
+| Writing `items.cost_per_kg` (or any dual-owned/ledgered value) directly in create/update | Route through the canonical single-writer (e.g. `write-cost-ledger.ts` → `item_cost_history` + approver guard); never let two actions write the same SSOT column. |
+| High-privilege / security mutation that emits an outbox event but writes no `audit_log` row | INSERT a `public.audit_log` row (`retention_class='security'`) **in the same txn** — the security audit tab reads it; emitting only outbox leaves it empty (was S-03 across 8 actions). |
+| Calling a helper that opens its OWN pool/connection (`getOwnerConnection`) and commits before returning | Pass the caller's `client` so attempt-counters / lockout / audit writes share the caller's rollback boundary — else an outer rollback (e.g. CAS miss) still commits the helper's side effect (was QG-05, verifyPin lockout). |
+
+### Honest stub > silent no-op (P0-4 pattern)
+If a feature's backend isn't built (no worker drains the job, no adapter wired), do NOT insert a
+`'queued'` row / return `ok:true` while nothing happens — users believe it worked. Return a clear
+`{ ok:false, error:'not_implemented' }` (with a `// TODO(...)` pointing at the real fix) and disable
+the UI affordance with a "not yet available" banner. BUT return it **after** permission/audit/preflight
+still run, so the stub never bypasses authz controls (an unauthorized caller must still get `forbidden`,
+bad data still `*_preflight_failed`; only an otherwise-valid request gets `not_implemented`).
 
 ## `'use server'` export rule (breaks `next build`, NOT caught by tsc/vitest)
 
