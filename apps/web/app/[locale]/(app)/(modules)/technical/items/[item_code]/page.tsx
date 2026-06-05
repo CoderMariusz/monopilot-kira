@@ -173,8 +173,9 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
 
   const deactivateLabels: DeactivateLabels = {
     title: t('deactivate.title'),
-    subtitle: t('deactivate.subtitle'),
-    warning: t('deactivate.warning'),
+    // {code}/{name} placeholders interpolated client-side — t.raw avoids next-intl FORMATTING_ERROR.
+    subtitle: t.raw('deactivate.subtitle'),
+    warning: t.raw('deactivate.warning'),
     reason: t('deactivate.reason'),
     reasonRequired: t('deactivate.reasonRequired'),
     reasons: {
@@ -185,7 +186,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     },
     notes: t('deactivate.notes'),
     notesRequired: t('deactivate.notesRequired'),
-    confirmLabel: t('deactivate.confirmLabel'),
+    confirmLabel: t.raw('deactivate.confirmLabel'),
     confirmMismatch: t('deactivate.confirmMismatch'),
     cancel: t('deactivate.cancel'),
     confirm: t('deactivate.confirm'),

@@ -85,8 +85,11 @@ function buildWizardLabels(t: Translator): ItemWizardLabels {
 function buildDeactivateLabels(t: Translator): DeactivateLabels {
   return {
     title: t('deactivate.title'),
-    subtitle: t('deactivate.subtitle'),
-    warning: t('deactivate.warning'),
+    // subtitle/warning/confirmLabel carry {code}/{name} placeholders that the
+    // client modal interpolates per row — use t.raw so next-intl does not throw
+    // FORMATTING_ERROR for the missing context vars at build time.
+    subtitle: t.raw('deactivate.subtitle'),
+    warning: t.raw('deactivate.warning'),
     reason: t('deactivate.reason'),
     reasonRequired: t('deactivate.reasonRequired'),
     reasons: {
@@ -97,7 +100,7 @@ function buildDeactivateLabels(t: Translator): DeactivateLabels {
     },
     notes: t('deactivate.notes'),
     notesRequired: t('deactivate.notesRequired'),
-    confirmLabel: t('deactivate.confirmLabel'),
+    confirmLabel: t.raw('deactivate.confirmLabel'),
     confirmMismatch: t('deactivate.confirmMismatch'),
     cancel: t('deactivate.cancel'),
     confirm: t('deactivate.confirm'),
