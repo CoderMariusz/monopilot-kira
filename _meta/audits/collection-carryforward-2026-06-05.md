@@ -30,6 +30,13 @@ c888b94b, 0a02d399); these are the tracked remainders.
    (mig 201, renamed maintenance_spare_parts_stock to avoid the table collision) both model
    spare-parts stock. Decide the single owner + reference model (food-MES: spares ≈ maintenance).
 
+## Live Gate-5 smoke findings (deploy d4414d6f READY, Supabase @217)
+8. **08-production dashboard dead nav links** (Gate-5 smoke): /en/production renders + is wired
+   into the menu, but its "Production areas" nav links to 6 UNBUILT subroutes — /production/
+   {shifts,analytics,waste,downtime,wos,changeover} all 404 (prefetch errors in console). Only the
+   dashboard + work-orders/[id] API + lib/production were collected. Fix-wave: build the subroutes
+   OR make the nav links honest stubs. (Login ✅, dashboard ✅ no 403, /technical existing ✅ 0 errors.)
+
 ## Dismissed false-positives (Codex diff-scoping artifacts — verified safe, no action)
 - "outbox CHECK drops events" (migs 202/215): mig 217 recreates the full DB_EVENT_TYPES union
   as the FINAL state; check-drift gate green. Per-module intermediate CHECK narrowing is benign
