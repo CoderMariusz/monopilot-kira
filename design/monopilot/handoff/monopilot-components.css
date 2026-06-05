@@ -1,0 +1,223 @@
+/* ============================================================================
+ * MonoPilot — Components & Chrome
+ * Drop this in AFTER monopilot-tokens.css. It contains every desktop (light)
+ * primitive: sidebar/topbar chrome, cards, KPI tiles, buttons, badges, tables,
+ * alerts, tabs, pills, forms, modals, and the tuning primitives
+ * (RunStrip / EmptyState / TabsCounted / CompactActivity / DryRunButton).
+ *
+ * Rule of thumb: never invent a color, radius, or font — every value below
+ * reads from a token in monopilot-tokens.css. If you need a value that isn't
+ * a token, you are probably drifting. Stop and re-read 01-DESIGN-SPEC.md.
+ * ========================================================================== */
+
+/* ============ Layout / chrome ============ */
+body { margin: 0; }
+
+#sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--sidebar);
+  color: var(--sidebar-text);
+  overflow-y: auto; z-index: 100;
+}
+.sidebar-logo {
+  padding: 14px 16px; font-size: 18px; font-weight: 700; color: #fff;
+  border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 8px;
+}
+.sidebar-logo span { font-size: 11px; color: var(--sub-nav-text); font-weight: 400; }
+.sidebar-group {
+  padding: 10px 14px 2px; font-size: 10px; color: #475569; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.sidebar-item {
+  padding: 7px 14px; font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  border-left: 3px solid transparent;
+}
+.sidebar-item:hover { background: var(--gray-700); color: #f1f5f9; }
+.sidebar-item.active { background: var(--blue-900); color: #fff; border-left-color: var(--blue); }
+/* Sidebar count badge — red overdue / amber pending / muted neutral. Sits right-aligned. */
+.sidebar-count { margin-left: auto; border-radius: var(--radius-pill); padding: 1px 7px; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.4; }
+.sidebar-count.bad  { background: var(--sem-bad-bg);  color: var(--red-700); }
+.sidebar-count.warn { background: var(--sem-warn-bg); color: var(--amber-700); }
+.sidebar-count.neutral { background: var(--sem-neutral-bg); color: var(--gray-600); }
+
+.topbar {
+  position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+  background: #fff; border-bottom: 1px solid var(--border);
+  padding: 10px 24px; display: flex; align-items: center; gap: 16px; z-index: 50;
+  height: var(--topbar-h); box-sizing: border-box;
+}
+.topbar .search { flex: 1; max-width: 420px; }
+.topbar .search input {
+  width: 100%; padding: 7px 12px 7px 32px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; font-family: inherit;
+  background: var(--bg) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/></svg>") no-repeat 10px center;
+}
+.topbar .spacer { flex: 1; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--blue-050); color: var(--blue-700);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 12px;
+}
+
+#main { margin-left: var(--sidebar-w); padding: 72px 24px 40px; }
+
+/* ============ Card ============ */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.card-title { font-size: var(--fs-card-title); font-weight: var(--fw-semi); }
+
+/* ============ KPI tile ============ *
+ * The single most-drifted component. Hard rules:
+ *  - value is Inter 26/700, NEVER monospace
+ *  - the ONLY decoration is a 3px coloured bottom border (semantic)
+ *  - no drop shadow, no heavy rounding (radius is 6px), no gradient        */
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; border-bottom: 3px solid var(--blue); }
+.kpi.green { border-bottom-color: var(--green); }
+.kpi.amber { border-bottom-color: var(--amber); }
+.kpi.red   { border-bottom-color: var(--red); }
+.kpi-label { font-size: var(--fs-kpi-label); color: var(--muted); font-weight: 500; }
+.kpi-value { font-size: var(--fs-kpi-value); font-weight: 700; line-height: 1.2; font-family: var(--font-sans); }
+.kpi-change { font-size: 11px; margin-top: 2px; }
+
+/* ============ Buttons ============ *
+ * Primary action is ALWAYS --blue. Never black/navy, never a custom hue.   */
+.btn { padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary   { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover   { background: var(--blue-600); }
+.btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+.btn-secondary:hover { background: var(--gray-050); }
+.btn-ghost   { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--gray-050); color: var(--text); }
+.btn-danger  { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; cursor: not-allowed; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover { background: #15803d; }
+.btn-lg   { padding: 9px 18px; font-size: 13px; }
+.btn-icon { padding: 6px 10px; }
+
+/* ============ Badge (status pill) ============ */
+.badge { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: 500; }
+.badge-green { background: var(--green-050); color: var(--green-700); }
+.badge-amber { background: var(--amber-050); color: var(--amber-700); }
+.badge-red   { background: var(--red-050);   color: var(--red-700); }
+.badge-blue  { background: var(--blue-050);  color: var(--blue-700); }
+.badge-gray  { background: var(--gray-050);  color: var(--gray-600); }
+
+/* ============ Table ============ *
+ * Dense by design: th 8/10 padding, td 7/10. Codes go in td.mono.          */
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-table-cell); }
+th { text-align: left; padding: 8px 10px; background: var(--gray-100); border-bottom: 2px solid var(--border); font-weight: 600; font-size: var(--fs-table-head); color: var(--muted); white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--gray-100); }
+td.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* ============ Alerts ============ */
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 12px; border-left: 4px solid; margin-bottom: 8px; }
+.alert-red   { background: var(--red-050a);   border-color: var(--red); }
+.alert-amber { background: var(--amber-050a); border-color: var(--amber); }
+.alert-blue  { background: var(--info-050a);  border-color: var(--info); }
+.alert-green { background: var(--green-050a); border-color: var(--green); }
+.alert-title { font-weight: 600; margin-bottom: 2px; }
+
+/* ============ Tabs (plain) ============ */
+.tabs { display: flex; border-bottom: 2px solid var(--border); }
+.tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--muted); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+/* ============ Filter pills ============ */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { padding: 4px 11px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: var(--gray-050); color: var(--muted); border: 1px solid transparent; }
+.pill.on { background: var(--blue-050); color: var(--blue-700); border-color: var(--blue); }
+
+/* ============ Form input (inline form-* variant) ============ */
+.form-label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 3px; color: var(--label); }
+.form-label .req { color: var(--red); }
+.form-input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+.form-input:focus { outline: none; border-color: var(--blue); box-shadow: var(--shadow-focus); }
+
+/* ============================================================================
+ * Modal primitive
+ * ========================================================================== */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-box { background: #fff; border-radius: var(--radius-lg); width: 560px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; box-shadow: var(--shadow-modal); }
+.modal-box.wide { width: 760px; }
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-close { cursor: pointer; background: transparent; border: 0; font-size: 18px; color: var(--muted); }
+.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--gray-050); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+
+/* ============ Form-field (modal/detail variant — uppercase label) ============ */
+.ff { margin-bottom: 12px; }
+.ff label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+.ff .req { color: var(--red); font-weight: 700; margin-left: 2px; }
+.ff input, .ff select, .ff textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+.ff textarea { min-height: 68px; resize: vertical; }
+.ff-help  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ff-error { font-size: 11px; color: var(--red); margin-top: 3px; }
+.ff-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ============ Wizard stepper ============ */
+.wiz-stepper { display: flex; align-items: center; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+.wiz-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.wiz-step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--gray-100); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; border: 2px solid var(--border); }
+.wiz-step.current { color: var(--blue); font-weight: 600; }
+.wiz-step.current .wiz-step-num { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-050); }
+.wiz-step.done { color: var(--green-700); }
+.wiz-step.done .wiz-step-num { background: var(--green); color: #fff; border-color: var(--green); }
+.wiz-step-line { flex: 1; height: 2px; background: var(--border); margin: 0 14px; border-radius: 1px; }
+.wiz-step-line.done { background: var(--green); }
+
+/* ============ Sticky form / step header ============ */
+.sticky-form-header { position: sticky; top: var(--topbar-h, 0); background: var(--surface-1); z-index: 10; border-bottom: 1px solid var(--border); }
+
+/* ============================================================================
+ * Tuning primitives (see TUNING-PATTERN.md / 03-COMPONENTS.md)
+ * ========================================================================== */
+
+/* RunStrip — inline 8-outcome sparkline */
+.run-strip { display: inline-flex; gap: 1px; align-items: center; vertical-align: middle; line-height: 1; }
+.run-strip-cell { width: 3px; height: 12px; border-radius: 1px; background: var(--spark-track); }
+.run-strip-cell.ok    { background: var(--spark-ok); }
+.run-strip-cell.warn  { background: var(--spark-warn); }
+.run-strip-cell.bad   { background: var(--spark-bad); }
+.run-strip-cell.empty { background: var(--spark-track); }
+.run-strip-label { font-size: 11px; color: var(--muted); margin-left: 8px; font-variant-numeric: tabular-nums; }
+
+/* EmptyState — list/table empty primitive */
+.empty-state { padding: 40px 24px; text-align: center; color: var(--muted); }
+.empty-state-icon { font-size: 40px; opacity: 0.28; line-height: 1; margin-bottom: 10px; }
+.empty-state-title { font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.empty-state-body { font-size: 12px; color: var(--muted); max-width: 420px; margin: 0 auto 12px; line-height: 1.5; }
+.empty-state-action { margin-top: 6px; }
+
+/* TabsCounted — tabs with a count pill */
+.tabs-counted { display: inline-flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; align-items: stretch; }
+.tabs-counted-tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit; }
+.tabs-counted-tab:hover { color: var(--text); }
+.tabs-counted-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.tabs-counted-pill { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--sem-neutral-bg); color: var(--sem-neutral); font-variant-numeric: tabular-nums; min-width: 18px; text-align: center; }
+.tabs-counted-pill.tone-ok      { background: var(--sem-ok-bg);      color: var(--green-700); }
+.tabs-counted-pill.tone-warn    { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.tabs-counted-pill.tone-bad     { background: var(--sem-bad-bg);     color: var(--red-700); }
+.tabs-counted-pill.tone-info    { background: var(--sem-info-bg);    color: var(--blue-700); }
+.tabs-counted-pill.tone-neutral { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
+.tabs-counted-pill.zero { opacity: 0.55; }
+
+/* DryRunButton — dashed secondary preview CTA next to a commit action */
+.btn-dryrun { padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; border: 1px dashed var(--border); background: var(--surface-2); color: var(--text); font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-dryrun:hover { border-color: var(--blue); color: var(--blue); }
+.btn-dryrun:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-dryrun .dryrun-icon { font-size: 11px; opacity: 0.7; }
+
+/* Progress bar (table cell) */
+.bar-track { flex: 1; height: 6px; background: var(--gray-050); border-radius: 3px; overflow: hidden; max-width: 80px; }
+.bar-fill  { height: 100%; }
+.bar-fill.ok   { background: var(--green); }
+.bar-fill.warn { background: var(--amber); }
+.bar-fill.bad  { background: var(--red); }

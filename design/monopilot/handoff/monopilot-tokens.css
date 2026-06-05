@@ -1,0 +1,177 @@
+/* Monopilot Design System — core tokens
+ * Source of truth: design/01-NPD-UX.md §1, design/02-SETTINGS-UX.md §1,
+ * design/03-TECHNICAL-UX.md §1, design/04-PLANNING-BASIC-UX.md §1
+ * Tokens are identical across all four modules — they inherit a single
+ * shared visual system anchored by the sitemap HTML.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ------------------------------------------------------------
+   * Color — primary palette
+   * ------------------------------------------------------------ */
+  --blue:     #1976D2;   /* Primary. Buttons, active nav, focus, KPI default */
+  --blue-600: #1565C0;   /* Primary hover */
+  --blue-050: #dbeafe;   /* badge-blue bg */
+  --blue-700: #1e40af;   /* badge-blue text */
+  --blue-900: #1e3a5f;   /* sidebar active-item bg */
+
+  --green:     #22c55e;  /* Success, on-time, active */
+  --green-050: #dcfce7;  /* badge-green bg */
+  --green-700: #166534;  /* badge-green text */
+  --green-050a:#f0fdf4;  /* alert-green bg */
+
+  --amber:     #f59e0b;  /* Warning, partial, draft */
+  --amber-050: #fef3c7;  /* badge-amber bg */
+  --amber-700: #92400e;  /* badge-amber text */
+  --amber-050a:#fffbeb;  /* alert-amber bg */
+
+  --red:       #ef4444;  /* Error, overdue, destructive */
+  --red-050:   #fee2e2;  /* badge-red bg */
+  --red-700:   #991b1b;  /* badge-red text */
+  --red-050a:  #fef2f2;  /* alert-red bg */
+
+  --info:      #3b82f6;  /* Info alerts */
+  --info-050a: #eff6ff;  /* alert-blue bg */
+
+  --gray-050:  #f1f5f9;  /* badge-gray bg, secondary-button hover */
+  --gray-100:  #f8fafc;  /* page bg, table-head bg, row hover */
+  --gray-500:  #64748b;  /* muted text, table headers */
+  --gray-600:  #475569;  /* badge-gray text, sidebar group labels */
+  --gray-700:  #334155;  /* sidebar item hover bg */
+  --gray-300:  #cbd5e1;  /* sidebar text */
+
+  /* ------------------------------------------------------------
+   * Semantic surface + text tokens
+   * ------------------------------------------------------------ */
+  --bg:        #f8fafc;
+  --card:      #ffffff;
+  --sidebar:   #1e293b;
+  --text:      #1e293b;
+  --muted:     #64748b;
+  --border:    #e2e8f0;
+  --label:     #374151;      /* form labels */
+  --sidebar-text: #cbd5e1;
+  --sub-nav-text: #94a3b8;   /* sidebar sub-items */
+
+  /* ------------------------------------------------------------
+   * Cell-state colors (NPD PRD §7.2) — MES-specific
+   * ------------------------------------------------------------ */
+  --cell-locked:        #D0D0D0;  /* blocking rule not met */
+  --cell-auto-derived:  #E0FFE0;  /* read-only, computed */
+  --cell-d365-found:    #C0FFC0;  /* D365 material found */
+  --cell-d365-nocost:   #C0FFFF;  /* D365 material, no cost */
+  --cell-d365-missing:  #C0C0FF;  /* D365 material missing */
+  --cell-row-ready:     #C0FFC0;  /* row ready to close */
+  --cell-row-alert:     #C0C0FF;  /* row in alert */
+
+  /* ------------------------------------------------------------
+   * Radius, shadow, spacing
+   * ------------------------------------------------------------ */
+  --radius:      6px;   /* cards, badges */
+  --radius-sm:   4px;   /* inputs, buttons */
+  --radius-lg:   8px;   /* modals */
+  --radius-pill: 10px;  /* badge pill */
+
+  --shadow-focus: 0 0 0 2px rgba(25, 118, 210, .15);
+  --shadow-modal: 0 10px 30px rgba(15, 23, 42, .15);
+
+  --sidebar-w:       220px;
+  --settings-nav-w:  256px;
+
+  /* ------------------------------------------------------------
+   * Type — base + role variables
+   * ------------------------------------------------------------ */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --fs-page-title: 20px;   /* page H1 */
+  --fs-page-title-lg: 24px;/* settings dashboard H1 */
+  --fs-card-title: 14px;
+  --fs-section:    12px;   /* section header, uppercase */
+  --fs-table-head: 12px;
+  --fs-table-cell: 13px;
+  --fs-label:      12px;
+  --fs-body:       14px;   /* base */
+  --fs-helper:     12px;
+  --fs-badge:      11px;
+  --fs-kpi-value:  26px;
+  --fs-kpi-label:  11px;
+  --fs-breadcrumb: 12px;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+
+  --lh-base: 1.4;
+
+  /* ------------------------------------------------------------
+   * Tuning overlay (2026-04-23) — see TUNING-PATTERN.md §2
+   * These tokens are ADDITIVE. Existing tokens unchanged.
+   * ------------------------------------------------------------ */
+
+  /* §2.1 Surface layering — prefer surface contrast over border */
+  --surface-0:   var(--bg);        /* page background */
+  --surface-1:   #ffffff;          /* cards, panels */
+  --surface-2:   #f1f5f9;          /* nested rows, sub-panels, inner wells */
+  --surface-3:   #e2e8f0;          /* deepest, rarely used (e.g. spark track) */
+  --border-soft: #eef1f5;          /* softer than --border, for nested dividers */
+
+  /* Layout — topbar height (used by sticky-form-header top offset) */
+  --topbar-h:    48px;
+
+  /* §2.2 Semantic threshold tokens — single source for ok/warn/bad */
+  --sem-ok:        var(--green);
+  --sem-warn:      var(--amber);
+  --sem-bad:       var(--red);
+  --sem-info:      var(--blue);
+  --sem-neutral:   var(--gray-600);
+
+  --sem-ok-bg:      var(--green-050);
+  --sem-warn-bg:    var(--amber-050);
+  --sem-bad-bg:     var(--red-050);
+  --sem-info-bg:    var(--blue-050);
+  --sem-neutral-bg: var(--gray-050);
+
+  /* §2.3 Sparkline track + outcome colours */
+  --spark-track: var(--surface-3);
+  --spark-ok:    var(--sem-ok);
+  --spark-warn:  var(--sem-warn);
+  --spark-bad:   var(--sem-bad);
+}
+
+/* ============================================================
+ * Base — apply to body / html to inherit everywhere
+ * ============================================================ */
+html, body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-base);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  /* Tuning §2.4 — tabular-nums applies to all numerics globally.
+   * Scanner retains its own stack and applies tabular-nums locally. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * Semantic type classes
+ * ============================================================ */
+.page-title     { font-size: var(--fs-page-title); font-weight: var(--fw-bold); color: var(--text); }
+.page-title-lg  { font-size: var(--fs-page-title-lg); font-weight: var(--fw-bold); }
+.card-title     { font-size: var(--fs-card-title); font-weight: var(--fw-semi); }
+.section-head   { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.breadcrumb     { font-size: var(--fs-breadcrumb); color: var(--muted); }
+.breadcrumb a   { color: var(--blue); text-decoration: none; }
+.muted          { color: var(--muted); }
+.label          { font-size: var(--fs-label); font-weight: var(--fw-medium); color: var(--label); }
+.helper         { font-size: var(--fs-helper); color: var(--muted); }
+.mono           { font-family: var(--font-mono); }
+
+code, .mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

@@ -191,9 +191,9 @@ describe('UI-129 AppSidebar shell tokens and accessibility', () => {
 
     const root = screen.getByTestId('app-sidebar');
     expect(root.className, 'root width must come from var(--shell-sidebar-w) through w-sidebar').toContain('w-sidebar');
-    expect(root.className, 'root background must use the shell background token utility').toContain('bg-shell-bg');
-    expect(root.className, 'root foreground/border must use shell token utilities').toEqual(expect.stringContaining('text-shell-fg'));
-    expect(root.className).toEqual(expect.stringContaining('border-shell-border'));
+    expect(root.className, 'root background must use the dark sidebar surface token utility').toContain('bg-shell-sidebar');
+    expect(root.className, 'root foreground/border must use dark sidebar token utilities').toEqual(expect.stringContaining('text-shell-sidebar-fg'));
+    expect(root.className).toEqual(expect.stringContaining('border-shell-sidebar-border'));
 
     const rootWidth = getComputedStyle(root).width;
     expect(rootWidth, 'root inline width must resolve to the shell sidebar token var').toBe('var(--shell-sidebar-w)');

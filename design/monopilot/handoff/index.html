@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MonoPilot — UI Conformance Pack</title>
+<link rel="stylesheet" href="monopilot-tokens.css">
+<link rel="stylesheet" href="monopilot-components.css">
+<style>
+  /* preview-page-only chrome for the readme band */
+  .pack-band { margin-left: var(--sidebar-w); background: #fff; border-bottom: 1px solid var(--border); padding: 18px 24px; }
+  .pack-band h1 { font-size: 18px; font-weight: 700; margin: 0 0 2px; }
+  .pack-band p { margin: 0; color: var(--muted); font-size: 13px; }
+  .pack-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 8px; margin-top: 14px; }
+  .pack-file { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; text-decoration: none; display: block; background: var(--surface-1); }
+  .pack-file:hover { border-color: var(--blue); }
+  .pack-file .fn { font-family: var(--font-mono); font-size: 11px; color: var(--blue-700); }
+  .pack-file .fd { font-size: 12px; color: var(--text); margin-top: 3px; }
+  .ref-tag { display:inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--green-700); background: var(--green-050); border-radius: var(--radius-pill); padding: 2px 8px; margin-left: 8px; vertical-align: middle; }
+  .two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; align-items: start; }
+  .list-row { display:flex; gap:10px; padding:7px 10px; border-bottom:1px solid var(--border); font-size:13px; align-items:center; }
+  .list-row:last-child { border-bottom: 0; }
+  .qa-link { color: var(--blue); font-size:12px; }
+</style>
+</head>
+<body>
+
+<!-- ===== Canonical chrome (the thing drifted pages are missing) ===== -->
+<div id="sidebar">
+  <div class="sidebar-logo">MonoPilot <span>MES · Apex</span></div>
+  <div class="sidebar-group">Core</div>
+  <div class="sidebar-item">🏠 Dashboard</div>
+  <div class="sidebar-item">⚙️ Settings</div>
+  <div class="sidebar-item active">🔧 Technical</div>
+  <div class="sidebar-group">Operations</div>
+  <div class="sidebar-item">📅 Planning</div>
+  <div class="sidebar-item">🏭 Production</div>
+  <div class="sidebar-item">📦 Warehouse</div>
+  <div class="sidebar-item">📱 Scanner</div>
+  <div class="sidebar-group">QA &amp; Shipping</div>
+  <div class="sidebar-item">✅ Quality</div>
+  <div class="sidebar-item">🚚 Shipping</div>
+  <div class="sidebar-group">Premium</div>
+  <div class="sidebar-item">💡 NPD <span class="sidebar-count bad">2</span></div>
+  <div class="sidebar-item">💰 Finance</div>
+  <div class="sidebar-item">📊 OEE</div>
+  <div class="sidebar-item">🔗 Integrations</div>
+</div>
+
+<div class="topbar">
+  <div class="search"><input placeholder="Search BOMs, recipes, specs, ECO…"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-secondary">⤓ Import</button>
+  <button class="btn btn-secondary">Export</button>
+  <div class="avatar">AM</div>
+</div>
+
+<!-- ===== Pack readme band ===== -->
+<div class="pack-band">
+  <h1>MonoPilot — UI Conformance Pack</h1>
+  <p>Hand these files to your local agent. The page below is the <strong>correct</strong> render of
+     Technical&nbsp;Dashboard (one of the screens that had drifted) built only from the two CSS files in this pack.</p>
+  <div class="pack-files">
+    <a class="pack-file" href="00-START-HERE.md"><div class="fn">00-START-HERE.md</div><div class="fd">Master prompt — paste first</div></a>
+    <a class="pack-file" href="01-DESIGN-SPEC.md"><div class="fn">01-DESIGN-SPEC.md</div><div class="fd">Tokens, type, layout, components</div></a>
+    <a class="pack-file" href="02-DRIFT-AUDIT.md"><div class="fn">02-DRIFT-AUDIT.md</div><div class="fd">Every drift → exact fix</div></a>
+    <a class="pack-file" href="03-COMPONENTS.md"><div class="fn">03-COMPONENTS.md</div><div class="fd">Paste-ready chrome + markup</div></a>
+    <a class="pack-file" href="04-PAGE-CHECKLIST.md"><div class="fn">04-PAGE-CHECKLIST.md</div><div class="fd">18-point acceptance per page</div></a>
+    <a class="pack-file" href="monopilot-tokens.css"><div class="fn">monopilot-tokens.css</div><div class="fd">Drop-in token file</div></a>
+    <a class="pack-file" href="monopilot-components.css"><div class="fn">monopilot-components.css</div><div class="fd">Drop-in component + chrome CSS</div></a>
+  </div>
+</div>
+
+<!-- ===== Live correct render of the drifted page ===== -->
+<div id="main" style="padding-top:24px">
+  <div class="breadcrumb"><a href="#">Technical</a> / Dashboard</div>
+  <div class="page-title">Technical dashboard <span class="ref-tag">Correct render</span></div>
+  <div class="muted" style="font-size:12px;margin-bottom:16px">
+    Health of the technical master data: active records, approvals, allergen overrides, D365 sync and cost reviews.
+  </div>
+
+  <!-- KPI row: Inter 26/700 values, 3px coloured accent, no shadow -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">ACTIVE ITEMS</div>
+      <div class="kpi-value">2</div>
+      <div class="kpi-change muted">Raw materials, intermediates &amp; FGs</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-label">PENDING BOM APPROVALS</div>
+      <div class="kpi-value">0</div>
+      <div class="kpi-change muted">Drafts &amp; in-review versions</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">OPEN ALLERGEN OVERRIDES</div>
+      <div class="kpi-value">0</div>
+      <div class="kpi-change muted">Manual overrides on item profiles</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">D365 SYNC STATUS</div>
+      <div class="kpi-value">No sync yet</div>
+      <div class="kpi-change muted">Latest synchronisation job</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">COST REVIEW QUEUE</div>
+      <div class="kpi-value">0</div>
+      <div class="kpi-change muted">Machine-generated cost changes</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Recent changes: dense table, mono codes/timestamps -->
+    <div class="card" style="padding:0">
+      <div class="card-head" style="padding:16px 16px 12px"><div class="card-title">Recent changes</div></div>
+      <table>
+        <thead><tr><th>When</th><th>Type</th><th>Change</th><th>Ref</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">2026-06-05 05:57</td><td>Item</td><td>item.created</td><td class="mono">b42f51b9</td></tr>
+          <tr><td class="mono">2026-06-04 18:07</td><td>Item</td><td>item.created</td><td class="mono">dab49ca6</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <!-- D365 health -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:6px">D365 health</div>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">No sync yet</div>
+        <a class="qa-link" href="#">Open D365 integration →</a>
+      </div>
+      <!-- Quick actions: PRIMARY IS BLUE, not black -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Quick actions</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-primary btn-lg" style="justify-content:center">Create item</button>
+          <button class="btn btn-secondary btn-lg" style="justify-content:center">New BOM</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Domain navigation tiles (dense, not marketing cards) -->
+  <div class="card" style="margin-top:12px">
+    <div class="card-title" style="margin-bottom:10px">Master data</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      <div class="list-row" style="border:1px solid var(--border);border-radius:var(--radius)">
+        <span>📦</span><div><div style="font-weight:600">Items</div><div class="muted" style="font-size:11px">RM · intermediates · FG · co/by-products</div></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--border);border-radius:var(--radius)">
+        <span>🧾</span><div><div style="font-weight:600">Bills of materials</div><div class="muted" style="font-size:11px">Shared BOM SSOT — versions &amp; lines</div></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--border);border-radius:var(--radius)">
+        <span>⚠️</span><div><div style="font-weight:600">Allergens</div><div class="muted" style="font-size:11px">Per-item profiles &amp; overrides</div></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--border);border-radius:var(--radius)">
+        <span>💲</span><div><div style="font-weight:600">Cost per kg</div><div class="muted" style="font-size:11px">Standard cost &amp; item cost history</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

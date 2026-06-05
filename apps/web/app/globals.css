@@ -1,3 +1,7 @@
+/* Design system fonts — Inter (everything) + JetBrains Mono (codes/IDs/timestamps only).
+   Must precede the tailwindcss import (which inlines and would push this after rules).
+   Source of truth: design/monopilot/handoff/monopilot-tokens.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @source "../app/**/*.{js,jsx,ts,tsx}";
@@ -5,8 +9,8 @@
 
 @theme {
   --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-  --font-sans: "Inter", Arial, "Segoe UI", system-ui;
+  --color-foreground: #1e293b;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
   --spacing-sidebar: var(--shell-sidebar-w);
   --spacing-subnav: var(--shell-subnav-w);
@@ -20,25 +24,137 @@
   --color-shell-active: var(--shell-active);
   --color-shell-active-fg: var(--shell-active-fg);
   --color-shell-badge-blue: var(--shell-badge-blue);
+
+  /* Dark sidebar surface (design system #1e293b chrome) — separate from the
+     light page/content background. Topbar + content stay light. */
+  --color-shell-sidebar: var(--shell-sidebar-bg);
+  --color-shell-sidebar-fg: var(--shell-sidebar-fg);
+  --color-shell-sidebar-muted: var(--shell-sidebar-muted);
+  --color-shell-sidebar-border: var(--shell-sidebar-border);
+  --color-shell-sidebar-hover: var(--shell-sidebar-hover);
 }
 
 :root {
-  --text: #0f172a;
-  --gray-500: #64748b;
-  --gray-600: #475569;
-  --border: #d8e0ea;
-  --blue: #1976d2;
-  --blue-600: #1565c0;
-  --red-050a: rgba(254, 226, 226, 0.55);
-  --red-050: #fee2e2;
-  --red-700: #b91c1c;
-  --green-050a: rgba(220, 252, 231, 0.7);
-  --green-050: #dcfce7;
-  --green-700: #15803d;
-  --info-050a: rgba(219, 234, 254, 0.72);
-  --blue-050: #dbeafe;
-  --blue-700: #1d4ed8;
+  /* ============================================================
+   * MonoPilot Design System tokens — ported verbatim from
+   * design/monopilot/handoff/monopilot-tokens.css. Values are
+   * NON-NEGOTIABLE. Use the token, never the hex literal.
+   * ============================================================ */
 
+  /* Color — primary palette */
+  --blue:     #1976D2;
+  --blue-600: #1565C0;
+  --blue-050: #dbeafe;
+  --blue-700: #1e40af;
+  --blue-900: #1e3a5f;
+
+  --green:     #22c55e;
+  --green-050: #dcfce7;
+  --green-700: #166534;
+  --green-050a:#f0fdf4;
+
+  --amber:     #f59e0b;
+  --amber-050: #fef3c7;
+  --amber-700: #92400e;
+  --amber-050a:#fffbeb;
+
+  --red:       #ef4444;
+  --red-050:   #fee2e2;
+  --red-700:   #991b1b;
+  --red-050a:  #fef2f2;
+
+  --info:      #3b82f6;
+  --info-050a: #eff6ff;
+
+  --gray-050:  #f1f5f9;
+  --gray-100:  #f8fafc;
+  --gray-300:  #cbd5e1;
+  --gray-500:  #64748b;
+  --gray-600:  #475569;
+  --gray-700:  #334155;
+
+  /* Semantic surface + text */
+  --bg:        #f8fafc;
+  --card:      #ffffff;
+  --sidebar:   #1e293b;
+  --text:      #1e293b;
+  --muted:     #64748b;
+  --border:    #e2e8f0;
+  --label:     #374151;
+  --sidebar-text: #cbd5e1;
+  --sub-nav-text: #94a3b8;
+
+  /* Cell-state colors (MES-specific) */
+  --cell-locked:       #D0D0D0;
+  --cell-auto-derived: #E0FFE0;
+  --cell-d365-found:   #C0FFC0;
+  --cell-d365-nocost:  #C0FFFF;
+  --cell-d365-missing: #C0C0FF;
+  --cell-row-ready:    #C0FFC0;
+  --cell-row-alert:    #C0C0FF;
+
+  /* Radius, shadow */
+  --radius:      6px;
+  --radius-sm:   4px;
+  --radius-lg:   8px;
+  --radius-pill: 10px;
+  --shadow-focus: 0 0 0 2px rgba(25, 118, 210, .15);
+  --shadow-modal: 0 10px 30px rgba(15, 23, 42, .15);
+
+  /* Type */
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --fs-page-title: 20px;
+  --fs-page-title-lg: 24px;
+  --fs-card-title: 14px;
+  --fs-section:    12px;
+  --fs-table-head: 12px;
+  --fs-table-cell: 13px;
+  --fs-label:      12px;
+  --fs-body:       14px;
+  --fs-helper:     12px;
+  --fs-badge:      11px;
+  --fs-kpi-value:  26px;
+  --fs-kpi-label:  11px;
+  --fs-breadcrumb: 12px;
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+  --lh-base: 1.4;
+
+  /* Surface layering — prefer surface contrast over a 2nd border */
+  --surface-0:   var(--bg);
+  --surface-1:   #ffffff;
+  --surface-2:   #f1f5f9;
+  --surface-3:   #e2e8f0;
+  --border-soft: #eef1f5;
+
+  /* topbar-h aliased to OUR ratified chrome height (sticky-form-header offset) */
+  --topbar-h: var(--shell-topbar-h);
+
+  /* Semantic threshold tokens */
+  --sem-ok:      var(--green);
+  --sem-warn:    var(--amber);
+  --sem-bad:     var(--red);
+  --sem-info:    var(--blue);
+  --sem-neutral: var(--gray-600);
+  --sem-ok-bg:      var(--green-050);
+  --sem-warn-bg:    var(--amber-050);
+  --sem-bad-bg:     var(--red-050);
+  --sem-info-bg:    var(--blue-050);
+  --sem-neutral-bg: var(--gray-050);
+
+  /* Sparkline track + outcomes */
+  --spark-track: var(--surface-3);
+  --spark-ok:    var(--sem-ok);
+  --spark-warn:  var(--sem-warn);
+  --spark-bad:   var(--sem-bad);
+
+  /* ============================================================
+   * Shell contract — RATIFIED app values (superset of the design
+   * system's 220/48). Pinned by shell-tokens.test.tsx /
+   * shell-contract.test.tsx. Do NOT change without sign-off.
+   * ============================================================ */
   --shell-sidebar-w: 280px;
   --shell-subnav-w: 240px;
   --shell-topbar-h: 56px;
@@ -51,6 +167,13 @@
   --shell-active: #dbeafe;
   --shell-active-fg: #1e40af;
   --shell-badge-blue: #dbeafe;
+
+  /* Dark sidebar surface tokens (design #1e293b). Page bg stays --shell-bg light. */
+  --shell-sidebar-bg: #1e293b;
+  --shell-sidebar-fg: #cbd5e1;
+  --shell-sidebar-muted: #94a3b8;
+  --shell-sidebar-border: #334155;
+  --shell-sidebar-hover: #334155;
 }
 
 @layer utilities {
@@ -110,28 +233,45 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 600px at 15% -10%, #dbeafe 0%, transparent 60%),
-    radial-gradient(900px 500px at 110% 110%, #e0f2fe 0%, transparent 55%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-  background-color: #eef2f7;
+  /* Golden rule #1: the system has ZERO gradients. Flat page bg. */
+  background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-base);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
 
 a {
   color: inherit;
 }
 
-/* ============ Button system ============
-   Mirrors prototypes/design/Monopilot Design System/_shared/shared.css:42-54
-   so the shared @monopilot/ui Button (which emits class="btn") and the
-   btn-primary / btn-secondary / btn-ghost / btn-danger modifiers used across
-   the settings screens render the prototype's primary blue instead of a bare
-   browser button. */
+/* ============================================================
+ * Semantic type helpers
+ * ============================================================ */
+.page-title    { font-size: var(--fs-page-title); font-weight: var(--fw-bold); color: var(--text); }
+.page-title-lg { font-size: var(--fs-page-title-lg); font-weight: var(--fw-bold); }
+.card-title    { font-size: var(--fs-card-title); font-weight: var(--fw-semi); }
+.section-head  { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.breadcrumb    { font-size: var(--fs-breadcrumb); color: var(--muted); }
+.breadcrumb a  { color: var(--blue); text-decoration: none; }
+.muted         { color: var(--muted); }
+.label         { font-size: var(--fs-label); font-weight: var(--fw-medium); color: var(--label); }
+.helper        { font-size: var(--fs-helper); color: var(--muted); }
+.mono          { font-family: var(--font-mono); font-size: 12px; }
+
+/* ============================================================
+ * Component library — ported from
+ * design/monopilot/handoff/monopilot-components.css.
+ * Chrome (#sidebar/.topbar/#main) is owned by the React shell
+ * (components/shell/*) and intentionally NOT duplicated here.
+ * ============================================================ */
+
+/* ---- Button system (kept + reconciled to canon) ---- */
 .btn {
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -141,60 +281,56 @@ a {
   align-items: center;
   gap: 6px;
 }
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 11px;
-}
-.btn-primary {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
-}
-.btn-primary:hover:not(:disabled) {
-  background: var(--blue-600);
-}
-.btn-secondary {
-  background: #fff;
-  color: var(--text);
-  border-color: var(--border);
-}
-.btn-secondary:hover:not(:disabled) {
-  background: #f1f5f9;
-}
-.btn-ghost {
-  background: transparent;
-  color: var(--gray-600);
-}
-.btn-ghost:hover:not(:disabled) {
-  background: #f1f5f9;
-  color: var(--text);
-}
-.btn-danger {
-  background: var(--red-700);
-  color: #fff;
-  border-color: var(--red-700);
-}
-.btn-danger:hover:not(:disabled) {
-  background: #991b1b;
-}
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-sm  { padding: 4px 10px; font-size: 11px; }
+.btn-lg  { padding: 9px 18px; font-size: 13px; }
+.btn-icon { padding: 6px 10px; }
+.btn-primary   { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover:not(:disabled)   { background: var(--blue-600); }
+.btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--gray-050); }
+.btn-ghost   { background: transparent; color: var(--gray-600); }
+.btn-ghost:hover:not(:disabled) { background: var(--gray-050); color: var(--text); }
+.btn-danger  { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-danger:disabled { background: #fecaca; color: #fff; border-color: #fecaca; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover:not(:disabled) { background: #15803d; }
 
-/* ============ Table system ============
-   The shared @monopilot/ui <Table> primitive (packages/ui/src/Table.tsx) emits
-   BEM classes (.table / .table__head / .table__cell …) but shipped no CSS, so
-   cells rendered through these classes had ZERO padding and content (e.g. the
-   unit codes on Settings → Units) sat directly on the gridlines / overflowed
-   them. Mirror the prototype table spacing (prototypes/design/Monopilot Design
-   System/settings/settings-v4.css:118-121 — th/td padding 8px, bottom border).
-   Cell-level utility classes (e.g. font-mono, tabular-nums) still compose on
-   top because they only set typography, not padding. */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
+/* ---- Card ---- */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+
+/* ---- KPI tile (the single most-drifted component) ---- */
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; border-bottom: 3px solid var(--blue); }
+.kpi.green { border-bottom-color: var(--green); }
+.kpi.amber { border-bottom-color: var(--amber); }
+.kpi.red   { border-bottom-color: var(--red); }
+.kpi-label { font-size: var(--fs-kpi-label); color: var(--muted); font-weight: 500; }
+.kpi-value { font-size: var(--fs-kpi-value); font-weight: 700; line-height: 1.2; font-family: var(--font-sans); }
+.kpi-change { font-size: 11px; margin-top: 2px; }
+
+/* ---- Badge (status pill) ---- */
+.badge { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font-size: var(--fs-badge); font-weight: 500; }
+.badge-green { background: var(--green-050); color: var(--green-700); }
+.badge-amber { background: var(--amber-050); color: var(--amber-700); }
+.badge-red   { background: var(--red-050);   color: var(--red-700); }
+.badge-blue  { background: var(--blue-050);  color: var(--blue-700); }
+.badge-gray  { background: var(--gray-050);  color: var(--gray-600); }
+
+/* ---- Bare table (prototype-style raw <table>) ----
+   The @monopilot/ui <Table> primitive uses .table__* BEM (below) and keeps
+   higher specificity for padding; these bare element rules cover hand-written
+   prototype-ported <table> markup that otherwise renders unstyled. */
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-table-cell); }
+th { text-align: left; padding: 8px 10px; background: var(--gray-100); border-bottom: 2px solid var(--border); font-weight: 600; font-size: var(--fs-table-head); color: var(--muted); white-space: nowrap; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--gray-100); }
+td.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* ---- @monopilot/ui <Table> BEM primitive ---- */
+.table { width: 100%; border-collapse: collapse; }
 .table__head {
   padding: 0.5rem 0.75rem;
   text-align: left;
@@ -205,12 +341,111 @@ a {
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border);
 }
-.table__cell {
-  padding: 0.5rem 0.75rem;
-  font-size: 13px;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--border);
-}
-.table__row:last-child .table__cell {
-  border-bottom: 0;
-}
+.table__cell { padding: 0.5rem 0.75rem; font-size: 13px; vertical-align: middle; border-bottom: 1px solid var(--border); }
+.table__row:last-child .table__cell { border-bottom: 0; }
+
+/* ---- Alerts ---- */
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 12px; border-left: 4px solid; margin-bottom: 8px; }
+.alert-red   { background: var(--red-050a);   border-color: var(--red); }
+.alert-amber { background: var(--amber-050a); border-color: var(--amber); }
+.alert-blue  { background: var(--info-050a);  border-color: var(--info); }
+.alert-green { background: var(--green-050a); border-color: var(--green); }
+.alert-title { font-weight: 600; margin-bottom: 2px; }
+
+/* ---- Tabs (plain) ---- */
+.tabs { display: flex; border-bottom: 2px solid var(--border); }
+.tab { padding: 8px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--muted); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+/* ---- Filter pills ---- */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { padding: 4px 11px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: var(--gray-050); color: var(--muted); border: 1px solid transparent; }
+.pill.on { background: var(--blue-050); color: var(--blue-700); border-color: var(--blue); }
+
+/* ---- Form inputs (page + modal variants) ---- */
+.form-label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 3px; color: var(--label); }
+.form-label .req { color: var(--red); }
+.form-input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+.form-input:focus { outline: none; border-color: var(--blue); box-shadow: var(--shadow-focus); }
+
+/* ---- Modal primitive (style shadcn <Dialog> to these) ---- */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-box { background: #fff; border-radius: var(--radius-lg); width: 560px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; box-shadow: var(--shadow-modal); }
+.modal-box.wide { width: 760px; }
+.modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-close { cursor: pointer; background: transparent; border: 0; font-size: 18px; color: var(--muted); }
+.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--gray-050); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+
+/* ---- Form-field (modal/detail variant — uppercase label) ---- */
+.ff { margin-bottom: 12px; }
+.ff label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+.ff .req { color: var(--red); font-weight: 700; margin-left: 2px; }
+.ff input, .ff select, .ff textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+.ff textarea { min-height: 68px; resize: vertical; }
+.ff-help  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ff-error { font-size: 11px; color: var(--red); margin-top: 3px; }
+.ff-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ---- Wizard stepper ---- */
+.wiz-stepper { display: flex; align-items: center; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+.wiz-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.wiz-step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--gray-100); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; border: 2px solid var(--border); }
+.wiz-step.current { color: var(--blue); font-weight: 600; }
+.wiz-step.current .wiz-step-num { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-050); }
+.wiz-step.done { color: var(--green-700); }
+.wiz-step.done .wiz-step-num { background: var(--green); color: #fff; border-color: var(--green); }
+.wiz-step-line { flex: 1; height: 2px; background: var(--border); margin: 0 14px; border-radius: 1px; }
+.wiz-step-line.done { background: var(--green); }
+
+/* ---- Sticky form / step header ---- */
+.sticky-form-header { position: sticky; top: var(--topbar-h, 0); background: var(--surface-1); z-index: 10; border-bottom: 1px solid var(--border); }
+
+/* ---- Sidebar count badge (reusable nav pill) ---- */
+.sidebar-count { margin-left: auto; border-radius: var(--radius-pill); padding: 1px 7px; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.4; }
+.sidebar-count.bad  { background: var(--sem-bad-bg);  color: var(--red-700); }
+.sidebar-count.warn { background: var(--sem-warn-bg); color: var(--amber-700); }
+.sidebar-count.neutral { background: var(--sem-neutral-bg); color: var(--gray-600); }
+
+/* ---- RunStrip — inline 8-outcome sparkline ---- */
+.run-strip { display: inline-flex; gap: 1px; align-items: center; vertical-align: middle; line-height: 1; }
+.run-strip-cell { width: 3px; height: 12px; border-radius: 1px; background: var(--spark-track); }
+.run-strip-cell.ok    { background: var(--spark-ok); }
+.run-strip-cell.warn  { background: var(--spark-warn); }
+.run-strip-cell.bad   { background: var(--spark-bad); }
+.run-strip-cell.empty { background: var(--spark-track); }
+.run-strip-label { font-size: 11px; color: var(--muted); margin-left: 8px; font-variant-numeric: tabular-nums; }
+
+/* ---- EmptyState — list/table empty primitive ---- */
+.empty-state { padding: 40px 24px; text-align: center; color: var(--muted); }
+.empty-state-icon { font-size: 40px; opacity: 0.28; line-height: 1; margin-bottom: 10px; }
+.empty-state-title { font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.empty-state-body { font-size: 12px; color: var(--muted); max-width: 420px; margin: 0 auto 12px; line-height: 1.5; }
+.empty-state-action { margin-top: 6px; }
+
+/* ---- TabsCounted — tabs with a count pill ---- */
+.tabs-counted { display: inline-flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; align-items: stretch; }
+.tabs-counted-tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit; }
+.tabs-counted-tab:hover { color: var(--text); }
+.tabs-counted-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.tabs-counted-pill { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--sem-neutral-bg); color: var(--sem-neutral); font-variant-numeric: tabular-nums; min-width: 18px; text-align: center; }
+.tabs-counted-pill.tone-ok      { background: var(--sem-ok-bg);      color: var(--green-700); }
+.tabs-counted-pill.tone-warn    { background: var(--sem-warn-bg);    color: var(--amber-700); }
+.tabs-counted-pill.tone-bad     { background: var(--sem-bad-bg);     color: var(--red-700); }
+.tabs-counted-pill.tone-info    { background: var(--sem-info-bg);    color: var(--blue-700); }
+.tabs-counted-pill.tone-neutral { background: var(--sem-neutral-bg); color: var(--sem-neutral); }
+.tabs-counted-pill.zero { opacity: 0.55; }
+
+/* ---- DryRunButton — dashed preview CTA ---- */
+.btn-dryrun { padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; border: 1px dashed var(--border); background: var(--surface-2); color: var(--text); font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-dryrun:hover { border-color: var(--blue); color: var(--blue); }
+.btn-dryrun:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-dryrun .dryrun-icon { font-size: 11px; opacity: 0.7; }
+
+/* ---- Progress bar (table cell) ---- */
+.bar-track { flex: 1; height: 6px; background: var(--gray-050); border-radius: 3px; overflow: hidden; max-width: 80px; }
+.bar-fill  { height: 100%; }
+.bar-fill.ok   { background: var(--green); }
+.bar-fill.warn { background: var(--amber); }
+.bar-fill.bad  { background: var(--red); }

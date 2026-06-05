@@ -74,7 +74,7 @@ export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.E
       data-testid="app-sidebar"
       role="navigation"
       aria-label="Primary"
-      className="w-sidebar shrink-0 border-r border-shell-border bg-shell-bg px-4 py-5 text-shell-fg"
+      className="w-sidebar shrink-0 border-r border-shell-sidebar-border bg-shell-sidebar px-4 py-5 text-shell-sidebar-fg"
       style={{ width: "var(--shell-sidebar-w)" }}
     >
       <div className="flex flex-col gap-5">
@@ -82,7 +82,7 @@ export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.E
           <section key={group.id} className="space-y-1.5">
             <h2
               data-slot="group"
-              className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-muted"
+              className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-sidebar-muted"
             >
               {t(navI18nKey(group.i18n_key))}
             </h2>
@@ -98,10 +98,10 @@ export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.E
                     aria-current={active ? "page" : undefined}
                     data-testid={`app-sidebar-item-${item.key}`}
                     className={cx(
-                      "flex min-h-10 items-center rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-active-fg focus-visible:ring-offset-2 focus-visible:ring-offset-shell-bg",
+                      "flex min-h-10 items-center rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-active focus-visible:ring-offset-2 focus-visible:ring-offset-shell-sidebar",
                       active
-                        ? "bg-shell-active text-shell-active-fg"
-                        : "text-shell-fg hover:bg-shell-active hover:text-shell-active-fg",
+                        ? "border-l-[3px] border-l-blue-500 bg-shell-active text-shell-active-fg"
+                        : "text-shell-sidebar-fg hover:bg-shell-sidebar-hover hover:text-white",
                     )}
                   >
                     {item.rbac_todo ? <>{/* TODO(rbac/02-settings/T-130) */}</> : null}
