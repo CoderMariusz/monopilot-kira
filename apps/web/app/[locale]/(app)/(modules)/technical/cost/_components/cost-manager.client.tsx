@@ -47,7 +47,8 @@ export type CostManagerCopy = {
   selectPrompt: string;
   loading: string;
   loadError: string;
-  noHistory: (code: string) => string;
+  /** Template with a `{code}` placeholder — functions cannot cross the RSC boundary. */
+  noHistory: string;
   noHistoryCanEdit: string;
   readOnlyNotice: string;
   tableAriaLabel: string;
@@ -59,7 +60,8 @@ export type CostManagerCopy = {
   sparklineTitle: string;
   min: string;
   max: string;
-  modalTitle: (code: string) => string;
+  /** Template with a `{code}` placeholder — functions cannot cross the RSC boundary. */
+  modalTitle: string;
   modalIntro: string;
   fieldNewCost: string;
   fieldCurrency: string;
@@ -81,7 +83,7 @@ const DEFAULT_COPY: CostManagerCopy = {
   selectPrompt: 'Select an item to view its cost history.',
   loading: 'Loading cost history',
   loadError: 'Unable to load cost history. Please try again.',
-  noHistory: (code) => `No cost history yet for ${code}.`,
+  noHistory: 'No cost history yet for {code}.',
   noHistoryCanEdit: ' Record the first cost roll to start the timeline.',
   readOnlyNotice: 'You can view cost history but do not have permission to edit master cost (technical.cost.edit).',
   tableAriaLabel: 'Cost history',
@@ -95,7 +97,7 @@ const DEFAULT_COPY: CostManagerCopy = {
   sparklineTitle: 'Sparkline · cost / kg',
   min: 'min',
   max: 'max',
-  modalTitle: (code) => `Edit cost · ${code}`,
+  modalTitle: 'Edit cost · {code}',
   modalIntro:
     'Recording a new cost closes the active row and writes a history entry. Changes > 20% require an approver (V-TEC-53).',
   fieldNewCost: 'New cost / kg',
@@ -286,7 +288,7 @@ function CostEditModal({
     <Dialog
       open
       onClose={onClose}
-      title={copy.modalTitle(item.itemCode)}
+      title={copy.modalTitle.replace('{code}', item.itemCode)}
       footer={
         <>
           <Button type="button" className="btn-secondary" onClick={onClose}>
@@ -524,7 +526,7 @@ export function CostManager({
           <div className="empty-state">
             <div className="empty-state-icon">📈</div>
             <div className="empty-state-body">
-              {copy.noHistory(selected.itemCode)}
+              {copy.noHistory.replace('{code}', selected.itemCode)}
               {canEdit ? copy.noHistoryCanEdit : ''}
             </div>
           </div>

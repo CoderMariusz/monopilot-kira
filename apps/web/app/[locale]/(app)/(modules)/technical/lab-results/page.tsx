@@ -18,8 +18,9 @@
 import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 
+import { LAB_TEST_TYPES } from '../../../../../../lib/technical/lab/read-model';
 import { listLabResults } from './_actions/list-lab-results';
-import { LabResultsLog, type LabResultsCopy } from './_components/lab-results-log.client';
+import { LabResultsLog, VERDICTS, type LabResultsCopy } from './_components/lab-results-log.client';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +65,12 @@ async function LabResultsContent({ searchParams }: { searchParams: SearchParams 
     searchPlaceholder: t('searchPlaceholder'),
     sourceNote: t('sourceNote'),
     empty: t('empty'),
-    verdictLabel: (v) => t(`verdict.${v}`),
-    testTypeLabel: (tt) => t(`testType.${tt}`),
+    verdictLabel: Object.fromEntries(
+      VERDICTS.map((v) => [v, t(`verdict.${v}`)]),
+    ) as LabResultsCopy['verdictLabel'],
+    testTypeLabel: Object.fromEntries(
+      LAB_TEST_TYPES.map((tt) => [tt, t(`testType.${tt}`)]),
+    ) as LabResultsCopy['testTypeLabel'],
     col: {
       labId: t('col.labId'),
       taken: t('col.taken'),
@@ -76,7 +81,7 @@ async function LabResultsContent({ searchParams }: { searchParams: SearchParams 
       action: t('col.action'),
     },
     rluUnit: t('rluUnit'),
-    thresholdLabel: (n) => t('threshold', { value: n }),
+    thresholdLabel: t('threshold', { value: '{value}' }),
     qualitativeLabel: t('qualitative'),
   };
 

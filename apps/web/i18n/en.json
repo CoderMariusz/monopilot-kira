@@ -2488,6 +2488,19 @@
         "invalid_input": "Please check the values and try again.",
         "not_found": "That item no longer exists.",
         "persistence_failed": "Could not save. Please try again."
+      },
+      "list": {
+        "title": "Items",
+        "description": "Master item catalogue — raw materials, intermediates and finished goods used across BOMs, routings and costing.",
+        "breadcrumbRoot": "Technical",
+        "breadcrumb": "Items",
+        "emptyTitle": "No items yet",
+        "emptyBodyCreate": "Create your first item to start building BOMs and routings.",
+        "emptyBodyView": "No items have been created yet.",
+        "errorTitle": "Could not load items",
+        "errorBody": "Something went wrong while loading the item catalogue. Please try again.",
+        "truncated": "Showing the first {limit} of {total} items. Refine your search to narrow the list.",
+        "viewerOnly": "You have view-only access to items."
       }
     },
     "allergens": {
@@ -2598,6 +2611,131 @@
         "opsEmpty": "No process-added allergens configured.",
         "saveError": "Could not save the change. Please try again.",
         "cellAria": "Contamination risk for"
+      },
+      "cascade": {
+        "title": "Allergen cascade preview",
+        "subtitle": "Read-only derivation chain RM → Intermediate → Process → Finished good per EU 1169/2011.",
+        "breadcrumb": {
+          "technical": "Technical",
+          "compliance": "Compliance",
+          "cascade": "Cascade"
+        },
+        "ruleTitle": "Cascade rule",
+        "ruleBody": "Finished-good allergens = union of raw-material allergens via BOM + process additions per stage. Manual overrides are preserved.",
+        "finalTitle": "Final allergen profile",
+        "noFinal": "No allergens in the final profile.",
+        "chainTitle": "Derivation chain",
+        "contributes": "Contributes:",
+        "intensity": {
+          "contains": "Contains",
+          "mayContain": "May contain"
+        },
+        "brcgsNote": "BRCGS P1 v9 and EU 1169/2011 require documented cascade evidence. This preview is the read-only visualization; allergen edits happen in Product detail → Allergens.",
+        "empty": "No cascade to show",
+        "emptyBody": "No finished goods with a published BOM were found. Publish a BOM to see its allergen derivation chain.",
+        "error": "Could not load the allergen cascade. Please try again.",
+        "denied": "You do not have permission to view the allergen cascade."
+      },
+      "contamination": {
+        "title": "Contamination risk matrix",
+        "subtitle": "Line × allergen cross-contamination risk grid. Feeds the allergen changeover gate in production.",
+        "breadcrumb": {
+          "technical": "Technical",
+          "compliance": "Compliance",
+          "contamination": "Contamination risk"
+        },
+        "kpi": {
+          "high": "High risk cells",
+          "highSub": "Segregation + ATP ≤ 10 RLU",
+          "medium": "Medium risk cells",
+          "mediumSub": "Cleaning + dual sign-off",
+          "segregated": "Segregated",
+          "segregatedSub": "Dedicated lines",
+          "coverage": "Coverage",
+          "coverageSub": "Lines × EU-14 allergens"
+        },
+        "colLine": "Line",
+        "edit": "Edit matrix",
+        "done": "Done",
+        "riskLevel": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low",
+          "segregated": "Segregated"
+        },
+        "riskNone": "Not assessed",
+        "legend": {
+          "title": "Legend",
+          "high": "High — segregation needed, different run day",
+          "medium": "Medium — full cleaning between runs",
+          "low": "Low — standard cleaning",
+          "segregated": "Segregated — dedicated line"
+        },
+        "changeoverNote": "Changeover gate: when the next work order’s allergen-free claim clashes with a high/medium cell on the scheduled line, production blocks the start until cleaning validation, ATP swab ≤ 10 RLU and dual sign-off.",
+        "readOnlyTag": "Read only",
+        "cellAria": "Risk level for {line} × {allergen}",
+        "empty": "No contamination matrix yet",
+        "emptyBody": "Add production lines and allergens to start mapping cross-contamination risk.",
+        "error": "Could not load the contamination risk matrix. Please try again.",
+        "denied": "You do not have permission to view the contamination risk matrix.",
+        "saveError": "Could not save the risk level. Please try again."
+      },
+      "matrix": {
+        "title": "Allergen matrix",
+        "subtitle": "At-a-glance allergen presence across all active products. Select a cell to see source ingredients.",
+        "breadcrumb": {
+          "technical": "Technical",
+          "matrix": "Allergen matrix"
+        },
+        "colProduct": "Product",
+        "legend": {
+          "contains": "Contains",
+          "mayContain": "May contain",
+          "absent": "Absent"
+        },
+        "empty": "No products to show",
+        "emptyBody": "No active products with allergen data were found. Add products to populate the matrix.",
+        "error": "Could not load the allergen matrix. Please try again.",
+        "denied": "You do not have permission to view the allergen matrix."
+      },
+      "process": {
+        "title": "Process allergen additions",
+        "subtitle": "Admin-only config mapping a manufacturing operation to the allergens it introduces. The cascade rule merges these into finished-good allergen profiles.",
+        "breadcrumb": {
+          "technical": "Technical",
+          "compliance": "Compliance",
+          "process": "Process additions"
+        },
+        "addCta": "Add mapping",
+        "infoNote": "When a BOM uses an operation listed here, the cascade rule automatically adds the mapped allergens to the finished-good profile.",
+        "warnNote": "The allergen must exist in the allergens reference. Edits here trigger an async cascade rebuild on all finished goods using these operations.",
+        "col": {
+          "operation": "Operation",
+          "allergen": "Allergen",
+          "intensity": "Intensity",
+          "reason": "Reason",
+          "actions": "Actions"
+        },
+        "intensity": {
+          "contains": "Contains"
+        },
+        "delete": "Delete",
+        "readOnlyTag": "Read only",
+        "selectPlaceholder": "Select…",
+        "modal": {
+          "title": "Add process allergen mapping",
+          "operation": "Operation",
+          "allergen": "Allergen",
+          "reason": "Reason",
+          "reasonPlaceholder": "Why this operation introduces the allergen",
+          "save": "Save",
+          "cancel": "Cancel"
+        },
+        "empty": "No process additions yet",
+        "emptyBody": "Add a mapping to declare allergens introduced by a manufacturing operation.",
+        "error": "Could not load process allergen additions. Please try again.",
+        "denied": "You do not have permission to view process allergen additions.",
+        "saveError": "Could not save the mapping. Please try again."
       }
     },
     "bom": {
@@ -2965,7 +3103,10 @@
       "breadcrumb": {
         "technical": "Technical",
         "costs": "Costs",
-        "d365Import": "D365 import"
+        "d365Import": "D365 import",
+        "settings": "Settings",
+        "integrations": "Integrations",
+        "d365": "D365"
       },
       "disabledBanner": "D365 connector disabled for this org. Cost import is unavailable. Local cost history remains source of truth and is editable from Technical › Costs.",
       "settingsLink": "Settings › Integrations",
@@ -3420,6 +3561,16 @@
         "emptyBody": "Sensory subjects appear here once an evaluation is recorded. Until then NPD treats sensory as not required.",
         "denied": "You do not have permission to view sensory evaluations."
       }
+    },
+    "routings": {
+      "title": "Routings",
+      "subtitle": "Ordered manufacturing operations per item, bound to lines and machines — drives the cost preview and resource utilization.",
+      "breadcrumbRoot": "Technical",
+      "empty": {
+        "title": "No routings yet",
+        "body": "Select an item to create its first routing version."
+      },
+      "error": "Could not load routings. Please try again."
     }
   },
   "Technical": {

@@ -73,7 +73,7 @@ async function CostImportContent() {
     signoffPlaceholder: t('signoff.placeholder'),
     apply: t('apply'),
     applying: t('applying'),
-    applied: (jobId) => t('applied', { jobId }),
+    applied: t('applied', { jobId: '{jobId}' }),
     duplicate: t('duplicate'),
     triggerForbidden: t('triggerForbidden'),
     triggerError: t('triggerError'),

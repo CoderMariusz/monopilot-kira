@@ -31,11 +31,11 @@ const COPY: LabResultsCopy = {
   searchPlaceholder: 'Filter by FG / work order / lab id',
   sourceNote: 'Source: Quality-owned lab_results projection.',
   empty: 'No lab results match the current filter.',
-  verdictLabel: (v) => v,
-  testTypeLabel: (t) => t,
+  verdictLabel: { all: 'all', pass: 'pass', fail: 'fail', inconclusive: 'inconclusive', pending: 'pending', hold: 'hold' },
+  testTypeLabel: { atp_swab: 'atp_swab', allergen_elisa: 'allergen_elisa', micro_apc: 'micro_apc', nutrition: 'nutrition', sensory: 'sensory' },
   col: { labId: 'Lab ID', taken: 'Taken', fgLot: 'FG / work order', test: 'Test', reading: 'Reading', verdict: 'Verdict', action: '' },
   rluUnit: 'RLU',
-  thresholdLabel: (n) => `threshold ${n} RLU`,
+  thresholdLabel: 'threshold {value} RLU',
   qualitativeLabel: 'n/a (qualitative)',
 };
 

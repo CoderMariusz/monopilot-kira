@@ -33,18 +33,30 @@ afterEach(cleanup);
 const COPY: ComplianceCopy = {
   routingNotice: 'Routing only. Surfaces gaps; not legal advice.',
   coverageTitle: 'Coverage by regulation',
-  flagsTitle: (n) => `Per-FG flags · ${n}`,
+  flagsTitle: 'Per-FG flags · {count}',
   flagsHint: 'Click Route to dispatch.',
   col: { fg: 'Finished good', regulation: 'Regulation', issue: 'Issue', severity: 'Severity', action: '' },
   route: 'Route →',
   emptyTitle: 'No FG yet',
   emptyBody: 'No open compliance flags.',
-  regulationLabel: (c) => c,
-  regulationScope: (c) => `scope:${c}`,
-  issueLabel: (k) => `issue:${k}`,
-  remediationLabel: (k) => `rem:${k}`,
-  severityLabel: (s) => s,
-  gapsLabel: (n) => `${n} gaps`,
+  regulationLabel: Object.fromEntries(REGULATION_CODES.map((c) => [c, c])) as ComplianceCopy['regulationLabel'],
+  regulationScope: Object.fromEntries(REGULATION_CODES.map((c) => [c, `scope:${c}`])) as ComplianceCopy['regulationScope'],
+  issueLabel: {
+    allergen_declaration_missing: 'issue:allergen_declaration_missing',
+    factory_spec_unapproved: 'issue:factory_spec_unapproved',
+    shelf_life_missing: 'issue:shelf_life_missing',
+    supplier_spec_missing: 'issue:supplier_spec_missing',
+    lab_result_failing: 'issue:lab_result_failing',
+  },
+  remediationLabel: {
+    allergen_declaration_missing: 'rem:allergen_declaration_missing',
+    factory_spec_unapproved: 'rem:factory_spec_unapproved',
+    shelf_life_missing: 'rem:shelf_life_missing',
+    supplier_spec_missing: 'rem:supplier_spec_missing',
+    lab_result_failing: 'rem:lab_result_failing',
+  },
+  severityLabel: { high: 'high', medium: 'medium', low: 'low' },
+  gapsLabel: '{count} gaps',
 };
 
 const REGS: RegulationCoverage[] = [

@@ -23,8 +23,18 @@ import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Ca
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { loadCompliance } from './_actions/load-compliance';
-import type { RegulationCode } from './_actions/shared';
+import { REGULATION_CODES } from './_actions/shared';
+import type { ComplianceFlag } from './_actions/shared';
 import { ComplianceDashboard, type ComplianceCopy } from './_components/compliance-dashboard.client';
+
+const ISSUE_KEYS: ComplianceFlag['issueKey'][] = [
+  'allergen_declaration_missing',
+  'factory_spec_unapproved',
+  'shelf_life_missing',
+  'supplier_spec_missing',
+  'lab_result_failing',
+];
+const SEVERITIES: ComplianceFlag['severity'][] = ['high', 'medium', 'low'];
 
 export const dynamic = 'force-dynamic';
 
@@ -73,7 +83,7 @@ async function ComplianceContent() {
   const copy: ComplianceCopy = {
     routingNotice: t('routingNotice'),
     coverageTitle: t('coverage.title'),
-    flagsTitle: (count) => t('flags.title', { count }),
+    flagsTitle: t('flags.title', { count: '{count}' }),
     flagsHint: t('flags.hint'),
     col: {
       fg: t('flags.col.fg'),
@@ -85,12 +95,22 @@ async function ComplianceContent() {
     route: t('flags.route'),
     emptyTitle: t('empty.title'),
     emptyBody: t('flags.empty'),
-    regulationLabel: (code: RegulationCode) => t(`regulation.${code}.label`),
-    regulationScope: (code: RegulationCode) => t(`regulation.${code}.scope`),
-    issueLabel: (key) => t(`issue.${key}.label`),
-    remediationLabel: (key) => t(`issue.${key}.remediation`),
-    severityLabel: (s) => t(`severity.${s}`),
-    gapsLabel: (n) => t('gaps', { count: n }),
+    regulationLabel: Object.fromEntries(
+      REGULATION_CODES.map((code) => [code, t(`regulation.${code}.label`)]),
+    ) as ComplianceCopy['regulationLabel'],
+    regulationScope: Object.fromEntries(
+      REGULATION_CODES.map((code) => [code, t(`regulation.${code}.scope`)]),
+    ) as ComplianceCopy['regulationScope'],
+    issueLabel: Object.fromEntries(
+      ISSUE_KEYS.map((key) => [key, t(`issue.${key}.label`)]),
+    ) as ComplianceCopy['issueLabel'],
+    remediationLabel: Object.fromEntries(
+      ISSUE_KEYS.map((key) => [key, t(`issue.${key}.remediation`)]),
+    ) as ComplianceCopy['remediationLabel'],
+    severityLabel: Object.fromEntries(
+      SEVERITIES.map((s) => [s, t(`severity.${s}`)]),
+    ) as ComplianceCopy['severityLabel'],
+    gapsLabel: t('gaps', { count: '{count}' }),
   };
 
   return (

@@ -48,7 +48,7 @@ const COPY: CostImportCopy = {
   signoffPlaceholder: 'reason…',
   apply: 'Apply import',
   applying: 'Applying…',
-  applied: (jobId) => `Import enqueued (job ${jobId}).`,
+  applied: 'Import enqueued (job {jobId}).',
   duplicate: 'Already enqueued for today.',
   triggerForbidden: 'No permission to trigger import.',
   triggerError: 'Unable to trigger import.',

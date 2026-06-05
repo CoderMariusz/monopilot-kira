@@ -37,7 +37,7 @@ const COPY: RecipeCostCopy = {
   kpiStdCost: 'Std cost', kpiStdCostSub: 'Σ', kpiYield: 'Yield', kpiYieldSub: 'BOM',
   kpiComponents: 'Components', kpiComponentsSub: 'lines', kpiCosted: 'Costed', kpiCostedSub: 'with cost',
   breakdownTitle: 'Cost breakdown', totalLabel: 'Total', noLines: 'No lines', noCost: 'No cost',
-  bomNote: (v, s) => `BOM v${v} ${s}`, uncosted: 'no cost',
+  bomNote: 'BOM v{version} {status}', uncosted: 'no cost',
 };
 
 const COST = {

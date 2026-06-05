@@ -43,7 +43,8 @@ export type RecipeCostCopy = {
   totalLabel: string;
   noLines: string;
   noCost: string;
-  bomNote: (version: number, status: string) => string;
+  /** Template with `{version}` / `{status}` placeholders — functions cannot cross the RSC boundary. */
+  bomNote: string;
   uncosted: string;
 };
 
@@ -150,7 +151,7 @@ function CostView({ cost, copy }: { cost: RecipeCost; copy: RecipeCostCopy }) {
       </div>
 
       <div role="note" className="alert alert-blue">
-        ⓘ {copy.bomNote(cost.bomVersion, cost.bomStatus)}
+        ⓘ {copy.bomNote.replace('{version}', String(cost.bomVersion)).replace('{status}', cost.bomStatus)}
       </div>
     </div>
   );

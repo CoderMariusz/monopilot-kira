@@ -29,18 +29,20 @@ import type {
 export type ComplianceCopy = {
   routingNotice: string;
   coverageTitle: string;
-  flagsTitle: (count: number) => string;
+  /** Template string with a literal `{count}` placeholder (RSC-serializable). */
+  flagsTitle: string;
   flagsHint: string;
   col: { fg: string; regulation: string; issue: string; severity: string; action: string };
   route: string;
   emptyTitle: string;
   emptyBody: string;
-  regulationLabel: (code: RegulationCoverage['code']) => string;
-  regulationScope: (code: RegulationCoverage['code']) => string;
-  issueLabel: (key: ComplianceFlag['issueKey']) => string;
-  remediationLabel: (key: ComplianceFlag['issueKey']) => string;
-  severityLabel: (s: ComplianceFlag['severity']) => string;
-  gapsLabel: (n: number) => string;
+  regulationLabel: Record<RegulationCoverage['code'], string>;
+  regulationScope: Record<RegulationCoverage['code'], string>;
+  issueLabel: Record<ComplianceFlag['issueKey'], string>;
+  remediationLabel: Record<ComplianceFlag['issueKey'], string>;
+  severityLabel: Record<ComplianceFlag['severity'], string>;
+  /** Template string with a literal `{count}` placeholder (RSC-serializable). */
+  gapsLabel: string;
 };
 
 const toneBadge: Record<RegulationTone, BadgeVariant> = {
@@ -89,10 +91,10 @@ export function ComplianceDashboard({
       >
         {regulations.map((r) => (
           <div key={r.code} data-testid={`compliance-kpi-${r.code}`} data-tone={r.tone} className={toneKpi[r.tone]}>
-            <div className="kpi-label">{copy.regulationLabel(r.code)}</div>
+            <div className="kpi-label">{copy.regulationLabel[r.code]}</div>
             <div className="kpi-value">{r.coveragePct}%</div>
             <div className="kpi-change mt-1 flex items-center gap-2">
-              <Badge variant={toneBadge[r.tone]}>{copy.gapsLabel(r.gaps)}</Badge>
+              <Badge variant={toneBadge[r.tone]}>{copy.gapsLabel.replace('{count}', String(r.gaps))}</Badge>
             </div>
           </div>
         ))}
@@ -106,8 +108,8 @@ export function ComplianceDashboard({
             <div key={r.code} data-testid={`compliance-bar-${r.code}`}>
               <div className="flex items-center justify-between text-xs">
                 <span>
-                  <span className="font-mono font-semibold text-slate-900">{copy.regulationLabel(r.code)}</span>
-                  <span className="text-slate-500"> · {copy.regulationScope(r.code)}</span>
+                  <span className="font-mono font-semibold text-slate-900">{copy.regulationLabel[r.code]}</span>
+                  <span className="text-slate-500"> · {copy.regulationScope[r.code]}</span>
                 </span>
                 <span className="font-mono text-slate-700">
                   {r.covered}/{r.total} · <b>{r.coveragePct}%</b>
@@ -131,7 +133,7 @@ export function ComplianceDashboard({
         style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
       >
         <div className="card-head" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
-          <h2 className="card-title text-slate-900">{copy.flagsTitle(flags.length)}</h2>
+          <h2 className="card-title text-slate-900">{copy.flagsTitle.replace('{count}', String(flags.length))}</h2>
           <span className="text-xs text-slate-500">{copy.flagsHint}</span>
         </div>
         {flags.length === 0 ? (
@@ -158,13 +160,13 @@ export function ComplianceDashboard({
                   style={f.severity === 'high' ? { background: 'var(--red-050a)' } : undefined}
                 >
                   <TableCell className="font-mono text-xs">{f.fg}</TableCell>
-                  <TableCell className="font-mono text-xs">{copy.regulationLabel(f.regulation)}</TableCell>
+                  <TableCell className="font-mono text-xs">{copy.regulationLabel[f.regulation]}</TableCell>
                   <TableCell className="text-sm">
-                    <span className="block">{copy.issueLabel(f.issueKey)}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{copy.remediationLabel(f.issueKey)}</span>
+                    <span className="block">{copy.issueLabel[f.issueKey]}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{copy.remediationLabel[f.issueKey]}</span>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={severityBadge[f.severity]}>{copy.severityLabel(f.severity)}</Badge>
+                    <Badge variant={severityBadge[f.severity]}>{copy.severityLabel[f.severity]}</Badge>
                   </TableCell>
                   <TableCell>
                     <Link

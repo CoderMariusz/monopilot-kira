@@ -51,7 +51,7 @@ export default async function TechnicalNutritionPage() {
     },
     noAllergens: t('noAllergens'),
     noMacros: t('noMacros'),
-    computedNote: (when: string) => t('computedNote', { when }),
+    computedNote: t('computedNote', { when: '{when}' }),
     computedNoteNoDate: t('computedNoteNoDate'),
     loading: t('loading'),
     loadError: t('loadError'),

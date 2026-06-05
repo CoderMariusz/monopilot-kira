@@ -44,7 +44,7 @@ const COPY: NutritionCopy = {
   presence: { contains: 'Contains', may_contain: 'May contain', free_from: 'Free from', unknown: 'Unknown' },
   noAllergens: 'No allergens',
   noMacros: 'No macros',
-  computedNote: (w) => `Recomputed ${w}`,
+  computedNote: 'Recomputed {when}',
   computedNoteNoDate: 'Materialized',
   loading: 'Loading',
   loadError: 'Could not load',

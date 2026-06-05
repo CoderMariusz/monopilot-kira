@@ -43,7 +43,8 @@ export type CostImportCopy = {
   signoffPlaceholder: string;
   apply: string;
   applying: string;
-  applied: (jobId: string) => string;
+  /** Template string with a literal `{jobId}` placeholder (RSC-serializable). */
+  applied: string;
   duplicate: string;
   triggerForbidden: string;
   triggerError: string;
@@ -81,7 +82,7 @@ export function CostImport({
     startTransition(async () => {
       const res = await triggerCostImport({ reason: reason.trim() || 'D365 cost import (no high-variance rows)' });
       if (res.ok) {
-        setFeedback({ kind: 'ok', text: res.duplicate ? copy.duplicate : copy.applied(res.jobId.slice(0, 8)) });
+        setFeedback({ kind: 'ok', text: res.duplicate ? copy.duplicate : copy.applied.replace('{jobId}', res.jobId.slice(0, 8)) });
       } else if (res.error === 'forbidden') {
         setFeedback({ kind: 'error', text: copy.triggerForbidden });
       } else {

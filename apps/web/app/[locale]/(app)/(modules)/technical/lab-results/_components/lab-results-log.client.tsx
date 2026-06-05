@@ -21,9 +21,10 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
+import type { LabTestType } from '../../../../../../../lib/technical/lab/read-model';
 import type { LabResultLogRow } from '../_actions/list-lab-results';
 
-const VERDICTS = ['all', 'pass', 'fail', 'inconclusive', 'pending', 'hold'] as const;
+export const VERDICTS = ['all', 'pass', 'fail', 'inconclusive', 'pending', 'hold'] as const;
 type VerdictFilter = (typeof VERDICTS)[number];
 
 // 5-tone semantic badge mapping: pass → ok(green), fail/hold → bad(red),
@@ -53,11 +54,12 @@ export type LabResultsCopy = {
   searchPlaceholder: string;
   sourceNote: string;
   empty: string;
-  verdictLabel: (v: VerdictFilter) => string;
-  testTypeLabel: (t: string) => string;
+  verdictLabel: Record<VerdictFilter, string>;
+  testTypeLabel: Record<LabTestType, string>;
   col: { labId: string; taken: string; fgLot: string; test: string; reading: string; verdict: string; action: string };
   rluUnit: string;
-  thresholdLabel: (n: string) => string;
+  /** Template string with a literal `{value}` placeholder (RSC-serializable). */
+  thresholdLabel: string;
   qualitativeLabel: string;
 };
 
@@ -114,7 +116,7 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
               onClick={() => setFilter(v)}
               className={`tabs-counted-tab${filter === v ? ' active' : ''}`}
             >
-              <span>{copy.verdictLabel(v)}</span>
+              <span>{copy.verdictLabel[v]}</span>
               <span className={`tabs-counted-pill ${verdictTabTone[v] ?? ''}`}>{counts[v] ?? 0}</span>
             </button>
           ))}
@@ -192,7 +194,7 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
                       </span>
                     </td>
                     <td className="text-xs">
-                      <span className="block">{copy.testTypeLabel(r.testType)}</span>
+                      <span className="block">{copy.testTypeLabel[r.testType]}</span>
                       <span className="mono mt-0.5 block text-[11px]" style={{ color: 'var(--muted)' }}>
                         {r.labProvider ?? '—'}
                       </span>
@@ -222,7 +224,7 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
                                 />
                               </div>
                               <div className="mt-0.5 text-[10px]" style={{ color: 'var(--muted)' }}>
-                                {copy.thresholdLabel(threshold ?? '')}
+                                {copy.thresholdLabel.replace('{value}', threshold ?? '')}
                               </div>
                             </>
                           ) : null}
@@ -239,7 +241,7 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
                     </td>
                     <td>
                       <span className={`badge ${verdictBadge[r.resultStatus] ?? 'badge-gray'}`}>
-                        {copy.verdictLabel(r.resultStatus as VerdictFilter)}
+                        {copy.verdictLabel[r.resultStatus as VerdictFilter]}
                       </span>
                     </td>
                     <td>

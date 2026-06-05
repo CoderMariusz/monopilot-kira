@@ -50,7 +50,7 @@ export default async function TechnicalRecipeCostPage() {
     totalLabel: t('totalLabel'),
     noLines: t('noLines'),
     noCost: t('noCost'),
-    bomNote: (version: number, status: string) => t('bomNote', { version, status }),
+    bomNote: t('bomNote', { version: '{version}', status: '{status}' }),
     uncosted: t('uncosted'),
   };
 

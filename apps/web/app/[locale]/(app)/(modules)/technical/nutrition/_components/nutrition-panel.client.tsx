@@ -40,7 +40,8 @@ export type NutritionCopy = {
   presence: Record<AllergenPresence, string>;
   noAllergens: string;
   noMacros: string;
-  computedNote: (when: string) => string;
+  /** Template string with a literal `{when}` placeholder (RSC-serializable). */
+  computedNote: string;
   computedNoteNoDate: string;
   loading: string;
   loadError: string;
@@ -163,7 +164,7 @@ function PanelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy
       </div>
 
       <div role="note" className="alert alert-blue">
-        ⓘ {panel.computedAt ? copy.computedNote(panel.computedAt.slice(0, 10)) : copy.computedNoteNoDate}
+        ⓘ {panel.computedAt ? copy.computedNote.replace('{when}', panel.computedAt.slice(0, 10)) : copy.computedNoteNoDate}
       </div>
     </div>
   );
