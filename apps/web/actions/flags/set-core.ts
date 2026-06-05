@@ -51,6 +51,7 @@ type FeatureFlagRow = {
 const FORBIDDEN = 'forbidden' as const;
 const FLAG_CODE_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const D365_FLAG = 'integration.d365.enabled';
+const D365_REQUIRED_CONSTANT_KEYS = ['V-SET-42', 'V-SET-50', 'V-SET-52'] as const;
 const NPD_POST_RELEASE_EDIT_FLAG = 'npd.post_release_edit.enabled';
 const TECHNICAL_PRODUCT_SPEC_APPROVAL_FLAG = 'technical.product_spec_approval.required';
 const NPD_POLICY_CODE = 'npd_post_release_edit';
@@ -160,13 +161,13 @@ async function runEnablePreflight({
 
   if (flagCode === D365_FLAG) {
     const [constants, connection] = await Promise.all([
-      client.query(
+      client.query<{ key: string; value: string }>(
         `select key, value
            from public.d365_constants
           where org_id = app.current_org_id()
             and key = any($1::text[])
             and nullif(value, '') is not null`,
-        [['V-SET-42', 'V-SET-50', 'V-SET-52']],
+        [[...D365_REQUIRED_CONSTANT_KEYS]],
       ),
       client.query<{ ok?: boolean; passed?: boolean }>(
         `select passed as ok, passed
@@ -179,8 +180,10 @@ async function runEnablePreflight({
       ),
     ]);
     const connectionPassed = connection.rows.some((row) => row.ok === true || row.passed === true);
-    if ((constants.rowCount ?? constants.rows.length) < 5 || !connectionPassed) {
-      return { ok: false, error: 'd365_preflight_failed', failedChecks: ['V-SET-42', 'V-SET-50', 'V-SET-52'] };
+    const configuredKeys = new Set(constants.rows.map((row) => String((row as { key?: unknown }).key ?? '')));
+    const missingKeys = D365_REQUIRED_CONSTANT_KEYS.filter((key) => !configuredKeys.has(key));
+    if (missingKeys.length > 0 || !connectionPassed) {
+      return { ok: false, error: 'd365_preflight_failed', failedChecks: [...D365_REQUIRED_CONSTANT_KEYS] };
     }
   }
 

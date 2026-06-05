@@ -74,7 +74,10 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
   const site = normalizeString(input.site);
   const personalMessage = normalizeString(input.personalMessage);
   const language = normalizeString(input.language) ?? 'pl';
-  const redirectTo = normalizeString(input.redirectTo);
+  const redirectTo = normalizeRedirectTo(input.redirectTo);
+  if (redirectTo === 'invalid') {
+    return { ok: false, error: 'invalid_input' };
+  }
   const expiresAt = new Date(Date.now() + INVITE_TTL_SECONDS * 1000);
 
   return withOrgContext(async ({ userId, orgId, client }) => {
@@ -183,6 +186,27 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
       }
 
       await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
+        [
+          orgId,
+          userId,
+          'settings.user.invited',
+          invited.rows[0]?.id ?? email,
+          JSON.stringify({
+            org_id: orgId,
+            email,
+            role_id: roleId,
+            invited_by: userId,
+            expires_at: expiresAt.toISOString(),
+            site,
+            personal_message_present: Boolean(personalMessage),
+          }),
+        ],
+      );
+
+      await client.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
          values ($1::uuid, $2, 'user', $3::uuid, $4::jsonb, 'settings-invite-user-v1')`,
@@ -206,4 +230,28 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteUserResu
 
     return { ok: true, data: { email, expiresAt: expiresAt.toISOString() } };
   });
+}
+
+function normalizeRedirectTo(value: unknown): string | null | 'invalid' {
+  const redirectTo = normalizeString(value);
+  if (!redirectTo) return null;
+  const baseUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL);
+  if (!baseUrl) return 'invalid';
+  try {
+    const resolved = new URL(redirectTo, baseUrl);
+    if (resolved.origin !== baseUrl.origin) return 'invalid';
+    return resolved.toString();
+  } catch {
+    return 'invalid';
+  }
+}
+
+function normalizeAppUrl(value: unknown): URL | null {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
 }

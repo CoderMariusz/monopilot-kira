@@ -229,6 +229,29 @@ describe('SSO upsertSsoConfig RBAC + validation (behavior)', () => {
     expect(currentClient.upsertedConfig?.defaultRoleCode).toBe('viewer');
     expect(currentClient.upsertedConfig?.acsUrl).toMatch(/^https:\/\/app\.example\.com/);
   });
+
+  it('rejects external acsUrl origins before persistence', async () => {
+    currentClient = makeClient({
+      hasSsoEditPermission: true,
+      rolesByCode: {
+        viewer: { id: 'role-viewer', code: 'viewer', is_system: false },
+      },
+    });
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
+
+    const { upsertSsoConfig } = await loadUpsert();
+    const result = await upsertSsoConfig({
+      idpType: 'saml_entra',
+      entityId: 'urn:test',
+      acsUrl: 'https://evil.example.net/api/auth/saml/callback',
+      defaultRoleCode: 'viewer',
+      enabled: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe('invalid_input');
+    expect(currentClient.upsertedConfig).toBeNull();
+  });
 });
 
 describe('SSO disableSso RBAC (behavior)', () => {

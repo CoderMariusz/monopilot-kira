@@ -77,6 +77,25 @@ describe('org security policy Server Actions (TASK-000085/T-032 RED)', () => {
     expect(forceSource).toMatch(/user_roles|roles/);
   });
 
+  it('forces MFA enrollment markers for all active org users when required_all is saved', () => {
+    const source = normalized(readRequiredSource(upsertPolicyPath, 'apps/web/actions/security/upsert-policy.ts'));
+
+    expect(source).toContain('required_all');
+    const requirementIndex = source.indexOf('required_all');
+    const triggerIndex = indexOfAny(source, ['forceallusersmfa', 'requires_mfa_at']);
+    expect(triggerIndex, 'saving mfa_requirement=required_all must trigger all-user MFA markers').toBeGreaterThan(requirementIndex);
+    expect(source).toMatch(/update\s+public\.users/);
+    expect(source).toMatch(/is_active\s*=\s*true/);
+  });
+
+  it('writes security-retained audit_log rows for policy and forced-MFA changes', () => {
+    const combined = normalized(`${readRequiredSource(upsertPolicyPath, 'apps/web/actions/security/upsert-policy.ts')}\n${readRequiredSource(forceMfaPath, 'apps/web/actions/security/force-mfa.ts')}`);
+
+    expect(combined).toContain('insert into public.audit_log');
+    expect(combined).toContain('org_security_policies');
+    expect(combined).toContain("'security'");
+  });
+
   it('enforces the password_min_length floor of 8 before policy upsert', () => {
     const source = normalized(readRequiredSource(upsertPolicyPath, 'apps/web/actions/security/upsert-policy.ts'));
 

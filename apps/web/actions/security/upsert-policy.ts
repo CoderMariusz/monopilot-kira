@@ -63,6 +63,8 @@ export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise
 
       if (input.mfa_requirement === 'required_admins') {
         await forceAdminMfa({ client, orgId, actorUserId: userId });
+      } else if (input.mfa_requirement === 'required_all') {
+        await forceAllUsersMfa({ client, orgId, actorUserId: userId });
       }
 
       const upsert = await client.query<SecurityPolicyRow>(
@@ -111,6 +113,26 @@ export async function upsertPolicy(rawInput: UpsertSecurityPolicyInput): Promise
       );
 
       const row = upsert.rows[0];
+      await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
+        [
+          orgId,
+          userId,
+          'org.security_policy.updated',
+          orgId,
+          JSON.stringify({
+            org_id: orgId,
+            mfa_requirement: input.mfa_requirement,
+            mfa_allowed_methods: input.mfa_allowed_methods,
+            password_min_length: input.password_min_length,
+            password_complexity: input.password_complexity,
+            dual_control_required: input.dual_control_required,
+          }),
+        ],
+      );
+
       revalidatePath('/settings/security');
       return {
         ok: true,
@@ -226,6 +248,43 @@ async function forceAdminMfa({
       JSON.stringify({
         org_id: orgId,
         role_codes: ADMIN_ROLE_CODES,
+        actor_user_id: actorUserId,
+        requires_mfa_at: requiresMfaAt,
+      }),
+      'settings-security-policy-v1',
+    ],
+  );
+}
+
+async function forceAllUsersMfa({
+  client,
+  orgId,
+  actorUserId,
+}: {
+  client: QueryClient;
+  orgId: string;
+  actorUserId: string;
+}): Promise<void> {
+  const requiresMfaAt = new Date().toISOString();
+  await client.query(
+    `update public.users
+        set requires_mfa_at = coalesce(requires_mfa_at, $1::timestamptz),
+            updated_at = now()
+      where org_id = $2::uuid
+        and is_active = true`,
+    [requiresMfaAt, orgId],
+  );
+  await client.query(
+    `insert into public.outbox_events
+       (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,
+    [
+      orgId,
+      'org.mfa_enrollment.forced',
+      'org_security_policy',
+      JSON.stringify({
+        org_id: orgId,
+        scope: 'all_users',
         actor_user_id: actorUserId,
         requires_mfa_at: requiresMfaAt,
       }),

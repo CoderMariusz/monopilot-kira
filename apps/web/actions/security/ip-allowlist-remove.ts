@@ -39,6 +39,19 @@ export async function removeIpRange(id: string): Promise<RemoveIpRangeResult> {
       if ((removed.rowCount ?? removed.rows.length) < 1 || !row) return { ok: false, error: 'NOT_FOUND' };
 
       await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'admin_ip_allowlist', $4, $5::jsonb, null, 'security')`,
+        [
+          orgId,
+          userId,
+          'settings.ip_allowlist.removed',
+          row.id,
+          JSON.stringify({ org_id: orgId, ip_range_id: row.id, label: row.label }),
+        ],
+      );
+
+      await client.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
          values ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6)`,

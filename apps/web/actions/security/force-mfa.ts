@@ -43,6 +43,25 @@ export async function forceMfa(input: ForceMfaInput = {}): Promise<ForceMfaResul
       );
 
       await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'org_security_policies', $4, null, $5::jsonb, 'security')`,
+        [
+          orgId,
+          userId,
+          'org.mfa_enrollment.forced',
+          orgId,
+          JSON.stringify({
+            org_id: orgId,
+            role_codes: ADMIN_ROLE_CODES,
+            actor_user_id: userId,
+            requires_mfa_at: requiresMfaAt,
+            reason: input.reason,
+          }),
+        ],
+      );
+
+      await client.query(
         `insert into public.outbox_events
            (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
          values ($1::uuid, $2, $3, null, $4::jsonb, $5)`,

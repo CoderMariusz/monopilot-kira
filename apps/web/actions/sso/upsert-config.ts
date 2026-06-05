@@ -104,6 +104,27 @@ export async function upsertSsoConfig(input: UpsertSsoConfigInput): Promise<Upse
         ],
       );
       const row = rows[0];
+      await client.query(
+        `insert into public.audit_log
+           (org_id, actor_user_id, actor_type, action, resource_type, resource_id, before_state, after_state, retention_class)
+         values ($1::uuid, $2::uuid, 'user', $3, 'org_sso_config', $4, null, $5::jsonb, 'security')`,
+        [
+          orgId,
+          userId,
+          'settings.sso.config_changed',
+          orgId,
+          JSON.stringify({
+            org_id: orgId,
+            idp_type: parsed.idpType,
+            entity_id: parsed.entityId,
+            acs_url: parsed.acsUrl,
+            enforce_for_non_admins: parsed.enforceForNonAdmins,
+            jit_provisioning: parsed.jitProvisioning,
+            default_role_code: parsed.defaultRoleCode,
+            enabled: parsed.enabled,
+          }),
+        ],
+      );
       return { ok: true, data: { orgId: row?.org_id ?? orgId, enabled: row?.enabled ?? parsed.enabled } };
     } catch {
       return { ok: false, error: 'persistence_failed' };
@@ -139,7 +160,8 @@ function parseInput(input: UpsertSsoConfigInput | null | undefined, baseUrl: str
   const idpType = input.idpType ?? 'saml_entra';
   if (!['saml_entra', 'saml_generic', 'oidc'].includes(idpType)) return null;
   const entityId = nonEmpty(input.entityId);
-  const acsUrl = nonEmpty(input.acsUrl) ?? `${baseUrl}/api/auth/saml/callback`;
+  const acsUrl = normalizeSameOriginUrl(nonEmpty(input.acsUrl) ?? `${baseUrl}/api/auth/saml/callback`, baseUrl);
+  if (!acsUrl) return null;
   const defaultRoleCode = nonEmpty(input.defaultRoleCode);
   if (!defaultRoleCode) return null;
 
@@ -160,6 +182,16 @@ function parseInput(input: UpsertSsoConfigInput | null | undefined, baseUrl: str
     defaultRoleCode,
     enabled: input.enabled === true,
   };
+}
+
+function normalizeSameOriginUrl(value: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(value, baseUrl);
+    if (url.origin !== new URL(baseUrl).origin) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function nonEmpty(value: unknown): string | undefined {

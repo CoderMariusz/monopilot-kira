@@ -94,6 +94,24 @@ describe('setCoreFlag Server Action (TASK-000106/T-020 RED)', () => {
     expect(currentClient.outboxEvents).toHaveLength(0);
   });
 
+  it('allows integration.d365.enabled=true when all three required D365 constants and connection preflight pass', async () => {
+    currentClient.d365ConstantsPopulated = 3;
+    currentClient.d365ConnectionPassed = true;
+
+    const { setCoreFlag } = await loadSetCoreFlag();
+    const result = await setCoreFlag({
+      flagCode: 'integration.d365.enabled',
+      enabled: true,
+      auditReason: 'enable D365 after required settings are complete',
+    });
+
+    expect(result).toEqual({ ok: true, data: { flagCode: 'integration.d365.enabled', enabled: true } });
+    expect(currentClient.featureFlags.get('integration.d365.enabled')).toBe(true);
+    expect(statementIndex('d365_constants')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('d365_connection')).toBeGreaterThanOrEqual(0);
+    expect(currentClient.outboxEvents[0]?.eventType).toBe('settings.core_flag.updated');
+  });
+
   it('blocks npd.post_release_edit.enabled=true unless the T-126 npd_post_release_edit policy satisfies V-SET-43', async () => {
     currentClient.policies.set('npd_post_release_edit', {
       policy_code: 'npd_post_release_edit',
@@ -273,9 +291,10 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('d365_constants')) {
+        const requiredKeys = ['V-SET-42', 'V-SET-50', 'V-SET-52'];
         return {
           rows: Array.from({ length: client.d365ConstantsPopulated }, (_, index) => ({
-            key: `D365_REQUIRED_${index + 1}`,
+            key: requiredKeys[index] ?? `D365_EXTRA_${index + 1}`,
             value: `configured-${index + 1}`,
           })),
           rowCount: client.d365ConstantsPopulated,

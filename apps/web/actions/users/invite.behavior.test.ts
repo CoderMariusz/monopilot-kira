@@ -121,6 +121,7 @@ beforeEach(() => {
     data: { properties: { hashed_token: 'hashed-token-stub' } },
     error: null,
   });
+  process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.com';
 });
 
 type InviteModule = typeof import('./invite.ts');
@@ -178,6 +179,28 @@ describe('inviteUser RBAC (behavior)', () => {
       site: 'Warsaw Plant',
       personal_message_present: true,
     });
+  });
+
+  it('rejects an external redirectTo before calling Supabase invite link generation', async () => {
+    currentClient = makeClient({
+      hasInvitePermission: true,
+      seatLimit: 100,
+      activeUsers: 5,
+      rolesById: {
+        [VIEWER_ROLE_ID]: { id: VIEWER_ROLE_ID, org_id: ORG_ID, code: 'viewer', is_system: false, display_order: 99 },
+      },
+    });
+    const { inviteUser } = await loadInvite();
+
+    const result = await inviteUser({
+      email: 'new@example.com',
+      roleId: VIEWER_ROLE_ID,
+      redirectTo: 'https://evil.example.net/welcome',
+    });
+
+    expect(result).toEqual({ ok: false, error: 'invalid_input' });
+    expect(_mockGenerateLink).not.toHaveBeenCalled();
+    expect(currentClient.upsertedUser).toBeNull();
   });
 });
 

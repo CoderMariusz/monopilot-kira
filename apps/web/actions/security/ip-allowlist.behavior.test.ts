@@ -21,6 +21,7 @@ type FakeQueryClient = {
   hasEditPermission: boolean;
   adminTableMissing: boolean;
   insertedRows: Array<Record<string, unknown>>;
+  auditRows: Array<Record<string, unknown>>;
   outboxEvents: Array<Record<string, unknown>>;
   query: (
     sql: string,
@@ -54,6 +55,7 @@ function makeClient(options: { hasEditPermission?: boolean; adminTableMissing?: 
     hasEditPermission: options.hasEditPermission ?? true,
     adminTableMissing: options.adminTableMissing ?? false,
     insertedRows: [],
+    auditRows: [],
     outboxEvents: [],
     async query(sql, params = []) {
       client.calls.push({ sql, params });
@@ -62,6 +64,15 @@ function makeClient(options: { hasEditPermission?: boolean; adminTableMissing?: 
       // RBAC permission lookup
       if (normalized.includes('from public.user_roles')) {
         return { rows: client.hasEditPermission ? [{ ok: true }] : [], rowCount: client.hasEditPermission ? 1 : 0 };
+      }
+
+      if (normalized.includes('insert into public.audit_log')) {
+        client.auditRows.push({
+          action: params[2],
+          resource_type: normalized.includes("'admin_ip_allowlist'") ? 'admin_ip_allowlist' : 'unknown',
+          retention_class: normalized.includes("'security'") ? 'security' : 'unknown',
+        });
+        return { rows: [], rowCount: 1 };
       }
 
       if (normalized.includes('admin_ip_allowlist')) {
@@ -160,6 +171,11 @@ describe('addIpRange behavior', () => {
 
     expect(result.ok).toBe(true);
     expect(currentClient.insertedRows).toHaveLength(1);
+    expect(currentClient.auditRows[0]).toMatchObject({
+      action: 'settings.ip_allowlist.added',
+      resource_type: 'admin_ip_allowlist',
+      retention_class: 'security',
+    });
     expect(currentClient.outboxEvents).toHaveLength(1);
     const payload = currentClient.outboxEvents[0]!;
     const params = (payload.params as readonly unknown[]) ?? [];
