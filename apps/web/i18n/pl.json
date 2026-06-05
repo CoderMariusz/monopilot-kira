@@ -3346,5 +3346,93 @@
         "denied": "Nie masz uprawnień do przeglądania ocen sensorycznych."
       }
     }
+  },
+  "production": {
+    "dashboard": {
+      "title": "Produkcja",
+      "subtitle": "Widok zmiany na żywo — zlecenia, produkcja, OEE i przestoje.",
+      "breadcrumb": {
+        "production": "Produkcja",
+        "dashboard": "Pulpit"
+      },
+      "error": "Dane produkcyjne na żywo są obecnie niedostępne. Spróbuj ponownie za chwilę.",
+      "denied": "Nie masz uprawnień do wyświetlenia pulpitu produkcji.",
+      "kpi": {
+        "woInProgress": {
+          "label": "Zlecenia w toku",
+          "sub": "Uruchomione / aktywne"
+        },
+        "outputToday": {
+          "label": "Produkcja · dziś",
+          "sub": "Zarejestrowana produkcja (kg)"
+        },
+        "oee": {
+          "label": "OEE · bieżące",
+          "sub": "Najnowszy odczyt",
+          "none": "Brak danych"
+        },
+        "downtime": {
+          "label": "Otwarte przestoje",
+          "sub": "Zdarzenia niezakończone"
+        }
+      },
+      "woStatus": {
+        "planned": "Zaplanowane",
+        "in_progress": "W toku",
+        "paused": "Wstrzymane",
+        "completed": "Zakończone",
+        "closed": "Zamknięte",
+        "cancelled": "Anulowane"
+      },
+      "woList": {
+        "title": "Zlecenia produkcyjne ({count})",
+        "empty": "Brak zleceń — zwolnione zlecenia z Planowania pojawią się tutaj.",
+        "allergenBadge": "Alergen",
+        "planningLink": "Otwórz w Planowaniu",
+        "col": {
+          "wo": "Zlecenie",
+          "line": "Linia",
+          "status": "Status",
+          "planned": "Plan",
+          "progress": "Postęp",
+          "output": "Produkcja"
+        }
+      },
+      "nav": {
+        "label": "Obszary produkcji",
+        "workOrders": {
+          "title": "Zlecenia",
+          "desc": "Przeglądaj i realizuj zlecenia"
+        },
+        "downtime": {
+          "title": "Przestoje",
+          "desc": "Rejestruj i analizuj przestoje"
+        },
+        "waste": {
+          "title": "Odpady",
+          "desc": "Rejestruj skategoryzowane odpady"
+        },
+        "changeover": {
+          "title": "Przezbrojenie",
+          "desc": "Bramka alergenowa i podpisy"
+        },
+        "shifts": {
+          "title": "Zmiany",
+          "desc": "Załoga, przekazania i podpisy"
+        },
+        "analytics": {
+          "title": "Analityka",
+          "desc": "Trendy wydajności i przestojów"
+        },
+        "oee": {
+          "title": "OEE",
+          "desc": "Dostępność · Wydajność · Jakość"
+        },
+        "quality": {
+          "title": "Jakość",
+          "desc": "Blokady, NCR i bramka zużycia"
+        }
+      }
+    }
   }
 }

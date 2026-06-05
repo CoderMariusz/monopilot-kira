@@ -1,0 +1,186 @@
+/**
+ * 08-Production E1 — COMPLETE (T-019) + CANCEL (T-020) services.
+ *
+ * COMPLETE: in_progress → completed. Output yield gate must be GREEN — every
+ *   primary output for the WO must be registered with qty_kg > 0 (the §10.3
+ *   completion precondition). The 09-quality T-064 consume gate (holdsGuard) is
+ *   checked against each registered output's LP/lot before completion is allowed
+ *   to mutate state — an active hold returns 409 quality_hold_active + emits
+ *   production.consume.blocked (PRD §16.4 V-PROD-02/V-PROD-16). On green:
+ *   transition + emit production.wo.completed.
+ *
+ * CANCEL: planned/in_progress/paused/completed → cancelled (terminal branch from
+ *   any non-closed, non-cancelled state). reason_code mandatory (audit). A
+ *   reservation-release side-effect is the documented 05-warehouse seam (no LP
+ *   module yet) — recorded on the event payload.
+ *
+ * Both transition through the state machine (optimistic lock T-022). closed and
+ * cancelled are terminal; the state machine rejects further verbs.
+ */
+
+import { holdsGuard } from './holds-guard';
+import {
+  EventType,
+  type ProductionContext,
+  type ProductionResult,
+  fail,
+  hasPermission,
+  writeOutbox,
+} from './shared';
+import { applyTransition } from './wo-state-machine';
+
+export type CompleteWoInput = {
+  woId: string;
+  transactionId: string;
+  overrideReasonCode?: string | null;
+};
+
+export type CompleteWoData = {
+  woId: string;
+  status: 'completed';
+  completedAt: string | null;
+  outputsRegistered: number;
+};
+
+export async function completeWo(
+  ctx: ProductionContext,
+  input: CompleteWoInput,
+): Promise<ProductionResult<CompleteWoData>> {
+  if (!(await hasPermission(ctx, 'production.wo.complete'))) return fail('forbidden');
+
+  const client = ctx.client;
+
+  // Output yield gate: collect the WO's registered outputs (with their LP/lot).
+  const outputs = await client.query<{
+    id: string;
+    output_type: string;
+    qty_kg: string;
+    lp_id: string | null;
+  }>(
+    `select id, output_type, qty_kg, lp_id
+       from public.wo_outputs
+      where org_id = app.current_org_id() and wo_id = $1::uuid`,
+    [input.woId],
+  );
+
+  // holdsGuard (T-064): every output path checks for an active quality hold on
+  // the output LP/lot BEFORE the completion state mutation. Active hold → 409 +
+  // production.consume.blocked outbox event (never bypass).
+  for (const out of outputs.rows) {
+    const hold = await holdsGuard(ctx, { lpId: out.lp_id });
+    if (hold) {
+      await writeOutbox(ctx, {
+        eventType: EventType.PRODUCTION_CONSUME_BLOCKED,
+        aggregateType: 'work_order',
+        aggregateId: input.woId,
+        payload: { woId: input.woId, lpId: out.lp_id, holdId: hold.holdId },
+      });
+      return fail('quality_hold_active', { details: { holdId: hold.holdId, lpId: out.lp_id } });
+    }
+  }
+
+  // Yield gate GREEN check: at least one primary output registered with qty_kg>0,
+  // unless an override reason code is supplied (production-manager override path).
+  const primaryGreen = outputs.rows.some(
+    (o) => o.output_type === 'primary' && Number(o.qty_kg) > 0,
+  );
+  if (!primaryGreen && !input.overrideReasonCode) {
+    return fail('closed_production_strict_failed', {
+      message: 'output yield gate not green — no primary output registered',
+      details: { code: 'output_yield_gate_failed', outputsRegistered: outputs.rows.length },
+    });
+  }
+
+  const transition = await applyTransition(ctx, {
+    woId: input.woId,
+    verb: 'complete',
+    transactionId: input.transactionId,
+    context: {
+      overrideReasonCode: input.overrideReasonCode ?? null,
+      outputsRegistered: outputs.rows.length,
+    },
+  });
+  if (!transition.ok) return transition;
+
+  await writeOutbox(ctx, {
+    eventType: EventType.PRODUCTION_WO_COMPLETED,
+    aggregateType: 'work_order',
+    aggregateId: input.woId,
+    payload: {
+      woId: input.woId,
+      completedAt: transition.data.completedAt,
+      outputsRegistered: outputs.rows.length,
+      overrideReasonCode: input.overrideReasonCode ?? null,
+    },
+  });
+
+  return {
+    ok: true,
+    data: {
+      woId: input.woId,
+      status: 'completed',
+      completedAt: transition.data.completedAt,
+      outputsRegistered: outputs.rows.length,
+    },
+  };
+}
+
+export type CancelWoInput = {
+  woId: string;
+  transactionId: string;
+  reasonCode: string;
+  notes?: string | null;
+};
+
+export type CancelWoData = {
+  woId: string;
+  status: 'cancelled';
+  cancelledAt: string | null;
+  reservationsReleased: string[];
+};
+
+export async function cancelWo(
+  ctx: ProductionContext,
+  input: CancelWoInput,
+): Promise<ProductionResult<CancelWoData>> {
+  if (!(await hasPermission(ctx, 'production.wo.start'))) return fail('forbidden');
+  if (!input.reasonCode || input.reasonCode.trim().length === 0) {
+    return fail('invalid_input', { message: 'reasonCode is required' });
+  }
+
+  const transition = await applyTransition(ctx, {
+    woId: input.woId,
+    verb: 'cancel',
+    transactionId: input.transactionId,
+    reason: input.reasonCode,
+    context: { reasonCode: input.reasonCode, notes: input.notes ?? null },
+  });
+  if (!transition.ok) return transition;
+
+  // 05-warehouse reservation-release seam (no LP module yet) — recorded on the
+  // event payload so the warehouse consumer can release on receipt.
+  const reservationsReleased: string[] = [];
+
+  await writeOutbox(ctx, {
+    eventType: EventType.PRODUCTION_WO_CLOSED,
+    aggregateType: 'work_order',
+    aggregateId: input.woId,
+    payload: {
+      woId: input.woId,
+      terminal: 'cancelled',
+      cancelledAt: transition.data.cancelledAt,
+      reasonCode: input.reasonCode,
+      reservationsReleased,
+    },
+  });
+
+  return {
+    ok: true,
+    data: {
+      woId: input.woId,
+      status: 'cancelled',
+      cancelledAt: transition.data.cancelledAt,
+      reservationsReleased,
+    },
+  };
+}

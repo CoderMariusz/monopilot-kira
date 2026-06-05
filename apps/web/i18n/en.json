@@ -3346,5 +3346,93 @@
         "denied": "You do not have permission to view sensory evaluations."
       }
     }
+  },
+  "production": {
+    "dashboard": {
+      "title": "Production",
+      "subtitle": "Live shift view — work orders, output, OEE and downtime.",
+      "breadcrumb": {
+        "production": "Production",
+        "dashboard": "Dashboard"
+      },
+      "error": "Live production data is currently unavailable. Please retry shortly.",
+      "denied": "You do not have permission to view the production dashboard.",
+      "kpi": {
+        "woInProgress": {
+          "label": "WOs in progress",
+          "sub": "Running / active"
+        },
+        "outputToday": {
+          "label": "Output · today",
+          "sub": "Registered output (kg)"
+        },
+        "oee": {
+          "label": "OEE · current",
+          "sub": "Latest snapshot",
+          "none": "No data"
+        },
+        "downtime": {
+          "label": "Open downtime",
+          "sub": "Events not yet ended"
+        }
+      },
+      "woStatus": {
+        "planned": "Planned",
+        "in_progress": "In progress",
+        "paused": "Paused",
+        "completed": "Completed",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      },
+      "woList": {
+        "title": "Work orders ({count})",
+        "empty": "No work orders yet — released work orders from Planning appear here.",
+        "allergenBadge": "Allergen",
+        "planningLink": "Open in Planning",
+        "col": {
+          "wo": "WO",
+          "line": "Line",
+          "status": "Status",
+          "planned": "Planned",
+          "progress": "Progress",
+          "output": "Output"
+        }
+      },
+      "nav": {
+        "label": "Production areas",
+        "workOrders": {
+          "title": "Work orders",
+          "desc": "Browse and execute work orders"
+        },
+        "downtime": {
+          "title": "Downtime",
+          "desc": "Record and analyse downtime events"
+        },
+        "waste": {
+          "title": "Waste",
+          "desc": "Log categorised production waste"
+        },
+        "changeover": {
+          "title": "Changeover",
+          "desc": "Allergen changeover gate & sign-off"
+        },
+        "shifts": {
+          "title": "Shifts",
+          "desc": "Crew, handovers and sign-offs"
+        },
+        "analytics": {
+          "title": "Analytics",
+          "desc": "Yield, output and downtime trends"
+        },
+        "oee": {
+          "title": "OEE",
+          "desc": "Availability · Performance · Quality"
+        },
+        "quality": {
+          "title": "Quality",
+          "desc": "Holds, NCRs and consume gate"
+        }
+      }
+    }
   }
 }

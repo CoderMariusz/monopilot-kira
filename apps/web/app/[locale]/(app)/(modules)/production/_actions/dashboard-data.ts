@@ -1,0 +1,267 @@
+/**
+ * T-046 — 08-Production Dashboard (SCR-08-01): org-scoped live KPI + WO-list reads.
+ *
+ * Prototype: prototypes/design/Monopilot Design System/production/dashboard.jsx:3-146
+ * (production_dashboard, 6-KPI strip) + wo-list.jsx:3-104 (wo_list). The prototype's
+ * LINES / EVENTS_FEED / WOS mock arrays are replaced 1:1 with real Supabase reads.
+ *
+ * Every read runs inside `withOrgContext`, so it executes as `app_user` with
+ * `app.set_org_context(...)` applied — RLS (`org_id = app.current_org_id()`)
+ * scopes every count/row/sum to the signed-in user's organization. No service-role
+ * bypass, no mocks. Canonical owners are respected (read-only here):
+ *   - wo_executions / wo_outputs / downtime_events / oee_snapshots → 08-production
+ *     (migrations 181-184). work_orders → 04-planning (migration 176).
+ *
+ * RBAC: the page is gated server-side on `production.oee.read` (the production
+ * read permission seeded to the org-admin + operator + supervisor role families in
+ * migration 185). The client never re-queries and never trusts a client-side flag.
+ *
+ * NOT a `"use server"` module: these helpers are invoked directly from the
+ * Production dashboard Server Component during render (not as client-callable
+ * actions). The import of `withOrgContext` (Node-only pg pools) keeps the module
+ * server-only in practice.
+ */
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
+/** The production view permission (migration 185 — org-admin/operator/supervisor). */
+const PRODUCTION_VIEW_PERMISSION = 'production.oee.read';
+
+/** Materialized execution-lifecycle states (wo_executions.status). */
+export type WoExecStatus = 'planned' | 'in_progress' | 'paused' | 'completed' | 'closed' | 'cancelled';
+
+/** One WO row surfaced on the dashboard WO list (live, org-scoped). */
+export type WoListRow = {
+  id: string;
+  woNumber: string;
+  /** Execution lifecycle status (folded from wo_events); falls back to the planning status. */
+  status: WoExecStatus;
+  lineId: string | null;
+  plannedKg: number;
+  producedKg: number | null;
+  /** 0..100 progress = produced/planned, clamped. Null when planned is 0. */
+  progressPct: number | null;
+  /** True when the WO carries an allergen profile snapshot (changeover gate may apply). */
+  allergenGate: boolean;
+};
+
+export type ProductionDashboardKpis = {
+  /** count(wo_executions WHERE status='in_progress') */
+  woInProgress: number;
+  /** count(wo_executions WHERE status IN ('planned','in_progress','paused')) — the denominator. */
+  woActiveTotal: number;
+  /** sum(wo_outputs.qty_kg WHERE registered_at::date = current_date), in kg. */
+  outputTodayKg: number;
+  /** Latest oee_snapshots.oee_pct (most recent snapshot_minute); null = no snapshot yet. */
+  oeeCurrentPct: number | null;
+  /** count(downtime_events WHERE ended_at IS NULL) — currently-open downtime. */
+  openDowntime: number;
+  /** Per-status counts for the WO-list status tabs. */
+  statusCounts: Record<WoExecStatus, number>;
+  /** Live WO rows (newest scheduled first, capped). */
+  woRows: WoListRow[];
+};
+
+const ALL_STATUSES: WoExecStatus[] = [
+  'planned',
+  'in_progress',
+  'paused',
+  'completed',
+  'closed',
+  'cancelled',
+];
+
+/** Resolves whether the caller holds a permission, org-scoped under RLS. */
+async function hasPermission(
+  c: QueryClient,
+  userId: string,
+  orgId: string,
+  permission: string,
+): Promise<boolean> {
+  const { rows } = await c.query<{ ok: boolean }>(
+    `select true as ok
+       from public.user_roles ur
+       join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+       left join public.role_permissions rp on rp.role_id = r.id and rp.permission = $3
+      where ur.user_id = $1::uuid
+        and ur.org_id = $2::uuid
+        and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? $3)
+      limit 1`,
+    [userId, orgId, permission],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Result wrapper:
+ *   - `ok:true`              → KPIs + WO rows.
+ *   - `ok:false, reason:'forbidden'` → caller lacks production.oee.read (permission-denied UI).
+ *   - `ok:false, reason:'error'`     → live read failed (error banner, never a 500).
+ */
+export type ProductionDashboardResult =
+  | { ok: true; data: ProductionDashboardKpis }
+  | { ok: false; reason: 'forbidden' | 'error' };
+
+/**
+ * Aggregates all KPI tiles + the WO list in a SINGLE org-context transaction.
+ * Queries run sequentially on the one pooled pg client (node-pg does not run
+ * concurrent queries on a single connection).
+ */
+export async function getProductionDashboard(): Promise<ProductionDashboardResult> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }): Promise<ProductionDashboardResult> => {
+      const c = client as QueryClient;
+
+      // ── RBAC gate (server-side, never trust the client) ──────────────────────
+      const allowed = await hasPermission(c, userId, orgId, PRODUCTION_VIEW_PERMISSION);
+      if (!allowed) {
+        return { ok: false, reason: 'forbidden' };
+      }
+
+      const countOf = async (sql: string, params?: readonly unknown[]): Promise<number> => {
+        const res = await c.query<{ n: number }>(sql, params);
+        return res.rows[0]?.n ?? 0;
+      };
+
+      // KPI 1 — WOs in progress (executions materialized state).
+      const woInProgress = await countOf(
+        `select count(*)::int as n
+           from public.wo_executions
+          where org_id = app.current_org_id()
+            and status = 'in_progress'`,
+      );
+
+      // Denominator — active executions (planned + running + paused).
+      const woActiveTotal = await countOf(
+        `select count(*)::int as n
+           from public.wo_executions
+          where org_id = app.current_org_id()
+            and status in ('planned', 'in_progress', 'paused')`,
+      );
+
+      // KPI 2 — Output today (kg): sum of canonical wo_outputs registered today.
+      const outputRes = await c.query<{ kg: string | number | null }>(
+        `select coalesce(sum(qty_kg), 0) as kg
+           from public.wo_outputs
+          where org_id = app.current_org_id()
+            and registered_at >= date_trunc('day', now())
+            and registered_at < date_trunc('day', now()) + interval '1 day'`,
+      );
+      const outputTodayKg = Number(outputRes.rows[0]?.kg ?? 0);
+
+      // KPI 3 — OEE current: most recent snapshot's oee_pct (08 is the sole producer).
+      const oeeRes = await c.query<{ oee_pct: string | number | null }>(
+        `select oee_pct
+           from public.oee_snapshots
+          where org_id = app.current_org_id()
+          order by snapshot_minute desc
+          limit 1`,
+      );
+      const rawOee = oeeRes.rows[0]?.oee_pct;
+      const oeeCurrentPct = rawOee === undefined || rawOee === null ? null : Number(rawOee);
+
+      // KPI 4 — Open downtime: events with no end (V-PROD-06 open-event semantics).
+      const openDowntime = await countOf(
+        `select count(*)::int as n
+           from public.downtime_events
+          where org_id = app.current_org_id()
+            and ended_at is null`,
+      );
+
+      // Status-tab counts (GROUP BY execution status).
+      const statusRes = await c.query<{ status: string; n: number }>(
+        `select status, count(*)::int as n
+           from public.wo_executions
+          where org_id = app.current_org_id()
+          group by status`,
+      );
+      const statusCounts = ALL_STATUSES.reduce(
+        (acc, s) => {
+          acc[s] = 0;
+          return acc;
+        },
+        {} as Record<WoExecStatus, number>,
+      );
+      for (const r of statusRes.rows) {
+        if ((ALL_STATUSES as string[]).includes(r.status)) {
+          statusCounts[r.status as WoExecStatus] = r.n;
+        }
+      }
+
+      // WO list — join executions to the planning work_orders for number/line/qty.
+      // Executions own the live status; planning owns the WO header. LEFT JOIN keeps
+      // any execution whose planning row was archived from silently vanishing.
+      const woRes = await c.query<{
+        id: string;
+        wo_number: string | null;
+        status: string;
+        production_line_id: string | null;
+        planned_quantity: string | number | null;
+        produced_quantity: string | number | null;
+        has_allergen: boolean;
+      }>(
+        `select e.wo_id::text as id,
+                w.wo_number,
+                e.status,
+                w.production_line_id::text as production_line_id,
+                w.planned_quantity,
+                w.produced_quantity,
+                (w.allergen_profile_snapshot is not null) as has_allergen
+           from public.wo_executions e
+           left join public.work_orders w
+             on w.id = e.wo_id and w.org_id = e.org_id
+          where e.org_id = app.current_org_id()
+          order by w.scheduled_start_time desc nulls last, e.created_at desc
+          limit 25`,
+      );
+
+      const woRows: WoListRow[] = woRes.rows.map((r) => {
+        const plannedKg = Number(r.planned_quantity ?? 0);
+        const producedKg = r.produced_quantity === null || r.produced_quantity === undefined
+          ? null
+          : Number(r.produced_quantity);
+        const progressPct =
+          plannedKg > 0 && producedKg !== null
+            ? Math.min(100, Math.round((producedKg / plannedKg) * 100))
+            : plannedKg > 0
+              ? 0
+              : null;
+        const status = (ALL_STATUSES as string[]).includes(r.status)
+          ? (r.status as WoExecStatus)
+          : 'planned';
+        return {
+          id: r.id,
+          woNumber: r.wo_number ?? r.id.slice(0, 8),
+          status,
+          lineId: r.production_line_id,
+          plannedKg,
+          producedKg,
+          progressPct,
+          allergenGate: Boolean(r.has_allergen),
+        };
+      });
+
+      return {
+        ok: true,
+        data: {
+          woInProgress,
+          woActiveTotal,
+          outputTodayKg,
+          oeeCurrentPct,
+          openDowntime,
+          statusCounts,
+          woRows,
+        },
+      };
+    });
+  } catch (error) {
+    console.error('[production/dashboard] KPI aggregate read failed:', error);
+    return { ok: false, reason: 'error' };
+  }
+}

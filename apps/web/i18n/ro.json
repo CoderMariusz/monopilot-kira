@@ -3346,5 +3346,93 @@
         "denied": "Nu aveți permisiunea de a vizualiza evaluările senzoriale."
       }
     }
+  },
+  "production": {
+    "dashboard": {
+      "title": "Producție",
+      "subtitle": "Vedere live a turei — comenzi, producție, OEE și timpi de oprire.",
+      "breadcrumb": {
+        "production": "Producție",
+        "dashboard": "Tablou de bord"
+      },
+      "error": "Datele de producție live sunt momentan indisponibile. Reîncercați în scurt timp.",
+      "denied": "Nu aveți permisiunea de a vizualiza tabloul de bord al producției.",
+      "kpi": {
+        "woInProgress": {
+          "label": "Comenzi în lucru",
+          "sub": "În execuție / active"
+        },
+        "outputToday": {
+          "label": "Producție · azi",
+          "sub": "Producție înregistrată (kg)"
+        },
+        "oee": {
+          "label": "OEE · curent",
+          "sub": "Ultimul instantaneu",
+          "none": "Fără date"
+        },
+        "downtime": {
+          "label": "Opriri deschise",
+          "sub": "Evenimente neîncheiate"
+        }
+      },
+      "woStatus": {
+        "planned": "Planificat",
+        "in_progress": "În lucru",
+        "paused": "Întrerupt",
+        "completed": "Finalizat",
+        "closed": "Închis",
+        "cancelled": "Anulat"
+      },
+      "woList": {
+        "title": "Comenzi de lucru ({count})",
+        "empty": "Nicio comandă încă — comenzile eliberate din Planificare apar aici.",
+        "allergenBadge": "Alergen",
+        "planningLink": "Deschide în Planificare",
+        "col": {
+          "wo": "Comandă",
+          "line": "Linie",
+          "status": "Stare",
+          "planned": "Planificat",
+          "progress": "Progres",
+          "output": "Producție"
+        }
+      },
+      "nav": {
+        "label": "Zone de producție",
+        "workOrders": {
+          "title": "Comenzi",
+          "desc": "Răsfoiți și executați comenzi"
+        },
+        "downtime": {
+          "title": "Opriri",
+          "desc": "Înregistrați și analizați opririle"
+        },
+        "waste": {
+          "title": "Deșeuri",
+          "desc": "Înregistrați deșeurile pe categorii"
+        },
+        "changeover": {
+          "title": "Schimbare",
+          "desc": "Poarta de alergeni și semnături"
+        },
+        "shifts": {
+          "title": "Ture",
+          "desc": "Echipă, predări și semnături"
+        },
+        "analytics": {
+          "title": "Analiză",
+          "desc": "Tendințe randament și opriri"
+        },
+        "oee": {
+          "title": "OEE",
+          "desc": "Disponibilitate · Performanță · Calitate"
+        },
+        "quality": {
+          "title": "Calitate",
+          "desc": "Rețineri, NCR și poarta de consum"
+        }
+      }
+    }
   }
 }
