@@ -304,3 +304,270 @@ export type {
   NewQualitySpecParameter,
   ActiveHoldRow,
 } from './quality.js';
+// 05-warehouse wave-B — LP-transition ledger (lp_state_history, T-019) + GRN/stock-movement
+// (grns/grn_items/stock_moves, T-005/T-006) + spare-parts inventory (spare_parts_stock; soft
+// cross-link to 13-maintenance) (migration 193). Builds on license_plates (191) via hard lp_id FK.
+export { lpStateHistory, grns, grnItems, stockMoves, sparePartsStock } from './warehouse-waveb.js';
+export type {
+  LpStateHistory,
+  NewLpStateHistory,
+  Grn,
+  NewGrn,
+  GrnItem,
+  NewGrnItem,
+  StockMove,
+  NewStockMove,
+  SparePartStock,
+  NewSparePartStock,
+} from './warehouse-waveb.js';
+// 10-finance — SCHEMA foundation (migration 199): standard_costs (T-009), wo_actual_costing
+// (T-015, READ-only soft ref to canonical 08-production wo_outputs), inventory_cost_layers /
+// item_wac_state / cost_variances (T-021 FIFO/WAC + variance), finance_outbox_events /
+// d365_finance_dlq (T-027 D365 stage-5 export-only, R15). NUMERIC-exact money/qty. Finance owns
+// standard-cost/valuation/variance; item_cost_history stays Technical's (dual ownership).
+export {
+  standardCosts,
+  woActualCosting,
+  inventoryCostLayers,
+  itemWacState,
+  costVariances,
+  financeOutboxEvents,
+  d365FinanceDlq,
+} from './finance.js';
+export type {
+  StandardCost,
+  NewStandardCost,
+  WoActualCosting,
+  NewWoActualCosting,
+  InventoryCostLayer,
+  NewInventoryCostLayer,
+  ItemWacState,
+  NewItemWacState,
+  CostVariance,
+  NewCostVariance,
+  FinanceOutboxEvent,
+  NewFinanceOutboxEvent,
+  D365FinanceDlqRow,
+  NewD365FinanceDlqRow,
+} from './finance.js';
+// 13-maintenance — CMMS schema foundation (migration 201). 15 tables: settings/technicians/
+// equipment (T-002), schedules (T-003), MWO core + checklists + LOTO (T-004), spares ×4 (T-005),
+// calibration/sanitation/history (T-006). org_id Wave0 lock; RLS via app.current_org_id();
+// site_id REC-L1 day-1; soft FKs to 08-PROD/05-WH/02-SET avoid migration-ordering cycles.
+export {
+  maintenanceSettings,
+  technicianProfiles,
+  equipment,
+  maintenanceSchedules,
+  maintenanceWorkOrders,
+  mwoChecklists,
+  mwoLotoChecklists,
+  spareParts,
+  maintenanceSparePartsStock,
+  sparePartsTransactions,
+  mwoSpareParts,
+  calibrationInstruments,
+  calibrationRecords,
+  sanitationChecklists,
+  maintenanceHistory,
+} from './maintenance.js';
+export type {
+  MaintenanceSettings,
+  NewMaintenanceSettings,
+  TechnicianProfile,
+  NewTechnicianProfile,
+  Equipment,
+  NewEquipment,
+  MaintenanceSchedule,
+  NewMaintenanceSchedule,
+  MaintenanceWorkOrder,
+  NewMaintenanceWorkOrder,
+  MwoChecklist,
+  NewMwoChecklist,
+  MwoLotoChecklist,
+  NewMwoLotoChecklist,
+  SparePart,
+  NewSparePart,
+  MaintenanceSparePartsStock,
+  NewMaintenanceSparePartsStock,
+  SparePartsTransaction,
+  NewSparePartsTransaction,
+  MwoSparePart,
+  NewMwoSparePart,
+  CalibrationInstrument,
+  NewCalibrationInstrument,
+  CalibrationRecord,
+  NewCalibrationRecord,
+  SanitationChecklist,
+  NewSanitationChecklist,
+  MaintenanceHistory,
+  NewMaintenanceHistory,
+} from './maintenance.js';
+// 15-OEE — SCHEMA foundation (migration 203). READ-ONLY consumer of oee_snapshots +
+// downtime_events (D-OEE-1: 08-production is the SOLE producer; 15-OEE never writes those).
+// Owns reference/operational tables (shift_configs, oee_alert_thresholds, shift_patterns,
+// org_non_production_days), the UNIVERSAL big_loss_categories taxonomy, and the two read-only
+// MATERIALIZED VIEW rollups (oee_shift_metrics, oee_daily_summary).
+export {
+  shiftConfigs,
+  oeeAlertThresholds,
+  shiftPatterns,
+  orgNonProductionDays,
+  bigLossCategories,
+  oeeShiftMetrics,
+  oeeDailySummary,
+} from './oee.js';
+export type {
+  ShiftConfig,
+  NewShiftConfig,
+  OeeAlertThreshold,
+  NewOeeAlertThreshold,
+  ShiftPattern,
+  NewShiftPattern,
+  OrgNonProductionDay,
+  NewOrgNonProductionDay,
+  BigLossCategory,
+  OeeShiftMetric,
+  OeeDailySummary,
+} from './oee.js';
+
+// 11-shipping — SCHEMA foundation (migration 211): customer domain, sales orders, inventory
+// allocations, picking (waves/pick_lists/pick_list_lines), shipments (+ boxes + box_contents +
+// per-org SSCC counter), and bill_of_lading. org_id Wave0 lock; RLS via app.current_org_id().
+// The LP qa-status gate READS 09-quality v_active_holds via holdsGuard (never re-reads
+// quality_holds); license_plates (05) is read-only here. Soft FKs to product (FG SSOT) /
+// license_plates / locations / allergen_families avoid migration-ordering cycles.
+export {
+  customers,
+  customerContacts,
+  customerAddresses,
+  customerAllergenRestrictions,
+  salesOrders,
+  salesOrderLines,
+  inventoryAllocations,
+  waves,
+  pickLists,
+  pickListLines,
+  shipments,
+  shipmentBoxes,
+  shipmentBoxContents,
+  billOfLading,
+  ssccCounters,
+} from './shipping.js';
+export type {
+  Customer,
+  NewCustomer,
+  CustomerContact,
+  NewCustomerContact,
+  CustomerAddress,
+  NewCustomerAddress,
+  CustomerAllergenRestriction,
+  NewCustomerAllergenRestriction,
+  SalesOrder,
+  NewSalesOrder,
+  SalesOrderLine,
+  NewSalesOrderLine,
+  InventoryAllocation,
+  NewInventoryAllocation,
+  Wave,
+  NewWave,
+  PickList,
+  NewPickList,
+  PickListLine,
+  NewPickListLine,
+  Shipment,
+  NewShipment,
+  ShipmentBox,
+  NewShipmentBox,
+  ShipmentBoxContent,
+  NewShipmentBoxContent,
+  BillOfLading,
+  NewBillOfLading,
+  SsccCounter,
+  NewSsccCounter,
+} from './shipping.js';
+
+// 12-reporting — schema foundation (migrations 213 + 214). READ-MOSTLY CONSUMER.
+// Reporting-owned config tables (report_definitions, saved_report_configs, scheduled_export_configs,
+// saved_filter_presets, dashboards_catalog, report_exports, mv_refresh_log, report_access_audits) +
+// READ-ONLY cross-module fact materialized views over the canonical producers (08 wo_outputs /
+// oee_snapshots / downtime_events, 04 schedule_outputs, 05 license_plates, 09 quality_holds).
+// Reporting creates NO base copy of those producer tables — the MVs only read them.
+export {
+  reportDefinitions,
+  savedReportConfigs,
+  scheduledExportConfigs,
+  savedFilterPresets,
+  dashboardsCatalog,
+  reportExports,
+  mvRefreshLog,
+  reportAccessAudits,
+  mvReportingProductionThroughput,
+  mvReportingYieldByLineWeek,
+  mvReportingOeeRollup,
+  mvReportingQualityHoldRate,
+  mvReportingDowntimeByLine,
+  mvReportingScheduleAdherence,
+  mvReportingInventoryAging,
+} from './reporting.js';
+export type {
+  ReportDefinition,
+  NewReportDefinition,
+  SavedReportConfig,
+  NewSavedReportConfig,
+  ScheduledExportConfig,
+  NewScheduledExportConfig,
+  SavedFilterPreset,
+  NewSavedFilterPreset,
+  DashboardCatalogEntry,
+  NewDashboardCatalogEntry,
+  ReportExport,
+  NewReportExport,
+  MvRefreshLogRow,
+  NewMvRefreshLogRow,
+  ReportAccessAudit,
+  NewReportAccessAudit,
+} from './reporting.js';
+
+// 14-multi-site — schema foundation (migrations 215 + 216): sites (T-002, physical-site registry),
+// operational_tables (T-030 site-scoping registry contract), inter_site_transfer_orders (T-008 IST
+// shell). The site-context primitive (app.current_site_id() / app.set_site_context()) is SQL-only in
+// migration 215. sites is org master data (org-scoped); operational_tables is a global catalog;
+// inter_site_transfer_orders is the one operational site-scoped table this module owns.
+export { sites, operationalTables, interSiteTransferOrders } from './multi-site.js';
+export type {
+  Site,
+  NewSite,
+  OperationalTable,
+  NewOperationalTable,
+  InterSiteTransferOrder,
+  NewInterSiteTransferOrder,
+} from './multi-site.js';
+export {
+  siteInsertSchema,
+  siteUpdateSchema,
+  isValidIanaTimezone,
+} from './sites.zod.js';
+export type { SiteInsertInput, SiteUpdateInput } from './sites.zod.js';
+// 07-planning-ext — finite-capacity scheduler engine + changeover-matrix external contract
+// (consumed by 08-production) + extended capacity config (migration 204). Built ON the
+// 04-planning-basic schema (migs 176-179). APPENDED at END to minimise merge collisions.
+export {
+  schedulerRuns,
+  schedulerAssignments,
+  changeoverMatrixVersions,
+  changeoverMatrix,
+  schedulerConfig,
+} from './planning-ext/index.js';
+export type {
+  SchedulerRun,
+  NewSchedulerRun,
+  SchedulerAssignment,
+  NewSchedulerAssignment,
+  ChangeoverMatrixVersion,
+  NewChangeoverMatrixVersion,
+  ChangeoverMatrix,
+  NewChangeoverMatrix,
+  SchedulerConfig,
+  NewSchedulerConfig,
+} from './planning-ext/index.js';

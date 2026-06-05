@@ -7,11 +7,19 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 > **Result:** 0 implemented, 1 stub (T-015 skeleton landing only), 26 missing. No prior STATUS.md existed.
 > **Audit detail:** `_meta/audits/reality/12-reporting-REALITY.md`
 
+> **SCHEMA FOUNDATION landed (2026-06-04):** migrations **213** (read-models + config) + **214**
+> (outbox CHECK regen + rpt.* RBAC seed). Built as READ-MOSTLY CONSUMER — reporting owns NO canonical
+> fact table; the 7 cross-module fact MVs READ the producers (08 wo_outputs/oee_snapshots/
+> downtime_events, 04 schedule_outputs, 05 license_plates, 09 quality_holds). Gates GREEN: migrate
+> clean+idempotent (181 applied / re-run 0); DB test RED→GREEN 11/11
+> (`packages/db/__tests__/reporting-schema-foundation.test.ts`); rbac permissions test 16/16; outbox
+> events + drift-gate 12/12; web tsc exit 0; db/rbac/outbox eslint exit 0.
+
 ## Foundation / permissions (T1-schema)
 
 | ID | Title | Status | Note |
 |---|---|---|---|
-| T-001 | Lock reporting permission enum (rpt.* baseline) | ⬜ | `permissions.enum.ts` exists but zero rpt.* strings present; ALL_REPORTING_CORE_PERMISSIONS absent; p0-blocker |
+| T-001 | Lock reporting permission enum (rpt.* baseline) | ✅ | 14 rpt.* strings + `ALL_REPORTING_CORE_PERMISSIONS` appended to `permissions.enum.ts`; permissions.test.ts RED→GREEN block added (16/16) |
 
 ## Contract / KPI glossary (T1-schema)
 
@@ -23,18 +31,18 @@ Legend: ✅ DONE | 🔄 IN PROGRESS | ⏸ BLOCKED/STUB | ⬜ NOT STARTED
 
 | ID | Title | Status | Note |
 |---|---|---|---|
-| T-003 | Yield + Factory KPI MVs (mv_yield_by_line_week, mv_yield_by_sku_week, mv_factory_kpi_week) | ⬜ | Migration 0080 absent; blocked also by missing 08-PROD source tables |
-| T-006 | mv_qc_holds_summary + mv_downtime_by_line MVs | ⬜ | Migration 0083 absent; blocked by T-005 missing + 09-QUALITY source tables absent |
-| T-007 | mv_inventory_aging + mv_wo_status_summary + mv_shipment_otd_weekly MVs | ⬜ | Migration 0084 absent; blocked by 05-WAREHOUSE ⬜ + 08-PROD + 11-SHIPPING not audited |
-| T-010 | Fiscal calendar engine (generate_fiscal_periods + fiscal_periods consumer) | ⬜ | Migration 0087 absent; blocked by 02-SETTINGS fiscal_calendar_type column |
-| T-014 | mv_integration_health + mv_rules_usage cross-outbox UNION MVs | ⬜ | Migration 0088 absent; blocked by T-003/T-005 and multiple outbox source tables absent |
+| T-003 | Yield + Factory KPI MVs | 🔄 | **Schema foundation in mig 213**: `mv_reporting_yield_by_line_week` (mass-weighted yield from 08 wo_outputs + wo_material_consumption) + `mv_reporting_production_throughput`. SKU/factory-KPI rollup MVs + service-layer query helpers remain for the dedicated T-003 task |
+| T-006 | mv_qc_holds_summary + mv_downtime_by_line MVs | 🔄 | **Schema foundation in mig 213**: `mv_reporting_quality_hold_rate` (09 quality_holds/items) + `mv_reporting_downtime_by_line` (08 downtime_events ⨝ 02 downtime_categories.kind, D-RPT-7). Service helpers + mv-registry remain for T-006 |
+| T-007 | mv_inventory_aging + mv_wo_status + mv_shipment_otd MVs | 🔄 | **Schema foundation in mig 213**: `mv_reporting_inventory_aging` (05 license_plates, age buckets) + `mv_reporting_schedule_adherence` (04 schedule_outputs). WO-status + shipment-OTD (IF-EXISTS guard) remain for T-007 |
+| T-010 | Fiscal calendar engine (generate_fiscal_periods + fiscal_periods consumer) | ⬜ | Migration absent; blocked by 02-SETTINGS fiscal_calendar_type column |
+| T-014 | mv_integration_health + mv_rules_usage cross-outbox UNION MVs | ⬜ | UNION MVs deferred to a forward-script once all outbox tables land; reporting.* telemetry events + CHECK regen done in mig 214 |
 
 ## DB schema — support tables (T1-schema)
 
 | ID | Title | Status | Note |
 |---|---|---|---|
-| T-004 | mv_refresh_log + report_exports + report_access_audits | ⬜ | Migration 0081 absent; no Drizzle schema; no RLS policies |
-| T-008 | saved_filter_presets + dashboards_catalog schema | ⬜ | Migration 0085 absent |
+| T-004 | mv_refresh_log + report_exports + report_access_audits | ✅ | mig 213: all 3 + RLS+FORCE + app.current_org_id(); report_exports.retention_until GENERATED 7y (UTC-immutable); mv_refresh_log.duration_ms GENERATED; Drizzle schema/reporting.ts |
+| T-008 | saved_filter_presets + dashboards_catalog schema | ✅ | mig 213: saved_filter_presets (RLS+FORCE, UNIQUE org/user/dashboard/slug) + dashboards_catalog (global, 10 P1 seed). Server Actions + flag-filter query helper remain for T-008 API portion |
 
 ## API / server actions (T2-api)
 
@@ -93,7 +101,7 @@ New tracked tasks:
 
 | Task | Title | Status | Note / Sequence |
 |---|---|---|---|
-| T-028 | Seed rpt.* permissions onto roles (NNN-reporting-permission-seed.sql) | ⬜ PENDING | X-1 RBAC-seed. **wave-1 p0**, after T-001 enum. |
+| T-028 | Seed rpt.* permissions onto roles | ✅ | mig 214: idempotent seed_reporting_permissions_for_org() grants full 14 rpt.* to org-admin family + viewer/operator/manager subsets, BOTH role_permissions + legacy jsonb, AFTER INSERT trigger + backfill. DB test AC11 GREEN (both stores + idempotent). nav permission_key wiring (module-registry.ts) remains for the UI wave |
 
 Refinements / gaps (no new task):
 
