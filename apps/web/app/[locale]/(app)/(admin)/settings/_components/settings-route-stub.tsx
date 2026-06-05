@@ -1,4 +1,4 @@
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 type SettingsRouteStubProps = {
   stubKey: string;
@@ -7,6 +7,7 @@ type SettingsRouteStubProps = {
 export async function SettingsRouteStub({ stubKey }: SettingsRouteStubProps) {
   const t = await getTranslations(`settings.routeStubs.${stubKey}`);
   const common = await getTranslations('settings.routeStubs.common');
+  const locale = await getLocale();
 
   return (
     <main className="min-h-full bg-slate-50 px-6 py-8 text-slate-900" data-testid={`settings-route-stub-${stubKey}`}>
@@ -20,7 +21,7 @@ export async function SettingsRouteStub({ stubKey }: SettingsRouteStubProps) {
           </div>
           <a
             className="mt-6 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            href="/settings"
+            href={`/${locale}/settings`}
           >
             {common('backToSettings')}
           </a>
