@@ -78,14 +78,16 @@ export type CostHistoryRow = {
 //
 // V-TEC-50 (>= 0) is enforced both here (fast client-side reject) and by the
 // item_cost_history_cost_per_kg_nonnegative_check CHECK constraint.
+export const CostPerKgInput = z
+  .union([z.string(), z.number()])
+  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
+  .refine((v) => /^\d+(\.\d+)?$/.test(v), {
+    message: 'cost_per_kg must be a non-negative decimal (V-TEC-50)',
+  });
+
 export const PostCostInput = z.object({
   itemId: z.string().uuid(),
-  costPerKg: z
-    .union([z.string(), z.number()])
-    .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
-    .refine((v) => /^\d+(\.\d+)?$/.test(v), {
-      message: 'cost_per_kg must be a non-negative decimal (V-TEC-50)',
-    }),
+  costPerKg: CostPerKgInput,
   // V-TEC-52: ISO 4217. CHAR(3) in the DB; upper-cased + validated here.
   currency: z
     .string()

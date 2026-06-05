@@ -20,6 +20,8 @@
 
 import { z } from 'zod';
 
+import { CostPerKgInput } from '../../cost/_actions/shared';
+
 // ── RBAC permission strings (packages/rbac/src/permissions.enum.ts) ───────────
 export const ITEMS_CREATE_PERMISSION = 'technical.items.create';
 export const ITEMS_EDIT_PERMISSION = 'technical.items.edit';
@@ -84,8 +86,8 @@ export const CreateItemInput = z.object({
   description: z.string().trim().max(2000).optional(),
   productGroup: z.string().trim().max(128).optional(),
   uomSecondary: z.string().trim().max(32).optional(),
-  // numeric(18,6) cost_per_kg >= 0
-  costPerKg: z.coerce.number().nonnegative().finite().optional(),
+  // Cost writes must go through item_cost_history; keep decimal strings exact.
+  costPerKg: CostPerKgInput.optional(),
   // numeric(5,2) in [0,100]
   varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
   shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
@@ -110,7 +112,8 @@ export const UpdateItemInput = z.object({
   description: z.string().trim().max(2000).optional(),
   productGroup: z.string().trim().max(128).optional(),
   uomSecondary: z.string().trim().max(32).optional(),
-  costPerKg: z.coerce.number().nonnegative().finite().optional(),
+  // Accepted for legacy callers/import payloads, but updateItem never writes cost.
+  costPerKg: CostPerKgInput.optional(),
   varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),
   shelfLifeDays: z.coerce.number().int().nonnegative().optional(),
   shelfLifeMode: z.enum(SHELF_LIFE_MODES).optional(),

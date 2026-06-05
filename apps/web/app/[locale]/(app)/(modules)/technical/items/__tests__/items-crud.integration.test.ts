@@ -25,6 +25,7 @@ import {
 import { createItem } from '../_actions/create-item';
 import { deactivateItem } from '../_actions/deactivate-item';
 import { listItems } from '../_actions/list-items';
+import { updateItem } from '../_actions/update-item';
 
 const run = databaseUrl ? describe : describe.skip;
 
@@ -170,7 +171,7 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
     const code = `RM-${randomUUID().slice(0, 8)}`;
 
     const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
-      createItem({ itemCode: code, name: 'Pork shoulder', itemType: 'rm', uomBase: 'kg', costPerKg: 12.5 }),
+      createItem({ itemCode: code, name: 'Pork shoulder', itemType: 'rm', uomBase: 'kg', costPerKg: '12.500000' }),
     );
     expect(created.ok).toBe(true);
 
@@ -181,6 +182,22 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
     );
     expect(persisted.rowCount).toBe(1);
     expect(persisted.rows[0]?.status).toBe('active');
+    expect(persisted.rows[0]?.cost_per_kg).toBe('12.500000');
+
+    const costHistory = await owner.query(
+      `select ch.cost_per_kg::text, ch.currency, ch.source, ch.effective_to
+         from public.item_cost_history ch
+         join public.items i on i.id = ch.item_id and i.org_id = ch.org_id
+        where ch.org_id = $1 and i.item_code = $2`,
+      [seed.orgAId, code],
+    );
+    expect(costHistory.rowCount).toBe(1);
+    expect(costHistory.rows[0]).toMatchObject({
+      cost_per_kg: '12.5000',
+      currency: 'PLN',
+      source: 'manual',
+      effective_to: null,
+    });
 
     // List via the action (RLS-scoped) sees it.
     const listed = await withActionActor(seed.adminAUserId, seed.orgAId, () => listItems());
@@ -203,6 +220,42 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
       code,
     ]);
     expect(after.rows[0]?.status).toBe('blocked');
+  });
+
+  it('does not let updateItem write cost_per_kg directly or add cost history', async () => {
+    const code = `RM-${randomUUID().slice(0, 8)}`;
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createItem({ itemCode: code, name: 'Cost guarded', itemType: 'rm', uomBase: 'kg', costPerKg: '7.2500' }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const updated = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      updateItem({
+        id: created.data.id,
+        name: 'Cost guarded updated',
+        itemType: 'rm',
+        status: 'active',
+        uomBase: 'kg',
+        weightMode: 'fixed',
+        costPerKg: '99.0000',
+      }),
+    );
+    expect(updated.ok).toBe(true);
+
+    const persisted = await owner.query(
+      `select cost_per_kg::text from public.items where org_id = $1 and id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(persisted.rows[0]?.cost_per_kg).toBe('7.250000');
+
+    const history = await owner.query(
+      `select count(*)::int as count, max(cost_per_kg)::text as cost_per_kg
+         from public.item_cost_history
+        where org_id = $1 and item_id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(history.rows[0]).toMatchObject({ count: 1, cost_per_kg: '7.2500' });
   });
 
   it('forbids create for a user WITHOUT technical.items.create', async () => {

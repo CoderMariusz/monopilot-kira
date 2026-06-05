@@ -65,9 +65,10 @@ describe('Items master input validation (migration 153 parity)', () => {
     expect(CreateItemInput.safeParse({ ...base, uomBase: '' }).success).toBe(false);
   });
 
-  it('rejects a negative cost_per_kg (items_cost_per_kg_nonnegative_check)', () => {
+  it('keeps cost_per_kg as an exact decimal string for the ledger writer', () => {
     expect(CreateItemInput.safeParse({ ...base, costPerKg: -1 }).success).toBe(false);
-    expect(CreateItemInput.safeParse({ ...base, costPerKg: 12.5 }).success).toBe(true);
+    expect(CreateItemInput.parse({ ...base, costPerKg: '12.500000' }).costPerKg).toBe('12.500000');
+    expect(CreateItemInput.parse({ ...base, costPerKg: 12.5 }).costPerKg).toBe('12.5');
   });
 
   it('bounds variance_tolerance_pct to [0,100] (items_variance_tolerance_pct_check)', () => {

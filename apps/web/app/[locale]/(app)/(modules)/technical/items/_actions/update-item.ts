@@ -57,10 +57,9 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
                 description = $7,
                 product_group = $8,
                 uom_secondary = $9,
-                cost_per_kg = $10::numeric,
-                variance_tolerance_pct = $11::numeric,
-                shelf_life_days = $12::integer,
-                shelf_life_mode = $13
+                variance_tolerance_pct = $10::numeric,
+                shelf_life_days = $11::integer,
+                shelf_life_mode = $12
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id`,
@@ -74,7 +73,6 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           input.description ?? null,
           input.productGroup ?? null,
           input.uomSecondary ?? null,
-          input.costPerKg ?? null,
           input.varianceTolerancePct ?? null,
           input.shelfLifeDays ?? null,
           input.shelfLifeMode ?? null,

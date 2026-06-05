@@ -10,6 +10,7 @@
  */
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import { writeItemCostLedger } from '../../cost/_actions/write-cost-ledger';
 import { safeRevalidatePath } from './revalidate';
 import {
   CreateItemInput,
@@ -35,11 +36,11 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       const { rows } = await (client as QueryClient).query<{ id: string }>(
         `insert into public.items
            (org_id, item_code, item_type, name, status, uom_base, uom_secondary, product_group,
-            description, weight_mode, cost_per_kg, variance_tolerance_pct, shelf_life_days,
+            description, weight_mode, variance_tolerance_pct, shelf_life_days,
             shelf_life_mode, created_by)
          values
            (app.current_org_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9,
-            $10::numeric, $11::numeric, $12::integer, $13, $14::uuid)
+            $10::numeric, $11::integer, $12, $13::uuid)
          returning id`,
         [
           input.itemCode,
@@ -51,7 +52,6 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
           input.productGroup ?? null,
           input.description ?? null,
           input.weightMode,
-          input.costPerKg ?? null,
           input.varianceTolerancePct ?? null,
           input.shelfLifeDays ?? null,
           input.shelfLifeMode ?? null,
@@ -60,6 +60,15 @@ export async function createItem(rawInput: unknown): Promise<CreateItemResult> {
       );
       const inserted = rows[0];
       if (!inserted) return { ok: false, error: 'persistence_failed' };
+
+      if (input.costPerKg !== undefined) {
+        const cost = await writeItemCostLedger(client as QueryClient, {
+          orgId,
+          userId,
+          input: { itemId: inserted.id, costPerKg: input.costPerKg, currency: 'PLN', source: 'manual' },
+        });
+        if (!cost.ok) return { ok: false, error: cost.error === 'approver_required' ? 'invalid_input' : cost.error };
+      }
 
       await writeAudit(client as QueryClient, {
         orgId,
