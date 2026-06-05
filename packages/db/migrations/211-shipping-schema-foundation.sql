@@ -583,6 +583,11 @@ as $$
 declare
   v_serial bigint;
 begin
+  -- Tenant-isolation: SECURITY DEFINER bypasses RLS, so the caller-supplied p_org_id MUST match
+  -- the session org or an app_user could mutate another org's SSCC counter / read its GS1 prefix.
+  if p_org_id is null or p_org_id <> app.current_org_id() then
+    raise exception 'next_sscc_serial: cross-org access denied' using errcode = '42501';
+  end if;
   -- Insert-on-first-call then atomic increment via UPDATE ... RETURNING (row lock = no gaps,
   -- no duplicates under concurrency). NEVER nextval() — that is a global sequence, not per-org.
   insert into public.sscc_counters (org_id) values (p_org_id)
@@ -622,6 +627,12 @@ begin
 end;
 $$;
 
+-- GS1 SSCC-18 integrity: app_user has insert/update on shipment_boxes, so an SSCC stored outside
+-- generate_sscc() must still carry a valid mod-10 check digit (added after sscc_mod10 is defined).
+alter table public.shipment_boxes drop constraint if exists shipment_boxes_sscc_mod10_check;
+alter table public.shipment_boxes add constraint shipment_boxes_sscc_mod10_check
+  check (sscc is null or public.sscc_mod10(left(sscc, 17)) = substr(sscc, 18, 1)::integer);
+
 create or replace function public.generate_sscc(p_org_id uuid, p_extension integer default 0)
 returns varchar(18)
 language plpgsql
@@ -634,6 +645,10 @@ declare
   v_body    text;
   v_check   integer;
 begin
+  -- Tenant-isolation guard (SECURITY DEFINER bypasses RLS); next_sscc_serial re-checks too.
+  if p_org_id is null or p_org_id <> app.current_org_id() then
+    raise exception 'generate_sscc: cross-org access denied' using errcode = '42501';
+  end if;
   if p_extension is null or p_extension < 0 or p_extension > 9 then
     raise exception 'generate_sscc: extension digit must be 0-9';
   end if;

@@ -33,10 +33,16 @@ import {
   type OrgContextLike,
 } from '../shared';
 
+// REGULATED QUANTITY BOUNDARY (food-MES, NUMERIC-exact): qty_kg is a decimal STRING ONLY.
+// JS `number` is rejected — it cannot represent an exact decimal (IEEE-754 drift) and
+// String(number) can emit exponential notation, corrupting a regulated weight before the
+// NUMERIC column. Bound straight to ::numeric in SQL (mirrors register-output; Codex round-2).
 const DecimalString = z
-  .union([z.string(), z.number()])
-  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
-  .refine((s) => /^-?\d+(\.\d+)?$/.test(s), { message: 'must be a decimal number' });
+  .string()
+  .transform((v) => v.trim())
+  .refine((s) => /^-?\d+(\.\d+)?$/.test(s), {
+    message: 'must be a plain decimal string (no JS number / exponential notation)',
+  });
 
 export const RecordWasteInput = z.object({
   transaction_id: z.string().uuid(),

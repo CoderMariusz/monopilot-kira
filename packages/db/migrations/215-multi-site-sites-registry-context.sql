@@ -266,7 +266,7 @@ values
   ('haccp_plans',             '09-quality',   'pending', false, '§9.8'),
   ('shipments',               '11-shipping',  'pending', true,  '§9.8; day-1 site_id @211'),
   ('sales_orders',            '11-shipping',  'pending', true,  '§9.8; day-1 site_id @211'),
-  ('inventory_cost_layers',   '10-finance',   'pending', false, '§9.8'),
+  ('inventory_cost_layers',   '10-finance',   'pending', true,  '§9.8; day-1 site_id @199'),
   ('wip_balances',            '10-finance',   'pending', false, '§9.8'),
   ('oee_snapshots',           '08-production', 'pending', false, '§9.8; canon owner 08 (15-oee read-only)'),
   ('maintenance_work_orders', '13-maintenance','pending', false, '§9.8'),

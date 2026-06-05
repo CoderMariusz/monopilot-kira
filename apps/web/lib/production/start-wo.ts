@@ -26,7 +26,6 @@
 import { createHash } from 'node:crypto';
 
 import { createBomSnapshot } from '../technical/bom/snapshot';
-import { holdsGuard } from './holds-guard';
 import {
   EventType,
   type ProductionContext,
@@ -123,7 +122,27 @@ export async function startWo(
     });
   }
 
-  // (4) Materialize wo_outputs from schedule_outputs (canonical owner = 08).
+  // (5) Apply the lifecycle transition FIRST (validates state + CAS-materialize status +
+  // append wo_events). A second START against an already-started WO fails HERE and returns
+  // BEFORE any wo_outputs are written, so no orphan/duplicate output rows can commit on a
+  // rejected transition (Codex Gate-4 round-2). A CAS miss throws → full txn rollback.
+  const transition = await applyTransition(ctx, {
+    woId: input.woId,
+    verb: 'start',
+    transactionId: input.transactionId,
+    context: {
+      lineId: input.lineId ?? null,
+      shiftId: input.shiftId ?? null,
+      bomSnapshotId,
+      activeBomHeaderId: wo.active_bom_header_id,
+      activeFactorySpecId: wo.active_factory_spec_id,
+    },
+  });
+  if (!transition.ok) return transition;
+
+  // (4) Materialize wo_outputs from schedule_outputs (canonical owner = 08) — only AFTER a
+  // confirmed START transition. Any failure below throws and rolls back the whole txn
+  // (including the START event), so outputs and state never diverge.
   const planned = await client.query<{
     id: string;
     product_id: string;
@@ -143,22 +162,10 @@ export async function startWo(
     const outputType = OUTPUT_ROLE_TO_TYPE[row.output_role];
     if (!outputType) continue;
 
-    // holdsGuard seam: no LP exists yet at materialization, but the gate is the
-    // documented insertion point for the consume/output path (lpId null = pass).
-    const hold = await holdsGuard(ctx, { lpId: null });
-    if (hold) {
-      await writeOutbox(ctx, {
-        eventType: EventType.PRODUCTION_CONSUME_BLOCKED,
-        aggregateType: 'work_order',
-        aggregateId: input.woId,
-        payload: { woId: input.woId, holdId: hold.holdId },
-      });
-      return fail('quality_hold_active', { details: { holdId: hold.holdId } });
-    }
-
-    // Deterministic per-(WO, output_role) transaction_id so a retried START never
-    // double-inserts an output row (UNIQUE(transaction_id) on wo_outputs).
-    const outputTxnId = deriveOutputTxnId(input.transactionId, row.id);
+    // Deterministic per-(WO, schedule_output) transaction_id — stable across START retries
+    // (NOT derived from the variable start transactionId) so a re-issued START with a fresh
+    // transactionId can never double-insert an output row (UNIQUE(transaction_id) on wo_outputs).
+    const outputTxnId = deriveOutputTxnId(input.woId, row.id);
     const inserted = await client.query<{ id: string }>(
       // site_id is explicitly NULL until per-site attribution is wired (14-multi-site
       // T-030); the column is nullable day-1 (migration 181) and every other
@@ -184,21 +191,6 @@ export async function startWo(
     );
     if (inserted.rows.length > 0) outputsMaterialized += 1;
   }
-
-  // (5) Apply the lifecycle transition (append wo_events + CAS-materialize status).
-  const transition = await applyTransition(ctx, {
-    woId: input.woId,
-    verb: 'start',
-    transactionId: input.transactionId,
-    context: {
-      lineId: input.lineId ?? null,
-      shiftId: input.shiftId ?? null,
-      bomSnapshotId,
-      activeBomHeaderId: wo.active_bom_header_id,
-      activeFactorySpecId: wo.active_factory_spec_id,
-    },
-  });
-  if (!transition.ok) return transition;
 
   // (6) Emit production.wo.started in the SAME txn.
   await writeOutbox(ctx, {
@@ -228,11 +220,12 @@ export async function startWo(
   };
 }
 
-/** Stable UUID-v5-ish derivation: per-(start txn, schedule_output) output txn id. */
-function deriveOutputTxnId(startTxnId: string, scheduleOutputId: string): string {
-  // Deterministic: hash the two ids into a UUID so a retried START reuses the
-  // same wo_outputs.transaction_id (idempotent materialization, R14).
-  return uuidFromSeed(`${startTxnId}:${scheduleOutputId}`);
+/** Stable UUID-v5-ish derivation: per-(WO, schedule_output) output txn id. */
+function deriveOutputTxnId(woId: string, scheduleOutputId: string): string {
+  // Deterministic over (woId, scheduleOutputId) — NOT the variable start transactionId — so any
+  // re-issued START reuses the same wo_outputs.transaction_id (idempotent materialization, R14;
+  // closes the Codex round-2 duplicate-output-on-fresh-transactionId hole).
+  return uuidFromSeed(`${woId}:${scheduleOutputId}`);
 }
 
 function deriveBatchNumber(woId: string, outputRole: string): string {
