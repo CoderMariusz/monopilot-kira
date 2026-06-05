@@ -91,8 +91,10 @@ export async function listItems(opts?: { limit?: number; offset?: number }): Pro
         (client as QueryClient).query<ItemRow>(
           `select i.id, i.item_code, i.name, i.item_type, i.status, i.uom_base, i.weight_mode,
                   i.cost_per_kg, i.updated_at, i.d365_sync_status,
+                  -- bom_headers.product_id is TEXT and FKs to product(org_id, product_code);
+                  -- the items-master code namespace joins on item_code, not items.id (uuid).
                   (select count(*) from public.bom_headers bh
-                     where bh.product_id = i.id and bh.org_id = app.current_org_id()) as bom_count,
+                     where bh.product_id = i.item_code and bh.org_id = app.current_org_id()) as bom_count,
                   (select coalesce(array_agg(distinct a.name order by a.name), array[]::text[])
                      from public.item_allergen_profiles iap
                      join public.allergens a on a.code = iap.allergen_code
