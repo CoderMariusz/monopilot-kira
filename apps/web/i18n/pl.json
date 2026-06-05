@@ -1571,7 +1571,13 @@
         "approve": "Approve",
         "approving": "Approving…",
         "approveError": "Unable to approve this BOM version. Please try again.",
-        "approveForbidden": "You do not have permission to approve BOMs."
+        "approveForbidden": "You do not have permission to approve BOMs.",
+        "deleteVersion": "Delete version",
+        "deleteForbidden": "You do not have permission to delete BOM versions.",
+        "deleteSnapshotBlocked": "Cannot delete: work-order snapshots reference this version. Delete the snapshots first.",
+        "deleteOnlyVersion": "Cannot delete the only version of a BOM.",
+        "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
+        "deleteError": "Unable to delete this BOM version. Please try again."
       }
     },
     "bomList": {
@@ -1810,7 +1816,8 @@
           "label": "Lab result failing or on hold",
           "remediation": "Route to 09-Quality — Technical surfaces the remediation link only."
         }
-      }
+      },
+      "truncated": "Showing the first {limit} of {total} active finished goods."
     },
     "labResults": {
       "title": "Dziennik wyników laboratoryjnych (tylko odczyt)",
@@ -1992,7 +1999,8 @@
       "applied": "Import applied",
       "forbidden": "You do not have permission to import items.",
       "parseFailed": "Could not parse the CSV. Check the header row and try again.",
-      "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it."
+      "supplierBlocker": "Some rows reference a supplier that requires a supplier_spec upload before the catalog row can reference it.",
+      "backToItems": "Back to items"
     },
     "bomSnapshots": {
       "breadcrumb": "Technical › BOMs › Snapshots",

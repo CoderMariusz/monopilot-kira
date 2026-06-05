@@ -12,7 +12,7 @@
  * technical.items.create.
  */
 
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 import { listItems } from '../_actions/list-items';
 import { previewItemsImport } from './_actions/preview-import';
@@ -73,21 +73,31 @@ export default async function TechnicalItemsImportPage() {
   // (org-scoped under RLS) — the import surface itself never trusts the client.
   const { canCreate } = await listItems();
   const t = await getTranslations('technical.bulkImport');
+  const locale = await getLocale();
   const labels = buildLabels(t);
 
   return (
-    <main data-screen="technical-items-import-page" className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-6">
-      <header className="space-y-1">
-        <p className="text-sm text-muted-foreground">{t('breadcrumb')}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
+    <main data-screen="technical-items-import-page" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb')}
+      </nav>
+
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="page-title">{t('title')}</h1>
+          <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
+        </div>
+        <a className="btn btn-secondary btn-sm shrink-0" href={`/${locale}/technical/items`}>
+          ← {t('backToItems')}
+        </a>
       </header>
 
       {canCreate ? (
         <BulkImportWizard labels={labels} previewAction={previewItemsImport} commitAction={commitItemsImport} />
       ) : (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-          {t('permissionDenied')}
+        <div role="alert" className="alert alert-amber">
+          <span aria-hidden="true">△</span>
+          <div className="alert-title">{t('permissionDenied')}</div>
         </div>
       )}
     </main>

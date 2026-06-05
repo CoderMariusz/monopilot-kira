@@ -84,7 +84,7 @@ function PanelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy
             <span className="mono muted text-[11px]">{copy.per100g}</span>
           </div>
           {panel.macros.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">{copy.noMacros}</div>
+            <div className="muted px-4 py-6 text-center text-sm">{copy.noMacros}</div>
           ) : (
             <table aria-label={copy.macrosTitle}>
               <thead>
@@ -130,7 +130,7 @@ function PanelView({ panel, copy }: { panel: NutritionPanel; copy: NutritionCopy
             {copy.allergensTitle}
           </div>
           {panel.allergens.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">{copy.noAllergens}</div>
+            <div className="muted px-4 py-6 text-center text-sm">{copy.noAllergens}</div>
           ) : (
             <table aria-label={copy.allergensTitle}>
               <thead>

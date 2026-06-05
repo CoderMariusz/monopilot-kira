@@ -56,10 +56,11 @@ const toneKpi: Record<RegulationTone, string> = {
   amber: 'kpi amber',
   red: 'kpi red',
 };
+// Coverage-bar fill uses the design tokens, not raw Tailwind colours.
 const toneBar: Record<RegulationTone, string> = {
-  green: 'bg-emerald-500',
-  amber: 'bg-amber-500',
-  red: 'bg-red-500',
+  green: 'var(--green)',
+  amber: 'var(--amber)',
+  red: 'var(--red)',
 };
 const severityBadge: Record<ComplianceFlag['severity'], BadgeVariant> = {
   high: 'danger',
@@ -102,23 +103,26 @@ export function ComplianceDashboard({
 
       {/* Coverage-by-regulation bars. */}
       <div data-testid="compliance-coverage" className="card">
-        <h2 className="card-title text-slate-900">{copy.coverageTitle}</h2>
+        <strong className="card-title">{copy.coverageTitle}</strong>
         <div className="mt-3 flex flex-col gap-3">
           {regulations.map((r) => (
             <div key={r.code} data-testid={`compliance-bar-${r.code}`}>
               <div className="flex items-center justify-between text-xs">
                 <span>
-                  <span className="font-mono font-semibold text-slate-900">{copy.regulationLabel[r.code]}</span>
-                  <span className="text-slate-500"> · {copy.regulationScope[r.code]}</span>
+                  <span className="mono font-semibold">{copy.regulationLabel[r.code]}</span>
+                  <span className="muted"> · {copy.regulationScope[r.code]}</span>
                 </span>
-                <span className="font-mono text-slate-700">
+                <span className="mono">
                   {r.covered}/{r.total} · <b>{r.coveragePct}%</b>
                 </span>
               </div>
-              <div className="mt-1 h-2.5 overflow-hidden rounded bg-slate-100">
+              <div
+                className="mt-1 h-2.5 overflow-hidden rounded"
+                style={{ background: 'var(--gray-100)' }}
+              >
                 <div
-                  className={`h-full ${toneBar[r.tone]}`}
-                  style={{ width: `${r.coveragePct}%` }}
+                  className="h-full"
+                  style={{ width: `${r.coveragePct}%`, background: toneBar[r.tone] }}
                   aria-hidden="true"
                 />
               </div>
@@ -133,12 +137,13 @@ export function ComplianceDashboard({
         style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
       >
         <div className="card-head" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
-          <h2 className="card-title text-slate-900">{copy.flagsTitle.replace('{count}', String(flags.length))}</h2>
-          <span className="text-xs text-slate-500">{copy.flagsHint}</span>
+          <span className="text-sm font-semibold">{copy.flagsTitle.replace('{count}', String(flags.length))}</span>
+          <span className="muted text-[11px]">{copy.flagsHint}</span>
         </div>
         {flags.length === 0 ? (
-          <div data-testid="compliance-flags-empty" className="px-4 py-8 text-center text-sm text-slate-500">
-            {copy.emptyBody}
+          <div data-testid="compliance-flags-empty" className="empty-state">
+            <div className="empty-state-icon">✓</div>
+            <div className="empty-state-body">{copy.emptyBody}</div>
           </div>
         ) : (
           <Table>
@@ -163,7 +168,7 @@ export function ComplianceDashboard({
                   <TableCell className="font-mono text-xs">{copy.regulationLabel[f.regulation]}</TableCell>
                   <TableCell className="text-sm">
                     <span className="block">{copy.issueLabel[f.issueKey]}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{copy.remediationLabel[f.issueKey]}</span>
+                    <span className="muted mt-0.5 block text-xs">{copy.remediationLabel[f.issueKey]}</span>
                   </TableCell>
                   <TableCell>
                     <Badge variant={severityBadge[f.severity]}>{copy.severityLabel[f.severity]}</Badge>
@@ -173,7 +178,8 @@ export function ComplianceDashboard({
                       href={f.routeHref}
                       data-testid={`compliance-route-${f.id}`}
                       data-route-to={f.routeTo}
-                      className="text-sm font-medium text-sky-600 hover:text-sky-700"
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: 'var(--blue)' }}
                     >
                       {copy.route}
                     </Link>

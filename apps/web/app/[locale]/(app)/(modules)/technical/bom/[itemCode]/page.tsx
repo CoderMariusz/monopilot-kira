@@ -260,6 +260,7 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
           productName={d.productName}
           currentVersion={d.selectedVersion}
           status={d.header.status}
+          snapshotCount={d.snapshots.length}
           lines={d.lines.map((l) => ({
             itemId: l.itemId ?? undefined,
             componentCode: l.componentCode,

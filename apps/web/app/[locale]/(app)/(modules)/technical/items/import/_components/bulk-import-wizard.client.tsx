@@ -23,7 +23,6 @@
 
 import React from 'react';
 
-import { Badge } from '@monopilot/ui/Badge';
 import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
@@ -87,6 +86,9 @@ const SCOPE_OPTIONS = (labels: BulkImportLabels): Array<{ value: ImportScope; la
   { value: 'rm_supplier_specs', label: labels.scopeRmSupplier },
 ];
 
+// Locked design-system wizard stepper (globals.css `.wiz-*`), translated 1:1 from
+// the prototype Stepper primitive (_shared/modals.jsx:46-62): current step → blue
+// numbered chip, completed steps → green ✓, connecting lines between steps.
 function Stepper({ active, labels }: { active: Step; labels: BulkImportLabels }) {
   const steps: Array<[Step, string]> = [
     ['upload', labels.stepUpload],
@@ -94,22 +96,29 @@ function Stepper({ active, labels }: { active: Step; labels: BulkImportLabels })
     ['diff', labels.stepDiff],
     ['confirm', labels.stepConfirm],
   ];
+  const activeIndex = STEP_ORDER.indexOf(active);
   return (
-    <ol aria-label="Import steps" className="flex flex-wrap gap-2 text-sm" data-testid="bulk-import-stepper">
-      {steps.map(([key, label], i) => (
-        <li
-          key={key}
-          aria-current={active === key ? 'step' : undefined}
-          data-active={active === key ? 'true' : undefined}
-          className={[
-            'rounded-full border px-3 py-2',
-            active === key ? 'border-blue-300 bg-blue-50 font-medium text-blue-700' : 'border-slate-200 bg-white',
-          ].join(' ')}
-        >
-          <span className="font-semibold">{i + 1}</span> {label}
-        </li>
-      ))}
-    </ol>
+    <div aria-label="Import steps" className="wiz-stepper" data-testid="bulk-import-stepper">
+      {steps.map(([key, label], i) => {
+        const done = i < activeIndex;
+        const current = active === key;
+        return (
+          <React.Fragment key={key}>
+            <div
+              aria-current={current ? 'step' : undefined}
+              data-active={current ? 'true' : undefined}
+              className={['wiz-step', done ? 'done' : '', current ? 'current' : ''].filter(Boolean).join(' ')}
+            >
+              <span className="wiz-step-num">{done ? '✓' : i + 1}</span>
+              <span className="wiz-step-label">{label}</span>
+            </div>
+            {i < steps.length - 1 ? (
+              <div className={['wiz-step-line', done ? 'done' : ''].filter(Boolean).join(' ')} />
+            ) : null}
+          </React.Fragment>
+        );
+      })}
+    </div>
   );
 }
 
@@ -184,28 +193,29 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
       <Stepper active={step} labels={labels} />
 
       {errorKey ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-          {errorKey}
+        <div role="alert" className="alert alert-red">
+          <span aria-hidden="true">⚠</span> {errorKey}
         </div>
       ) : null}
 
       {committed ? (
-        <div role="status" data-testid="bulk-import-applied" className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-          {labels.applied} · {committed.created} create / {committed.updated} update / {committed.skipped} skip /{' '}
-          {committed.errors} errors
+        <div role="status" data-testid="bulk-import-applied" className="alert alert-green">
+          <span aria-hidden="true">✓</span>
+          <div>
+            <span className="alert-title">{labels.applied}</span> · {committed.created} create / {committed.updated}{' '}
+            update / {committed.skipped} skip / {committed.errors} errors
+          </div>
         </div>
       ) : null}
 
       {step === 'upload' ? (
-        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-labelledby="bulk-import-upload-h">
-          <h2 id="bulk-import-upload-h" className="text-base font-semibold">
+        <section className="card" style={{ padding: 18 }} aria-labelledby="bulk-import-upload-h">
+          <h2 id="bulk-import-upload-h" className="card-title">
             {labels.stepUpload}
           </h2>
-          <div className="mt-4 grid gap-4">
-            <div>
-              <label htmlFor="bulk-import-scope" className="mb-1 block text-sm font-medium">
-                {labels.scopeLabel}
-              </label>
+          <div className="mt-4">
+            <div className="ff">
+              <label htmlFor="bulk-import-scope">{labels.scopeLabel}</label>
               <Select
                 id="bulk-import-scope"
                 aria-label={labels.scopeLabel}
@@ -214,9 +224,10 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
                 options={SCOPE_OPTIONS(labels)}
               />
             </div>
-            <div>
-              <label htmlFor="bulk-import-file" className="mb-1 block text-sm font-medium">
+            <div className="ff">
+              <label htmlFor="bulk-import-file">
                 {labels.fileLabel}
+                <span className="req">*</span>
               </label>
               <Input
                 id="bulk-import-file"
@@ -224,57 +235,81 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
                 accept=".csv,text/csv"
                 aria-label={labels.fileLabel}
                 onChange={onFile}
+                className="form-input"
                 data-testid="bulk-import-file"
               />
-              {filename ? <p className="mt-1 font-mono text-xs text-muted-foreground">{filename}</p> : null}
+              {filename ? <p className="ff-help mono">{filename}</p> : null}
             </div>
-            <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">{labels.orgScopedNote}</p>
+            <div className="alert alert-blue">
+              <span aria-hidden="true">ⓘ</span> {labels.orgScopedNote}
+            </div>
           </div>
-          <div className="mt-5 flex justify-end">
+          <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
-              className="btn btn--default"
-              data-variant="default"
+              className="btn btn-primary btn-sm"
               data-testid="bulk-import-validate-cta"
               disabled={!csvText || pending}
               onClick={runPreview}
             >
-              {pending ? '…' : labels.validateCta}
+              {pending ? '…' : `${labels.validateCta} →`}
             </button>
           </div>
         </section>
       ) : null}
 
       {step === 'validate' ? (
-        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-labelledby="bulk-import-validate-h">
-          <h2 id="bulk-import-validate-h" className="text-base font-semibold">
+        <section className="card" style={{ padding: 18 }} aria-labelledby="bulk-import-validate-h">
+          <h2 id="bulk-import-validate-h" className="card-title">
             {labels.stepValidate}
           </h2>
-          <div className="mt-4 flex flex-wrap gap-3" data-testid="bulk-import-validate-kpis">
+          <div
+            className="mt-4"
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
+            data-testid="bulk-import-validate-kpis"
+          >
             <Kpi label={labels.rowsInFile} value={String(preview?.rowsInFile ?? 0)} tone="default" />
-            <Kpi label={labels.errorsKpi} value={String(preview?.counts.errors ?? 0)} tone="danger" />
-            <Kpi label={labels.warningsKpi} value={String(preview?.counts.warnings ?? 0)} tone="warning" />
+            <Kpi label={labels.errorsKpi} value={String(preview?.counts.errors ?? 0)} tone="red" />
+            <Kpi label={labels.warningsKpi} value={String(preview?.counts.warnings ?? 0)} tone="amber" />
           </div>
           <Table aria-label="Validation issues" className="mt-4">
             <TableHeader>
               <TableRow>
-                <TableHead scope="col">{labels.colRow}</TableHead>
-                <TableHead scope="col">{labels.colSeverity}</TableHead>
-                <TableHead scope="col">{labels.colColumn}</TableHead>
+                <TableHead scope="col" style={{ width: 70 }}>
+                  {labels.colRow}
+                </TableHead>
+                <TableHead scope="col" style={{ width: 110 }}>
+                  {labels.colSeverity}
+                </TableHead>
+                <TableHead scope="col" style={{ width: 140 }}>
+                  {labels.colColumn}
+                </TableHead>
                 <TableHead scope="col">{labels.colIssue}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {validationRows.length ? (
                 validationRows.map((iss, i) => (
-                  <TableRow key={i} data-testid="bulk-import-issue-row">
-                    <TableCell className="font-mono text-sm">#{iss.rowNumber}</TableCell>
+                  <TableRow
+                    key={i}
+                    data-testid="bulk-import-issue-row"
+                    style={
+                      iss.kind === 'error'
+                        ? { background: 'var(--red-050a)' }
+                        : iss.kind === 'warning'
+                          ? { background: 'var(--amber-050a)' }
+                          : undefined
+                    }
+                  >
+                    <TableCell className="mono text-sm">#{iss.rowNumber}</TableCell>
                     <TableCell>
-                      <Badge variant={iss.kind === 'error' ? 'danger' : iss.kind === 'warning' ? 'warning' : 'info'}>
+                      <span
+                        className={`badge ${iss.kind === 'error' ? 'badge-red' : iss.kind === 'warning' ? 'badge-amber' : 'badge-blue'}`}
+                      >
                         {iss.kind}
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{iss.column}</TableCell>
+                    <TableCell className="mono text-sm">{iss.column}</TableCell>
                     <TableCell className="text-sm">{iss.message}</TableCell>
                   </TableRow>
                 ))
@@ -287,40 +322,45 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
               )}
             </TableBody>
           </Table>
-          <div className="mt-5 flex items-center justify-between">
-            <button type="button" className="btn" onClick={() => setStep('upload')}>
-              {labels.backCta}
+          <div className="mt-4 flex items-center justify-between">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('upload')}>
+              ← {labels.backCta}
             </button>
             <button
               type="button"
-              className="btn btn--default"
-              data-variant="default"
+              className="btn btn-primary btn-sm"
               data-testid="bulk-import-diff-cta"
               disabled={hasErrors}
               onClick={() => setStep('diff')}
             >
-              {labels.diffCta}
+              {labels.diffCta} →
             </button>
           </div>
         </section>
       ) : null}
 
       {step === 'diff' ? (
-        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-labelledby="bulk-import-diff-h">
-          <h2 id="bulk-import-diff-h" className="text-base font-semibold">
+        <section className="card" style={{ padding: 18 }} aria-labelledby="bulk-import-diff-h">
+          <h2 id="bulk-import-diff-h" className="card-title">
             {labels.stepDiff}
           </h2>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Kpi label={labels.createKpi} value={String(preview?.counts.create ?? 0)} tone="success" />
-            <Kpi label={labels.updateKpi} value={String(preview?.counts.update ?? 0)} tone="warning" />
+          <div className="mt-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <Kpi label={labels.createKpi} value={String(preview?.counts.create ?? 0)} tone="green" />
+            <Kpi label={labels.updateKpi} value={String(preview?.counts.update ?? 0)} tone="amber" />
             <Kpi label={labels.noopKpi} value={String(preview?.counts.noop ?? 0)} tone="default" />
           </div>
           <Table aria-label="Import diff" className="mt-4">
             <TableHeader>
               <TableRow>
-                <TableHead scope="col">{labels.colCode}</TableHead>
-                <TableHead scope="col">{labels.colOp}</TableHead>
-                <TableHead scope="col">{labels.colField}</TableHead>
+                <TableHead scope="col" style={{ width: 140 }}>
+                  {labels.colCode}
+                </TableHead>
+                <TableHead scope="col" style={{ width: 90 }}>
+                  {labels.colOp}
+                </TableHead>
+                <TableHead scope="col" style={{ width: 180 }}>
+                  {labels.colField}
+                </TableHead>
                 <TableHead scope="col">{labels.colChange}</TableHead>
               </TableRow>
             </TableHeader>
@@ -329,50 +369,58 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
                 .filter((r) => r.op !== 'error')
                 .map((r) => (
                   <TableRow key={r.rowNumber} data-testid="bulk-import-diff-row">
-                    <TableCell className="font-mono text-sm">{r.itemCode}</TableCell>
+                    <TableCell className="mono text-sm">{r.itemCode}</TableCell>
                     <TableCell>
-                      <Badge variant={r.op === 'create' ? 'success' : r.op === 'update' ? 'warning' : 'muted'}>{r.op}</Badge>
+                      <span
+                        className={`badge ${r.op === 'create' ? 'badge-green' : r.op === 'update' ? 'badge-amber' : 'badge-gray'}`}
+                      >
+                        {r.op}
+                      </span>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{r.field}</TableCell>
+                    <TableCell className="mono text-sm">{r.field}</TableCell>
                     <TableCell className="text-sm">
-                      <span className="font-mono text-muted-foreground">{r.before}</span>
+                      <span className="mono" style={{ color: 'var(--muted)' }}>
+                        {r.before}
+                      </span>
                       {' → '}
-                      <span className="font-mono font-semibold">{r.after}</span>
+                      <span className="mono" style={{ fontWeight: 600 }}>
+                        {r.after}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}
             </TableBody>
           </Table>
           {hasWarnings ? (
-            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              {labels.supplierBlocker}
-            </p>
+            <div className="alert alert-amber mt-3">
+              <span aria-hidden="true">△</span> {labels.supplierBlocker}
+            </div>
           ) : null}
-          <div className="mt-5 flex items-center justify-between">
-            <button type="button" className="btn" onClick={() => setStep('validate')}>
-              {labels.backCta}
+          <div className="mt-4 flex items-center justify-between">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('validate')}>
+              ← {labels.backCta}
             </button>
             <button
               type="button"
-              className="btn btn--default"
-              data-variant="default"
+              className="btn btn-primary btn-sm"
               data-testid="bulk-import-confirm-cta"
               onClick={() => setStep('confirm')}
             >
-              {labels.confirmCta}
+              {labels.confirmCta} →
             </button>
           </div>
         </section>
       ) : null}
 
       {step === 'confirm' ? (
-        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-labelledby="bulk-import-confirm-h">
-          <h2 id="bulk-import-confirm-h" className="text-base font-semibold">
+        <section className="card" style={{ padding: 18 }} aria-labelledby="bulk-import-confirm-h">
+          <h2 id="bulk-import-confirm-h" className="card-title">
             {labels.stepConfirm}
           </h2>
-          <div className="mt-4">
-            <label htmlFor="bulk-import-reason" className="mb-1 block text-sm font-medium">
+          <div className="ff mt-4">
+            <label htmlFor="bulk-import-reason">
               {labels.reasonLabel}
+              <span className="req">*</span>
             </label>
             <Textarea
               id="bulk-import-reason"
@@ -382,16 +430,15 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
               data-testid="bulk-import-reason"
               rows={3}
             />
-            <p className="mt-1 text-xs text-muted-foreground">{labels.reasonHelp}</p>
+            <span className="ff-help">{labels.reasonHelp}</span>
           </div>
-          <div className="mt-5 flex items-center justify-between">
-            <button type="button" className="btn" onClick={() => setStep('diff')}>
-              {labels.backCta}
+          <div className="mt-4 flex items-center justify-between">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('diff')}>
+              ← {labels.backCta}
             </button>
             <button
               type="button"
-              className="btn btn--default"
-              data-variant="default"
+              className="btn btn-primary btn-sm"
               data-testid="bulk-import-apply-cta"
               disabled={!confirmValid || pending || Boolean(committed)}
               onClick={onApply}
@@ -405,19 +452,13 @@ export function BulkImportWizard(props: BulkImportWizardProps) {
   );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone: 'default' | 'danger' | 'warning' | 'success' }) {
-  const toneClass =
-    tone === 'danger'
-      ? 'border-red-200 bg-red-50 text-red-800'
-      : tone === 'warning'
-        ? 'border-amber-200 bg-amber-50 text-amber-800'
-        : tone === 'success'
-          ? 'border-green-200 bg-green-50 text-green-800'
-          : 'border-slate-200 bg-white text-slate-800';
+// Locked KPI tile (globals.css `.kpi` — 1px border + 6px radius + 3px coloured
+// bottom accent, value Inter 26/700). Maps the prototype KPI tone scale.
+function Kpi({ label, value, tone }: { label: string; value: string; tone: 'default' | 'red' | 'amber' | 'green' }) {
   return (
-    <div className={['min-w-[7rem] rounded-lg border px-4 py-3', toneClass].join(' ')}>
-      <div className="text-xs uppercase tracking-wide opacity-70">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
+    <div className={['kpi', tone === 'default' ? '' : tone].filter(Boolean).join(' ')}>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value tabular-nums">{value}</div>
     </div>
   );
 }

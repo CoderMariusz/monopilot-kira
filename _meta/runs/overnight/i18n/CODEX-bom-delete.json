@@ -1,0 +1,8 @@
+{
+  "technical.bom.actions.deleteVersion": "Delete version",
+  "technical.bom.actions.deleteForbidden": "You do not have permission to delete BOM versions.",
+  "technical.bom.actions.deleteSnapshotBlocked": "Cannot delete: work-order snapshots reference this version. Delete the snapshots first.",
+  "technical.bom.actions.deleteOnlyVersion": "Cannot delete the only version of a BOM.",
+  "technical.bom.actions.deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
+  "technical.bom.actions.deleteError": "Unable to delete this BOM version. Please try again."
+}

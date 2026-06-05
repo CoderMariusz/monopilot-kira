@@ -34,7 +34,7 @@ import {
 import {
   DEFAULT_OVERRIDE_AUDIT_LABELS,
   DEFAULT_TAB_LABELS,
-} from '../../../items/[item_code]/_components/allergen-labels';
+} from '../../../../items/[item_code]/_components/allergen-labels';
 
 afterEach(() => cleanup());
 

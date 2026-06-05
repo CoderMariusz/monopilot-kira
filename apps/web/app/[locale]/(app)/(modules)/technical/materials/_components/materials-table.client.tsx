@@ -138,7 +138,8 @@ export function MaterialsTableClient({
                   <td className="mono">
                     <a
                       href={`/technical/items/${encodeURIComponent(item.itemCode)}`}
-                      className="text-blue-600 underline-offset-4 hover:underline"
+                      className="underline-offset-4 hover:underline"
+                      style={{ color: 'var(--blue)' }}
                     >
                       {item.itemCode}
                     </a>

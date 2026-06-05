@@ -19,9 +19,6 @@
 import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
-import { PageHeader } from '@monopilot/ui/PageHeader';
-
 import { loadCompliance } from './_actions/load-compliance';
 import { REGULATION_CODES } from './_actions/shared';
 import type { ComplianceFlag } from './_actions/shared';
@@ -43,11 +40,21 @@ function ComplianceSkeleton() {
     <div data-testid="technical-compliance-loading" aria-busy="true" className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+          <div
+            key={i}
+            className="h-24 animate-pulse rounded-md"
+            style={{ background: 'var(--gray-100)', border: '1px solid var(--border)' }}
+          />
         ))}
       </div>
-      <div className="h-48 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
-      <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+      <div
+        className="h-48 animate-pulse rounded-md"
+        style={{ background: 'var(--gray-100)', border: '1px solid var(--border)' }}
+      />
+      <div
+        className="h-64 animate-pulse rounded-md"
+        style={{ background: 'var(--gray-100)', border: '1px solid var(--border)' }}
+      />
     </div>
   );
 }
@@ -58,25 +65,21 @@ async function ComplianceContent() {
 
   if (result.state === 'error') {
     return (
-      <div
-        role="alert"
-        data-testid="technical-compliance-error"
-        className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700"
-      >
-        {t('error')}
+      <div role="alert" data-testid="technical-compliance-error" className="alert alert-red">
+        <div className="alert-title">{t('error')}</div>
       </div>
     );
   }
 
   if (result.state === 'empty') {
     return (
-      <Card data-testid="technical-compliance-empty" className="rounded-xl border bg-white shadow-sm">
-        <CardHeader className="space-y-1 px-6 py-6">
-          <h2 className="text-lg font-semibold tracking-tight">{t('empty.title')}</h2>
-          <CardDescription className="text-sm text-muted-foreground">{t('empty.body')}</CardDescription>
-        </CardHeader>
-        <CardContent />
-      </Card>
+      <div className="card" data-testid="technical-compliance-empty" style={{ padding: 0 }}>
+        <div className="empty-state">
+          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-title">{t('empty.title')}</div>
+          <div className="empty-state-body">{t('empty.body')}</div>
+        </div>
+      </div>
     );
   }
 
@@ -116,8 +119,8 @@ async function ComplianceContent() {
   return (
     <>
       {result.truncated ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-          Showing first {result.limit} of {result.fgTotalAvailable} active finished goods.
+        <div role="note" data-testid="technical-compliance-truncated" className="alert alert-amber">
+          {t('truncated', { limit: result.limit, total: result.fgTotalAvailable })}
         </div>
       ) : null}
       <ComplianceDashboard regulations={result.regulations} flags={result.flags} copy={copy} />
@@ -129,12 +132,16 @@ export default async function TechnicalCompliancePage() {
   const t = await getTranslations('technical.compliance');
 
   return (
-    <main data-screen="technical-compliance-page" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <PageHeader
-        title={t('title')}
-        subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.technical') }, { label: t('breadcrumb.compliance') }]}
-      />
+    <main data-screen="technical-compliance-page" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb.technical')} / {t('breadcrumb.compliance')}
+      </nav>
+
+      <header>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
+      </header>
+
       <Suspense fallback={<ComplianceSkeleton />}>
         <ComplianceContent />
       </Suspense>

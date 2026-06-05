@@ -61,7 +61,7 @@ export type DeleteBomVersionModalProps = {
   deletable: boolean;
   labels: DeleteVersionLabels;
   /** Fired only when all guards pass and the typed value matches. */
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 };
 
 export function DeleteBomVersionModal({

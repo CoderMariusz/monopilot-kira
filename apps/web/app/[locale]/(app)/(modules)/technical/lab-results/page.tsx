@@ -29,8 +29,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 function LabResultsSkeleton() {
   return (
     <div data-testid="technical-lab-results-loading" aria-busy="true" className="flex flex-col gap-4">
-      <div className="h-12 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
-      <div className="h-80 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
+      <div
+        className="h-12 animate-pulse rounded-md"
+        style={{ background: 'var(--gray-100)', border: '1px solid var(--border)' }}
+      />
+      <div
+        className="h-80 animate-pulse rounded-md"
+        style={{ background: 'var(--gray-100)', border: '1px solid var(--border)' }}
+      />
     </div>
   );
 }

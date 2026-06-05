@@ -94,6 +94,13 @@ function createTranslator(arg?: string | { namespace?: string; locale?: string }
     if (resolved === undefined) return full;
     return formatICU(resolved, values);
   };
+  // next-intl's `t.raw(key)` returns the message WITHOUT ICU processing — used by
+  // components that interpolate `{placeholder}` client-side. Mirror that here.
+  t.raw = (key: string) => {
+    const full = namespace ? `${namespace}.${key}` : key;
+    const resolved = lookup(enMessages as MsgTree, full);
+    return resolved === undefined ? full : resolved;
+  };
   return t;
 }
 
