@@ -270,8 +270,7 @@ async function updateProjectEvidence(
   await ctx.client.query(
     `update public.npd_projects
         set name = coalesce($1, name),
-            notes = $2,
-            product_code = null
+            notes = $2
       where id = $3::uuid
         and org_id = app.current_org_id()`,
     [brief.product_name, evidenceNote, project.id],

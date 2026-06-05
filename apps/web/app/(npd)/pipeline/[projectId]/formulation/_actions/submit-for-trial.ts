@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { createLogger } from '@monopilot/observability';
+import { NUTRIENT_CODES } from '@monopilot/domain';
 
 const logger = createLogger({ name: 'npd-formulation-lifecycle' });
 
@@ -62,14 +63,18 @@ export async function submitForTrial(input: { projectId?: unknown; versionId?: u
            coalesce(sum(fi.pct), 0)::text as total_pct,
            count(*) filter (where fi.cost_per_kg_eur is null) as missing_cost_count,
            case
-             when fcc.version_id is null then 1
-             else jsonb_array_length(coalesce(fcc.nutrition_json->'missingTargets', '[]'::jsonb))
+             when fcc.version_id is null then cardinality($3::text[])
+             else (
+               select count(*)
+                 from unnest($3::text[]) as required(nutrient_code)
+                where not (coalesce(fcc.nutrition_json, '{}'::jsonb) ? required.nutrient_code)
+             )
            end as missing_nutrition_target_count
          from locked_version lv
          left join public.formulation_ingredients fi on fi.version_id = lv.version_id
          left join public.formulation_calc_cache fcc on fcc.version_id = lv.version_id
         group by lv.formulation_id, lv.version_id, lv.state, lv.product_code, fcc.version_id, fcc.nutrition_json`,
-        [projectId, versionId],
+        [projectId, versionId, NUTRIENT_CODES],
       );
 
       const row = loaded.rows[0];

@@ -105,31 +105,40 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
         });
       if (storageError) return { ok: false, code: 'STORAGE_FAILED' };
 
-      const inserted = await queryClient.query<{ id: string; version_number: number }>(
-        `insert into public.compliance_docs
-           (id, org_id, product_code, doc_type, title, file_path, mime_type,
-            file_size_bytes, version_number, expires_at, uploaded_by_user,
-            created_by_user, app_version)
-         values
-           ($1::uuid, app.current_org_id(), $2, $3, $4, $5, $6,
-            $7::bigint, $8::integer, $9::date, $10::uuid, $10::uuid, $11)
-         returning id, version_number`,
-        [
-          docId,
-          parsed.value.productCode,
-          parsed.value.docType,
-          parsed.value.title,
-          filePath,
-          parsed.value.mimeType,
-          parsed.value.fileSizeBytes,
-          versionNumber,
-          parsed.value.expiresAt,
-          userId,
-          COMPLIANCE_DOC_APP_VERSION,
-        ],
-      );
+      let inserted: QueryResult<{ id: string; version_number: number }>;
+      try {
+        inserted = await queryClient.query<{ id: string; version_number: number }>(
+          `insert into public.compliance_docs
+             (id, org_id, product_code, doc_type, title, file_path, mime_type,
+              file_size_bytes, version_number, expires_at, uploaded_by_user,
+              created_by_user, app_version)
+           values
+             ($1::uuid, app.current_org_id(), $2, $3, $4, $5, $6,
+              $7::bigint, $8::integer, $9::date, $10::uuid, $10::uuid, $11)
+           returning id, version_number`,
+          [
+            docId,
+            parsed.value.productCode,
+            parsed.value.docType,
+            parsed.value.title,
+            filePath,
+            parsed.value.mimeType,
+            parsed.value.fileSizeBytes,
+            versionNumber,
+            parsed.value.expiresAt,
+            userId,
+            COMPLIANCE_DOC_APP_VERSION,
+          ],
+        );
+      } catch (error) {
+        await deleteUploadedComplianceDoc(supabase, bucket, filePath);
+        throw error;
+      }
       const row = inserted.rows[0];
-      if (!row) return { ok: false, code: 'PERSISTENCE_FAILED' };
+      if (!row) {
+        await deleteUploadedComplianceDoc(supabase, bucket, filePath);
+        return { ok: false, code: 'PERSISTENCE_FAILED' };
+      }
 
       await emitComplianceDocOutbox(queryClient, {
         orgId,
@@ -151,6 +160,18 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
       return { ok: false, code: 'PERSISTENCE_FAILED' };
     }
   });
+}
+
+async function deleteUploadedComplianceDoc(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  bucket: string,
+  filePath: string,
+): Promise<void> {
+  try {
+    await supabase.storage.from(bucket).remove([filePath]);
+  } catch {
+    // Preserve the DB persistence failure result; cleanup is best-effort.
+  }
 }
 
 function parseUploadDoc(formData: FormData | null | undefined): { ok: true; value: ParsedUploadDoc } | { ok: false; result: UploadDocResult } {

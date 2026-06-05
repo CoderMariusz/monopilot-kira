@@ -134,6 +134,28 @@ run('convertBriefToFa — REAL DB integration compatibility wrapper (T-033)', ()
     expect(proof.rows[0]?.project_notes).toContain('brief_to_fa_audit');
   });
 
+  it('preserves an existing G3 product_code while writing brief mapping evidence', async () => {
+    const { convertBriefToFa } = await import('../convert-brief-to-fa');
+    const seeded = await seedCompleteBrief();
+    await owner.query(
+      `update public.npd_projects
+          set product_code = $1
+        where id = $2::uuid`,
+      ['FG-T033-G3', seeded.projectId],
+    );
+
+    await withActionActor(seed.userAId, seed.orgAId, () => convertBriefToFa(seeded.briefId, null));
+
+    const proof = await owner.query<{ product_code: string | null; notes: string | null }>(
+      `select product_code, notes
+         from public.npd_projects
+        where id = $1::uuid`,
+      [seeded.projectId],
+    );
+    expect(proof.rows[0]?.product_code).toBe('FG-T033-G3');
+    expect(proof.rows[0]?.notes).toContain('brief_to_fa_audit');
+  });
+
   it('rejects a draft brief with BRIEF_NOT_COMPLETE and leaves no partial mutation', async () => {
     const { convertBriefToFa } = await import('../convert-brief-to-fa');
     const code = devCode();

@@ -41,6 +41,8 @@ type PermissionRow = {
   actor_role: string;
 };
 
+const PG_INSUFFICIENT_PRIVILEGE = '42501';
+
 export type SetAllergenOverrideResult = {
   ok: true;
   data: {
@@ -170,6 +172,9 @@ export async function setAllergenOverride(
     if (!inserted) {
       throw new Error('Failed to insert allergen override');
     }
+    if (supersedesId) {
+      await markOverrideSuperseded(client, supersedesId);
+    }
 
     const { rows: cascadeRows } = await client.query<CascadeRefreshRow>(
       `select allergens, may_contain, changed
@@ -192,4 +197,32 @@ export async function setAllergenOverride(
       },
     };
   });
+}
+
+async function markOverrideSuperseded(client: QueryClient, supersedesId: string): Promise<void> {
+  try {
+    await client.query(
+      `update public.fa_allergen_overrides
+          set superseded_at = coalesce(superseded_at, now())
+        where id = $1::uuid
+          and org_id = app.current_org_id()
+          and superseded_at is null`,
+      [supersedesId],
+    );
+  } catch (error) {
+    if ((error as { code?: string })?.code !== PG_INSUFFICIENT_PRIVILEGE) {
+      throw error;
+    }
+  }
+
+  const { rows } = await client.query<{ superseded_at: string | Date | null }>(
+    `select superseded_at
+       from public.fa_allergen_overrides
+      where id = $1::uuid
+        and org_id = app.current_org_id()`,
+    [supersedesId],
+  );
+  if (!rows[0]?.superseded_at) {
+    throw new Error('Failed to supersede prior allergen override');
+  }
 }
