@@ -59,37 +59,58 @@ export async function saveDraft(input: {
       if (row.state !== 'draft') return { ok: false, error: 'VERSION_NOT_DRAFT' };
 
       await ctx.client.query(`delete from public.formulation_ingredients where version_id = $1::uuid`, [versionId]);
-      for (const ingredient of ingredients) {
-        // Lane-B: when an item_id is supplied, re-resolve it org-scoped (RLS) so a
-        // caller cannot attach an item from another org; an invalid id stores null
-        // (the rm_code still carries the display code) rather than failing the save.
-        let itemId: string | null = null;
-        if (ingredient.itemId) {
-          const itemRes = await ctx.client.query<{ id: string }>(
-            `select id from public.items
-              where org_id = app.current_org_id()
-                and id = $1::uuid
-                and item_type in ('rm', 'intermediate', 'co_product')
-              limit 1`,
-            [ingredient.itemId],
-          );
-          itemId = itemRes.rows[0]?.id ?? null;
-        }
-
+      const requestedItemIds = [...new Set(ingredients.map((ingredient) => ingredient.itemId).filter(Boolean))] as string[];
+      const resolvedItemIds =
+        requestedItemIds.length === 0
+          ? new Set<string>()
+          : new Set(
+              (
+                await ctx.client.query<{ id: string }>(
+                  `select id from public.items
+                    where org_id = app.current_org_id()
+                      and id = any($1::uuid[])
+                      and item_type in ('rm', 'intermediate', 'co_product')`,
+                  [requestedItemIds],
+                )
+              ).rows.map((item) => item.id),
+            );
+      const ingredientRows = ingredients.map((ingredient) => ({
+        rm_code: ingredient.rmCode,
+        item_id: ingredient.itemId && resolvedItemIds.has(ingredient.itemId) ? ingredient.itemId : null,
+        qty_kg: ingredient.qtyKg,
+        pct: ingredient.pct,
+        cost_per_kg_eur: ingredient.costPerKgEur,
+        allergens_inherited: ingredient.allergensInherited,
+        sequence: ingredient.sequence,
+      }));
+      if (ingredientRows.length > 0) {
         await ctx.client.query(
           `insert into public.formulation_ingredients
              (version_id, rm_code, item_id, qty_kg, pct, cost_per_kg_eur, allergens_inherited, sequence)
-           values ($1::uuid, $2, $3::uuid, $4::numeric, $5::numeric, $6::numeric, $7::text[], $8::integer)`,
-          [
-            versionId,
-            ingredient.rmCode,
-            itemId,
-            ingredient.qtyKg,
-            ingredient.pct,
-            ingredient.costPerKgEur,
-            ingredient.allergensInherited,
-            ingredient.sequence,
-          ],
+           select
+             $1::uuid,
+             x.rm_code,
+             x.item_id::uuid,
+             x.qty_kg::numeric,
+             x.pct::numeric,
+             x.cost_per_kg_eur::numeric,
+             coalesce(
+               (select array_agg(e.value order by e.ord)
+                  from jsonb_array_elements_text(x.allergens_inherited) with ordinality as e(value, ord)),
+               '{}'::text[]
+             ),
+             x.sequence
+           from jsonb_to_recordset($2::jsonb) as x(
+             rm_code text,
+             item_id text,
+             qty_kg text,
+             pct text,
+             cost_per_kg_eur text,
+             allergens_inherited jsonb,
+             sequence integer
+           )
+           order by x.sequence asc`,
+          [versionId, JSON.stringify(ingredientRows)],
         );
       }
 

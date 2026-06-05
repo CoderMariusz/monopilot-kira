@@ -93,7 +93,16 @@ async function ComplianceContent() {
     gapsLabel: (n) => t('gaps', { count: n }),
   };
 
-  return <ComplianceDashboard regulations={result.regulations} flags={result.flags} copy={copy} />;
+  return (
+    <>
+      {result.truncated ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
+          Showing first {result.limit} of {result.fgTotalAvailable} active finished goods.
+        </div>
+      ) : null}
+      <ComplianceDashboard regulations={result.regulations} flags={result.flags} copy={copy} />
+    </>
+  );
 }
 
 export default async function TechnicalCompliancePage() {

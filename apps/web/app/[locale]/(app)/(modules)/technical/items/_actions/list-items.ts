@@ -32,6 +32,10 @@ export type ListItemsResult = {
   canEdit: boolean;
   canDeactivate: boolean;
   state: ListItemsState;
+  limit: number;
+  offset: number;
+  total: number;
+  truncated: boolean;
 };
 
 type ItemRow = {
@@ -44,6 +48,7 @@ type ItemRow = {
   weight_mode: string;
   cost_per_kg: string | null;
   updated_at: string | Date;
+  total_count: string | number;
 };
 
 const ITEM_TYPE_SET = new Set<ItemType>(['rm', 'intermediate', 'fg', 'co_product', 'byproduct']);
@@ -66,16 +71,25 @@ function mapRow(row: ItemRow): ItemListItem | null {
   };
 }
 
-export async function listItems(): Promise<ListItemsResult> {
+const DEFAULT_ITEM_LIMIT = 200;
+const MAX_ITEM_LIMIT = 200;
+
+export async function listItems(opts?: { limit?: number; offset?: number }): Promise<ListItemsResult> {
+  const limit = Math.min(Math.max(opts?.limit ?? DEFAULT_ITEM_LIMIT, 1), MAX_ITEM_LIMIT);
+  const offset = Math.max(opts?.offset ?? 0, 0);
+
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ListItemsResult> => {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const [itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemRow>(
-          `select id, item_code, name, item_type, status, uom_base, weight_mode, cost_per_kg, updated_at
+          `select id, item_code, name, item_type, status, uom_base, weight_mode, cost_per_kg, updated_at,
+                  count(*) over () as total_count
              from public.items
             where org_id = app.current_org_id()
-            order by item_code asc`,
+            order by item_code asc
+            limit $1 offset $2`,
+          [limit, offset],
         ),
         hasPermission(ctx, ITEMS_CREATE_PERMISSION),
         hasPermission(ctx, ITEMS_EDIT_PERMISSION),
@@ -85,6 +99,7 @@ export async function listItems(): Promise<ListItemsResult> {
       const items = itemsResult.rows
         .map(mapRow)
         .filter((row): row is ItemListItem => row !== null);
+      const total = itemsResult.rows.length > 0 ? Number(itemsResult.rows[0].total_count) : 0;
 
       return {
         items,
@@ -92,12 +107,26 @@ export async function listItems(): Promise<ListItemsResult> {
         canEdit,
         canDeactivate,
         state: items.length ? 'ready' : 'empty',
+        limit,
+        offset,
+        total,
+        truncated: offset + items.length < total,
       };
     });
   } catch (error) {
     console.error('[technical/items] listItems load_failed', {
       err: error instanceof Error ? error.message : String(error),
     });
-    return { items: [], canCreate: false, canEdit: false, canDeactivate: false, state: 'error' };
+    return {
+      items: [],
+      canCreate: false,
+      canEdit: false,
+      canDeactivate: false,
+      state: 'error',
+      limit,
+      offset,
+      total: 0,
+      truncated: false,
+    };
   }
 }

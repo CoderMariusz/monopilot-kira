@@ -39,6 +39,9 @@ type ItemRow = { id: string; item_code: string; name: string };
 type ResourceRow = { id: string; code: string; name: string };
 type OpNameRow = { operation_name: string };
 
+const ITEM_LOOKUP_LIMIT = 500;
+const RESOURCE_LOOKUP_LIMIT = 200;
+
 export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ListRoutingItemsResult> => {
@@ -48,26 +51,30 @@ export async function listRoutingItems(): Promise<ListRoutingItemsResult> {
       const [itemRows, lineRows, machineRows, opRows, canWrite, canApprove] = await Promise.all([
         qc.query<ItemRow>(
           `select id, item_code, name from public.items
-            where org_id = app.current_org_id() order by item_code asc`,
+            where org_id = app.current_org_id() order by item_code asc limit $1`,
+          [ITEM_LOOKUP_LIMIT],
         ),
         // Production lines + machines live in 02-settings (production_lines / machines).
         // Tolerate their absence so the page still renders if a fresh org has none.
         qc
           .query<ResourceRow>(
             `select id, code, name from public.production_lines
-              where org_id = app.current_org_id() and status = 'active' order by code asc`,
+              where org_id = app.current_org_id() and status = 'active' order by code asc limit $1`,
+            [RESOURCE_LOOKUP_LIMIT],
           )
           .catch(() => ({ rows: [] as ResourceRow[] })),
         qc
           .query<ResourceRow>(
             `select id, code, name from public.machines
-              where org_id = app.current_org_id() and status = 'active' order by code asc`,
+              where org_id = app.current_org_id() and status = 'active' order by code asc limit $1`,
+            [RESOURCE_LOOKUP_LIMIT],
           )
           .catch(() => ({ rows: [] as ResourceRow[] })),
         qc
           .query<OpNameRow>(
             `select operation_name from "Reference"."ManufacturingOperations"
-              where org_id = app.current_org_id() and is_active = true order by operation_name asc`,
+              where org_id = app.current_org_id() and is_active = true order by operation_name asc limit $1`,
+            [RESOURCE_LOOKUP_LIMIT],
           )
           .catch(() => ({ rows: [] as OpNameRow[] })),
         hasPermission(ctx, ROUTING_WRITE_PERMISSION),

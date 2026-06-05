@@ -230,7 +230,7 @@ function ItemsTable({
 }
 
 export default async function TechnicalItemsPage() {
-  const { items, canCreate, canEdit, canDeactivate, state } = await listItems();
+  const { items, canCreate, canEdit, canDeactivate, state, limit, total, truncated } = await listItems();
   const t = await getTranslations('technical.items');
 
   const wizardLabels = buildWizardLabels(t);
@@ -273,15 +273,22 @@ export default async function TechnicalItemsPage() {
           ) : null}
         </Card>
       ) : (
-        <ItemsTable
-          items={items}
-          canEdit={canEdit}
-          canDeactivate={canDeactivate}
-          editLabel={editLabel}
-          deactivateLabel={deactivateLabel}
-          wizardLabels={wizardLabels}
-          deactivateLabels={deactivateLabels}
-        />
+        <>
+          {truncated ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
+              Showing first {limit} of {total} items.
+            </div>
+          ) : null}
+          <ItemsTable
+            items={items}
+            canEdit={canEdit}
+            canDeactivate={canDeactivate}
+            editLabel={editLabel}
+            deactivateLabel={deactivateLabel}
+            wizardLabels={wizardLabels}
+            deactivateLabels={deactivateLabels}
+          />
+        </>
       )}
 
       {!canCreate && !canEdit && !canDeactivate ? (

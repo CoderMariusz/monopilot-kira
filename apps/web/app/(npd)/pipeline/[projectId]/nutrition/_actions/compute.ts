@@ -98,11 +98,16 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
       const per100g = Object.fromEntries(nutrients.map((row) => [row.nutrientCode, row.per100g]));
       const score = nutriScore(per100g);
 
-      for (const row of nutrients) {
+      if (nutrients.length > 0) {
         await client.query(
           `insert into public.nutrition_profiles
              (org_id, product_code, formulation_version_id, nutrient_code, per_100g_value, per_portion_value, computed_at)
-           values ($1::uuid, $2, $3::uuid, $4, $5::numeric, $6::numeric, now())
+           select $1::uuid, $2, $3::uuid, x.nutrient_code, x.per_100g_value::numeric, x.per_portion_value::numeric, now()
+             from jsonb_to_recordset($4::jsonb) as x(
+               nutrient_code text,
+               per_100g_value text,
+               per_portion_value text
+             )
            on conflict on constraint nutrition_profiles_org_product_version_nutrient_unique
            do update
              set per_100g_value = excluded.per_100g_value,
@@ -112,9 +117,13 @@ export async function computeNutrition(raw: unknown): Promise<ComputeNutritionRe
             orgId,
             productCode,
             input.formulationVersionId,
-            row.nutrientCode,
-            row.per100g,
-            row.perPortion,
+            JSON.stringify(
+              nutrients.map((row) => ({
+                nutrient_code: row.nutrientCode,
+                per_100g_value: row.per100g,
+                per_portion_value: row.perPortion,
+              })),
+            ),
           ],
         );
       }

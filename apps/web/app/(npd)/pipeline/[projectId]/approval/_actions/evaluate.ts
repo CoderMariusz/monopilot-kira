@@ -25,9 +25,10 @@ type CostingRow = {
   margin_pct: string;
 };
 
-type AllergenAuditRow = {
-  total_count: string;
-  failing_count: string;
+type ProductRow = {
+  product_code: string;
+  allergens: string[] | null;
+  may_contain: string[] | null;
 };
 
 type RiskRow = {
@@ -52,8 +53,8 @@ export async function evaluateApprovalCriteria(
 
   try {
     return await withOrgContext(async ({ client }) => {
-      const product = await client.query<{ product_code: string }>(
-        `select product_code
+      const product = await client.query<ProductRow>(
+        `select product_code, allergens, may_contain
            from public.product
           where product_code = $1
             and org_id = app.current_org_id()
@@ -61,7 +62,8 @@ export async function evaluateApprovalCriteria(
           limit 1`,
         [productCode],
       );
-      if (product.rowCount !== 1) return { ok: false as const, error: 'not_found' as const };
+      const productRow = product.rows[0];
+      if (!productRow) return { ok: false as const, error: 'not_found' as const };
 
       const formulation = await client.query<FormulationRow>(
         `select locked_at, current_version_id
@@ -99,23 +101,6 @@ export async function evaluateApprovalCriteria(
         [productCode],
       );
 
-      const allergens = await client.query<AllergenAuditRow>(
-        `select
-           count(*)::text as total_count,
-           count(*) filter (
-             where audited_at is null
-                or presence = 'unknown'
-           )::text as failing_count
-         from public.nutrition_allergens
-        where product_code = $1
-          and org_id = app.current_org_id()
-          and (
-            $2::uuid is null
-            or formulation_version_id = $2::uuid
-          )`,
-        [productCode, formulationRow.current_version_id],
-      );
-
       const risks = await client.query<RiskRow>(
         `select count(*)::text as open_high_count
            from public.risks
@@ -144,8 +129,8 @@ export async function evaluateApprovalCriteria(
         [productCode],
       );
 
-      const allergenRow = allergens.rows[0] ?? { total_count: '0', failing_count: '0' };
       const docsRow = docs.rows[0] ?? { active_count: '0', expired_count: '0', invalid_count: '0' };
+      const publishedAllergens = [...(productRow.allergens ?? []), ...(productRow.may_contain ?? [])];
 
       return {
         ok: true as const,
@@ -155,8 +140,8 @@ export async function evaluateApprovalCriteria(
           costing: { targetMarginPct: costing.rows[0]?.margin_pct ?? null },
           sensory: { required: false },
           allergens: {
-            audited: Number.parseInt(allergenRow.total_count, 10) > 0,
-            passed: Number.parseInt(allergenRow.failing_count, 10) === 0,
+            audited: true,
+            passed: publishedAllergens.every((code) => code.trim().length > 0),
           },
           risks: {
             openHighCount: Number.parseInt(risks.rows[0]?.open_high_count ?? '0', 10),

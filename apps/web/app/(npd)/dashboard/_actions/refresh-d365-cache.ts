@@ -29,7 +29,12 @@ declare global {
 }
 
 export type RefreshD365CacheResult = {
+  ok: true;
   lastSyncedAt: string;
+} | {
+  ok: false;
+  error: 'not_configured';
+  message: string;
 };
 
 export async function refreshD365Cache(): Promise<RefreshD365CacheResult> {
@@ -38,14 +43,23 @@ export async function refreshD365Cache(): Promise<RefreshD365CacheResult> {
       throw new Error('FORBIDDEN');
     }
 
+    if (!globalThis.__T051_D365_CACHE_REFRESH__) {
+      // TODO(T-051): wire the production D365 cache refresh adapter instead of
+      // the current test/runtime injection point.
+      return {
+        ok: false as const,
+        error: 'not_configured' as const,
+        message: 'D365 cache refresh adapter is not configured.',
+      };
+    }
+
     await lockRefreshForOrg(client, orgId);
     await assertNotThrottled(client);
-
     const syncedRows = await refreshFromD365(orgId);
     const lastSyncedAt = await upsertCacheRows(client, orgId, syncedRows);
     await emitRefreshedEvent(client, orgId, userId, lastSyncedAt, syncedRows.length);
 
-    return { lastSyncedAt };
+    return { ok: true, lastSyncedAt };
   });
 }
 
@@ -71,7 +85,7 @@ async function assertNotThrottled(client: QueryClient): Promise<void> {
 
 async function refreshFromD365(orgId: string): Promise<D365RefreshRow[]> {
   const adapter = globalThis.__T051_D365_CACHE_REFRESH__;
-  if (!adapter) throw new Error('D365_ADAPTER_UNCONFIGURED');
+  if (!adapter) return [];
   const rows = await adapter(orgId);
   return rows.map(normalizeD365Row);
 }

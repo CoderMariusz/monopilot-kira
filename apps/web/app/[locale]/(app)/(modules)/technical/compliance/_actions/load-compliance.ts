@@ -75,7 +75,10 @@ type FgRow = {
   has_supplier_spec: boolean;
   has_failing_lab: boolean;
   lab_result_count: number;
+  total_count: string | number;
 };
+
+const FG_LIMIT = 500;
 
 /**
  * Aggregate the FG portfolio against each regulation's coverage proxy. One pass
@@ -119,15 +122,19 @@ export async function loadCompliance(): Promise<LoadComplianceResult> {
             (
               select count(*)::int from public.lab_results lr
                where lr.org_id = app.current_org_id() and lr.item_id = i.id
-            ) as lab_result_count
+            ) as lab_result_count,
+            count(*) over () as total_count
           from public.items i
          where i.org_id = app.current_org_id()
            and i.item_type = 'fg'
            and i.status = 'active'
-         order by i.item_code asc`,
+         order by i.item_code asc
+         limit $1`,
+        [FG_LIMIT],
       );
 
       const fgTotal = rows.length;
+      const fgTotalAvailable = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
       // ── Per-regulation coverage (each numerator is a real FG count) ─────────
       const eu1169Covered = rows.filter((r) => r.has_allergen_profile).length;
@@ -216,12 +223,15 @@ export async function loadCompliance(): Promise<LoadComplianceResult> {
         regulations,
         flags,
         fgTotal,
+        fgTotalAvailable,
+        limit: FG_LIMIT,
+        truncated: fgTotal < fgTotalAvailable,
       };
     });
   } catch (error) {
     console.error('[technical/compliance] loadCompliance failed', {
       err: error instanceof Error ? error.message : String(error),
     });
-    return { ok: true, state: 'error', regulations: [], flags: [], fgTotal: 0 };
+    return { ok: true, state: 'error', regulations: [], flags: [], fgTotal: 0, fgTotalAvailable: 0, limit: FG_LIMIT, truncated: false };
   }
 }

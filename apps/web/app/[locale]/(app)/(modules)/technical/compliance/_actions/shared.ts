@@ -58,5 +58,8 @@ export type LoadComplianceResult =
       regulations: RegulationCoverage[];
       flags: ComplianceFlag[];
       fgTotal: number;
+      fgTotalAvailable: number;
+      limit: number;
+      truncated: boolean;
     }
-  | { ok: true; state: 'error'; regulations: []; flags: []; fgTotal: 0 };
+  | { ok: true; state: 'error'; regulations: []; flags: []; fgTotal: 0; fgTotalAvailable: 0; limit: number; truncated: false };
