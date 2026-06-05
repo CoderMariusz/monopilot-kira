@@ -33,7 +33,7 @@ type ImportExportJobView = {
 
 type StartExportResult =
   | { ok: true; data: { job: ImportExportJobView } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'unsupported_export' | 'persistence_failed'; blockers?: Array<Record<string, unknown>> };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'unsupported_export' | 'not_implemented' | 'persistence_failed'; blockers?: Array<Record<string, unknown>> };
 
 const EXPORT_PERMISSIONS: Record<string, string> = {
   users: 'settings.org.read',
@@ -45,6 +45,7 @@ const EXPORT_PERMISSIONS: Record<string, string> = {
   authorization_policies: 'settings.authorization.view',
   audit_logs: 'settings.audit.read',
 };
+const EXPORT_FEATURE_DISABLED = true;
 
 export async function startExportJob(rawInput: unknown): Promise<StartExportResult> {
   const input = parseStartExportInput(rawInput);
@@ -58,6 +59,11 @@ export async function startExportJob(rawInput: unknown): Promise<StartExportResu
     return await withOrgContext(async ({ userId, orgId, client }: OrgActionContext): Promise<StartExportResult> => {
       const allowed = await hasPermission({ userId, orgId, client }, permission);
       if (!allowed) return { ok: false, error: 'forbidden' };
+
+      // TODO(worker): drain public.import_export_jobs (apps/worker/src) then flip EXPORT_FEATURE_DISABLED=false
+      if (EXPORT_FEATURE_DISABLED) {
+        return { ok: false, error: 'not_implemented', blockers: [{ code: 'export_not_implemented' }] };
+      }
 
       const job = await createExportJob(client, { userId, target: input.target, filters: input.filters });
       return { ok: true, data: { job: mapJob(job) } };

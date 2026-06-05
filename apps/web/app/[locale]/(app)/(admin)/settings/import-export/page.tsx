@@ -105,6 +105,8 @@ async function buildLabels(locale: string): Promise<ImportExportLabels> {
     alerts: {
       unsupportedImport: t('alerts.unsupported_import'),
       authorizationPolicy: t('alerts.authorization_policy'),
+      featureUnavailableTitle: t('alerts.feature_unavailable_title'),
+      featureUnavailable: t('alerts.feature_unavailable'),
     },
     importCard: {
       title: t('import_card.title'),
@@ -203,6 +205,7 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
         exportSettingsEntity={exportSettingsEntityThroughAction}
         preflightAuthorizationPolicyImport={undefined}
         labels={labels}
+        featureAvailable={false}
       />
     );
   }
@@ -222,6 +225,7 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
       exportSettingsEntity={exportSettingsEntityThroughAction}
       preflightAuthorizationPolicyImport={preflightAuthorizationPolicyImport}
       labels={labels}
+      featureAvailable={false}
     />
   );
 }

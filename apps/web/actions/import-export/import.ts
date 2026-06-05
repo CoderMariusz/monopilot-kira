@@ -32,7 +32,7 @@ type ImportExportJobRow = {
 
 type ImportJobResult =
   | { ok: true; data: { job: ImportExportJobView } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'unsupported_import' | 'audit_reason_required' | 'authorization_preflight_failed' | 'persistence_failed'; blockers?: Array<Record<string, unknown>> };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'unsupported_import' | 'audit_reason_required' | 'authorization_preflight_failed' | 'not_implemented' | 'persistence_failed'; blockers?: Array<Record<string, unknown>> };
 
 type ImportExportJobView = {
   id: string;
@@ -57,6 +57,7 @@ type RuleDefinitionRow = { rule_code: string; rule_type: string | null; active: 
 
 const IMPORTABLE_TARGETS = new Set(['authorization_policies']);
 const AUTHORIZATION_IMPORT_PERMISSION = 'settings.authorization.edit';
+const IMPORT_FEATURE_DISABLED = true;
 
 export async function startImportJob(rawInput: unknown): Promise<ImportJobResult> {
   const input = parseStartImportInput(rawInput);
@@ -75,6 +76,13 @@ export async function startImportJob(rawInput: unknown): Promise<ImportJobResult
 
         const blockers = await runAuthorizationPolicyPreflight(client, parseAuthorizationPolicyCodes(input.csvText));
         if (blockers.length > 0) return { ok: false, error: 'authorization_preflight_failed', blockers };
+      }
+
+      // Honest stub: authz/audit/preflight are enforced ABOVE so controls aren't bypassed; only an
+      // otherwise-valid request reaches here, where we return not_implemented instead of queuing a
+      // job nothing drains. TODO(worker): drain public.import_export_jobs then flip the flag false.
+      if (IMPORT_FEATURE_DISABLED) {
+        return { ok: false, error: 'not_implemented', blockers: [{ code: 'import_not_implemented' }] };
       }
 
       const job = await createImportJob(client, {

@@ -505,7 +505,9 @@
       },
       "alerts": {
         "unsupported_import": "{entity} is export-only; import is unsupported for this Settings entity. Use export for audit-safe reads.",
-        "authorization_policy": "Authorization policies import requires settings.authorization.edit, audit reason, and successful T-122 dry-run. V-SET-43/V-SET-44 cannot be bypassed by CSV import."
+        "authorization_policy": "Authorization policies import requires settings.authorization.edit, audit reason, and successful T-122 dry-run. V-SET-43/V-SET-44 cannot be bypassed by CSV import.",
+        "feature_unavailable_title": "Przetwarzanie importu/eksportu nie jest jeszcze dostępne",
+        "feature_unavailable": "Historia ostatnich zadań jest tylko do odczytu. Uruchamianie nowych importów lub eksportów jest wyłączone do czasu, aż worker zacznie opróżniać import_export_jobs."
       },
       "import_card": {
         "title": "Import Settings entities",

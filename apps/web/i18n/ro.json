@@ -505,7 +505,9 @@
       },
       "alerts": {
         "unsupported_import": "{entity} este doar pentru export; importul nu este acceptat pentru această entitate din Setări. Folosiți exportul pentru citiri sigure de audit.",
-        "authorization_policy": "Importul politicilor de autorizare necesită settings.authorization.edit, motiv de audit și o simulare T-122 reușită. V-SET-43/V-SET-44 nu pot fi ocolite prin import CSV."
+        "authorization_policy": "Importul politicilor de autorizare necesită settings.authorization.edit, motiv de audit și o simulare T-122 reușită. V-SET-43/V-SET-44 nu pot fi ocolite prin import CSV.",
+        "feature_unavailable_title": "Procesarea importului/exportului nu este încă disponibilă",
+        "feature_unavailable": "Istoricul joburilor recente este doar pentru citire. Pornirea unor importuri sau exporturi noi este dezactivată până când workerul va procesa import_export_jobs."
       },
       "import_card": {
         "title": "Importați entități din Setări",

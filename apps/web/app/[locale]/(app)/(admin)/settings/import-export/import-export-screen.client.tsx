@@ -80,6 +80,8 @@ export type ImportExportLabels = {
   alerts: {
     unsupportedImport: string;
     authorizationPolicy: string;
+    featureUnavailableTitle: string;
+    featureUnavailable: string;
   };
   importCard: {
     title: string;
@@ -144,6 +146,7 @@ export type ImportExportScreenProps = {
   labels: ImportExportLabels;
   exportSettingsEntity: ExportSettingsEntity;
   preflightAuthorizationPolicyImport?: PreflightAuthorizationPolicyImport;
+  featureAvailable?: boolean;
 };
 
 function hasRequiredPermission(entity: SettingsImportExportEntity, visiblePermissions: string[]) {
@@ -207,6 +210,7 @@ function formatBlockers(blockers: string[], labels: ImportExportLabels) {
 export default function SettingsImportExportScreen(props: ImportExportScreenProps) {
   const router = useRouter();
   const { entities, labels } = props;
+  const featureAvailable = props.featureAvailable ?? true;
   const visibleEntities = entities.filter((entity) => hasRequiredPermission(entity, props.visiblePermissions));
   const initialEntityKey = visibleEntities[0]?.key ?? entities[0]?.key ?? 'users';
   const [selectedEntityKey, setSelectedEntityKey] = React.useState<EntityKey>(initialEntityKey);
@@ -267,7 +271,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   const isAuthorizationPolicy = selectedEntity.key === 'authorization_policies';
   const hasReviewedAuthorizationPreflight = typeof props.preflightAuthorizationPolicyImport === 'function';
   const canUpload = selectedEntity.importSupported;
-  const canStartImport = canUpload && Boolean(fileName) && (!isAuthorizationPolicy || Boolean(dryRunId));
+  const canStartImport = featureAvailable && canUpload && Boolean(fileName) && (!isAuthorizationPolicy || Boolean(dryRunId));
 
   function updateEntity(nextKey: EntityKey) {
     setSelectedEntityKey(nextKey);
@@ -281,6 +285,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   }
 
   async function runAuthorizationPreflight() {
+    if (!featureAvailable) return;
     if (!fileName) {
       setDryRunError(labels.importCard.csvRequired);
       return;
@@ -311,6 +316,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
   }
 
   async function exportEntity() {
+    if (!featureAvailable) return;
     setIsExporting(true);
     setExportHref('');
     setExportError('');
@@ -353,6 +359,17 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
       {stateMessage ? (
         <section role="status" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
           {stateMessage}
+        </section>
+      ) : null}
+
+      {!featureAvailable ? (
+        <section
+          data-testid="import-export-feature-unavailable"
+          role="status"
+          className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"
+        >
+          <h2 className="text-sm font-semibold">{labels.alerts.featureUnavailableTitle}</h2>
+          <p className="mt-1">{labels.alerts.featureUnavailable}</p>
         </section>
       ) : null}
 
@@ -429,6 +446,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
                 type="file"
                 accept=".csv,text/csv"
                 className="sr-only"
+                disabled={!featureAvailable}
                 onChange={(event) => {
                   const selectedFile = event.currentTarget.files?.[0];
                   setFileName(selectedFile?.name ?? '');
@@ -455,12 +473,13 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
                 onChange={(event) => setAuditReason(event.currentTarget.value)}
                 className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 placeholder={labels.importCard.auditReasonPlaceholder}
+                disabled={!featureAvailable}
               />
               <button
                 type="button"
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => void runAuthorizationPreflight()}
-                disabled={!hasReviewedAuthorizationPreflight}
+                disabled={!featureAvailable || !hasReviewedAuthorizationPreflight}
               >
                 {labels.importCard.runDryRun}
               </button>
@@ -473,7 +492,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
             <button
               type="button"
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!canStartImport && !selectedEntity.referenceHandoffHref}
+              disabled={!featureAvailable || (!canStartImport && !selectedEntity.referenceHandoffHref)}
               onClick={continueImport}
             >
               {selectedEntity.referenceHandoffHref ? labels.importCard.continueReference : labels.importCard.startImport}
@@ -510,7 +529,7 @@ export default function SettingsImportExportScreen(props: ImportExportScreenProp
             <button
               type="button"
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={!selectedEntity.exportSupported || isExporting}
+              disabled={!featureAvailable || !selectedEntity.exportSupported || isExporting}
               onClick={() => void exportEntity()}
             >
               {isExporting ? labels.exportCard.exporting : labels.exportCard.exportNow}

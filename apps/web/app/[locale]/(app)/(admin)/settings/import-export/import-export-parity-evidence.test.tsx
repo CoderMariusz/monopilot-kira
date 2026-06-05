@@ -58,6 +58,8 @@ const labels: ImportExportLabels = {
   alerts: {
     unsupportedImport: '{entity} is export-only; import is unsupported for this Settings entity.',
     authorizationPolicy: 'Authorization policies import requires settings.authorization.edit, an audit reason, and a successful dry-run.',
+    featureUnavailableTitle: 'Import/export processing is not available yet',
+    featureUnavailable: 'Recent job history is read-only until the background worker is available.',
   },
   importCard: {
     title: 'Import Settings entities', description: 'Upload CSV files, download templates, and route specialized imports.',

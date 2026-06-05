@@ -73,6 +73,8 @@ const messages = {
   alerts: {
     unsupported_import: '{entity} is export-only; import is unsupported for this Settings entity. Use export for audit-safe reads.',
     authorization_policy: 'Authorization policies import requires settings.authorization.edit, audit reason, and successful T-122 dry-run. V-SET-43/V-SET-44 cannot be bypassed by CSV import.',
+    feature_unavailable_title: 'Import/export processing is not available yet',
+    feature_unavailable: 'Recent job history is read-only. Starting new imports or exports is disabled until the background worker drains import_export_jobs.',
   },
   import_card: {
     title: 'Import Settings entities',
@@ -172,6 +174,8 @@ const clientLabels = {
   alerts: {
     unsupportedImport: messages.alerts.unsupported_import,
     authorizationPolicy: messages.alerts.authorization_policy,
+    featureUnavailableTitle: messages.alerts.feature_unavailable_title,
+    featureUnavailable: messages.alerts.feature_unavailable,
   },
   importCard: {
     title: messages.import_card.title,
@@ -438,6 +442,7 @@ describe('T-121 import/export AppShell route contract', () => {
     expect(pageSource).toContain("from '../../../../../../actions/import-export/import'");
     expect(pageSource).toContain('startExportJob');
     expect(pageSource).toContain('startImportJob');
+    expect(pageSource).toContain('featureAvailable={false}');
     expect(pageSource).not.toContain('Live loader not configured');
     expect(pageSource).not.toContain('placeholder unavailable');
   });
@@ -630,6 +635,45 @@ describe('T-121 SET-029 Global Import / Export hub', () => {
     ).toBeDisabled();
     expect(within(hub()).getByRole('alert')).toHaveTextContent(/preflight.*not configured|preflight.*coming soon|preflight.*unavailable/i);
     expect(within(hub()).queryByText(/dry-run passed/i)).not.toBeInTheDocument();
+  });
+
+  it('renders an honest unavailable state with disabled processing controls while keeping recent history visible', async () => {
+    const clientModulePath = './import-export-screen.client';
+    const { default: SettingsImportExportScreen } = (await import(/* @vite-ignore */ clientModulePath)) as {
+      default: React.ComponentType<{
+        entities: SettingsImportExportEntity[];
+        visiblePermissions: string[];
+        recentJobs: RecentJob[];
+        state: 'ready' | 'loading' | 'empty' | 'error';
+        labels: typeof clientLabels;
+        exportSettingsEntity: (input: { entity: EntityKey; format: ExportFormat }) => Promise<{ ok: true; downloadHref: string } | { ok: false; message: string }>;
+        preflightAuthorizationPolicyImport?: (input: { fileName: string; csvText: string; auditReason: string }) => Promise<{ ok: true; dryRunId: string } | { ok: false; blockers: string[] }>;
+        featureAvailable?: boolean;
+      }>;
+    };
+
+    render(
+      <SettingsImportExportScreen
+        entities={entities}
+        visiblePermissions={allPermissions}
+        recentJobs={recentJobs}
+        state="ready"
+        labels={clientLabels}
+        exportSettingsEntity={vi.fn(async () => ({ ok: true as const, downloadHref: '/api/settings/import-export/downloads/users.csv' }))}
+        preflightAuthorizationPolicyImport={vi.fn(async () => ({ ok: true as const, dryRunId: 'T-122-DRY-RUN-1' }))}
+        featureAvailable={false}
+      />,
+    );
+
+    expect(screen.getByTestId('import-export-feature-unavailable')).toHaveTextContent(/processing is not available yet/i);
+    expect(within(hub()).getByLabelText(/csv file/i)).toBeDisabled();
+    expect(within(hub()).getByRole('button', { name: /start import/i })).toBeDisabled();
+    expect(within(hub()).getByRole('button', { name: /export now/i })).toBeDisabled();
+
+    const jobs = within(hub()).getByRole('table', { name: /recent import and export jobs/i });
+    expect(jobs).toHaveTextContent('IMP-121-001');
+    expect(jobs).toHaveTextContent('EXP-121-002');
+    expect(jobs).toHaveTextContent('IMP-121-003');
   });
 
   it('calls the global export action for the selected Settings entity and format and surfaces the download link', async () => {

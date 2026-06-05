@@ -180,7 +180,7 @@ describe('global import/export backend actions (TASK-000212/T-125 RED)', () => {
     expect(currentClient.mutations, 'unsupported import must not mutate domain/settings data').toEqual([]);
   });
 
-  it('requires settings.authorization.edit, a non-empty audit reason, and T-126 V-SET-43/V-SET-44 preflight before authorization-policy import creates a job', async () => {
+  it('requires settings.authorization.edit, a non-empty audit reason, and T-126 V-SET-43/V-SET-44 preflight before returning the honest import stub', async () => {
     const { startImportJob } = await loadImportModule();
 
     const forbidden = await startImportJob({
@@ -230,9 +230,29 @@ describe('global import/export backend actions (TASK-000212/T-125 RED)', () => {
     expect(statementIndex('rule_definitions')).toBeGreaterThanOrEqual(0);
     expect(jobInsertCalls(), 'failed T-126 preflight must block job creation').toHaveLength(0);
     expect(currentClient.mutations).toEqual([]);
+
+    currentClient.calls.length = 0;
+    currentClient.authorizationPreflightBlockers = [];
+    const disabled = await startImportJob({
+      target: 'authorization_policies',
+      fileName: 'authorization-policies.csv',
+      contentType: 'text/csv',
+      csvText: 'policy_code,is_enabled\nnpd_post_release_edit,true\ntechnical_product_spec_approval,true\n',
+      auditReason: 'bulk policy load approved by owner',
+    });
+
+    expect(disabled).toEqual({
+      ok: false,
+      error: 'not_implemented',
+      blockers: [{ code: 'import_not_implemented' }],
+    });
+    expect(statementIndex('role_permissions')).toBeGreaterThanOrEqual(0);
+    expect(statementIndex('org_authorization_policies')).toBeGreaterThanOrEqual(0);
+    expect(jobInsertCalls(), 'disabled import processing must not queue import_export_jobs rows').toHaveLength(0);
+    expect(currentClient.mutations).toEqual([]);
   });
 
-  it('creates read-only org-scoped export jobs and exposes status/progress/download metadata without mutating exported tables', async () => {
+  it('returns an honest export stub after RBAC and still exposes read-only status/progress/download metadata', async () => {
     currentClient.actorPermissions.add('settings.org.read');
 
     const { startExportJob } = await loadExportModule();
@@ -240,28 +260,25 @@ describe('global import/export backend actions (TASK-000212/T-125 RED)', () => {
     const created = await startExportJob({ target: 'users', filters: { status: 'active' } });
 
     expect(created).toEqual({
-      ok: true,
-      data: {
-        job: {
-          id: 'job-1',
-          kind: 'export',
-          target: 'users',
-          status: 'queued',
-          progress: { processed: 0, total: 0 },
-          download: null,
-        },
-      },
+      ok: false,
+      error: 'not_implemented',
+      blockers: [{ code: 'export_not_implemented' }],
     });
-    expect(jobInsertCalls()).toHaveLength(1);
-    expect(callBlob('insert into public.import_export_jobs')).toContain('app.current_org_id()');
+    expect(statementIndex('role_permissions')).toBeGreaterThanOrEqual(0);
+    expect(jobInsertCalls(), 'disabled export processing must not queue import_export_jobs rows').toHaveLength(0);
     expect(domainMutationCalls(), 'export scheduling is read-only for users/roles/etc.; only the job row may be inserted').toEqual([]);
 
     currentClient.jobs.set('job-1', {
-      ...currentClient.jobs.get('job-1')!,
+      id: 'job-1',
+      org_id: ORG_ID,
+      kind: 'export',
+      target: 'users',
       status: 'completed',
       progress_processed: 24,
       progress_total: 24,
       download_url: 'https://downloads.example/export/users.csv',
+      error_code: null,
+      created_by: USER_ID,
     });
     const status = await getImportExportJob({ jobId: 'job-1' });
 
@@ -347,7 +364,7 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('from public.rule_definitions')) {
-        return { rows: [{ rule_code: 'technical_product_spec_approval_gate_v1', active: true }], rowCount: 1 };
+        return { rows: [{ rule_code: 'technical_product_spec_approval_gate_v1', rule_type: 'gate', active: true }], rowCount: 1 };
       }
 
       if (normalized.includes('insert into public.import_export_jobs')) {
