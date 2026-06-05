@@ -93,6 +93,7 @@ export const customerContacts = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     customerId: uuid('customer_id')
       .notNull()
       .references(() => customers.id, { onDelete: 'cascade' }),
@@ -109,6 +110,7 @@ export const customerContacts = pgTable(
   },
   (t) => ({
     orgIdx: index('customer_contacts_org_idx').on(t.orgId),
+    orgSiteIdx: index('customer_contacts_org_site_idx').on(t.orgId, t.siteId),
     customerIdx: index('customer_contacts_customer_idx').on(t.customerId),
   }),
 );
@@ -125,6 +127,7 @@ export const customerAddresses = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     customerId: uuid('customer_id')
       .notNull()
       .references(() => customers.id, { onDelete: 'cascade' }),
@@ -146,6 +149,7 @@ export const customerAddresses = pgTable(
   },
   (t) => ({
     orgIdx: index('customer_addresses_org_idx').on(t.orgId),
+    orgSiteIdx: index('customer_addresses_org_site_idx').on(t.orgId, t.siteId),
     customerTypeIdx: index('customer_addresses_customer_type_idx').on(
       t.orgId,
       t.customerId,
@@ -170,6 +174,7 @@ export const customerAllergenRestrictions = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     customerId: uuid('customer_id')
       .notNull()
       .references(() => customers.id, { onDelete: 'cascade' }),
@@ -185,6 +190,7 @@ export const customerAllergenRestrictions = pgTable(
   (t) => ({
     uq: uniqueIndex('customer_allergen_restrictions_uq').on(t.orgId, t.customerId, t.allergenId),
     orgIdx: index('customer_allergen_restrictions_org_idx').on(t.orgId),
+    orgSiteIdx: index('customer_allergen_restrictions_org_site_idx').on(t.orgId, t.siteId),
     restrictionTypeCheck: check(
       'customer_allergen_restrictions_type_check',
       sql`${t.restrictionType} in ('refuses', 'requires_decl')`,
@@ -260,6 +266,7 @@ export const salesOrderLines = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     salesOrderId: uuid('sales_order_id')
       .notNull()
       .references(() => salesOrders.id, { onDelete: 'cascade' }),
@@ -288,6 +295,7 @@ export const salesOrderLines = pgTable(
   (t) => ({
     soLineUq: uniqueIndex('sales_order_lines_so_line_uq').on(t.salesOrderId, t.lineNumber),
     orgIdx: index('sales_order_lines_org_idx').on(t.orgId),
+    orgSiteIdx: index('sales_order_lines_org_site_idx').on(t.orgId, t.siteId),
     soIdx: index('sales_order_lines_so_idx').on(t.salesOrderId),
     productIdx: index('sales_order_lines_product_idx').on(t.orgId, t.productId),
     qtyCheck: check('sales_order_lines_qty_check', sql`${t.quantityOrdered} > 0`),
@@ -437,6 +445,7 @@ export const pickListLines = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     pickListId: uuid('pick_list_id')
       .notNull()
       .references(() => pickLists.id, { onDelete: 'cascade' }),
@@ -463,6 +472,7 @@ export const pickListLines = pgTable(
   },
   (t) => ({
     orgIdx: index('pick_list_lines_org_idx').on(t.orgId),
+    orgSiteIdx: index('pick_list_lines_org_site_idx').on(t.orgId, t.siteId),
     pickListIdx: index('pick_list_lines_pick_list_idx').on(t.pickListId),
     soLineIdx: index('pick_list_lines_so_line_idx').on(t.salesOrderLineId),
     qtyCheck: check('pick_list_lines_qty_check', sql`${t.quantityToPick} > 0`),
@@ -540,6 +550,7 @@ export const shipmentBoxes = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     shipmentId: uuid('shipment_id')
       .notNull()
       .references(() => shipments.id, { onDelete: 'cascade' }),
@@ -561,6 +572,7 @@ export const shipmentBoxes = pgTable(
   (t) => ({
     ssccUq: uniqueIndex('shipment_boxes_org_sscc_uq').on(t.orgId, t.sscc),
     orgIdx: index('shipment_boxes_org_idx').on(t.orgId),
+    orgSiteIdx: index('shipment_boxes_org_site_idx').on(t.orgId, t.siteId),
     shipmentIdx: index('shipment_boxes_shipment_idx').on(t.shipmentId),
     ssccCheck: check('shipment_boxes_sscc_check', sql`${t.sscc} is null or ${t.sscc} ~ '^[0-9]{18}$'`),
   }),
@@ -578,6 +590,7 @@ export const shipmentBoxContents = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
+    siteId: uuid('site_id'), // day-1 nullable; per-site via 14-MS T-030
     shipmentBoxId: uuid('shipment_box_id')
       .notNull()
       .references(() => shipmentBoxes.id, { onDelete: 'cascade' }),
@@ -598,6 +611,7 @@ export const shipmentBoxContents = pgTable(
   },
   (t) => ({
     orgIdx: index('shipment_box_contents_org_idx').on(t.orgId),
+    orgSiteIdx: index('shipment_box_contents_org_site_idx').on(t.orgId, t.siteId),
     boxIdx: index('shipment_box_contents_box_idx').on(t.shipmentBoxId),
     lpIdx: index('shipment_box_contents_lp_idx').on(t.orgId, t.licensePlateId),
   }),

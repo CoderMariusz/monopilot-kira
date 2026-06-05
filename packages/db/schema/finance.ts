@@ -209,9 +209,11 @@ export const inventoryCostLayers = pgTable(
     orgSiteIdx: index('inventory_cost_layers_org_site_idx').on(t.orgId, t.siteId),
     orgItemIdx: index('inventory_cost_layers_org_item_idx').on(t.orgId, t.itemId),
     lpIdx: index('inventory_cost_layers_lp_idx').on(t.licensePlateId),
+    // R15 D365 anti-corruption: canonical valuation NEVER accepts D365-origin state ('d365_import'
+    // removed). Only internal sources are valid; D365 integration is export-only.
     sourceTypeCheck: check(
       'inventory_cost_layers_source_type_check',
-      sql`${t.sourceType} in ('po_receipt', 'wo_output', 'adjustment', 'd365_import')`,
+      sql`${t.sourceType} in ('po_receipt', 'wo_output', 'adjustment')`,
     ),
     qtyReceivedPositive: check(
       'inventory_cost_layers_qty_received_positive_check',

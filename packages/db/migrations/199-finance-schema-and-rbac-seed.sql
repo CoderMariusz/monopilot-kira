@@ -150,8 +150,10 @@ create table if not exists public.inventory_cost_layers (
   created_at        timestamptz not null default pg_catalog.now(),
   updated_at        timestamptz not null default pg_catalog.now(),
 
+  -- R15 D365 anti-corruption: canonical valuation NEVER accepts D365-origin state ('d365_import'
+  -- removed). Only internal sources are valid; D365 integration is export-only.
   constraint inventory_cost_layers_source_type_check
-    check (source_type in ('po_receipt', 'wo_output', 'adjustment', 'd365_import')),
+    check (source_type in ('po_receipt', 'wo_output', 'adjustment')),
   constraint inventory_cost_layers_qty_received_positive_check check (qty_received_kg > 0),
   -- No negative inventory (V-FIN-INV-04).
   constraint inventory_cost_layers_qty_remaining_nonneg_check check (qty_remaining_kg >= 0),

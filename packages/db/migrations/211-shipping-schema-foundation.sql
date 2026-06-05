@@ -139,6 +139,7 @@ create index if not exists customers_org_site_idx on public.customers (org_id, s
 create table if not exists public.customer_contacts (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references public.organizations(id) on delete cascade,
+  site_id     uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   customer_id uuid not null references public.customers(id) on delete cascade,
   name        text not null,
   title       text,
@@ -152,6 +153,7 @@ create table if not exists public.customer_contacts (
   deleted_at  timestamptz
 );
 create index if not exists customer_contacts_org_idx on public.customer_contacts (org_id);
+create index if not exists customer_contacts_org_site_idx on public.customer_contacts (org_id, site_id);
 create index if not exists customer_contacts_customer_idx on public.customer_contacts (customer_id);
 
 -- ===========================================================================
@@ -160,6 +162,7 @@ create index if not exists customer_contacts_customer_idx on public.customer_con
 create table if not exists public.customer_addresses (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references public.organizations(id) on delete cascade,
+  site_id       uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   customer_id   uuid not null references public.customers(id) on delete cascade,
   address_type  text not null,
   is_default    boolean not null default false,
@@ -179,6 +182,7 @@ create table if not exists public.customer_addresses (
   constraint customer_addresses_address_type_check check (address_type in ('billing', 'shipping'))
 );
 create index if not exists customer_addresses_org_idx on public.customer_addresses (org_id);
+create index if not exists customer_addresses_org_site_idx on public.customer_addresses (org_id, site_id);
 create index if not exists customer_addresses_customer_type_idx
   on public.customer_addresses (org_id, customer_id, address_type);
 
@@ -188,6 +192,7 @@ create index if not exists customer_addresses_customer_type_idx
 create table if not exists public.customer_allergen_restrictions (
   id               uuid primary key default gen_random_uuid(),
   org_id           uuid not null references public.organizations(id) on delete cascade,
+  site_id          uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   customer_id      uuid not null references public.customers(id) on delete cascade,
   allergen_id      uuid not null,
   restriction_type text not null,
@@ -204,6 +209,8 @@ create unique index if not exists customer_allergen_restrictions_uq
   on public.customer_allergen_restrictions (org_id, customer_id, allergen_id);
 create index if not exists customer_allergen_restrictions_org_idx
   on public.customer_allergen_restrictions (org_id);
+create index if not exists customer_allergen_restrictions_org_site_idx
+  on public.customer_allergen_restrictions (org_id, site_id);
 
 -- ===========================================================================
 -- sales_orders (T-006). order_number GENERATED 'SO-YYYY-NNNNN' from order_seq. status machine
@@ -256,6 +263,7 @@ create index if not exists sales_orders_status_idx on public.sales_orders (org_i
 create table if not exists public.sales_order_lines (
   id                 uuid primary key default gen_random_uuid(),
   org_id             uuid not null references public.organizations(id) on delete cascade,
+  site_id            uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   sales_order_id     uuid not null references public.sales_orders(id) on delete cascade,
   line_number        integer not null,
   product_id         uuid not null,
@@ -279,6 +287,7 @@ create table if not exists public.sales_order_lines (
   constraint sales_order_lines_price_check check (unit_price_gbp > 0)
 );
 create index if not exists sales_order_lines_org_idx on public.sales_order_lines (org_id);
+create index if not exists sales_order_lines_org_site_idx on public.sales_order_lines (org_id, site_id);
 create index if not exists sales_order_lines_so_idx on public.sales_order_lines (sales_order_id);
 create index if not exists sales_order_lines_product_idx on public.sales_order_lines (org_id, product_id);
 
@@ -379,6 +388,7 @@ create index if not exists pick_lists_so_idx on public.pick_lists (sales_order_i
 create table if not exists public.pick_list_lines (
   id                      uuid primary key default gen_random_uuid(),
   org_id                  uuid not null references public.organizations(id) on delete cascade,
+  site_id                 uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   pick_list_id            uuid not null references public.pick_lists(id) on delete cascade,
   sales_order_line_id     uuid references public.sales_order_lines(id) on delete set null,
   license_plate_id        uuid,
@@ -402,6 +412,7 @@ create table if not exists public.pick_list_lines (
   constraint pick_list_lines_status_check check (status in ('pending', 'picked', 'short'))
 );
 create index if not exists pick_list_lines_org_idx on public.pick_list_lines (org_id);
+create index if not exists pick_list_lines_org_site_idx on public.pick_list_lines (org_id, site_id);
 create index if not exists pick_list_lines_pick_list_idx on public.pick_list_lines (pick_list_id);
 create index if not exists pick_list_lines_so_line_idx on public.pick_list_lines (sales_order_line_id);
 
@@ -454,6 +465,7 @@ create index if not exists shipments_customer_idx on public.shipments (customer_
 create table if not exists public.shipment_boxes (
   id               uuid primary key default gen_random_uuid(),
   org_id           uuid not null references public.organizations(id) on delete cascade,
+  site_id          uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   shipment_id      uuid not null references public.shipments(id) on delete cascade,
   box_number       integer not null,
   sscc             varchar(18),
@@ -473,6 +485,7 @@ create table if not exists public.shipment_boxes (
 );
 create unique index if not exists shipment_boxes_org_sscc_uq on public.shipment_boxes (org_id, sscc);
 create index if not exists shipment_boxes_org_idx on public.shipment_boxes (org_id);
+create index if not exists shipment_boxes_org_site_idx on public.shipment_boxes (org_id, site_id);
 create index if not exists shipment_boxes_shipment_idx on public.shipment_boxes (shipment_id);
 
 -- ===========================================================================
@@ -481,6 +494,7 @@ create index if not exists shipment_boxes_shipment_idx on public.shipment_boxes 
 create table if not exists public.shipment_box_contents (
   id                  uuid primary key default gen_random_uuid(),
   org_id              uuid not null references public.organizations(id) on delete cascade,
+  site_id             uuid,  -- day-1 nullable scoping column (no FK; 14-MS T-030 adds (org_id, site_id) scoping)
   shipment_box_id     uuid not null references public.shipment_boxes(id) on delete cascade,
   sales_order_line_id uuid references public.sales_order_lines(id) on delete set null,
   product_id          uuid,
@@ -496,6 +510,7 @@ create table if not exists public.shipment_box_contents (
   deleted_at          timestamptz
 );
 create index if not exists shipment_box_contents_org_idx on public.shipment_box_contents (org_id);
+create index if not exists shipment_box_contents_org_site_idx on public.shipment_box_contents (org_id, site_id);
 create index if not exists shipment_box_contents_box_idx on public.shipment_box_contents (shipment_box_id);
 create index if not exists shipment_box_contents_lp_idx
   on public.shipment_box_contents (org_id, license_plate_id);
@@ -727,7 +742,17 @@ create trigger bill_of_lading_set_number
   before insert on public.bill_of_lading
   for each row execute function public.shipping_set_bol_number();
 
--- sscc_counters: owner/security-definer writes only (functions). RLS not required (PK is org_id and
--- the only writers are the SECURITY DEFINER functions); app_user gets SELECT for inspection.
+-- sscc_counters: org-scoped mutable per-org state. RLS ENABLED + FORCED with the app.current_org_id()
+-- function-form policy (Wave0 lock; no GUC reads). Writes flow through the SECURITY DEFINER counter
+-- functions (next_sscc_serial / generate_sscc) which run as the migration owner (postgres, implicit
+-- BYPASSRLS) so they are unaffected by FORCE RLS and keep operating gap-free. app_user retains SELECT
+-- (for inspection) but it is now RLS-scoped to the caller's org.
+alter table public.sscc_counters enable row level security;
+alter table public.sscc_counters force row level security;
+drop policy if exists sscc_counters_org_context on public.sscc_counters;
+create policy sscc_counters_org_context on public.sscc_counters
+  for all to app_user
+  using (org_id = app.current_org_id())
+  with check (org_id = app.current_org_id());
 revoke all on public.sscc_counters from public;
 grant select on public.sscc_counters to app_user;
