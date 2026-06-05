@@ -110,9 +110,9 @@ describe('T-046 Shelf Life Config — prototype parity + states', () => {
     listShelfLifeMock.mockResolvedValue(readyResult(true));
     render(await TechnicalShelfLifePage());
 
-    // PageHeader title + breadcrumb (other-screens.jsx:587-590).
-    expect(screen.getByTestId('page-header-title')).toHaveTextContent('Shelf-life configuration');
-    expect(screen.getByTestId('page-header-breadcrumb')).toHaveTextContent('Shelf life');
+    // Design-system header: .page-title + breadcrumb nav (other-screens.jsx:587-590).
+    expect(screen.getByRole('heading', { level: 1, name: 'Shelf-life configuration' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Shelf life');
 
     // 4 KPI cards (other-screens.jsx:592-596).
     const kpiRegion = screen.getByRole('region', { name: 'Shelf-life summary' });
@@ -169,7 +169,7 @@ describe('T-046 Shelf Life Config — prototype parity + states', () => {
     expect(screen.getByText(/do not have permission to override/)).toBeInTheDocument();
   });
 
-  it('resolves every Technical.shelfLife key in all 4 locales (i18n completeness)', () => {
+  it('resolves every technical.shelfLife key in all 4 locales (i18n completeness)', () => {
     const keysToCheck = [
       'title',
       'override',
@@ -182,12 +182,13 @@ describe('T-046 Shelf Life Config — prototype parity + states', () => {
     for (const locale of ['en', 'pl', 'ro', 'uk'] as Locale[]) {
       const file = path.resolve(__dirname, `../../../../../../../i18n/${locale}.json`);
       const messages = JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
-      const ns = (messages.Technical as Record<string, unknown>).shelfLife as Record<string, unknown>;
+      // Canonical lowercase namespace (matching cost/nutrition/labResults siblings).
+      const ns = (messages.technical as Record<string, unknown>).shelfLife as Record<string, unknown>;
       for (const key of keysToCheck) {
         const value = key.split('.').reduce<unknown>((acc, part) => {
           return acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[part] : undefined;
         }, ns);
-        expect(typeof value, `${locale}:Technical.shelfLife.${key}`).toBe('string');
+        expect(typeof value, `${locale}:technical.shelfLife.${key}`).toBe('string');
       }
     }
   });

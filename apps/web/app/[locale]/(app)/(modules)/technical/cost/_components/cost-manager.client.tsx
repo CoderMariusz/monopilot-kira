@@ -28,12 +28,8 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { listCostHistory } from '../_actions/list-cost-history';
 import { postCost } from '../_actions/post-cost';
@@ -41,29 +37,90 @@ import { COST_SOURCES, type CostActionError, type CostHistoryRow, type CostSourc
 import type { CostItemOption } from '../_actions/list-cost-items';
 import { deltaPctExact, formatCost } from './numeric';
 
-const SOURCE_LABELS: Record<CostSource, string> = {
-  manual: 'Manual',
-  d365_sync: 'D365 sync',
-  supplier_update: 'Supplier update',
-  variance_roll: 'Variance roll',
+// i18n copy contract. All strings are passed from the RSC page (next-intl); the
+// DEFAULT_COPY below keeps the component renderable in isolation (RTL tests) and
+// supplies the canonical English so no inline-string drift can ship.
+export type CostManagerCopy = {
+  itemLabel: string;
+  itemPlaceholder: string;
+  editCost: string;
+  selectPrompt: string;
+  loading: string;
+  loadError: string;
+  noHistory: (code: string) => string;
+  noHistoryCanEdit: string;
+  readOnlyNotice: string;
+  tableAriaLabel: string;
+  colDate: string;
+  colSource: string;
+  colCost: string;
+  colDelta: string;
+  colReason: string;
+  sparklineTitle: string;
+  min: string;
+  max: string;
+  modalTitle: (code: string) => string;
+  modalIntro: string;
+  fieldNewCost: string;
+  fieldCurrency: string;
+  fieldSource: string;
+  fieldReason: string;
+  fieldReasonPlaceholder: string;
+  fieldApprover: string;
+  fieldApproverPlaceholder: string;
+  cancel: string;
+  record: string;
+  source: Record<CostSource, string>;
+  err: Record<CostActionError, string>;
 };
 
-const SOURCE_OPTIONS = COST_SOURCES.map((value) => ({ value, label: SOURCE_LABELS[value] }));
-
-function errorLabel(error: CostActionError): string {
-  switch (error) {
-    case 'forbidden':
-      return 'You do not have permission to record a cost change.';
-    case 'invalid_input':
-      return 'Please check the values and try again.';
-    case 'not_found':
-      return 'That item no longer exists.';
-    case 'approver_required':
-      return 'This cost change exceeds 20%. Enter an approver to record it (V-TEC-53).';
-    default:
-      return 'Could not save the cost change. Please try again.';
-  }
-}
+const DEFAULT_COPY: CostManagerCopy = {
+  itemLabel: 'Item',
+  itemPlaceholder: 'Select an item…',
+  editCost: 'Edit cost',
+  selectPrompt: 'Select an item to view its cost history.',
+  loading: 'Loading cost history',
+  loadError: 'Unable to load cost history. Please try again.',
+  noHistory: (code) => `No cost history yet for ${code}.`,
+  noHistoryCanEdit: ' Record the first cost roll to start the timeline.',
+  readOnlyNotice: 'You can view cost history but do not have permission to edit master cost (technical.cost.edit).',
+  tableAriaLabel: 'Cost history',
+  colDate: 'Date',
+  colSource: 'Source',
+  colCost: 'Cost / kg',
+  colDelta: 'Δ%',
+  // item_cost_history has no notes/reason column (the reason is written to
+  // audit_log only — see _actions/shared.ts). The last cell carries the currency.
+  colReason: 'Currency',
+  sparklineTitle: 'Sparkline · cost / kg',
+  min: 'min',
+  max: 'max',
+  modalTitle: (code) => `Edit cost · ${code}`,
+  modalIntro:
+    'Recording a new cost closes the active row and writes a history entry. Changes > 20% require an approver (V-TEC-53).',
+  fieldNewCost: 'New cost / kg',
+  fieldCurrency: 'Currency',
+  fieldSource: 'Source',
+  fieldReason: 'Reason',
+  fieldReasonPlaceholder: 'Why is the cost changing?',
+  fieldApprover: 'Approver (user id)',
+  fieldApproverPlaceholder: 'approver user UUID',
+  cancel: 'Cancel',
+  record: 'Record cost',
+  source: {
+    manual: 'Manual',
+    d365_sync: 'D365 sync',
+    supplier_update: 'Supplier update',
+    variance_roll: 'Variance roll',
+  },
+  err: {
+    forbidden: 'You do not have permission to record a cost change.',
+    invalid_input: 'Please check the values and try again.',
+    not_found: 'That item no longer exists.',
+    approver_required: 'This cost change exceeds 20%. Enter an approver to record it (V-TEC-53).',
+    persistence_failed: 'Could not save the cost change. Please try again.',
+  },
+};
 
 // ── Local accessible dialog (same pattern as items-manager.client.tsx) ─────────
 function Dialog({
@@ -96,7 +153,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -107,25 +164,25 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-lg rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box outline-none"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+        <div className="modal-head">
+          <div id={titleId} className="modal-title">
             {title}
-          </h2>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          </div>
+          <button type="button" aria-label="Close" className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
 }
 
 // ── Sparkline (CostHistoryScreen:650-664) — pure SVG over the NUMERIC strings ───
-function Sparkline({ rows }: { rows: CostHistoryRow[] }) {
+function Sparkline({ rows, copy }: { rows: CostHistoryRow[]; copy: CostManagerCopy }) {
   const costs = rows.map((r) => Number(r.costPerKg)).filter((n) => Number.isFinite(n));
   if (costs.length < 2) return null;
   const max = Math.max(...costs);
@@ -139,16 +196,22 @@ function Sparkline({ rows }: { rows: CostHistoryRow[] }) {
     return { x, y };
   };
   return (
-    <Card className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="p-4">
+    <div className="card">
+      <div className="p-4">
         <div className="mb-3 flex items-center justify-between">
-          <strong className="text-sm">Sparkline · cost / kg</strong>
+          <strong className="text-sm">{copy.sparklineTitle}</strong>
           <div className="text-xs text-muted-foreground">
             <span>
-              min <b className="font-mono text-green-700">{formatCost(String(min))}</b>
+              {copy.min}{' '}
+              <b className="font-mono" style={{ color: 'var(--green-700)' }}>
+                {formatCost(String(min))}
+              </b>
             </span>
             <span className="ml-3.5">
-              max <b className="font-mono text-red-700">{formatCost(String(max))}</b>
+              {copy.max}{' '}
+              <b className="font-mono" style={{ color: 'var(--red-700)' }}>
+                {formatCost(String(max))}
+              </b>
             </span>
           </div>
         </div>
@@ -164,28 +227,31 @@ function Sparkline({ rows }: { rows: CostHistoryRow[] }) {
             if (i === 0) return null;
             const a = pt(ordered[i - 1]!, i - 1);
             const b = pt(cost, i);
-            return <line key={`l-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#2563eb" strokeWidth="2" />;
+            return <line key={`l-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--blue)" strokeWidth="2" />;
           })}
           {ordered.map((cost, i) => {
             const { x, y } = pt(cost, i);
-            return <circle key={`c-${i}`} cx={x} cy={y} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2" />;
+            return <circle key={`c-${i}`} cx={x} cy={y} r="4" fill="#fff" stroke="var(--blue)" strokeWidth="2" />;
           })}
         </svg>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 // ── Cost edit modal — records a new cost roll via postCost (NUMERIC-exact) ──────
 function CostEditModal({
   item,
+  copy,
   onClose,
   onSaved,
 }: {
   item: CostItemOption;
+  copy: CostManagerCopy;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const sourceOptions = COST_SOURCES.map((value) => ({ value, label: copy.source[value] }));
   const [costPerKg, setCostPerKg] = React.useState('');
   const [currency, setCurrency] = React.useState('PLN');
   const [source, setSource] = React.useState<CostSource>('manual');
@@ -211,7 +277,7 @@ function CostEditModal({
         onSaved();
       } else {
         if (result.error === 'approver_required') setNeedsApprover(true);
-        setError(errorLabel(result.error));
+        setError(copy.err[result.error]);
       }
     });
   }
@@ -220,82 +286,89 @@ function CostEditModal({
     <Dialog
       open
       onClose={onClose}
-      title={`Edit cost · ${item.itemCode}`}
+      title={copy.modalTitle(item.itemCode)}
       footer={
         <>
           <Button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {copy.cancel}
           </Button>
           <Button type="submit" className="btn-primary" form="technical-cost-edit-form" disabled={pending}>
-            Record cost
+            {copy.record}
           </Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-muted-foreground">
-        Current cost / kg:{' '}
-        <span className="font-mono tabular-nums">{formatCost(item.costPerKg)}</span>. Recording a new cost closes
-        the active row and writes a history entry. Changes &gt; 20% require an approver (V-TEC-53).
+        {copy.colCost}: <span className="font-mono tabular-nums">{formatCost(item.costPerKg)}</span>. {copy.modalIntro}
       </p>
-      <form id="technical-cost-edit-form" className="space-y-3" onSubmit={onSubmit}>
-        <label className="block text-sm font-medium text-slate-700">
-          New cost / kg
-          <Input
-            name="costPerKg"
-            required
-            inputMode="decimal"
-            className="font-mono"
-            placeholder="0.0000"
-            value={costPerKg}
-            onChange={(event) => setCostPerKg(event.currentTarget.value)}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm font-medium text-slate-700">
-            Currency
-            <Input
-              name="currency"
-              maxLength={3}
-              className="font-mono uppercase"
-              value={currency}
-              onChange={(event) => setCurrency(event.currentTarget.value.toUpperCase())}
-            />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            Source
-            <Select
-              value={source}
-              onValueChange={(v) => setSource(v as CostSource)}
-              options={SOURCE_OPTIONS}
-              aria-label="Cost source"
+      <form id="technical-cost-edit-form" onSubmit={onSubmit}>
+        <div className="ff">
+          <label>
+            {copy.fieldNewCost}
+            <span className="req">*</span>
+            <input
+              name="costPerKg"
+              required
+              inputMode="decimal"
+              className="font-mono"
+              placeholder="0.0000"
+              value={costPerKg}
+              onChange={(event) => setCostPerKg(event.currentTarget.value)}
             />
           </label>
         </div>
-        <label className="block text-sm font-medium text-slate-700">
-          Reason
-          <Input
-            name="notes"
-            maxLength={2000}
-            placeholder="Why is the cost changing?"
-            value={notes}
-            onChange={(event) => setNotes(event.currentTarget.value)}
-          />
-        </label>
-        {needsApprover ? (
-          <label className="block text-sm font-medium text-slate-700">
-            Approver (user id)
-            <Input
-              name="approverUserId"
-              className="font-mono"
-              placeholder="approver user UUID"
-              value={approver}
-              onChange={(event) => setApprover(event.currentTarget.value)}
+        <div className="ff-inline">
+          <div className="ff">
+            <label>
+              {copy.fieldCurrency}
+              <input
+                name="currency"
+                maxLength={3}
+                className="font-mono uppercase"
+                value={currency}
+                onChange={(event) => setCurrency(event.currentTarget.value.toUpperCase())}
+              />
+            </label>
+          </div>
+          <div className="ff">
+            <label>{copy.fieldSource}</label>
+            <Select
+              value={source}
+              onValueChange={(v) => setSource(v as CostSource)}
+              options={sourceOptions}
+              aria-label={copy.fieldSource}
+            />
+          </div>
+        </div>
+        <div className="ff">
+          <label>
+            {copy.fieldReason}
+            <input
+              name="notes"
+              maxLength={2000}
+              placeholder={copy.fieldReasonPlaceholder}
+              value={notes}
+              onChange={(event) => setNotes(event.currentTarget.value)}
             />
           </label>
+        </div>
+        {needsApprover ? (
+          <div className="ff">
+            <label>
+              {copy.fieldApprover}
+              <input
+                name="approverUserId"
+                className="font-mono"
+                placeholder={copy.fieldApproverPlaceholder}
+                value={approver}
+                onChange={(event) => setApprover(event.currentTarget.value)}
+              />
+            </label>
+          </div>
         ) : null}
       </form>
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="ff-error">
           {error}
         </p>
       ) : null}
@@ -304,64 +377,72 @@ function CostEditModal({
 }
 
 // ── History table (CostHistoryScreen:666-689) ──────────────────────────────────
-function HistoryTable({ rows }: { rows: CostHistoryRow[] }) {
+function HistoryTable({ rows, copy }: { rows: CostHistoryRow[]; copy: CostManagerCopy }) {
   return (
-    <Card className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="p-0">
-        <Table aria-label="Cost history">
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">Date</TableHead>
-              <TableHead scope="col">Source</TableHead>
-              <TableHead scope="col" className="text-right">
-                Cost / kg
-              </TableHead>
-              <TableHead scope="col" className="text-right">
-                Δ%
-              </TableHead>
-              <TableHead scope="col">Reason</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row, i) => {
-              // Δ% vs the chronologically-previous (older) row, i.e. the NEXT row
-              // in the newest-first list. Exact decimal-string math (no JS float).
-              const prev = rows[i + 1];
-              const delta = prev ? deltaPctExact(prev.costPerKg, row.costPerKg) : null;
-              const deltaClass =
-                delta === null
-                  ? 'text-muted-foreground'
-                  : delta.startsWith('-')
-                    ? 'text-green-700'
-                    : delta === '0.0'
-                      ? 'text-muted-foreground'
-                      : 'text-red-700';
-              return (
-                <TableRow key={row.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {row.effectiveFrom}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="muted">{row.source ? SOURCE_LABELS[row.source] : '—'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold tabular-nums">
-                    {formatCost(row.costPerKg)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono font-semibold tabular-nums ${deltaClass}`}>
-                    {delta === null ? '—' : `${delta.startsWith('-') ? '' : '+'}${delta}%`}
-                  </TableCell>
-                  <TableCell className="text-sm">{row.currency}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      <table aria-label={copy.tableAriaLabel}>
+        <thead>
+          <tr>
+            <th scope="col" style={{ width: 120 }}>
+              {copy.colDate}
+            </th>
+            <th scope="col" style={{ width: 140 }}>
+              {copy.colSource}
+            </th>
+            <th scope="col" style={{ textAlign: 'right', width: 130 }}>
+              {copy.colCost}
+            </th>
+            <th scope="col" style={{ textAlign: 'right', width: 100 }}>
+              {copy.colDelta}
+            </th>
+            <th scope="col">{copy.colReason}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            // Δ% vs the chronologically-previous (older) row, i.e. the NEXT row
+            // in the newest-first list. Exact decimal-string math (no JS float).
+            const prev = rows[i + 1];
+            const delta = prev ? deltaPctExact(prev.costPerKg, row.costPerKg) : null;
+            const deltaColor =
+              delta === null || delta === '0.0'
+                ? 'var(--muted)'
+                : delta.startsWith('-')
+                  ? 'var(--green-700)'
+                  : 'var(--red-700)';
+            return (
+              <tr key={row.id}>
+                <td className="mono text-xs" style={{ color: 'var(--muted)' }}>
+                  {row.effectiveFrom}
+                </td>
+                <td>
+                  <span className="badge badge-gray">{row.source ? copy.source[row.source] : '—'}</span>
+                </td>
+                <td className="num mono" style={{ textAlign: 'right', fontWeight: 600 }}>
+                  {formatCost(row.costPerKg)}
+                </td>
+                <td className="num mono" style={{ textAlign: 'right', fontWeight: 600, color: deltaColor }}>
+                  {delta === null ? '—' : `${delta.startsWith('-') ? '' : '+'}${delta}%`}
+                </td>
+                <td className="text-sm">{row.currency}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-export function CostManager({ items, canEdit }: { items: CostItemOption[]; canEdit: boolean }) {
+export function CostManager({
+  items,
+  canEdit,
+  copy = DEFAULT_COPY,
+}: {
+  items: CostItemOption[];
+  canEdit: boolean;
+  copy?: CostManagerCopy;
+}) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string>(items[0]?.id ?? '');
   const [rows, setRows] = React.useState<CostHistoryRow[]>([]);
@@ -394,68 +475,77 @@ export function CostManager({ items, canEdit }: { items: CostItemOption[]; canEd
   const itemOptions = items.map((it) => ({ value: it.id, label: `${it.itemCode} · ${it.name}` }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="rounded-xl border bg-white shadow-sm">
-        <CardContent className="flex flex-wrap items-end justify-between gap-4 p-5">
-          <label className="block text-sm font-medium text-slate-700">
-            Item
+    <div className="flex flex-col gap-4">
+      <div className="card">
+        <div className="flex flex-wrap items-end justify-between gap-4 p-4">
+          <label className="label block">
+            {copy.itemLabel}
             <div className="mt-1 w-80">
               <Select
                 value={selectedId}
                 onValueChange={setSelectedId}
                 options={itemOptions}
-                placeholder="Select an item…"
-                aria-label="Select item"
+                placeholder={copy.itemPlaceholder}
+                aria-label={copy.itemLabel}
               />
             </div>
           </label>
           {canEdit && selected ? (
             <Button type="button" className="btn-primary" data-modal-id="TEC-COST-EDIT" onClick={() => setEditOpen(true)}>
-              Edit cost
+              {copy.editCost}
             </Button>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {!selected ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
-            Select an item to view its cost history.
-          </CardContent>
-        </Card>
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">💰</div>
+            <div className="empty-state-body">{copy.selectPrompt}</div>
+          </div>
+        </div>
       ) : loading ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8">
-            <div className="h-24 animate-pulse rounded-md bg-slate-100" aria-label="Loading cost history" />
-          </CardContent>
-        </Card>
+        <div className="card">
+          <div className="px-6 py-8">
+            <div
+              className="h-24 animate-pulse rounded-md"
+              style={{ background: 'var(--gray-100)' }}
+              aria-label={copy.loading}
+            />
+          </div>
+        </div>
       ) : loadError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          Unable to load cost history. Please try again.
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{copy.loadError}</div>
         </div>
       ) : rows.length === 0 ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
-            No cost history yet for {selected.itemCode}.
-            {canEdit ? ' Record the first cost roll to start the timeline.' : ''}
-          </CardContent>
-        </Card>
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">📈</div>
+            <div className="empty-state-body">
+              {copy.noHistory(selected.itemCode)}
+              {canEdit ? copy.noHistoryCanEdit : ''}
+            </div>
+          </div>
+        </div>
       ) : (
         <>
-          <Sparkline rows={rows} />
-          <HistoryTable rows={rows} />
+          <Sparkline rows={rows} copy={copy} />
+          <HistoryTable rows={rows} copy={copy} />
         </>
       )}
 
       {!canEdit ? (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-          You can view cost history but do not have permission to edit master cost (technical.cost.edit).
+        <div role="alert" className="alert alert-amber">
+          {copy.readOnlyNotice}
         </div>
       ) : null}
 
       {editOpen && selected ? (
         <CostEditModal
           item={selected}
+          copy={copy}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setEditOpen(false);

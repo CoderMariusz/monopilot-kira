@@ -251,6 +251,36 @@ describe('BomDetailScreen — tab content', () => {
   });
 });
 
+describe('BomDetailScreen — design-system conformance', () => {
+  it('uses chrome classes and no drift utilities', () => {
+    const { container } = renderReady();
+    expect(container.querySelector('.breadcrumb')).not.toBeNull();
+    expect(container.querySelector('.page-title')).not.toBeNull();
+    expect(container.querySelector('.max-w-6xl')).toBeNull();
+    expect(container.querySelector('.shadow-sm')).toBeNull();
+    expect(container.querySelector('h1.text-2xl')).toBeNull();
+  });
+
+  it('uses TabsCounted for the 7-tab bar and semantic .badge for status', () => {
+    const { container } = renderReady();
+    expect(container.querySelector('.tabs-counted')).not.toBeNull();
+    expect(container.querySelector('.tabs-counted-pill')).not.toBeNull();
+    // Header status badge must be a design-system .badge.
+    const headerBadge = within(container.querySelector('header')!).getByText('Active');
+    expect(headerBadge.className).toContain('badge');
+  });
+
+  it('renders tab panels inside the .card surface', () => {
+    const { container } = renderReady();
+    expect(container.querySelector('.card')).not.toBeNull();
+  });
+
+  it('error state uses the .alert .alert-red component', () => {
+    const { container } = render(<BomDetailScreen state="error" data={null} labels={LABELS} />);
+    expect(container.querySelector('.alert.alert-red')).not.toBeNull();
+  });
+});
+
 describe('BomDetailScreen — required states', () => {
   it('loading shows a live status region', () => {
     render(<BomDetailScreen state="loading" data={null} labels={LABELS} />);

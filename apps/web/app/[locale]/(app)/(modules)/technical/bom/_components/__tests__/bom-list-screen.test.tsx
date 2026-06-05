@@ -124,7 +124,8 @@ describe('BomListScreen — parity', () => {
     expect(within(first).getByText('FG-1001')).toBeInTheDocument();
     expect(within(first).getByText('v7')).toBeInTheDocument();
     expect(within(first).getByText('91%')).toBeInTheDocument();
-    expect(within(first).getByText('Active')).toBeInTheDocument();
+    // Status badge renders glyph + label (design-system semantic badge).
+    expect(within(first).getByText(/Active/)).toBeInTheDocument();
   });
 
   it('renders the status filter tabs with counts', () => {
@@ -213,5 +214,52 @@ describe('BomListScreen — i18n', () => {
     renderReady();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(LABELS.title);
     expect(screen.getByText(LABELS.subtitle)).toBeInTheDocument();
+  });
+});
+
+describe('BomListScreen — design-system conformance', () => {
+  it('uses the locked chrome classes (breadcrumb, page-title) and no drift utilities', () => {
+    const { container } = renderReady();
+    expect(container.querySelector('.breadcrumb')).not.toBeNull();
+    expect(container.querySelector('.page-title')).not.toBeNull();
+    // Drift catalogue: no centred max-width, card shadow, or raw text-2xl heading.
+    expect(container.querySelector('.max-w-6xl')).toBeNull();
+    expect(container.querySelector('.shadow-sm')).toBeNull();
+    expect(container.querySelector('h1.text-2xl')).toBeNull();
+  });
+
+  it('renders KPI tiles with the design-system .kpi class (3px accent) and Inter values', () => {
+    const { container } = renderReady();
+    const kpis = container.querySelectorAll('.kpi');
+    expect(kpis.length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelector('.kpi .kpi-value')).not.toBeNull();
+    // KPI value must NOT be mono (golden rule 2/4).
+    expect(container.querySelector('.kpi-value.mono')).toBeNull();
+    expect(container.querySelector('.kpi-value.font-mono')).toBeNull();
+  });
+
+  it('uses TabsCounted with tone pills', () => {
+    const { container } = renderReady();
+    expect(container.querySelector('.tabs-counted')).not.toBeNull();
+    expect(container.querySelector('.tabs-counted-pill')).not.toBeNull();
+  });
+
+  it('renders the lead code cell in mono and status as a semantic .badge', () => {
+    renderReady();
+    const rows = screen.getAllByTestId('bom-row');
+    const codeCell = within(rows[0]).getByText('FG-1001').closest('td');
+    expect(codeCell?.className).toContain('mono');
+    const badge = within(rows[0]).getByText(/Active/);
+    expect(badge.className).toContain('badge');
+  });
+
+  it('error state uses the .alert .alert-red component', () => {
+    const { container } = render(<BomListScreen state="error" data={null} labels={LABELS} />);
+    expect(container.querySelector('.alert.alert-red')).not.toBeNull();
+  });
+
+  it('empty/no-match uses the .empty-state component', () => {
+    const { container } = render(<BomListScreen state="empty" data={null} labels={LABELS} />);
+    expect(container.querySelector('.empty-state')).not.toBeNull();
   });
 });

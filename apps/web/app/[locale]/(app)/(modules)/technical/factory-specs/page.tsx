@@ -22,11 +22,8 @@
  * Evidence policy: _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
 
+import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { listFactorySpecs } from './_actions/list-factory-specs';
 import type { FactorySpecListItem, FactorySpecStatus } from './_actions/shared';
@@ -34,13 +31,14 @@ import { FactorySpecRowActions } from './_components/review-modal.client';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_VARIANT: Record<FactorySpecStatus, BadgeVariant> = {
-  draft: 'muted',
-  in_review: 'info',
-  approved_for_factory: 'success',
-  released_to_factory: 'success',
-  superseded: 'warning',
-  archived: 'muted',
+// 5 semantic tones (MON-design-system rule 8).
+const STATUS_TONE: Record<FactorySpecStatus, string> = {
+  draft: 'badge-gray',
+  in_review: 'badge-blue',
+  approved_for_factory: 'badge-green',
+  released_to_factory: 'badge-green',
+  superseded: 'badge-amber',
+  archived: 'badge-red',
 };
 
 function formatShelfLife(days: number | null): string {
@@ -54,33 +52,30 @@ export default async function FactorySpecsPage() {
   const statusLabel = (status: FactorySpecStatus): string => t(`status.${status}`);
 
   return (
-    <main
-      data-screen="technical-factory-specs"
-      className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6"
-    >
+    <main data-screen="technical-factory-specs" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href="/technical">Technical</Link> / {t('title')}
+      </nav>
+
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t('subtitle')}</p>
+          <h1 className="page-title">{t('title')}</h1>
+          <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
         </div>
       </header>
 
       {state === 'error' ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700"
-        >
-          {t('error')}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{t('error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">{t('empty.title')}</h2>
-            <CardDescription className="text-sm text-muted-foreground">
-              {t('empty.body')}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">📄</div>
+            <div className="empty-state-title">{t('empty.title')}</div>
+            <div className="empty-state-body">{t('empty.body')}</div>
+          </div>
+        </div>
       ) : (
         <FactorySpecsTable
           specs={specs}
@@ -101,11 +96,8 @@ export default async function FactorySpecsPage() {
       )}
 
       {!canApprove ? (
-        <div
-          role="status"
-          className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800"
-        >
-          {t('permissionView')}
+        <div role="status" className="alert alert-amber">
+          <div className="alert-title">{t('permissionView')}</div>
         </div>
       ) : null}
     </main>
@@ -136,48 +128,42 @@ function FactorySpecsTable({
   };
 }) {
   return (
-    <Card className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="p-0">
-        <Table aria-label="Factory specifications">
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">{columns.spec}</TableHead>
-              <TableHead scope="col">{columns.product}</TableHead>
-              <TableHead scope="col">{columns.category}</TableHead>
-              <TableHead scope="col">{columns.version}</TableHead>
-              <TableHead scope="col">{columns.shelfLife}</TableHead>
-              <TableHead scope="col">{columns.status}</TableHead>
-              <TableHead scope="col" className="text-right">
-                {columns.actions}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {specs.map((spec) => (
-              <TableRow key={spec.id}>
-                <TableCell className="font-mono text-sm">{spec.specCode}</TableCell>
-                <TableCell className="font-medium">
-                  <span className="font-mono text-xs text-muted-foreground">{spec.fgItemCode}</span>{' '}
-                  {spec.fgName}
-                </TableCell>
-                <TableCell className="text-sm">{spec.productGroup ?? '—'}</TableCell>
-                <TableCell className="font-mono text-sm">v{spec.version}</TableCell>
-                <TableCell className="font-mono text-sm">{shelfLifeLabel(spec.shelfLifeDays)}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[spec.status]}>{statusLabel(spec.status)}</Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <FactorySpecRowActions
-                    spec={spec}
-                    canApprove={canApprove}
-                    reviewLabel={reviewLabel}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      <table aria-label="Factory specifications">
+        <thead>
+          <tr>
+            <th scope="col">{columns.spec}</th>
+            <th scope="col">{columns.product}</th>
+            <th scope="col">{columns.category}</th>
+            <th scope="col">{columns.version}</th>
+            <th scope="col">{columns.shelfLife}</th>
+            <th scope="col">{columns.status}</th>
+            <th scope="col" style={{ textAlign: 'right' }}>
+              {columns.actions}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {specs.map((spec) => (
+            <tr key={spec.id}>
+              <td className="mono">{spec.specCode}</td>
+              <td style={{ fontWeight: 500 }}>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{spec.fgItemCode}</span>{' '}
+                {spec.fgName}
+              </td>
+              <td>{spec.productGroup ?? '—'}</td>
+              <td className="mono">v{spec.version}</td>
+              <td className="mono">{shelfLifeLabel(spec.shelfLifeDays)}</td>
+              <td>
+                <span className={`badge ${STATUS_TONE[spec.status]}`}>{statusLabel(spec.status)}</span>
+              </td>
+              <td style={{ textAlign: 'right' }}>
+                <FactorySpecRowActions spec={spec} canApprove={canApprove} reviewLabel={reviewLabel} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

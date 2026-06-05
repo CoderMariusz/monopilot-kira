@@ -30,10 +30,7 @@
 
 import React from 'react';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card, CardContent } from '@monopilot/ui/Card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied' | 'not_found';
 
@@ -183,14 +180,18 @@ export type BomDetailLabels = {
   forbidden: string;
 };
 
-const STATUS_VARIANT: Record<BomStatus, BadgeVariant> = {
-  draft: 'muted',
-  in_review: 'info',
-  technical_approved: 'secondary',
-  active: 'success',
-  superseded: 'warning',
-  archived: 'danger',
+const STATUS_TONE: Record<BomStatus, string> = {
+  draft: 'badge-gray',
+  in_review: 'badge-blue',
+  technical_approved: 'badge-green',
+  active: 'badge-green',
+  superseded: 'badge-amber',
+  archived: 'badge-red',
 };
+
+function StatusBadge({ status, labels }: { status: BomStatus; labels: BomDetailLabels }) {
+  return <span className={`badge ${STATUS_TONE[status]}`}>{statusLabel(status, labels)}</span>;
+}
 
 function statusLabel(status: BomStatus, labels: BomDetailLabels): string {
   switch (status) {
@@ -232,17 +233,25 @@ function StateNotice({
   state: Exclude<PageState, 'ready'>;
   labels: BomDetailLabels;
 }) {
-  const map: Record<Exclude<PageState, 'ready'>, { role: 'status' | 'alert'; text: string; cls: string }> = {
-    loading: { role: 'status', text: labels.loading, cls: 'border bg-white text-muted-foreground' },
-    empty: { role: 'status', text: labels.notFound, cls: 'border bg-white text-muted-foreground' },
-    not_found: { role: 'alert', text: labels.notFound, cls: 'border-red-200 bg-red-50 text-red-700' },
-    error: { role: 'alert', text: labels.error, cls: 'border-red-200 bg-red-50 text-red-700' },
-    permission_denied: { role: 'alert', text: labels.forbidden, cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-  };
-  const m = map[state];
+  if (state === 'loading') {
+    return (
+      <div role="status" aria-live="polite" className="card text-shell-muted text-sm">
+        {labels.loading}
+      </div>
+    );
+  }
+  if (state === 'permission_denied') {
+    return (
+      <div role="alert" className="alert alert-amber">
+        <div className="alert-title">{labels.forbidden}</div>
+      </div>
+    );
+  }
+  // not_found / empty / error → red alert (not_found+empty use the notFound copy).
+  const text = state === 'error' ? labels.error : labels.notFound;
   return (
-    <div role={m.role} aria-live={m.role === 'status' ? 'polite' : undefined} className={`rounded-xl border px-6 py-8 text-sm ${m.cls}`}>
-      {m.text}
+    <div role="alert" className="alert alert-red">
+      <div className="alert-title">{text}</div>
     </div>
   );
 }
@@ -269,59 +278,56 @@ export function BomDetailScreen({
   labels: BomDetailLabels;
   defaultTab?: TabKey;
 }) {
+  const [activeTab, setActiveTab] = React.useState<TabKey>(defaultTab);
+
   if (state !== 'ready' || !data) {
     return (
-      <main data-screen="technical-bom-detail" className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-6">
+      <main data-screen="technical-bom-detail" className="flex w-full flex-col gap-4 px-6 py-6">
         <StateNotice state={state === 'ready' ? 'not_found' : state} labels={labels} />
       </main>
     );
   }
 
-  const tabDefs: { key: TabKey; label: string; count?: number }[] = [
-    { key: 'components', label: labels.tabComponents, count: data.lines.length },
-    { key: 'co-products', label: labels.tabCoProducts, count: data.coProducts.length },
-    { key: 'snapshots', label: labels.tabSnapshots, count: data.snapshots.length },
-    { key: 'versions', label: labels.tabVersions, count: data.versions.length },
+  const tabDefs: { key: TabKey; label: string; count?: number; tone?: string }[] = [
+    { key: 'components', label: labels.tabComponents, count: data.lines.length, tone: 'tone-info' },
+    { key: 'co-products', label: labels.tabCoProducts, count: data.coProducts.length, tone: 'tone-neutral' },
+    { key: 'snapshots', label: labels.tabSnapshots, count: data.snapshots.length, tone: 'tone-neutral' },
+    { key: 'versions', label: labels.tabVersions, count: data.versions.length, tone: 'tone-neutral' },
     { key: 'approval', label: labels.tabApproval },
-    { key: 'where-used', label: labels.tabWhereUsed, count: data.whereUsed.length },
+    { key: 'where-used', label: labels.tabWhereUsed, count: data.whereUsed.length, tone: 'tone-neutral' },
     { key: 'recipe', label: labels.tabRecipeSheet },
   ];
 
   return (
-    <main data-screen="technical-bom-detail" className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-6">
+    <main data-screen="technical-bom-detail" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <a href={data.detailHrefBase}>{labels.breadcrumbRoot}</a> / <span className="mono">{data.productId}</span>
+      </nav>
+
       <header className="flex flex-col gap-2">
-        <div className="text-xs text-muted-foreground">
-          {labels.breadcrumbRoot} <span aria-hidden="true">›</span>{' '}
-          <span className="font-mono">{data.productId}</span>
-        </div>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{data.productName ?? data.productId}</h1>
-          <Badge variant={STATUS_VARIANT[data.status]}>{statusLabel(data.status, labels)}</Badge>
-          <Badge variant="info">{interpolate(labels.versionBadge, { n: data.selectedVersion })}</Badge>
+          <h1 className="page-title">{data.productName ?? data.productId}</h1>
+          <StatusBadge status={data.status} labels={labels} />
+          <span className="badge badge-blue">{interpolate(labels.versionBadge, { n: data.selectedVersion })}</span>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {labels.yieldLabel}: <span className="font-mono">{Number(data.yieldPct).toFixed(0)}%</span>
+        <p className="helper">
+          {labels.yieldLabel}: <span className="mono">{Number(data.yieldPct).toFixed(0)}%</span>
           {data.category ? <> · {data.category}</> : null}
         </p>
       </header>
 
-      <Tabs defaultValue={defaultTab} data-testid="bom-detail-tabs">
-        <TabsList
-          aria-label={labels.tabComponents}
-          className="flex flex-wrap gap-1 border-b border-slate-200"
-        >
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} data-testid="bom-detail-tabs">
+        <TabsList className="tabs-counted" aria-label={labels.tabComponents}>
           {tabDefs.map((t) => (
             <TabsTrigger
               key={t.key}
               value={t.key}
               data-testid={`bom-tab-${t.key}`}
-              className="inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-slate-700 data-[state=active]:border-slate-900 data-[state=active]:text-slate-900"
+              className={`tabs-counted-tab${activeTab === t.key ? ' active' : ''}`}
             >
-              {t.label}
+              <span>{t.label}</span>
               {t.count != null ? (
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] tabular-nums text-slate-600">
-                  {t.count}
-                </span>
+                <span className={`tabs-counted-pill ${t.tone ?? ''}`.trim()}>{t.count}</span>
               ) : null}
             </TabsTrigger>
           ))}
@@ -329,167 +335,166 @@ export function BomDetailScreen({
 
         {/* 1) Components */}
         <TabsContent value="components" className="mt-4">
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              {data.lines.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">{labels.emptyComponents}</div>
-              ) : (
-                <Table aria-label={labels.tabComponents}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{labels.colLine}</TableHead>
-                      <TableHead scope="col">{labels.colComponent}</TableHead>
-                      <TableHead scope="col">{labels.colType}</TableHead>
-                      <TableHead scope="col" className="text-right">{labels.colQty}</TableHead>
-                      <TableHead scope="col">{labels.colUom}</TableHead>
-                      <TableHead scope="col" className="text-right">{labels.colScrap}</TableHead>
-                      <TableHead scope="col">{labels.colOperation}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.lines.map((l) => (
-                      <TableRow key={l.id} data-testid="bom-line-row">
-                        <TableCell className="font-mono text-xs text-muted-foreground">{l.lineNo}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {l.componentCode}
-                          {l.isPhantom ? (
-                            <Badge variant="muted" className="ml-2">
-                              {labels.phantomBadge}
-                            </Badge>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="text-sm">{l.componentType ?? '—'}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{l.quantity}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{l.uom}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{Number(l.scrapPct).toFixed(1)}%</TableCell>
-                        <TableCell className="text-sm">{l.manufacturingOperationName ?? '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            {data.lines.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🧩</div>
+                <div className="empty-state-body">{labels.emptyComponents}</div>
+              </div>
+            ) : (
+              <table aria-label={labels.tabComponents}>
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.colLine}</th>
+                    <th scope="col">{labels.colComponent}</th>
+                    <th scope="col">{labels.colType}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colQty}</th>
+                    <th scope="col">{labels.colUom}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colScrap}</th>
+                    <th scope="col">{labels.colOperation}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.lines.map((l) => (
+                    <tr key={l.id} data-testid="bom-line-row">
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.lineNo}</td>
+                      <td className="mono">
+                        {l.componentCode}
+                        {l.isPhantom ? <span className="badge badge-gray" style={{ marginLeft: 8 }}>{labels.phantomBadge}</span> : null}
+                      </td>
+                      <td>{l.componentType ?? '—'}</td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{l.quantity}</td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{l.uom}</td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{Number(l.scrapPct).toFixed(1)}%</td>
+                      <td>{l.manufacturingOperationName ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </TabsContent>
 
         {/* 2) Co-products */}
         <TabsContent value="co-products" className="mt-4">
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              {data.coProducts.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">{labels.emptyCoProducts}</div>
-              ) : (
-                <Table aria-label={labels.tabCoProducts}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{labels.colCoProduct}</TableHead>
-                      <TableHead scope="col" className="text-right">{labels.colQty}</TableHead>
-                      <TableHead scope="col">{labels.colUom}</TableHead>
-                      <TableHead scope="col" className="text-right">{labels.colAllocation}</TableHead>
-                      <TableHead scope="col">{labels.colType}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.coProducts.map((cp) => (
-                      <TableRow key={cp.id} data-testid="bom-coproduct-row">
-                        <TableCell className="font-mono text-sm">{cp.coProductItemId}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{cp.quantity}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{cp.uom}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">{Number(cp.allocationPct).toFixed(2)}%</TableCell>
-                        <TableCell>
-                          <Badge variant={cp.isByproduct ? 'warning' : 'secondary'}>
-                            {cp.isByproduct ? labels.byproductBadge : labels.coProductBadge}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            {data.coProducts.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">⚖️</div>
+                <div className="empty-state-body">{labels.emptyCoProducts}</div>
+              </div>
+            ) : (
+              <table aria-label={labels.tabCoProducts}>
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.colCoProduct}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colQty}</th>
+                    <th scope="col">{labels.colUom}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colAllocation}</th>
+                    <th scope="col">{labels.colType}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.coProducts.map((cp) => (
+                    <tr key={cp.id} data-testid="bom-coproduct-row">
+                      <td className="mono">{cp.coProductItemId}</td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{cp.quantity}</td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{cp.uom}</td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>{Number(cp.allocationPct).toFixed(2)}%</td>
+                      <td>
+                        <span className={`badge ${cp.isByproduct ? 'badge-amber' : 'badge-blue'}`}>
+                          {cp.isByproduct ? labels.byproductBadge : labels.coProductBadge}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </TabsContent>
 
         {/* 3) Snapshots */}
         <TabsContent value="snapshots" className="mt-4">
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              {data.snapshots.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">{labels.emptySnapshots}</div>
-              ) : (
-                <Table aria-label={labels.tabSnapshots}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{labels.colSnapshot}</TableHead>
-                      <TableHead scope="col">{labels.colWorkOrder}</TableHead>
-                      <TableHead scope="col">{labels.colSnapshotAt}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.snapshots.map((s) => (
-                      <TableRow key={s.id} data-testid="bom-snapshot-row">
-                        <TableCell className="font-mono text-xs text-muted-foreground">{s.id.slice(0, 8)}</TableCell>
-                        <TableCell className="font-mono text-sm">{s.workOrderId ?? labels.noWorkOrder}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{fmtDateTime(s.snapshotAt)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            {data.snapshots.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">📸</div>
+                <div className="empty-state-body">{labels.emptySnapshots}</div>
+              </div>
+            ) : (
+              <table aria-label={labels.tabSnapshots}>
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.colSnapshot}</th>
+                    <th scope="col">{labels.colWorkOrder}</th>
+                    <th scope="col">{labels.colSnapshotAt}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.snapshots.map((s) => (
+                    <tr key={s.id} data-testid="bom-snapshot-row">
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{s.id.slice(0, 8)}</td>
+                      <td className="mono">{s.workOrderId ?? labels.noWorkOrder}</td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtDateTime(s.snapshotAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </TabsContent>
 
         {/* 4) Versions */}
         <TabsContent value="versions" className="mt-4">
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              <Table aria-label={labels.tabVersions}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead scope="col">{labels.colVersion}</TableHead>
-                    <TableHead scope="col">{labels.colStatus}</TableHead>
-                    <TableHead scope="col">{labels.colEffective}</TableHead>
-                    <TableHead scope="col">{labels.colApprovedBy}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.versions.map((v) => (
-                    <TableRow key={v.id} data-testid="bom-version-row" data-selected={v.isSelected || undefined}>
-                      <TableCell className="font-mono text-sm font-semibold">
-                        <a
-                          href={`${data.detailHrefBase}/${encodeURIComponent(data.productId)}?v=${v.version}`}
-                          className="text-slate-900 underline-offset-2 hover:underline"
-                        >
-                          v{v.version}
-                        </a>
-                        {v.isSelected ? (
-                          <span className="ml-2 text-[10px] font-semibold uppercase text-sky-600">{labels.current}</span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANT[v.status]}>{statusLabel(v.status, labels)}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{fmtDate(v.effectiveFrom)}</TableCell>
-                      <TableCell className="text-sm">{v.approvedByName ?? '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table aria-label={labels.tabVersions}>
+              <thead>
+                <tr>
+                  <th scope="col">{labels.colVersion}</th>
+                  <th scope="col">{labels.colStatus}</th>
+                  <th scope="col">{labels.colEffective}</th>
+                  <th scope="col">{labels.colApprovedBy}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.versions.map((v) => (
+                  <tr key={v.id} data-testid="bom-version-row" data-selected={v.isSelected || undefined}>
+                    <td className="mono" style={{ fontWeight: 600 }}>
+                      <a
+                        href={`${data.detailHrefBase}/${encodeURIComponent(data.productId)}?v=${v.version}`}
+                        className="text-blue-600 underline-offset-4 hover:underline"
+                      >
+                        v{v.version}
+                      </a>
+                      {v.isSelected ? (
+                        <span className="badge badge-blue" style={{ marginLeft: 8 }}>{labels.current}</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      <StatusBadge status={v.status} labels={labels} />
+                    </td>
+                    <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtDate(v.effectiveFrom)}</td>
+                    <td>{v.approvedByName ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
 
         {/* 5) Approval */}
         <TabsContent value="approval" className="mt-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Card className="rounded-xl border bg-white p-5 shadow-sm">
-              <div className="text-sm font-semibold">{labels.approvalTitle}</div>
-              <dl className="mt-3 space-y-2 text-sm">
+            <div className="card">
+              <div className="card-head">
+                <strong style={{ fontSize: 13 }}>{labels.approvalTitle}</strong>
+              </div>
+              <dl className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <dt className="text-muted-foreground">{labels.approvalStatus}</dt>
+                  <dt className="muted">{labels.approvalStatus}</dt>
                   <dd>
-                    <Badge variant={STATUS_VARIANT[data.status]}>{statusLabel(data.status, labels)}</Badge>
+                    <StatusBadge status={data.status} labels={labels} />
                   </dd>
                 </div>
                 {(() => {
@@ -498,94 +503,97 @@ export function BomDetailScreen({
                   return (
                     <>
                       <div className="flex items-center justify-between">
-                        <dt className="text-muted-foreground">{labels.approvalApprovedBy}</dt>
-                        <dd className="font-medium">{approved ?? labels.approvalPending}</dd>
+                        <dt className="muted">{labels.approvalApprovedBy}</dt>
+                        <dd style={{ fontWeight: 500 }}>{approved ?? labels.approvalPending}</dd>
                       </div>
                       <div className="flex items-center justify-between">
-                        <dt className="text-muted-foreground">{labels.approvalApprovedAt}</dt>
-                        <dd className="font-mono text-xs text-muted-foreground">{fmtDateTime(cur?.approvedAt ?? null)}</dd>
+                        <dt className="muted">{labels.approvalApprovedAt}</dt>
+                        <dd className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtDateTime(cur?.approvedAt ?? null)}</dd>
                       </div>
                     </>
                   );
                 })()}
               </dl>
-            </Card>
-            <Card className="rounded-xl border bg-white p-5 shadow-sm">
-              <div className="text-sm font-semibold">{labels.approvalChainTitle}</div>
-              <p className="mt-3 text-sm text-muted-foreground">{labels.approvalChain}</p>
-            </Card>
+            </div>
+            <div className="card">
+              <div className="card-head">
+                <strong style={{ fontSize: 13 }}>{labels.approvalChainTitle}</strong>
+              </div>
+              <p className="muted text-sm">{labels.approvalChain}</p>
+            </div>
           </div>
         </TabsContent>
 
         {/* 6) Where-used */}
         <TabsContent value="where-used" className="mt-4">
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              {data.whereUsed.length === 0 ? (
-                <div className="px-6 py-10 text-sm text-muted-foreground">{labels.emptyWhereUsed}</div>
-              ) : (
-                <Table aria-label={labels.tabWhereUsed}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{labels.colParent}</TableHead>
-                      <TableHead scope="col">{labels.colParentVersion}</TableHead>
-                      <TableHead scope="col">{labels.colStatus}</TableHead>
-                      <TableHead scope="col" className="text-right">{labels.colUsageQty}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.whereUsed.map((w) => (
-                      <TableRow key={w.parentProductId} data-testid="bom-whereused-row">
-                        <TableCell>
-                          <a
-                            href={`${data.detailHrefBase}/${encodeURIComponent(w.parentProductId)}`}
-                            className="font-mono text-sm text-slate-900 underline-offset-2 hover:underline"
-                          >
-                            {w.parentProductId}
-                          </a>
-                          {w.parentProductName ? (
-                            <div className="text-xs text-muted-foreground">{w.parentProductName}</div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">v{w.parentVersion}</TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANT[w.parentStatus]}>{statusLabel(w.parentStatus, labels)}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">
-                          {w.quantity} {w.uom}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            {data.whereUsed.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🔗</div>
+                <div className="empty-state-body">{labels.emptyWhereUsed}</div>
+              </div>
+            ) : (
+              <table aria-label={labels.tabWhereUsed}>
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.colParent}</th>
+                    <th scope="col">{labels.colParentVersion}</th>
+                    <th scope="col">{labels.colStatus}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>{labels.colUsageQty}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.whereUsed.map((w) => (
+                    <tr key={w.parentProductId} data-testid="bom-whereused-row">
+                      <td className="mono">
+                        <a
+                          href={`${data.detailHrefBase}/${encodeURIComponent(w.parentProductId)}`}
+                          className="text-blue-600 underline-offset-4 hover:underline"
+                        >
+                          {w.parentProductId}
+                        </a>
+                        {w.parentProductName ? (
+                          <div className="muted" style={{ fontSize: 12 }}>{w.parentProductName}</div>
+                        ) : null}
+                      </td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>v{w.parentVersion}</td>
+                      <td>
+                        <StatusBadge status={w.parentStatus} labels={labels} />
+                      </td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                        {w.quantity} {w.uom}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </TabsContent>
 
         {/* 7) Recipe sheet */}
         <TabsContent value="recipe" className="mt-4">
-          <Card className="rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold">{data.productName ?? data.productId}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="card">
+            <h2 className="page-title" style={{ fontSize: 'var(--fs-page-title)' }}>{data.productName ?? data.productId}</h2>
+            <p className="helper mt-1">
               {interpolate(labels.recipeBatch, {
                 code: data.productId,
                 version: data.selectedVersion,
                 yield: Number(data.yieldPct).toFixed(0),
               })}
             </p>
-            <h3 className="mt-5 text-sm font-semibold">{labels.recipeComponents}</h3>
+            <h3 className="mt-5" style={{ fontSize: 13, fontWeight: 600 }}>{labels.recipeComponents}</h3>
             {data.lines.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">{labels.emptyComponents}</p>
+              <p className="muted mt-2 text-sm">{labels.emptyComponents}</p>
             ) : (
               <ul className="mt-2 space-y-1 text-sm">
                 {data.lines.map((l) => (
-                  <li key={l.id} className="flex justify-between border-b border-slate-100 py-1">
-                    <span className="font-mono">
+                  <li key={l.id} className="flex justify-between border-b border-[var(--border)] py-1">
+                    <span className="mono">
                       {l.componentCode}
-                      {l.manufacturingOperationName ? <span className="text-muted-foreground"> · {l.manufacturingOperationName}</span> : null}
+                      {l.manufacturingOperationName ? <span className="muted"> · {l.manufacturingOperationName}</span> : null}
                     </span>
-                    <span className="font-mono tabular-nums">
+                    <span className="mono tabular-nums">
                       {l.quantity} {l.uom}
                     </span>
                   </li>
@@ -594,11 +602,11 @@ export function BomDetailScreen({
             )}
             {data.notes ? (
               <>
-                <h3 className="mt-5 text-sm font-semibold">{labels.recipeNotes}</h3>
-                <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{data.notes}</p>
+                <h3 className="mt-5" style={{ fontSize: 13, fontWeight: 600 }}>{labels.recipeNotes}</h3>
+                <p className="muted mt-2 whitespace-pre-line text-sm">{data.notes}</p>
               </>
             ) : null}
-          </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </main>

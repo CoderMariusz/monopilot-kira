@@ -75,7 +75,7 @@ export default async function BomGraphPage(propsInput: unknown = {}) {
 
   if (props.data !== undefined) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-6">
+      <main className="flex w-full flex-col px-6 py-6">
         <BomGraphTab data={props.data} labels={labels} />
       </main>
     );
@@ -89,7 +89,7 @@ export default async function BomGraphPage(propsInput: unknown = {}) {
   if (!result.ok) {
     if (result.error === 'not_found') notFound();
     return (
-      <main className="mx-auto w-full max-w-6xl px-6 py-6">
+      <main className="flex w-full flex-col px-6 py-6">
         <BomGraphTab data={{ rootCode: productId, rootName: null, components: [], parents: [] }} labels={labels} />
       </main>
     );
@@ -117,7 +117,7 @@ export default async function BomGraphPage(propsInput: unknown = {}) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-6">
+    <main className="flex w-full flex-col px-6 py-6">
       <BomGraphTab data={data} labels={labels} />
     </main>
   );

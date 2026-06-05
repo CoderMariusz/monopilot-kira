@@ -3,6 +3,12 @@
 /**
  * T-089 — TEC-052 Cost Import from D365: page-load action.
  *
+ * RELOCATED 2026-06-05: moved with the D365 group out of Technical into
+ * Settings › Integrations › D365 (old path
+ * technical/costs/d365-import/_actions/load-d365-cost-import.ts). Behaviour,
+ * RLS, RBAC and the real-Supabase reads are unchanged — only the import depth
+ * to apps/web/lib was adjusted for the new location.
+ *
  * Spec-driven Wave0 surface (PRD §0/§5/§17). OPTIONAL integration (R15
  * anti-corruption): D365 is NEVER the system of record and never blocks factory
  * release. Local `item_cost_history` (TEC-050) is the source of truth.
@@ -23,9 +29,9 @@
  * Read-only, org-scoped via withOrgContext + RLS. No mocks. FG canonical.
  */
 
-import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { isD365Enabled } from '../../../../../../../../lib/integrations/d365/gate';
-import { hasD365SyncPermission } from '../../../../../../../../lib/integrations/d365/rbac';
+import { withOrgContext } from '../../../../../../../../../lib/auth/with-org-context';
+import { isD365Enabled } from '../../../../../../../../../lib/integrations/d365/gate';
+import { hasD365SyncPermission } from '../../../../../../../../../lib/integrations/d365/rbac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -82,7 +88,7 @@ export async function loadD365CostImport(): Promise<LoadD365CostImportResult> {
       ]);
 
       if (!enabled) {
-        // Disabled state must keep the rest of Technical usable; show the banner
+        // Disabled state must keep the rest of Settings usable; show the banner
         // and surface NO diff (cost import unavailable, never blocking release).
         return {
           ok: true,
@@ -160,7 +166,7 @@ export async function loadD365CostImport(): Promise<LoadD365CostImportResult> {
       };
     });
   } catch (error) {
-    console.error('[technical/costs/d365-import] loadD365CostImport failed', {
+    console.error('[settings/integrations/d365/cost-import] loadD365CostImport failed', {
       err: error instanceof Error ? error.message : String(error),
     });
     return { ok: false, state: 'error' };

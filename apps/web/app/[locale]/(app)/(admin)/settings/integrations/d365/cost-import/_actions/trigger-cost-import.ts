@@ -3,6 +3,11 @@
 /**
  * T-089 — TEC-052 Cost Import from D365: trigger the import (enqueue pull job).
  *
+ * RELOCATED 2026-06-05: moved with the D365 group into Settings › Integrations ›
+ * D365 (old path technical/costs/d365-import/_actions/trigger-cost-import.ts).
+ * Behaviour, RBAC, gate and append-only semantics are unchanged — only the
+ * import depth to apps/web/lib was adjusted for the new location.
+ *
  * Consumes the EXISTING D365 worker (T-028, lib/integrations/d365/pull.ts)
  * `enqueuePullJob` + the `assertD365Enabled` gate (T-030). R15 anti-corruption:
  *
@@ -19,10 +24,10 @@
  * Org-scoped via withOrgContext + RLS. No mocks.
  */
 
-import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import { D365DisabledError, assertD365Enabled } from '../../../../../../../../lib/integrations/d365/gate';
-import { enqueuePullJob } from '../../../../../../../../lib/integrations/d365/pull';
-import { hasD365SyncPermission } from '../../../../../../../../lib/integrations/d365/rbac';
+import { withOrgContext } from '../../../../../../../../../lib/auth/with-org-context';
+import { D365DisabledError, assertD365Enabled } from '../../../../../../../../../lib/integrations/d365/gate';
+import { enqueuePullJob } from '../../../../../../../../../lib/integrations/d365/pull';
+import { hasD365SyncPermission } from '../../../../../../../../../lib/integrations/d365/rbac';
 
 type QueryClient = {
   query<T = Record<string, unknown>>(
@@ -83,7 +88,7 @@ export async function triggerCostImport(input: TriggerCostImportInput): Promise<
       return { ok: true, jobId: result.job.id, duplicate: result.duplicate };
     });
   } catch (error) {
-    console.error('[technical/costs/d365-import] triggerCostImport failed', {
+    console.error('[settings/integrations/d365/cost-import] triggerCostImport failed', {
       err: error instanceof Error ? error.message : String(error),
     });
     return { ok: false, error: 'persistence_failed' };

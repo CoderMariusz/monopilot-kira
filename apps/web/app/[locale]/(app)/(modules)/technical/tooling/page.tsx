@@ -15,9 +15,8 @@
  * (Create CTA hidden when the caller lacks technical.bom.create) / populated.
  */
 
+import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
 
 import { listToolingSetups } from './_actions/list-tooling-setups';
 import { ToolingList, type ToolingListLabels } from './_components/tooling-list.client';
@@ -55,28 +54,30 @@ export default async function TechnicalToolingPage() {
   const labels = buildLabels(t);
 
   return (
-    <main data-screen="technical-tooling" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
+    <main data-screen="technical-tooling" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href="/technical">Technical</Link> / {t('title')}
+      </nav>
+
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
+          <h1 className="page-title">{t('title')}</h1>
+          <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
         </div>
       </header>
 
       {state === 'error' ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          {t('error')}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{t('error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">{t('empty.title')}</h2>
-            <CardDescription className="text-sm text-muted-foreground">
-              {canWrite ? t('empty.bodyCanWrite') : t('empty.body')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent />
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">🛠️</div>
+            <div className="empty-state-title">{t('empty.title')}</div>
+            <div className="empty-state-body">{canWrite ? t('empty.bodyCanWrite') : t('empty.body')}</div>
+          </div>
+        </div>
       ) : (
         <ToolingList setups={setups} canWrite={canWrite} routingsHref="../routings" labels={labels} />
       )}

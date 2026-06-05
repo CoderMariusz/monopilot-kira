@@ -1,0 +1,25 @@
+{
+  "anchor": "prototypes/design/Monopilot Design System/settings/ops-screens.jsx:263-384",
+  "route": "/settings/import-export",
+  "uxSource": "SET-029",
+  "regions": {
+    "pageHead": true,
+    "entitySelector": true,
+    "importCard": true,
+    "exportCard": true,
+    "csvTemplateDownload": true,
+    "dropzone": true,
+    "exportFormatRadios": 2,
+    "recentJobsTable": true
+  },
+  "prototypeCorrespondence": {
+    "entity_selector": "ops-screens.jsx:285-292/335-341 → <select id=\"settings-import-export-entity\">",
+    "required_permission_display": "ops-screens.jsx:293-295 → Detail(requiredPermission)",
+    "sync_async_badge": "ops-screens.jsx:296-300 → Detail(processing) + CapabilityBadge",
+    "csv_template_download": "ops-screens.jsx:301-303 → <a href=.../templates/...>",
+    "dropzone": "ops-screens.jsx:306-322 → <label> dropzone + file input",
+    "dry_run_preflight": "ops-screens.jsx:325 → runAuthorizationPreflight (auth_policy only)",
+    "export_format_selector": "ops-screens.jsx:342-351 → CSV/XLSX radios",
+    "recent_jobs_table": "ops-screens.jsx:358-379 → recent jobs table"
+  }
+}

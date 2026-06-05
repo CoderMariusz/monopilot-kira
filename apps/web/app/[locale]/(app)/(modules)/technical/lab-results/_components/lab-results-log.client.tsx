@@ -21,22 +21,29 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
 import type { LabResultLogRow } from '../_actions/list-lab-results';
 
 const VERDICTS = ['all', 'pass', 'fail', 'inconclusive', 'pending', 'hold'] as const;
 type VerdictFilter = (typeof VERDICTS)[number];
 
-const verdictBadge: Record<string, BadgeVariant> = {
-  pass: 'success',
-  fail: 'danger',
-  hold: 'danger',
-  inconclusive: 'warning',
-  pending: 'muted',
+// 5-tone semantic badge mapping: pass → ok(green), fail/hold → bad(red),
+// inconclusive → warn(amber), pending → neutral(gray).
+const verdictBadge: Record<string, string> = {
+  pass: 'badge-green',
+  fail: 'badge-red',
+  hold: 'badge-red',
+  inconclusive: 'badge-amber',
+  pending: 'badge-gray',
+};
+
+// Count-pill tone for the .tabs-counted filter.
+const verdictTabTone: Record<string, string> = {
+  all: '',
+  pass: 'tone-ok',
+  fail: 'tone-bad',
+  hold: 'tone-bad',
+  inconclusive: 'tone-warn',
+  pending: 'tone-neutral',
 };
 
 export type LabResultsCopy = {
@@ -86,42 +93,37 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
   return (
     <div data-screen="technical-lab-results" className="flex flex-col gap-4">
       {/* Read-only federated read model — write/NCR/CoA live in 09-QUALITY. */}
-      <div
-        role="note"
-        data-testid="lab-results-readonly-notice"
-        className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900"
-      >
-        {copy.readOnlyNotice}{' '}
-        <Link href={copy.qaHref} data-testid="lab-results-qa-link" className="font-medium text-sky-700 underline">
+      <div role="note" data-testid="lab-results-readonly-notice" className="alert alert-amber">
+        <b>{copy.readOnlyNotice}</b>{' '}
+        <Link href={copy.qaHref} data-testid="lab-results-qa-link" style={{ color: 'var(--blue)' }}>
           {copy.openInQa}
         </Link>
       </div>
 
-      {/* Verdict filter pills + search. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div data-testid="lab-results-pills" className="flex flex-wrap gap-1.5">
+      {/* Verdict filter — .tabs-counted with count pills + search. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div data-testid="lab-results-pills" className="tabs-counted" role="tablist" aria-label="Verdict">
           {VERDICTS.map((v) => (
             <button
               key={v}
               type="button"
+              role="tab"
               data-testid={`lab-results-pill-${v}`}
+              aria-selected={filter === v}
               aria-pressed={filter === v}
               onClick={() => setFilter(v)}
-              className={[
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition',
-                filter === v
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-              ].join(' ')}
+              className={`tabs-counted-tab${filter === v ? ' active' : ''}`}
             >
-              {copy.verdictLabel(v)}
-              <span className="tabular-nums opacity-60">{counts[v] ?? 0}</span>
+              <span>{copy.verdictLabel(v)}</span>
+              <span className={`tabs-counted-pill ${verdictTabTone[v] ?? ''}`}>{counts[v] ?? 0}</span>
             </button>
           ))}
         </div>
         <div className="ml-auto w-64">
-          <Input
+          <input
+            type="search"
             data-testid="lab-results-search"
+            className="form-input mono"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={copy.searchPlaceholder}
@@ -130,25 +132,36 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
         </div>
       </div>
 
-      <Card data-testid="lab-results-table-card" className="rounded-xl border border-slate-200 bg-white p-0 shadow-sm">
+      <div data-testid="lab-results-table-card" className="card" style={{ padding: 0, overflowX: 'auto' }}>
         {visible.length === 0 ? (
-          <div data-testid="lab-results-empty" className="px-4 py-8 text-center text-sm text-slate-500">
-            {copy.empty}
+          <div data-testid="lab-results-empty" className="empty-state">
+            <div className="empty-state-icon">🧪</div>
+            <div className="empty-state-body">{copy.empty}</div>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">{copy.col.labId}</TableHead>
-                <TableHead scope="col">{copy.col.taken}</TableHead>
-                <TableHead scope="col">{copy.col.fgLot}</TableHead>
-                <TableHead scope="col">{copy.col.test}</TableHead>
-                <TableHead scope="col">{copy.col.reading}</TableHead>
-                <TableHead scope="col">{copy.col.verdict}</TableHead>
-                <TableHead scope="col">{copy.col.action}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <table aria-label={copy.col.labId}>
+            <thead>
+              <tr>
+                <th scope="col" style={{ width: 130 }}>
+                  {copy.col.labId}
+                </th>
+                <th scope="col" style={{ width: 150 }}>
+                  {copy.col.taken}
+                </th>
+                <th scope="col">{copy.col.fgLot}</th>
+                <th scope="col">{copy.col.test}</th>
+                <th scope="col" style={{ width: 150 }}>
+                  {copy.col.reading}
+                </th>
+                <th scope="col" style={{ width: 110 }}>
+                  {copy.col.verdict}
+                </th>
+                <th scope="col" style={{ width: 110 }}>
+                  {copy.col.action}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {visible.map((r) => {
                 const reading = r.resultValue;
                 const threshold = r.thresholdRlu;
@@ -160,82 +173,94 @@ export function LabResultsLog({ rows, copy }: { rows: LabResultLogRow[]; copy: L
                 const thresholdNum = threshold != null ? Number(threshold) : null;
                 const over =
                   readingNum != null && thresholdNum != null ? readingNum > thresholdNum : false;
+                const failTint = r.resultStatus === 'fail' || r.resultStatus === 'hold';
                 return (
-                  <TableRow
+                  <tr
                     key={r.id}
                     data-testid={`lab-results-row-${r.id}`}
                     data-verdict={r.resultStatus}
+                    style={failTint ? { background: 'var(--red-050a)' } : undefined}
                   >
-                    <TableCell className="font-mono text-xs">{r.id.slice(0, 12)}</TableCell>
-                    <TableCell className="font-mono text-xs text-slate-500">{formatWhen(r.testedAt)}</TableCell>
-                    <TableCell className="text-sm">
+                    <td className="mono text-xs">{r.id.slice(0, 12)}</td>
+                    <td className="mono text-xs" style={{ color: 'var(--muted)' }}>
+                      {formatWhen(r.testedAt)}
+                    </td>
+                    <td className="text-sm">
                       <span className="block">{r.itemCode ? `${r.itemCode} ${r.itemName ?? ''}`.trim() : '—'}</span>
-                      <span className="mt-0.5 block font-mono text-xs text-slate-500">
+                      <span className="mono mt-0.5 block text-xs" style={{ color: 'var(--muted)' }}>
                         {r.workOrderId ? r.workOrderId.slice(0, 12) : '—'}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-xs">
+                    </td>
+                    <td className="text-xs">
                       <span className="block">{copy.testTypeLabel(r.testType)}</span>
-                      <span className="mt-0.5 block font-mono text-[11px] text-slate-500">{r.labProvider ?? '—'}</span>
-                    </TableCell>
-                    <TableCell>
+                      <span className="mono mt-0.5 block text-[11px]" style={{ color: 'var(--muted)' }}>
+                        {r.labProvider ?? '—'}
+                      </span>
+                    </td>
+                    <td>
                       {isAtp && readingNum != null ? (
                         <div data-testid={`lab-results-atp-${r.id}`}>
                           <div
-                            className={`font-mono text-sm font-semibold ${over ? 'text-red-700' : 'text-emerald-700'}`}
+                            className="mono text-sm font-semibold"
+                            style={{ color: over ? 'var(--red-700)' : 'var(--green-700)' }}
                           >
                             {reading} {copy.rluUnit}
                           </div>
                           {thresholdNum != null ? (
                             <>
-                              <div className="mt-1 h-2 overflow-hidden rounded bg-slate-100">
+                              <div
+                                className="mt-1 h-2 overflow-hidden rounded"
+                                style={{ background: 'var(--gray-100)' }}
+                              >
                                 <div
-                                  className={`h-full ${over ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                  style={{ width: `${Math.min(100, (readingNum / (thresholdNum * 1.5)) * 100)}%` }}
+                                  className="h-full"
+                                  style={{
+                                    width: `${Math.min(100, (readingNum / (thresholdNum * 1.5)) * 100)}%`,
+                                    background: over ? 'var(--red)' : 'var(--green)',
+                                  }}
                                   aria-hidden="true"
                                 />
                               </div>
-                              <div className="mt-0.5 text-[10px] text-slate-500">
+                              <div className="mt-0.5 text-[10px]" style={{ color: 'var(--muted)' }}>
                                 {copy.thresholdLabel(threshold ?? '')}
                               </div>
                             </>
                           ) : null}
                         </div>
                       ) : reading != null ? (
-                        <span className="font-mono text-sm">
+                        <span className="mono text-sm">
                           {reading} {r.resultUnit ?? ''}
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-500">{copy.qualitativeLabel}</span>
+                        <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                          {copy.qualitativeLabel}
+                        </span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={verdictBadge[r.resultStatus] ?? 'muted'}>
+                    </td>
+                    <td>
+                      <span className={`badge ${verdictBadge[r.resultStatus] ?? 'badge-gray'}`}>
                         {copy.verdictLabel(r.resultStatus as VerdictFilter)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
+                      </span>
+                    </td>
+                    <td>
                       <Link
                         href={r.qualityResultId ? `${copy.qaHref}?result=${encodeURIComponent(r.qualityResultId)}` : copy.qaHref}
                         data-testid={`lab-results-open-qa-${r.id}`}
-                        className="text-sm font-medium text-sky-600 hover:text-sky-700"
+                        className="text-sm font-medium"
+                        style={{ color: 'var(--blue)' }}
                       >
                         {copy.openInQa}
                       </Link>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 );
               })}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         )}
-      </Card>
+      </div>
 
-      <div
-        role="note"
-        data-testid="lab-results-source-note"
-        className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900"
-      >
+      <div role="note" data-testid="lab-results-source-note" className="alert alert-blue">
         {copy.sourceNote}
       </div>
     </div>

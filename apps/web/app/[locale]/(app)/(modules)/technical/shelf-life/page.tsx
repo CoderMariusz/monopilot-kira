@@ -4,44 +4,32 @@
  * Real Supabase-backed list of finished-good shelf-life rules (org-scoped via
  * withOrgContext + RLS), translated from the prototype ShelfLifeScreen
  * (prototypes/design/Monopilot Design System/technical/other-screens.jsx:587-633):
- * PageHeader + 4-KPI grid + Product / Mode / Duration / Date code / Override
- * table + regulatory-preset note. The override modal mirrors
- * prototypes/design/Monopilot Design System/technical/modals.jsx:486-513.
+ * breadcrumb + .page-title + muted desc + 4-KPI row (.kpi accent) + Product /
+ * Mode / Duration / Date code / Override table (.card/.table) + regulatory note
+ * (.alert-blue). The override modal mirrors modals.jsx:486-513.
  *
  * Shelf-life is Technical-owned and lives directly on the item master (migration
  * 153 columns shelf_life_days / shelf_life_mode / date_code_format) — there is NO
  * separate shelf-life table, so this needs no migration. Loading / empty / error
  * / permission-denied states are all rendered.
  *
+ * i18n: namespace is the canonical lowercase `technical.shelfLife` (matching the
+ * cost / nutrition / labResults siblings), present in all four locales. The page
+ * previously read the capital `Technical.shelfLife` namespace which only existed
+ * in en.json — that hard-crashed render in pl/ro/uk ("Unable to load").
+ *
  * Red-line: FG is canonical — the list filters `item_type = 'fg'`; no FA aliases.
  */
 
 import { getTranslations } from 'next-intl/server';
-
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
-import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listShelfLife } from './_actions/list-shelf-life';
 import { ShelfLifeTable, type ShelfLifeLabels } from './_components/override-modal';
 
 export const dynamic = 'force-dynamic';
 
-function Kpi({ label, value, sub, tone }: { label: string; value: number; sub: string; tone: string }) {
-  return (
-    <Card className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="p-4">
-        <div className="text-xs font-medium text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums" data-tone={tone}>
-          {value}
-        </div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default async function TechnicalShelfLifePage() {
-  const t = await getTranslations('Technical.shelfLife');
+  const t = await getTranslations('technical.shelfLife');
   const { rows, canEdit, state, kpis } = await listShelfLife();
 
   const labels: ShelfLifeLabels = {
@@ -76,48 +64,63 @@ export default async function TechnicalShelfLifePage() {
   };
 
   return (
-    <main data-screen="technical-shelf-life" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <PageHeader
-        title={t('title')}
-        subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.technical') }, { label: t('breadcrumb.shelfLife') }]}
-      />
+    <main data-screen="technical-shelf-life" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb.technical')} / {t('breadcrumb.shelfLife')}
+      </nav>
+
+      <header>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
+      </header>
 
       <section aria-label={t('kpi.region')} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t('kpi.products')} value={kpis.products} sub={t('kpi.productsSub')} tone="default" />
-        <Kpi label={t('kpi.useBy')} value={kpis.useBy} sub={t('kpi.useBySub')} tone="red" />
-        <Kpi label={t('kpi.bestBefore')} value={kpis.bestBefore} sub={t('kpi.bestBeforeSub')} tone="green" />
-        <Kpi label={t('kpi.unconfigured')} value={kpis.unconfigured} sub={t('kpi.unconfiguredSub')} tone="amber" />
+        <div className="kpi">
+          <div className="kpi-label">{t('kpi.products')}</div>
+          <div className="kpi-value tabular-nums">{kpis.products}</div>
+          <div className="kpi-change muted">{t('kpi.productsSub')}</div>
+        </div>
+        <div className="kpi red">
+          <div className="kpi-label">{t('kpi.useBy')}</div>
+          <div className="kpi-value tabular-nums">{kpis.useBy}</div>
+          <div className="kpi-change muted">{t('kpi.useBySub')}</div>
+        </div>
+        <div className="kpi green">
+          <div className="kpi-label">{t('kpi.bestBefore')}</div>
+          <div className="kpi-value tabular-nums">{kpis.bestBefore}</div>
+          <div className="kpi-change muted">{t('kpi.bestBeforeSub')}</div>
+        </div>
+        <div className="kpi amber">
+          <div className="kpi-label">{t('kpi.unconfigured')}</div>
+          <div className="kpi-value tabular-nums">{kpis.unconfigured}</div>
+          <div className="kpi-change muted">{t('kpi.unconfiguredSub')}</div>
+        </div>
       </section>
 
       {state === 'error' ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          {t('state.error')}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{t('state.error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">{t('state.emptyTitle')}</h2>
-            <CardDescription className="text-sm text-muted-foreground">{t('state.emptyBody')}</CardDescription>
-          </CardHeader>
-        </Card>
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">📦</div>
+            <div className="empty-state-title">{t('state.emptyTitle')}</div>
+            <div className="empty-state-body">{t('state.emptyBody')}</div>
+          </div>
+        </div>
       ) : (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="p-0">
-            <ShelfLifeTable rows={rows} labels={labels} canEdit={canEdit} />
-          </CardContent>
-        </Card>
+        <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+          <ShelfLifeTable rows={rows} labels={labels} canEdit={canEdit} />
+        </div>
       )}
 
-      <div
-        role="note"
-        className="rounded-xl border border-blue-200 bg-blue-50 px-6 py-4 text-sm text-blue-800"
-      >
+      <div role="note" className="alert alert-blue">
         {t('regulatoryNote')}
       </div>
 
       {!canEdit ? (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
+        <div role="alert" className="alert alert-amber">
           {t('state.readOnly')}
         </div>
       ) : null}

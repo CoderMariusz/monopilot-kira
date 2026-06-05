@@ -18,8 +18,6 @@
 import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 
-import { PageHeader } from '@monopilot/ui/PageHeader';
-
 import { listLabResults } from './_actions/list-lab-results';
 import { LabResultsLog, type LabResultsCopy } from './_components/lab-results-log.client';
 
@@ -51,12 +49,10 @@ async function LabResultsContent({ searchParams }: { searchParams: SearchParams 
 
   if (!result.ok) {
     return (
-      <div
-        role="alert"
-        data-testid="technical-lab-results-error"
-        className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700"
-      >
-        {result.state === 'invalid_filter' ? t('invalidFilter', { field: result.field }) : t('error')}
+      <div role="alert" data-testid="technical-lab-results-error" className="alert alert-red">
+        <div className="alert-title">
+          {result.state === 'invalid_filter' ? t('invalidFilter', { field: result.field }) : t('error')}
+        </div>
       </div>
     );
   }
@@ -91,12 +87,16 @@ export default async function TechnicalLabResultsPage({ searchParams }: { search
   const t = await getTranslations('technical.labResults');
 
   return (
-    <main data-screen="technical-lab-results-page" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <PageHeader
-        title={t('title')}
-        subtitle={t('subtitle')}
-        breadcrumb={[{ label: t('breadcrumb.technical') }, { label: t('breadcrumb.labResults') }]}
-      />
+    <main data-screen="technical-lab-results-page" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb.technical')} / {t('breadcrumb.labResults')}
+      </nav>
+
+      <header>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
+      </header>
+
       <Suspense fallback={<LabResultsSkeleton />}>
         <LabResultsContent searchParams={searchParams} />
       </Suspense>

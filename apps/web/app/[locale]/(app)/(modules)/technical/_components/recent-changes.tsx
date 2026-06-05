@@ -2,19 +2,18 @@
  * TEC-080 Technical Dashboard — Recent Changes panel.
  *
  * Prototype parity: prototypes/design/Monopilot Design System/technical/
- * other-screens.jsx:283-299 ("Recent BOM changes" table). Translated to the
- * @monopilot/ui Card + Table primitives; the prototype's hardcoded VERSIONS rows
- * are replaced by real public.audit_log rows (Technical-owned resource types)
- * supplied by the RSC page. Empty state renders the prototype-equivalent muted
- * copy so a fresh org never shows a broken/blank panel.
+ * other-screens.jsx:283-299 ("Recent BOM changes" table). Conformance to the
+ * locked design system: `.card` head + dense raw `.table` (no `@monopilot/ui`
+ * wrapper, no shadow), leading cell timestamp in `.mono`, reference code in
+ * `.mono`, resource type as a neutral `.badge-gray` tone. The prototype's
+ * hardcoded VERSIONS rows are replaced by real public.audit_log rows
+ * (Technical-owned resource types) supplied by the RSC page. Empty list renders
+ * the canonical `.empty-state` (icon + title + body) so a fresh org never shows
+ * a blank `<tbody>`.
  *
  * Presentational only — strings (labels, empty copy, formatted timestamps) are
  * passed in so the panel is RTL-testable and i18n is owned by the page.
  */
-import { Badge } from '@monopilot/ui/Badge';
-import { Card } from '@monopilot/ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
 export type RecentChangeRow = {
   id: string;
   /** Pre-formatted, locale-aware timestamp string. */
@@ -39,39 +38,58 @@ export function RecentChangesPanel({
   columnHeaders: { when: string; resource: string; action: string; reference: string };
 }) {
   return (
-    <Card
-      data-testid="technical-recent-changes"
-      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-    >
-      <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">{title}</div>
+    <div data-testid="technical-recent-changes" className="card" style={{ padding: 0, marginBottom: 0, overflow: 'hidden' }}>
+      <div
+        style={{
+          padding: '10px 14px',
+          borderBottom: '1px solid var(--border)',
+          fontWeight: 600,
+          fontSize: 13,
+        }}
+      >
+        {title}
+      </div>
       {rows.length === 0 ? (
-        <p data-testid="technical-recent-changes-empty" className="px-4 py-8 text-center text-sm text-slate-500">
-          {emptyCopy}
-        </p>
+        <div data-testid="technical-recent-changes-empty" className="empty-state">
+          <div className="empty-state-icon">🗂️</div>
+          <div className="empty-state-body" style={{ marginBottom: 0 }}>
+            {emptyCopy}
+          </div>
+        </div>
       ) : (
-        <Table aria-label={title}>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">{columnHeaders.when}</TableHead>
-              <TableHead scope="col">{columnHeaders.resource}</TableHead>
-              <TableHead scope="col">{columnHeaders.action}</TableHead>
-              <TableHead scope="col">{columnHeaders.reference}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table aria-label={title}>
+          <thead>
+            <tr>
+              <th scope="col" style={{ width: 140 }}>
+                {columnHeaders.when}
+              </th>
+              <th scope="col" style={{ width: 120 }}>
+                {columnHeaders.resource}
+              </th>
+              <th scope="col">{columnHeaders.action}</th>
+              <th scope="col" style={{ width: 110 }}>
+                {columnHeaders.reference}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-mono text-xs text-slate-500">{row.when}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{row.resourceLabel}</Badge>
-                </TableCell>
-                <TableCell className="text-sm">{row.actionLabel}</TableCell>
-                <TableCell className="font-mono text-xs text-slate-500">{row.reference}</TableCell>
-              </TableRow>
+              <tr key={row.id}>
+                <td className="mono" style={{ color: 'var(--muted)' }}>
+                  {row.when}
+                </td>
+                <td>
+                  <span className="badge badge-gray">{row.resourceLabel}</span>
+                </td>
+                <td style={{ fontSize: 13 }}>{row.actionLabel}</td>
+                <td className="mono" style={{ color: 'var(--muted)' }}>
+                  {row.reference}
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       )}
-    </Card>
+    </div>
   );
 }

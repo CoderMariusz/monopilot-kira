@@ -3,11 +3,11 @@
 /**
  * T-046 — 03-technical Shelf Life Config (TEC-030) client island.
  *
- * Renders the shelf-life rule table + the "Override shelf life" modal translated
- * from the prototype:
+ * Design-system parity (MON-design-system): dense `.table` with mono codes,
+ * 5-tone `.badge-*` mode badges, and the locked `.modal-*` / `.ff*` chrome for
+ * the override dialog. Translated from:
  *   - prototypes/design/Monopilot Design System/technical/other-screens.jsx:587-633
- *     (ShelfLifeScreen — KPI grid + Product / Mode / Duration / Storage / preset /
- *      Notes table + per-row Override button)
+ *     (ShelfLifeScreen — Product / Mode / Duration / Date code / Override table)
  *   - prototypes/design/Monopilot Design System/technical/modals.jsx:486-513
  *     (ShelfLifeOverrideModal — current/new days + audit reason ≥ 10 chars).
  *
@@ -15,21 +15,17 @@
  * + RLS, then router.refresh()es so the list reflects the new value.
  *
  * Local Dialog primitive (not the Radix-backed @monopilot/ui Modal) for the same
- * dual-React reason documented in the Items master island
- * (items/_components/items-manager.client.tsx): apps/web runs React 19 while
- * @radix-ui/react-dialog ships a React 18 peer, which crashes in jsdom. Production
- * dialog semantics (role="dialog", aria-modal, focus on open, Escape + backdrop
- * close, labelled title) are preserved.
+ * dual-React reason documented in the Items master island: apps/web runs React 19
+ * while @radix-ui/react-dialog ships a React 18 peer, which crashes in jsdom.
+ * Production dialog semantics (role="dialog", aria-modal, focus on open, Escape +
+ * backdrop close, labelled title) are preserved.
  */
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { setShelfLifeOverride } from '../_actions/set-shelf-life-override';
 import {
@@ -72,9 +68,11 @@ export type ShelfLifeLabels = {
   errGeneric: string;
 };
 
-const MODE_VARIANT: Record<ShelfLifeMode, BadgeVariant> = {
-  use_by: 'danger',
-  best_before: 'success',
+// 5-tone semantic mapping: use_by (perishable / legally stricter) → bad(red),
+// best_before (ambient / frozen) → ok(green).
+const MODE_BADGE: Record<ShelfLifeMode, string> = {
+  use_by: 'badge-red',
+  best_before: 'badge-green',
 };
 
 function modeLabel(mode: ShelfLifeMode | null, labels: ShelfLifeLabels): string {
@@ -128,7 +126,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -139,27 +137,26 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-lg rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box outline-none"
       >
-        <div className="mb-3 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <div id={titleId} className="modal-title">
               {title}
-            </h2>
-            {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+            </div>
+            {subtitle ? <div className="mono mt-1 text-xs text-[color:var(--muted)]">{subtitle}</div> : null}
           </div>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" aria-label="Close" className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
 }
 
-const MODE_OPTIONS = SHELF_LIFE_MODES.map((value) => ({ value, labelKey: value }));
 const DATE_CODE_OPTIONS = DATE_CODE_FORMATS.map((value) => ({ value, label: value }));
 
 function OverrideModal({
@@ -214,9 +211,9 @@ function OverrideModal({
     });
   }
 
-  const modeOptions = MODE_OPTIONS.map((o) => ({
-    value: o.value,
-    label: o.labelKey === 'use_by' ? labels.modeUseBy : labels.modeBestBefore,
+  const modeOptions = SHELF_LIFE_MODES.map((value) => ({
+    value,
+    label: value === 'use_by' ? labels.modeUseBy : labels.modeBestBefore,
   }));
 
   return (
@@ -236,60 +233,74 @@ function OverrideModal({
         </>
       }
     >
-      <div
-        role="note"
-        className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-      >
+      <div role="note" className="alert alert-amber">
         {labels.warningOverride}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block text-sm font-medium text-slate-700">
-          {labels.fieldCurrent}
-          <Input
+
+      <div className="ff-inline">
+        <div className="ff">
+          <label htmlFor="currentShelfLife">{labels.fieldCurrent}</label>
+          <input
+            id="currentShelfLife"
             name="currentShelfLife"
             readOnly
-            className="bg-slate-50"
+            className="bg-[color:var(--gray-050)] mono"
             value={row.shelfLifeDays != null ? `${row.shelfLifeDays} ${labels.days}` : labels.notConfigured}
           />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          {labels.fieldNewDays}
-          <Input
+        </div>
+        <div className="ff">
+          <label htmlFor="newShelfLifeDays">
+            {labels.fieldNewDays}
+            <span className="req">*</span>
+          </label>
+          <input
+            id="newShelfLifeDays"
             name="newShelfLifeDays"
             type="number"
             min={1}
             required
+            className="mono"
             value={days}
             onChange={(event) => setDays(event.currentTarget.value)}
           />
-        </label>
+        </div>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="block text-sm font-medium text-slate-700">
-          {labels.fieldMode}
+
+      <div className="ff-inline">
+        <div className="ff">
+          <label>{labels.fieldMode}</label>
           <Select
             value={mode}
             onValueChange={(v) => setMode(v as ShelfLifeMode)}
             options={modeOptions}
             aria-label={labels.fieldMode}
           />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          {labels.fieldDateCode}
+        </div>
+        <div className="ff">
+          <label>{labels.fieldDateCode}</label>
           <Select
             value={dateCodeFormat}
             onValueChange={setDateCodeFormat}
             options={DATE_CODE_OPTIONS}
             aria-label={labels.fieldDateCode}
           />
-        </label>
+        </div>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {labels.preview}: <span className="font-mono" data-testid="date-code-preview">{sample}</span>
+
+      <p className="ff-help">
+        {labels.preview}:{' '}
+        <span className="mono" data-testid="date-code-preview">
+          {sample}
+        </span>
       </p>
-      <label className="mt-3 block text-sm font-medium text-slate-700">
-        {labels.fieldReason}
+
+      <div className="ff">
+        <label htmlFor="shelf-life-reason">
+          {labels.fieldReason}
+          <span className="req">*</span>
+        </label>
         <textarea
+          id="shelf-life-reason"
           name="reason"
           required
           minLength={10}
@@ -298,12 +309,12 @@ function OverrideModal({
           onChange={(event) => setReason(event.currentTarget.value)}
           placeholder={labels.reasonPlaceholder}
           aria-label={labels.fieldReason}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
-        <span className="mt-1 block text-xs text-muted-foreground">{labels.reasonHelp}</span>
-      </label>
+        <span className="ff-help">{labels.reasonHelp}</span>
+      </div>
+
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="ff-error">
           {error}
         </p>
       ) : null}
@@ -321,12 +332,12 @@ function ShelfLifeRowActions({
   canEdit: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
-  if (!canEdit) return <span className="text-muted-foreground">{labels.dash}</span>;
+  if (!canEdit) return <span className="muted">{labels.dash}</span>;
   return (
     <>
       <button
         type="button"
-        className="font-medium text-blue-600 underline-offset-4 hover:underline"
+        className="btn btn-ghost btn-sm"
         data-modal-id="TEC-SHELFLIFE-OVERRIDE"
         onClick={() => setOpen(true)}
       >
@@ -347,44 +358,50 @@ export function ShelfLifeTable({
   canEdit: boolean;
 }) {
   return (
-    <Table aria-label="Shelf-life configuration">
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col">{labels.colProduct}</TableHead>
-          <TableHead scope="col">{labels.colMode}</TableHead>
-          <TableHead scope="col" className="text-right">
+    <table aria-label="Shelf-life configuration">
+      <thead>
+        <tr>
+          <th scope="col">{labels.colProduct}</th>
+          <th scope="col" style={{ width: 130 }}>
+            {labels.colMode}
+          </th>
+          <th scope="col" style={{ width: 120, textAlign: 'right' }}>
             {labels.colDuration}
-          </TableHead>
-          <TableHead scope="col">{labels.colDateCode}</TableHead>
-          <TableHead scope="col" className="text-right">
+          </th>
+          <th scope="col" style={{ width: 140 }}>
+            {labels.colDateCode}
+          </th>
+          <th scope="col" style={{ width: 110, textAlign: 'right' }}>
             {labels.colActions}
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
         {rows.map((row) => (
-          <TableRow key={row.id}>
-            <TableCell className="font-medium">
-              {row.name}
-              <div className="font-mono text-xs text-muted-foreground">{row.itemCode}</div>
-            </TableCell>
-            <TableCell>
+          <tr key={row.id}>
+            <td>
+              <span style={{ fontWeight: 500 }}>{row.name}</span>
+              <div className="mono text-xs" style={{ color: 'var(--muted)' }}>
+                {row.itemCode}
+              </div>
+            </td>
+            <td>
               {row.shelfLifeMode ? (
-                <Badge variant={MODE_VARIANT[row.shelfLifeMode]}>{modeLabel(row.shelfLifeMode, labels)}</Badge>
+                <span className={`badge ${MODE_BADGE[row.shelfLifeMode]}`}>{modeLabel(row.shelfLifeMode, labels)}</span>
               ) : (
-                <Badge variant="muted">{labels.notConfigured}</Badge>
+                <span className="badge badge-gray">{labels.notConfigured}</span>
               )}
-            </TableCell>
-            <TableCell className="text-right font-mono tabular-nums">
+            </td>
+            <td className="num mono" style={{ textAlign: 'right' }}>
               {row.shelfLifeDays != null ? `${row.shelfLifeDays} ${labels.days}` : labels.dash}
-            </TableCell>
-            <TableCell className="font-mono text-xs">{row.dateCodeFormat ?? labels.dash}</TableCell>
-            <TableCell className="text-right">
+            </td>
+            <td className="mono text-xs">{row.dateCodeFormat ?? labels.dash}</td>
+            <td style={{ textAlign: 'right' }}>
               <ShelfLifeRowActions row={row} labels={labels} canEdit={canEdit} />
-            </TableCell>
-          </TableRow>
+            </td>
+          </tr>
         ))}
-      </TableBody>
-    </Table>
+      </tbody>
+    </table>
   );
 }

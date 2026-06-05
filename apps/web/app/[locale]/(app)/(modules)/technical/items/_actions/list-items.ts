@@ -80,9 +80,26 @@ function mapRow(row: ItemRow): ItemListItem | null {
 const DEFAULT_ITEM_LIMIT = 200;
 const MAX_ITEM_LIMIT = 200;
 
-export async function listItems(opts?: { limit?: number; offset?: number }): Promise<ListItemsResult> {
+/**
+ * Optional server-side `item_type` filter. Used by the Materials route
+ * (`itemTypes:['rm']`) so the RM-only list is constrained in SQL under RLS rather
+ * than client-side. When absent, the full item master is returned (Products list).
+ * Values are validated against ITEM_TYPE_SET so a caller can never inject SQL.
+ */
+function sanitizeTypes(itemTypes?: readonly string[]): ItemType[] | null {
+  if (!itemTypes || itemTypes.length === 0) return null;
+  const valid = itemTypes.filter((t): t is ItemType => ITEM_TYPE_SET.has(t as ItemType));
+  return valid.length ? Array.from(new Set(valid)) : null;
+}
+
+export async function listItems(opts?: {
+  limit?: number;
+  offset?: number;
+  itemTypes?: readonly string[];
+}): Promise<ListItemsResult> {
   const limit = Math.min(Math.max(opts?.limit ?? DEFAULT_ITEM_LIMIT, 1), MAX_ITEM_LIMIT);
   const offset = Math.max(opts?.offset ?? 0, 0);
+  const types = sanitizeTypes(opts?.itemTypes);
 
   try {
     return await withOrgContext(async ({ userId, orgId, client }): Promise<ListItemsResult> => {
@@ -102,9 +119,10 @@ export async function listItems(opts?: { limit?: number; offset?: number }): Pro
                   count(*) over () as total_count
              from public.items i
             where i.org_id = app.current_org_id()
+              and ($3::text[] is null or i.item_type = any($3::text[]))
             order by i.item_code asc
             limit $1 offset $2`,
-          [limit, offset],
+          [limit, offset, types],
         ),
         hasPermission(ctx, ITEMS_CREATE_PERMISSION),
         hasPermission(ctx, ITEMS_EDIT_PERMISSION),

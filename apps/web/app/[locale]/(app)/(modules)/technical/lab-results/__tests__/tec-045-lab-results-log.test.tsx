@@ -105,10 +105,11 @@ describe('TEC-045 parity (spec-driven-screens.jsx:451-546)', () => {
 
   it('does NOT render any write / add / NCR / sign-off control (read-only)', () => {
     render(<LabResultsLog rows={ROWS} copy={COPY} />);
-    // No button beyond the verdict filter pills (which are type=button toggles).
-    const buttons = screen.getAllByRole('button');
-    // 6 verdict pills (all/pass/fail/inconclusive/pending/hold) and nothing else.
-    expect(buttons).toHaveLength(6);
+    // The verdict filters are the design-system .tabs-counted (role="tab") toggles;
+    // there is no plain write/action button on this read-only surface.
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    // 6 verdict tabs (all/pass/fail/inconclusive/pending/hold) and nothing else.
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
     expect(screen.queryByText(/add lab result/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/raise ncr/i)).not.toBeInTheDocument();
   });

@@ -28,11 +28,6 @@
 import React from 'react';
 import Link from 'next/link';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
 import type { ToolingSetupRow } from '../_actions/shared';
 
 export type ToolingListLabels = {
@@ -58,11 +53,11 @@ export type ToolingListLabels = {
 
 type Filter = 'all' | 'machine' | 'line';
 
-const STATUS_VARIANT: Record<string, BadgeVariant> = {
-  draft: 'muted',
-  approved: 'info',
-  active: 'success',
-  superseded: 'warning',
+const STATUS_TONE: Record<string, string> = {
+  draft: 'badge-gray',
+  approved: 'badge-blue',
+  active: 'badge-green',
+  superseded: 'badge-amber',
 };
 
 function formatCostPerHour(value: string | null): string {
@@ -121,9 +116,9 @@ export function ToolingList({
   ];
 
   return (
-    <div data-prototype-label="tooling_screen" className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="Filter tooling setups" className="flex flex-wrap gap-2">
+    <div data-prototype-label="tooling_screen" data-testid="tooling-list" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="pills" role="tablist" aria-label="Filter tooling setups">
           {pills.map(([key, label, count]) => (
             <button
               key={key}
@@ -132,14 +127,9 @@ export function ToolingList({
               aria-selected={filter === key}
               data-testid={`tooling-filter-${key}`}
               onClick={() => setFilter(key)}
-              className={[
-                'rounded-full border px-3 py-1 text-sm transition-colors',
-                filter === key
-                  ? 'border-blue-300 bg-blue-50 font-medium text-blue-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-              ].join(' ')}
+              className={`pill${filter === key ? ' on' : ''}`}
             >
-              {label} <span className="ml-1 opacity-50">{count}</span>
+              {label} <span className="opacity-60">{count}</span>
             </button>
           ))}
         </div>
@@ -147,92 +137,94 @@ export function ToolingList({
           <label htmlFor="tooling-search" className="sr-only">
             {labels.searchPlaceholder}
           </label>
-          <Input
+          <input
             id="tooling-search"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={labels.searchPlaceholder}
-            className="w-56"
+            aria-label={labels.searchPlaceholder}
+            className="form-input"
+            style={{ width: 224 }}
             data-testid="tooling-search"
           />
           {canWrite ? (
-            <Link href={routingsHref} className="btn btn--default" data-testid="tooling-create-cta" data-variant="default">
+            <Link href={routingsHref} className="btn btn-primary" data-testid="tooling-create-cta">
               {labels.createCta}
             </Link>
           ) : null}
         </div>
       </div>
 
-      <Card className="rounded-xl border bg-white shadow-sm">
-        <CardContent className="p-0">
-          <Table aria-label="Tooling and equipment setups">
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">{labels.colCode}</TableHead>
-                <TableHead scope="col">{labels.colName}</TableHead>
-                <TableHead scope="col">{labels.colType}</TableHead>
-                <TableHead scope="col">{labels.colResource}</TableHead>
-                <TableHead scope="col">{labels.colItem}</TableHead>
-                <TableHead scope="col" className="text-right">
-                  {labels.colSetup}
-                </TableHead>
-                <TableHead scope="col" className="text-right">
-                  {labels.colCostPerHour}
-                </TableHead>
-                <TableHead scope="col">{labels.colUpdated}</TableHead>
-                <TableHead scope="col">{labels.colStatus}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length ? (
-                rows.map((s) => (
-                  <TableRow key={s.id} data-testid="tooling-row">
-                    <TableCell className="font-mono text-sm">{s.opCode}</TableCell>
-                    <TableCell className="font-medium">{s.opName}</TableCell>
-                    <TableCell>
-                      {s.resourceKind ? (
-                        <Badge variant={s.resourceKind === 'machine' ? 'info' : 'secondary'}>
-                          {s.resourceKind === 'machine' ? labels.typeMachine : labels.typeLine}
-                        </Badge>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {s.resourceCode ? (
-                        <span>
-                          <span className="font-mono">{s.resourceCode}</span>
-                          {s.resourceName ? <span className="text-muted-foreground"> · {s.resourceName}</span> : null}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{s.itemCode}</TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
-                      {s.setupTimeMin} {labels.setupUnit}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
-                      {formatCostPerHour(s.costPerHour)}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{formatUpdated(s.updatedAt)}</TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[s.routingStatus] ?? 'muted'}>{s.routingStatus}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                    {labels.noMatches}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table aria-label="Tooling and equipment setups">
+          <thead>
+            <tr>
+              <th scope="col">{labels.colCode}</th>
+              <th scope="col">{labels.colName}</th>
+              <th scope="col">{labels.colType}</th>
+              <th scope="col">{labels.colResource}</th>
+              <th scope="col">{labels.colItem}</th>
+              <th scope="col" style={{ textAlign: 'right' }}>
+                {labels.colSetup}
+              </th>
+              <th scope="col" style={{ textAlign: 'right' }}>
+                {labels.colCostPerHour}
+              </th>
+              <th scope="col">{labels.colUpdated}</th>
+              <th scope="col">{labels.colStatus}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? (
+              rows.map((s) => (
+                <tr key={s.id} data-testid="tooling-row">
+                  <td className="mono">{s.opCode}</td>
+                  <td style={{ fontWeight: 500 }}>{s.opName}</td>
+                  <td>
+                    {s.resourceKind ? (
+                      <span className={`badge ${s.resourceKind === 'machine' ? 'badge-blue' : 'badge-gray'}`}>
+                        {s.resourceKind === 'machine' ? labels.typeMachine : labels.typeLine}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    {s.resourceCode ? (
+                      <span>
+                        <span className="mono">{s.resourceCode}</span>
+                        {s.resourceName ? <span className="muted"> · {s.resourceName}</span> : null}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="mono">{s.itemCode}</td>
+                  <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                    {s.setupTimeMin} {labels.setupUnit}
+                  </td>
+                  <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                    {formatCostPerHour(s.costPerHour)}
+                  </td>
+                  <td className="mono" style={{ color: 'var(--muted)' }}>
+                    {formatUpdated(s.updatedAt)}
+                  </td>
+                  <td>
+                    <span className={`badge ${STATUS_TONE[s.routingStatus] ?? 'badge-gray'}`}>{s.routingStatus}</span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={9} className="muted" style={{ padding: '32px 12px', textAlign: 'center' }}>
+                  {labels.noMatches}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

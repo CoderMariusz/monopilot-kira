@@ -178,17 +178,17 @@ describe('T-092 Sensory Evaluation — parity + read-model states', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Unable to load sensory evaluations');
   });
 
-  it('resolves every Technical.sensory key in all 4 locales (i18n completeness)', () => {
+  it('resolves every technical.sensory key in all 4 locales (i18n completeness)', () => {
     const keysToCheck = ['title', 'readOnlyNote', 'status.fail', 'status.notRequired', 'state.denied', 'sourceNote'];
     for (const locale of ['en', 'pl', 'ro', 'uk'] as Locale[]) {
       const file = path.resolve(__dirname, `../../../../../../../i18n/${locale}.json`);
       const messages = JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown>;
-      const ns = (messages.Technical as Record<string, unknown>).sensory as Record<string, unknown>;
+      const ns = (messages.technical as Record<string, unknown>).sensory as Record<string, unknown>;
       for (const key of keysToCheck) {
         const value = key.split('.').reduce<unknown>((acc, part) => {
           return acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[part] : undefined;
         }, ns);
-        expect(typeof value, `${locale}:Technical.sensory.${key}`).toBe('string');
+        expect(typeof value, `${locale}:technical.sensory.${key}`).toBe('string');
       }
     }
   });

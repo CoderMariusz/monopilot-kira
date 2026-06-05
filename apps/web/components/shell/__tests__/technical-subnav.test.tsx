@@ -58,7 +58,7 @@ describe('TechnicalSubNav', () => {
 
     const active = screen.getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page');
     expect(active).toHaveLength(1);
-    expect(active[0]).toHaveAttribute('data-testid', 'technical-subnav-item-items');
+    expect(active[0]).toHaveAttribute('data-testid', 'technical-subnav-item-products');
   });
 
   it('isTechnicalNavItemActive: exact for overview, prefix for sections', () => {
@@ -66,5 +66,8 @@ describe('TechnicalSubNav', () => {
     expect(isTechnicalNavItemActive('/technical', '/technical/items')).toBe(false);
     expect(isTechnicalNavItemActive('/technical/bom', '/technical/bom/RM-1')).toBe(true);
     expect(isTechnicalNavItemActive('/technical/items', '/technical/cost')).toBe(false);
+    // Recipe costing (/technical/cost) must not light up on Cost history.
+    expect(isTechnicalNavItemActive('/technical/cost', '/technical/cost/history')).toBe(false);
+    expect(isTechnicalNavItemActive('/technical/cost/history', '/technical/cost/history')).toBe(true);
   });
 });

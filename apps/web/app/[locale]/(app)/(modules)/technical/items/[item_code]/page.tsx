@@ -22,13 +22,24 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 
 import { getItem } from '../_actions/get-item';
 import type { ItemStatus, ItemType } from '../_actions/shared';
 import { ItemDetailActions } from './_components/item-detail-actions';
 import { ItemDetailTabs, type ItemDetailTabsLabels } from './_components/item-detail-tabs';
 import { ItemOverviewTab, type ItemOverviewLabels } from './_components/item-overview-tab';
+import { AllergensTabServer } from './_components/allergens-tab-server';
+import { buildAllergensTabLabels } from './_components/allergen-labels';
+import {
+  BomTab,
+  CostTab,
+  RoutingTab,
+  LabTab,
+  D365Tab,
+  SupplierSpecsTab,
+} from './_components/item-data-tabs';
+import { buildDataTabLabels } from './_components/item-data-tab-labels';
+import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
 import type { ItemWizardLabels } from '../_components/item-create-wizard';
 
@@ -54,7 +65,7 @@ type PageProps = {
 };
 
 export default async function TechnicalItemDetailPage({ params }: PageProps) {
-  const { item_code: rawCode } = await params;
+  const { locale, item_code: rawCode } = await params;
   const itemCode = decodeURIComponent(rawCode);
 
   const t = await getTranslations('technical.items');
@@ -64,22 +75,26 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   if (result.state === 'not_found' || result.state === 'error') {
     const isError = result.state === 'error';
     return (
-      <main data-screen="technical-item-detail" className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
-        <Link href="../items" className="text-sm text-blue-600 hover:underline">
-          ← {t('detail.back')}
-        </Link>
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h1 className="text-lg font-semibold tracking-tight">
-              {isError ? t('detail.error') : t('detail.notFound')}
-            </h1>
-            {!isError ? (
-              <CardContent className="px-0 text-sm text-muted-foreground">
-                {t('detail.notFoundBody', { code: itemCode })}
-              </CardContent>
-            ) : null}
-          </CardHeader>
-        </Card>
+      <main data-screen="technical-item-detail" className="flex w-full flex-col gap-4 px-6 py-6">
+        <nav className="breadcrumb" aria-label="Breadcrumb">
+          <Link href="../items">{t('detail.breadcrumb')}</Link> / <span className="font-mono">{itemCode}</span>
+        </nav>
+        <div role="alert" className={isError ? 'alert alert-red' : 'card'}>
+          {isError ? (
+            <div className="alert-title">{t('detail.error')}</div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state-icon">🔍</div>
+              <div className="empty-state-title">{t('detail.notFound')}</div>
+              <div className="empty-state-body">{t('detail.notFoundBody', { code: itemCode })}</div>
+              <div className="empty-state-action">
+                <Link href="../items" className="btn btn-secondary">
+                  {t('detail.back')}
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
     );
   }
@@ -200,23 +215,34 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
     },
   };
 
+  // ── deferred-tab data: real Supabase reads under withOrgContext + RLS ────────
+  const [dataTabLabels, allergensTabLabels, bomData, costData, routingData, labData, d365Data] =
+    await Promise.all([
+      buildDataTabLabels(locale),
+      buildAllergensTabLabels(locale),
+      loadBomTab(item.itemCode),
+      loadCostTab(item.itemCode),
+      loadRoutingTab(item.itemCode),
+      loadLabTab(item.itemCode),
+      loadD365Tab(item.itemCode),
+    ]);
+
   return (
-    <main data-screen="technical-item-detail" className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+    <main data-screen="technical-item-detail" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href="../items">{t('detail.breadcrumb')}</Link> /{' '}
+        <span className="font-mono">{item.itemCode}</span>
+      </nav>
+
       <header className="flex items-start justify-between gap-4">
         <div>
-          <nav className="text-xs text-muted-foreground" aria-label="Breadcrumb">
-            <Link href="../items" className="hover:underline">
-              {t('detail.breadcrumb')}
-            </Link>{' '}
-            › <span className="font-mono">{item.itemCode}</span>
-          </nav>
-          <h1 className="mt-1 flex items-center gap-3 text-2xl font-semibold tracking-tight">
-            <span className="font-mono">{item.itemCode}</span>
+          <h1 className="page-title flex items-center gap-3">
+            <span className="mono text-shell-muted">{item.itemCode}</span>
             <span className="text-slate-400">·</span>
             <span>{item.name}</span>
             <Badge variant={STATUS_VARIANT[item.status]}>{item.status}</Badge>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="helper mt-1 max-w-3xl">
             {t('detail.subtitle', { type: TYPE_LABEL[item.itemType] })}
           </p>
         </div>
@@ -234,7 +260,16 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       <ItemDetailTabs
         itemCode={item.itemCode}
         labels={tabsLabels}
-        panels={{ overview: <ItemOverviewTab item={item} labels={overviewLabels} /> }}
+        panels={{
+          overview: <ItemOverviewTab item={item} labels={overviewLabels} />,
+          allergens: <AllergensTabServer itemCode={item.itemCode} labels={allergensTabLabels} />,
+          bom: <BomTab data={bomData} labels={dataTabLabels.bom} />,
+          cost: <CostTab data={costData} labels={dataTabLabels.cost} />,
+          routing: <RoutingTab data={routingData} labels={dataTabLabels.routing} />,
+          labResults: <LabTab data={labData} labels={dataTabLabels.lab} />,
+          d365: <D365Tab data={d365Data} labels={dataTabLabels.d365} />,
+          supplierSpecs: <SupplierSpecsTab labels={dataTabLabels.supplier} />,
+        }}
       />
     </main>
   );

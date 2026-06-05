@@ -18,8 +18,6 @@
 
 import { getTranslations } from 'next-intl/server';
 
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
-
 import { listBomSnapshots } from './_actions/list-snapshots';
 import { diffBomSnapshot } from './_actions/diff-snapshot';
 import { SnapshotsViewer, type SnapshotsViewerLabels } from './_components/snapshots-viewer.client';
@@ -66,25 +64,27 @@ export default async function TechnicalBomSnapshotsPage() {
   const labels = buildLabels(t);
 
   return (
-    <main data-screen="technical-bom-snapshots" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <header className="space-y-1">
-        <p className="text-sm text-muted-foreground">{t('breadcrumb')}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
+    <main data-screen="technical-bom-snapshots" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb')}
+      </nav>
+      <header>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
       </header>
 
       {state === 'error' ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          {t('error')}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{t('error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">{t('empty.title')}</h2>
-            <CardDescription className="text-sm text-muted-foreground">{t('empty.body')}</CardDescription>
-          </CardHeader>
-          <CardContent />
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">📸</div>
+            <div className="empty-state-title">{t('empty.title')}</div>
+            <div className="empty-state-body">{t('empty.body')}</div>
+          </div>
+        </div>
       ) : (
         <SnapshotsViewer snapshots={snapshots} diffAction={diffBomSnapshot} labels={labels} />
       )}

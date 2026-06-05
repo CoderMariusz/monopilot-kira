@@ -10,6 +10,9 @@
  * cost preview + resource utilization view. Loading / empty / error /
  * permission-denied states are all rendered.
  *
+ * Rebuilt to MON-design-system (lane A2): breadcrumb + `.page-title` + muted
+ * desc, `.card`/`.alert`/`.empty-state`; copy via next-intl (technical.routings).
+ *
  * Prototype parity:
  *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:4-34
  *     (`RoutingsScreen`) + other-screens.jsx:1270-1287 (product-detail Routing tab
@@ -21,42 +24,63 @@
  *   See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  */
 
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
+import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 import { listRoutingItems } from './_actions/list-routing-items';
-import { RoutingsManager } from './_components/routings-manager.client';
+import {
+  RoutingsManager,
+  ROUTINGS_DEFAULT_LABELS,
+  type RoutingsLabels,
+} from './_components/routings-manager.client';
 
 export const dynamic = 'force-dynamic';
 
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
+function buildLabels(t: Translator): RoutingsLabels {
+  const keys = Object.keys(ROUTINGS_DEFAULT_LABELS) as Array<keyof RoutingsLabels>;
+  return keys.reduce((acc, key) => {
+    try {
+      const value = t(`manager.${key}`);
+      acc[key] = value === `manager.${key}` ? ROUTINGS_DEFAULT_LABELS[key] : value;
+    } catch {
+      acc[key] = ROUTINGS_DEFAULT_LABELS[key];
+    }
+    return acc;
+  }, {} as RoutingsLabels);
+}
+
 export default async function TechnicalRoutingsPage() {
   const { items, lines, machines, operationNames, canWrite, canApprove, state } = await listRoutingItems();
+  const t = await getTranslations('technical.routings');
+  const labels = buildLabels(t);
 
   return (
-    <main data-screen="technical-routings" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
+    <main data-screen="technical-routings" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href="/technical">{t('breadcrumbRoot')}</Link> / {t('title')}
+      </nav>
+
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Routings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ordered manufacturing operations per item, bound to lines and equipment. Preview the routing cost at a
-            production volume and see resource utilization across operations.
-          </p>
+          <h1 className="page-title">{t('title')}</h1>
+          <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
         </div>
       </header>
 
       {state === 'error' ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          Unable to load items. Please try again.
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{t('error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">No items yet</h2>
-            <CardDescription className="text-sm text-muted-foreground">
-              Create items in the Items master to author routings for them here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent />
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">🧭</div>
+            <div className="empty-state-title">{t('empty.title')}</div>
+            <div className="empty-state-body">{t('empty.body')}</div>
+          </div>
+        </div>
       ) : (
         <RoutingsManager
           items={items}
@@ -65,6 +89,7 @@ export default async function TechnicalRoutingsPage() {
           operationNames={operationNames}
           canWrite={canWrite}
           canApprove={canApprove}
+          labels={labels}
         />
       )}
     </main>

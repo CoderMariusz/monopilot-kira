@@ -4,36 +4,31 @@
  * 03-technical Routing list + edit modal (TEC-060, T-051) and Routing cost
  * preview + resource utilization (TEC-062, T-052) client island.
  *
- * Prototype parity:
+ * Prototype parity (MON-design-system — rebuilt lane A2):
  *   - prototypes/design/Monopilot Design System/technical/other-screens.jsx:4-34
- *     (`RoutingsScreen`, TEC) — the routing list table (Code / name / linked /
- *     steps / updated). Here scoped to a selected item's routing VERSIONS, which
- *     matches the product-detail Routing tab
- *     (other-screens.jsx:1270-1287: Version / Operations / Total time / Status /
- *     Effective from / Approved by + "+ New routing version").
+ *     (`RoutingsScreen`) — dense `.card` + `.table` routing list (mono lead cell,
+ *     5 semantic `.badge` tones), `.empty-state`, `.alert`.
  *   - prototypes/design/Monopilot Design System/technical/modals.jsx:271-304
- *     (`RoutingStepAddModal`) — the per-operation editor (operation name, work
- *     center/line/machine, setup, run). Translated to shadcn `<Select>` (raw
- *     `<select>` is a red-line) with an ordered op list (op_no contiguous).
+ *     (`RoutingStepAddModal`) — the per-operation editor in a `.modal-*` styled
+ *     dialog. Translated to shadcn `<Select>` (raw `<select>` is a red-line) with
+ *     an ordered op list (op_no contiguous).
  *   - prototypes/design/Monopilot Design System/technical/other-screens.jsx:536-585
- *     (`CostingScreen`, TEC-013) — the cost breakdown panel, reused for the
- *     routing cost preview (per-op setup/run/total) + a resource utilization
- *     view (cost share per line/machine).
+ *     (`CostingScreen`, TEC-013) — the cost breakdown panel reused for the routing
+ *     cost preview (per-op setup/run/total) + resource-utilization bars.
  *   See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  *
  * NUMERIC-exact: costs come from routingCostPreview (SQL NUMERIC, returned as
  * strings) and are displayed verbatim — never via JS float on a cost.
+ *
+ * All copy is injected via `labels` (i18n: technical.routings); the
+ * ROUTINGS_DEFAULT_LABELS fallback is English for tests / RSC-less rendering.
+ * Logic, Server Action calls and prop shapes are unchanged from the prior version.
  */
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { approveRouting, publishRouting } from '../_actions/approve-routing';
 import { createRouting } from '../_actions/create-routing';
@@ -45,56 +40,253 @@ import { updateRouting } from '../_actions/update-routing';
 import type { ResourceOption, RoutingItemOption } from '../_actions/list-routing-items';
 import { formatCost } from '../../cost/_components/numeric';
 
-const STATUS_VARIANT: Record<RoutingStatus, BadgeVariant> = {
-  draft: 'muted',
-  approved: 'info',
-  active: 'success',
-  superseded: 'warning',
+export type RoutingsLabels = {
+  itemLabel: string;
+  selectItemPlaceholder: string;
+  newRouting: string;
+  selectItemPrompt: string;
+  loadingRoutings: string;
+  loadError: string;
+  emptyTitle: string;
+  emptyBody: string;
+  emptyBodyCanWrite: string;
+  permissionDenied: string;
+  versionsTableLabel: string;
+  colVersion: string;
+  colOperations: string;
+  colStatus: string;
+  colEffectiveFrom: string;
+  colEffectiveTo: string;
+  colActions: string;
+  statusDraft: string;
+  statusApproved: string;
+  statusActive: string;
+  statusSuperseded: string;
+  edit: string;
+  approve: string;
+  publish: string;
+  // modal
+  modalNewTitle: string;
+  modalEditTitlePrefix: string; // "Edit routing v"
+  modalIntro: string;
+  operationLabel: string; // "Operation "
+  remove: string;
+  fOperationName: string;
+  fOperationNamePlaceholder: string;
+  fOpCode: string;
+  fOpCodePlaceholder: string;
+  fResourceType: string;
+  fResourceTypeLine: string;
+  fResourceTypeMachine: string;
+  fLine: string;
+  fMachine: string;
+  fSelect: string;
+  fNoneConfigured: string;
+  fManufacturingOp: string;
+  fSetup: string;
+  fRun: string;
+  fCostPerHour: string;
+  addOperation: string;
+  cancel: string;
+  saveRouting: string;
+  close: string;
+  // cost preview
+  costTitlePrefix: string; // "Cost preview · v"
+  costFormula: string;
+  volumeLabel: string;
+  computeCost: string;
+  computing: string;
+  costColOp: string;
+  costColOperation: string;
+  costColSetup: string;
+  costColRun: string;
+  costColOpCost: string;
+  costTotalPrefix: string; // "Total routing cost @ "
+  costTotalSuffix: string; // " units"
+  utilizationTitle: string;
+  costPreviewTableLabelPrefix: string; // "Cost preview operations v"
+  // errors
+  errForbidden: string;
+  errInvalidInput: string;
+  errNotFound: string;
+  errAlreadyExists: string;
+  errInvalidState: string;
+  errSequenceGap: string;
+  errNoResource: string;
+  errZeroRunTime: string;
+  errUnknownOperation: string;
+  errGeneric: string;
 };
 
-const STATUS_LABEL: Record<RoutingStatus, string> = {
-  draft: 'Draft',
-  approved: 'Approved',
-  active: 'Active',
-  superseded: 'Superseded',
+export const ROUTINGS_DEFAULT_LABELS: RoutingsLabels = {
+  itemLabel: 'Item',
+  selectItemPlaceholder: 'Select an item…',
+  newRouting: '+ New routing',
+  selectItemPrompt: 'Select an item to view its routings.',
+  loadingRoutings: 'Loading routings…',
+  loadError: 'Unable to load routings. Please try again.',
+  emptyTitle: 'No routings yet',
+  emptyBody: 'No routings yet for this item.',
+  emptyBodyCanWrite: 'Create the first routing version to define its operations.',
+  permissionDenied: 'You can view routings but do not have permission to author them (technical.bom.create).',
+  versionsTableLabel: 'Routing versions',
+  colVersion: 'Version',
+  colOperations: 'Operations',
+  colStatus: 'Status',
+  colEffectiveFrom: 'Effective from',
+  colEffectiveTo: 'Effective to',
+  colActions: 'Actions',
+  statusDraft: 'Draft',
+  statusApproved: 'Approved',
+  statusActive: 'Active',
+  statusSuperseded: 'Superseded',
+  edit: 'Edit',
+  approve: 'Approve',
+  publish: 'Publish',
+  modalNewTitle: 'New routing',
+  modalEditTitlePrefix: 'Edit routing v',
+  modalIntro:
+    'Operations run in order (op 1 → n). Each operation binds a line or a machine (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).',
+  operationLabel: 'Operation ',
+  remove: 'Remove',
+  fOperationName: 'Operation name',
+  fOperationNamePlaceholder: 'e.g. Smoking — phase 2',
+  fOpCode: 'Op code',
+  fOpCodePlaceholder: 'auto',
+  fResourceType: 'Resource type',
+  fResourceTypeLine: 'Production line',
+  fResourceTypeMachine: 'Machine / equipment',
+  fLine: 'Line',
+  fMachine: 'Machine',
+  fSelect: 'Select…',
+  fNoneConfigured: 'None configured',
+  fManufacturingOp: 'Manufacturing operation',
+  fSetup: 'Setup (min)',
+  fRun: 'Run (s/unit)',
+  fCostPerHour: 'Cost/h',
+  addOperation: '+ Add operation',
+  cancel: 'Cancel',
+  saveRouting: 'Save routing',
+  close: 'Close',
+  costTitlePrefix: 'Cost preview · v',
+  costFormula: 'Cost = Σ (setup/60 + run·volume/3600) × rate. NUMERIC-exact.',
+  volumeLabel: 'Volume (units)',
+  computeCost: 'Compute cost',
+  computing: 'Computing…',
+  costColOp: 'Op',
+  costColOperation: 'Operation',
+  costColSetup: 'Setup cost',
+  costColRun: 'Run cost',
+  costColOpCost: 'Op cost',
+  costTotalPrefix: 'Total routing cost @ ',
+  costTotalSuffix: ' units',
+  utilizationTitle: 'Resource utilization (cost share)',
+  costPreviewTableLabelPrefix: 'Cost preview operations v',
+  errForbidden: 'You do not have permission to author routings.',
+  errInvalidInput: 'Please check the operation values and try again.',
+  errNotFound: 'That item or routing no longer exists.',
+  errAlreadyExists: 'A routing with that version already exists for this item.',
+  errInvalidState: 'Only a draft routing may be edited or transitioned that way.',
+  errSequenceGap: 'Operation numbers must be contiguous from 1 (V-TEC-60).',
+  errNoResource: 'Every operation must bind a line or machine (V-TEC-61).',
+  errZeroRunTime: 'Production operations need a run time greater than 0 (V-TEC-62).',
+  errUnknownOperation: 'An operation name is not in the manufacturing-operations reference (V-TEC-63).',
+  errGeneric: 'Could not save the routing. Please try again.',
 };
 
-function errorLabel(error: RoutingActionError): string {
-  switch (error) {
-    case 'forbidden':
-      return 'You do not have permission to author routings.';
-    case 'invalid_input':
-      return 'Please check the operation values and try again.';
-    case 'not_found':
-      return 'That item or routing no longer exists.';
-    case 'already_exists':
-      return 'A routing with that version already exists for this item.';
-    case 'invalid_state':
-      return 'Only a draft routing may be edited or transitioned that way.';
-    case 'v_tec_60_sequence_gap':
-      return 'Operation numbers must be contiguous from 1 (V-TEC-60).';
-    case 'v_tec_61_no_resource':
-      return 'Every operation must bind a line or machine (V-TEC-61).';
-    case 'v_tec_62_zero_run_time':
-      return 'Production operations need a run time greater than 0 (V-TEC-62).';
-    case 'v_tec_63_unknown_operation':
-      return 'An operation name is not in the manufacturing-operations reference (V-TEC-63).';
-    default:
-      return 'Could not save the routing. Please try again.';
+// 5 semantic tones (MON-design-system rule 8): draft→neutral, approved→ok,
+// active→ok, superseded→warn.
+const STATUS_BADGE: Record<RoutingStatus, string> = {
+  draft: 'badge-gray',
+  approved: 'badge-green',
+  active: 'badge-green',
+  superseded: 'badge-amber',
+};
+
+const STATUS_GLYPH: Record<RoutingStatus, string> = {
+  draft: '○',
+  approved: '✓',
+  active: '●',
+  superseded: '⚠',
+};
+
+function statusLabel(status: RoutingStatus, labels: RoutingsLabels): string {
+  switch (status) {
+    case 'draft':
+      return labels.statusDraft;
+    case 'approved':
+      return labels.statusApproved;
+    case 'active':
+      return labels.statusActive;
+    case 'superseded':
+      return labels.statusSuperseded;
   }
 }
 
-// ── Local accessible dialog (same pattern as items/cost client islands) ────────
+function errorLabel(error: RoutingActionError, labels: RoutingsLabels): string {
+  switch (error) {
+    case 'forbidden':
+      return labels.errForbidden;
+    case 'invalid_input':
+      return labels.errInvalidInput;
+    case 'not_found':
+      return labels.errNotFound;
+    case 'already_exists':
+      return labels.errAlreadyExists;
+    case 'invalid_state':
+      return labels.errInvalidState;
+    case 'v_tec_60_sequence_gap':
+      return labels.errSequenceGap;
+    case 'v_tec_61_no_resource':
+      return labels.errNoResource;
+    case 'v_tec_62_zero_run_time':
+      return labels.errZeroRunTime;
+    case 'v_tec_63_unknown_operation':
+      return labels.errUnknownOperation;
+    default:
+      return labels.errGeneric;
+  }
+}
+
+// ── Form field styled to .ff (uppercase caption above the control) ─────────────
+// The control is nested inside the <label> so the caption is implicitly
+// associated (getByLabelText works) and the `.ff label` rule provides the
+// uppercase block caption. Port of the prototype `<Field>` (_shared).
+function Field({
+  label,
+  children,
+  htmlFor,
+  className,
+  style,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** id of the control the caption labels (enables getByLabelText). */
+  htmlFor?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className={`ff${className ? ` ${className}` : ''}`} style={style}>
+      <label htmlFor={htmlFor}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+// ── Accessible dialog styled to .modal-* (MON-design-system) ───────────────────
 function Dialog({
   open,
   onClose,
   title,
+  closeLabel,
   children,
   footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  closeLabel: string;
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
@@ -115,7 +307,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -126,18 +318,18 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box wide"
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+        <div className="modal-head">
+          <h2 id={titleId} className="modal-title">
             {title}
           </h2>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" aria-label={closeLabel} className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -176,6 +368,7 @@ function RoutingEditModal({
   onClose,
   onSaved,
   existing,
+  labels,
 }: {
   itemId: string;
   lines: ResourceOption[];
@@ -184,6 +377,7 @@ function RoutingEditModal({
   onClose: () => void;
   onSaved: () => void;
   existing: RoutingSummary | null;
+  labels: RoutingsLabels;
 }) {
   const [ops, setOps] = React.useState<OpForm[]>([emptyOp()]);
   const [error, setError] = React.useState<string | null>(null);
@@ -225,7 +419,7 @@ function RoutingEditModal({
         ? await updateRouting({ routingId: existing.id, operations })
         : await createRouting({ itemId, operations });
       if (result.ok) onSaved();
-      else setError(errorLabel(result.error));
+      else setError(errorLabel(result.error, labels));
     });
   }
 
@@ -233,139 +427,138 @@ function RoutingEditModal({
     <Dialog
       open
       onClose={onClose}
-      title={existing ? `Edit routing v${existing.version}` : 'New routing'}
+      closeLabel={labels.close}
+      title={existing ? `${labels.modalEditTitlePrefix}${existing.version}` : labels.modalNewTitle}
       footer={
         <>
-          <Button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" className="btn-primary" form="technical-routing-form" disabled={pending}>
-            Save routing
-          </Button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary" form="technical-routing-form" disabled={pending}>
+            {labels.saveRouting}
+          </button>
         </>
       }
     >
-      <p className="mb-3 text-sm text-muted-foreground">
-        Operations run in order (op 1 → n). Each operation binds a line or a machine (V-TEC-61) and a
-        manufacturing-operation name from the reference (V-TEC-63).
-      </p>
-      <form id="technical-routing-form" className="space-y-4" onSubmit={onSubmit}>
+      <p className="helper mb-3">{labels.modalIntro}</p>
+      <form id="technical-routing-form" className="flex flex-col gap-4" onSubmit={onSubmit}>
         {ops.map((op, index) => {
           const resourceOptions = op.resourceKind === 'line' ? lineOptions : machineOptions;
           return (
-            <div key={index} className="rounded-lg border bg-slate-50 p-3">
+            <div key={index} className="card" style={{ padding: 12 }}>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold">Operation {index + 1}</span>
+                <span className="text-sm font-semibold">
+                  {labels.operationLabel}
+                  {index + 1}
+                </span>
                 {ops.length > 1 ? (
                   <button
                     type="button"
                     className="text-xs font-medium text-red-600 hover:underline"
                     onClick={() => removeOp(index)}
                   >
-                    Remove
+                    {labels.remove}
                   </button>
                 ) : null}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm font-medium text-slate-700">
-                  Operation name
-                  <Input
+                <Field label={labels.fOperationName} htmlFor={`op-name-${index}`}>
+                  <input
+                    id={`op-name-${index}`}
+                    className="form-input"
                     required
                     value={op.opName}
                     onChange={(e) => updateOp(index, { opName: e.currentTarget.value })}
-                    placeholder="e.g. Smoking — phase 2"
+                    placeholder={labels.fOperationNamePlaceholder}
                   />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">
-                  Op code
-                  <Input
-                    className="font-mono"
+                </Field>
+                <Field label={labels.fOpCode} htmlFor={`op-code-${index}`}>
+                  <input
+                    id={`op-code-${index}`}
+                    className="form-input mono"
                     value={op.opCode}
                     onChange={(e) => updateOp(index, { opCode: e.currentTarget.value })}
-                    placeholder="auto"
+                    placeholder={labels.fOpCodePlaceholder}
                   />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">
-                  Resource type
+                </Field>
+                <Field label={labels.fResourceType}>
                   <Select
                     value={op.resourceKind}
                     onValueChange={(v) => updateOp(index, { resourceKind: v as 'line' | 'machine', resourceId: '' })}
                     options={[
-                      { value: 'line', label: 'Production line' },
-                      { value: 'machine', label: 'Machine / equipment' },
+                      { value: 'line', label: labels.fResourceTypeLine },
+                      { value: 'machine', label: labels.fResourceTypeMachine },
                     ]}
-                    aria-label={`Operation ${index + 1} resource type`}
+                    aria-label={`${labels.operationLabel}${index + 1} ${labels.fResourceType}`}
                   />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">
-                  {op.resourceKind === 'line' ? 'Line' : 'Machine'}
+                </Field>
+                <Field label={op.resourceKind === 'line' ? labels.fLine : labels.fMachine}>
                   <Select
                     value={op.resourceId}
                     onValueChange={(v) => updateOp(index, { resourceId: v })}
                     options={resourceOptions}
-                    placeholder={resourceOptions.length ? 'Select…' : 'None configured'}
-                    aria-label={`Operation ${index + 1} resource`}
+                    placeholder={resourceOptions.length ? labels.fSelect : labels.fNoneConfigured}
+                    aria-label={`${labels.operationLabel}${index + 1} ${labels.fLine}`}
                   />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">
-                  Manufacturing operation
+                </Field>
+                <Field label={labels.fManufacturingOp}>
                   <Select
                     value={op.manufacturingOperationName}
                     onValueChange={(v) => updateOp(index, { manufacturingOperationName: v })}
                     options={opNameOptions}
-                    placeholder={opNameOptions.length ? 'Select…' : 'None configured'}
-                    aria-label={`Operation ${index + 1} manufacturing operation`}
+                    placeholder={opNameOptions.length ? labels.fSelect : labels.fNoneConfigured}
+                    aria-label={`${labels.operationLabel}${index + 1} ${labels.fManufacturingOp}`}
                   />
-                </label>
+                </Field>
                 <div className="grid grid-cols-3 gap-2">
-                  <label className="block text-xs font-medium text-slate-700">
-                    Setup (min)
-                    <Input
+                  <Field label={labels.fSetup} htmlFor={`op-setup-${index}`}>
+                    <input
+                      id={`op-setup-${index}`}
+                      className="form-input mono"
                       type="number"
                       min={0}
-                      className="font-mono"
                       value={op.setupTimeMin}
                       onChange={(e) => updateOp(index, { setupTimeMin: e.currentTarget.value })}
                     />
-                  </label>
-                  <label className="block text-xs font-medium text-slate-700">
-                    Run (s/unit)
-                    <Input
+                  </Field>
+                  <Field label={labels.fRun} htmlFor={`op-run-${index}`}>
+                    <input
+                      id={`op-run-${index}`}
+                      className="form-input mono"
                       inputMode="decimal"
-                      className="font-mono"
                       value={op.runTimePerUnitSec}
                       onChange={(e) => updateOp(index, { runTimePerUnitSec: e.currentTarget.value })}
                     />
-                  </label>
-                  <label className="block text-xs font-medium text-slate-700">
-                    Cost/h
-                    <Input
+                  </Field>
+                  <Field label={labels.fCostPerHour} htmlFor={`op-cost-${index}`}>
+                    <input
+                      id={`op-cost-${index}`}
+                      className="form-input mono"
                       inputMode="decimal"
-                      className="font-mono"
                       value={op.costPerHour}
                       onChange={(e) => updateOp(index, { costPerHour: e.currentTarget.value })}
                     />
-                  </label>
+                  </Field>
                 </div>
               </div>
             </div>
           );
         })}
         <button type="button" className="text-sm font-medium text-blue-600 hover:underline" onClick={addOp}>
-          + Add operation
+          {labels.addOperation}
         </button>
       </form>
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <div role="alert" className="alert alert-red mt-3">
+          <div className="alert-title">{error}</div>
+        </div>
       ) : null}
     </Dialog>
   );
 }
 
 // ── T-052: Cost preview + resource utilization panel ───────────────────────────
-function CostPreviewPanel({ routing }: { routing: RoutingSummary }) {
+function CostPreviewPanel({ routing, labels }: { routing: RoutingSummary; labels: RoutingsLabels }) {
   const [volume, setVolume] = React.useState('100');
   const [preview, setPreview] = React.useState<RoutingCostPreviewResult | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -378,105 +571,117 @@ function CostPreviewPanel({ routing }: { routing: RoutingSummary }) {
   }
 
   const data = preview && preview.ok ? preview.data : null;
-  // Resource utilization = cost share per operation (proxy for line/machine load).
   const totalNum = data ? Number(data.totalCost) : 0;
 
   return (
-    <Card className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="space-y-4 p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">Cost preview · v{routing.version}</h3>
-            <p className="text-xs text-muted-foreground">
-              Cost = Σ (setup/60 + run·volume/3600) × rate. NUMERIC-exact.
-            </p>
-          </div>
-          <div className="flex items-end gap-2">
-            <label className="block text-xs font-medium text-slate-700">
-              Volume (units)
-              <Input
-                inputMode="numeric"
-                className="w-28 font-mono"
-                value={volume}
-                onChange={(e) => setVolume(e.currentTarget.value)}
-              />
-            </label>
-            <Button type="button" className="btn-secondary" onClick={run} disabled={pending}>
-              {pending ? 'Computing…' : 'Compute cost'}
-            </Button>
-          </div>
+    <div className="card flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">
+            {labels.costTitlePrefix}
+            {routing.version}
+          </h3>
+          <p className="helper">{labels.costFormula}</p>
         </div>
+        <div className="flex items-end gap-2">
+          <Field label={labels.volumeLabel} htmlFor="routing-volume">
+            <input
+              id="routing-volume"
+              className="form-input mono"
+              inputMode="numeric"
+              style={{ width: 112 }}
+              value={volume}
+              onChange={(e) => setVolume(e.currentTarget.value)}
+            />
+          </Field>
+          <button type="button" className="btn btn-secondary" onClick={run} disabled={pending}>
+            {pending ? labels.computing : labels.computeCost}
+          </button>
+        </div>
+      </div>
 
-        {preview && !preview.ok ? (
-          <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorLabel(preview.error)}
-          </p>
-        ) : null}
+      {preview && !preview.ok ? (
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{errorLabel(preview.error, labels)}</div>
+        </div>
+      ) : null}
 
-        {data ? (
-          <>
-            <Table aria-label={`Cost preview operations v${routing.version}`}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">Op</TableHead>
-                  <TableHead scope="col">Operation</TableHead>
-                  <TableHead scope="col" className="text-right">
-                    Setup cost
-                  </TableHead>
-                  <TableHead scope="col" className="text-right">
-                    Run cost
-                  </TableHead>
-                  <TableHead scope="col" className="text-right">
-                    Op cost
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+      {data ? (
+        <>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table aria-label={`${labels.costPreviewTableLabelPrefix}${routing.version}`}>
+              <thead>
+                <tr>
+                  <th scope="col">{labels.costColOp}</th>
+                  <th scope="col">{labels.costColOperation}</th>
+                  <th scope="col" style={{ textAlign: 'right' }}>
+                    {labels.costColSetup}
+                  </th>
+                  <th scope="col" style={{ textAlign: 'right' }}>
+                    {labels.costColRun}
+                  </th>
+                  <th scope="col" style={{ textAlign: 'right' }}>
+                    {labels.costColOpCost}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {data.operations.map((op) => (
-                  <TableRow key={op.opNo}>
-                    <TableCell className="font-mono text-sm">{op.opNo}</TableCell>
-                    <TableCell>{op.opName}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{formatCost(op.setupCost)}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{formatCost(op.runCost)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold tabular-nums">
+                  <tr key={op.opNo}>
+                    <td className="mono">{op.opNo}</td>
+                    <td>{op.opName}</td>
+                    <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                      {formatCost(op.setupCost)}
+                    </td>
+                    <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                      {formatCost(op.runCost)}
+                    </td>
+                    <td className="mono tabular-nums" style={{ textAlign: 'right', fontWeight: 600 }}>
                       {formatCost(op.opCost)}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-            <div className="flex items-center justify-between rounded-md bg-slate-50 px-4 py-2 text-sm">
-              <strong>Total routing cost @ {data.volume} units</strong>
-              <strong className="font-mono tabular-nums" data-testid="routing-total-cost">
-                {formatCost(data.totalCost)}
-              </strong>
-            </div>
+              </tbody>
+            </table>
+          </div>
+          <div
+            className="flex items-center justify-between rounded-md px-4 py-2 text-sm"
+            style={{ background: 'var(--gray-050, #f1f5f9)' }}
+          >
+            <strong>
+              {labels.costTotalPrefix}
+              {data.volume}
+              {labels.costTotalSuffix}
+            </strong>
+            <strong className="mono tabular-nums" data-testid="routing-total-cost">
+              {formatCost(data.totalCost)}
+            </strong>
+          </div>
 
-            {/* Resource utilization: per-op cost share bars (CostingScreen breakdown). */}
-            <div className="space-y-2">
-              <strong className="text-sm">Resource utilization (cost share)</strong>
-              {data.operations.map((op) => {
-                const opNum = Number(op.opCost);
-                const pct = totalNum > 0 ? Math.round((opNum / totalNum) * 100) : 0;
-                return (
-                  <div key={op.opNo}>
-                    <div className="flex justify-between text-xs">
-                      <span>
-                        {op.opNo}. {op.opName}
-                      </span>
-                      <span className="font-mono">{pct}%</span>
-                    </div>
-                    <div className="h-3 overflow-hidden rounded bg-slate-100">
-                      <div className="h-full bg-blue-600" style={{ width: `${pct}%` }} />
-                    </div>
+          {/* Resource utilization: per-op cost share bars (CostingScreen breakdown). */}
+          <div className="flex flex-col gap-2">
+            <strong className="text-sm">{labels.utilizationTitle}</strong>
+            {data.operations.map((op) => {
+              const opNum = Number(op.opCost);
+              const pct = totalNum > 0 ? Math.round((opNum / totalNum) * 100) : 0;
+              return (
+                <div key={op.opNo}>
+                  <div className="flex justify-between text-xs">
+                    <span>
+                      {op.opNo}. {op.opName}
+                    </span>
+                    <span className="mono">{pct}%</span>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        ) : null}
-      </CardContent>
-    </Card>
+                  <div className="bar-track">
+                    <div className="bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -487,12 +692,14 @@ function RoutingRowActions({
   canApprove,
   onEdit,
   onChanged,
+  labels,
 }: {
   routing: RoutingSummary;
   canWrite: boolean;
   canApprove: boolean;
   onEdit: () => void;
   onChanged: () => void;
+  labels: RoutingsLabels;
 }) {
   const [pending, startTransition] = React.useTransition();
 
@@ -504,10 +711,10 @@ function RoutingRowActions({
   }
 
   return (
-    <span className="flex justify-end gap-2">
+    <span className="flex justify-end gap-3">
       {canWrite && routing.status === 'draft' ? (
         <button type="button" className="font-medium text-blue-600 hover:underline" onClick={onEdit}>
-          Edit
+          {labels.edit}
         </button>
       ) : null}
       {canApprove && routing.status === 'draft' ? (
@@ -517,7 +724,7 @@ function RoutingRowActions({
           disabled={pending}
           onClick={() => transition(approveRouting)}
         >
-          Approve
+          {labels.approve}
         </button>
       ) : null}
       {canApprove && routing.status === 'approved' ? (
@@ -527,12 +734,10 @@ function RoutingRowActions({
           disabled={pending}
           onClick={() => transition(publishRouting)}
         >
-          Publish
+          {labels.publish}
         </button>
       ) : null}
-      {routing.status !== 'draft' && routing.status !== 'approved' ? (
-        <span className="text-muted-foreground">—</span>
-      ) : null}
+      {routing.status !== 'draft' && routing.status !== 'approved' ? <span className="muted">—</span> : null}
     </span>
   );
 }
@@ -544,6 +749,7 @@ export function RoutingsManager({
   operationNames,
   canWrite,
   canApprove,
+  labels = ROUTINGS_DEFAULT_LABELS,
 }: {
   items: RoutingItemOption[];
   lines: ResourceOption[];
@@ -551,6 +757,7 @@ export function RoutingsManager({
   operationNames: string[];
   canWrite: boolean;
   canApprove: boolean;
+  labels?: RoutingsLabels;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string>(items[0]?.id ?? '');
@@ -590,109 +797,111 @@ export function RoutingsManager({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="rounded-xl border bg-white shadow-sm">
-        <CardContent className="flex flex-wrap items-end justify-between gap-4 p-5">
-          <label className="block text-sm font-medium text-slate-700">
-            Item
-            <div className="mt-1 w-80">
-              <Select
-                value={selectedId}
-                onValueChange={setSelectedId}
-                options={itemOptions}
-                placeholder="Select an item…"
-                aria-label="Select item"
-              />
-            </div>
-          </label>
-          {canWrite && selectedId ? (
-            <Button
-              type="button"
-              className="btn-primary"
-              data-modal-id="TEC-ROUTING-ADD"
-              onClick={() => setCreateOpen(true)}
-            >
-              + New routing
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-4">
+      <div className="card flex flex-wrap items-end justify-between gap-4">
+        <Field label={labels.itemLabel} style={{ minWidth: 320 }}>
+          <Select
+            value={selectedId}
+            onValueChange={setSelectedId}
+            options={itemOptions}
+            placeholder={labels.selectItemPlaceholder}
+            aria-label={labels.itemLabel}
+          />
+        </Field>
+        {canWrite && selectedId ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-modal-id="TEC-ROUTING-ADD"
+            onClick={() => setCreateOpen(true)}
+          >
+            {labels.newRouting}
+          </button>
+        ) : null}
+      </div>
 
       {!selectedId ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
-            Select an item to view its routings.
-          </CardContent>
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">🧭</div>
+            <div className="empty-state-body">{labels.selectItemPrompt}</div>
+          </div>
+        </div>
       ) : loading ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8">
-            <div className="h-24 animate-pulse rounded-md bg-slate-100" aria-label="Loading routings" />
-          </CardContent>
-        </Card>
+        <div role="status" aria-live="polite" className="card text-shell-muted text-sm">
+          {labels.loadingRoutings}
+        </div>
       ) : loadError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          Unable to load routings. Please try again.
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{labels.loadError}</div>
         </div>
       ) : routings.length === 0 ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
-            No routings yet for this item.
-            {canWrite ? ' Create the first routing version to define its operations.' : ''}
-          </CardContent>
-        </Card>
+        <div className="card" style={{ padding: 0 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">🧱</div>
+            <div className="empty-state-title">{labels.emptyTitle}</div>
+            <div className="empty-state-body">{canWrite ? labels.emptyBodyCanWrite : labels.emptyBody}</div>
+          </div>
+        </div>
       ) : (
         <>
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              <Table aria-label="Routing versions">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead scope="col">Version</TableHead>
-                    <TableHead scope="col" className="text-right">
-                      Operations
-                    </TableHead>
-                    <TableHead scope="col">Status</TableHead>
-                    <TableHead scope="col">Effective from</TableHead>
-                    <TableHead scope="col">Effective to</TableHead>
-                    <TableHead scope="col" className="text-right">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {routings.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono">v{r.version}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{r.operationCount}</TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{r.effectiveFrom}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{r.effectiveTo ?? '—'}</TableCell>
-                      <TableCell className="text-right">
-                        <RoutingRowActions
-                          routing={r}
-                          canWrite={canWrite}
-                          canApprove={canApprove}
-                          onEdit={() => setEditing(r)}
-                          onChanged={refreshAll}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table aria-label={labels.versionsTableLabel}>
+              <thead>
+                <tr>
+                  <th scope="col">{labels.colVersion}</th>
+                  <th scope="col" style={{ textAlign: 'right' }}>
+                    {labels.colOperations}
+                  </th>
+                  <th scope="col">{labels.colStatus}</th>
+                  <th scope="col">{labels.colEffectiveFrom}</th>
+                  <th scope="col">{labels.colEffectiveTo}</th>
+                  <th scope="col" style={{ textAlign: 'right' }}>
+                    {labels.colActions}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {routings.map((r) => (
+                  <tr key={r.id}>
+                    <td className="mono">v{r.version}</td>
+                    <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                      {r.operationCount}
+                    </td>
+                    <td>
+                      <span className={`badge ${STATUS_BADGE[r.status]}`}>
+                        {STATUS_GLYPH[r.status]} {statusLabel(r.status, labels)}
+                      </span>
+                    </td>
+                    <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {r.effectiveFrom}
+                    </td>
+                    <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {r.effectiveTo ?? '—'}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <RoutingRowActions
+                        routing={r}
+                        canWrite={canWrite}
+                        canApprove={canApprove}
+                        onEdit={() => setEditing(r)}
+                        onChanged={refreshAll}
+                        labels={labels}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          {activeOrLatest ? <CostPreviewPanel routing={activeOrLatest} /> : null}
+          {activeOrLatest ? <CostPreviewPanel routing={activeOrLatest} labels={labels} /> : null}
         </>
       )}
 
       {!canWrite ? (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-          You can view routings but do not have permission to author them (technical.bom.create).
+        <div role="alert" className="alert alert-amber">
+          <div className="alert-title">{labels.permissionDenied}</div>
         </div>
       ) : null}
 
@@ -703,6 +912,7 @@ export function RoutingsManager({
           machines={machines}
           operationNames={operationNames}
           existing={null}
+          labels={labels}
           onClose={() => setCreateOpen(false)}
           onSaved={() => {
             setCreateOpen(false);
@@ -718,6 +928,7 @@ export function RoutingsManager({
           machines={machines}
           operationNames={operationNames}
           existing={editing}
+          labels={labels}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

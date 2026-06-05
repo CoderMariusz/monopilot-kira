@@ -18,7 +18,6 @@
 import Link from 'next/link';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import type {
@@ -49,6 +48,12 @@ const toneBadge: Record<RegulationTone, BadgeVariant> = {
   amber: 'warning',
   red: 'danger',
 };
+// KPI 3px bottom-accent class (design-system .kpi.{green|amber|red}).
+const toneKpi: Record<RegulationTone, string> = {
+  green: 'kpi green',
+  amber: 'kpi amber',
+  red: 'kpi red',
+};
 const toneBar: Record<RegulationTone, string> = {
   green: 'bg-emerald-500',
   amber: 'bg-amber-500',
@@ -72,40 +77,30 @@ export function ComplianceDashboard({
   return (
     <div data-screen="technical-compliance" className="flex flex-col gap-4">
       {/* Routing-only notice — this is remediation routing, not legal advice. */}
-      <div
-        role="note"
-        data-testid="compliance-routing-notice"
-        className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-900"
-      >
+      <div role="note" data-testid="compliance-routing-notice" className="alert alert-blue">
         {copy.routingNotice}
       </div>
 
-      {/* KPI strip — one tile per regulation (real coverage %). */}
+      {/* KPI strip — one tile per regulation (real coverage %), 3px accent. */}
       <div
         data-testid="compliance-kpi-strip"
         className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+        style={{ marginBottom: 0 }}
       >
         {regulations.map((r) => (
-          <Card
-            key={r.code}
-            data-testid={`compliance-kpi-${r.code}`}
-            data-tone={r.tone}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <span className="text-xs font-medium text-slate-500">{copy.regulationLabel(r.code)}</span>
-            <span className="mt-1 block text-2xl font-semibold tabular-nums text-slate-950">
-              {r.coveragePct}%
-            </span>
-            <span className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+          <div key={r.code} data-testid={`compliance-kpi-${r.code}`} data-tone={r.tone} className={toneKpi[r.tone]}>
+            <div className="kpi-label">{copy.regulationLabel(r.code)}</div>
+            <div className="kpi-value">{r.coveragePct}%</div>
+            <div className="kpi-change mt-1 flex items-center gap-2">
               <Badge variant={toneBadge[r.tone]}>{copy.gapsLabel(r.gaps)}</Badge>
-            </span>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
       {/* Coverage-by-regulation bars. */}
-      <Card data-testid="compliance-coverage" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">{copy.coverageTitle}</h2>
+      <div data-testid="compliance-coverage" className="card">
+        <h2 className="card-title text-slate-900">{copy.coverageTitle}</h2>
         <div className="mt-3 flex flex-col gap-3">
           {regulations.map((r) => (
             <div key={r.code} data-testid={`compliance-bar-${r.code}`}>
@@ -128,12 +123,15 @@ export function ComplianceDashboard({
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
       {/* Per-FG flags table with Route → action. */}
-      <Card data-testid="compliance-flags" className="rounded-xl border border-slate-200 bg-white p-0 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">{copy.flagsTitle(flags.length)}</h2>
+      <div
+        data-testid="compliance-flags"
+        style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
+      >
+        <div className="card-head" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
+          <h2 className="card-title text-slate-900">{copy.flagsTitle(flags.length)}</h2>
           <span className="text-xs text-slate-500">{copy.flagsHint}</span>
         </div>
         {flags.length === 0 ? (
@@ -153,7 +151,12 @@ export function ComplianceDashboard({
             </TableHeader>
             <TableBody>
               {flags.map((f) => (
-                <TableRow key={f.id} data-testid={`compliance-flag-${f.id}`} data-severity={f.severity}>
+                <TableRow
+                  key={f.id}
+                  data-testid={`compliance-flag-${f.id}`}
+                  data-severity={f.severity}
+                  style={f.severity === 'high' ? { background: 'var(--red-050a)' } : undefined}
+                >
                   <TableCell className="font-mono text-xs">{f.fg}</TableCell>
                   <TableCell className="font-mono text-xs">{copy.regulationLabel(f.regulation)}</TableCell>
                   <TableCell className="text-sm">
@@ -178,7 +181,7 @@ export function ComplianceDashboard({
             </TableBody>
           </Table>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

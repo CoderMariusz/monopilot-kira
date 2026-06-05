@@ -1,63 +1,84 @@
 /**
- * 03-technical Cost History + Cost Edit page (TEC-050, T-050).
+ * 03-technical Recipe costing (TEC-013) — server page (/technical/cost).
  *
- * Real Supabase-backed cost surface (org-scoped via withOrgContext + RLS). The
- * server component loads the item list + `technical.cost.edit` gate; the client
- * island renders the item picker, the cost-history sparkline + table, and the
- * cost-edit modal (which calls the real postCost Server Action with the >20%
- * variance approver gate). Loading / empty / error / permission-denied states
- * are all rendered (loading + per-item history are inside the client island).
+ * Real BOM-driven standard-cost roll-up (org-scoped via withOrgContext + RLS).
+ * The server component loads the set of products that have a BOM header; the
+ * client island renders the product picker and, per selection, the rolled-up
+ * material cost = Σ(line.quantity × items.cost_per_kg) computed in SQL NUMERIC.
  *
  * Prototype parity:
- *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:633-692
- *     (`CostHistoryScreen`, TEC-015) — sparkline + Date/Source/Cost/Δ%/Reason table.
  *   prototypes/design/Monopilot Design System/technical/other-screens.jsx:536-585
- *     (`CostingScreen`, TEC-013) — the cost edit/recompute CTA.
+ *   (CostingScreen) — KPI row + cost breakdown bars + total + yield note.
  *   See _meta/atomic-tasks/UI-PROTOTYPE-PARITY-POLICY.md.
  *
- * Dual ownership (Technical + Finance): Technical edits ONLY items.cost_per_kg +
- * item_cost_history; it never writes Finance standard-cost/valuation tables.
- * NUMERIC-exact: cost values are exact decimal strings, displayed without float.
+ * Cost HISTORY (the previous content of this route) moved to /technical/cost/history.
+ *
+ * Ownership (dual with Finance): reads ONLY items.cost_per_kg + bom_*; never the
+ * Finance standard-cost / valuation / variance tables. NUMERIC-exact (strings).
+ *
+ * UI states: loading (client skeleton on selection), empty (no BOMs / no costed
+ * lines), error (failed read), permission-denied (RLS org-scoped — recipe cost is
+ * a read surface; edits live on /technical/cost/history), optimistic — N/A (read).
  */
 
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
+import { getTranslations } from 'next-intl/server';
 
-import { listCostItems } from './_actions/list-cost-items';
-import { CostManager } from './_components/cost-manager.client';
+import { listCostedProducts } from './_actions/list-recipe-cost';
+import { RecipeCostClient, type RecipeCostCopy } from './_components/recipe-cost.client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TechnicalCostPage() {
-  const { items, canEdit, state } = await listCostItems();
+export default async function TechnicalRecipeCostPage() {
+  const t = await getTranslations('technical.recipeCost');
+  const { products, state } = await listCostedProducts();
+
+  const copy: RecipeCostCopy = {
+    selectLabel: t('selectLabel'),
+    selectPlaceholder: t('selectPlaceholder'),
+    selectPrompt: t('selectPrompt'),
+    loading: t('loading'),
+    loadError: t('loadError'),
+    kpiStdCost: t('kpi.stdCost'),
+    kpiStdCostSub: t('kpi.stdCostSub'),
+    kpiYield: t('kpi.yield'),
+    kpiYieldSub: t('kpi.yieldSub'),
+    kpiComponents: t('kpi.components'),
+    kpiComponentsSub: t('kpi.componentsSub'),
+    kpiCosted: t('kpi.costed'),
+    kpiCostedSub: t('kpi.costedSub'),
+    breakdownTitle: t('breakdownTitle'),
+    totalLabel: t('totalLabel'),
+    noLines: t('noLines'),
+    noCost: t('noCost'),
+    bomNote: (version: number, status: string) => t('bomNote', { version, status }),
+    uncosted: t('uncosted'),
+  };
 
   return (
-    <main data-screen="technical-cost" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cost history</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Timeline of cost-per-kg changes per item. Technical owns the master cost and its history (dual-owned
-            with Finance) — changes above 20% require an approver.
-          </p>
-        </div>
+    <main data-screen="technical-cost-page" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {t('breadcrumb.technical')} / {t('breadcrumb.cost')}
+      </nav>
+
+      <header>
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
       </header>
 
       {state === 'error' ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          Unable to load items. Please try again.
+        <div role="alert" data-testid="technical-cost-error" className="alert alert-red">
+          <div className="alert-title">{t('state.error')}</div>
         </div>
       ) : state === 'empty' ? (
-        <Card className="rounded-xl border bg-white shadow-sm">
-          <CardHeader className="space-y-1 px-6 py-6">
-            <h2 className="text-lg font-semibold tracking-tight">No items yet</h2>
-            <CardDescription className="text-sm text-muted-foreground">
-              Create items in the Items master to record and track their cost history here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent />
-        </Card>
+        <div className="card" data-testid="technical-cost-empty">
+          <div className="empty-state">
+            <div className="empty-state-icon">💰</div>
+            <div className="empty-state-title">{t('state.emptyTitle')}</div>
+            <div className="empty-state-body">{t('state.emptyBody')}</div>
+          </div>
+        </div>
       ) : (
-        <CostManager items={items} canEdit={canEdit} />
+        <RecipeCostClient products={products} copy={copy} />
       )}
     </main>
   );

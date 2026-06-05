@@ -113,8 +113,9 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     const table = await screen.findByRole('table', { name: 'Routing versions' });
     expect(within(table).getByText('v2')).toBeInTheDocument();
     expect(within(table).getByText('v1')).toBeInTheDocument();
-    expect(within(table).getByText('Active')).toBeInTheDocument();
-    expect(within(table).getByText('Superseded')).toBeInTheDocument();
+    // Status chips now render a semantic glyph + label (MON-design-system badges).
+    expect(within(table).getByText(/Active/)).toBeInTheDocument();
+    expect(within(table).getByText(/Superseded/)).toBeInTheDocument();
   });
 
   it('cost preview: Compute cost calls routingCostPreview and shows NUMERIC-exact per-op + total cost', async () => {
@@ -183,8 +184,13 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     );
     await screen.findByRole('table', { name: 'Routing versions' });
     expect(screen.queryByRole('button', { name: '+ New routing' })).not.toBeInTheDocument();
+    // Permission-denied now renders a design-system .alert (alert-title text).
     expect(
-      screen.getByText((_content, el) => el?.textContent === 'You can view routings but do not have permission to author them (technical.bom.create).'),
+      screen.getByText(
+        (content, el) =>
+          el?.classList.contains('alert-title') === true &&
+          content === 'You can view routings but do not have permission to author them (technical.bom.create).',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -193,6 +199,8 @@ describe('RoutingsManager — T-051/T-052 (routings + cost preview)', () => {
     render(
       <RoutingsManager items={ITEMS} lines={LINES} machines={MACHINES} operationNames={OP_NAMES} canWrite canApprove />,
     );
-    expect(await screen.findByText(/No routings yet for this item/)).toBeInTheDocument();
+    // Empty routings now render a design-system .empty-state (title + body).
+    expect(await screen.findByText('No routings yet')).toBeInTheDocument();
+    expect(screen.getByText(/Create the first routing version/)).toBeInTheDocument();
   });
 });

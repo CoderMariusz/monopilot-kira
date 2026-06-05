@@ -7,11 +7,14 @@
  * states are all rendered.
  *
  * Prototype parity: prototypes/design/Monopilot Design System/technical/
- * other-screens.jsx:304-352 — `MaterialsListScreen` (TEC-003). Design-system
- * conformance pass: breadcrumb + 20/700 page title, full-width content, dense
- * design table with TabsCounted by type, search + status/D365 filters, 5-tone
- * status/type badges, Allergens + BOMs columns, EmptyState. The interactive list
- * lives in items-table.client.tsx; this server page resolves data + labels only.
+ * other-screens.jsx:931-1073 — `ProductsListScreen` (TEC-001): the master list of
+ * every item (finished goods, intermediates, raw materials, co-products,
+ * by-products — the single source of truth per PRD §6). Design-system conformance:
+ * breadcrumb (Technical › Products) + 20/700 page title + one-line muted
+ * description, full-width content, TabsCounted by type, search + status/D365
+ * filters, dense design table with mono codes, 5-tone status/type badges,
+ * Allergens + BOMs columns, EmptyState. The interactive list lives in
+ * items-table.client.tsx; this server page resolves data + labels only.
  */
 
 import Link from 'next/link';
@@ -121,34 +124,29 @@ export default async function TechnicalItemsPage() {
   return (
     <main data-screen="technical-items" className="flex w-full flex-col gap-4 px-6 py-6">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link href=".">Technical</Link> / Items
+        <Link href=".">{t('list.breadcrumbRoot')}</Link> / {t('list.breadcrumb')}
       </nav>
 
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-title">Items</h1>
-          <p className="helper mt-1 max-w-3xl">
-            Raw materials, intermediates, finished goods, co-products and by-products — the universal item
-            master consumed by BOMs, NPD components and specifications.
-          </p>
+          <h1 className="page-title">{t('list.title')}</h1>
+          <p className="helper mt-1 max-w-3xl">{t('list.description')}</p>
         </div>
         {canCreate ? <NewItemButton label={newItemLabel} wizardLabels={wizardLabels} /> : null}
       </header>
 
       {state === 'error' ? (
         <div role="alert" className="alert alert-red">
-          <div className="alert-title">Unable to load items</div>
-          Please try again.
+          <div className="alert-title">{t('list.errorTitle')}</div>
+          {t('list.errorBody')}
         </div>
       ) : state === 'empty' ? (
         <div className="card">
           <div className="empty-state">
             <div className="empty-state-icon">📦</div>
-            <div className="empty-state-title">No items yet</div>
+            <div className="empty-state-title">{t('list.emptyTitle')}</div>
             <div className="empty-state-body">
-              {canCreate
-                ? 'Create your first item to make it pickable as a component in NPD and BOMs.'
-                : 'No items have been created in this organization yet.'}
+              {canCreate ? t('list.emptyBodyCreate') : t('list.emptyBodyView')}
             </div>
             {canCreate ? (
               <div className="empty-state-action">
@@ -161,7 +159,7 @@ export default async function TechnicalItemsPage() {
         <>
           {truncated ? (
             <div role="alert" className="alert alert-amber">
-              Showing first {limit} of {total} items.
+              {t('list.truncated', { limit, total })}
             </div>
           ) : null}
           <ItemsTableClient
@@ -178,7 +176,7 @@ export default async function TechnicalItemsPage() {
 
       {!canCreate && !canEdit && !canDeactivate ? (
         <div role="alert" className="alert alert-amber">
-          You can view items but do not have permission to create, edit or deactivate them.
+          {t('list.viewerOnly')}
         </div>
       ) : null}
     </main>

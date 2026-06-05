@@ -3,13 +3,17 @@
  *
  * T-089 — TEC-052 Cost Import from D365: RTL parity + state + R15 tests.
  *
+ * RELOCATED 2026-06-05 with the D365 group into Settings › Integrations › D365
+ * (old path technical/costs/d365-import/__tests__/...). Imports are co-located
+ * with the relocated component/actions so they move unchanged.
+ *
  * Spec-driven anchor (layout-primitive, verified with `wc -l` = 793):
  *   prototypes/design/Monopilot Design System/technical/spec-driven-screens.jsx:551-648
  *   (cost_import_d365_screen).
  *
  * The page is an async RSC reading the D365 gate + cost diff via withOrgContext
  * (exercised live). Here we test the pure presentational CostImport client:
- *   - D365-disabled banner that keeps the rest of Technical usable (source-of-truth note)
+ *   - D365-disabled banner that keeps the rest of Settings usable (source-of-truth note)
  *   - KPI tiles, diff table with Δ% colour-coding (sign + value, never colour-only)
  *   - sign-off ReasonInput required on |Δ| ≥ 5% before Apply
  *   - Apply enqueues the import via the (mocked) trigger action
@@ -59,7 +63,7 @@ const ROWS: CostDiffRow[] = [
 ];
 const COUNTS = { changed: 2, over5: 1, same: 0 };
 
-describe('TEC-052 D365 disabled state (R15: keeps Technical usable, never blocks release)', () => {
+describe('TEC-052 D365 disabled state (R15: keeps Settings usable, never blocks release)', () => {
   it('shows the disabled banner + settings link + source-of-truth note; no diff/apply', () => {
     render(<CostImport d365Enabled={false} canTrigger={false} rows={[]} counts={{ changed: 0, over5: 0, same: 0 }} copy={COPY} />);
     expect(screen.getByTestId('d365-cost-import-disabled')).toHaveTextContent(/connector disabled/i);

@@ -25,12 +25,6 @@
 import React from 'react';
 import Link from 'next/link';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card, CardContent } from '@monopilot/ui/Card';
-import { EmptyState } from '@monopilot/ui/EmptyState';
-import Input from '@monopilot/ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
 export type BomStatus =
@@ -112,13 +106,32 @@ export type BomListLabels = {
 
 type FilterKey = 'all' | 'draft' | 'active' | 'in_review' | 'archived';
 
-const STATUS_VARIANT: Record<BomStatus, BadgeVariant> = {
-  draft: 'muted',
-  in_review: 'info',
-  technical_approved: 'secondary',
-  active: 'success',
-  superseded: 'warning',
-  archived: 'danger',
+// 5 semantic tones (MON-design-system rule 8): draft→neutral, in_review→info,
+// approved/active→ok, superseded→warn, archived→bad.
+const STATUS_TONE: Record<BomStatus, string> = {
+  draft: 'badge-gray',
+  in_review: 'badge-blue',
+  technical_approved: 'badge-green',
+  active: 'badge-green',
+  superseded: 'badge-amber',
+  archived: 'badge-red',
+};
+
+const STATUS_GLYPH: Record<BomStatus, string> = {
+  draft: '○',
+  in_review: '◉',
+  technical_approved: '✓',
+  active: '●',
+  superseded: '⚠',
+  archived: '⚠',
+};
+
+const TAB_TONE: Record<FilterKey, string> = {
+  all: '',
+  draft: 'tone-neutral',
+  active: 'tone-ok',
+  in_review: 'tone-info',
+  archived: 'tone-bad',
 };
 
 function statusLabel(status: BomStatus, labels: BomListLabels): string {
@@ -156,44 +169,46 @@ function formatYield(yieldPct: string): string {
 function StateNotice({ state, labels }: { state: PageState; labels: BomListLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-xl border bg-white px-6 py-8 text-sm text-muted-foreground">
+      <div role="status" aria-live="polite" className="card text-shell-muted text-sm">
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-        {labels.error}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.error}</div>
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-        {labels.forbidden}
+      <div role="alert" className="alert alert-amber">
+        <div className="alert-title">{labels.forbidden}</div>
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div role="status" aria-live="polite" className="rounded-xl border bg-white px-6 py-10">
-        <p className="text-base font-semibold">{labels.emptyTitle}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{labels.emptyBody}</p>
+      <div className="card" style={{ padding: 0 }}>
+        <div className="empty-state">
+          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-title">{labels.emptyTitle}</div>
+          <div className="empty-state-body">{labels.emptyBody}</div>
+        </div>
       </div>
     );
   }
   return null;
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'success' | 'info' }) {
-  const toneClass = tone === 'success' ? 'text-emerald-600' : tone === 'info' ? 'text-sky-600' : 'text-slate-900';
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'green' | 'blue' }) {
   return (
-    <Card className="rounded-xl border bg-white p-3.5 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={['mt-1 font-mono text-2xl font-bold tabular-nums', toneClass].join(' ')}>{value}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{sub}</div>
-    </Card>
+    <div className={['kpi', tone ?? ''].filter(Boolean).join(' ')}>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      {sub ? <div className="kpi-change muted">{sub}</div> : null}
+    </div>
   );
 }
 
@@ -264,32 +279,24 @@ export function BomListScreen({
   }, [items, filter, q]);
 
   return (
-    <main data-screen="technical-bom-list" className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-6">
+    <main data-screen="technical-bom-list" className="flex w-full flex-col gap-4 px-6 py-6">
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <Link href=".">{labels.breadcrumbRoot}</Link> / {labels.title}
+      </nav>
+
       <header className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs text-muted-foreground">
-            {labels.breadcrumbRoot} <span aria-hidden="true">›</span> {labels.title}
-          </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{labels.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
+          <h1 className="page-title">{labels.title}</h1>
+          <p className="helper mt-1 max-w-3xl">{labels.subtitle}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           {canGenerate ? (
-            <button
-              type="button"
-              data-testid="bom-generate-cta"
-              onClick={onGenerate}
-              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
+            <button type="button" data-testid="bom-generate-cta" className="btn btn-secondary" onClick={onGenerate}>
               {labels.generateBoms}
             </button>
           ) : null}
           {canCreate ? (
-            <Link
-              href={`${data?.detailHrefBase ?? '#'}`}
-              data-testid="bom-new-cta"
-              className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            >
+            <Link href={`${data?.detailHrefBase ?? '#'}`} data-testid="bom-new-cta" className="btn btn-primary">
               {labels.newBom}
             </Link>
           ) : null}
@@ -300,30 +307,21 @@ export function BomListScreen({
         <StateNotice state={state} labels={labels} />
       ) : (
         <>
-          {/* KPI strip */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* KPI strip — design-system .kpi (3px accent, Inter value) */}
+          <div className="kpi-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             <Kpi
               label={labels.kpiActive}
               value={String(data?.kpi.activeCount ?? 0)}
               sub={interpolate(labels.kpiTotalSuffix, { n: data?.kpi.totalCount ?? 0 })}
-              tone="success"
+              tone="green"
             />
             <Kpi label={labels.kpiDraft} value={String(data?.kpi.draftCount ?? 0)} sub="" />
-            <Kpi label={labels.kpiInReview} value={String(data?.kpi.inReviewCount ?? 0)} sub="" tone="info" />
-            <Kpi
-              label={labels.tabAll}
-              value={String(data?.kpi.totalCount ?? 0)}
-              sub=""
-            />
+            <Kpi label={labels.kpiInReview} value={String(data?.kpi.inReviewCount ?? 0)} sub="" tone="blue" />
+            <Kpi label={labels.tabAll} value={String(data?.kpi.totalCount ?? 0)} sub="" />
           </div>
 
           {/* Status filter tabs (TabsCounted parity) */}
-          <div
-            role="tablist"
-            aria-label={labels.colStatus}
-            data-testid="bom-status-tabs"
-            className="flex flex-wrap gap-1 border-b border-slate-200"
-          >
+          <div className="tabs-counted" role="tablist" aria-label={labels.colStatus} data-testid="bom-status-tabs">
             {FILTER_TABS.map((tab) => {
               const on = filter === tab.key;
               return (
@@ -334,17 +332,10 @@ export function BomListScreen({
                   aria-selected={on}
                   data-filter={tab.key}
                   onClick={() => setFilter(tab.key)}
-                  className={[
-                    'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition',
-                    on
-                      ? 'border-slate-900 text-slate-900'
-                      : 'border-transparent text-muted-foreground hover:text-slate-700',
-                  ].join(' ')}
+                  className={`tabs-counted-tab${on ? ' active' : ''}`}
                 >
-                  {labels[tab.labelKey]}
-                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] tabular-nums text-slate-600">
-                    {counts[tab.key]}
-                  </span>
+                  <span>{labels[tab.labelKey]}</span>
+                  <span className={`tabs-counted-pill ${TAB_TONE[tab.key]}`.trim()}>{counts[tab.key]}</span>
                 </button>
               );
             })}
@@ -356,77 +347,78 @@ export function BomListScreen({
             <label className="sr-only" htmlFor="bom-search">
               {labels.searchPlaceholder}
             </label>
-            <Input
+            <input
               id="bom-search"
-              type="text"
+              type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={labels.searchPlaceholder}
-              className="w-64 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+              aria-label={labels.searchPlaceholder}
+              className="form-input"
+              style={{ width: 260 }}
             />
           </div>
 
-          <Card className="rounded-xl border bg-white shadow-sm">
-            <CardContent className="p-0">
-              {rows.length === 0 ? (
-                <div className="px-6 py-10">
-                  <EmptyState
-                    icon="📋"
-                    title={q.trim() ? labels.noMatchTitle : labels.emptyTitle}
-                    body={q.trim() ? labels.noMatchBody : labels.emptyBody}
-                    action={<button type="button">{labels.newBom}</button>}
-                  />
-                </div>
-              ) : (
-                <Table aria-label={labels.title}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">{labels.colCode}</TableHead>
-                      <TableHead scope="col">{labels.colProduct}</TableHead>
-                      <TableHead scope="col">{labels.colCategory}</TableHead>
-                      <TableHead scope="col">{labels.colVersion}</TableHead>
-                      <TableHead scope="col" className="text-right">
-                        {labels.colYield}
-                      </TableHead>
-                      <TableHead scope="col">{labels.colUpdated}</TableHead>
-                      <TableHead scope="col">{labels.colStatus}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((b) => (
-                      <TableRow key={b.productId} data-testid="bom-row">
-                        <TableCell className="font-mono text-sm">
-                          <Link
-                            href={`${data?.detailHrefBase}/${encodeURIComponent(b.productId)}`}
-                            className="text-slate-900 underline-offset-2 hover:underline"
-                          >
-                            {b.productId}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{b.productName ?? b.productId}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {interpolate(labels.componentsMeta, { n: b.componentCount })}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{b.category ?? '—'}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">v{b.version}</TableCell>
-                        <TableCell className="text-right font-mono text-sm tabular-nums">
-                          {formatYield(b.yieldPct)}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {formatUpdated(b.updatedAt)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANT[b.status]}>{statusLabel(b.status, labels)}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            {rows.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-title">{q.trim() ? labels.noMatchTitle : labels.emptyTitle}</div>
+                <div className="empty-state-body">{q.trim() ? labels.noMatchBody : labels.emptyBody}</div>
+              </div>
+            ) : (
+              <table aria-label={labels.title}>
+                <thead>
+                  <tr>
+                    <th scope="col">{labels.colCode}</th>
+                    <th scope="col">{labels.colProduct}</th>
+                    <th scope="col">{labels.colCategory}</th>
+                    <th scope="col">{labels.colVersion}</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>
+                      {labels.colYield}
+                    </th>
+                    <th scope="col">{labels.colUpdated}</th>
+                    <th scope="col">{labels.colStatus}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((b) => (
+                    <tr key={b.productId} data-testid="bom-row">
+                      <td className="mono">
+                        <Link
+                          href={`${data?.detailHrefBase}/${encodeURIComponent(b.productId)}`}
+                          className="text-blue-600 underline-offset-4 hover:underline"
+                        >
+                          {b.productId}
+                        </Link>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{b.productName ?? b.productId}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {interpolate(labels.componentsMeta, { n: b.componentCount })}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 12 }}>{b.category ?? '—'}</td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        v{b.version}
+                      </td>
+                      <td className="mono tabular-nums" style={{ textAlign: 'right' }}>
+                        {formatYield(b.yieldPct)}
+                      </td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {formatUpdated(b.updatedAt)}
+                      </td>
+                      <td>
+                        <span className={`badge ${STATUS_TONE[b.status]}`}>
+                          {STATUS_GLYPH[b.status]} {statusLabel(b.status, labels)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </>
       )}
     </main>

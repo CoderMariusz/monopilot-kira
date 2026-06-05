@@ -3140,6 +3140,286 @@
         "empty": "No differences between this snapshot and the current canonical BOM.",
         "close": "Close"
       }
+    },
+    "recipeCost": {
+      "title": "Recipe costing",
+      "subtitle": "Standard-cost roll-up based on BOM quantities × current material rates. Read-only; master cost is edited under Cost history.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "cost": "Costing"
+      },
+      "selectLabel": "Product",
+      "selectPlaceholder": "Select a product…",
+      "selectPrompt": "Select a product to roll up its recipe cost.",
+      "loading": "Loading recipe cost",
+      "loadError": "Unable to load the recipe cost. Please try again.",
+      "kpi": {
+        "stdCost": "Std. material cost",
+        "stdCostSub": "Σ line costs",
+        "yield": "Yield",
+        "yieldSub": "from BOM header",
+        "components": "Components",
+        "componentsSub": "BOM lines",
+        "costed": "Costed lines",
+        "costedSub": "with a unit cost"
+      },
+      "breakdownTitle": "Cost breakdown",
+      "totalLabel": "Total std. material cost",
+      "noLines": "This BOM has no lines yet.",
+      "noCost": "No cost",
+      "bomNote": "Rolled up from BOM v{version} ({status}). Material cost only — labour / overhead are Finance-owned.",
+      "uncosted": "no cost",
+      "state": {
+        "error": "Unable to load recipe costing. Please try again.",
+        "emptyTitle": "No costable products yet",
+        "emptyBody": "Create a BOM for a finished good or intermediate to roll up its recipe cost."
+      }
+    },
+    "costHistory": {
+      "title": "Cost history",
+      "subtitle": "Timeline of standard-cost changes per item across cost rolls. Technical edits the master cost and history; valuation and variance are Finance-owned.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "cost": "Costing",
+        "history": "Cost history"
+      },
+      "itemLabel": "Item",
+      "itemPlaceholder": "Select an item…",
+      "editCost": "Edit cost",
+      "selectPrompt": "Select an item to view its cost history.",
+      "loading": "Loading cost history",
+      "loadError": "Unable to load cost history. Please try again.",
+      "noHistory": "No cost history yet for {code}.",
+      "noHistoryCanEdit": " Record the first cost roll to start the timeline.",
+      "readOnlyNotice": "You can view cost history but do not have permission to edit master cost (technical.cost.edit).",
+      "sparklineTitle": "Sparkline · cost / kg",
+      "min": "min",
+      "max": "max",
+      "col": {
+        "date": "Date",
+        "source": "Source",
+        "cost": "Cost / kg",
+        "delta": "Δ%",
+        "reason": "Currency"
+      },
+      "modal": {
+        "title": "Edit cost · {code}",
+        "intro": "Recording a new cost closes the active row and writes a history entry. Changes > 20% require an approver (V-TEC-53).",
+        "newCost": "New cost / kg",
+        "currency": "Currency",
+        "source": "Source",
+        "reason": "Reason",
+        "reasonPlaceholder": "Why is the cost changing?",
+        "approver": "Approver (user id)",
+        "approverPlaceholder": "approver user UUID",
+        "cancel": "Cancel",
+        "record": "Record cost"
+      },
+      "source": {
+        "manual": "Manual",
+        "d365_sync": "D365 sync",
+        "supplier_update": "Supplier update",
+        "variance_roll": "Variance roll"
+      },
+      "error": {
+        "forbidden": "You do not have permission to record a cost change.",
+        "invalid": "Please check the values and try again.",
+        "notFound": "That item no longer exists.",
+        "approverRequired": "This cost change exceeds 20%. Enter an approver to record it (V-TEC-53).",
+        "generic": "Could not save the cost change. Please try again."
+      },
+      "state": {
+        "error": "Unable to load cost history. Please try again.",
+        "emptyTitle": "No items yet",
+        "emptyBody": "Create an item in the item master to track its cost history."
+      }
+    },
+    "nutrition": {
+      "title": "Nutrition panel",
+      "subtitle": "Per-100 g macronutrients and the 14 EU-declared allergens. Materialized from NPD and read-only here — drives the customer-facing label.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "nutrition": "Nutrition"
+      },
+      "selectLabel": "Product",
+      "selectPlaceholder": "Select a product…",
+      "selectPrompt": "Select a product to view its nutrition panel.",
+      "macrosTitle": "Macronutrients",
+      "per100g": "per 100 g",
+      "perPortion": "per portion",
+      "regulation": "Source",
+      "nutrient": "Nutrient",
+      "allergensTitle": "Allergens (14 EU declared)",
+      "allergen": "Allergen",
+      "presenceCol": "Presence",
+      "presence": {
+        "contains": "Contains",
+        "may_contain": "May contain",
+        "free_from": "Free from",
+        "unknown": "Unknown"
+      },
+      "noAllergens": "No allergen declarations recorded for this product.",
+      "noMacros": "No macronutrient values recorded for this product.",
+      "computedNote": "Recomputed from the materialized NPD nutrition model on {when}.",
+      "computedNoteNoDate": "Materialized from the NPD nutrition model.",
+      "loading": "Loading nutrition panel",
+      "loadError": "Unable to load the nutrition panel. Please try again.",
+      "state": {
+        "error": "Unable to load nutrition profiles. Please try again.",
+        "emptyTitle": "No nutrition profiles yet",
+        "emptyBody": "Nutrition profiles are materialized from NPD formulations. None exist for this org yet."
+      }
+    },
+    "shelfLife": {
+      "title": "Shelf-life configuration",
+      "subtitle": "Per-product use-by vs. best-before rules. The regulatory preset controls which mode is legally required.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "shelfLife": "Shelf life"
+      },
+      "override": "Override",
+      "notConfigured": "Not configured",
+      "days": "days",
+      "mode": {
+        "useBy": "use_by",
+        "bestBefore": "best_before"
+      },
+      "col": {
+        "product": "Product",
+        "mode": "Mode",
+        "duration": "Duration",
+        "dateCode": "Date code",
+        "notes": "Notes",
+        "actions": "Actions"
+      },
+      "kpi": {
+        "region": "Shelf-life summary",
+        "products": "Finished goods",
+        "productsSub": "with rules",
+        "useBy": "Use-by rules",
+        "useBySub": "perishable",
+        "bestBefore": "Best-before",
+        "bestBeforeSub": "ambient / frozen",
+        "unconfigured": "Unconfigured",
+        "unconfiguredSub": "no rule yet"
+      },
+      "modal": {
+        "title": "Override shelf life",
+        "warning": "Override leaves the regulatory preset — requires QA sign-off and is logged to the audit trail.",
+        "current": "Current shelf life",
+        "newDays": "New shelf life (days)",
+        "mode": "Mode",
+        "dateCode": "Date-code format",
+        "reason": "Override reason",
+        "reasonHelp": "Minimum 10 characters — audit-logged.",
+        "reasonPlaceholder": "e.g. MAP parameter change (30% CO₂) confirmed by microbiological study no. 2026/04/17-A.",
+        "preview": "Date-code preview for today",
+        "cancel": "Cancel",
+        "apply": "Apply override"
+      },
+      "regulatoryNote": "Regulatory preset source: Regulation (EU) 1169/2011 · PL HACCP GHP/GMP guidelines. Changing a preset triggers an engineering change order.",
+      "state": {
+        "error": "Unable to load shelf-life rules. Please try again.",
+        "emptyTitle": "No finished goods yet",
+        "emptyBody": "Create a finished good in the item master to configure its shelf life.",
+        "readOnly": "You can view shelf-life rules but do not have permission to override them."
+      },
+      "error": {
+        "invalid": "Please check the values and try again.",
+        "forbidden": "You do not have permission to override shelf life.",
+        "notFound": "That product no longer exists.",
+        "generic": "Could not save. Please try again."
+      }
+    },
+    "materials": {
+      "title": "Materials",
+      "description": "Raw materials and intermediates in the item master.",
+      "breadcrumb": "Materials",
+      "breadcrumbRoot": "Technical",
+      "searchPlaceholder": "Search by code or name…",
+      "searchAria": "Search materials",
+      "manageInItems": "Manage in Items",
+      "countSummary": "{count} of {total} materials",
+      "tabs": {
+        "all": "All",
+        "rm": "Raw materials",
+        "intermediate": "Intermediate"
+      },
+      "types": {
+        "rm": "Raw material",
+        "intermediate": "Intermediate"
+      },
+      "statuses": {
+        "active": "Active",
+        "draft": "Draft",
+        "deprecated": "Deprecated",
+        "blocked": "Blocked"
+      },
+      "cols": {
+        "code": "Code",
+        "name": "Name",
+        "type": "Type",
+        "uom": "UoM",
+        "cost": "Cost / kg (zł)",
+        "updated": "Updated",
+        "status": "Status"
+      },
+      "emptyTitle": "No materials yet",
+      "emptyBody": "Create a raw material or intermediate in the item master.",
+      "noMatchTitle": "No materials match your filters",
+      "noMatchBody": "Adjust the type tab, status, or search to see more.",
+      "errorTitle": "Unable to load materials",
+      "errorBody": "Please try again."
+    },
+    "sensory": {
+      "title": "Sensory evaluation",
+      "subtitle": "Technical-owned sensory read model. NPD approval and Quality release guards read this state; this screen never moves the NPD gate.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "sensory": "Sensory"
+      },
+      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
+      "tableLabel": "Sensory evaluations",
+      "kpi": {
+        "region": "Sensory summary",
+        "total": "Subjects",
+        "blocked": "Blocked",
+        "pending": "Awaiting",
+        "notRequired": "Not required"
+      },
+      "col": {
+        "subject": "Subject",
+        "type": "Type",
+        "policy": "Policy",
+        "evaluated": "Evaluated",
+        "status": "Status",
+        "blockedReason": "Blocked reason"
+      },
+      "subject": {
+        "product": "Product",
+        "project": "Project",
+        "workOrder": "Work order",
+        "item": "Item / FG"
+      },
+      "policy": {
+        "required": "Required",
+        "optional": "Optional"
+      },
+      "status": {
+        "required": "Required",
+        "pending": "Pending",
+        "pass": "Pass",
+        "fail": "Fail",
+        "hold": "Hold",
+        "notRequired": "Not required"
+      },
+      "sourceNote": "Source: technical_sensory_evaluations (Technical-owned read model). fail / hold surface SENSORIAL_BLOCKED for downstream release guards.",
+      "state": {
+        "error": "Unable to load sensory evaluations. Please try again.",
+        "emptyTitle": "No sensory evaluations yet",
+        "emptyBody": "Sensory subjects appear here once an evaluation is recorded. Until then NPD treats sensory as not required.",
+        "denied": "You do not have permission to view sensory evaluations."
+      }
     }
   },
   "Technical": {
@@ -3235,117 +3515,6 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
-      }
-    },
-    "shelfLife": {
-      "title": "Shelf-life configuration",
-      "subtitle": "Per-product use-by vs. best-before rules. The regulatory preset controls which mode is legally required.",
-      "breadcrumb": {
-        "technical": "Technical",
-        "shelfLife": "Shelf life"
-      },
-      "override": "Override",
-      "notConfigured": "Not configured",
-      "days": "days",
-      "mode": {
-        "useBy": "use_by",
-        "bestBefore": "best_before"
-      },
-      "col": {
-        "product": "Product",
-        "mode": "Mode",
-        "duration": "Duration",
-        "dateCode": "Date code",
-        "notes": "Notes",
-        "actions": ""
-      },
-      "kpi": {
-        "region": "Shelf-life summary",
-        "products": "Finished goods",
-        "productsSub": "with rules",
-        "useBy": "Use-by rules",
-        "useBySub": "perishable",
-        "bestBefore": "Best-before",
-        "bestBeforeSub": "ambient / frozen",
-        "unconfigured": "Unconfigured",
-        "unconfiguredSub": "no rule yet"
-      },
-      "modal": {
-        "title": "Override shelf life",
-        "warning": "Override leaves the regulatory preset — requires QA sign-off and is logged to the audit trail.",
-        "current": "Current shelf life",
-        "newDays": "New shelf life (days)",
-        "mode": "Mode",
-        "dateCode": "Date-code format",
-        "reason": "Override reason",
-        "reasonHelp": "Minimum 10 characters — audit-logged.",
-        "reasonPlaceholder": "e.g. MAP parameter change (30% CO₂) confirmed by microbiological study no. 2026/04/17-A.",
-        "preview": "Date-code preview for today",
-        "cancel": "Cancel",
-        "apply": "Apply override"
-      },
-      "regulatoryNote": "Regulatory preset source: Regulation (EU) 1169/2011 · PL HACCP GHP/GMP guidelines. Changing a preset triggers an engineering change order.",
-      "state": {
-        "error": "Unable to load shelf-life rules. Please try again.",
-        "emptyTitle": "No finished goods yet",
-        "emptyBody": "Create a finished good in the item master to configure its shelf life.",
-        "readOnly": "You can view shelf-life rules but do not have permission to override them."
-      },
-      "error": {
-        "invalid": "Please check the values and try again.",
-        "forbidden": "You do not have permission to override shelf life.",
-        "notFound": "That product no longer exists.",
-        "generic": "Could not save. Please try again."
-      }
-    },
-    "sensory": {
-      "title": "Sensory evaluation",
-      "subtitle": "Technical-owned sensory read model. NPD approval and Quality release guards read this state; this screen never moves the NPD gate.",
-      "breadcrumb": {
-        "technical": "Technical",
-        "sensory": "Sensory"
-      },
-      "readOnlyNote": "Read-only. Sensory is a reported read model — NPD remains the gate owner and consumes this status read-only.",
-      "tableLabel": "Sensory evaluations",
-      "kpi": {
-        "region": "Sensory summary",
-        "total": "Subjects",
-        "blocked": "Blocked",
-        "pending": "Awaiting",
-        "notRequired": "Not required"
-      },
-      "col": {
-        "subject": "Subject",
-        "type": "Type",
-        "policy": "Policy",
-        "evaluated": "Evaluated",
-        "status": "Status",
-        "blockedReason": "Blocked reason"
-      },
-      "subject": {
-        "product": "Product",
-        "project": "Project",
-        "workOrder": "Work order",
-        "item": "Item / FG"
-      },
-      "policy": {
-        "required": "Required",
-        "optional": "Optional"
-      },
-      "status": {
-        "required": "Required",
-        "pending": "Pending",
-        "pass": "Pass",
-        "fail": "Fail",
-        "hold": "Hold",
-        "notRequired": "Not required"
-      },
-      "sourceNote": "Source: technical_sensory_evaluations (Technical-owned read model). fail / hold surface SENSORIAL_BLOCKED for downstream release guards.",
-      "state": {
-        "error": "Unable to load sensory evaluations. Please try again.",
-        "emptyTitle": "No sensory evaluations yet",
-        "emptyBody": "Sensory subjects appear here once an evaluation is recorded. Until then NPD treats sensory as not required.",
-        "denied": "You do not have permission to view sensory evaluations."
       }
     }
   },

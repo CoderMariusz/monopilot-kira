@@ -54,6 +54,7 @@ export const SETTINGS_NAV_GROUPS = [
   group("admin", "Admin", true, [
     item("d365-conn", "D365 connection", "⇆", false, "/settings/integrations/d365"),
     item("d365-mapping", "D365 field mapping", "↔", false, "/settings/integrations/d365/mapping"),
+    item("d365-cost-import", "D365 cost import", "⇣", false, "/settings/integrations/d365/cost-import"),
     item("d365-dlq", "D365 DLQ (shipping)", "!"),
     item("rules", "Rules registry", "✦"),
     item("flags", "Feature flags (L)", "◨"),
