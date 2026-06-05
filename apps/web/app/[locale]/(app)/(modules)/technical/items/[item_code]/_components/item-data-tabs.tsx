@@ -154,6 +154,7 @@ export type CostTabLabels = TabStateLabels & {
   cost: string;
   source: string;
   none: string;
+  approvalNote: string;
   sources: Record<string, string>;
 };
 
@@ -201,6 +202,9 @@ export function CostTab({ data, labels }: { data: CostTabData; labels: CostTabLa
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="alert alert-amber" role="note">
+        <span aria-hidden>△</span> {labels.approvalNote}
       </div>
     </div>
   );
@@ -367,11 +371,14 @@ function DRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-slate-100 py-1.5 last:border-b-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className={`text-sm text-slate-900 ${mono ? 'font-mono tabular-nums' : 'font-medium'}`}>
-        {badge ?? value}
-      </dd>
+    <div
+      className="flex items-baseline justify-between gap-4 py-1.5"
+      style={{ borderBottom: '1px solid var(--border)' }}
+    >
+      <dt className="text-sm" style={{ color: 'var(--muted)' }}>
+        {label}
+      </dt>
+      <dd className={`text-sm ${mono ? 'mono tabular-nums' : 'font-medium'}`}>{badge ?? value}</dd>
     </div>
   );
 }

@@ -454,7 +454,8 @@ function RoutingEditModal({
                 {ops.length > 1 ? (
                   <button
                     type="button"
-                    className="text-xs font-medium text-red-600 hover:underline"
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: 'var(--red)' }}
                     onClick={() => removeOp(index)}
                   >
                     {labels.remove}
@@ -544,7 +545,12 @@ function RoutingEditModal({
             </div>
           );
         })}
-        <button type="button" className="text-sm font-medium text-blue-600 hover:underline" onClick={addOp}>
+        <button
+          type="button"
+          className="text-sm font-medium hover:underline"
+          style={{ color: 'var(--blue)' }}
+          onClick={addOp}
+        >
           {labels.addOperation}
         </button>
       </form>
@@ -713,14 +719,20 @@ function RoutingRowActions({
   return (
     <span className="flex justify-end gap-3">
       {canWrite && routing.status === 'draft' ? (
-        <button type="button" className="font-medium text-blue-600 hover:underline" onClick={onEdit}>
+        <button
+          type="button"
+          className="font-medium hover:underline"
+          style={{ color: 'var(--blue)' }}
+          onClick={onEdit}
+        >
           {labels.edit}
         </button>
       ) : null}
       {canApprove && routing.status === 'draft' ? (
         <button
           type="button"
-          className="font-medium text-emerald-700 hover:underline disabled:opacity-50"
+          className="font-medium hover:underline disabled:opacity-50"
+          style={{ color: 'var(--green-700)' }}
           disabled={pending}
           onClick={() => transition(approveRouting)}
         >
@@ -730,7 +742,8 @@ function RoutingRowActions({
       {canApprove && routing.status === 'approved' ? (
         <button
           type="button"
-          className="font-medium text-emerald-700 hover:underline disabled:opacity-50"
+          className="font-medium hover:underline disabled:opacity-50"
+          style={{ color: 'var(--green-700)' }}
           disabled={pending}
           onClick={() => transition(publishRouting)}
         >

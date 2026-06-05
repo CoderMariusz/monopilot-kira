@@ -19,6 +19,7 @@
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getBomDetailPage } from '../_actions/detail-page';
 import {
   BomDetailScreen,
@@ -26,8 +27,42 @@ import {
   type BomDetailLabels,
   type PageState,
 } from '../_components/bom-detail-screen';
+import { BomDetailActions } from '../_components/bom-detail-actions';
 
 export const dynamic = 'force-dynamic';
+
+type OrgContextLike = {
+  userId: string;
+  orgId: string;
+  client: {
+    query<T = Record<string, unknown>>(
+      sql: string,
+      params?: readonly unknown[],
+    ): Promise<{ rows: T[]; rowCount?: number | null }>;
+  };
+};
+
+/** Server-resolved BOM-detail RBAC (never client-trusted). */
+async function resolveDetailPermissions(): Promise<{ canCreate: boolean; canApprove: boolean }> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ permission: string }>(
+        `select rp.permission
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp on rp.role_id = r.id
+          where ur.user_id = $1::uuid and ur.org_id = $2::uuid
+            and rp.permission in ('technical.bom.create', 'technical.bom.approve')`,
+        [ctx.userId, ctx.orgId],
+      );
+      const set = new Set(rows.map((r) => r.permission));
+      return { canCreate: set.has('technical.bom.create'), canApprove: set.has('technical.bom.approve') };
+    });
+  } catch {
+    return { canCreate: false, canApprove: false };
+  }
+}
 
 const DETAIL_HREF_BASE = '/technical/bom';
 
@@ -148,7 +183,10 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
   const versionParam = sp.v ? Number(sp.v) : undefined;
   const version = versionParam && Number.isFinite(versionParam) ? versionParam : undefined;
 
-  const result = await getBomDetailPage(productId, version);
+  const [result, perms] = await Promise.all([
+    getBomDetailPage(productId, version),
+    resolveDetailPermissions(),
+  ]);
 
   if (!result.ok) {
     if (result.error === 'not_found') notFound();
@@ -211,5 +249,29 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
     detailHrefBase: DETAIL_HREF_BASE,
   };
 
-  return <BomDetailScreen state="ready" data={data} labels={labels} />;
+  return (
+    <BomDetailScreen
+      state="ready"
+      data={data}
+      labels={labels}
+      actions={
+        <BomDetailActions
+          productId={d.productId}
+          productName={d.productName}
+          currentVersion={d.selectedVersion}
+          status={d.header.status}
+          lines={d.lines.map((l) => ({
+            itemId: l.itemId ?? undefined,
+            componentCode: l.componentCode,
+            quantity: Number(l.quantity),
+            uom: l.uom,
+            scrapPct: Number(l.scrapPct),
+            manufacturingOperationName: l.manufacturingOperationName ?? undefined,
+          }))}
+          canCreate={perms.canCreate}
+          canApprove={perms.canApprove}
+        />
+      }
+    />
+  );
 }

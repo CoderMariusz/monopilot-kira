@@ -46,10 +46,12 @@ export type ProcessAdditionsLabels = {
   readOnlyTag: string;
   warnNote: string;
   modalTitle: string;
+  modalSubtitle?: string;
   modalOperation: string;
   modalAllergen: string;
   modalReason: string;
   modalReasonPlaceholder: string;
+  modalReasonHelp?: string;
   modalSave: string;
   modalCancel: string;
   saveError: string;
@@ -258,22 +260,39 @@ export function ProcessAdditions({
 
       {modalOpen ? (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={labels.modalTitle}
-          data-testid="process-additions-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(15,23,42,.45)' }}
+          className="modal-overlay"
+          data-testid="process-additions-modal-overlay"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) resetModal();
+          }}
         >
-          <div className="card w-full max-w-md" style={{ margin: 0 }}>
-            <div className="card-head">
-              <h2 className="card-title">{labels.modalTitle}</h2>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={labels.modalTitle}
+            data-testid="process-additions-modal"
+            className="modal-box"
+          >
+            <div className="modal-head">
+              <div>
+                <div className="modal-title">{labels.modalTitle}</div>
+                {labels.modalSubtitle ? (
+                  <div className="text-xs text-muted-foreground">{labels.modalSubtitle}</div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label={labels.modalCancel}
+                onClick={resetModal}
+              >
+                ✕
+              </button>
             </div>
-            <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {labels.modalOperation}
-                </span>
+
+            <div className="modal-body">
+              <div className="ff">
+                <label htmlFor="process-op">{labels.modalOperation}</label>
                 <Select
                   value={op}
                   onValueChange={setOp}
@@ -281,11 +300,9 @@ export function ProcessAdditions({
                   placeholder={labels.selectPlaceholder}
                   aria-label={labels.modalOperation}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {labels.modalAllergen}
-                </span>
+              </div>
+              <div className="ff">
+                <label htmlFor="process-allergen">{labels.modalAllergen}</label>
                 <Select
                   value={allergen}
                   onValueChange={setAllergen}
@@ -296,31 +313,32 @@ export function ProcessAdditions({
                   placeholder={labels.selectPlaceholder}
                   aria-label={labels.modalAllergen}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {labels.modalReason}
-                </span>
+              </div>
+              <div className="ff">
+                <label htmlFor="process-reason">{labels.modalReason}</label>
                 <input
+                  id="process-reason"
                   className="form-input"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder={labels.modalReasonPlaceholder}
                 />
-              </label>
+                {labels.modalReasonHelp ? <div className="ff-help">{labels.modalReasonHelp}</div> : null}
+              </div>
               {error ? (
-                <p role="alert" className="text-sm text-red-700">
+                <div role="alert" className="alert alert-red">
                   {error}
-                </p>
+                </div>
               ) : null}
             </div>
-            <div className="card-head mt-4 justify-end gap-2" style={{ marginBottom: 0 }}>
-              <Button type="button" className="btn-secondary" onClick={resetModal} disabled={pending}>
+
+            <div className="modal-foot">
+              <Button type="button" className="btn-secondary btn-sm" onClick={resetModal} disabled={pending}>
                 {labels.modalCancel}
               </Button>
               <Button
                 type="button"
-                className="btn-primary"
+                className="btn-primary btn-sm"
                 data-testid="process-additions-modal-save"
                 onClick={handleSave}
                 disabled={pending}

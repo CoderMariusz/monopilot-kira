@@ -1,0 +1,20 @@
+{
+  "technical.allergens.cascade.source.cascaded": "cascaded",
+  "technical.allergens.cascade.source.manual_override": "manual override",
+  "technical.allergens.cascade.source.lab_result": "lab result",
+  "technical.allergens.cascade.source.supplier_spec": "supplier spec",
+  "technical.allergens.cascade.source.brief_declared": "brief declared",
+  "technical.allergens.cascade.level.RM": "RM",
+  "technical.allergens.cascade.level.Intermediate": "Intermediate",
+  "technical.allergens.cascade.level.Process": "Process",
+  "technical.allergens.cascade.level.FG": "FG",
+  "technical.allergens.process.modal.subtitle": "Map a manufacturing operation to an allergen it adds; the cascade rule merges it into every FG that uses the operation.",
+  "technical.allergens.process.modal.intensity": "Intensity",
+  "technical.allergens.process.modal.intensityContains": "Contains",
+  "technical.allergens.process.modal.intensityMayContain": "May contain",
+  "technical.allergens.process.modal.reasonHelp": "Audit-logged. Why this operation introduces the allergen.",
+  "technical.allergens.overrides.eyebrow": "Technical · Allergens",
+  "technical.allergens.overrides.breadcrumb.technical": "Technical",
+  "technical.allergens.overrides.breadcrumb.allergens": "Allergens",
+  "technical.allergens.overrides.breadcrumb.overrides": "Overrides"
+}

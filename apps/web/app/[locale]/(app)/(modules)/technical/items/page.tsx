@@ -168,6 +168,9 @@ export default async function TechnicalItemsPage() {
             canDeactivate={canDeactivate}
             editLabel={editLabel}
             deactivateLabel={deactivateLabel}
+            allergensLabel={t('detail.allergens')}
+            filterEmptyTitle={t('list.filterEmptyTitle')}
+            filterEmptyBody={t('list.filterEmptyBody')}
             wizardLabels={wizardLabels}
             deactivateLabels={deactivateLabels}
           />

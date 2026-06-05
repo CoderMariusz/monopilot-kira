@@ -1,0 +1,5 @@
+{
+  "technical.items.list.filterEmptyTitle": "No items match your filters",
+  "technical.items.list.filterEmptyBody": "Adjust the type tab, status, or search to see more items.",
+  "technical.items.detail.allergens": "Allergens"
+}

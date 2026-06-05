@@ -15,6 +15,12 @@
  * (`approveReleaseBundleAction` / `rejectReleaseBundleAction`) and the T-090
  * `loadReleaseBundle` read model — it implements NO backend release logic.
  *
+ * MON-design-system parity (TW1-cost lane): the prior build had drifted to raw
+ * Tailwind chrome (bg-black/40, rounded-xl border shadow-lg, bg-slate/amber/red/blue-50,
+ * text-slate-700). Restyled to the locked `.modal-*` + `.alert-*` + `.ff` + `.btn-*`
+ * + `.badge-*` classes. Functionality (approve/reject via the T-080 actions, the
+ * PIN + reason e-signature) is unchanged.
+ *
  * Local Dialog primitive (not the Radix-backed @monopilot/ui Modal): the workspace
  * ships a React 18 peer @radix-ui/react-dialog while apps/web runs React 19, so
  * mounting Radix in jsdom crashes with a dual-React useRef null. Production semantics
@@ -26,11 +32,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
-import Textarea from '@monopilot/ui/Textarea';
-
 import { approveReleaseBundleAction } from '../../../../../../../actions/technical/release-bundles/approve-bundle';
 import { rejectReleaseBundleAction } from '../../../../../../../actions/technical/release-bundles/reject-bundle';
 import {
@@ -40,10 +41,18 @@ import {
   type ReleaseBundleData,
 } from '../_actions/bundle-data';
 
-const SEVERITY_VARIANT = {
-  block: 'danger',
-  warn: 'warning',
-  info: 'info',
+// Blocker severity → .badge tone class (MON-design-system rule 8).
+const SEVERITY_BADGE = {
+  block: 'badge-red',
+  warn: 'badge-amber',
+  info: 'badge-blue',
+} as const;
+
+// Blocker severity → .alert tone class for the row background.
+const SEVERITY_ALERT = {
+  block: 'alert-red',
+  warn: 'alert-amber',
+  info: 'alert-blue',
 } as const;
 
 function Dialog({
@@ -51,6 +60,7 @@ function Dialog({
   onClose,
   title,
   subtitle,
+  closeLabel,
   children,
   footer,
 }: {
@@ -58,6 +68,7 @@ function Dialog({
   onClose: () => void;
   title: string;
   subtitle?: string;
+  closeLabel: string;
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
@@ -78,7 +89,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -89,21 +100,21 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box wide outline-none"
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <h2 id={titleId} className="modal-title">
               {title}
             </h2>
-            {subtitle ? <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p> : null}
+            {subtitle ? <p className="helper mt-0.5">{subtitle}</p> : null}
           </div>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" aria-label={closeLabel} className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-5 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        {footer ? <div className="modal-foot">{footer}</div> : null}
       </div>
     </div>
   );
@@ -119,10 +130,10 @@ function PairedStatusCard({
   rows: { label: string; value: string; mono?: boolean }[];
 }) {
   return (
-    <div className="rounded-md border bg-white p-3">
+    <div className="card" style={{ padding: 12 }}>
       <div className="mb-1.5 flex items-center justify-between">
         <strong className="text-sm">{heading}</strong>
-        {status ? <Badge variant="warning">{status}</Badge> : null}
+        {status ? <span className="badge badge-amber">{status}</span> : null}
       </div>
       <dl className="grid gap-1 text-xs">
         {rows.map((row) => (
@@ -137,17 +148,9 @@ function PairedStatusCard({
 }
 
 function BlockerRow({ blocker, blockerKindLabel }: { blocker: BundleBlocker; blockerKindLabel: (k: BundleBlocker['kind']) => string }) {
-  const tone =
-    blocker.severity === 'block'
-      ? 'bg-red-50'
-      : blocker.severity === 'warn'
-        ? 'bg-amber-50'
-        : 'bg-blue-50';
   return (
-    <div className={`flex items-start gap-2 rounded px-2 py-1.5 text-xs ${tone}`}>
-      <Badge variant={SEVERITY_VARIANT[blocker.severity]} className="shrink-0">
-        {blocker.severity}
-      </Badge>
+    <div className={`alert ${SEVERITY_ALERT[blocker.severity]}`} style={{ fontSize: 12, alignItems: 'flex-start' }}>
+      <span className={`badge ${SEVERITY_BADGE[blocker.severity]} shrink-0`}>{blocker.severity}</span>
       <span>
         <b className="mr-1.5 font-mono text-[11px]">{blockerKindLabel(blocker.kind)}</b>
         {blocker.message}
@@ -226,13 +229,13 @@ function BundleModalBody({
   return (
     <>
       {!data.canApprove ? (
-        <div role="alert" className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div role="alert" className="alert alert-amber mb-3" style={{ fontSize: 12 }}>
           {t('permissionDenied')}
         </div>
       ) : null}
 
       {data.cloneOnWrite ? (
-        <div className="mb-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="alert alert-amber mb-3" style={{ fontSize: 12 }}>
           <span aria-hidden>△</span>
           <span>{t('cloneBanner')}</span>
         </div>
@@ -240,7 +243,7 @@ function BundleModalBody({
 
       {/* D365 informational (never blocks) */}
       {!data.d365Enabled ? (
-        <div role="status" className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        <div role="status" className="alert alert-blue mb-3" style={{ fontSize: 12 }}>
           {t('d365Disabled')}
         </div>
       ) : null}
@@ -266,7 +269,7 @@ function BundleModalBody({
         />
       </div>
 
-      <div className="mb-3 rounded-md border bg-white p-3">
+      <div className="card mb-3" style={{ padding: 12 }}>
         <strong className="text-sm">{t('blockersTitle')}</strong>
         <div className="mt-2 grid gap-1.5">
           {data.blockers.length === 0 ? (
@@ -277,14 +280,14 @@ function BundleModalBody({
             ))
           )}
           {blockingIssues.length > 0 ? (
-            <p className="mt-1 text-[11px] text-red-700">
+            <p className="mt-1 text-[11px]" style={{ color: 'var(--red-700)' }}>
               {t('approveDisabled', { count: blockingIssues.length })}
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="mb-3 rounded-md border bg-white p-3">
+      <div className="card mb-3" style={{ padding: 12 }}>
         <strong className="text-sm">{t('historyTitle')}</strong>
         <div className="mt-2">
           {data.history.length === 0 ? (
@@ -294,6 +297,7 @@ function BundleModalBody({
               <div
                 key={`${h.at}-${i}`}
                 className="grid grid-cols-[140px_130px_1fr] gap-2 border-t py-1 text-xs first:border-t-0"
+                style={{ borderColor: 'var(--border)' }}
               >
                 <span className="font-mono text-muted-foreground">{h.at.slice(0, 16).replace('T', ' ')}</span>
                 <span>{h.who}</span>
@@ -306,7 +310,8 @@ function BundleModalBody({
 
       <fieldset className="mb-3 grid gap-2">
         <label
-          className={`flex items-start gap-2 rounded-md border px-3 py-2 ${action === 'approve' ? 'bg-green-50' : 'bg-white'}`}
+          className="flex items-start gap-2 rounded-md border px-3 py-2"
+          style={{ borderColor: 'var(--border)', background: action === 'approve' ? 'var(--green-050a)' : '#fff' }}
         >
           <input
             type="radio"
@@ -322,7 +327,8 @@ function BundleModalBody({
           </span>
         </label>
         <label
-          className={`flex items-start gap-2 rounded-md border px-3 py-2 ${action === 'reject' ? 'bg-red-50' : 'bg-white'}`}
+          className="flex items-start gap-2 rounded-md border px-3 py-2"
+          style={{ borderColor: 'var(--border)', background: action === 'reject' ? 'var(--red-050a)' : '#fff' }}
         >
           <input
             type="radio"
@@ -339,62 +345,68 @@ function BundleModalBody({
       </fieldset>
 
       {action === 'approve' ? (
-        <div className="mb-2 grid gap-2">
-          <label className="block text-sm font-medium text-slate-700">
-            {t('approveReason')}
-            <Textarea
+        <>
+          <div className="ff">
+            <label htmlFor="bundle-approve-reason">{t('approveReason')}</label>
+            <textarea
+              id="bundle-approve-reason"
+              className="form-input"
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.currentTarget.value)}
               aria-label={t('approveReason')}
             />
-            <span className="text-[11px] text-muted-foreground">{t('approveReasonHelp')}</span>
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {t('pin')}
-            <Input
+            <span className="ff-help">{t('approveReasonHelp')}</span>
+          </div>
+          <div className="ff">
+            <label htmlFor="bundle-pin">{t('pin')}</label>
+            <input
+              id="bundle-pin"
+              className="form-input font-mono"
               type="password"
               autoComplete="off"
               value={pin}
               onChange={(e) => setPin(e.currentTarget.value)}
               aria-label={t('pin')}
             />
-            <span className="text-[11px] text-muted-foreground">{t('pinHelp')}</span>
-          </label>
-        </div>
+            <span className="ff-help">{t('pinHelp')}</span>
+          </div>
+        </>
       ) : (
-        <label className="mb-2 block text-sm font-medium text-slate-700">
-          {t('rejectReason')}
-          <Textarea
+        <div className="ff">
+          <label htmlFor="bundle-reject-reason">{t('rejectReason')}</label>
+          <textarea
+            id="bundle-reject-reason"
+            className="form-input"
             rows={2}
             value={reason}
             onChange={(e) => setReason(e.currentTarget.value)}
             aria-label={t('rejectReason')}
           />
-          <span className="text-[11px] text-muted-foreground">{t('rejectReasonHelp')}</span>
-        </label>
+          <span className="ff-help">{t('rejectReasonHelp')}</span>
+        </div>
       )}
 
       {error ? (
-        <p role="alert" className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <p role="alert" className="alert alert-red mb-2" style={{ fontSize: 12 }}>
           {error}
         </p>
       ) : null}
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" className="btn-secondary" onClick={onClose}>
+      <div className="modal-foot" style={{ padding: 0, borderTop: 0 }}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
           {t('cancel')}
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          className={action === 'reject' ? 'btn-danger' : 'btn-primary'}
+          className={`btn btn-sm ${action === 'reject' ? 'btn-danger' : 'btn-primary'}`}
           disabled={!valid || pending}
           aria-disabled={!valid || pending}
           title={action === 'approve' ? approveDisabledReason : undefined}
           onClick={submit}
         >
           {action === 'approve' ? (canApprove ? t('approveAction') : t('approveBlocked')) : t('rejectAction')}
-        </Button>
+        </button>
       </div>
     </>
   );
@@ -405,10 +417,13 @@ export function ReleaseBundlePanelButton({
   label,
   /** Optional pre-loaded data (used by tests / server-prefetch); else loaded on open. */
   initialData,
+  /** Trigger styling — a text link by default, or a full `.btn` when used as a modal CTA. */
+  triggerClassName,
 }: {
   factorySpecId: string;
   label: string;
   initialData?: ReleaseBundleData;
+  triggerClassName?: string;
 }) {
   const t = useTranslations('Technical.releaseBundle');
   const [open, setOpen] = React.useState(false);
@@ -440,7 +455,8 @@ export function ReleaseBundlePanelButton({
     <>
       <button
         type="button"
-        className="font-medium text-blue-600 underline-offset-4 hover:underline"
+        className={triggerClassName ?? 'font-medium underline-offset-4 hover:underline'}
+        style={triggerClassName ? undefined : { color: 'var(--blue)' }}
         onClick={openPanel}
       >
         {label}
@@ -448,21 +464,22 @@ export function ReleaseBundlePanelButton({
       <Dialog
         open={open}
         onClose={close}
+        closeLabel={t('cancel')}
         title={t('title')}
         subtitle={data ? t('subtitle', { fg: `${data.fg.itemCode} ${data.fg.name}` }) : undefined}
         footer={null}
       >
         {done ? (
-          <div role="status" className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-800">
+          <div role="status" className="alert alert-green" style={{ fontSize: 13 }}>
             {done}
           </div>
         ) : loadState === 'loading' ? (
           <div className="space-y-2" aria-busy>
-            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
-            <div className="h-24 w-full animate-pulse rounded bg-slate-100" />
+            <div className="h-4 w-2/3 animate-pulse rounded" style={{ background: 'var(--gray-100)' }} />
+            <div className="h-24 w-full animate-pulse rounded" style={{ background: 'var(--gray-050)' }} />
           </div>
         ) : loadState === 'error' || !data ? (
-          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+          <div role="alert" className="alert alert-red" style={{ fontSize: 13 }}>
             {t('error')}
           </div>
         ) : (

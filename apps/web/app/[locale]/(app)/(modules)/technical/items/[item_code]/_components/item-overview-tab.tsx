@@ -11,8 +11,6 @@
  * from the page (next-intl getTranslations) so this stays a Server Component.
  */
 
-import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
-
 import type { ItemDetail } from '../../_actions/get-item';
 
 export type ItemOverviewLabels = {
@@ -38,9 +36,14 @@ export type ItemOverviewLabels = {
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-slate-100 py-1.5 last:border-b-0">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className={`text-sm text-slate-900 ${mono ? 'font-mono tabular-nums' : 'font-medium'}`}>{value}</dd>
+    <div
+      className="flex items-baseline justify-between gap-4 py-1.5"
+      style={{ borderBottom: '1px solid var(--border)' }}
+    >
+      <dt className="text-sm" style={{ color: 'var(--muted)' }}>
+        {label}
+      </dt>
+      <dd className={`text-sm ${mono ? 'mono tabular-nums' : 'font-medium'}`}>{value}</dd>
     </div>
   );
 }
@@ -80,40 +83,36 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <Card className="rounded-xl border bg-white p-4 shadow-sm">
-        <CardHeader className="p-0 text-sm font-semibold text-slate-900">{labels.identification}</CardHeader>
-        <CardContent className="p-0">
-          <dl className="mt-2">
-            <Row label={labels.code} value={item.itemCode} mono />
-            <Row label={labels.name} value={item.name} />
-            <Row label={labels.type} value={TYPE_LABEL[item.itemType]} />
-            <Row label={labels.status} value={STATUS_LABEL[item.status]} />
-            <Row label={labels.productGroup} value={item.productGroup ?? none} />
-            <Row label={labels.description} value={item.description ?? none} />
-          </dl>
-        </CardContent>
-      </Card>
+      <div className="card">
+        <strong className="text-sm">{labels.identification}</strong>
+        <dl className="mt-2">
+          <Row label={labels.code} value={item.itemCode} mono />
+          <Row label={labels.name} value={item.name} />
+          <Row label={labels.type} value={TYPE_LABEL[item.itemType]} />
+          <Row label={labels.status} value={STATUS_LABEL[item.status]} />
+          <Row label={labels.productGroup} value={item.productGroup ?? none} />
+          <Row label={labels.description} value={item.description ?? none} />
+        </dl>
+      </div>
 
-      <Card className="rounded-xl border bg-white p-4 shadow-sm">
-        <CardHeader className="p-0 text-sm font-semibold text-slate-900">{labels.commercial}</CardHeader>
-        <CardContent className="p-0">
-          <dl className="mt-2">
-            <Row label={labels.uomBase} value={item.uomBase} mono />
-            <Row label={labels.uomSecondary} value={item.uomSecondary ?? none} mono />
-            <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
-            <Row label={labels.weightMode} value={item.weightMode} mono />
-            {item.weightMode === 'catch' ? (
-              <>
-                <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />
-                <Row label={labels.grossWeightMax} value={fmtNum(item.grossWeightMax, none)} mono />
-                <Row label={labels.varianceTolerance} value={fmtNum(item.varianceTolerancePct, none)} mono />
-              </>
-            ) : null}
-            <Row label={labels.shelfLife} value={shelf} mono />
-            <Row label={labels.updated} value={fmtDate(item.updatedAt, none)} mono />
-          </dl>
-        </CardContent>
-      </Card>
+      <div className="card">
+        <strong className="text-sm">{labels.commercial}</strong>
+        <dl className="mt-2">
+          <Row label={labels.uomBase} value={item.uomBase} mono />
+          <Row label={labels.uomSecondary} value={item.uomSecondary ?? none} mono />
+          <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
+          <Row label={labels.weightMode} value={item.weightMode} mono />
+          {item.weightMode === 'catch' ? (
+            <>
+              <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />
+              <Row label={labels.grossWeightMax} value={fmtNum(item.grossWeightMax, none)} mono />
+              <Row label={labels.varianceTolerance} value={fmtNum(item.varianceTolerancePct, none)} mono />
+            </>
+          ) : null}
+          <Row label={labels.shelfLife} value={shelf} mono />
+          <Row label={labels.updated} value={fmtDate(item.updatedAt, none)} mono />
+        </dl>
+      </div>
     </div>
   );
 }

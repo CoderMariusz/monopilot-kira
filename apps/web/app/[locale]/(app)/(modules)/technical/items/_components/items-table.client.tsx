@@ -86,6 +86,9 @@ export function ItemsTableClient({
   canDeactivate,
   editLabel,
   deactivateLabel,
+  allergensLabel = 'Allergens',
+  filterEmptyTitle = 'No items match your filters',
+  filterEmptyBody = 'Adjust the type tab, status, or search to see more items.',
   wizardLabels,
   deactivateLabels,
 }: {
@@ -94,6 +97,9 @@ export function ItemsTableClient({
   canDeactivate: boolean;
   editLabel: string;
   deactivateLabel: string;
+  allergensLabel?: string;
+  filterEmptyTitle?: string;
+  filterEmptyBody?: string;
   wizardLabels: ItemWizardLabels;
   deactivateLabels: DeactivateLabels;
 }) {
@@ -182,8 +188,8 @@ export function ItemsTableClient({
         {filtered.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🔍</div>
-            <div className="empty-state-title">No items match your filters</div>
-            <div className="empty-state-body">Adjust the type tab, status, or search to see more items.</div>
+            <div className="empty-state-title">{filterEmptyTitle}</div>
+            <div className="empty-state-body">{filterEmptyBody}</div>
           </div>
         ) : (
           <table aria-label="Items master">
@@ -249,6 +255,7 @@ export function ItemsTableClient({
                       canDeactivate={canDeactivate}
                       editLabel={editLabel}
                       deactivateLabel={deactivateLabel}
+                      allergensLabel={allergensLabel}
                       wizardLabels={wizardLabels}
                       deactivateLabels={deactivateLabels}
                     />

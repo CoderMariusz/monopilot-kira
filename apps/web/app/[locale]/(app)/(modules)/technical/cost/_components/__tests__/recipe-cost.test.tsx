@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const getRecipeCost = vi.fn();
@@ -38,6 +38,10 @@ const COPY: RecipeCostCopy = {
   kpiComponents: 'Components', kpiComponentsSub: 'lines', kpiCosted: 'Costed', kpiCostedSub: 'with cost',
   breakdownTitle: 'Cost breakdown', totalLabel: 'Total', noLines: 'No lines', noCost: 'No cost',
   bomNote: 'BOM v{version} {status}', uncosted: 'no cost',
+  recompute: 'Recompute', recomputeTitle: 'Recompute standard cost',
+  recomputeIntro: 'Re-roll BOM costs from current rates.',
+  recomputeNote: 'Non-destructive — re-rolls from current material rates.',
+  recomputeConfirm: 'Recompute now', cancel: 'Cancel',
 };
 
 const COST = {
@@ -85,5 +89,21 @@ describe('RecipeCostClient (TEC-013)', () => {
   it('shows the prompt when no product is selected', () => {
     render(<RecipeCostClient products={[]} copy={COPY} />);
     expect(screen.getByText('Pick a product')).toBeInTheDocument();
+  });
+
+  it('Recompute opens the confirm modal and re-rolls the cost (real re-run, no fake)', async () => {
+    getRecipeCost.mockResolvedValue(COST);
+    render(<RecipeCostClient products={PRODUCTS} copy={COPY} />);
+
+    await waitFor(() => expect(getRecipeCost).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /Recompute/ }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Recompute standard cost')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recompute now' }));
+    // Confirm re-invokes the live roll-up for the selected product.
+    await waitFor(() => expect(getRecipeCost).toHaveBeenCalledTimes(2));
+    expect(getRecipeCost).toHaveBeenLastCalledWith('FG5101');
   });
 });

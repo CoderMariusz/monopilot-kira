@@ -93,6 +93,7 @@ export function ItemRowActions({
   canDeactivate,
   editLabel = 'Edit',
   deactivateLabel = 'Deactivate',
+  allergensLabel = 'Allergens',
   wizardLabels,
   deactivateLabels,
 }: {
@@ -101,6 +102,7 @@ export function ItemRowActions({
   canDeactivate: boolean;
   editLabel?: string;
   deactivateLabel?: string;
+  allergensLabel?: string;
   wizardLabels?: ItemWizardLabels;
   deactivateLabels?: DeactivateLabels;
 }) {
@@ -113,7 +115,7 @@ export function ItemRowActions({
       data-testid={`item-allergens-link-${item.itemCode}`}
       className="font-medium text-blue-600 underline-offset-4 hover:underline"
     >
-      Allergens
+      {allergensLabel}
     </a>
   );
 

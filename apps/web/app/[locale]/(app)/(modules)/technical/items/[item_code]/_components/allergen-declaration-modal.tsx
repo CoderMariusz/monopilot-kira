@@ -138,7 +138,7 @@ export function AllergenDeclarationModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       data-testid="allergen-declaration-modal"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -151,100 +151,112 @@ export function AllergenDeclarationModal({
         aria-labelledby={titleId}
         tabIndex={-1}
         data-modal-id="TEC-040-ALLERGEN-DECLARE"
-        className="w-full max-w-xl rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box wide outline-none"
       >
-        <div className="mb-1 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <h2 id={titleId} className="text-base font-semibold tracking-tight">
               {labels.title}
             </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">{labels.subtitle}</p>
+            <p className="mt-0.5 text-xs" style={{ color: 'var(--muted)' }}>
+              {labels.subtitle}
+            </p>
           </div>
           <button
             type="button"
             aria-label={`${labels.cancel} ✕`}
             data-testid="allergen-declaration-close"
-            className="text-muted-foreground"
+            className="modal-close"
             onClick={onClose}
           >
             ✕
           </button>
         </div>
 
-        <div
-          role="note"
-          data-testid="allergen-auto-note"
-          className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800"
-        >
-          ⓘ {labels.autoNote}
+        <div className="modal-body">
+          <div
+            role="note"
+            data-testid="allergen-auto-note"
+            className="alert alert-blue"
+            style={{ marginBottom: 12 }}
+          >
+            <span aria-hidden>ⓘ</span> {labels.autoNote}
+          </div>
+
+          <form id="allergen-declaration-form" onSubmit={submit}>
+            <div className="ff">
+              <label htmlFor="allergen-decl-allergen">{labels.fieldAllergen}</label>
+              <Select
+                value={draft.allergenCode}
+                onValueChange={(v) => setDraft((d) => ({ ...d, allergenCode: v }))}
+                options={allergenOptions}
+                placeholder={labels.selectPlaceholder}
+                disabled={!canEdit || Boolean(initial?.allergenCode)}
+                aria-label={labels.fieldAllergen}
+                id="allergen-decl-allergen"
+              />
+            </div>
+            <div className="ff-inline">
+              <div className="ff">
+                <label htmlFor="allergen-decl-intensity">{labels.fieldIntensity}</label>
+                <Select
+                  value={draft.intensity}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, intensity: v }))}
+                  options={intensityOptions}
+                  disabled={!canEdit}
+                  aria-label={labels.fieldIntensity}
+                  id="allergen-decl-intensity"
+                />
+              </div>
+              <div className="ff">
+                <label htmlFor="allergen-decl-confidence">{labels.fieldConfidence}</label>
+                <Select
+                  value={draft.confidence}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, confidence: v }))}
+                  options={confidenceOptions}
+                  disabled={!canEdit}
+                  aria-label={labels.fieldConfidence}
+                  id="allergen-decl-confidence"
+                />
+              </div>
+            </div>
+            <div className="ff">
+              <label htmlFor="allergen-decl-reason">
+                {labels.fieldReason}
+                <span className="req">*</span>
+              </label>
+              <Textarea
+                id="allergen-decl-reason"
+                name="reason"
+                required
+                rows={3}
+                maxLength={2000}
+                placeholder={labels.reasonPlaceholder}
+                value={draft.reason}
+                disabled={!canEdit}
+                aria-label={labels.fieldReason}
+                data-testid="allergen-override-reason"
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setDraft((d) => ({ ...d, reason: value }));
+                }}
+              />
+              {!reasonValid ? (
+                <span role="alert" className="ff-error">
+                  {labels.reasonRequired}
+                </span>
+              ) : null}
+            </div>
+
+            {error ? (
+              <div role="alert" className="alert alert-red" style={{ marginTop: 8 }}>
+                <div className="alert-title">{error}</div>
+              </div>
+            ) : null}
+          </form>
         </div>
 
-        <form id="allergen-declaration-form" className="space-y-3" onSubmit={submit}>
-          <div className="block text-sm font-medium text-slate-700">
-            <span className="mb-1 block">{labels.fieldAllergen}</span>
-            <Select
-              value={draft.allergenCode}
-              onValueChange={(v) => setDraft((d) => ({ ...d, allergenCode: v }))}
-              options={allergenOptions}
-              placeholder={labels.selectPlaceholder}
-              disabled={!canEdit || Boolean(initial?.allergenCode)}
-              aria-label={labels.fieldAllergen}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="block text-sm font-medium text-slate-700">
-              <span className="mb-1 block">{labels.fieldIntensity}</span>
-              <Select
-                value={draft.intensity}
-                onValueChange={(v) => setDraft((d) => ({ ...d, intensity: v }))}
-                options={intensityOptions}
-                disabled={!canEdit}
-                aria-label={labels.fieldIntensity}
-              />
-            </div>
-            <div className="block text-sm font-medium text-slate-700">
-              <span className="mb-1 block">{labels.fieldConfidence}</span>
-              <Select
-                value={draft.confidence}
-                onValueChange={(v) => setDraft((d) => ({ ...d, confidence: v }))}
-                options={confidenceOptions}
-                disabled={!canEdit}
-                aria-label={labels.fieldConfidence}
-              />
-            </div>
-          </div>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.fieldReason}
-            <Textarea
-              name="reason"
-              required
-              rows={3}
-              maxLength={2000}
-              placeholder={labels.reasonPlaceholder}
-              value={draft.reason}
-              disabled={!canEdit}
-              aria-label={labels.fieldReason}
-              data-testid="allergen-override-reason"
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                setDraft((d) => ({ ...d, reason: value }));
-              }}
-            />
-            {!reasonValid ? (
-              <span role="alert" className="mt-1 block text-xs text-red-600">
-                {labels.reasonRequired}
-              </span>
-            ) : null}
-          </label>
-
-          {error ? (
-            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </p>
-          ) : null}
-        </form>
-
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="modal-foot">
           <Button type="button" className="btn-secondary" onClick={onClose}>
             {labels.cancel}
           </Button>

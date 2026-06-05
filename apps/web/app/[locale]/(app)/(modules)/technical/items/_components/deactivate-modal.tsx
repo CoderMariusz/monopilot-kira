@@ -169,7 +169,7 @@ export function DeactivateItemModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -181,29 +181,34 @@ export function DeactivateItemModal({
         aria-labelledby={titleId}
         tabIndex={-1}
         data-modal-id="TEC-081"
-        className="w-full max-w-lg rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box outline-none"
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-2 flex items-start justify-between">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight text-red-700">
+            <h2 id={titleId} className="modal-title" style={{ color: 'var(--red)' }}>
               {labels.title}
             </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
               {interpolate(labels.subtitle, { code: itemCode })}
-            </p>
+            </div>
           </div>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" className="modal-close" aria-label="Close" onClick={onClose}>
             ✕
           </button>
         </div>
 
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {interpolate(labels.warning, { name: itemName })}
-        </div>
+        <div className="modal-body">
+          <div
+            className="alert alert-red"
+            style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 14 }}
+          >
+            <span aria-hidden="true">⚠</span>
+            <span>{interpolate(labels.warning, { name: itemName })}</span>
+          </div>
 
-        <div className="mt-4 space-y-3">
-          <div>
-            <span className="mb-1 block text-sm font-medium text-slate-700">{labels.reason}</span>
+          <div className="ff">
+            <label>{labels.reason}</label>
             <Select
               value={reason}
               onValueChange={(v) => setReason(v as DeactivateReason)}
@@ -223,39 +228,42 @@ export function DeactivateItemModal({
           </div>
 
           {notesNeeded ? (
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">{labels.notes}</span>
+            <div className="ff">
+              <label htmlFor="deactivate-notes">{labels.notes}</label>
               <Input
+                id="deactivate-notes"
                 name="notes"
                 maxLength={2000}
+                className="form-input"
                 value={notes}
                 onChange={(e) => setNotes(e.currentTarget.value)}
               />
-              <span className="mt-1 block text-xs text-muted-foreground">{labels.notesRequired}</span>
-            </label>
+              <div className="ff-help">{labels.notesRequired}</div>
+            </div>
           ) : null}
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">
+          <div className="ff" style={{ marginBottom: 0 }}>
+            <label htmlFor="deactivate-confirm-code">
               {interpolate(labels.confirmLabel, { code: itemCode })}
-            </span>
+            </label>
             <Input
+              id="deactivate-confirm-code"
               name="confirmCode"
-              className="font-mono"
+              className="form-input font-mono"
               value={confirmCode}
               autoComplete="off"
               onChange={(e) => setConfirmCode(e.currentTarget.value)}
             />
-          </label>
+          </div>
+
+          {error ? (
+            <p role="alert" className="alert alert-red" style={{ marginTop: 12, marginBottom: 0 }}>
+              {error}
+            </p>
+          ) : null}
         </div>
 
-        {error ? (
-          <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="modal-foot">
           <Button type="button" className="btn-secondary" onClick={onClose} disabled={pending}>
             {labels.cancel}
           </Button>

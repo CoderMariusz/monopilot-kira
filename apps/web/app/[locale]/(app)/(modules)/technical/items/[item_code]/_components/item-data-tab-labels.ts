@@ -51,6 +51,7 @@ const DEFAULTS: DataTabLabels = {
     cost: 'Cost / kg',
     source: 'Source',
     none: '—',
+    approvalNote: 'V-TEC-53: cost changes greater than 20% require admin approval (reason-logged).',
     sources: {
       manual: 'Manual',
       d365_sync: 'D365 sync',

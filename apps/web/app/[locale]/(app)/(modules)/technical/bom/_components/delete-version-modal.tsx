@@ -30,7 +30,6 @@ import React from 'react';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
 
 export type DeleteVersionLabels = {
   title: string;
@@ -104,48 +103,42 @@ export function DeleteBomVersionModal({
     >
       <Modal.Header title={labels.title} />
       <Modal.Body>
-        <p className="mb-3 text-xs text-muted-foreground">{labels.subtitle}</p>
+        <p className="mb-3 muted" style={{ fontSize: 12 }}>{labels.subtitle}</p>
 
         {blockedByStatus ? (
-          <div
-            role="alert"
-            data-testid="delete-version-blocked-status"
-            className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-          >
-            <span aria-hidden="true">⚠</span>
-            <span>{labels.blockedByStatus}</span>
+          <div role="alert" data-testid="delete-version-blocked-status" className="alert alert-amber mb-3">
+            <div className="alert-title">⚠ {labels.blockedByStatus}</div>
           </div>
         ) : null}
 
         {blockedBySnapshots ? (
-          <div
-            role="alert"
-            data-testid="delete-version-blocked-snapshots"
-            className="mb-3 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
-          >
-            <span aria-hidden="true">⚠</span>
-            <span>{interpolate(labels.blockedBySnapshots, { count: snapshotCount, version: versionLabel })}</span>
+          <div role="alert" data-testid="delete-version-blocked-snapshots" className="alert alert-red mb-3">
+            <div className="alert-title">
+              ⚠ {interpolate(labels.blockedBySnapshots, { count: snapshotCount, version: versionLabel })}
+            </div>
           </div>
         ) : null}
 
-        <div className="mb-3 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          <span aria-hidden="true">⚠</span>
-          <span>{interpolate(labels.warning, { version: versionLabel })}</span>
+        <div role="alert" className="alert alert-red mb-3">
+          <div className="alert-title">⚠ {interpolate(labels.warning, { version: versionLabel })}</div>
         </div>
 
-        <label htmlFor="delete-version-confirm" className="mb-1 block text-xs font-medium text-slate-700">
-          {interpolate(labels.confirmLabel, { version: versionLabel })}
-        </label>
-        <Input
-          id="delete-version-confirm"
-          data-testid="delete-version-confirm-input"
-          value={typed}
-          disabled={blocked}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder={versionLabel}
-          className="w-full font-mono"
-          autoComplete="off"
-        />
+        <div className="ff">
+          <label htmlFor="delete-version-confirm">
+            {interpolate(labels.confirmLabel, { version: versionLabel })}
+            <span className="req">*</span>
+          </label>
+          <input
+            id="delete-version-confirm"
+            data-testid="delete-version-confirm-input"
+            value={typed}
+            disabled={blocked}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={versionLabel}
+            className="form-input w-full font-mono"
+            autoComplete="off"
+          />
+        </div>
       </Modal.Body>
       <Modal.Footer>
         <Button type="button" className="btn-secondary btn-sm" onClick={() => onOpenChange(false)}>

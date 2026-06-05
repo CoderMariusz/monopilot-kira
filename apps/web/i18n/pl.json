@@ -1029,7 +1029,107 @@
           "costPerKg": "Cost / kg",
           "updated": "Updated",
           "none": "—"
-        }
+        },
+        "dataTabs": {
+          "bom": {
+            "title": "BOM versions",
+            "version": "Version",
+            "status": "Status",
+            "effectiveFrom": "Effective from",
+            "effectiveTo": "Effective to",
+            "lines": "Lines",
+            "approved": "Approved",
+            "none": "—",
+            "loading": "Loading BOM versions…",
+            "empty": "No BOM versions yet",
+            "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
+            "error": "Unable to load BOM versions. Please try again."
+          },
+          "cost": {
+            "current": "Current cost",
+            "perKg": "kg",
+            "effective": "Effective",
+            "history": "Cost history",
+            "date": "Date",
+            "cost": "Cost / kg",
+            "source": "Source",
+            "none": "—",
+            "approvalNote": "V-TEC-53: cost changes greater than 20% require admin approval (reason-logged).",
+            "sources": {
+              "manual": "Manual",
+              "d365_sync": "D365 sync",
+              "supplier_update": "Supplier update",
+              "variance_roll": "Variance roll"
+            },
+            "loading": "Loading cost history…",
+            "empty": "No cost history yet",
+            "emptyBody": "No cost roll has been recorded for this item. Edit the cost to start the history.",
+            "error": "Unable to load cost history. Please try again."
+          },
+          "routing": {
+            "title": "Routing versions",
+            "version": "Version",
+            "operations": "Operations",
+            "setup": "Setup",
+            "status": "Status",
+            "effectiveFrom": "Effective from",
+            "approved": "Approved",
+            "none": "—",
+            "loading": "Loading routings…",
+            "empty": "No routing yet",
+            "emptyBody": "No routing version exists for this item. Create one to define its operations.",
+            "error": "Unable to load routings. Please try again."
+          },
+          "lab": {
+            "title": "Lab results",
+            "readOnly": "Read-only",
+            "date": "Date",
+            "testType": "Test type",
+            "result": "Result",
+            "unit": "Unit",
+            "status": "Status",
+            "provider": "Lab provider",
+            "none": "—",
+            "testTypes": {
+              "atp_swab": "ATP swab",
+              "allergen_elisa": "Allergen ELISA",
+              "micro_apc": "Micro APC",
+              "nutrition": "Nutrition",
+              "sensory": "Sensory"
+            },
+            "statuses": {
+              "pass": "Pass",
+              "fail": "Fail",
+              "inconclusive": "Inconclusive",
+              "pending": "Pending",
+              "hold": "Hold"
+            },
+            "loading": "Loading lab results…",
+            "empty": "No lab results yet",
+            "emptyBody": "Quality has not logged any lab results for this item. Lab results are read-only here.",
+            "error": "Unable to load lab results. Please try again."
+          },
+          "d365": {
+            "title": "D365 sync status",
+            "itemId": "D365 Item ID",
+            "syncStatus": "Sync status",
+            "lastSync": "Last sync",
+            "none": "—",
+            "error": "Unable to load D365 status. Please try again.",
+            "statuses": {
+              "unsynced": "Not synced",
+              "synced": "Synced",
+              "drift": "Drift",
+              "error": "Error"
+            }
+          },
+          "supplier": {
+            "title": "Supplier specifications",
+            "pending": "Supplier specs API pending",
+            "pendingBody": "The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands."
+          }
+        },
+        "allergens": "Allergens"
       },
       "create": {
         "title": "Create item",
@@ -1111,7 +1211,9 @@
         "errorTitle": "Could not load items",
         "errorBody": "Something went wrong while loading the item catalogue. Please try again.",
         "truncated": "Showing the first {limit} of {total} items. Refine your search to narrow the list.",
-        "viewerOnly": "You have view-only access to items."
+        "viewerOnly": "You have view-only access to items.",
+        "filterEmptyTitle": "No items match your filters",
+        "filterEmptyBody": "Adjust the type tab, status, or search to see more items."
       }
     },
     "allergens": {
@@ -1245,7 +1347,20 @@
         "empty": "No cascade to show",
         "emptyBody": "No finished goods with a published BOM were found. Publish a BOM to see its allergen derivation chain.",
         "error": "Could not load the allergen cascade. Please try again.",
-        "denied": "You do not have permission to view the allergen cascade."
+        "denied": "You do not have permission to view the allergen cascade.",
+        "source": {
+          "cascaded": "cascaded",
+          "manual_override": "manual override",
+          "lab_result": "lab result",
+          "supplier_spec": "supplier spec",
+          "brief_declared": "brief declared"
+        },
+        "level": {
+          "RM": "RM",
+          "Intermediate": "Intermediate",
+          "Process": "Process",
+          "FG": "FG"
+        }
       },
       "contamination": {
         "title": "Contamination risk matrix",
@@ -1340,13 +1455,26 @@
           "reason": "Reason",
           "reasonPlaceholder": "Why this operation introduces the allergen",
           "save": "Save",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "subtitle": "Map a manufacturing operation to an allergen it adds; the cascade rule merges it into every FG that uses the operation.",
+          "intensity": "Intensity",
+          "intensityContains": "Contains",
+          "intensityMayContain": "May contain",
+          "reasonHelp": "Audit-logged. Why this operation introduces the allergen."
         },
         "empty": "No process additions yet",
         "emptyBody": "Add a mapping to declare allergens introduced by a manufacturing operation.",
         "error": "Could not load process allergen additions. Please try again.",
         "denied": "You do not have permission to view process allergen additions.",
         "saveError": "Could not save the mapping. Please try again."
+      },
+      "overrides": {
+        "eyebrow": "Technical · Allergens",
+        "breadcrumb": {
+          "technical": "Technical",
+          "allergens": "Allergens",
+          "overrides": "Overrides"
+        }
       }
     },
     "bom": {
@@ -1426,6 +1554,24 @@
         "viewJob": "View job status",
         "error": "Could not queue the batch. Please try again.",
         "forbidden": "You do not have permission to generate BOM batches."
+      },
+      "newBom": {
+        "title": "New BOM",
+        "subtitle": "Pick the finished good this BOM is for, then add its components on the next screen.",
+        "searchPlaceholder": "Search FG by code or name…",
+        "loading": "Loading finished goods…",
+        "error": "Unable to load finished goods. Please try again.",
+        "noFgs": "No finished goods found. Create an FG item first.",
+        "cancel": "Cancel",
+        "confirm": "Continue"
+      },
+      "actions": {
+        "addComponent": "Add component",
+        "saveVersion": "Save version",
+        "approve": "Approve",
+        "approving": "Approving…",
+        "approveError": "Unable to approve this BOM version. Please try again.",
+        "approveForbidden": "You do not have permission to approve BOMs."
       }
     },
     "bomList": {
@@ -1925,6 +2071,14 @@
         "error": "Nie udało się wczytać kalkulacji kosztu receptury. Spróbuj ponownie.",
         "emptyTitle": "Brak produktów do wyceny",
         "emptyBody": "Utwórz BOM dla wyrobu gotowego lub półproduktu, aby obliczyć koszt receptury."
+      },
+      "recompute": "Recompute",
+      "recomputeModal": {
+        "title": "Recompute standard cost",
+        "intro": "Re-roll the BOM cost from current material rates.",
+        "note": "Non-destructive — re-rolls Σ(line qty × current cost/kg) live for the selected product. Nothing is overwritten; the figure simply refreshes from the latest item costs.",
+        "confirm": "Recompute now",
+        "cancel": "Cancel"
       }
     },
     "costHistory": {
@@ -2181,7 +2335,81 @@
         "title": "No routings yet",
         "body": "Select an item to create its first routing version."
       },
-      "error": "Could not load routings. Please try again."
+      "error": "Could not load routings. Please try again.",
+      "manager": {
+        "itemLabel": "Item",
+        "selectItemPlaceholder": "Select an item…",
+        "newRouting": "+ New routing",
+        "selectItemPrompt": "Select an item to view its routings.",
+        "loadingRoutings": "Loading routings…",
+        "loadError": "Unable to load routings. Please try again.",
+        "emptyTitle": "No routings yet",
+        "emptyBody": "No routings yet for this item.",
+        "emptyBodyCanWrite": "Create the first routing version to define its operations.",
+        "permissionDenied": "You can view routings but do not have permission to author them (technical.bom.create).",
+        "versionsTableLabel": "Routing versions",
+        "colVersion": "Version",
+        "colOperations": "Operations",
+        "colStatus": "Status",
+        "colEffectiveFrom": "Effective from",
+        "colEffectiveTo": "Effective to",
+        "colActions": "Actions",
+        "statusDraft": "Draft",
+        "statusApproved": "Approved",
+        "statusActive": "Active",
+        "statusSuperseded": "Superseded",
+        "edit": "Edit",
+        "approve": "Approve",
+        "publish": "Publish",
+        "modalNewTitle": "New routing",
+        "modalEditTitlePrefix": "Edit routing v",
+        "modalIntro": "Operations run in order (op 1 → n). Each operation binds a line or a machine (V-TEC-61) and a manufacturing-operation name from the reference (V-TEC-63).",
+        "operationLabel": "Operation ",
+        "remove": "Remove",
+        "fOperationName": "Operation name",
+        "fOperationNamePlaceholder": "e.g. Smoking — phase 2",
+        "fOpCode": "Op code",
+        "fOpCodePlaceholder": "auto",
+        "fResourceType": "Resource type",
+        "fResourceTypeLine": "Production line",
+        "fResourceTypeMachine": "Machine / equipment",
+        "fLine": "Line",
+        "fMachine": "Machine",
+        "fSelect": "Select…",
+        "fNoneConfigured": "None configured",
+        "fManufacturingOp": "Manufacturing operation",
+        "fSetup": "Setup (min)",
+        "fRun": "Run (s/unit)",
+        "fCostPerHour": "Cost/h",
+        "addOperation": "+ Add operation",
+        "cancel": "Cancel",
+        "saveRouting": "Save routing",
+        "close": "Close",
+        "costTitlePrefix": "Cost preview · v",
+        "costFormula": "Cost = Σ (setup/60 + run·volume/3600) × rate. NUMERIC-exact.",
+        "volumeLabel": "Volume (units)",
+        "computeCost": "Compute cost",
+        "computing": "Computing…",
+        "costColOp": "Op",
+        "costColOperation": "Operation",
+        "costColSetup": "Setup cost",
+        "costColRun": "Run cost",
+        "costColOpCost": "Op cost",
+        "costTotalPrefix": "Total routing cost @ ",
+        "costTotalSuffix": " units",
+        "utilizationTitle": "Resource utilization (cost share)",
+        "costPreviewTableLabelPrefix": "Cost preview operations v",
+        "errForbidden": "You do not have permission to author routings.",
+        "errInvalidInput": "Please check the operation values and try again.",
+        "errNotFound": "That item or routing no longer exists.",
+        "errAlreadyExists": "A routing with that version already exists for this item.",
+        "errInvalidState": "Only a draft routing may be edited or transitioned that way.",
+        "errSequenceGap": "Operation numbers must be contiguous from 1 (V-TEC-60).",
+        "errNoResource": "Every operation must bind a line or machine (V-TEC-61).",
+        "errZeroRunTime": "Production operations need a run time greater than 0 (V-TEC-62).",
+        "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
+        "errGeneric": "Could not save the routing. Please try again."
+      }
     }
   },
   "Technical": {

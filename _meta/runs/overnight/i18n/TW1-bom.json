@@ -1,0 +1,16 @@
+{
+  "technical.bom.newBom.title": "New BOM",
+  "technical.bom.newBom.subtitle": "Pick the finished good this BOM is for, then add its components on the next screen.",
+  "technical.bom.newBom.searchPlaceholder": "Search FG by code or name…",
+  "technical.bom.newBom.loading": "Loading finished goods…",
+  "technical.bom.newBom.error": "Unable to load finished goods. Please try again.",
+  "technical.bom.newBom.noFgs": "No finished goods found. Create an FG item first.",
+  "technical.bom.newBom.cancel": "Cancel",
+  "technical.bom.newBom.confirm": "Continue",
+  "technical.bom.actions.addComponent": "Add component",
+  "technical.bom.actions.saveVersion": "Save version",
+  "technical.bom.actions.approve": "Approve",
+  "technical.bom.actions.approving": "Approving…",
+  "technical.bom.actions.approveError": "Unable to approve this BOM version. Please try again.",
+  "technical.bom.actions.approveForbidden": "You do not have permission to approve BOMs."
+}

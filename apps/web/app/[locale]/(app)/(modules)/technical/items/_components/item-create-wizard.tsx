@@ -204,8 +204,36 @@ function numOrUndefined(value: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1 block text-sm font-medium text-slate-700">{children}</span>;
+/**
+ * Design-system modal form field (`.ff` — uppercase label + `.form-input`-styled
+ * control). Mirrors the prototype `<Field>` primitive (_shared/modals.jsx:64-71):
+ * a `.ff` block whose label is uppercase 11px muted and whose child input/select/
+ * textarea inherits the `.ff input` rule. `required` renders the red `.req` glyph;
+ * `help` renders `.ff-help`.
+ */
+function Field({
+  label,
+  required,
+  help,
+  htmlFor,
+  children,
+}: {
+  label: React.ReactNode;
+  required?: boolean;
+  help?: React.ReactNode;
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="ff">
+      <label htmlFor={htmlFor}>
+        {label}
+        {required ? <span className="req">*</span> : null}
+      </label>
+      {children}
+      {help ? <div className="ff-help">{help}</div> : null}
+    </div>
+  );
 }
 
 /**
@@ -278,7 +306,7 @@ function StepDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-20"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -289,22 +317,27 @@ function StepDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box wide outline-none"
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mb-1 flex items-start justify-between">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <div id={titleId} className="modal-title">
               {title}
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+              {subtitle}
+            </div>
           </div>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" className="modal-close" aria-label="Close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {stepper}
-        <div className="mt-4">{children}</div>
-        <div className="mt-5 flex items-center justify-end gap-2">{footer}</div>
+        <div className="modal-body">
+          {stepper}
+          <div style={{ marginTop: 14 }}>{children}</div>
+        </div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -412,33 +445,43 @@ export function ItemWizard({
     review: labels.steps.review,
   };
 
+  // Wizard step indicator — design-system `.wiz-stepper` (prototype `<Stepper>`,
+  // _shared/modals.jsx:46-62): numbered pills + connecting line, current = blue,
+  // completed = green ✓. We keep role="tablist"/role="tab" semantics (and the
+  // back-only click affordance) on the step pills for a11y + interaction.
   const stepper = (
-    <div role="tablist" aria-label="Wizard steps" className="mt-3 flex flex-wrap gap-2">
+    <div className="wiz-stepper" role="tablist" aria-label="Wizard steps">
       {STEP_KEYS.map((key, index) => {
         const active = index === stepIndex;
         const done = index < stepIndex;
+        const navigable = index < stepIndex;
         return (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-current={active ? 'step' : undefined}
-            data-step={key}
-            data-state={active ? 'active' : done ? 'complete' : 'inactive'}
-            // Only allow jumping back to a completed step (forward gated by validation).
-            disabled={index > stepIndex}
-            onClick={() => index < stepIndex && setStepIndex(index)}
-            className={
-              active
-                ? 'rounded-md bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white'
-                : done
-                  ? 'rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700'
-                  : 'rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-400'
-            }
-          >
-            {index + 1}. {stepLabels[key]}
-          </button>
+          <React.Fragment key={key}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-current={active ? 'step' : undefined}
+              data-step={key}
+              data-state={active ? 'active' : done ? 'complete' : 'inactive'}
+              // Only allow jumping back to a completed step (forward gated by validation).
+              disabled={index > stepIndex}
+              onClick={() => navigable && setStepIndex(index)}
+              className={`wiz-step${active ? ' current' : ''}${done ? ' done' : ''}`}
+              style={{
+                background: 'transparent',
+                border: 0,
+                padding: 0,
+                cursor: navigable ? 'pointer' : 'default',
+              }}
+            >
+              <span className="wiz-step-num">{done ? '✓' : index + 1}</span>
+              <span className="wiz-step-label">{stepLabels[key]}</span>
+            </button>
+            {index < STEP_KEYS.length - 1 ? (
+              <div className={`wiz-step-line${done ? ' done' : ''}`} />
+            ) : null}
+          </React.Fragment>
         );
       })}
     </div>
@@ -447,11 +490,11 @@ export function ItemWizard({
   const footer = (
     <>
       {stepIndex > 0 ? (
-        <Button type="button" className="btn-secondary" onClick={goBack} disabled={pending}>
+        <Button type="button" className="btn-ghost" onClick={goBack} disabled={pending}>
           {labels.back}
         </Button>
       ) : null}
-      <span className="flex-1" />
+      <span style={{ flex: 1 }} />
       <Button type="button" className="btn-secondary" onClick={onClose} disabled={pending}>
         {labels.cancel}
       </Button>
@@ -477,162 +520,171 @@ export function ItemWizard({
       stepper={stepper}
     >
       {step === 'basic' ? (
-        <div className="space-y-3" data-step-panel="basic">
-          <label className="block">
-            <FieldLabel>{labels.fields.itemCode}</FieldLabel>
+        <div data-step-panel="basic">
+          <Field label={labels.fields.itemCode} required help={labels.fields.itemCodeHelp}>
             <Input
               name="itemCode"
               required
               maxLength={64}
-              className="font-mono"
+              className="form-input font-mono"
               readOnly={codeReadOnly}
               value={form.itemCode}
               onChange={(e) => update('itemCode', e.currentTarget.value)}
             />
-            <span className="mt-1 block text-xs text-muted-foreground">{labels.fields.itemCodeHelp}</span>
-          </label>
-          <label className="block">
-            <FieldLabel>{labels.fields.name}</FieldLabel>
+          </Field>
+          <Field label={labels.fields.name} required>
             <Input
               name="name"
               required
               maxLength={256}
+              className="form-input"
               value={form.name}
               onChange={(e) => update('name', e.currentTarget.value)}
             />
-          </label>
-          <label className="block">
-            <FieldLabel>{labels.fields.description}</FieldLabel>
+          </Field>
+          <Field label={labels.fields.description}>
             <Input
               name="description"
               maxLength={2000}
+              className="form-input"
               value={form.description}
               onChange={(e) => update('description', e.currentTarget.value)}
             />
-          </label>
+          </Field>
         </div>
       ) : null}
 
       {step === 'classification' ? (
-        <div className="space-y-3" data-step-panel="classification">
-          <div>
-            <FieldLabel>{labels.fields.itemType}</FieldLabel>
+        <div data-step-panel="classification">
+          <Field label={labels.fields.itemType} required>
             <LabeledSelect
               value={form.itemType}
               onValueChange={(v) => update('itemType', v as WizardFormState['itemType'])}
               options={TYPE_OPTIONS}
               ariaLabel={labels.fields.itemType}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel>{labels.fields.status}</FieldLabel>
+          </Field>
+          <div className="ff-inline">
+            <Field label={labels.fields.status} required>
               <LabeledSelect
                 value={form.status}
                 onValueChange={(v) => update('status', v as WizardFormState['status'])}
                 options={STATUS_OPTIONS}
                 ariaLabel={labels.fields.status}
               />
-            </div>
-            <label className="block">
-              <FieldLabel>{labels.fields.productGroup}</FieldLabel>
+            </Field>
+            <Field label={labels.fields.productGroup}>
               <Input
                 name="productGroup"
                 maxLength={128}
+                className="form-input"
                 value={form.productGroup}
                 onChange={(e) => update('productGroup', e.currentTarget.value)}
               />
-            </label>
+            </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <FieldLabel>{labels.fields.uomBase}</FieldLabel>
+          <div className="ff-inline">
+            <Field label={labels.fields.uomBase} required>
               <Input
                 name="uomBase"
                 required
                 maxLength={32}
+                className="form-input"
                 value={form.uomBase}
                 onChange={(e) => update('uomBase', e.currentTarget.value)}
               />
-            </label>
-            <label className="block">
-              <FieldLabel>{labels.fields.uomSecondary}</FieldLabel>
+            </Field>
+            <Field label={labels.fields.uomSecondary}>
               <Input
                 name="uomSecondary"
                 maxLength={32}
+                className="form-input"
                 value={form.uomSecondary}
                 onChange={(e) => update('uomSecondary', e.currentTarget.value)}
               />
-            </label>
+            </Field>
           </div>
         </div>
       ) : null}
 
       {step === 'weight' ? (
-        <div className="space-y-3" data-step-panel="weight">
-          <div>
-            <FieldLabel>{labels.fields.weightMode}</FieldLabel>
+        <div data-step-panel="weight">
+          <Field label={labels.fields.weightMode} required>
             <LabeledSelect
               value={form.weightMode}
               onValueChange={(v) => update('weightMode', v as WizardFormState['weightMode'])}
               options={WEIGHT_MODE_OPTIONS}
               ariaLabel={labels.fields.weightMode}
             />
-          </div>
+          </Field>
           {form.weightMode === 'catch' ? (
-            <div className="space-y-3 rounded-md border border-blue-100 bg-blue-50/50 p-3" data-reveal="catch">
-              <p className="text-xs text-blue-800">{labels.catchHint}</p>
-              <div className="grid grid-cols-3 gap-3">
-                <label className="block">
-                  <FieldLabel>{labels.fields.nominalWeight}</FieldLabel>
+            <div
+              className="alert alert-blue"
+              data-reveal="catch"
+              style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}
+            >
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <span aria-hidden="true">ⓘ</span>
+                <span>{labels.catchHint}</span>
+              </div>
+              <div className="ff-inline" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+                <Field label={labels.fields.nominalWeight} htmlFor="wiz-nominal-weight">
                   <Input
+                    id="wiz-nominal-weight"
                     name="nominalWeight"
                     type="number"
                     min={0}
                     step="0.0001"
+                    aria-label={labels.fields.nominalWeight}
+                    className="form-input"
                     value={form.nominalWeight}
                     onChange={(e) => update('nominalWeight', e.currentTarget.value)}
                   />
-                </label>
-                <label className="block">
-                  <FieldLabel>{labels.fields.grossWeightMax}</FieldLabel>
+                </Field>
+                <Field label={labels.fields.grossWeightMax} htmlFor="wiz-gross-weight">
                   <Input
+                    id="wiz-gross-weight"
                     name="grossWeightMax"
                     type="number"
                     min={0}
                     step="0.0001"
+                    aria-label={labels.fields.grossWeightMax}
+                    className="form-input"
                     value={form.grossWeightMax}
                     onChange={(e) => update('grossWeightMax', e.currentTarget.value)}
                   />
-                </label>
-                <label className="block">
-                  <FieldLabel>{labels.fields.varianceTolerance}</FieldLabel>
+                </Field>
+                <Field label={labels.fields.varianceTolerance} htmlFor="wiz-variance">
                   <Input
+                    id="wiz-variance"
                     name="varianceTolerancePct"
                     type="number"
                     min={0}
                     max={100}
                     step="0.01"
+                    aria-label={labels.fields.varianceTolerance}
+                    className="form-input"
                     value={form.varianceTolerancePct}
                     onChange={(e) => update('varianceTolerancePct', e.currentTarget.value)}
                   />
-                </label>
+                </Field>
               </div>
             </div>
           ) : null}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <FieldLabel>{labels.fields.shelfLifeDays}</FieldLabel>
+          <div className="ff-inline">
+            <Field label={labels.fields.shelfLifeDays} htmlFor="wiz-shelf-days">
               <Input
+                id="wiz-shelf-days"
                 name="shelfLifeDays"
                 type="number"
                 min={0}
+                aria-label={labels.fields.shelfLifeDays}
+                className="form-input"
                 value={form.shelfLifeDays}
                 onChange={(e) => update('shelfLifeDays', e.currentTarget.value)}
               />
-            </label>
-            <div>
-              <FieldLabel>{labels.fields.shelfLifeMode}</FieldLabel>
+            </Field>
+            <Field label={labels.fields.shelfLifeMode}>
               <LabeledSelect
                 value={form.shelfLifeMode}
                 onValueChange={(v) => update('shelfLifeMode', v as WizardFormState['shelfLifeMode'])}
@@ -640,36 +692,60 @@ export function ItemWizard({
                 placeholder="—"
                 ariaLabel={labels.fields.shelfLifeMode}
               />
-            </div>
+            </Field>
           </div>
         </div>
       ) : null}
 
       {step === 'review' ? (
-        <div className="space-y-3" data-step-panel="review">
-          <dl className="rounded-md border bg-slate-50 p-3">
-            {[
-              [labels.fields.itemCode, form.itemCode],
-              [labels.fields.name, form.name],
-              [labels.fields.itemType, ITEM_TYPE_LABELS[form.itemType]],
-              [labels.fields.status, STATUS_LABELS[form.status]],
-              [labels.fields.uomBase, form.uomBase],
-              [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode]],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between gap-4 border-b border-slate-200 py-1 last:border-b-0">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="font-mono text-slate-900">{value || '—'}</dd>
+        <div data-step-panel="review">
+          {/* Read-only review block — prototype <Summary> (_shared/modals.jsx:87-97):
+              key/value rows, value in mono, the code row emphasised. */}
+          <dl
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--gray-050)',
+              padding: '4px 12px',
+              marginBottom: 12,
+            }}
+          >
+            {(
+              [
+                [labels.fields.itemCode, form.itemCode, true],
+                [labels.fields.name, form.name, false],
+                [labels.fields.itemType, ITEM_TYPE_LABELS[form.itemType], false],
+                [labels.fields.status, STATUS_LABELS[form.status], false],
+                [labels.fields.uomBase, form.uomBase, true],
+                [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
+              ] as Array<[string, string, boolean]>
+            ).map(([label, value, mono], i, rows) => (
+              <div
+                key={label}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  padding: '7px 0',
+                  borderBottom: i < rows.length - 1 ? '1px solid var(--border)' : 'none',
+                }}
+              >
+                <dt className="muted">{label}</dt>
+                <dd className={mono ? 'mono' : ''} style={{ fontWeight: 500, color: 'var(--text)' }}>
+                  {value || '—'}
+                </dd>
               </div>
             ))}
           </dl>
-          <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-            {labels.review.ready}
-          </p>
+          <div className="alert alert-green" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 0 }}>
+            <span aria-hidden="true">✓</span>
+            <span>{labels.review.ready}</span>
+          </div>
         </div>
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="alert alert-red" style={{ marginTop: 12, marginBottom: 0 }}>
           {error}
         </p>
       ) : null}

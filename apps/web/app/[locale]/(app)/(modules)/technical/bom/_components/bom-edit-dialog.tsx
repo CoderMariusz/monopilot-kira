@@ -33,7 +33,6 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
 import { Select } from '@monopilot/ui/Select';
 
 import { createBomDraft } from '../_actions/create-draft';
@@ -96,7 +95,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -107,21 +106,21 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`w-full ${size === 'wide' ? 'max-w-2xl' : 'max-w-lg'} rounded-xl border bg-white p-5 text-sm shadow-lg outline-none`}
+        className={`modal-box${size === 'wide' ? ' wide' : ''} outline-none`}
       >
-        <div className="mb-3 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <h2 id={titleId} className="modal-title">
               {title}
             </h2>
-            {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
+            {subtitle ? <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{subtitle}</p> : null}
           </div>
-          <button type="button" aria-label="Close" className="text-slate-400 hover:text-slate-600" onClick={onClose}>
+          <button type="button" aria-label="Close" className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -300,21 +299,26 @@ export function ComponentAddModal({
       }
     >
       {released ? (
-        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
-          {t('newDraftNotice', { status: context.sourceStatus })}
-        </p>
+        <div className="alert alert-amber mb-3" role="status">
+          <div className="alert-title">{t('newDraftNotice', { status: context.sourceStatus })}</div>
+        </div>
       ) : null}
 
-      <Input
+      <input
         autoFocus
         aria-label={t('searchPlaceholder')}
         placeholder={t('searchPlaceholder')}
-        className="mb-2 w-full font-mono"
+        className="form-input mb-2 w-full font-mono"
         value={search}
         onChange={(event) => setSearch(event.currentTarget.value)}
       />
 
-      <div className="max-h-72 overflow-y-auto rounded-md border" role="listbox" aria-label={t('addComponent')}>
+      <div
+        className="max-h-72 overflow-y-auto"
+        style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+        role="listbox"
+        aria-label={t('addComponent')}
+      >
         {materialsState === 'loading' ? (
           <div className="space-y-2 p-3">
             <div className="h-6 animate-pulse rounded bg-slate-100" />
@@ -350,51 +354,49 @@ export function ComponentAddModal({
       {picked ? (
         <div className="mt-3 space-y-3">
           {usability.kind === 'checking' ? (
-            <p className="text-xs text-slate-500" role="status">
+            <p className="muted" style={{ fontSize: 12 }} role="status">
               {t('checkingUsability')}
             </p>
           ) : usability.kind === 'ok' ? (
-            <p className="text-xs text-green-700" role="status">
+            <p style={{ fontSize: 12, color: 'var(--green-700)' }} role="status">
               {t('usableOk')}
             </p>
           ) : usability.kind === 'blocked' ? (
-            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              {t('usabilityBlocked', { code: usability.code, message: usability.message })}
-            </p>
+            <div role="alert" className="alert alert-red">
+              <div className="alert-title">{t('usabilityBlocked', { code: usability.code, message: usability.message })}</div>
+            </div>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm font-medium text-slate-700">
-              {t('quantityPerPack', { uom: picked.uomBase })}
-              <Input
+          <div className="ff-inline">
+            <div className="ff" style={{ marginBottom: 0 }}>
+              <label>{t('quantityPerPack', { uom: picked.uomBase })}<span className="req">*</span></label>
+              <input
                 type="number"
                 step="0.0001"
                 min="0"
+                className="form-input"
                 aria-label={t('quantity')}
                 value={qty}
                 onChange={(event) => setQty(event.currentTarget.value)}
               />
-              {qtyInvalid ? (
-                <span role="alert" className="mt-1 block text-xs text-red-600">
-                  {t('quantityInvalid')}
-                </span>
-              ) : null}
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              {t('scrapPct')}
-              <Input
+              {qtyInvalid ? <span className="ff-error" role="alert">{t('quantityInvalid')}</span> : null}
+            </div>
+            <div className="ff" style={{ marginBottom: 0 }}>
+              <label>{t('scrapPct')}</label>
+              <input
                 type="number"
                 step="0.1"
                 min="0"
+                className="form-input"
                 aria-label={t('scrapPct')}
                 value={scrap}
                 onChange={(event) => setScrap(event.currentTarget.value)}
               />
-            </label>
+            </div>
           </div>
 
-          <label className="block text-sm font-medium text-slate-700">
-            {t('manufacturingOperation')}
+          <div className="ff" style={{ marginBottom: 0 }}>
+            <label>{t('manufacturingOperation')}<span className="req">*</span></label>
             <Select
               value={operationName}
               onValueChange={setOperationName}
@@ -403,18 +405,16 @@ export function ComponentAddModal({
               aria-label={t('manufacturingOperation')}
             />
             {operationMissing ? (
-              <span role="alert" className="mt-1 block text-xs text-red-600">
-                {t('manufacturingOperationRequired')}
-              </span>
+              <span className="ff-error" role="alert">{t('manufacturingOperationRequired')}</span>
             ) : null}
-          </label>
+          </div>
         </div>
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <div role="alert" className="alert alert-red mt-3">
+          <div className="alert-title">{error}</div>
+        </div>
       ) : null}
     </Dialog>
   );
@@ -508,19 +508,19 @@ export function VersionSaveModal({
         </>
       }
     >
-      <div className="space-y-3">
-        <label className="block text-sm font-medium text-slate-700">
-          {t('versionLabel')} *
-          <Input
+      <div>
+        <div className="ff">
+          <label>{t('versionLabel')}<span className="req">*</span></label>
+          <input
+            className="form-input"
             value={label}
             aria-label={t('versionLabel')}
             onChange={(event) => setLabel(event.currentTarget.value)}
           />
-        </label>
-        <label className="block text-sm font-medium text-slate-700">
-          {t('changeReason')} *
+        </div>
+        <div className="ff">
+          <label>{t('changeReason')}<span className="req">*</span></label>
           <textarea
-            className="mt-1 block w-full rounded-md border px-3 py-2 text-sm"
             rows={3}
             minLength={10}
             aria-label={t('changeReason')}
@@ -528,23 +528,21 @@ export function VersionSaveModal({
             value={reason}
             onChange={(event) => setReason(event.currentTarget.value)}
           />
-          <span className="mt-1 block text-xs text-slate-500">{t('changeReasonHelp')}</span>
+          <span className="ff-help">{t('changeReasonHelp')}</span>
           {reasonTooShort && reason.length > 0 ? (
-            <span role="alert" className="mt-1 block text-xs text-red-600">
-              {t('changeReasonHelp')}
-            </span>
+            <span className="ff-error" role="alert">{t('changeReasonHelp')}</span>
           ) : null}
-        </label>
+        </div>
 
-        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800" role="note">
-          {t('previousVersionNote', { version: context.currentVersion })}
+        <div className="alert alert-blue" role="note">
+          <div className="alert-title">{t('previousVersionNote', { version: context.currentVersion })}</div>
         </div>
       </div>
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <div role="alert" className="alert alert-red mt-3">
+          <div className="alert-title">{error}</div>
+        </div>
       ) : null}
     </Dialog>
   );

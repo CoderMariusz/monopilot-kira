@@ -119,7 +119,10 @@ function RiskMatrix({
   ];
 
   return (
-    <div className="overflow-x-auto rounded-xl border bg-white">
+    <div
+      className="overflow-x-auto"
+      style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}
+    >
       <Table aria-label={labels.title} className="min-w-max">
         <TableHeader>
           <TableRow>
@@ -203,8 +206,8 @@ export function AllergensConfig({
   if (state === 'permission_denied' && !data) {
     return (
       <div data-testid="allergens-config" data-state="permission_denied">
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
-          {labels.forbidden}
+        <div role="alert" className="alert alert-amber">
+          <div className="alert-title">{labels.forbidden}</div>
         </div>
       </div>
     );
@@ -212,8 +215,8 @@ export function AllergensConfig({
   if (state === 'error' || !data) {
     return (
       <div data-testid="allergens-config" data-state="error">
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          {labels.error}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{labels.error}</div>
         </div>
       </div>
     );
@@ -258,7 +261,7 @@ export function AllergensConfig({
         <div
           role="alert"
           data-testid="coverage-gap-banner"
-          className="flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800"
+          className="alert alert-amber flex items-center justify-between gap-4"
         >
           <span>
             {labels.gapBanner.replace('{count}', String(data.coverageGapCount))}
@@ -266,7 +269,7 @@ export function AllergensConfig({
           <button
             type="button"
             data-testid="coverage-gap-link"
-            className="font-medium text-amber-900 underline underline-offset-4"
+            className="btn btn-secondary btn-sm"
             onClick={() => setTab('matrix')}
           >
             {labels.gapLink}
@@ -296,15 +299,18 @@ export function AllergensConfig({
       </nav>
 
       {error ? (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="alert alert-red">
           {error}
-        </p>
+        </div>
       ) : null}
 
       {isEmpty ? (
-        <div data-testid="allergens-config-empty" className="rounded-xl border bg-white px-6 py-6 text-sm">
-          <p className="font-medium">{labels.empty}</p>
-          <p className="mt-1 text-muted-foreground">{labels.emptyBody}</p>
+        <div data-testid="allergens-config-empty" className="card">
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true">⚠</span>
+            <p className="empty-state-title">{labels.empty}</p>
+            <p className="empty-state-body">{labels.emptyBody}</p>
+          </div>
         </div>
       ) : tab === 'matrix' ? (
         <div className="space-y-3" data-testid="matrix-panel">
@@ -329,9 +335,12 @@ export function AllergensConfig({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border bg-white" data-testid="ops-panel">
-          <header className="border-b px-5 py-4">
-            <h2 className="text-base font-semibold tracking-tight">{labels.opsTitle}</h2>
+        <div
+          data-testid="ops-panel"
+          style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
+        >
+          <header style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+            <h2 className="card-title">{labels.opsTitle}</h2>
           </header>
           {data.mfgOpAdditions.length === 0 ? (
             <p data-testid="ops-empty" className="px-5 py-6 text-sm text-muted-foreground">

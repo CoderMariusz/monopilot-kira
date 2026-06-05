@@ -27,8 +27,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
-
 export const ITEM_DETAIL_TAB_SLUGS = [
   'overview',
   'bom',
@@ -113,21 +111,20 @@ export function ItemDetailTabs({ itemCode, labels = DEFAULT_LABELS, panels }: It
       <div data-slot="tabs" data-value={activeTab} className="w-full">
         <div
           aria-label={labels.tablistLabel}
-          className="flex flex-wrap gap-2 border-b border-slate-200 pb-2"
+          className="tabs"
+          style={{ overflowX: 'auto' }}
           data-slot="tabs-list"
           role="tablist"
         >
           {tabs.map((tab) => {
             const selected = activeTab === tab.slug;
-            const baseClass = selected
-              ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
-              : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50';
             return (
               <button
                 key={tab.slug}
                 aria-controls={tab.panelId}
                 aria-selected={selected}
-                className={`${baseClass} inline-flex items-center gap-1.5`}
+                className={`tab${selected ? ' active' : ''}`}
+                style={{ flex: '0 0 auto', background: 'transparent', border: 0, fontFamily: 'inherit' }}
                 data-slot="tabs-trigger"
                 data-state={selected ? 'active' : 'inactive'}
                 data-value={tab.slug}
@@ -162,12 +159,13 @@ export function ItemDetailTabs({ itemCode, labels = DEFAULT_LABELS, panels }: It
                 body !== null ? (
                   <div className="mt-3">{body}</div>
                 ) : (
-                  <Card className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    <CardHeader className="font-semibold text-slate-900">{tab.label}</CardHeader>
-                    <CardContent className="mt-1">
-                      {labels.deferred} — {labels.deferredBody}
-                    </CardContent>
-                  </Card>
+                  <div className="card mt-3" style={{ padding: 0 }}>
+                    <div className="empty-state">
+                      <div className="empty-state-icon">🗂️</div>
+                      <div className="empty-state-title">{labels.deferred}</div>
+                      <div className="empty-state-body">{labels.deferredBody}</div>
+                    </div>
+                  </div>
                 )
               ) : null}
             </div>

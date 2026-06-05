@@ -272,11 +272,14 @@ export function BomDetailScreen({
   data,
   labels,
   defaultTab = 'components',
+  actions,
 }: {
   state: PageState;
   data: BomDetailData | null;
   labels: BomDetailLabels;
   defaultTab?: TabKey;
+  /** Server-supplied, RBAC-gated action bar (Add component / Save version / Approve). */
+  actions?: React.ReactNode;
 }) {
   const [activeTab, setActiveTab] = React.useState<TabKey>(defaultTab);
 
@@ -304,16 +307,19 @@ export function BomDetailScreen({
         <a href={data.detailHrefBase}>{labels.breadcrumbRoot}</a> / <span className="mono">{data.productId}</span>
       </nav>
 
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="page-title">{data.productName ?? data.productId}</h1>
-          <StatusBadge status={data.status} labels={labels} />
-          <span className="badge badge-blue">{interpolate(labels.versionBadge, { n: data.selectedVersion })}</span>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="page-title">{data.productName ?? data.productId}</h1>
+            <StatusBadge status={data.status} labels={labels} />
+            <span className="badge badge-blue">{interpolate(labels.versionBadge, { n: data.selectedVersion })}</span>
+          </div>
+          <p className="helper">
+            {labels.yieldLabel}: <span className="mono">{Number(data.yieldPct).toFixed(0)}%</span>
+            {data.category ? <> · {data.category}</> : null}
+          </p>
         </div>
-        <p className="helper">
-          {labels.yieldLabel}: <span className="mono">{Number(data.yieldPct).toFixed(0)}%</span>
-          {data.category ? <> · {data.category}</> : null}
-        </p>
+        {actions ?? null}
       </header>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} data-testid="bom-detail-tabs">

@@ -9,6 +9,10 @@
  * — the write path requires technical.allergens.edit + a reason (V-TEC-42).
  */
 
+import { getTranslations } from 'next-intl/server';
+
+import { PageHeader } from '@monopilot/ui/PageHeader';
+
 import { loadAllOverrides } from './_actions/load-overrides';
 import { OverrideAuditPanel } from './_components/override-audit.client';
 import {
@@ -27,21 +31,26 @@ export default async function AllergenOverridesPage({
 }) {
   const { locale } = await params;
 
-  const [load, auditLabels, tabLabels] = await Promise.all([
+  const [load, auditLabels, tabLabels, t] = await Promise.all([
     loadAllOverrides(),
     buildOverrideAuditLabels(locale),
     buildAllergensTabLabels(locale),
+    getTranslations('technical.allergens.overrides'),
   ]);
 
   const declarationLabels = tabLabels.modal ?? DEFAULT_TAB_LABELS.modal;
 
   return (
-    <main data-screen="technical-allergen-overrides" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <header>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Technical · Allergens</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{auditLabels.title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{auditLabels.subtitle}</p>
-      </header>
+    <main data-screen="technical-allergen-overrides" className="flex w-full flex-col gap-4 px-6 py-6">
+      <PageHeader
+        title={auditLabels.title}
+        subtitle={auditLabels.subtitle}
+        breadcrumb={[
+          { label: t('breadcrumb.technical') },
+          { label: t('breadcrumb.allergens') },
+          { label: t('breadcrumb.overrides') },
+        ]}
+      />
 
       <OverrideAuditPanel
         rows={load.rows}

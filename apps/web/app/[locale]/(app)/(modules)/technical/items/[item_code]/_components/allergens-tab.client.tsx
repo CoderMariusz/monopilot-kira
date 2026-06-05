@@ -104,7 +104,7 @@ export function AllergensTab({
   if (state === 'permission_denied') {
     return (
       <div data-testid="allergens-tab" data-state="permission_denied" className="p-1">
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
+        <div role="alert" className="alert alert-amber">
           {labels.forbidden}
         </div>
       </div>
@@ -114,8 +114,8 @@ export function AllergensTab({
   if (state === 'error' || !data) {
     return (
       <div data-testid="allergens-tab" data-state="error" className="p-1">
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-          {labels.error}
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{labels.error}</div>
         </div>
       </div>
     );
@@ -155,7 +155,9 @@ export function AllergensTab({
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{labels.subtitle}</p>
+          <p className="mt-0.5 text-sm" style={{ color: 'var(--muted)' }}>
+            {labels.subtitle}
+          </p>
         </div>
         {canEdit ? (
           <Button type="button" className="btn-primary" data-testid="allergen-declare-cta" onClick={() => openDeclare()}>
@@ -165,9 +167,12 @@ export function AllergensTab({
       </header>
 
       {data.badges.length === 0 ? (
-        <div data-testid="allergens-empty" className="rounded-xl border bg-white px-6 py-6 text-sm">
-          <p className="font-medium">{labels.empty}</p>
-          <p className="mt-1 text-muted-foreground">{labels.emptyBody}</p>
+        <div className="card" style={{ padding: 0 }} data-testid="allergens-empty">
+          <div className="empty-state">
+            <div className="empty-state-icon">🧫</div>
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">{labels.emptyBody}</div>
+          </div>
         </div>
       ) : (
         <section aria-label={labels.title} className="space-y-4">
@@ -175,13 +180,9 @@ export function AllergensTab({
             const rows = grouped.get(source) ?? [];
             const cascaded = isCascaded(source);
             return (
-              <div
-                key={source}
-                data-testid={`allergen-source-group-${source}`}
-                className="rounded-xl border bg-white p-4"
-              >
+              <div key={source} data-testid={`allergen-source-group-${source}`} className="card">
                 <div className="mb-2 flex items-center gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
                     {labels.sourceHeading[source] ?? source}
                   </h3>
                   {cascaded ? (

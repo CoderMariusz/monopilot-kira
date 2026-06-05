@@ -118,7 +118,7 @@ export function OverrideAuditPanel({
 
   if (state === 'loading') {
     return (
-      <section data-testid="override-audit-panel" data-state="loading" className="rounded-xl border bg-white p-4">
+      <section data-testid="override-audit-panel" data-state="loading" className="card">
         <div role="status" className="text-sm text-muted-foreground">
           {labels.loading}
         </div>
@@ -127,18 +127,18 @@ export function OverrideAuditPanel({
   }
   if (state === 'permission_denied') {
     return (
-      <section data-testid="override-audit-panel" data-state="permission_denied" className="rounded-xl border bg-white p-4">
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {labels.forbidden}
+      <section data-testid="override-audit-panel" data-state="permission_denied">
+        <div role="alert" className="alert alert-amber">
+          <div className="alert-title">{labels.forbidden}</div>
         </div>
       </section>
     );
   }
   if (state === 'error') {
     return (
-      <section data-testid="override-audit-panel" data-state="error" className="rounded-xl border bg-white p-4">
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {labels.error}
+      <section data-testid="override-audit-panel" data-state="error">
+        <div role="alert" className="alert alert-red">
+          <div className="alert-title">{labels.error}</div>
         </div>
       </section>
     );
@@ -154,16 +154,28 @@ export function OverrideAuditPanel({
   }
 
   return (
-    <section data-testid="override-audit-panel" data-state={state} className="rounded-xl border bg-white">
-      <header className="border-b px-5 py-4">
-        <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">{labels.subtitle}</p>
+    <section
+      data-testid="override-audit-panel"
+      data-state={state}
+      style={{
+        background: '#fff',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+      }}
+    >
+      <header className="card-head" style={{ marginBottom: 0, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <h2 className="card-title">{labels.title}</h2>
+          <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
+        </div>
       </header>
 
       {rows.length === 0 ? (
-        <div data-testid="override-audit-empty" className="px-5 py-6 text-sm">
-          <p className="font-medium">{labels.empty}</p>
-          <p className="mt-1 text-muted-foreground">{labels.emptyBody}</p>
+        <div data-testid="override-audit-empty" className="empty-state">
+          <span className="empty-state-icon" aria-hidden="true">⊘</span>
+          <p className="empty-state-title">{labels.empty}</p>
+          <p className="empty-state-body">{labels.emptyBody}</p>
         </div>
       ) : (
         <Table aria-label={labels.title}>
@@ -208,7 +220,7 @@ export function OverrideAuditPanel({
                     <button
                       type="button"
                       data-testid={`override-review-${r.id}`}
-                      className="font-medium text-blue-600 underline-offset-4 hover:underline"
+                      className="btn btn-secondary btn-sm"
                       onClick={() => setActive(r)}
                     >
                       {labels.reviewCta}

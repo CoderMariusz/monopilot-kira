@@ -52,6 +52,12 @@ export default async function TechnicalRecipeCostPage() {
     noCost: t('noCost'),
     bomNote: t('bomNote', { version: '{version}', status: '{status}' }),
     uncosted: t('uncosted'),
+    recompute: t('recompute'),
+    recomputeTitle: t('recomputeModal.title'),
+    recomputeIntro: t('recomputeModal.intro'),
+    recomputeNote: t('recomputeModal.note'),
+    recomputeConfirm: t('recomputeModal.confirm'),
+    cancel: t('recomputeModal.cancel'),
   };
 
   return (

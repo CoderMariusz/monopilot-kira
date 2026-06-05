@@ -22,7 +22,6 @@ import React from 'react';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card, CardContent } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import Modal from '@monopilot/ui/Modal';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -139,8 +138,8 @@ export function SnapshotsViewer({
 
   return (
     <div data-prototype-label="bom_snapshots_viewer_screen" className="flex flex-col gap-4">
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-        {labels.immutableBanner}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.immutableBanner}</div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -153,12 +152,7 @@ export function SnapshotsViewer({
               aria-selected={filter === key}
               data-testid={`snapshot-filter-${key}`}
               onClick={() => setFilter(key)}
-              className={[
-                'rounded-full border px-3 py-1 text-sm transition-colors',
-                filter === key
-                  ? 'border-blue-300 bg-blue-50 font-medium text-blue-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-              ].join(' ')}
+              className={`pill${filter === key ? ' on' : ''}`}
             >
               {label} <span className="ml-1 opacity-50">{count}</span>
             </button>
@@ -168,19 +162,19 @@ export function SnapshotsViewer({
           <label htmlFor="snapshot-wo-filter" className="sr-only">
             {labels.searchPlaceholder}
           </label>
-          <Input
+          <input
             id="snapshot-wo-filter"
             type="search"
             value={woFilter}
             onChange={(e) => setWoFilter(e.target.value)}
             placeholder={labels.searchPlaceholder}
-            className="w-56 font-mono"
+            className="form-input w-56 font-mono"
             data-testid="snapshot-wo-filter"
           />
         </div>
       </div>
 
-      <Card className="rounded-xl border bg-white shadow-sm">
+      <Card className="card">
         <CardContent className="p-0">
           <Table aria-label="BOM snapshots">
             <TableHeader>
@@ -226,7 +220,7 @@ export function SnapshotsViewer({
                     <TableCell className="text-right">
                       <button
                         type="button"
-                        className="btn"
+                        className="btn btn-secondary btn-sm"
                         data-testid={`snapshot-diff-cta-${s.id}`}
                         onClick={() => onDiff(s)}
                       >
@@ -247,14 +241,16 @@ export function SnapshotsViewer({
         </CardContent>
       </Card>
 
-      <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">{labels.orphanedNote}</p>
+      <div className="alert alert-blue">
+        <div className="alert-title">{labels.orphanedNote}</div>
+      </div>
 
       <Modal open={Boolean(openSnapshot)} onOpenChange={(o) => (o ? null : setOpenSnapshot(null))} size="xl" modalId="bom_snapshot_diff_modal">
         <Modal.Header title={`${labels.modalTitle} · ${openSnapshot?.id ?? ''}`} />
         <Modal.Body>
           <div data-prototype-label="bom_snapshot_diff_modal" data-testid="snapshot-diff-modal">
-            <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900">
-              {labels.modalReadOnly}
+            <div role="alert" className="alert alert-red mb-3">
+              <div className="alert-title">{labels.modalReadOnly}</div>
             </div>
             {diffState === 'loading' ? (
               <p className="text-sm text-muted-foreground" data-testid="snapshot-diff-loading">
@@ -297,7 +293,7 @@ export function SnapshotsViewer({
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <button type="button" className="btn" onClick={() => setOpenSnapshot(null)} data-testid="snapshot-diff-close">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenSnapshot(null)} data-testid="snapshot-diff-close">
             {labels.close}
           </button>
         </Modal.Footer>

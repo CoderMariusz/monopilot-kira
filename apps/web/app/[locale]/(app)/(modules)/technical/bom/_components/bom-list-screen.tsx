@@ -25,6 +25,9 @@
 import React from 'react';
 import Link from 'next/link';
 
+import { BomGeneratorModal } from './bom-generator-modal';
+import { NewBomModal } from './new-bom-modal';
+
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
 export type BomStatus =
@@ -252,6 +255,13 @@ export function BomListScreen({
 }) {
   const [filter, setFilter] = React.useState<FilterKey>('all');
   const [q, setQ] = React.useState('');
+  const [generatorOpen, setGeneratorOpen] = React.useState(false);
+  const [newBomOpen, setNewBomOpen] = React.useState(false);
+
+  // The Generate CTA opens the (already real-data-wired) batch generator unless
+  // the host overrides onGenerate; the New BOM CTA opens the FG-picker modal that
+  // routes to the chosen FG's detail where its first draft version is built.
+  const openGenerator = onGenerate ?? (() => setGeneratorOpen(true));
 
   const items = data?.items ?? [];
 
@@ -291,14 +301,19 @@ export function BomListScreen({
         </div>
         <div className="flex shrink-0 gap-2">
           {canGenerate ? (
-            <button type="button" data-testid="bom-generate-cta" className="btn btn-secondary" onClick={onGenerate}>
+            <button type="button" data-testid="bom-generate-cta" className="btn btn-secondary" onClick={openGenerator}>
               {labels.generateBoms}
             </button>
           ) : null}
           {canCreate ? (
-            <Link href={`${data?.detailHrefBase ?? '#'}`} data-testid="bom-new-cta" className="btn btn-primary">
+            <button
+              type="button"
+              data-testid="bom-new-cta"
+              className="btn btn-primary"
+              onClick={() => setNewBomOpen(true)}
+            >
               {labels.newBom}
-            </Link>
+            </button>
           ) : null}
         </div>
       </header>
@@ -421,6 +436,23 @@ export function BomListScreen({
           </div>
         </>
       )}
+
+      {/* New BOM — FG picker that routes to the chosen FG's detail (createBomDraft
+          there). Mounted only while open so its next-intl/router hooks never run
+          on the read-only list (keeps the provider-less RTL render green). */}
+      {canCreate && newBomOpen ? (
+        <NewBomModal
+          open={newBomOpen}
+          onClose={() => setNewBomOpen(false)}
+          detailHrefBase={data?.detailHrefBase ?? '/technical/bom'}
+        />
+      ) : null}
+
+      {/* Generate BOMs — async batch generator (real generateBomBatch). Mounted
+          only while open and when no host override supplied onGenerate. */}
+      {canGenerate && !onGenerate && generatorOpen ? (
+        <BomGeneratorModal open={generatorOpen} onClose={() => setGeneratorOpen(false)} />
+      ) : null}
     </main>
   );
 }

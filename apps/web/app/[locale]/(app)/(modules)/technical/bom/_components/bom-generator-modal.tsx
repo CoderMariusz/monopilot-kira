@@ -25,7 +25,6 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
 
 import { generateBomBatch } from '../_actions/generate-batch';
 import { listEligibleFgs, type EligibleFg } from '../_actions/queries';
@@ -69,7 +68,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -80,21 +79,21 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-lg rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box outline-none"
       >
-        <div className="mb-3 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <h2 id={titleId} className="modal-title">
               {title}
             </h2>
-            {subtitle ? <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p> : null}
+            {subtitle ? <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{subtitle}</p> : null}
           </div>
-          <button type="button" aria-label="Close" className="text-slate-400 hover:text-slate-600" onClick={onClose}>
+          <button type="button" aria-label="Close" className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -114,7 +113,15 @@ function RadioRow({
   label: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px] hover:bg-slate-50 has-[:checked]:border-blue-300 has-[:checked]:bg-blue-50">
+    <label
+      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px]"
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-sm)',
+        background: checked ? 'var(--blue-050)' : '#fff',
+        borderColor: checked ? 'var(--blue)' : 'var(--border)',
+      }}
+    >
       <input
         type="radio"
         name={name}
@@ -247,12 +254,13 @@ export function BomGeneratorModal({
       }
     >
       {submit.kind === 'success' ? (
-        <div role="status" aria-live="polite" className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          <p className="font-medium">{t('successToast', { count: submit.count, jobId: submit.jobId })}</p>
+        <div role="status" aria-live="polite" className="alert alert-green">
+          <div className="alert-title">{t('successToast', { count: submit.count, jobId: submit.jobId })}</div>
           {jobStatusHref ? (
             <a
               href={jobStatusHref(submit.jobId)}
-              className="mt-1 inline-block font-medium text-green-700 underline underline-offset-4"
+              className="mt-1 inline-block font-medium underline underline-offset-4"
+              style={{ color: 'var(--green-700)' }}
             >
               {t('viewJob')}
             </a>
@@ -260,8 +268,8 @@ export function BomGeneratorModal({
         </div>
       ) : (
         <div className="space-y-4">
-          <fieldset>
-            <legend className="mb-1.5 text-sm font-medium text-slate-700">{t('scope')}</legend>
+          <fieldset className="ff" style={{ marginBottom: 0 }}>
+            <legend className="mb-1.5" style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('scope')}</legend>
             <div className="grid grid-cols-1 gap-2">
               <RadioRow name="bom-gen-scope" value="all_complete" checked={scope === 'all_complete'} onChange={(v) => setScope(v as GeneratorScope)} label={t('scopeAllComplete')} />
               <RadioRow name="bom-gen-scope" value="selected" checked={scope === 'selected'} onChange={(v) => setScope(v as GeneratorScope)} label={t('scopeSelected')} />
@@ -270,15 +278,15 @@ export function BomGeneratorModal({
 
           {scope === 'selected' ? (
             <div>
-              <p className="mb-1.5 text-sm font-medium text-slate-700">{t('pickFgs')}</p>
-              <Input
+              <p className="mb-1.5" style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('pickFgs')}</p>
+              <input
                 aria-label={t('searchFgs')}
                 placeholder={t('searchFgs')}
-                className="mb-2 w-full font-mono"
+                className="form-input mb-2 w-full font-mono"
                 value={search}
                 onChange={(event) => setSearch(event.currentTarget.value)}
               />
-              <div className="max-h-48 overflow-y-auto rounded-md border" role="group" aria-label={t('pickFgs')}>
+              <div className="max-h-48 overflow-y-auto" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} role="group" aria-label={t('pickFgs')}>
                 {fgsState === 'loading' ? (
                   <div className="space-y-2 p-3">
                     <div className="h-5 animate-pulse rounded bg-slate-100" />
@@ -317,8 +325,8 @@ export function BomGeneratorModal({
             </div>
           ) : null}
 
-          <fieldset>
-            <legend className="mb-1.5 text-sm font-medium text-slate-700">{t('outputMode')}</legend>
+          <fieldset className="ff" style={{ marginBottom: 0 }}>
+            <legend className="mb-1.5" style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('outputMode')}</legend>
             <div className="grid grid-cols-1 gap-2">
               <RadioRow name="bom-gen-output" value="per_fg" checked={outputMode === 'per_fg'} onChange={(v) => setOutputMode(v as GeneratorOutputMode)} label={t('outputPerFg')} />
               <RadioRow name="bom-gen-output" value="single_batch" checked={outputMode === 'single_batch'} onChange={(v) => setOutputMode(v as GeneratorOutputMode)} label={t('outputSingleBatch')} />
@@ -326,9 +334,9 @@ export function BomGeneratorModal({
           </fieldset>
 
           {submit.kind === 'error' ? (
-            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {submit.message}
-            </p>
+            <div role="alert" className="alert alert-red">
+              <div className="alert-title">{submit.message}</div>
+            </div>
           ) : null}
         </div>
       )}

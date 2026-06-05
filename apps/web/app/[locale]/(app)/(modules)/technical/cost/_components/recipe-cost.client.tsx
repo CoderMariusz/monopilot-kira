@@ -46,6 +46,13 @@ export type RecipeCostCopy = {
   /** Template with `{version}` / `{status}` placeholders — functions cannot cross the RSC boundary. */
   bomNote: string;
   uncosted: string;
+  // Recompute confirm modal (prototype MODAL-10 · costRollupRecompute).
+  recompute: string;
+  recomputeTitle: string;
+  recomputeIntro: string;
+  recomputeNote: string;
+  recomputeConfirm: string;
+  cancel: string;
 };
 
 // Breakdown bar tones — design tokens (golden rule #1: no hardcoded hex).
@@ -57,6 +64,66 @@ const BAR_TONES = [
   'var(--green)',
   'var(--info)',
 ];
+
+// ── Local accessible dialog styled to .modal-* (same React-19/jsdom deviation as
+//    the cost-manager island) — prototype MODAL-10 costRollupRecompute. ──────────
+function Dialog({
+  open,
+  onClose,
+  title,
+  subtitle,
+  closeLabel,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  closeLabel: string;
+  children: React.ReactNode;
+  footer: React.ReactNode;
+}) {
+  const titleId = React.useId();
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    contentRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div ref={contentRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="modal-box outline-none">
+        <div className="modal-head">
+          <div>
+            <h2 id={titleId} className="modal-title">
+              {title}
+            </h2>
+            {subtitle ? <p className="helper mt-0.5">{subtitle}</p> : null}
+          </div>
+          <button type="button" aria-label={closeLabel} className="modal-close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
+      </div>
+    </div>
+  );
+}
 
 // KPI tile = locked .kpi (1px border + 6px radius + 3px coloured bottom accent +
 // value Inter 26/700). `accent` maps to the .kpi tone modifier classes.
@@ -168,6 +235,7 @@ export function RecipeCostClient({
   const [cost, setCost] = React.useState<RecipeCost | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [loadError, setLoadError] = React.useState(false);
+  const [recomputeOpen, setRecomputeOpen] = React.useState(false);
 
   const load = React.useCallback((productCode: string) => {
     if (!productCode) {
@@ -197,7 +265,7 @@ export function RecipeCostClient({
   return (
     <div className="flex flex-col gap-4" data-screen="technical-recipe-cost">
       <div className="card">
-        <div className="flex flex-wrap items-end gap-4 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-4 p-4">
           <label className="label block">
             {copy.selectLabel}
             <div className="mt-1 w-80">
@@ -210,6 +278,16 @@ export function RecipeCostClient({
               />
             </div>
           </label>
+          {selected ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              data-modal-id="TEC-COST-RECOMPUTE"
+              onClick={() => setRecomputeOpen(true)}
+            >
+              ↻ {copy.recompute}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -236,6 +314,40 @@ export function RecipeCostClient({
         </div>
       ) : cost ? (
         <CostView cost={cost} copy={copy} />
+      ) : null}
+
+      {recomputeOpen ? (
+        <Dialog
+          open
+          onClose={() => setRecomputeOpen(false)}
+          closeLabel={copy.cancel}
+          title={copy.recomputeTitle}
+          subtitle={copy.recomputeIntro}
+          footer={
+            <>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRecomputeOpen(false)}>
+                {copy.cancel}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  // Genuine re-roll: re-run the live BOM × current-rates roll-up
+                  // for the selected product (no fake snapshot — the cost IS
+                  // computed on every load from items.cost_per_kg).
+                  setRecomputeOpen(false);
+                  load(selected);
+                }}
+              >
+                {copy.recomputeConfirm}
+              </button>
+            </>
+          }
+        >
+          <div role="note" className="alert alert-blue" style={{ fontSize: 12 }}>
+            ⓘ {copy.recomputeNote}
+          </div>
+        </Dialog>
       ) : null}
     </div>
   );

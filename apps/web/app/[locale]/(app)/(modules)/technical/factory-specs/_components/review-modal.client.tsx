@@ -11,15 +11,19 @@
  * link into the T-090 FactorySpec+BOM bundle approval panel. The legacy `SP-*` id and
  * `FA*` copy are red-lined to the canonical spec_code + FG vocabulary.
  *
+ * MON-design-system parity (TW1-cost lane): the prior build had drifted to raw
+ * Tailwind chrome (bg-black/40, rounded-xl border shadow-lg, bg-slate-50/amber-50,
+ * text-blue-600). Restyled to the locked `.modal-overlay`/`.modal-box`/`.modal-head`/
+ * `.modal-body`/`.modal-foot` + `.alert-*` + `.btn-*` classes. The dead "Mark
+ * reviewed" footer button (no onClick → no backend) is wired to the actual
+ * review→approve workflow: it opens the T-090 bundle-approval panel.
+ *
  * Local Dialog primitive (not Radix) — same established React-19/jsdom deviation as
  * the items master island. Production a11y semantics preserved.
  */
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-
-import { Badge } from '@monopilot/ui/Badge';
-import { Button } from '@monopilot/ui/Button';
 
 import { specBadge } from '../../../../../../../lib/technical/release-state-adapters';
 import type { FactorySpecListItem } from '../_actions/shared';
@@ -30,6 +34,7 @@ function Dialog({
   onClose,
   title,
   subtitle,
+  closeLabel,
   children,
   footer,
 }: {
@@ -37,6 +42,7 @@ function Dialog({
   onClose: () => void;
   title: string;
   subtitle?: string;
+  closeLabel: string;
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
@@ -57,7 +63,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -68,21 +74,21 @@ function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box wide outline-none"
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="modal-head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+            <h2 id={titleId} className="modal-title">
               {title}
             </h2>
-            {subtitle ? <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p> : null}
+            {subtitle ? <p className="helper mt-0.5">{subtitle}</p> : null}
           </div>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" aria-label={closeLabel} className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-5 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -96,6 +102,15 @@ function SummaryRow({ label, value, mono }: { label: string; value: string; mono
     </div>
   );
 }
+
+// Map the 5 semantic colour tokens to a .badge tone class (MON-design-system rule 8).
+const BADGE_TONE: Record<string, string> = {
+  red: 'badge-red',
+  amber: 'badge-amber',
+  blue: 'badge-blue',
+  green: 'badge-green',
+  gray: 'badge-gray',
+};
 
 export function FactorySpecRowActions({
   spec,
@@ -117,7 +132,8 @@ export function FactorySpecRowActions({
     <span className="flex items-center justify-end gap-3">
       <button
         type="button"
-        className="font-medium text-blue-600 underline-offset-4 hover:underline"
+        className="font-medium hover:underline"
+        style={{ color: 'var(--blue)' }}
         onClick={() => setOpen(true)}
       >
         {reviewLabel}
@@ -126,22 +142,27 @@ export function FactorySpecRowActions({
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
+        closeLabel={t('modal.close')}
         title={t('modal.title', { spec: spec.specCode })}
         subtitle={t('modal.subtitle', { name: `${spec.fgItemCode} ${spec.fgName}`, version: spec.version })}
         footer={
           <>
-            <Button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>
               {t('modal.close')}
-            </Button>
+            </button>
             {canApprove ? (
-              <Button type="button" className="btn-primary">
-                {t('modal.markReviewed')}
-              </Button>
+              // "Mark reviewed" = the review→approve workflow → opens the T-090
+              // bundle-approval panel (previously a dead no-op button).
+              <ReleaseBundlePanelButton
+                factorySpecId={spec.id}
+                label={t('modal.markReviewed')}
+                triggerClassName="btn btn-primary btn-sm"
+              />
             ) : null}
           </>
         }
       >
-        <dl className="rounded-md border bg-slate-50 px-4 py-2 text-sm">
+        <dl className="ff" style={{ background: 'var(--gray-050)', borderRadius: 4, padding: '8px 14px' }}>
           <SummaryRow label={t('modal.releaseStatus')} value={badge.label} />
           <SummaryRow
             label={t('modal.pairedBom')}
@@ -153,43 +174,31 @@ export function FactorySpecRowActions({
         </dl>
 
         <div className="mt-3 flex items-center gap-2">
-          <Badge
-            variant={
-              badge.colorToken === 'red'
-                ? 'danger'
-                : badge.colorToken === 'amber'
-                  ? 'warning'
-                  : badge.colorToken === 'blue'
-                    ? 'info'
-                    : 'success'
-            }
-          >
-            {badge.label}
-          </Badge>
+          <span className={`badge ${BADGE_TONE[badge.colorToken] ?? 'badge-gray'}`}>{badge.label}</span>
           {badge.blockingReasonCode ? (
             <span className="text-xs text-muted-foreground">{badge.blockingReasonCode}</span>
           ) : null}
         </div>
 
         {isImmutable ? (
-          <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="alert alert-amber mt-3" style={{ fontSize: 12 }}>
             <span aria-hidden>△</span>
             <span>{t('modal.cloneOnWrite')}</span>
           </div>
         ) : null}
 
         {bomPending ? (
-          <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          <div className="alert alert-blue mt-3" style={{ fontSize: 12 }}>
             {t('modal.g4Note')}
           </div>
         ) : null}
 
         {canApprove ? (
-          <div className="mt-4 border-t pt-3">
+          <div className="mt-4 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
             <ReleaseBundlePanelButton factorySpecId={spec.id} label={t('modal.openBundle')} />
           </div>
         ) : (
-          <div role="status" className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div role="status" className="alert alert-amber mt-4" style={{ fontSize: 12 }}>
             {t('modal.permissionDenied')}
           </div>
         )}
