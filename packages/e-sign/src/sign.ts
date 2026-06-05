@@ -47,7 +47,7 @@ async function signEventInClient(
   requestId?: string,
 ): Promise<ESignReceipt> {
   const parsed = signEventSchema.parse(input);
-  const pinResult = await verifyPin(parsed.signerUserId, parsed.pin);
+  const pinResult = await verifyPin(parsed.signerUserId, parsed.pin, { client });
   if (pinResult !== true) {
     throw new EPinFailedError();
   }

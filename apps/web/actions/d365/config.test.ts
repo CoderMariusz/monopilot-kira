@@ -219,19 +219,22 @@ describe('D365 constants and connection Server Actions (T-030 RED)', () => {
     expect(JSON.stringify(auditRow?.after_state)).toContain('failed');
   });
 
-  it('rotateD365Secret stores only a vault reference/audit marker and never persists plaintext secret parameters', async () => {
+  it('rotateD365Secret returns vault_unconfigured until a real vault stores the secret', async () => {
     const rotateD365Secret = await loadAction<
       (input: { clientId: string; clientSecret: string }) => Promise<{ ok: boolean; error?: string; data?: { vaultKey?: string } }>
     >('rotate-secret.ts', 'rotateD365Secret', () => importD365Module('./rotate-secret.js'));
 
     const result = await rotateD365Secret({ clientId: 'd365-service-client', clientSecret: REDACTED_SECRET });
 
-    expect(result.ok).toBe(true);
+    expect(result).toEqual({ ok: false, error: 'vault_unconfigured' });
     const persistedParams = JSON.stringify(currentClient.calls.map((call) => call.params));
     const persistedSql = currentClient.calls.map((call) => call.sql).join('\n');
     expect(persistedParams, 'plaintext D365 service account secret must never be sent to DB writes').not.toContain(REDACTED_SECRET);
     expect(persistedSql, 'reference_tables migration 041 has no updated_by column').not.toMatch(/updated_by/i);
     expect(currentClient.auditRows.some((row) => JSON.stringify(row).includes(REDACTED_SECRET))).toBe(false);
-    if (result.ok) expect(result.data?.vaultKey ?? persistedParams).toMatch(/vault|secret_ref|\[REDACTED\]/i);
+    expect(
+      currentClient.calls.filter((call) => /insert into public\.reference_tables|insert into public\.audit_log/i.test(call.sql)),
+      'vault-unconfigured rotations must not persist fake secret refs or success audit rows',
+    ).toHaveLength(0);
   });
 });

@@ -103,6 +103,12 @@ describe('T-124 e-sign crypto contract', () => {
     ).rejects.toThrow(/requires options\.client with active app\.current_org_id\(\) context/);
   });
 
+  it('signEvent passes its transaction client into verifyPin', () => {
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../sign.ts'), 'utf8');
+
+    expect(source).toMatch(/verifyPin\(\s*parsed\.signerUserId,\s*parsed\.pin,\s*\{\s*client\s*\}\s*\)/);
+  });
+
   it('dualSign requires a caller-provided client with org context', async () => {
     await expect(
       dualSign({

@@ -30,6 +30,7 @@ const AUTHORIZER_ID = '44444444-4444-4444-8444-444444444444';
 
 const NPD_POLICY = 'npd_post_release_edit';
 const TECHNICAL_POLICY = 'technical_product_spec_approval';
+const CUSTOM_POLICY = 'qa_batch_release_authorization';
 const TECHNICAL_GATE = 'technical_product_spec_approval_gate_v1';
 const SETTINGS_AUTHORIZATION_EDIT = 'settings.authorization.edit';
 
@@ -52,7 +53,7 @@ const expectedTechnicalBlockers = [
 type QueryCall = { sql: string; params: readonly unknown[] };
 type PolicyRow = {
   org_id: string;
-  policy_code: typeof NPD_POLICY | typeof TECHNICAL_POLICY;
+  policy_code: string;
   is_enabled: boolean;
   request_permissions: string[];
   authorize_permissions: string[];
@@ -246,6 +247,37 @@ describe('authorization policy helpers and preflights (TASK-000216/T-126 RED)', 
     expect(_revalidatePath).toHaveBeenCalledWith('/settings/authorization');
   });
 
+  it('accepts any policy code that exists in org_authorization_policies instead of a hard-coded whitelist', async () => {
+    currentClient.actorPermissions.add(SETTINGS_AUTHORIZATION_EDIT);
+    currentClient.policies.push(validCustomPolicy());
+
+    const { updateAuthorizationPolicy } = await loadActionsModule();
+    const result = await updateAuthorizationPolicy({
+      policyCode: CUSTOM_POLICY,
+      auditReason: 'enable QA release approval',
+      patch: { approver_role_codes: ['qa_manager'] } as Partial<PolicyRow>,
+    });
+
+    expect(result).toEqual({ ok: true, data: { policyCode: CUSTOM_POLICY, version: 3 } });
+    expect(policyFor(ORG_ID, CUSTOM_POLICY)?.version).toBe(3);
+    expect(statementIndex('update public.org_authorization_policies')).toBeGreaterThanOrEqual(0);
+  });
+
+  it('rejects genuinely unknown policy codes without mutating state', async () => {
+    currentClient.actorPermissions.add(SETTINGS_AUTHORIZATION_EDIT);
+
+    const { updateAuthorizationPolicy } = await loadActionsModule();
+    const result = await updateAuthorizationPolicy({
+      policyCode: 'does_not_exist',
+      auditReason: 'bad policy',
+      patch: { approver_role_codes: ['qa_manager'] } as Partial<PolicyRow>,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'policy_not_found' });
+    expect(statementIndex('update public.org_authorization_policies')).toBe(-1);
+    expect(currentClient.mutations).toEqual([]);
+  });
+
   it('lets feature-flag/import dry-runs call preflight helpers and prevents partial mutation when blockers exist', async () => {
     replacePolicy({
       policy_code: NPD_POLICY,
@@ -327,7 +359,7 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('org_authorization_policies') && normalized.includes('select')) {
-        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY);
+        const policyCode = params.find((param): param is string => typeof param === 'string' && client.policies.some((policy) => policy.policy_code === param));
         const row = policyCode ? policyFor(ORG_ID, policyCode) : undefined;
         return { rows: row ? [{ ...row, enabled: row.is_enabled }] : [], rowCount: row ? 1 : 0 };
       }
@@ -340,7 +372,7 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('update public.org_authorization_policies')) {
-        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY);
+        const policyCode = params.find((param): param is string => typeof param === 'string' && client.policies.some((policy) => policy.policy_code === param));
         const row = policyCode ? policyFor(ORG_ID, policyCode) : undefined;
         if (!row) return { rows: [], rowCount: 0 };
         row.version += 1;
@@ -350,13 +382,13 @@ function makeClient(): FakeClient {
       }
 
       if (normalized.includes('insert into public.audit_events')) {
-        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY);
+        const policyCode = params.find((param): param is string => typeof param === 'string' && client.policies.some((policy) => policy.policy_code === param));
         client.mutations.push({ kind: 'audit', policyCode, orgId: ORG_ID });
         return { rows: [], rowCount: 1 };
       }
 
       if (normalized.includes('insert into public.outbox_events')) {
-        const policyCode = params.find((param): param is PolicyRow['policy_code'] => param === NPD_POLICY || param === TECHNICAL_POLICY)
+        const policyCode = params.find((param): param is string => typeof param === 'string' && client.policies.some((policy) => policy.policy_code === param))
           ?? policyCodeFromJsonParam(params);
         client.mutations.push({ kind: 'outbox', policyCode, orgId: ORG_ID });
         return { rows: [], rowCount: 1 };
@@ -402,6 +434,23 @@ function validTechnicalPolicy(): PolicyRow {
   };
 }
 
+function validCustomPolicy(): PolicyRow {
+  return {
+    org_id: ORG_ID,
+    policy_code: CUSTOM_POLICY,
+    is_enabled: true,
+    request_permissions: ['qa.batch_release.request'],
+    authorize_permissions: ['qa.batch_release.authorize'],
+    approver_role_codes: ['qa_lead'],
+    min_approvers: 1,
+    require_segregation_of_duties: true,
+    requires_new_version: false,
+    approval_gate_rule_code: null,
+    version: 2,
+    settings_json: {},
+  };
+}
+
 function replacePolicy(overrides: Partial<PolicyRow> & Pick<PolicyRow, 'policy_code'>): void {
   const base = overrides.policy_code === NPD_POLICY ? validNpdPolicy() : validTechnicalPolicy();
   const next = { ...base, ...overrides };
@@ -411,18 +460,18 @@ function replacePolicy(overrides: Partial<PolicyRow> & Pick<PolicyRow, 'policy_c
   currentClient.policies.push(next);
 }
 
-function policyFor(orgId: string, policyCode: PolicyRow['policy_code']): (PolicyRow & { updated_by?: string }) | undefined {
+function policyFor(orgId: string, policyCode: string): (PolicyRow & { updated_by?: string }) | undefined {
   return currentClient.policies.find((policy) => policy.org_id === orgId && policy.policy_code === policyCode) as
     | (PolicyRow & { updated_by?: string })
     | undefined;
 }
 
-function policyCodeFromJsonParam(params: readonly unknown[]): PolicyRow['policy_code'] | undefined {
+function policyCodeFromJsonParam(params: readonly unknown[]): string | undefined {
   for (const param of params) {
     if (typeof param !== 'string' || !param.startsWith('{')) continue;
     try {
       const parsed = JSON.parse(param) as { policy_code?: unknown };
-      if (parsed.policy_code === NPD_POLICY || parsed.policy_code === TECHNICAL_POLICY) return parsed.policy_code;
+      if (typeof parsed.policy_code === 'string') return parsed.policy_code;
     } catch {
       // Ignore non-JSON string params.
     }

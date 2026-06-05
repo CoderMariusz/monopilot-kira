@@ -1,6 +1,5 @@
 'use server';
 
-import { createHash } from 'node:crypto';
 import { withOrgContext } from '../../lib/auth/with-org-context';
 
 const ROTATE_PERMISSION = 'settings.d365.rotate_secret';
@@ -28,7 +27,7 @@ export type RotateD365SecretInput = {
 
 export type RotateD365SecretResult =
   | { ok: true; data: { vaultKey: string } }
-  | { ok: false; error: 'invalid_input' | 'forbidden' | 'vault_failed' | 'persistence_failed' };
+  | { ok: false; error: 'invalid_input' | 'forbidden' | 'vault_unconfigured' | 'vault_failed' | 'persistence_failed' };
 
 export async function rotateD365Secret(rawInput: RotateD365SecretInput): Promise<RotateD365SecretResult> {
   const input = parseInput(rawInput);
@@ -39,7 +38,11 @@ export async function rotateD365Secret(rawInput: RotateD365SecretInput): Promise
       const allowed = await hasPermission({ userId, orgId, client }, ROTATE_PERMISSION);
       if (!allowed) return { ok: false, error: 'forbidden' };
 
-      const vaultResult = await vaultAdapter.storeSecret({ orgId, clientId: input.clientId, clientSecret: input.clientSecret });
+      const vaultResult = await vaultAdapter.storeSecret({ orgId, clientId: input.clientId, clientSecret: input.clientSecret }).catch((error) => {
+        if (error instanceof VaultUnconfiguredError) return null;
+        throw error;
+      });
+      if (!vaultResult) return { ok: false, error: 'vault_unconfigured' };
       if (!vaultResult.vaultKey) return { ok: false, error: 'vault_failed' };
 
       const rowData = {
@@ -76,15 +79,19 @@ export async function rotateD365Secret(rawInput: RotateD365SecretInput): Promise
 }
 
 const vaultAdapter: VaultAdapter = {
-  async storeSecret(input) {
-    // Stub adapter for GREEN: production can replace this boundary with a real vault client.
-    // The plaintext is consumed only inside this adapter and is never returned or persisted.
-    const clientDigest = createHash('sha256').update(input.clientId).digest('hex').slice(0, 16);
-    return {
-      vaultKey: `vault://d365/${input.orgId}/client-secret/${clientDigest}`,
-    };
+  async storeSecret(_input) {
+    // TODO: wire a real secret store here. Returning success without storing
+    // the client secret would make rotation appear complete while discarding it.
+    throw new VaultUnconfiguredError();
   },
 };
+
+class VaultUnconfiguredError extends Error {
+  constructor() {
+    super('D365 secret vault is not configured');
+    this.name = 'VaultUnconfiguredError';
+  }
+}
 
 function parseInput(raw: RotateD365SecretInput | null | undefined): { clientId: string; clientSecret: string } | null {
   if (!raw || typeof raw !== 'object') return null;

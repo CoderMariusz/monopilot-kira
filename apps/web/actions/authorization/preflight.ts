@@ -3,8 +3,7 @@ export const TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY = 'technical_product_spec_ap
 export const TECHNICAL_PRODUCT_SPEC_APPROVAL_GATE = 'technical_product_spec_approval_gate_v1' as const;
 
 export type AuthorizationPolicyCode =
-  | typeof NPD_POST_RELEASE_EDIT_POLICY
-  | typeof TECHNICAL_PRODUCT_SPEC_APPROVAL_POLICY;
+  string;
 
 export type NpdPostReleaseEditBlocker =
   | { code: 'policy_missing'; policyCode: typeof NPD_POST_RELEASE_EDIT_POLICY }

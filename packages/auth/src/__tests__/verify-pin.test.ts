@@ -88,6 +88,35 @@ async function runWithOrgContext<T>(
   }
 }
 
+async function runWithOrgContextRollback<T>(
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const sessionToken = randomUUID();
+  await ownerConn.query(
+    `INSERT INTO app.session_org_contexts (session_token, org_id)
+     VALUES ($1::uuid, $2::uuid)
+     ON CONFLICT (session_token) DO UPDATE SET org_id = excluded.org_id`,
+    [sessionToken, ORG_ID],
+  );
+
+  const client = await appConn.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT app.set_org_context($1::uuid, $2::uuid)', [sessionToken, ORG_ID]);
+    const result = await fn(client);
+    await client.query('ROLLBACK');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await ownerConn.query(`DELETE FROM app.session_org_contexts WHERE session_token = $1::uuid`, [
+      sessionToken,
+    ]);
+  }
+}
+
 async function readPinHash(): Promise<string | undefined> {
   return runWithOrgContext(async (client) => {
     const { rows } = await client.query<{ pin_hash: string }>(
@@ -216,6 +245,21 @@ skipIfNoDb('AC1: setPin stores argon2id hash; verifyPin returns true for correct
     await setPin(TEST_USER_ID, VALID_PIN);
     const result = await verifyPin(TEST_USER_ID, WRONG_PIN);
     expect(result).toBe(false);
+  });
+
+  it('participates in a caller transaction when a client is provided', async () => {
+    await setPin(TEST_USER_ID, VALID_PIN);
+
+    const result = await runWithOrgContextRollback((client) =>
+      verifyPin(TEST_USER_ID, WRONG_PIN, { client }),
+    );
+
+    expect(result).toBe(false);
+    const { rows } = await ownerConn.query<{ attempts_count: number }>(
+      `SELECT attempts_count FROM public.user_pins WHERE user_id = $1`,
+      [TEST_USER_ID],
+    );
+    expect(rows[0]?.attempts_count).toBe(0);
   });
 
   it('DB stores ONLY the argon2id hash — no plaintext PIN in user_pins.pin_hash', async () => {

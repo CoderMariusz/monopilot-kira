@@ -27,7 +27,7 @@ type OrgActionContext = {
 };
 
 type ParsedUpdateAuthorizationPolicyInput = Omit<UpdateAuthorizationPolicyInput, 'policyCode' | 'auditReason'> & {
-  policyCode: AuthorizationPolicyCode;
+  policyCode: string;
   auditReason: string | null;
 };
 
@@ -157,10 +157,10 @@ async function hasAuthorizationEditPermission({ client, userId, orgId }: OrgActi
 
 function parseInput(input: UpdateAuthorizationPolicyInput | null | undefined): ParsedUpdateAuthorizationPolicyInput | null {
   if (!input || typeof input !== 'object') return null;
-  if (input.policyCode !== 'npd_post_release_edit' && input.policyCode !== 'technical_product_spec_approval') return null;
+  if (typeof input.policyCode !== 'string' || input.policyCode.trim().length === 0) return null;
   if (!input.patch || typeof input.patch !== 'object') return null;
   const auditReason = typeof input.auditReason === 'string' ? input.auditReason.trim() : null;
-  return { ...input, policyCode: input.policyCode, auditReason };
+  return { ...input, policyCode: input.policyCode.trim() as AuthorizationPolicyCode, auditReason };
 }
 
 function nullableStringArray(value: readonly string[] | null | undefined): readonly string[] | null {

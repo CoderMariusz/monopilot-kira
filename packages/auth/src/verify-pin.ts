@@ -16,6 +16,10 @@
 import * as argon2 from 'argon2';
 import { getOwnerConnection } from '@monopilot/db/clients.js';
 
+type QueryClient = {
+  query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
+
 const ARGON2_OPTS: argon2.Options & { raw?: false } = {
   type: argon2.argon2id,
   memoryCost: 65536, // 64 MiB — mutation m=4096 causes AC3 tests to fail
@@ -73,98 +77,22 @@ export async function setPin(userId: string, pin: string): Promise<void> {
  *    If attempts_count >= 6 → set locked_until=now()+15min; return 'locked'
  *    Else return false
  */
-export async function verifyPin(userId: string, pin: string): Promise<true | false | 'locked'> {
+export async function verifyPin(
+  userId: string,
+  pin: string,
+  options: { client?: QueryClient } = {},
+): Promise<true | false | 'locked'> {
+  if (options.client) {
+    return verifyPinWithClient(options.client, userId, pin);
+  }
+
   const pool = getOwnerConnection();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const { rows } = await client.query<{
-      pin_hash: string;
-      attempts_count: number;
-      locked_until: Date | null;
-      last_attempt_at: Date | null;
-    }>(
-      `SELECT pin_hash, attempts_count, locked_until, last_attempt_at
-         FROM public.user_pins
-        WHERE user_id = $1
-          FOR UPDATE`,
-      [userId],
-    );
-
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      return false;
-    }
-
-    const row = rows[0];
-    const now = Date.now(); // uses fake timers in tests via vi.useFakeTimers()
-
-    // Step 1: Check active lockout
-    if (row.locked_until !== null && row.locked_until.getTime() > now) {
-      await client.query('ROLLBACK');
-      return 'locked';
-    }
-
-    // Step 2: Determine effective attempts_count (reset if outside the 10-min window)
-    let currentAttempts = row.attempts_count;
-    if (
-      row.last_attempt_at === null ||
-      now - row.last_attempt_at.getTime() > ATTEMPT_WINDOW_MS
-    ) {
-      currentAttempts = 0;
-    }
-
-    // Step 3: Verify argon2id hash
-    const isCorrect = await argon2.verify(row.pin_hash, pin);
-
-    if (isCorrect) {
-      // Step 4: Correct PIN — reset lockout state
-      await client.query(
-        `UPDATE public.user_pins
-            SET attempts_count = 0,
-                locked_until   = NULL,
-                last_attempt_at = NULL,
-                updated_at     = now()
-          WHERE user_id = $1`,
-        [userId],
-      );
-      await client.query('COMMIT');
-      return true;
-    }
-
-    // Step 5: Wrong PIN — increment count, update last_attempt_at
-    const newAttempts = currentAttempts + 1;
-    const nowTs = new Date(now).toISOString();
-
-    if (newAttempts >= LOCKOUT_THRESHOLD + 1) {
-      // 6th failure triggers lockout
-      const lockedUntil = new Date(now + LOCKOUT_DURATION_MS).toISOString();
-      await client.query(
-        `UPDATE public.user_pins
-            SET attempts_count  = $2,
-                last_attempt_at = $3,
-                locked_until    = $4,
-                updated_at      = now()
-          WHERE user_id = $1`,
-        [userId, newAttempts, nowTs, lockedUntil],
-      );
-      await client.query('COMMIT');
-      return 'locked';
-    }
-
-    // Below threshold — record failure, no lockout yet
-    await client.query(
-      `UPDATE public.user_pins
-          SET attempts_count  = $2,
-              last_attempt_at = $3,
-              locked_until    = NULL,
-              updated_at      = now()
-        WHERE user_id = $1`,
-      [userId, newAttempts, nowTs],
-    );
+    const result = await verifyPinWithClient(client, userId, pin);
     await client.query('COMMIT');
-    return false;
+    return result;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -172,4 +100,77 @@ export async function verifyPin(userId: string, pin: string): Promise<true | fal
     client.release();
     await pool.end();
   }
+}
+
+async function verifyPinWithClient(client: QueryClient, userId: string, pin: string): Promise<true | false | 'locked'> {
+  const { rows } = await client.query<{
+    pin_hash: string;
+    attempts_count: number;
+    locked_until: Date | null;
+    last_attempt_at: Date | null;
+  }>(
+    `SELECT pin_hash, attempts_count, locked_until, last_attempt_at
+       FROM public.user_pins
+      WHERE user_id = $1
+        FOR UPDATE`,
+    [userId],
+  );
+
+  if (rows.length === 0) return false;
+
+  const row = rows[0]!;
+  const now = Date.now(); // uses fake timers in tests via vi.useFakeTimers()
+
+  if (row.locked_until !== null && row.locked_until.getTime() > now) return 'locked';
+
+  let currentAttempts = row.attempts_count;
+  if (
+    row.last_attempt_at === null ||
+    now - row.last_attempt_at.getTime() > ATTEMPT_WINDOW_MS
+  ) {
+    currentAttempts = 0;
+  }
+
+  const isCorrect = await argon2.verify(row.pin_hash, pin);
+
+  if (isCorrect) {
+    await client.query(
+      `UPDATE public.user_pins
+          SET attempts_count = 0,
+              locked_until   = NULL,
+              last_attempt_at = NULL,
+              updated_at     = now()
+        WHERE user_id = $1`,
+      [userId],
+    );
+    return true;
+  }
+
+  const newAttempts = currentAttempts + 1;
+  const nowTs = new Date(now).toISOString();
+
+  if (newAttempts >= LOCKOUT_THRESHOLD + 1) {
+    const lockedUntil = new Date(now + LOCKOUT_DURATION_MS).toISOString();
+    await client.query(
+      `UPDATE public.user_pins
+          SET attempts_count  = $2,
+              last_attempt_at = $3,
+              locked_until    = $4,
+              updated_at      = now()
+        WHERE user_id = $1`,
+      [userId, newAttempts, nowTs, lockedUntil],
+    );
+    return 'locked';
+  }
+
+  await client.query(
+    `UPDATE public.user_pins
+        SET attempts_count  = $2,
+            last_attempt_at = $3,
+            locked_until    = NULL,
+            updated_at      = now()
+      WHERE user_id = $1`,
+    [userId, newAttempts, nowTs],
+  );
+  return false;
 }
