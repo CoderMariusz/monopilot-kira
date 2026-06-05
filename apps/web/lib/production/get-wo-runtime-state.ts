@@ -7,6 +7,13 @@
  *
  * consumption_progress_pct = sum(consumed) / sum(required) over wo_materials.
  * output_progress_pct = sum(wo_outputs.qty_kg) / planned_quantity.
+ *
+ * NUMERIC-exact: the totals (sum required/consumed/output) and the per-component
+ * `remaining` are computed IN SQL as NUMERIC — never round-tripped through JS
+ * binary float. The progress percentages are likewise computed in SQL (rounded to
+ * 1 dp there) so the gate-relevant math is exact decimal end-to-end; JS only reads
+ * the already-rounded percentage. Per-row kg are returned as the exact decimal
+ * STRINGS the pg driver yields (no Number()).
  */
 
 import {
@@ -75,12 +82,19 @@ export async function getWoRuntimeState(
   const status = (exec.rows[0]?.status ?? 'planned') as WoState;
   const version = Number(exec.rows[0]?.version ?? 0);
 
+  // Per-component progress. `remaining` is computed in SQL (NUMERIC) so the
+  // subtraction never passes through JS binary float; the kg are the exact
+  // decimal strings the driver returns.
   const materials = await client.query<{
     product_id: string;
     required_qty: string;
     consumed_qty: string;
+    remaining_qty: string;
   }>(
-    `select product_id, required_qty, consumed_qty
+    `select product_id,
+            required_qty,
+            consumed_qty,
+            to_char(required_qty - consumed_qty, 'FM999999999990.000') as remaining_qty
        from public.wo_materials
       where org_id = app.current_org_id() and wo_id = $1::uuid
       order by sequence asc`,
@@ -100,37 +114,42 @@ export async function getWoRuntimeState(
     [woId],
   );
 
-  // NUMERIC-exact aggregation (string → Number only at the percentage boundary).
-  let sumRequired = 0;
-  let sumConsumed = 0;
-  const components: WoComponentProgress[] = materials.rows.map((m) => {
-    const req = Number(m.required_qty);
-    const con = Number(m.consumed_qty);
-    sumRequired += req;
-    sumConsumed += con;
-    return {
-      componentId: String(m.product_id),
-      plannedQty: String(m.required_qty),
-      consumedQty: String(m.consumed_qty),
-      remainingQty: (req - con).toFixed(3),
-    };
-  });
+  const components: WoComponentProgress[] = materials.rows.map((m) => ({
+    componentId: String(m.product_id),
+    plannedQty: String(m.required_qty),
+    consumedQty: String(m.consumed_qty),
+    remainingQty: m.remaining_qty,
+  }));
 
-  let sumOutput = 0;
-  const outputRows: WoOutputProgress[] = outputs.rows.map((o) => {
-    sumOutput += Number(o.qty_kg);
-    return {
-      outputType: o.output_type,
-      qtyKg: String(o.qty_kg),
-      lpId: o.lp_id,
-      batchNumber: o.batch_number,
-    };
-  });
+  const outputRows: WoOutputProgress[] = outputs.rows.map((o) => ({
+    outputType: o.output_type,
+    qtyKg: String(o.qty_kg),
+    lpId: o.lp_id,
+    batchNumber: o.batch_number,
+  }));
 
-  const consumptionProgressPct =
-    sumRequired > 0 ? round1((sumConsumed / sumRequired) * 100) : 0;
-  const plannedQty = Number(woRow.planned_quantity);
-  const outputProgressPct = plannedQty > 0 ? round1((sumOutput / plannedQty) * 100) : 0;
+  // NUMERIC-exact progress percentages: the SUMs and the divisions run in SQL as
+  // NUMERIC and are rounded to 1 dp THERE. JS only reads the final number — it
+  // never sums/divides kg through binary float (the gate-relevant math is exact).
+  const progress = await client.query<{
+    consumption_pct: string | null;
+    output_pct: string | null;
+  }>(
+    `select
+       (select case when coalesce(sum(required_qty), 0) > 0
+                    then round(sum(consumed_qty) / sum(required_qty) * 100, 1)
+                    else 0 end
+          from public.wo_materials
+         where org_id = app.current_org_id() and wo_id = $1::uuid) as consumption_pct,
+       (select case when $2::numeric > 0
+                    then round(coalesce(sum(qty_kg), 0) / $2::numeric * 100, 1)
+                    else 0 end
+          from public.wo_outputs
+         where org_id = app.current_org_id() and wo_id = $1::uuid) as output_pct`,
+    [woId, woRow.planned_quantity],
+  );
+  const consumptionProgressPct = Number(progress.rows[0]?.consumption_pct ?? 0);
+  const outputProgressPct = Number(progress.rows[0]?.output_pct ?? 0);
 
   const startedAt = toIso(woRow.started_at);
   const completedAt = toIso(woRow.completed_at);
@@ -156,10 +175,6 @@ export async function getWoRuntimeState(
       outputs: outputRows,
     },
   };
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
 }
 
 function toIso(v: string | Date | null): string | null {

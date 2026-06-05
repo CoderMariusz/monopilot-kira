@@ -36,6 +36,7 @@ import {
   type QueryClient,
   type WoState,
   type WoTransition,
+  WoConcurrentModificationError,
   fail,
   isPgError,
 } from './shared';
@@ -177,10 +178,14 @@ export type ApplyTransitionInput = {
  * caller's txn (ctx.client). Returns the new materialized execution row.
  *
  * Errors (closed set):
- *   not_found                — WO row absent for this org.
- *   invalid_state_transition — verb illegal for the current materialized state.
- *   concurrent_modification  — optimistic-lock CAS miss (another txn won).
- *   persistence_failed       — unexpected DB error.
+ *   not_found                — WO row absent for this org (returned).
+ *   invalid_state_transition — verb illegal for the current materialized state (returned).
+ *   persistence_failed       — unexpected DB error (returned).
+ *   concurrent_modification  — optimistic-lock CAS miss: THROWN as
+ *                              WoConcurrentModificationError (NOT returned) so the
+ *                              enclosing txn rolls back the already-appended
+ *                              wo_events row. Callers that return on `!ok` propagate
+ *                              the throw unchanged; the route maps it to 409.
  *
  * R14 idempotency: a replay with the same transactionId returns the existing
  * materialized state WITHOUT a second event or version bump.
@@ -254,11 +259,12 @@ export async function applyTransition(
       [input.woId, observedVersion, toStatus, ctx.userId],
     );
     if (updated.rows.length === 0) {
-      // CAS miss: another concurrent transition materialized first. Surface 409
-      // so the txn rolls back (the appended event rolls back with it).
-      return fail('concurrent_modification', {
-        details: { expectedVersion: observedVersion },
-      });
+      // CAS miss: another concurrent transition materialized first. We have ALREADY
+      // appended the wo_events row above; returning a value here would let
+      // withOrgContext COMMIT that orphan event with no state change (breaks the
+      // immutable ledger). THROW instead so the whole txn rolls back — the
+      // appended event rolls back with it. The route maps this class to 409.
+      throw new WoConcurrentModificationError(observedVersion);
     }
 
     // (4) Mirror canonical state onto work_orders for planning/read-model parity.
@@ -271,6 +277,9 @@ export async function applyTransition(
 
     return { ok: true, data: mapExec(updated.rows[0]!) };
   } catch (err) {
+    // Optimistic-lock CAS miss must propagate (NOT be swallowed into a returned
+    // persistence_failed) so withOrgContext rolls back the orphan wo_events row.
+    if (err instanceof WoConcurrentModificationError) throw err;
     // A concurrent replay racing the same transaction_id hits the UNIQUE
     // constraint (23505) — treat as a successful idempotent replay.
     if (isPgError(err) && err.code === '23505') {

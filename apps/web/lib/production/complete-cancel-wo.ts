@@ -21,6 +21,7 @@
 import { holdsGuard } from './holds-guard';
 import {
   EventType,
+  QualityHoldError,
   type ProductionContext,
   type ProductionResult,
   fail,
@@ -54,36 +55,48 @@ export async function completeWo(
   const outputs = await client.query<{
     id: string;
     output_type: string;
-    qty_kg: string;
     lp_id: string | null;
   }>(
-    `select id, output_type, qty_kg, lp_id
+    `select id, output_type, lp_id
        from public.wo_outputs
       where org_id = app.current_org_id() and wo_id = $1::uuid`,
     [input.woId],
   );
 
   // holdsGuard (T-064): every output path checks for an active quality hold on
-  // the output LP/lot BEFORE the completion state mutation. Active hold → 409 +
-  // production.consume.blocked outbox event (never bypass).
+  // the output LP/lot BEFORE the completion state mutation. On an active hold we
+  // THROW QualityHoldError — the route handler emits production.consume.blocked on
+  // a FRESH committed connection and rolls back this txn (consistent blocked-audit
+  // semantics with register-output / record-waste; the in-txn writeOutbox could
+  // previously commit a blocked event even though the failed txn rolled back).
   for (const out of outputs.rows) {
     const hold = await holdsGuard(ctx, { lpId: out.lp_id });
     if (hold) {
-      await writeOutbox(ctx, {
-        eventType: EventType.PRODUCTION_CONSUME_BLOCKED,
-        aggregateType: 'work_order',
-        aggregateId: input.woId,
-        payload: { woId: input.woId, lpId: out.lp_id, holdId: hold.holdId },
+      throw new QualityHoldError({
+        hold,
+        woId: input.woId,
+        blockedPath: 'complete',
+        transactionId: input.transactionId,
+        lpId: out.lp_id ?? null,
+        lotId: null,
       });
-      return fail('quality_hold_active', { details: { holdId: hold.holdId, lpId: out.lp_id } });
     }
   }
 
   // Yield gate GREEN check: at least one primary output registered with qty_kg>0,
   // unless an override reason code is supplied (production-manager override path).
-  const primaryGreen = outputs.rows.some(
-    (o) => o.output_type === 'primary' && Number(o.qty_kg) > 0,
+  // The qty_kg>0 comparison runs in SQL as NUMERIC — never coerced to JS float.
+  const greenRes = await client.query<{ green: boolean }>(
+    `select exists(
+              select 1 from public.wo_outputs
+               where org_id = app.current_org_id()
+                 and wo_id = $1::uuid
+                 and output_type = 'primary'
+                 and qty_kg > 0
+            ) as green`,
+    [input.woId],
   );
+  const primaryGreen = greenRes.rows[0]?.green === true;
   if (!primaryGreen && !input.overrideReasonCode) {
     return fail('closed_production_strict_failed', {
       message: 'output yield gate not green — no primary output registered',

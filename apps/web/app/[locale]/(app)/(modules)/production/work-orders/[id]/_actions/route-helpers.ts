@@ -17,7 +17,15 @@ import { NextResponse } from 'next/server';
 import type { z } from 'zod';
 
 import { withOrgContext } from '../../../../../../../../lib/auth/with-org-context';
-import type { ProductionContext, ProductionResult } from '../../../../../../../../lib/production/shared';
+import {
+  QualityHoldError,
+  WoConcurrentModificationError,
+  emitConsumeBlocked,
+  type OrgContextLike,
+  type ProductionContext,
+  type ProductionResult,
+  type QueryClient,
+} from '../../../../../../../../lib/production/shared';
 
 /** Map a ProductionResult to a NextResponse using the service's status. */
 export function toResponse<T>(result: ProductionResult<T>): NextResponse {
@@ -58,6 +66,37 @@ export async function runTransition<TSchema extends z.ZodTypeAny, TData>(
     const result = await withOrgContext((ctx) => service(ctx, parsed.data));
     return toResponse(result);
   } catch (err) {
+    // Active quality hold on completion (T-064): the mutating txn rolled back;
+    // emit production.consume.blocked on a FRESH committed txn, then surface 409
+    // (same blocked-audit semantics as the output/waste routes).
+    if (err instanceof QualityHoldError) {
+      try {
+        await withOrgContext(async ({ userId, orgId, client }) => {
+          const blockedCtx: OrgContextLike = {
+            userId,
+            orgId,
+            client: client as unknown as QueryClient,
+          };
+          await emitConsumeBlocked(blockedCtx, err);
+        });
+      } catch (emitErr) {
+        console.error('[production/transition] consume_blocked_emit_failed', {
+          err: emitErr instanceof Error ? emitErr.message : String(emitErr),
+        });
+      }
+      return NextResponse.json(
+        { ok: false, error: err.code, details: { holdId: err.hold.holdId, lpId: err.lpId } },
+        { status: err.status },
+      );
+    }
+    // Optimistic-lock CAS miss: the state machine THREW so the txn (incl. the
+    // appended wo_events row) rolled back. Surface 409 concurrent_modification.
+    if (err instanceof WoConcurrentModificationError) {
+      return NextResponse.json(
+        { ok: false, error: err.error, details: { expectedVersion: err.expectedVersion } },
+        { status: err.status },
+      );
+    }
     // withOrgContext throws on auth/lookup failure (treat as 401/403 surface) or
     // an unexpected DB error (the txn already rolled back).
     const message = err instanceof Error ? err.message : String(err);

@@ -103,6 +103,27 @@ export function isPgError(err: unknown): err is { code: string; message?: string
 }
 
 /**
+ * Optimistic-lock CAS miss in the state machine (T-022). THROWN (never returned)
+ * so the enclosing withOrgContext transaction ROLLS BACK — guaranteeing the
+ * already-appended wo_events ledger row cannot commit without its CAS state
+ * change (no orphan event in the immutable ledger). Maps to HTTP 409.
+ *
+ * The route layer detects this class and surfaces `concurrent_modification`/409
+ * (see route-helpers.runTransition catch path).
+ */
+export class WoConcurrentModificationError extends Error {
+  readonly error = 'concurrent_modification' as const;
+  readonly status = 409;
+  readonly expectedVersion: number;
+
+  constructor(expectedVersion: number) {
+    super('concurrent_modification');
+    this.name = 'WoConcurrentModificationError';
+    this.expectedVersion = expectedVersion;
+  }
+}
+
+/**
  * RBAC check (org-scoped, under RLS). Mirrors the BOM `hasPermission` helper:
  * matches the normalized `role_permissions` table OR the legacy `roles.permissions`
  * jsonb cache, so it is byte-aligned with the migration-185 production seed.
@@ -292,7 +313,7 @@ export class ProductionActionError extends Error {
 export class QualityHoldError extends ProductionActionError {
   hold: ActiveHold;
   woId: string;
-  blockedPath: 'output' | 'waste';
+  blockedPath: 'output' | 'waste' | 'complete';
   transactionId: string;
   lpId: string | null;
   lotId: string | null;
@@ -300,7 +321,7 @@ export class QualityHoldError extends ProductionActionError {
   constructor(args: {
     hold: ActiveHold;
     woId: string;
-    blockedPath: 'output' | 'waste';
+    blockedPath: 'output' | 'waste' | 'complete';
     transactionId: string;
     lpId: string | null;
     lotId: string | null;

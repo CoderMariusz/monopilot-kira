@@ -50,12 +50,18 @@ import {
 } from '../shared';
 
 // ─── Input schema ──────────────────────────────────────────────────────────────
-// qty_kg / catch weights are decimal STRINGS (NUMERIC-exact). We accept a number
-// too for ergonomics but immediately normalize to a canonical decimal string.
+// REGULATED QUANTITY BOUNDARY (food-MES, NUMERIC-exact): qty_kg / catch weights
+// are decimal STRINGS ONLY. We deliberately REJECT JS `number` here — a number
+// cannot represent an exact decimal (IEEE-754 drift) and String(number) can emit
+// exponential notation (e.g. 1e-7) or a rounded mantissa, corrupting a regulated
+// weight before it ever reaches the NUMERIC column. The client must send the raw
+// decimal as a string; it is bound straight to ::numeric in SQL (no float ever).
 const DecimalString = z
-  .union([z.string(), z.number()])
-  .transform((v) => (typeof v === 'number' ? String(v) : v.trim()))
-  .refine((s) => /^-?\d+(\.\d+)?$/.test(s), { message: 'must be a decimal number' });
+  .string()
+  .transform((v) => v.trim())
+  .refine((s) => /^-?\d+(\.\d+)?$/.test(s), {
+    message: 'must be a plain decimal string (no JS number / exponential notation)',
+  });
 
 export const RegisterOutputInput = z.object({
   transaction_id: z.string().uuid(),

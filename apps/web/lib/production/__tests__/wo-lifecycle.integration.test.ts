@@ -25,7 +25,7 @@ import { pauseWo, resumeWo } from '../pause-resume-wo';
 import { completeWo, cancelWo } from '../complete-cancel-wo';
 import { closeWo } from '../close-wo';
 import { applyTransition } from '../wo-state-machine';
-import type { ProductionContext } from '../shared';
+import { WoConcurrentModificationError, type ProductionContext } from '../shared';
 
 const databaseUrl = process.env.DATABASE_URL;
 const run = databaseUrl ? describe : describe.skip;
@@ -397,7 +397,10 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
 
     // Two concurrent COMPLETE attempts (distinct txn ids) racing the SAME version.
-    const [r1, r2] = await Promise.all([
+    // The CAS loser now THROWS WoConcurrentModificationError (so withOrgContext
+    // rolls back its orphan wo_events row) — use allSettled so the rejection of
+    // the losing txn does not abort the winner.
+    const [r1, r2] = await Promise.allSettled([
       withOrgContext((ctx: ProductionContext) =>
         applyTransition(ctx, { woId, verb: 'complete', transactionId: randomUUID() }),
       ),
@@ -406,12 +409,27 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
       ),
     ]);
 
-    const oks = [r1, r2].filter((r) => r.ok).length;
+    const oks = [r1, r2].filter(
+      (r) => r.status === 'fulfilled' && r.value.ok,
+    ).length;
+    // The loser either threw WoConcurrentModificationError (CAS miss) or — if the
+    // winner committed first and bumped status out of in_progress — returned an
+    // invalid_state_transition result. Either is a single losing outcome.
     const conflicts = [r1, r2].filter(
-      (r) => !r.ok && (r.error === 'concurrent_modification' || r.error === 'invalid_state_transition'),
+      (r) =>
+        (r.status === 'rejected' && r.reason instanceof WoConcurrentModificationError) ||
+        (r.status === 'fulfilled' && !r.value.ok && r.value.error === 'invalid_state_transition'),
     ).length;
     expect(oks).toBe(1);
     expect(conflicts).toBe(1);
+
+    // The losing txn must NOT have committed an orphan wo_events 'complete' row:
+    // exactly one complete event exists (from the winner).
+    const completeEvents = await owner.query(
+      `select 1 from public.wo_events where org_id = $1 and wo_id = $2 and event_type='complete'`,
+      [orgId, woId],
+    );
+    expect(completeEvents.rowCount).toBe(1);
 
     const exec = await owner.query<{ status: string; version: number }>(
       `select status, version from public.wo_executions where org_id = $1 and wo_id = $2`,

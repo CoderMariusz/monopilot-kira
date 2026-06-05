@@ -160,10 +160,14 @@ export async function startWo(
     // double-inserts an output row (UNIQUE(transaction_id) on wo_outputs).
     const outputTxnId = deriveOutputTxnId(input.transactionId, row.id);
     const inserted = await client.query<{ id: string }>(
+      // site_id is explicitly NULL until per-site attribution is wired (14-multi-site
+      // T-030); the column is nullable day-1 (migration 181) and every other
+      // wo_outputs write path (register-output / record-waste) binds it explicitly,
+      // so the START materialization matches the canonical site_id contract.
       `insert into public.wo_outputs
-         (org_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, uom,
+         (org_id, site_id, transaction_id, wo_id, output_type, product_id, batch_number, qty_kg, uom,
           qa_status, registered_by, created_by)
-       values (app.current_org_id(), $1::uuid, $2::uuid, $3, $4::uuid,
+       values (app.current_org_id(), null, $1::uuid, $2::uuid, $3, $4::uuid,
                $5, $6::numeric, $7, 'PENDING', $8::uuid, $8::uuid)
        on conflict (transaction_id) do nothing
        returning id`,
