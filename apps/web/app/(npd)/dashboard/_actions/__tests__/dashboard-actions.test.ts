@@ -190,7 +190,8 @@ run('NPD dashboard Server Actions (T-051 real DB)', () => {
     const first = await refreshD365Cache();
     await expect(refreshD365Cache()).rejects.toThrow(/THROTTLED/);
 
-    expect(first.lastSyncedAt).toEqual(expect.any(String));
+    expect(first.ok).toBe(true);
+    expect(first.ok ? first.lastSyncedAt : null).toEqual(expect.any(String));
     expect(globalThis.__T051_D365_CACHE_REFRESH__).toHaveBeenCalledTimes(1);
     const outbox = await owner.query<{ count: string }>(
       `select count(*)::text
@@ -199,6 +200,18 @@ run('NPD dashboard Server Actions (T-051 real DB)', () => {
       [orgId],
     );
     expect(outbox.rows[0]?.count).toBe('1');
+  });
+
+  it('returns a clear not-configured result when the D365 adapter is not wired', async () => {
+    process.env.NEXT_SERVER_ACTION_ACTOR_USER_ID = npdUserId;
+    delete globalThis.__T051_D365_CACHE_REFRESH__;
+    const { refreshD365Cache } = await import('../refresh-d365-cache');
+
+    await expect(refreshD365Cache()).resolves.toEqual({
+      ok: false,
+      error: 'not_configured',
+      message: 'D365 cache refresh adapter is not configured.',
+    });
   });
 
   it('excludes built FAs from launch alerts by default', async () => {

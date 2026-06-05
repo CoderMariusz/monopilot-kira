@@ -60,9 +60,13 @@ async function seedOrg(orgId: string, roleId: string, userId: string, projectId:
     [userId, orgId, `t078-${userId}@example.test`, roleId],
   );
   await owner.query(
-    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user)
-     values ($1, $2, $3, 1, $4)
-     on conflict (org_id, product_code) do update set org_id = excluded.org_id, created_by_user = excluded.created_by_user`,
+    `insert into public.product (product_code, org_id, product_name, schema_version, created_by_user, allergens, may_contain)
+     values ($1, $2, $3, 1, $4, array['gluten']::text[], '{}'::text[])
+     on conflict (org_id, product_code) do update
+       set org_id = excluded.org_id,
+           created_by_user = excluded.created_by_user,
+           allergens = excluded.allergens,
+           may_contain = excluded.may_contain`,
     [productCode, orgId, `T-078 ${productCode}`, userId],
   );
   await owner.query(
@@ -119,15 +123,6 @@ async function seedSatisfiedApprovalRows(): Promise<void> {
      on conflict (org_id, product_code, scenario)
      do update set margin_pct = excluded.margin_pct`,
     [orgA, productA, orgB, productB],
-  );
-  await owner.query(
-    `insert into public.nutrition_allergens
-       (org_id, product_code, formulation_version_id, allergen_code, presence, audited_by_user)
-     values ($1, $2, $3, 'gluten', 'contains', $4),
-            ($5, $6, $7, 'gluten', 'contains', $8)
-     on conflict on constraint nutrition_allergens_org_product_allergen_unique
-     do update set presence = excluded.presence, audited_by_user = excluded.audited_by_user`,
-    [orgA, productA, versionA, userA, orgB, productB, versionB, userB],
   );
   await owner.query(
     `insert into public.compliance_docs
