@@ -9,7 +9,7 @@
  *   - V-TEC-13 cycle / self-reference (DFS over the org's ACTIVE BOM graph).
  *   - V-TEC-12 non-byproduct allocation sum (parent + non-byproduct co-products)
  *     must equal 100 (rounded to 3 dp).
- *   - V-TEC-14 every component item must be usable (item exists + status<>'blocked').
+ *   - V-TEC-14 every component item must pass the canonical RM usability chain.
  *   - V-TEC-11 advisory warnings returned in `warnings` (NOT a 422).
  * version = previous_max(version for this product_id) + 1.
  *
@@ -31,6 +31,8 @@ import {
   isPgError,
   type OrgActionContext,
   type QueryClient,
+  formatRmUsabilityFailures,
+  validateBomLineRmUsability,
   writeAudit,
   writeOutbox,
 } from './shared';
@@ -83,22 +85,16 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
         };
       }
 
-      // ── V-TEC-14: every component item usable (exists + not blocked) ───────────
-      // Match by item_id when supplied, else by item_code; missing/blocked => reject.
-      for (const line of input.lines) {
-        const { rows } = await c.query<{ status: string }>(
-          line.itemId
-            ? `select status from public.items where org_id = app.current_org_id() and id = $1::uuid`
-            : `select status from public.items where org_id = app.current_org_id() and item_code = $1`,
-          [line.itemId ?? line.componentCode],
-        );
-        const item = rows[0];
-        if (!item) {
-          return { ok: false, error: 'validation_failed', code: 'V-TEC-14', message: `component ${line.componentCode} not found` };
-        }
-        if (item.status === 'blocked') {
-          return { ok: false, error: 'validation_failed', code: 'V-TEC-14', message: `component ${line.componentCode} is blocked` };
-        }
+      // ── V-TEC-14: every component item passes canonical RM usability ──────────
+      const rmUsabilityFailures = await validateBomLineRmUsability(c, input.lines, 'bom_edit');
+      if (rmUsabilityFailures.length > 0) {
+        return {
+          ok: false,
+          error: 'validation_failed',
+          code: 'V-TEC-14',
+          message: formatRmUsabilityFailures(rmUsabilityFailures),
+          rmUsabilityFailures,
+        };
       }
 
       // ── V-TEC-11 advisory: warn (non-blocking) if any line scrap_pct >= 50 ──────

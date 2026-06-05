@@ -27,6 +27,13 @@
  */
 
 import { z } from 'zod';
+import {
+  validateRmUsability,
+  type RmAllergenInput,
+  type RmSupplierSpecInput,
+  type RmUsabilityContext,
+  type RmUsabilityReasonCode,
+} from '../../../../../../../lib/technical/rm-usability';
 
 // ── RBAC permission strings (packages/rbac/src/permissions.enum.ts) ───────────
 export const BOM_CREATE_PERMISSION = 'technical.bom.create';
@@ -176,7 +183,120 @@ export type CreateBomDraftInputType = z.input<typeof CreateBomDraftInput>;
 
 export type CreateBomDraftResult =
   | { ok: true; data: { id: string; version: number; warnings: BomValidationCode[] } }
-  | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string };
+  | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string; rmUsabilityFailures?: BomRmUsabilityFailure[] };
+
+export type BomRmUsabilityFailure = {
+  componentCode: string;
+  itemId: string | null;
+  reasons: RmUsabilityReasonCode[];
+};
+
+export type BomLineUsabilityInput = {
+  itemId?: string | null;
+  componentCode: string;
+};
+
+type ItemUsabilityRow = {
+  id: string;
+  status: string;
+  updated_at: string | Date | null;
+};
+
+type SupplierSpecUsabilityRow = {
+  supplier_code: string;
+  supplier_status: string;
+  lifecycle_status: string;
+  review_status: string;
+  effective_from: string | Date | null;
+  expiry_date: string | Date | null;
+  cost_review_blocked: boolean;
+  spec_review_blocked: boolean;
+  updated_at: string | Date | null;
+};
+
+export async function validateBomLineRmUsability(
+  c: QueryClient,
+  lines: readonly BomLineUsabilityInput[],
+  context: RmUsabilityContext,
+): Promise<BomRmUsabilityFailure[]> {
+  const failures: BomRmUsabilityFailure[] = [];
+
+  for (const line of lines) {
+    const { rows: itemRows } = await c.query<ItemUsabilityRow>(
+      line.itemId
+        ? `select id, status, updated_at from public.items where org_id = app.current_org_id() and id = $1::uuid`
+        : `select id, status, updated_at from public.items where org_id = app.current_org_id() and item_code = $1`,
+      [line.itemId ?? line.componentCode],
+    );
+    const itemRow = itemRows[0] ?? null;
+
+    const { rows: specRows } = itemRow
+      ? await c.query<SupplierSpecUsabilityRow>(
+          `select supplier_code, supplier_status, lifecycle_status, review_status,
+                  effective_from, expiry_date, cost_review_blocked, spec_review_blocked, updated_at
+             from public.supplier_specs
+            where org_id = app.current_org_id()
+              and item_id = $1::uuid
+            order by updated_at desc
+            limit 1`,
+          [itemRow.id],
+        )
+      : { rows: [] };
+    const specRow = specRows[0] ?? null;
+    const supplier: RmSupplierSpecInput | null = specRow
+      ? {
+          supplierCode: specRow.supplier_code,
+          supplierStatus: specRow.supplier_status,
+          lifecycleStatus: specRow.lifecycle_status,
+          reviewStatus: specRow.review_status,
+          effectiveFrom: toIso(specRow.effective_from),
+          expiryDate: toIso(specRow.expiry_date),
+          costReviewBlocked: specRow.cost_review_blocked,
+          specReviewBlocked: specRow.spec_review_blocked,
+          updatedAt: toIso(specRow.updated_at),
+        }
+      : null;
+
+    const { rows: allergenRows } = itemRow
+      ? await c.query<{ allergen_code: string; intensity: string }>(
+          `select allergen_code, intensity from public.item_allergen_profiles where org_id = app.current_org_id() and item_id = $1::uuid`,
+          [itemRow.id],
+        )
+      : { rows: [] };
+    const rmAllergens: RmAllergenInput[] = allergenRows.map((row) => ({
+      allergenCode: row.allergen_code,
+      intensity: row.intensity,
+    }));
+
+    const verdict = validateRmUsability({
+      context,
+      item: itemRow ? { id: itemRow.id, status: itemRow.status, updatedAt: toIso(itemRow.updated_at) } : null,
+      supplier,
+      rmAllergens,
+      targetFgForbiddenAllergens: [],
+      qcRelease: { required: false },
+    });
+
+    if (!verdict.usable) {
+      failures.push({
+        componentCode: line.componentCode,
+        itemId: itemRow?.id ?? line.itemId ?? null,
+        reasons: verdict.blockingReasons,
+      });
+    }
+  }
+
+  return failures;
+}
+
+export function formatRmUsabilityFailures(failures: readonly BomRmUsabilityFailure[]): string {
+  return failures.map((failure) => `${failure.componentCode}: ${failure.reasons.join(', ')}`).join('; ');
+}
+
+function toIso(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  return value instanceof Date ? value.toISOString() : String(value);
+}
 
 // ── Approve / publish input (T-014) ───────────────────────────────────────────
 export const BomVersionRefInput = z.object({
@@ -187,7 +307,7 @@ export type BomVersionRefInputType = z.input<typeof BomVersionRefInput>;
 
 export type BomWorkflowResult =
   | { ok: true; data: { id: string; status: BomStatus; version: number } }
-  | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string };
+  | { ok: false; error: BomActionError; code?: BomValidationCode; message?: string; rmUsabilityFailures?: BomRmUsabilityFailure[] };
 
 // ── Diff input (T-015) ────────────────────────────────────────────────────────
 export const BomDiffInput = z.object({

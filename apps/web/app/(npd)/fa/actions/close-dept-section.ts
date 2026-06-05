@@ -19,6 +19,7 @@ const DEPT_CONFIG = {
 const DEPT_VALUES = Object.keys(DEPT_CONFIG) as [Dept, ...Dept[]];
 const FA_DEPT_CLOSED_EVENT = 'fa.dept_closed';
 const APP_VERSION = 'close-dept-section-v1';
+const LOCALES = ['pl', 'en', 'uk', 'ro'] as const;
 
 type Dept = keyof typeof DEPT_CONFIG;
 
@@ -88,7 +89,7 @@ export async function closeDeptSection(
     }
 
     await writeOutbox(context, parsed.data.productCode, parsed.data.dept);
-    safeRevalidatePath('/npd/fa');
+    revalidateFaPaths(parsed.data.productCode);
 
     return { dept: parsed.data.dept, closedAt };
   });
@@ -161,5 +162,14 @@ function safeRevalidatePath(path: string): void {
     revalidatePath(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
+function revalidateFaPaths(productCode: string): void {
+  safeRevalidatePath('/npd/fa');
+  safeRevalidatePath(`/npd/fa/${productCode}`);
+  for (const locale of LOCALES) {
+    safeRevalidatePath(`/${locale}/npd/fa`);
+    safeRevalidatePath(`/${locale}/npd/fa/${productCode}`);
   }
 }

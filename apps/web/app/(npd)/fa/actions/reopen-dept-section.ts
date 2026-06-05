@@ -20,6 +20,7 @@ const DEPT_VALUES = Object.keys(DEPT_CONFIG) as [Dept, ...Dept[]];
 const REOPEN_PERMISSION = 'npd.closed_flag.unset';
 const FA_DEPT_REOPENED_EVENT = 'fa.dept_reopened';
 const APP_VERSION = 'reopen-dept-section-v1';
+const LOCALES = ['pl', 'en', 'uk', 'ro'] as const;
 
 type Dept = keyof typeof DEPT_CONFIG;
 
@@ -73,7 +74,7 @@ export async function reopenDeptSection(
     }
 
     await writeOutbox(context, parsed.data.productCode, parsed.data.dept);
-    safeRevalidatePath('/npd/fa');
+    revalidateFaPaths(parsed.data.productCode);
 
     return { dept: parsed.data.dept, reopenedAt };
   });
@@ -112,5 +113,14 @@ function safeRevalidatePath(path: string): void {
     revalidatePath(path);
   } catch {
     // Vitest imports Server Actions outside a Next request/static generation store.
+  }
+}
+
+function revalidateFaPaths(productCode: string): void {
+  safeRevalidatePath('/npd/fa');
+  safeRevalidatePath(`/npd/fa/${productCode}`);
+  for (const locale of LOCALES) {
+    safeRevalidatePath(`/${locale}/npd/fa`);
+    safeRevalidatePath(`/${locale}/npd/fa/${productCode}`);
   }
 }

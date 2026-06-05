@@ -32,10 +32,12 @@ import {
   type BomWorkflowResult,
   BomVersionRefInput,
   EVENT_FG_BOM_RELEASED,
+  formatRmUsabilityFailures,
   hasPermission,
   isPgError,
   type OrgActionContext,
   type QueryClient,
+  validateBomLineRmUsability,
   writeAudit,
   writeOutbox,
 } from './shared';
@@ -79,14 +81,29 @@ export async function approveBom(rawInput: unknown): Promise<BomWorkflowResult> 
            join public.bom_lines l on l.bom_header_id = h.id and l.org_id = h.org_id
           where h.org_id = app.current_org_id() and h.status = 'active' and h.product_id is not null`,
       );
-      const { rows: thisLines } = await c.query<{ component_code: string }>(
-        `select component_code from public.bom_lines
+      const { rows: thisLines } = await c.query<{ item_id: string | null; component_code: string }>(
+        `select item_id, component_code from public.bom_lines
           where org_id = app.current_org_id() and bom_header_id = $1`,
         [header.id],
       );
       const components = thisLines.map((l) => l.component_code);
       if (productId && (components.includes(productId) || detectCycle(buildGraph(edgeRows), productId, components))) {
         return { ok: false, error: 'validation_failed', code: 'V-TEC-13', message: 'BOM has a cycle; cannot approve' };
+      }
+
+      const rmUsabilityFailures = await validateBomLineRmUsability(
+        c,
+        thisLines.map((l) => ({ itemId: l.item_id, componentCode: l.component_code })),
+        'factory_spec_approval',
+      );
+      if (rmUsabilityFailures.length > 0) {
+        return {
+          ok: false,
+          error: 'validation_failed',
+          code: 'V-TEC-14',
+          message: formatRmUsabilityFailures(rmUsabilityFailures),
+          rmUsabilityFailures,
+        };
       }
 
       const { rows: updated } = await c.query<{ version: number }>(

@@ -123,6 +123,32 @@ async function seedFixtures(): Promise<void> {
   );
 }
 
+async function seedSupplierSpec(
+  orgId: string,
+  itemId: string,
+  supplierCode: string,
+  opts: { supplierStatus?: string; lifecycleStatus?: string; reviewStatus?: string; expiryDate?: string | null } = {},
+): Promise<void> {
+  const expiryDate = opts.expiryDate ?? '2030-01-01';
+  const effectiveFrom = expiryDate && expiryDate < '2026-01-01' ? '2019-01-01' : '2025-01-01';
+  await owner.query(
+    `insert into public.supplier_specs
+       (org_id, item_id, supplier_code, supplier_status, spec_version,
+        lifecycle_status, review_status, effective_from, expiry_date)
+     values ($1, $2, $3, $4, 'v1', $5, $6, $7, $8)`,
+    [
+      orgId,
+      itemId,
+      supplierCode,
+      opts.supplierStatus ?? 'approved',
+      opts.lifecycleStatus ?? 'active',
+      opts.reviewStatus ?? 'approved',
+      effectiveFrom,
+      expiryDate,
+    ],
+  );
+}
+
 /** Seed a product (FG) + N RM items for Org A, returns the product_code. */
 async function seedProductWithItems(orgId: string, userId: string, prefix: string, rmCount: number): Promise<{ productCode: string; itemIds: string[]; itemCodes: string[] }> {
   const productCode = `FG-${prefix}-${randomUUID().slice(0, 6)}`;
@@ -141,6 +167,7 @@ async function seedProductWithItems(orgId: string, userId: string, prefix: strin
        values ($1, $2, $3, 'rm', $4, 'active', 'kg', 'fixed', $5)`,
       [id, orgId, code, `RM ${i}`, userId],
     );
+    await seedSupplierSpec(orgId, id, `SUP-${prefix.toUpperCase()}-${i}`);
     itemIds.push(id);
     itemCodes.push(code);
   }
@@ -155,6 +182,8 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.bom_co_products where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.bom_lines where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.bom_headers where org_id = any($1)`, [orgs]);
+  await owner.query(`delete from public.item_allergen_profiles where org_id = any($1)`, [orgs]);
+  await owner.query(`delete from public.supplier_specs where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.items where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.product where org_id = any($1)`, [orgs]);
   await owner.query(`delete from public.user_roles where org_id = any($1)`, [orgs]);
@@ -293,6 +322,34 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
     if (!res.ok) expect(res.code).toBe('V-TEC-14');
   });
 
+  it('T-013: V-TEC-14 expired supplier spec blocks draft creation with RM usability reasons', async () => {
+    const { productCode } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'exp', 0);
+    const expiredId = randomUUID();
+    const expiredCode = `RM-EXP-${randomUUID().slice(0, 6)}`;
+    await owner.query(
+      `insert into public.items (id, org_id, item_code, item_type, name, status, uom_base, weight_mode, created_by)
+       values ($1, $2, $3, 'rm', 'Expired spec RM', 'active', 'kg', 'fixed', $4)`,
+      [expiredId, seed.orgAId, expiredCode, seed.adminAUserId],
+    );
+    await seedSupplierSpec(seed.orgAId, expiredId, 'SUP-EXP', { expiryDate: '2020-01-01' });
+
+    const res = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({ productId: productCode, parentAllocationPct: 100, lines: [{ itemId: expiredId, componentCode: expiredCode, quantity: 1, uom: 'kg' }] }),
+    );
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.code).toBe('V-TEC-14');
+      expect(res.message).toContain(expiredCode);
+      expect(res.message).toContain('SUPPLIER_SPEC_NOT_ACTIVE');
+      expect(res.rmUsabilityFailures?.[0]).toMatchObject({
+        componentCode: expiredCode,
+        itemId: expiredId,
+        reasons: ['SUPPLIER_SPEC_NOT_ACTIVE'],
+      });
+    }
+  });
+
   it('T-014: publish on a draft fails V-TEC-10; approve→publish supersedes prior active atomically + audit bom.approve', async () => {
     const { productCode, itemIds, itemCodes } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'wf', 1);
     // v1
@@ -335,6 +392,39 @@ run('03-technical BOM API (RLS + RBAC + state machine, real DB)', () => {
     const byVer = Object.fromEntries(states.rows.map((r) => [r.version, r.status]));
     expect(byVer[1]).toBe('superseded');
     expect(byVer[2]).toBe('active');
+  });
+
+  it('T-014: V-TEC-14 supplier-unapproved RM blocks approval with RM usability reasons', async () => {
+    const { productCode, itemIds, itemCodes } = await seedProductWithItems(seed.orgAId, seed.adminAUserId, 'unapp', 1);
+    const itemId = itemIds[0]!;
+    const itemCode = itemCodes[0]!;
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createBomDraft({ productId: productCode, parentAllocationPct: 100, lines: [{ itemId, componentCode: itemCode, quantity: 1, uom: 'kg' }] }),
+    );
+    expect(created.ok).toBe(true);
+
+    await owner.query(
+      `update public.supplier_specs
+          set supplier_status = 'pending', updated_at = pg_catalog.now()
+        where org_id = $1 and item_id = $2`,
+      [seed.orgAId, itemId],
+    );
+
+    const res = await withActionActor(seed.adminAUserId, seed.orgAId, () => approveBom({ productId: productCode, version: 1 }));
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.code).toBe('V-TEC-14');
+      expect(res.message).toContain(itemCode);
+      expect(res.message).toContain('SUPPLIER_NOT_APPROVED');
+      expect(res.rmUsabilityFailures?.[0]).toMatchObject({
+        componentCode: itemCode,
+        itemId,
+        reasons: ['SUPPLIER_NOT_APPROVED'],
+      });
+    }
+
+    const persisted = await owner.query(`select status from public.bom_headers where org_id = $1 and product_id = $2 and version = 1`, [seed.orgAId, productCode]);
+    expect(persisted.rows[0]?.status).toBe('draft');
   });
 
   it('T-014: approve forbidden for a user without technical.bom.approve (403)', async () => {
