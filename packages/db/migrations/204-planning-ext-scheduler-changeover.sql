@@ -84,10 +84,22 @@ revoke all on public.scheduler_runs from public;
 revoke all on public.scheduler_runs from app_user;
 grant select, insert, update, delete on public.scheduler_runs to app_user;
 
+-- updated_at maintenance (no shared app.set_updated_at() in this project — module-local
+-- inline trigger fn, matching the 04-planning / 08-production / 15-oee precedent).
+create or replace function public.planning_ext_set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := pg_catalog.now();
+  return new;
+end;
+$$;
+
 drop trigger if exists scheduler_runs_set_updated_at on public.scheduler_runs;
 create trigger scheduler_runs_set_updated_at
   before update on public.scheduler_runs
-  for each row execute function app.set_updated_at();
+  for each row execute function public.planning_ext_set_updated_at();
 
 -- ===========================================================================
 -- (B) scheduler_assignments (T-002, §9.3) — draft/approved/rejected/overridden WO assignments.
@@ -157,7 +169,7 @@ grant select, insert, update, delete on public.scheduler_assignments to app_user
 drop trigger if exists scheduler_assignments_set_updated_at on public.scheduler_assignments;
 create trigger scheduler_assignments_set_updated_at
   before update on public.scheduler_assignments
-  for each row execute function app.set_updated_at();
+  for each row execute function public.planning_ext_set_updated_at();
 
 -- ===========================================================================
 -- (C) changeover_matrix_versions + changeover_matrix (T-003, §9.4, §6 D5).
@@ -208,7 +220,7 @@ grant select, insert, update, delete on public.changeover_matrix_versions to app
 drop trigger if exists changeover_matrix_versions_set_updated_at on public.changeover_matrix_versions;
 create trigger changeover_matrix_versions_set_updated_at
   before update on public.changeover_matrix_versions
-  for each row execute function app.set_updated_at();
+  for each row execute function public.planning_ext_set_updated_at();
 
 create table if not exists public.changeover_matrix (
   id                 uuid primary key default gen_random_uuid(),
@@ -255,7 +267,7 @@ grant select, insert, update, delete on public.changeover_matrix to app_user;
 drop trigger if exists changeover_matrix_set_updated_at on public.changeover_matrix;
 create trigger changeover_matrix_set_updated_at
   before update on public.changeover_matrix
-  for each row execute function app.set_updated_at();
+  for each row execute function public.planning_ext_set_updated_at();
 
 -- ===========================================================================
 -- (D) scheduler_config (T-008, PLE-005) — extended finite-capacity / sequencing config.
@@ -312,5 +324,5 @@ grant select, insert, update, delete on public.scheduler_config to app_user;
 drop trigger if exists scheduler_config_set_updated_at on public.scheduler_config;
 create trigger scheduler_config_set_updated_at
   before update on public.scheduler_config
-  for each row execute function app.set_updated_at();
+  for each row execute function public.planning_ext_set_updated_at();
 
