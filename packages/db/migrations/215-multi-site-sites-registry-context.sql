@@ -101,13 +101,14 @@ end;
 $$;
 
 -- Reader: returns the bound site for the current backend+tx, NULL = super_admin / ALL-sites mode.
--- SECURITY DEFINER STABLE LEAKPROOF; the only legal read of the GUC trust store lives here.
+-- SECURITY DEFINER STABLE; the only legal read of the GUC trust store lives here.
+-- (NOT leakproof: only a superuser may define a leakproof function, and the migration role
+-- on Supabase is not superuser — leakproof is a planner optimization hint, safe to omit.)
 create or replace function app.current_site_id()
 returns uuid
 language sql
 security definer
 stable
-leakproof
 set search_path = pg_catalog
 as $$
   select active_context.site_id
