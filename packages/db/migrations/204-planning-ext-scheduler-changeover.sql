@@ -17,7 +17,9 @@
 --   per-site scoping (NOT NULL + (org_id, site_id) index + app.current_site_id() policy) lands
 --   later via the 14-multi-site backfill.
 -- NUMERIC-exact: all qty/duration/score/weight columns are NUMERIC or INTEGER (never float).
--- Audit: app.audit_event() trigger + set_updated_at trigger on every table.
+-- Audit: R13 audit COLUMNS (created_by/updated_by/created_at/updated_at) + set_updated_at trigger
+--   per table. This repo has NO generic app.audit_event() row trigger (per quality 197 / finance 199
+--   precedent); mutating-action audit_events rows are written by the Server Action layer.
 --
 -- Section (E) at the END regenerates the outbox_events CHECK to the FULL vocabulary
 --   (events.enum.ts DB_EVENT_TYPES incl the 7 new planning.*/scheduler.*/matrix.* events) so the
@@ -82,10 +84,6 @@ revoke all on public.scheduler_runs from public;
 revoke all on public.scheduler_runs from app_user;
 grant select, insert, update, delete on public.scheduler_runs to app_user;
 
-drop trigger if exists scheduler_runs_audit on public.scheduler_runs;
-create trigger scheduler_runs_audit
-  after insert or update or delete on public.scheduler_runs
-  for each row execute function app.audit_event();
 drop trigger if exists scheduler_runs_set_updated_at on public.scheduler_runs;
 create trigger scheduler_runs_set_updated_at
   before update on public.scheduler_runs
@@ -156,10 +154,6 @@ revoke all on public.scheduler_assignments from public;
 revoke all on public.scheduler_assignments from app_user;
 grant select, insert, update, delete on public.scheduler_assignments to app_user;
 
-drop trigger if exists scheduler_assignments_audit on public.scheduler_assignments;
-create trigger scheduler_assignments_audit
-  after insert or update or delete on public.scheduler_assignments
-  for each row execute function app.audit_event();
 drop trigger if exists scheduler_assignments_set_updated_at on public.scheduler_assignments;
 create trigger scheduler_assignments_set_updated_at
   before update on public.scheduler_assignments
@@ -211,10 +205,6 @@ revoke all on public.changeover_matrix_versions from public;
 revoke all on public.changeover_matrix_versions from app_user;
 grant select, insert, update, delete on public.changeover_matrix_versions to app_user;
 
-drop trigger if exists changeover_matrix_versions_audit on public.changeover_matrix_versions;
-create trigger changeover_matrix_versions_audit
-  after insert or update or delete on public.changeover_matrix_versions
-  for each row execute function app.audit_event();
 drop trigger if exists changeover_matrix_versions_set_updated_at on public.changeover_matrix_versions;
 create trigger changeover_matrix_versions_set_updated_at
   before update on public.changeover_matrix_versions
@@ -262,10 +252,6 @@ revoke all on public.changeover_matrix from public;
 revoke all on public.changeover_matrix from app_user;
 grant select, insert, update, delete on public.changeover_matrix to app_user;
 
-drop trigger if exists changeover_matrix_audit on public.changeover_matrix;
-create trigger changeover_matrix_audit
-  after insert or update or delete on public.changeover_matrix
-  for each row execute function app.audit_event();
 drop trigger if exists changeover_matrix_set_updated_at on public.changeover_matrix;
 create trigger changeover_matrix_set_updated_at
   before update on public.changeover_matrix
@@ -323,10 +309,6 @@ revoke all on public.scheduler_config from public;
 revoke all on public.scheduler_config from app_user;
 grant select, insert, update, delete on public.scheduler_config to app_user;
 
-drop trigger if exists scheduler_config_audit on public.scheduler_config;
-create trigger scheduler_config_audit
-  after insert or update or delete on public.scheduler_config
-  for each row execute function app.audit_event();
 drop trigger if exists scheduler_config_set_updated_at on public.scheduler_config;
 create trigger scheduler_config_set_updated_at
   before update on public.scheduler_config
