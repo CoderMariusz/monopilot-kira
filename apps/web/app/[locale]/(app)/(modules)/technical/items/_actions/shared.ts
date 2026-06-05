@@ -66,6 +66,12 @@ export type ItemListItem = {
   weightMode: WeightMode;
   costPerKg: string | null;
   updatedAt: string;
+  /** Declared allergen names from item_allergen_profiles (empty when none). */
+  allergens: string[];
+  /** Count of BOM headers where this item is the product. */
+  bomCount: number;
+  /** D365 sync status (null when never synced). */
+  d365SyncStatus: string | null;
 };
 
 // ── Create input ──────────────────────────────────────────────────────────────

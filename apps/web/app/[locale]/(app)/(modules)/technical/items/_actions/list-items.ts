@@ -48,6 +48,9 @@ type ItemRow = {
   weight_mode: string;
   cost_per_kg: string | null;
   updated_at: string | Date;
+  d365_sync_status: string | null;
+  bom_count: string | number;
+  allergens: string[] | null;
   total_count: string | number;
 };
 
@@ -68,6 +71,9 @@ function mapRow(row: ItemRow): ItemListItem | null {
     weightMode: WEIGHT_MODE_SET.has(row.weight_mode as WeightMode) ? (row.weight_mode as WeightMode) : 'fixed',
     costPerKg: row.cost_per_kg,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+    allergens: Array.isArray(row.allergens) ? row.allergens.filter((a): a is string => typeof a === 'string') : [],
+    bomCount: Number(row.bom_count) || 0,
+    d365SyncStatus: row.d365_sync_status ?? null,
   };
 }
 
@@ -83,11 +89,18 @@ export async function listItems(opts?: { limit?: number; offset?: number }): Pro
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const [itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemRow>(
-          `select id, item_code, name, item_type, status, uom_base, weight_mode, cost_per_kg, updated_at,
+          `select i.id, i.item_code, i.name, i.item_type, i.status, i.uom_base, i.weight_mode,
+                  i.cost_per_kg, i.updated_at, i.d365_sync_status,
+                  (select count(*) from public.bom_headers bh
+                     where bh.product_id = i.id and bh.org_id = app.current_org_id()) as bom_count,
+                  (select coalesce(array_agg(distinct a.name order by a.name), array[]::text[])
+                     from public.item_allergen_profiles iap
+                     join public.allergens a on a.code = iap.allergen_code
+                    where iap.item_id = i.id and iap.org_id = app.current_org_id()) as allergens,
                   count(*) over () as total_count
-             from public.items
-            where org_id = app.current_org_id()
-            order by item_code asc
+             from public.items i
+            where i.org_id = app.current_org_id()
+            order by i.item_code asc
             limit $1 offset $2`,
           [limit, offset],
         ),
