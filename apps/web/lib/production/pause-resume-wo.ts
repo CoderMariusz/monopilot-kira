@@ -62,15 +62,42 @@ export async function pauseWo(
   if (!transition.ok) return transition;
 
   // Side-effect: open a wo_pause downtime row (atomic with the transition).
+  // R14 replay uses the same lifecycle transaction_id; keep the downtime side
+  // effect idempotent by storing and matching that key in ext_jsonb.
   let downtimeEventId: string;
   try {
     const dt = await ctx.client.query<{ id: string }>(
-      `insert into public.downtime_events
-         (org_id, line_id, wo_id, category_id, source, started_at, shift_id, operator_id, reason_notes, recorded_by)
-       values (app.current_org_id(), $1, $2::uuid, $3::uuid, 'wo_pause', pg_catalog.now(),
-               $4, $5::uuid, $6, $5::uuid)
-       returning id`,
-      [input.lineId, input.woId, input.reasonCategoryId, input.shiftId ?? null, ctx.userId, input.notes ?? null],
+      `with existing as (
+         select id
+           from public.downtime_events
+          where org_id = app.current_org_id()
+            and wo_id = $2::uuid
+            and source = 'wo_pause'
+            and ext_jsonb->>'pauseTransactionId' = $7
+          limit 1
+       ),
+       inserted as (
+         insert into public.downtime_events
+           (org_id, line_id, wo_id, category_id, source, started_at, shift_id,
+            operator_id, reason_notes, recorded_by, ext_jsonb)
+         select app.current_org_id(), $1, $2::uuid, $3::uuid, 'wo_pause', pg_catalog.now(),
+                $4, $5::uuid, $6, $5::uuid, jsonb_build_object('pauseTransactionId', $7)
+          where not exists (select 1 from existing)
+         returning id
+       )
+       select id from inserted
+       union all
+       select id from existing
+       limit 1`,
+      [
+        input.lineId,
+        input.woId,
+        input.reasonCategoryId,
+        input.shiftId ?? null,
+        ctx.userId,
+        input.notes ?? null,
+        input.transactionId,
+      ],
     );
     downtimeEventId = String(dt.rows[0]!.id);
   } catch (err) {

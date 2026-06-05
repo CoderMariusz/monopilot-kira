@@ -76,6 +76,14 @@ async function baseSeed(): Promise<void> {
     [roleId, orgId],
   );
   await owner.query(`select public.seed_production_permissions_for_org($1)`, [orgId]);
+  // Parallel migration seeds this in production; keep the code-only integration
+  // setup aligned so cancel RBAC can be asserted before that migration lands here.
+  await owner.query(
+    `insert into public.role_permissions (role_id, permission)
+     values ($1, 'production.wo.cancel')
+     on conflict do nothing`,
+    [roleId],
+  );
   await owner.query(
     `insert into public.users (id, org_id, email, name, role_id)
      values ($1, $2, 'e1-action@example.test', 'E1 Action User', $3) on conflict (id) do nothing`,
@@ -218,6 +226,12 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     ]) {
       await owner.query(`delete from public.${t} where org_id = $1`, [orgId]);
     }
+    await owner.query(
+      `insert into public.role_permissions (role_id, permission)
+       values ($1, 'production.wo.cancel')
+       on conflict do nothing`,
+      [roleId],
+    );
   });
 
   it('start materializes wo_outputs from schedule_outputs and emits production.wo.started', async () => {
@@ -392,6 +406,37 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     expect(outputs.rowCount).toBe(2); // no double-materialization
   });
 
+  it('pause is idempotent under R14 transaction_id replay (single open downtime row)', async () => {
+    const { woId } = await seedWorkOrder();
+    const catId = await seedDowntimeCategory();
+    const txn = randomUUID();
+    await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
+
+    const a = await withOrgContext((ctx: ProductionContext) =>
+      pauseWo(ctx, { woId, transactionId: txn, reasonCategoryId: catId, lineId: 'L1' }),
+    );
+    const b = await withOrgContext((ctx: ProductionContext) =>
+      pauseWo(ctx, { woId, transactionId: txn, reasonCategoryId: catId, lineId: 'L1' }),
+    );
+    expect(a.ok && b.ok).toBe(true);
+
+    const events = await owner.query(
+      `select 1 from public.wo_events where org_id = $1 and wo_id = $2 and event_type='pause'`,
+      [orgId, woId],
+    );
+    expect(events.rowCount).toBe(1);
+    const downtime = await owner.query(
+      `select 1
+         from public.downtime_events
+        where org_id = $1
+          and wo_id = $2
+          and source = 'wo_pause'
+          and ended_at is null`,
+      [orgId, woId],
+    );
+    expect(downtime.rowCount).toBe(1);
+  });
+
   it('optimistic-lock: two concurrent transitions on the same version — exactly one wins', async () => {
     const { woId } = await seedWorkOrder();
     await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
@@ -449,5 +494,32 @@ run('08-production E1 — WO lifecycle (REAL DB integration)', () => {
     if (!result.ok) throw new Error('cancel failed');
     expect(result.data.status).toBe('cancelled');
     expect(await outboxTypes(woId)).toContain('production.wo.closed');
+  });
+
+  it('cancel requires production.wo.cancel, not production.wo.start', async () => {
+    const { woId } = await seedWorkOrder();
+    await withOrgContext((ctx: ProductionContext) => startWo(ctx, { woId, transactionId: randomUUID(), lineId: 'L1' }));
+
+    await owner.query(`delete from public.role_permissions where role_id = $1 and permission = 'production.wo.cancel'`, [
+      roleId,
+    ]);
+    await owner.query(`update public.roles set permissions = coalesce(permissions, '[]'::jsonb) - 'production.wo.cancel' where id = $1`, [
+      roleId,
+    ]);
+    try {
+      const result = await withOrgContext((ctx: ProductionContext) =>
+        cancelWo(ctx, { woId, transactionId: randomUUID(), reasonCode: 'missing_cancel_permission' }),
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected forbidden');
+      expect(result.error).toBe('forbidden');
+    } finally {
+      await owner.query(
+        `insert into public.role_permissions (role_id, permission)
+         values ($1, 'production.wo.cancel')
+         on conflict do nothing`,
+        [roleId],
+      );
+    }
   });
 });

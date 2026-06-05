@@ -156,7 +156,7 @@ export async function cancelWo(
   ctx: ProductionContext,
   input: CancelWoInput,
 ): Promise<ProductionResult<CancelWoData>> {
-  if (!(await hasPermission(ctx, 'production.wo.start'))) return fail('forbidden');
+  if (!(await hasPermission(ctx, 'production.wo.cancel'))) return fail('forbidden');
   if (!input.reasonCode || input.reasonCode.trim().length === 0) {
     return fail('invalid_input', { message: 'reasonCode is required' });
   }

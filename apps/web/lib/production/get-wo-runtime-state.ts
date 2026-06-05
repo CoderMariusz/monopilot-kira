@@ -65,9 +65,11 @@ export async function getWoRuntimeState(
     started_at: string | Date | null;
     completed_at: string | Date | null;
   }>(
-    `select id, planned_quantity, started_at, completed_at
-       from public.work_orders
-      where org_id = app.current_org_id() and id = $1::uuid`,
+    `select w.id, w.planned_quantity, e.started_at, e.completed_at
+       from public.work_orders w
+       left join public.wo_executions e
+         on e.org_id = w.org_id and e.wo_id = w.id
+      where w.org_id = app.current_org_id() and w.id = $1::uuid`,
     [woId],
   );
   if (wo.rows.length === 0) return fail('not_found');

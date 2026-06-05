@@ -137,12 +137,22 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
             and status = 'in_progress'`,
       );
 
-      // Denominator — active executions (planned + running + paused).
+      // Denominator — active/released WOs, including released-but-unstarted
+      // planning rows with no wo_executions materialization yet.
       const woActiveTotal = await countOf(
         `select count(*)::int as n
-           from public.wo_executions
-          where org_id = app.current_org_id()
-            and status in ('planned', 'in_progress', 'paused')`,
+           from public.work_orders w
+           left join public.wo_executions e
+             on e.org_id = w.org_id and e.wo_id = w.id
+          where w.org_id = app.current_org_id()
+            and coalesce(
+                  e.status,
+                  case w.status
+                    when 'RELEASED' then 'planned'
+                    when 'IN_PROGRESS' then 'in_progress'
+                    when 'ON_HOLD' then 'paused'
+                  end
+                ) in ('planned', 'in_progress', 'paused')`,
       );
 
       // KPI 2 — Output today (kg): sum of canonical wo_outputs registered today.
@@ -174,12 +184,27 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
             and ended_at is null`,
       );
 
-      // Status-tab counts (GROUP BY execution status).
+      // Status-tab counts from work_orders so released-but-unstarted WOs are
+      // visible as planned before an execution row exists.
       const statusRes = await c.query<{ status: string; n: number }>(
-        `select status, count(*)::int as n
-           from public.wo_executions
-          where org_id = app.current_org_id()
-          group by status`,
+        `select coalesce(
+                  e.status,
+                  case w.status
+                    when 'RELEASED' then 'planned'
+                    when 'IN_PROGRESS' then 'in_progress'
+                    when 'ON_HOLD' then 'paused'
+                    when 'COMPLETED' then 'completed'
+                    when 'CLOSED' then 'closed'
+                    when 'CANCELLED' then 'cancelled'
+                  end
+                ) as status,
+                count(*)::int as n
+           from public.work_orders w
+           left join public.wo_executions e
+             on e.org_id = w.org_id and e.wo_id = w.id
+          where w.org_id = app.current_org_id()
+            and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
+          group by 1`,
       );
       const statusCounts = ALL_STATUSES.reduce(
         (acc, s) => {
@@ -194,9 +219,9 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         }
       }
 
-      // WO list — join executions to the planning work_orders for number/line/qty.
-      // Executions own the live status; planning owns the WO header. LEFT JOIN keeps
-      // any execution whose planning row was archived from silently vanishing.
+      // WO list — work_orders is the driving table so released-but-unstarted WOs
+      // appear before wo_executions is lazily materialized. Progress is computed
+      // from canonical wo_outputs, not the planning produced_quantity mirror.
       const woRes = await c.query<{
         id: string;
         wo_number: string | null;
@@ -204,20 +229,44 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         production_line_id: string | null;
         planned_quantity: string | number | null;
         produced_quantity: string | number | null;
+        progress_pct: string | number | null;
         has_allergen: boolean;
       }>(
-        `select e.wo_id::text as id,
+        `select w.id::text as id,
                 w.wo_number,
-                e.status,
+                coalesce(
+                  e.status,
+                  case w.status
+                    when 'RELEASED' then 'planned'
+                    when 'IN_PROGRESS' then 'in_progress'
+                    when 'ON_HOLD' then 'paused'
+                    when 'COMPLETED' then 'completed'
+                    when 'CLOSED' then 'closed'
+                    when 'CANCELLED' then 'cancelled'
+                    else 'planned'
+                  end
+                ) as status,
                 w.production_line_id::text as production_line_id,
                 w.planned_quantity,
-                w.produced_quantity,
+                produced.qty_kg as produced_quantity,
+                case
+                  when coalesce(w.planned_quantity, 0) > 0
+                    then least(100::numeric, round(produced.qty_kg / w.planned_quantity * 100, 0))
+                  else null
+                end as progress_pct,
                 (w.allergen_profile_snapshot is not null) as has_allergen
-           from public.wo_executions e
-           left join public.work_orders w
-             on w.id = e.wo_id and w.org_id = e.org_id
-          where e.org_id = app.current_org_id()
-          order by w.scheduled_start_time desc nulls last, e.created_at desc
+           from public.work_orders w
+           left join public.wo_executions e
+             on e.wo_id = w.id and e.org_id = w.org_id
+           left join lateral (
+             select coalesce(sum(o.qty_kg), 0) as qty_kg
+               from public.wo_outputs o
+              where o.wo_id = w.id
+                and o.org_id = app.current_org_id()
+           ) produced on true
+          where w.org_id = app.current_org_id()
+            and w.status in ('RELEASED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CLOSED', 'CANCELLED')
+          order by w.scheduled_start_time desc nulls last, e.created_at desc nulls last
           limit 25`,
       );
 
@@ -226,12 +275,7 @@ export async function getProductionDashboard(): Promise<ProductionDashboardResul
         const producedKg = r.produced_quantity === null || r.produced_quantity === undefined
           ? null
           : Number(r.produced_quantity);
-        const progressPct =
-          plannedKg > 0 && producedKg !== null
-            ? Math.min(100, Math.round((producedKg / plannedKg) * 100))
-            : plannedKg > 0
-              ? 0
-              : null;
+        const progressPct = r.progress_pct === null || r.progress_pct === undefined ? null : Number(r.progress_pct);
         const status = (ALL_STATUSES as string[]).includes(r.status)
           ? (r.status as WoExecStatus)
           : 'planned';
