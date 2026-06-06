@@ -4456,6 +4456,48 @@
       "errorTarget": "Użyj formatu daty RRRR-MM-DD.",
       "errorGeneric": "Nie udało się utworzyć projektu. Spróbuj ponownie.",
       "errorForbidden": "Nie masz uprawnień do tworzenia projektów."
+    },
+    "finishWip": {
+      "title": "Finish WIP (komponenty produkcyjne)",
+      "subtitle": "Wiersze produkcyjne dla każdego komponentu z ProdDetail",
+      "multiBadge": "Wielokomponentowy",
+      "singleBadge": "Jednokomponentowy",
+      "componentHeader": "Komponent",
+      "autoCodeHeader": "Kod RM / składnika (auto)",
+      "weightHeader": "Masa (g)",
+      "actionsHeader": "Akcje",
+      "autoHint": "Wyliczane automatycznie z kodu komponentu",
+      "addRow": "Dodaj komponent",
+      "removeRow": "Usuń",
+      "componentPlaceholder": "np. PR8801",
+      "singleLockedHint": "Produkt jednokomponentowy — jeden wiersz odzwierciedla tabelę główną.",
+      "loading": "Wczytywanie komponentów…",
+      "empty": "Brak komponentów",
+      "emptyBody": "Dodaj pierwszy komponent finish-WIP.",
+      "error": "Nie udało się wczytać komponentów.",
+      "forbidden": "Nie masz uprawnień do podglądu komponentów produkcyjnych.",
+      "saving": "Zapisywanie…",
+      "saveError": "Nie udało się zapisać komponentu."
+    },
+    "benchmarks": {
+      "title": "Benchmarki",
+      "subtitle": "Ceny referencyjne konkurencji",
+      "countBadge": "{n} benchmarków",
+      "labelHeader": "Benchmark",
+      "priceHeader": "Cena",
+      "labelPlaceholder": "np. Tesco Finest",
+      "pricePlaceholder": "0,00",
+      "add": "Dodaj benchmark",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "remove": "Usuń",
+      "saved": "Zapisano",
+      "saveError": "Nie udało się zapisać benchmarku",
+      "loading": "Ładowanie benchmarków…",
+      "empty": "Brak benchmarków",
+      "emptyBody": "Dodaj cenę benchmarkową konkurencji.",
+      "error": "Wystąpił błąd podczas ładowania benchmarków",
+      "forbidden": "Nie masz uprawnień do wyświetlania benchmarków"
     }
   }
 }

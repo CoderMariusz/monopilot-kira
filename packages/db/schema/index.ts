@@ -97,6 +97,9 @@ export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-i
 // NPD project-stage tables (migrations 232-235)
 export { packagingComponents } from './packaging-components.js';
 export type { NewPackagingComponent, PackagingComponent } from './packaging-components.js';
+// NPD FA Core multi-benchmark editor (migration 241)
+export { faBenchmarks } from './fa-benchmarks.js';
+export type { FaBenchmark, NewFaBenchmark } from './fa-benchmarks.js';
 export { trialBatches } from './trial-batches.js';
 export type { NewTrialBatch, TrialBatch } from './trial-batches.js';
 export { pilotRunChecklistItems, pilotRunMaterials, pilotRuns } from './pilot-runs.js';

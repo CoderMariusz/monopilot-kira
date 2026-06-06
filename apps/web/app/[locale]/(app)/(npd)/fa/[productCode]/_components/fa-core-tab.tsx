@@ -124,6 +124,17 @@ export type FaCoreTabProps = {
   state?: FaCoreTabState;
   /** Test/wiring seam: override the write path (defaults to T-009 updateFaCell). */
   onPersistCell?: (productCode: string, columnKey: string, value: unknown) => Promise<unknown>;
+  /**
+   * Server-rendered FinishWipEditor (multi-row prod_detail editor). When provided
+   * it supersedes the single `recipe_components` + `ingredient_codes` Core fields,
+   * which are filtered out of the field grid. RSC-safe ReactNode slot.
+   */
+  finishWipSlot?: React.ReactNode;
+  /**
+   * Server-rendered BenchmarkEditor (multi-benchmark list, migration 241). RSC-safe
+   * ReactNode slot rendered inside the Core form, before the Comments block.
+   */
+  benchmarkSlot?: React.ReactNode;
 };
 
 // ---------------------------------------------------------------------------
@@ -299,6 +310,8 @@ export function FaCoreTab({
   labels,
   state = 'ready',
   onPersistCell,
+  finishWipSlot,
+  benchmarkSlot,
 }: FaCoreTabProps) {
   const ordered = React.useMemo(() => sortColumns(columns), [columns]);
 
@@ -404,6 +417,14 @@ export function FaCoreTab({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {ordered
                   .filter((col) => col.key !== 'comments')
+                  // When the FinishWipEditor is mounted it supersedes the single
+                  // comma-separated recipe_components + auto ingredient_codes Core
+                  // fields, so drop them from the field grid.
+                  .filter(
+                    (col) =>
+                      finishWipSlot == null ||
+                      (col.key !== 'recipe_components' && col.key !== 'ingredient_codes'),
+                  )
                   .map((col) => (
                     <CoreField
                       key={col.key}
@@ -415,6 +436,22 @@ export function FaCoreTab({
                     />
                   ))}
               </div>
+
+              {/* FinishWipEditor (multi-component prod_detail) — server-rendered slot,
+                  full-width, supersedes the recipe_components/ingredient_codes fields. */}
+              {finishWipSlot != null ? (
+                <div className="w-full" data-testid="fa-core-finish-wip-slot">
+                  {finishWipSlot}
+                </div>
+              ) : null}
+
+              {/* BenchmarkEditor (multi-benchmark list, migration 241) — server-rendered
+                  slot, full-width, replaces the single Benchmark Core field. */}
+              {benchmarkSlot != null ? (
+                <div className="w-full" data-testid="fa-core-benchmark-slot">
+                  {benchmarkSlot}
+                </div>
+              ) : null}
 
               {/* Comments column (if configured) spans full width as a textarea. */}
               {ordered.some((c) => c.key === 'comments') ? (

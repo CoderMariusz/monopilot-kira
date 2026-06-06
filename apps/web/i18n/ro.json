@@ -4456,6 +4456,48 @@
       "errorTarget": "Folosește formatul AAAA-LL-ZZ.",
       "errorGeneric": "Proiectul nu a putut fi creat. Încearcă din nou.",
       "errorForbidden": "Nu ai permisiunea de a crea proiecte."
+    },
+    "finishWip": {
+      "title": "Finish WIP (componente de producție)",
+      "subtitle": "Rânduri de producție per componentă din ProdDetail",
+      "multiBadge": "Multi-componentă",
+      "singleBadge": "Componentă unică",
+      "componentHeader": "Componentă",
+      "autoCodeHeader": "Cod MP / ingredient (auto)",
+      "weightHeader": "Greutate (g)",
+      "actionsHeader": "Acțiuni",
+      "autoHint": "Derivat automat din codul componentei",
+      "addRow": "Adaugă componentă",
+      "removeRow": "Elimină",
+      "componentPlaceholder": "ex. PR8801",
+      "singleLockedHint": "Produs cu o singură componentă — un rând reflectă tabelul principal.",
+      "loading": "Se încarcă componentele…",
+      "empty": "Nicio componentă încă",
+      "emptyBody": "Adaugă prima componentă finish-WIP.",
+      "error": "Componentele nu au putut fi încărcate.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza componentele de producție.",
+      "saving": "Se salvează…",
+      "saveError": "Componenta nu a putut fi salvată."
+    },
+    "benchmarks": {
+      "title": "Benchmark-uri",
+      "subtitle": "Prețuri de referință ale concurenței",
+      "countBadge": "{n} benchmark-uri",
+      "labelHeader": "Benchmark",
+      "priceHeader": "Preț",
+      "labelPlaceholder": "ex. Tesco Finest",
+      "pricePlaceholder": "0,00",
+      "add": "Adaugă benchmark",
+      "save": "Salvează",
+      "saving": "Se salvează…",
+      "remove": "Elimină",
+      "saved": "Salvat",
+      "saveError": "Nu s-a putut salva benchmark-ul",
+      "loading": "Se încarcă benchmark-urile…",
+      "empty": "Niciun benchmark încă",
+      "emptyBody": "Adaugă un preț de referință al concurenței.",
+      "error": "A apărut o eroare la încărcarea benchmark-urilor",
+      "forbidden": "Nu aveți permisiunea de a vizualiza benchmark-urile"
     }
   }
 }

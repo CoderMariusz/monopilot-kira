@@ -37,6 +37,26 @@ import {
 } from './_components/fa-history-tab';
 import { FaCoreTab, type FaCoreColumn, type FaCoreTabLabels } from './_components/fa-core-tab';
 import {
+  FinishWipEditor,
+  type FinishWipEditorLabels,
+} from './_components/finish-wip-editor';
+import {
+  BenchmarkEditor,
+  type BenchmarkEditorLabels,
+  type BenchmarkRow,
+} from './_components/benchmark-editor';
+import {
+  addProdDetailRow,
+  listProdDetail,
+  removeProdDetailRow,
+  updateProdDetailRow,
+} from './_actions/finish-wip';
+import {
+  deleteBenchmark,
+  listBenchmarks,
+  upsertBenchmark,
+} from './_actions/benchmarks';
+import {
   FaPlanningTab,
   type FaPlanningColumn,
   type FaPlanningTabLabels,
@@ -819,6 +839,59 @@ async function buildCoreLabels(
   };
 }
 
+async function buildFinishWipLabels(locale: string): Promise<FinishWipEditorLabels> {
+  const p = await pickerFor(locale, 'npd.finishWip');
+  return {
+    title: p('title', 'Finish WIP (production components)'),
+    subtitle: p('subtitle', 'Per-component production rows backed by ProdDetail'),
+    multiBadge: p('multiBadge', 'Multi component'),
+    singleBadge: p('singleBadge', 'Single component'),
+    componentHeader: p('componentHeader', 'Component'),
+    autoCodeHeader: p('autoCodeHeader', 'RM / ingredient code (auto)'),
+    weightHeader: p('weightHeader', 'Weight (g)'),
+    actionsHeader: p('actionsHeader', 'Actions'),
+    autoHint: p('autoHint', 'Auto-derived from the component code'),
+    addRow: p('addRow', 'Add component'),
+    removeRow: p('removeRow', 'Remove'),
+    componentPlaceholder: p('componentPlaceholder', 'e.g. PR8801'),
+    singleLockedHint: p(
+      'singleLockedHint',
+      'Single-component product — one row mirrors the main table.',
+    ),
+    loading: p('loading', 'Loading components…'),
+    empty: p('empty', 'No components yet'),
+    emptyBody: p('emptyBody', 'Add the first finish-WIP component.'),
+    error: p('error', 'Could not load components.'),
+    forbidden: p('forbidden', 'You do not have permission to view production components.'),
+    saving: p('saving', 'Saving…'),
+    saveError: p('saveError', 'Could not save the component.'),
+  };
+}
+
+async function buildBenchmarkLabels(locale: string): Promise<BenchmarkEditorLabels> {
+  const p = await pickerFor(locale, 'npd.benchmarks');
+  return {
+    title: p('title', 'Benchmarks'),
+    subtitle: p('subtitle', 'Competitor reference prices'),
+    countBadge: p('countBadge', '{n} benchmarks'),
+    labelHeader: p('labelHeader', 'Benchmark'),
+    priceHeader: p('priceHeader', 'Price'),
+    labelPlaceholder: p('labelPlaceholder', 'e.g. Tesco Finest'),
+    pricePlaceholder: p('pricePlaceholder', '0.00'),
+    add: p('add', 'Add benchmark'),
+    save: p('save', 'Save'),
+    saving: p('saving', 'Saving…'),
+    remove: p('remove', 'Remove'),
+    saved: p('saved', 'Saved'),
+    saveError: p('saveError', 'Could not save the benchmark'),
+    loading: p('loading', 'Loading benchmarks…'),
+    empty: p('empty', 'No benchmarks yet'),
+    emptyBody: p('emptyBody', 'Add a competitor benchmark price.'),
+    error: p('error', 'Something went wrong loading benchmarks'),
+    forbidden: p('forbidden', 'You do not have permission to view benchmarks'),
+  };
+}
+
 async function buildPlanningLabels(
   locale: string,
   columns: GenericDeptColumn[],
@@ -1117,6 +1190,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     technicalLabels,
     procurementLabels,
     allergenLabels,
+    finishWipLabels,
+    benchmarkLabels,
   ] = await Promise.all([
     buildCoreLabels(locale, dept.core),
     buildPlanningLabels(locale, dept.planning),
@@ -1125,6 +1200,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     buildTechnicalLabels(locale, dept.technical),
     buildProcurementLabels(locale, dept.procurement),
     buildAllergenLabels(locale),
+    buildFinishWipLabels(locale),
+    buildBenchmarkLabels(locale),
   ]);
 
   // Allergen cascade (REAL, org-scoped) — read here so the BUILT T-040 widget is
@@ -1136,6 +1213,45 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     : await loadAllergenCascade(fa.productCode, locale);
   const allergenSlot = injected ? undefined : (
     <AllergenCascadeSection labels={allergenLabels} load={allergenLoad} />
+  );
+
+  // Finish-WIP (prod_detail) + Benchmark editors — mounted into the Core tab.
+  // isMultiComponent reuses the workflow-line vars above (template starts with
+  // "multi" OR more than one recipe component). Both row loads are REAL Supabase
+  // reads, skipped on the injected (test) path so the existing page tests stay
+  // DB-free; on that path the slots are omitted entirely.
+  const isMultiComponent = templateValue.toLowerCase().startsWith('multi') || componentCount > 1;
+  const finishWipRows = injected ? [] : (await listProdDetail({ productCode: fa.productCode })).rows;
+  const benchmarkRows: BenchmarkRow[] = injected
+    ? []
+    : (await listBenchmarks({ productCode: fa.productCode })).map((b) => ({
+        id: b.id,
+        label: b.label,
+        price: b.price,
+        displayOrder: b.displayOrder,
+      }));
+
+  const finishWipSlot = injected ? undefined : (
+    <FinishWipEditor
+      productCode={fa.productCode}
+      rows={finishWipRows}
+      isMultiComponent={isMultiComponent}
+      labels={finishWipLabels}
+      state="ready"
+      onAddRow={addProdDetailRow}
+      onRemoveRow={removeProdDetailRow}
+      onUpdateRow={updateProdDetailRow}
+    />
+  );
+  const benchmarkSlot = injected ? undefined : (
+    <BenchmarkEditor
+      productCode={fa.productCode}
+      initialRows={benchmarkRows}
+      labels={benchmarkLabels}
+      state="ready"
+      onUpsert={upsertBenchmark}
+      onDelete={deleteBenchmark}
+    />
   );
 
   const packSizeFilled = String(dept.values.pack_size ?? '').trim() !== '';
@@ -1159,6 +1275,8 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         dropdowns={dept.dropdowns}
         labels={coreLabels}
         state="ready"
+        finishWipSlot={finishWipSlot}
+        benchmarkSlot={benchmarkSlot}
       />
     ),
     planning: (
