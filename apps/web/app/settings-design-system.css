@@ -472,4 +472,126 @@
   .impex-row-status.ok   { background: #dcfce7; color: #14532d; }
   .impex-row-status.warn { background: #fef3c7; color: #78350f; }
   .impex-row-status.err  { background: #fee2e2; color: #7f1d1d; }
+
+  /* ============================================================
+   * SET-033 — Schema migrations queue (.smq-* / .sql-token--*)
+   * ------------------------------------------------------------
+   * These were styled INLINE in the prototype JSX and never carried a
+   * CSS class, so the ported screen rendered them bare. Defined here from
+   * the inline declarations in:
+   *   prototypes/design/Monopilot Design System/settings/schema-migrations.jsx
+   * Token mapping (inline literal -> app token):
+   *   blue fill var(--blue) :141-146 ; gray-050 count chip :149 ;
+   *   sql keyword var(--blue-700) / string var(--green-700) / comment
+   *   var(--muted) :41-44 ; gutter var(--gray-300) :69 ;
+   *   timeline dot palette :49 ; smq-pulse keyframe :114 + dot :20.
+   * ============================================================ */
+
+  /* Filter pills (schema-migrations.jsx:141-150) — rounded chip, blue when
+   * active, with a count chip on the right. */
+  .smq-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font-size: 12px; line-height: 1.4;
+    border-radius: 14px; cursor: pointer;
+    background: var(--surface-1, #fff); color: var(--text);
+    border: 1px solid var(--border);
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .smq-pill:hover { border-color: var(--blue); }
+  .smq-pill--active {
+    background: var(--blue); color: #fff; border-color: var(--blue);
+  }
+  .smq-pill__count {
+    border-radius: 8px; padding: 0 6px; font-size: 10px;
+    background: var(--gray-050); color: inherit;
+  }
+  .smq-pill--active .smq-pill__count { background: rgba(255, 255, 255, 0.2); }
+
+  /* Expand chevron (schema-migrations.jsx:185) — rotates 90deg when open. */
+  .smq-chevron {
+    display: inline-block; color: var(--muted);
+    transition: transform 0.1s ease;
+  }
+  .smq-chevron[data-open] { transform: rotate(90deg); }
+
+  /* Crude SQL highlighter spans (schema-migrations.jsx:41-44).
+   * keyword=blue/600 ; string=green ; comment=muted/italic. */
+  .sql-token--keyword { color: var(--blue-700); font-weight: 600; }
+  .sql-token--string  { color: var(--green-700); }
+  .sql-token--comment { color: var(--muted); font-style: italic; }
+
+  /* Read-only line-numbered SQL panel (schema-migrations.jsx:66-73).
+   * The TSX adds bg-slate-950/text-slate-50 Tailwind utilities for a dark
+   * editor surface; these classes supply the line grid + gutter the
+   * prototype rendered inline (flex row, right-aligned 24px gutter). */
+  .smq-sql { font-family: var(--font-mono); line-height: 1.55; white-space: pre-wrap; }
+  .smq-sql__line { display: flex; gap: 12px; }
+  .smq-sql__gutter {
+    color: var(--gray-300); user-select: none;
+    text-align: right; min-width: 24px;
+  }
+  .smq-sql__code { flex: 1; }
+
+  /* Status timeline dot (schema-migrations.jsx:48-51) — 8px circle, color
+   * keyed by status via data-tone. */
+  .smq-timeline-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 4px;
+    margin-top: 4px; background: var(--amber);
+  }
+  .smq-timeline-dot[data-tone="green"] { background: var(--green); }
+  .smq-timeline-dot[data-tone="red"]   { background: var(--red); }
+  .smq-timeline-dot[data-tone="gray"]  { background: var(--gray-500); }
+  .smq-timeline-dot[data-tone="blue"]  { background: var(--blue); }
+  .smq-timeline-dot[data-tone="amber"] { background: var(--amber); }
+
+  /* Running-badge pulse dot (schema-migrations.jsx:20 + :114 keyframe). */
+  .smq-pulse-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 3px;
+    margin-right: 4px; background: currentColor;
+    animation: smq-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes smq-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+
+  /* ============================================================
+   * SET-032 — Schema diff viewer (.settings-schema-diff__*)
+   * ------------------------------------------------------------
+   * Inline-styled JSON rows in the prototype:
+   *   prototypes/design/Monopilot Design System/settings/schema-diff.jsx
+   * The per-row grid is 180px / 1fr / auto (:74). The app screen lays the
+   * before/after JSON as a <dl> of json-rows (gutter + path / value), so
+   * the grid below renders gutter+path in the first track and the value in
+   * the second. before/after bg highlight + line-through come from the
+   * Tailwind utilities the TSX puts on .settings-schema-diff__value
+   * (bg-red-50/bg-green-50 — schema-diff.jsx:64-68 red-050a/green-050a).
+   * ============================================================ */
+  .settings-schema-diff__json-list { display: flex; flex-direction: column; }
+  .settings-schema-diff__json-row {
+    display: grid; grid-template-columns: 180px 1fr; gap: 8px;
+    align-items: center; padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 12px;
+  }
+  .settings-schema-diff__json-row:last-child { border-bottom: 0; }
+  .settings-schema-diff__json-row > dt {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted); overflow-wrap: anywhere;
+  }
+  .settings-schema-diff__json-row > dd {
+    margin: 0; color: var(--text); overflow-wrap: anywhere;
+  }
+  .settings-schema-diff__gutter {
+    color: var(--gray-300); user-select: none;
+    text-align: right; min-width: 24px;
+  }
+  /* Value cell — mono base; highlight/strike states are layered on by the
+   * Tailwind utilities the TSX adds (bg-red-50/text-red-800/line-through and
+   * bg-green-50/text-green-900), matching the prototype's red-050a/green-050a
+   * row tints (schema-diff.jsx:64-68, :78). */
+  .settings-schema-diff__value {
+    display: inline-block; font-family: var(--font-mono); font-size: 12px;
+    border-radius: var(--radius-sm, 4px); padding: 0 2px;
+  }
 }

@@ -3,6 +3,9 @@ import { getTranslations } from 'next-intl/server';
 import { startExportJob } from '../../../../../../actions/import-export/export';
 import { startImportJob } from '../../../../../../actions/import-export/import';
 import { loadImportExportData } from '../../../../../../actions/import-export/load-import-export';
+import { loadMasterDataHub } from './_actions/load-master-data-hub';
+import ImportExportHub, { type MasterDataHubLabels } from './import-export-hub.client';
+import ImportExportTabs, { type ImportExportTabsLabels } from './import-export-tabs.client';
 import SettingsImportExportScreen, {
   type ExportFormat,
   type ExportSettingsEntity,
@@ -164,6 +167,95 @@ async function buildLabels(locale: string): Promise<ImportExportLabels> {
   };
 }
 
+async function buildMasterDataHubLabels(locale: string): Promise<MasterDataHubLabels> {
+  const t = await getTranslations({ locale, namespace: 'settings.import_export_hub' });
+  return {
+    title: t('title'),
+    subtitle: t('subtitle'),
+    filters: {
+      all: t('filters.all'),
+      importable: t('filters.importable'),
+      masterData: t('filters.master_data'),
+    },
+    table: {
+      entity: t('table.entity'),
+      records: t('table.records'),
+      lastImport: t('table.last_import'),
+      recordsUnit: t('table.records_unit'),
+      never: t('table.never'),
+      export: t('table.export'),
+      import: t('table.import'),
+      readOnly: t('table.read_only'),
+    },
+    empty: t('empty'),
+    error: t('error'),
+    jobs: {
+      title: t('jobs.title'),
+      viewAll: t('jobs.view_all'),
+      rowsUnit: t('jobs.rows_unit'),
+      statusCompleted: t('jobs.status_completed'),
+      statusRunning: t('jobs.status_running'),
+      statusQueued: t('jobs.status_queued'),
+      statusFailed: t('jobs.status_failed'),
+      kindImport: t('jobs.kind_import'),
+      kindExport: t('jobs.kind_export'),
+      none: t('jobs.none'),
+    },
+    drawer: {
+      importKicker: t('drawer.import_kicker'),
+      recordsLabel: t('drawer.records_label'),
+      close: t('drawer.close'),
+      stepUpload: t('drawer.step_upload'),
+      stepMap: t('drawer.step_map'),
+      stepReview: t('drawer.step_review'),
+      dropTitle: t('drawer.drop_title'),
+      dropHint: t('drawer.drop_hint'),
+      chooseFile: t('drawer.choose_file'),
+      helpTitle: t('drawer.help_title'),
+      helpBody: t('drawer.help_body'),
+      downloadTemplate: t('drawer.download_template'),
+      uploadedRows: t('drawer.uploaded_rows'),
+      replace: t('drawer.replace'),
+      mapTitle: t('drawer.map_title'),
+      csvColumn: t('drawer.csv_column'),
+      monopilotField: t('drawer.monopilot_field'),
+      sample: t('drawer.sample'),
+      skipColumn: t('drawer.skip_column'),
+      autoMatched: t('drawer.auto_matched'),
+      behaviourTitle: t('drawer.behaviour_title'),
+      behaviourUpsert: t('drawer.behaviour_upsert'),
+      behaviourUpsertDesc: t('drawer.behaviour_upsert_desc'),
+      behaviourCreate: t('drawer.behaviour_create'),
+      behaviourCreateDesc: t('drawer.behaviour_create_desc'),
+      behaviourReplace: t('drawer.behaviour_replace'),
+      behaviourReplaceDesc: t('drawer.behaviour_replace_desc'),
+      validationTitle: t('drawer.validation_title'),
+      validationReady: t('drawer.validation_ready'),
+      validationOverwrite: t('drawer.validation_overwrite'),
+      validationErrors: t('drawer.validation_errors'),
+      previewTitle: t('drawer.preview_title'),
+      previewStatusUpdate: t('drawer.preview_status_update'),
+      previewStatusCreate: t('drawer.preview_status_create'),
+      cancel: t('drawer.cancel'),
+      back: t('drawer.back'),
+      continue: t('drawer.continue'),
+      nextReview: t('drawer.next_review'),
+      runImport: t('drawer.run_import'),
+      notWiredTitle: t('drawer.not_wired_title'),
+      notWiredBody: t('drawer.not_wired_body'),
+    },
+  };
+}
+
+async function buildTabsLabels(locale: string): Promise<ImportExportTabsLabels> {
+  const t = await getTranslations({ locale, namespace: 'settings.import_export_hub.tabs' });
+  return {
+    ariaLabel: t('aria_label'),
+    settingsEntities: t('settings_entities'),
+    masterData: t('master_data'),
+  };
+}
+
 export default async function SettingsImportExportPage(propsInput: ImportExportPageProps = {}) {
   const { locale } = (await propsInput.params) ?? { locale: 'en' };
   const labels = await buildLabels(locale);
@@ -193,19 +285,43 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
     );
   }
 
-  const loaded = await loadImportExportData(locale);
+  // Production mode renders BOTH prototypes side-by-side as sibling tabs:
+  //   - "Master data" (new) → ImportExportHub, fed by getImportableEntities
+  //   - "Settings entities" (existing SET-029) → SettingsImportExportScreen
+  // Each owns a distinct testid so the two never collide in the DOM.
+  const [loaded, hubLoaded, hubLabels, tabsLabels] = await Promise.all([
+    loadImportExportData(locale),
+    loadMasterDataHub(),
+    buildMasterDataHubLabels(locale),
+    buildTabsLabels(locale),
+  ]);
+
+  const masterDataPanel = (
+    <ImportExportHub
+      entities={hubLoaded.ok ? hubLoaded.data.entities : []}
+      recentJobs={hubLoaded.ok ? hubLoaded.data.recent_jobs : []}
+      ok={hubLoaded.ok}
+      labels={hubLabels}
+    />
+  );
 
   if (loaded.ok === false) {
     return (
-      <SettingsImportExportScreen
-        entities={[]}
-        visiblePermissions={[]}
-        recentJobs={[]}
-        state="error"
-        exportSettingsEntity={exportSettingsEntityThroughAction}
-        preflightAuthorizationPolicyImport={undefined}
-        labels={labels}
-        featureAvailable={false}
+      <ImportExportTabs
+        labels={tabsLabels}
+        masterDataPanel={masterDataPanel}
+        settingsEntitiesPanel={
+          <SettingsImportExportScreen
+            entities={[]}
+            visiblePermissions={[]}
+            recentJobs={[]}
+            state="error"
+            exportSettingsEntity={exportSettingsEntityThroughAction}
+            preflightAuthorizationPolicyImport={undefined}
+            labels={labels}
+            featureAvailable={false}
+          />
+        }
       />
     );
   }
@@ -217,15 +333,21 @@ export default async function SettingsImportExportPage(propsInput: ImportExportP
     loaded.canImportAuthorizationPolicies ? preflightAuthorizationPolicyThroughAction : undefined;
 
   return (
-    <SettingsImportExportScreen
-      entities={loaded.entities}
-      visiblePermissions={loaded.visiblePermissions}
-      recentJobs={loaded.recentJobs}
-      state={loaded.state}
-      exportSettingsEntity={exportSettingsEntityThroughAction}
-      preflightAuthorizationPolicyImport={preflightAuthorizationPolicyImport}
-      labels={labels}
-      featureAvailable={false}
+    <ImportExportTabs
+      labels={tabsLabels}
+      masterDataPanel={masterDataPanel}
+      settingsEntitiesPanel={
+        <SettingsImportExportScreen
+          entities={loaded.entities}
+          visiblePermissions={loaded.visiblePermissions}
+          recentJobs={loaded.recentJobs}
+          state={loaded.state}
+          exportSettingsEntity={exportSettingsEntityThroughAction}
+          preflightAuthorizationPolicyImport={preflightAuthorizationPolicyImport}
+          labels={labels}
+          featureAvailable={false}
+        />
+      }
     />
   );
 }

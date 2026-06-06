@@ -25,7 +25,7 @@ const group = (id: string, label: string, admin: boolean, items: SettingsNavItem
 export const SETTINGS_NAV_GROUPS = [
   group("organization", "Organization", true, [
     item("profile", "Company profile", "◆", false, "/settings/company"),
-    item("sites", "Sites & lines", "▤", false, "/settings/infra/lines"),
+    item("sites", "Sites & lines", "▤"),
     item("warehouses", "Warehouses", "▥", false, "/settings/infra/warehouses"),
     item("shifts", "Shifts & calendar", "⧗"),
   ]),

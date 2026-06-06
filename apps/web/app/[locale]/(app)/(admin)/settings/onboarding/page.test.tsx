@@ -50,8 +50,8 @@ describe('/settings/onboarding entry-point panel', () => {
     const launch = screen.getByTestId('onboarding-launch') as HTMLAnchorElement;
     expect(launch).toHaveAttribute('href', '/en/onboarding/profile');
 
-    // Real progress derived from completedSteps (1 of 5), in-progress status.
-    expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('1 / 5');
+    // Real progress derived from completedSteps (1 of 6), in-progress status.
+    expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('1 / 6');
     expect(screen.getByTestId('onboarding-status')).toHaveTextContent(/in progress/i);
   });
 
@@ -66,7 +66,7 @@ describe('/settings/onboarding entry-point panel', () => {
     await renderPage();
 
     expect(screen.getByTestId('onboarding-status')).toHaveTextContent(/complete/i);
-    expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('5 / 5');
+    expect(screen.getByTestId('onboarding-progress')).toHaveTextContent('6 / 6');
   });
 
   it('does not fabricate state when onboarding context is unavailable', async () => {

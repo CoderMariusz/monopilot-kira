@@ -1,7 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 
 import { loadOnboardingContext } from '../../../../../../actions/onboarding/load';
-import { getOnboardingState } from '../../../../../../lib/onboarding/get-onboarding-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,8 +39,8 @@ export default async function OnboardingSettingsPage({ params }: PageProps) {
   if (ctx.ok) {
     completedAt = ctx.organization.onboardingCompletedAt;
     startedAt = ctx.organization.onboardingStartedAt;
-    const onboardingState = await getOnboardingState(ctx.organization.id);
-    completedCount = onboardingState.completedCount;
+    // Derive the count from the already-loaded context — no second round-trip.
+    completedCount = ctx.onboardingState.completedSteps.length;
     statusLabel = completedAt
       ? safeT('statusComplete', 'Onboarding complete')
       : safeT('statusInProgress', 'Onboarding in progress');

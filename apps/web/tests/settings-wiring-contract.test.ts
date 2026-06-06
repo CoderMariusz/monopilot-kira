@@ -14,6 +14,8 @@ const LINE_ID = '99999999-9999-4999-8999-999999999999';
 const OVERRIDE_TYPE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const REASON_CODE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RMA_REASON_CODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const PRODUCT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const BOM_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
 type QueryCall = { sql: string; params: readonly unknown[] };
 type FakeClient = {
@@ -42,6 +44,67 @@ function makeClient(): FakeClient {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
 
       if (normalized.includes('from public.user_roles')) return { rows: [{ ok: true }] as never[], rowCount: 1 };
+
+      if (normalized.includes('from public.items i') && normalized.includes("i.item_type in ('fg', 'intermediate', 'co_product', 'byproduct')")) {
+        if (params[0] !== ORG_ID) return { rows: [] as never[], rowCount: 0 };
+        return {
+          rows: [
+            {
+              id: PRODUCT_ID,
+              sku: 'FG-YOG-001',
+              name: 'Greek yoghurt 150g',
+              category: 'Dairy',
+              unit: 'kg',
+              weight: '0.15',
+              bom_link: 'BOM-EEEEEEEE',
+              line: 'LINE-1',
+              status: 'active',
+            },
+          ] as never[],
+          rowCount: 1,
+        };
+      }
+
+      if (normalized.includes('from public.bom_headers h') && normalized.includes('left join public.bom_lines bl')) {
+        if (params[0] !== ORG_ID) return { rows: [] as never[], rowCount: 0 };
+        return {
+          rows: [
+            {
+              id: BOM_ID,
+              bom_number: 'BOM-EEEEEEEE',
+              product: 'Greek yoghurt 150g',
+              version: 3,
+              ingredients_count: 5,
+              last_updated: '2026-06-06',
+              status: 'active',
+            },
+            {
+              id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+              bom_number: 'BOM-FFFFFFFF',
+              product: 'Pilot kefir 250g',
+              version: 1,
+              ingredients_count: 4,
+              last_updated: '2026-06-05',
+              status: 'draft',
+            },
+          ] as never[],
+          rowCount: 2,
+        };
+      }
+
+      if (normalized.includes('from public.bom_settings')) {
+        if (params[0] !== ORG_ID) return { rows: [] as never[], rowCount: 0 };
+        return {
+          rows: [
+            {
+              auto_calculate_nutrition: true,
+              require_allergen_review: true,
+              retention: '10',
+            },
+          ] as never[],
+          rowCount: 1,
+        };
+      }
 
       if (normalized.includes('from public.shift_patterns sp') && normalized.includes('join public.shift_configs sc')) {
         return {
@@ -690,6 +753,96 @@ describe('settings shifts/devices wiring contract', () => {
     expect(crossOrgSites).toEqual([]);
   });
 
+  it('wires Products loader producer to the page consumer shape', async () => {
+    const client = makeClient();
+    const mod = await import('../app/[locale]/(app)/(admin)/settings/products/_actions/products');
+    const pageSource = readFileSync(
+      resolve(__dirname, '../app/[locale]/(app)/(admin)/settings/products/page.tsx'),
+      'utf8',
+    );
+
+    const products = await withFakeOrg(client, () => mod.getProducts());
+
+    expect(pageSource).toContain('getProducts()');
+    expect(pageSource).toContain('products={products}');
+    expect(products).toEqual([
+      {
+        id: PRODUCT_ID,
+        sku: 'FG-YOG-001',
+        name: 'Greek yoghurt 150g',
+        category: 'Dairy',
+        unit: 'kg',
+        weight: '0.15',
+        bomLink: 'BOM-EEEEEEEE',
+        line: 'LINE-1',
+        status: 'active',
+      },
+    ]);
+    const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
+    expect(sql).toContain('from public.items i');
+    expect(sql).toContain('left join lateral');
+    expect(sql).toContain('from public.bom_headers h');
+    expect(sql).toContain('app.current_org_id()');
+    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+
+    const crossOrg = await withFakeOrg(client, () => mod.getProducts(OTHER_ORG_ID));
+    expect(crossOrg).toEqual([]);
+  });
+
+  it('wires BOMs loader producers to the page consumer shape', async () => {
+    const client = makeClient();
+    const mod = await import('../app/[locale]/(app)/(admin)/settings/boms/_actions/boms');
+    const pageSource = readFileSync(
+      resolve(__dirname, '../app/[locale]/(app)/(admin)/settings/boms/page.tsx'),
+      'utf8',
+    );
+
+    const [boms, settings] = await withFakeOrg(client, () => Promise.all([mod.getBoms(), mod.getBomSettings()]));
+
+    expect(pageSource).toContain('getBoms()');
+    expect(pageSource).toContain('getBomSettings()');
+    expect(pageSource).toContain('rows={boms.rows}');
+    expect(pageSource).toContain('kpis={boms.kpis}');
+    expect(pageSource).toContain('settings={settings}');
+    expect(boms).toEqual({
+      kpis: { active: 1, draft: 1, archived: 0 },
+      rows: [
+        {
+          id: BOM_ID,
+          bomNumber: 'BOM-EEEEEEEE',
+          product: 'Greek yoghurt 150g',
+          version: 'v3',
+          ingredientsCount: 5,
+          lastUpdated: '2026-06-06',
+          status: 'active',
+        },
+        {
+          id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+          bomNumber: 'BOM-FFFFFFFF',
+          product: 'Pilot kefir 250g',
+          version: 'v1',
+          ingredientsCount: 4,
+          lastUpdated: '2026-06-05',
+          status: 'draft',
+        },
+      ],
+    });
+    expect(settings).toEqual({
+      autoCalculateNutrition: true,
+      requireAllergenReview: true,
+      retention: '10',
+    });
+    const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
+    expect(sql).toContain('from public.bom_headers h');
+    expect(sql).toContain('left join public.bom_lines bl');
+    expect(sql).toContain('from public.bom_settings');
+    expect(sql).toContain('app.current_org_id()');
+    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
+
+    const crossOrg = await withFakeOrg(client, () => mod.getBoms(OTHER_ORG_ID));
+    expect(crossOrg).toEqual({ kpis: { active: 0, draft: 0, archived: 0 }, rows: [] });
+  });
+
   it('wires Shipping Override Reasons consumers/producers to org-scoped shipping reason tables', async () => {
     const client = makeClient();
     const mod = await import('../app/[locale]/(app)/(admin)/settings/ship-override-reasons/_actions/shipping-overrides');
@@ -741,6 +894,69 @@ describe('settings shifts/devices wiring contract', () => {
 
     const crossOrgTypes = await withFakeOrg(client, () => mod.getOverrideTypes(OTHER_ORG_ID));
     expect(crossOrgTypes).toEqual([]);
+  });
+
+  it('wires Shipping Override Reasons loader producer to the page consumer shape', async () => {
+    const client = makeClient();
+    const mod = await import('../app/[locale]/(app)/(admin)/settings/ship-override-reasons/_actions/shipping-overrides');
+    const pageSource = readFileSync(
+      resolve(__dirname, '../app/[locale]/(app)/(admin)/settings/ship-override-reasons/page.tsx'),
+      'utf8',
+    );
+
+    const data = await withFakeOrg(client, () => mod.readShippingOverridesSettingsData());
+
+    expect(pageSource).toContain('readShippingOverridesSettingsData()');
+    expect(pageSource).toContain('overrideTypes={data.override_types}');
+    expect(pageSource).toContain('selectedOverrideTypeId={data.selected_override_type_id}');
+    expect(pageSource).toContain('reasonCodes={data.reason_codes}');
+    expect(pageSource).toContain('rmaReasonCodes={data.rma_reason_codes}');
+    expect(data).toEqual({
+      org_id: ORG_ID,
+      override_types: [
+        {
+          id: OVERRIDE_TYPE_ID,
+          org_id: ORG_ID,
+          code: 'fefo_deviation',
+          label: 'FEFO deviation',
+          description: 'Deviation from FEFO allocation',
+          display_order: 10,
+          is_active: true,
+          reason_count: 1,
+        },
+      ],
+      selected_override_type_id: OVERRIDE_TYPE_ID,
+      reason_codes: [
+        {
+          id: REASON_CODE_ID,
+          org_id: ORG_ID,
+          override_type_id: OVERRIDE_TYPE_ID,
+          override_type_code: 'fefo_deviation',
+          code: 'CUSTOMER_APPROVED',
+          label: 'Customer approved',
+          requires_note: true,
+          display_order: 10,
+          is_active: true,
+        },
+      ],
+      rma_reason_codes: [
+        {
+          id: RMA_REASON_CODE_ID,
+          org_id: ORG_ID,
+          code: 'DAMAGED',
+          label_en: 'Damaged in transit',
+          label_pl: 'Uszkodzone w transporcie',
+          display_order: 10,
+          is_active: true,
+        },
+      ],
+    });
+    const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
+    expect(sql).toContain('from public.shipping_override_types ot');
+    expect(sql).toContain('from public.shipping_override_reasons r');
+    expect(sql).toContain('from public.rma_reason_codes');
+    expect(sql).toContain('app.current_org_id()');
+    expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
   });
 
   it('keeps Sites and Shipping server pages wired to loaders and flags the local shipping migration RLS contract', () => {
