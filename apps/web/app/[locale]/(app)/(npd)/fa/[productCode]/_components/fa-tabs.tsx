@@ -189,8 +189,8 @@ export function FaTabs({
           {tabs.map((tab) => {
             const selected = activeTab === tab.slug;
             const baseClass = selected
-              ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
-              : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50';
+              ? 'rounded-md bg-[var(--blue)] px-3 py-2 text-sm font-semibold text-white'
+              : 'rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--gray-050)]';
             const lockedClass = tab.locked
               ? ' cursor-not-allowed opacity-50 hover:bg-white'
               : '';
