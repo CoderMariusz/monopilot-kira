@@ -23,7 +23,7 @@ import React from 'react';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
-import { deleteFa } from '../_actions/delete-fa';
+import { deleteFa } from '../../../../../../(npd)/fa/actions/delete-fa';
 
 export type FaDetailModalHostLabels = {
   deptCloseTitle: string;

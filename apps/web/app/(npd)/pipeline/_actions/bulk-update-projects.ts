@@ -8,7 +8,6 @@ import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { advanceProjectGate } from './advance-project-gate';
 import {
   hasPermission,
-  parseGate,
   type OrgContextLike,
   type ProjectGate,
   type ProjectPriority,
@@ -33,11 +32,12 @@ const moveGateSchema = z.object({
   targetGate: z.enum(['G0', 'G1', 'G2', 'G3', 'G4', 'Launched']),
 });
 
-export type BulkProjectMutationResult =
+// NOTE: types cannot be exported from a 'use server' file (Next build rule); kept local.
+type BulkProjectMutationResult =
   | { ok: true; data: { updated: number; projectIds: string[] } }
   | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED'; status: number };
 
-export type BulkMoveGateResult =
+type BulkMoveGateResult =
   | {
       ok: true;
       data: {
@@ -230,12 +230,6 @@ async function writeBulkGateAudit(
       ],
     );
   }
-}
-
-export function nextGateForBulk(gate: ProjectGate): ProjectGate | null {
-  const gates: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'];
-  const target = gates[gates.indexOf(gate) + 1];
-  return target ? parseGate(target) : null;
 }
 
 function safeRevalidatePath(path: string): void {

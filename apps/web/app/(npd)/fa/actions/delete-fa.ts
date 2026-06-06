@@ -21,7 +21,9 @@ type OrgContextLike = {
   client: QueryClient;
 };
 
-export type DeleteFaResult = {
+// NOTE: types cannot be exported from a 'use server' file (Next build rule);
+// kept local to this module.
+type DeleteFaResult = {
   productCode: string;
   deleted: true;
 };
