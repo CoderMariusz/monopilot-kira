@@ -173,6 +173,18 @@ function statusVariant(status: CostingStatus): BadgeVariant {
   }
 }
 
+/** Design-system tone class (single-dash `.badge-*` carry colour; BEM variants are unstyled). */
+function statusToneClass(status: CostingStatus): string {
+  switch (status) {
+    case 'fail':
+      return 'badge-red';
+    case 'warn':
+      return 'badge-amber';
+    default:
+      return 'badge-green';
+  }
+}
+
 /** Replace `{token}` placeholders in an i18n string (no inline strings). */
 function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_m, k) => (k in vars ? vars[k] : `{${k}}`));
@@ -181,30 +193,31 @@ function interpolate(template: string, vars: Record<string, string>): string {
 function StateNotice({ state, labels }: { state: PageState; labels: CostingLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-md border p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="card empty-state">
         {labels.loading}
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center">
-        <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-        <p className="mt-1 text-sm text-slate-500">{labels.emptyBody}</p>
+      <div className="card empty-state">
+        <div className="empty-state-icon" aria-hidden="true">📊</div>
+        <div className="empty-state-title">{labels.empty}</div>
+        <div className="empty-state-body">{labels.emptyBody}</div>
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.error}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.error}</div>
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.forbidden}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.forbidden}</div>
       </div>
     );
   }
@@ -240,7 +253,7 @@ export function CostingScreen({
         className="mx-auto w-full max-w-6xl space-y-4 p-6"
       >
         <header>
-          <h1 id="costing-title" className="text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="costing-title" className="page-title">
             {labels.title}
           </h1>
         </header>
@@ -302,27 +315,28 @@ export function CostingScreen({
       aria-labelledby="costing-title"
       className="mx-auto w-full max-w-6xl space-y-4 p-6"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
+      <header className="page-head flex flex-wrap items-start justify-between gap-4" data-region="page-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+          <nav aria-label="breadcrumb" className="breadcrumb">
             NPD / {labels.title}
           </nav>
-          <h1 id="costing-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="costing-title" className="page-title mt-1">
             {labels.title} — {data.productName}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <p className="mt-1 text-sm muted">{labels.subtitle}</p>
         </div>
-        <div className="flex gap-1" role="group" aria-label={labels.title}>
+        {/* recipe parity: per-kg / per-pack / per-batch toggle = .pills (not buttons) */}
+        <div className="pills" role="group" aria-label={labels.title}>
           {unitButtons.map((u) => (
-            <Button
+            <button
               key={u.value}
               type="button"
               aria-pressed={unit === u.value}
               onClick={() => setUnit(u.value)}
-              className={unit === u.value ? 'btn--primary' : 'btn--ghost'}
+              className={unit === u.value ? 'pill on' : 'pill'}
             >
               {u.label}
-            </Button>
+            </button>
           ))}
         </div>
       </header>
@@ -331,9 +345,9 @@ export function CostingScreen({
         <div
           role="alert"
           data-testid="hard-fail-banner"
-          className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800"
+          className="alert alert-red"
         >
-          <p className="font-semibold">{labels.hardFail}</p>
+          <div className="alert-title">{labels.hardFail}</div>
           <p className="mt-1">
             {interpolate(labels.hardFailBody, {
               name: failingScenarios[0]!.name,
@@ -387,35 +401,39 @@ export function CostingScreen({
                       key={s.scenario}
                       data-testid="scenario-row"
                       data-status={s.status}
-                      className={s.scenario === 'target' ? 'bg-sky-50' : undefined}
+                      style={s.scenario === 'target' ? { background: 'var(--blue-050)' } : undefined}
                     >
                       <TableCell className="font-medium">
                         <span data-testid="scenario-name">{s.name}</span>
                         {s.status === 'warn' ? (
-                          <Badge variant="warning" className="ml-2" data-testid="margin-warn-badge">
+                          <Badge variant="warning" className="badge-amber ml-2" data-testid="margin-warn-badge">
                             {labels.marginWarn}
                           </Badge>
                         ) : null}
                         {s.status === 'fail' ? (
-                          <Badge variant="danger" className="ml-2" data-testid="margin-fail-badge">
+                          <Badge variant="danger" className="badge-red ml-2" data-testid="margin-fail-badge">
                             {labels.hardFail}
                           </Badge>
                         ) : null}
                       </TableCell>
-                      <TableCell className="font-mono tabular-nums">
+                      <TableCell className="mono tabular-nums">
                         {formatMoney(s.targetPriceEur)}
                       </TableCell>
-                      <TableCell className="font-mono tabular-nums">{formatMoney(s.costEur)}</TableCell>
+                      <TableCell className="mono tabular-nums">{formatMoney(s.costEur)}</TableCell>
                       <TableCell
                         className={[
-                          'font-mono tabular-nums',
+                          'mono tabular-nums',
                           negative ? 'text-red-600' : 'text-emerald-600',
                         ].join(' ')}
                       >
                         {formatMoney(s.marginEur)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(s.status)} data-status={s.status}>
+                        <Badge
+                          variant={statusVariant(s.status)}
+                          className={statusToneClass(s.status)}
+                          data-status={s.status}
+                        >
                           {formatPct(s.marginPct)}
                         </Badge>
                       </TableCell>
@@ -429,7 +447,7 @@ export function CostingScreen({
               <div
                 role="note"
                 data-testid="margin-warn-note"
-                className="m-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+                className="alert alert-amber m-4"
               >
                 {interpolate(labels.marginWarnBody, {
                   marginPct: targetScenario.marginPct,
@@ -446,7 +464,7 @@ export function CostingScreen({
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-1.5">
-              <label htmlFor="slider-raw-cost" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="slider-raw-cost" className="block text-xs font-semibold uppercase tracking-wide muted">
                 {labels.sliderPorkContent} ({activeParams.rawCostEur})
               </label>
               <Slider
@@ -461,7 +479,7 @@ export function CostingScreen({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="slider-yield" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="slider-yield" className="block text-xs font-semibold uppercase tracking-wide muted">
                 {labels.sliderYield} ({activeParams.yieldPct})
               </label>
               <Slider
@@ -476,7 +494,7 @@ export function CostingScreen({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="slider-margin" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="slider-margin" className="block text-xs font-semibold uppercase tracking-wide muted">
                 {labels.sliderTargetPrice} ({activeParams.marginPct})
               </label>
               <Slider
@@ -491,7 +509,7 @@ export function CostingScreen({
             </div>
 
             <div className="space-y-1.5 border-t pt-4">
-              <label htmlFor="scenario-name" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="scenario-name" className="block text-xs font-semibold uppercase tracking-wide muted">
                 {labels.scenarioName}
               </label>
               <input
@@ -499,14 +517,14 @@ export function CostingScreen({
                 type="text"
                 value={scenarioName}
                 onChange={(e) => setScenarioName(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="form-input"
               />
               <Button
                 type="button"
                 onClick={handleSave}
                 disabled={currentMarginNegative || saveState === 'saving' || !onSaveScenario}
                 aria-label={labels.saveScenario}
-                className="btn--primary mt-1 w-full"
+                className="btn-primary mt-1 w-full"
               >
                 {saveState === 'saving' ? labels.saving : labels.saveScenario}
               </Button>

@@ -116,28 +116,29 @@ function StateNotice({
 }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div className="p-6 text-sm text-slate-600">
-        <p className="font-medium text-slate-800">{labels.empty}</p>
-        <p className="mt-1 text-slate-500">{labels.emptyBody}</p>
+      <div className="empty-state">
+        <div className="empty-state-icon" aria-hidden="true">⚠</div>
+        <div className="empty-state-title">{labels.empty}</div>
+        <div className="empty-state-body">{labels.emptyBody}</div>
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   return (
-    <div role="alert" className="p-6 text-sm text-red-700">
+    <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
       {labels.forbidden}
     </div>
   );
@@ -215,13 +216,13 @@ export function AllergenCascadeWidget({
       <section
         data-testid="allergen-cascade-widget"
         aria-labelledby="allergen-cascade-title"
-        className="rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="card"
       >
-        <header className="border-b border-slate-100 p-4">
-          <h2 id="allergen-cascade-title" className="text-lg font-semibold text-slate-950">
+        <div className="card-head">
+          <h2 id="allergen-cascade-title" className="card-title">
             {labels.title}
           </h2>
-        </header>
+        </div>
         <StateNotice state={state} labels={labels} />
       </section>
     );
@@ -231,18 +232,19 @@ export function AllergenCascadeWidget({
     <section
       data-testid="allergen-cascade-widget"
       aria-labelledby="allergen-cascade-title"
-      className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="card"
     >
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <div className="card-head">
         <div>
-          <h2 id="allergen-cascade-title" className="text-lg font-semibold text-slate-950">
+          <h2 id="allergen-cascade-title" className="card-title">
             {labels.title}
           </h2>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
         </div>
         {canWrite ? (
           <Button
             type="button"
+            className="btn-secondary btn-sm"
             aria-label={labels.refresh}
             data-testid="allergen-refresh"
             disabled={refreshing}
@@ -251,9 +253,9 @@ export function AllergenCascadeWidget({
             {refreshing ? labels.refreshing : `↻ ${labels.refresh}`}
           </Button>
         ) : null}
-      </header>
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3" style={{ marginBottom: 12 }}>
         {/* ① Derived (RM + process). */}
         <Card data-testid="allergen-section-derived">
           <CardHeader>
@@ -269,6 +271,7 @@ export function AllergenCascadeWidget({
                   <li key={code}>
                     <Badge
                       variant="danger"
+                      className="badge-red"
                       data-testid={`allergen-source-${code}`}
                       title={labels.sourceRm}
                       aria-label={`${displayName(code)} · ${labels.sourceRm}`}
@@ -302,6 +305,7 @@ export function AllergenCascadeWidget({
                         <li key={code}>
                           <Badge
                             variant="warning"
+                            className="badge-amber"
                             data-testid={`allergen-delta-added-${code}`}
                             title={labels.sourceOverride}
                             aria-label={`${displayName(code)} · ${labels.deltaAdded}`}
@@ -323,6 +327,7 @@ export function AllergenCascadeWidget({
                         <li key={code}>
                           <Badge
                             variant="muted"
+                            className="badge-gray"
                             data-testid={`allergen-delta-removed-${code}`}
                             title={labels.sourceOverride}
                             aria-label={`${displayName(code)} · ${labels.deltaRemoved}`}
@@ -360,7 +365,7 @@ export function AllergenCascadeWidget({
                         variant="danger"
                         data-testid={`allergen-final-contains-${code}`}
                         data-manual={manual ? 'true' : 'false'}
-                        className={manual ? 'border border-amber-400' : undefined}
+                        className={manual ? 'badge-red border border-amber-400' : 'badge-red'}
                         title={manual ? labels.sourceOverride : labels.sourceRm}
                         aria-label={
                           manual
@@ -388,6 +393,7 @@ export function AllergenCascadeWidget({
                   <li key={code}>
                     <Badge
                       variant="warning"
+                      className="badge-amber"
                       data-testid={`allergen-may-contain-${code}`}
                       title={labels.sourceProcess}
                       aria-label={`${displayName(code)} · ${labels.mayContain}`}
@@ -399,7 +405,7 @@ export function AllergenCascadeWidget({
               </ul>
             )}
 
-            <p className="mt-3 rounded-md bg-blue-50 p-2 text-xs text-blue-900">{labels.derivationNote}</p>
+            <div className="alert alert-blue" style={{ marginTop: 12 }}>{labels.derivationNote}</div>
           </CardContent>
         </Card>
       </div>

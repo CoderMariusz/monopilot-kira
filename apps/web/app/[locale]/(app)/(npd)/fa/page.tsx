@@ -73,17 +73,17 @@ const READ_PERMISSION = 'npd.fa.read';
 const CREATE_PERMISSION = 'fa.create';
 
 const DEFAULT_LABELS: FaListLabels = {
-  title: 'Factory Articles',
-  subtitle: 'All FAs · filter by status or department',
-  createFa: '+ Create FA',
-  searchPlaceholder: 'Search FA code or name…',
+  title: 'Finished Goods',
+  subtitle: 'All FGs · filter by status or department',
+  createFa: '+ Create FG',
+  searchPlaceholder: 'Search FG code or name…',
   filterDept: 'Department',
   filterStatus: 'Status',
   clearFilters: 'Clear filters',
   showClosed: 'Show closed',
   deptAll: 'All departments',
   statusAll: 'All statuses',
-  colProductCode: 'FA Code',
+  colProductCode: 'FG Code',
   colProductName: 'Product Name',
   colPackSize: 'Pack',
   colStatus: 'Status',
@@ -105,12 +105,15 @@ const DEFAULT_LABELS: FaListLabels = {
   statusInProgress: 'In progress',
   statusPending: 'Pending',
   noDate: 'No date set',
-  loading: 'Loading factory articles…',
-  empty: 'No Factory Articles match your filters',
+  loading: 'Loading finished goods…',
+  empty: 'No Finished Goods match your filters',
   emptyBody:
-    'Factory Articles are the master NPD record created from a converted Brief. Create one or clear filters.',
-  error: 'Unable to load Factory Articles. Try again after the backend is available.',
-  forbidden: 'You do not have permission to view Factory Articles.',
+    'Finished Goods are the master NPD record created from a converted Brief. Create one or clear filters.',
+  error: 'Unable to load Finished Goods. Try again after the backend is available.',
+  forbidden: 'You do not have permission to view Finished Goods.',
+  viewTable: 'Table',
+  viewKanban: 'Kanban',
+  kanbanDepts: 'depts',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof FaListLabels>;
@@ -118,9 +121,9 @@ const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof FaListLabels>;
 function translateLabel(t: (key: string) => string, key: keyof FaListLabels): string {
   try {
     const value = t(key);
-    return value === key ? DEFAULT_LABELS[key] : value;
+    return value === key ? (DEFAULT_LABELS[key] ?? key) : value;
   } catch {
-    return DEFAULT_LABELS[key];
+    return DEFAULT_LABELS[key] ?? key;
   }
 }
 

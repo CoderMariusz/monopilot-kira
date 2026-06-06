@@ -31,12 +31,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useFieldArray, useForm } from 'react-hook-form';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
-import Input from '@monopilot/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-import Textarea from '@monopilot/ui/Textarea';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -217,45 +213,48 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_m, key) => (key in vars ? vars[key] : `{${key}}`));
 }
 
-function statusBadge(status: BriefStatus, labels: BriefDetailLabels): { text: string; variant: 'muted' | 'warning' | 'success' } {
+function statusBadge(status: BriefStatus, labels: BriefDetailLabels): { text: string; tone: string } {
   switch (status) {
     case 'complete':
-      return { text: labels.statusComplete, variant: 'warning' };
+      return { text: labels.statusComplete, tone: 'badge-amber' };
     case 'converted':
-      return { text: labels.statusConverted, variant: 'success' };
+      return { text: labels.statusConverted, tone: 'badge-green' };
     case 'abandoned':
-      return { text: labels.statusAbandoned, variant: 'muted' };
+      return { text: labels.statusAbandoned, tone: 'badge-gray' };
     default:
-      return { text: labels.statusDraft, variant: 'muted' };
+      return { text: labels.statusDraft, tone: 'badge-gray' };
   }
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: BriefDetailLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-md border p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="card muted" style={{ fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center">
-        <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-        <p className="mt-1 text-sm text-slate-500">{labels.emptyBody}</p>
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-state-icon">📝</div>
+          <div className="empty-state-title">{labels.empty}</div>
+          <div className="empty-state-body">{labels.emptyBody}</div>
+        </div>
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.forbidden}
       </div>
     );
@@ -305,9 +304,9 @@ export function BriefDetailForm({
 
   if (state !== 'ready' || !data) {
     return (
-      <main data-testid="brief-detail" aria-labelledby="brief-title" className="mx-auto w-full max-w-6xl space-y-4 p-6">
+      <main data-testid="brief-detail" aria-labelledby="brief-title" className="mx-auto w-full max-w-6xl">
         <header>
-          <h1 id="brief-title" className="text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="brief-title" className="page-title">
             {labels.breadcrumbList}
           </h1>
         </header>
@@ -361,38 +360,43 @@ export function BriefDetailForm({
   const packagingExtEntries = Object.entries(data.packagingExt ?? {});
 
   return (
-    <main data-testid="brief-detail" aria-labelledby="brief-title" className="mx-auto w-full max-w-6xl space-y-4 p-6">
-      {/* sticky-form-header parity */}
-      <header className="space-y-2">
-        <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+    <main data-testid="brief-detail" aria-labelledby="brief-title" className="mx-auto w-full max-w-6xl">
+      {/* sticky-form-header parity (brief-screens.jsx:113-140) */}
+      <header className="sticky-form-header" style={{ padding: '10px 0', marginBottom: 10 }}>
+        <nav aria-label="breadcrumb" className="breadcrumb">
           <span>{labels.breadcrumbRoot}</span>
           <span aria-hidden> / </span>
           {/* T-121: 'Briefs' crumb is the back-link to the list (back→list). */}
-          <Link href={listHref} className="text-blue-600 hover:underline" data-testid="brief-detail-breadcrumb-list">
+          <Link href={listHref} data-testid="brief-detail-breadcrumb-list">
             {labels.breadcrumbList}
           </Link>
           <span aria-hidden> / </span>
-          <span className="font-mono text-slate-700">{data.devCode}</span>
+          <span className="mono">{data.devCode}</span>
         </nav>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="page-head" style={{ marginBottom: 0 }}>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-base font-semibold text-blue-700">{data.devCode}</span>
-            <h1 id="brief-title" className="text-lg font-semibold text-slate-950">
+            <span className="mono" style={{ fontSize: 16, color: 'var(--blue)', fontWeight: 600 }}>
+              {data.devCode}
+            </span>
+            <h1 id="brief-title" style={{ fontSize: 18, fontWeight: 600 }}>
               {data.productName}
             </h1>
-            <Badge variant={isMulti ? 'info' : 'muted'}>{templateLabel}</Badge>
-            <Badge variant={badge.variant} data-testid="brief-status-badge">
+            <span data-slot="badge" className={`badge ${isMulti ? 'badge-blue' : 'badge-gray'}`}>
+              {templateLabel}
+            </span>
+            <span data-slot="badge" className={`badge ${badge.tone}`} data-testid="brief-status-badge">
               {converted && data.faCode ? `${labels.convertedTo} → ${data.faCode}` : badge.text}
-            </Badge>
+            </span>
           </div>
           {!readOnly && (
             <div className="flex items-center gap-2">
-              <Button type="button" onClick={handleSaveDraft} disabled={saveState === 'saving'}>
+              <Button type="button" className="btn-secondary" onClick={handleSaveDraft} disabled={saveState === 'saving'}>
                 {saveState === 'saving' ? labels.saving : labels.saveDraft}
               </Button>
               {data.status === 'draft' && onMarkComplete && (
                 <Button
                   type="button"
+                  className="btn-success"
                   onClick={handleMarkComplete}
                   disabled={(weightMismatch && isMulti) || completeState === 'completing'}
                 >
@@ -403,36 +407,36 @@ export function BriefDetailForm({
           )}
         </div>
         {saveState === 'saved' && (
-          <p role="status" aria-live="polite" className="text-sm text-green-700">
+          <p role="status" aria-live="polite" style={{ fontSize: 13, color: 'var(--green-700)' }}>
             {labels.saved}
           </p>
         )}
         {saveState === 'error' && (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" style={{ fontSize: 13, color: 'var(--red-700)' }}>
             {labels.saveError}
           </p>
         )}
         {completeState === 'error' && (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" style={{ fontSize: 13, color: 'var(--red-700)' }}>
             {labels.completeError}
           </p>
         )}
       </header>
 
       {converted && (
-        <div role="status" className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+        <div role="status" className="alert alert-green">
           {interpolate(labels.convertedNotice, { fa: data.faCode ?? '' })}{' '}
           {data.npdProjectId && (
-            <a href={`/npd/pipeline/${data.npdProjectId}`} className="font-medium text-blue-700 underline">
+            <a href={`/npd/pipeline/${data.npdProjectId}`} style={{ color: 'var(--blue)', fontWeight: 500 }}>
               {labels.viewProject}
             </a>
           )}
         </div>
       )}
 
-      {/* Product / Packaging tabs (accessible tablist; radix stays in packages/ui) */}
+      {/* Product / Packaging tabs (accessible tablist; design-system tabs-counted chrome) */}
       <div data-slot="tabs" className="w-full">
-        <div role="tablist" aria-label={labels.breadcrumbList} className="flex gap-2 border-b border-slate-200 pb-2">
+        <div role="tablist" aria-label={labels.breadcrumbList} className="tabs-counted" style={{ marginBottom: 12 }}>
           {(
             [
               { key: 'product' as TabKey, label: labels.tabProduct },
@@ -450,11 +454,7 @@ export function BriefDetailForm({
                 aria-selected={selected}
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setTab(t.key)}
-                className={
-                  selected
-                    ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
-                    : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
-                }
+                className={`tabs-counted-tab${selected ? ' active' : ''}`}
               >
                 {t.label}
               </button>
@@ -470,11 +470,10 @@ export function BriefDetailForm({
           hidden={tab !== 'product'}
           className="mt-3 space-y-4"
         >
-          <Card data-testid="brief-section-a">
-            <CardHeader>
-              <CardTitle>{labels.sectionATitle}</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div data-slot="card" data-testid="brief-section-a" className="card">
+            <div className="card-title" style={{ marginBottom: 10 }}>
+              {labels.sectionATitle}
+            </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                 <FieldText label={labels.fieldProduct} name="product.product" form={form} disabled={readOnly} />
                 <FieldText label={labels.fieldVolume} name="product.volume" type="number" form={form} disabled={readOnly} />
@@ -500,16 +499,16 @@ export function BriefDetailForm({
               <div className="mt-4">
                 <FieldArea label={labels.fieldComments} name="product.comments" form={form} disabled={readOnly} />
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {isMulti && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{labels.componentsTitle}</CardTitle>
+            <div data-slot="card" className="card">
+              <div className="card-head">
+                <div className="card-title">{labels.componentsTitle}</div>
                 {!readOnly && (
                   <Button
                     type="button"
+                    className="btn-secondary btn-sm"
                     onClick={() =>
                       append({ component: '', sliceCount: null, supplier: '', code: '', price: '', weights: '0', pct: '0' })
                     }
@@ -517,8 +516,7 @@ export function BriefDetailForm({
                     {labels.addComponent}
                   </Button>
                 )}
-              </CardHeader>
-              <CardContent>
+              </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -538,10 +536,11 @@ export function BriefDetailForm({
                     {fields.map((row, index) => (
                       <TableRow key={row.id} data-testid="component-row">
                         <TableCell>
-                          <Input aria-label={`${labels.fieldComponent} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.component`)} />
+                          <input className="form-input" aria-label={`${labels.fieldComponent} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.component`)} />
                         </TableCell>
                         <TableCell>
-                          <Input
+                          <input
+                            className="form-input"
                             type="number"
                             aria-label={`${labels.fieldSliceCount} ${index + 1}`}
                             disabled={readOnly}
@@ -549,16 +548,17 @@ export function BriefDetailForm({
                           />
                         </TableCell>
                         <TableCell>
-                          <Input aria-label={`${labels.fieldSupplier} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.supplier`)} />
+                          <input className="form-input" aria-label={`${labels.fieldSupplier} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.supplier`)} />
                         </TableCell>
                         <TableCell>
-                          <Input aria-label={`${labels.fieldCode} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.code`)} />
+                          <input className="form-input mono" aria-label={`${labels.fieldCode} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.code`)} />
                         </TableCell>
                         <TableCell>
-                          <Input aria-label={`${labels.fieldPrice} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.price`)} />
+                          <input className="form-input" aria-label={`${labels.fieldPrice} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.price`)} />
                         </TableCell>
                         <TableCell>
-                          <Input
+                          <input
+                            className="form-input"
                             type="number"
                             aria-label={`${labels.fieldWeight} ${index + 1}`}
                             disabled={readOnly}
@@ -566,41 +566,45 @@ export function BriefDetailForm({
                           />
                         </TableCell>
                         <TableCell>
-                          <Input aria-label={`${labels.fieldPct} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.pct`)} />
+                          <input className="form-input" aria-label={`${labels.fieldPct} ${index + 1}`} disabled={readOnly} {...form.register(`components.${index}.pct`)} />
                         </TableCell>
                         <TableCell>
                           {!readOnly && (
-                            <Button type="button" aria-label={`${labels.removeComponent} ${index + 1}`} onClick={() => remove(index)}>
+                            <Button type="button" className="btn-ghost btn-sm" aria-label={`${labels.removeComponent} ${index + 1}`} onClick={() => remove(index)}>
                               ✕
                             </Button>
                           )}
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow data-testid="component-total-row" className="font-semibold">
+                    <TableRow data-testid="component-total-row" className="font-semibold" style={{ background: 'var(--gray-050)' }}>
                       <TableCell>{labels.totalRow}</TableCell>
                       <TableCell />
                       <TableCell />
                       <TableCell />
                       <TableCell />
-                      <TableCell data-testid="component-total-weight">{totalDisplay}g</TableCell>
+                      <TableCell className="mono" data-testid="component-total-weight">{totalDisplay}g</TableCell>
                       <TableCell />
                       <TableCell />
                     </TableRow>
                   </TableBody>
                 </Table>
                 {weightMismatch && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Badge variant="destructive" data-testid="weight-mismatch-badge">
+                  <div className="alert alert-amber mt-3" role="alert">
+                    <span
+                      data-slot="badge"
+                      data-variant="destructive"
+                      data-tone="destructive"
+                      className="badge badge-red"
+                      data-testid="weight-mismatch-badge"
+                      style={{ marginRight: 8 }}
+                    >
                       {labels.weightMismatch}
-                    </Badge>
-                    <span role="alert" className="text-sm text-red-700">
-                      {interpolate(labels.weightMismatchBody, { total: totalDisplay })}
                     </span>
+                    {interpolate(labels.weightMismatchBody, { total: totalDisplay })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </div>
           )}
         </div>
 
@@ -612,11 +616,10 @@ export function BriefDetailForm({
           hidden={tab !== 'packaging'}
           className="mt-3 space-y-4"
         >
-          <Card data-testid="brief-section-b">
-            <CardHeader>
-              <CardTitle>{labels.sectionBTitle}</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div data-slot="card" data-testid="brief-section-b" className="card">
+            <div className="card-title" style={{ marginBottom: 10 }}>
+              {labels.sectionBTitle}
+            </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                 <PackagingField label={labels.fieldPrimaryPackaging} name="packaging.primaryPackaging" form={form} disabled={readOnly} />
                 <PackagingField label={labels.fieldSecondaryPackaging} name="packaging.secondaryPackaging" form={form} disabled={readOnly} />
@@ -640,25 +643,26 @@ export function BriefDetailForm({
                 />
                 <PackagingField label={labels.fieldSleeveCartonPrice} name="packaging.sleeveCartonPrice" form={form} disabled={readOnly} />
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{labels.packagingExtTitle}</CardTitle>
-              <Badge variant="muted">{labels.packagingExtPending}</Badge>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div role="note" className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <div data-slot="card" className="card">
+            <div className="card-head">
+              <div className="card-title">{labels.packagingExtTitle}</div>
+              <span data-slot="badge" className="badge badge-gray">
+                {labels.packagingExtPending}
+              </span>
+            </div>
+            <div className="space-y-4">
+              <div role="note" className="alert alert-blue">
                 {labels.packagingExtBody}
               </div>
 
               {packagingExtEntries.length > 0 && (
                 <dl data-testid="packaging-ext" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {packagingExtEntries.map(([key, value]) => (
-                    <div key={key} data-testid="packaging-ext-row" className="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm">
-                      <dt className="font-medium text-slate-600">{key}</dt>
-                      <dd className="text-slate-900">{value}</dd>
+                    <div key={key} data-testid="packaging-ext-row" className="flex items-center justify-between rounded px-3 py-2 text-sm" style={{ border: '1px solid var(--border)' }}>
+                      <dt className="font-medium muted">{key}</dt>
+                      <dd>{value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -667,17 +671,19 @@ export function BriefDetailForm({
               {/* C21-C37 placeholder scaffold */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {TBD_FIELDS.map((n) => (
-                  <div key={n} data-testid="packaging-tbd-field" className="space-y-1">
-                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                  <div key={n} data-testid="packaging-tbd-field" className="ff" style={{ marginBottom: 0 }}>
+                    <label className="flex items-center gap-2">
                       {`C${n}`}
-                      <Badge variant="muted">{labels.tbd}</Badge>
+                      <span data-slot="badge" className="badge badge-gray">
+                        {labels.tbd}
+                      </span>
                     </label>
-                    <Input disabled aria-label={`C${n} ${labels.tbd}`} />
+                    <input className="form-input" disabled aria-label={`C${n} ${labels.tbd}`} />
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -727,12 +733,16 @@ type FieldProps = {
 function FieldText({ label, name, form, disabled, hint, type = 'text', mono }: FieldProps) {
   const id = `field-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
   return (
-    <div data-testid="brief-field" className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-medium text-slate-600">
-        {label}
-      </label>
-      <Input id={id} type={type} disabled={disabled} className={mono ? 'font-mono' : undefined} {...form.register(name as any)} />
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    <div data-testid="brief-field" className="ff" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type={type}
+        disabled={disabled}
+        className={`form-input${mono ? ' mono' : ''}`}
+        {...form.register(name as any)}
+      />
+      {hint && <p className="ff-help">{hint}</p>}
     </div>
   );
 }
@@ -740,11 +750,15 @@ function FieldText({ label, name, form, disabled, hint, type = 'text', mono }: F
 function FieldNumberInt({ label, name, form, disabled }: FieldProps) {
   const id = `field-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
   return (
-    <div data-testid="brief-field" className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-medium text-slate-600">
-        {label}
-      </label>
-      <Input id={id} type="number" disabled={disabled} {...form.register(name as any, { valueAsNumber: true })} />
+    <div data-testid="brief-field" className="ff" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="number"
+        disabled={disabled}
+        className="form-input"
+        {...form.register(name as any, { valueAsNumber: true })}
+      />
     </div>
   );
 }
@@ -752,11 +766,9 @@ function FieldNumberInt({ label, name, form, disabled }: FieldProps) {
 function FieldArea({ label, name, form, disabled }: FieldProps) {
   const id = `field-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
   return (
-    <div data-testid="brief-field" className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-medium text-slate-600">
-        {label}
-      </label>
-      <Textarea id={id} rows={3} disabled={disabled} {...form.register(name as any)} />
+    <div data-testid="brief-field" className="ff" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <textarea id={id} rows={3} disabled={disabled} className="form-input" {...form.register(name as any)} />
     </div>
   );
 }
@@ -764,12 +776,10 @@ function FieldArea({ label, name, form, disabled }: FieldProps) {
 function PackagingField({ label, name, form, disabled, hint, mono }: FieldProps) {
   const id = `field-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
   return (
-    <div data-testid="packaging-field" className="space-y-1">
-      <label htmlFor={id} className="block text-xs font-medium text-slate-600">
-        {label}
-      </label>
-      <Input id={id} disabled={disabled} className={mono ? 'font-mono' : undefined} {...form.register(name as any)} />
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    <div data-testid="packaging-field" className="ff" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <input id={id} disabled={disabled} className={`form-input${mono ? ' mono' : ''}`} {...form.register(name as any)} />
+      {hint && <p className="ff-help">{hint}</p>}
     </div>
   );
 }

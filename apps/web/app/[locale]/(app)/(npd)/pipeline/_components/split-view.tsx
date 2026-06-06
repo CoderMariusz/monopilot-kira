@@ -87,21 +87,21 @@ function prioLabel(prio: ProjectPriority, labels: SplitLabels): string {
 function StateNotice({ state, labels }: { state: PageState; labels: SplitLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -178,10 +178,10 @@ export function SplitView({ projects, labels, state = 'ready' }: SplitViewProps)
         data-testid="split-screen"
         data-prototype-anchor="npd/pipeline.jsx:89-131"
         aria-labelledby="split-title"
-        className="mx-auto w-full max-w-7xl space-y-4 p-6"
+        className="space-y-4"
       >
         <SplitHeader labels={labels} />
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="card" style={{ padding: 0 }}>
           <StateNotice state={state} labels={labels} />
         </section>
       </main>
@@ -194,12 +194,15 @@ export function SplitView({ projects, labels, state = 'ready' }: SplitViewProps)
         data-testid="split-screen"
         data-prototype-anchor="npd/pipeline.jsx:89-131"
         aria-labelledby="split-title"
-        className="mx-auto w-full max-w-7xl space-y-4 p-6"
+        className="space-y-4"
       >
         <SplitHeader labels={labels} />
-        <section className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <p className="text-base font-semibold text-slate-900">{labels.empty}</p>
-          <p className="mt-1 text-sm text-slate-600">{labels.emptyBody}</p>
+        <section className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">🧪</div>
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">{labels.emptyBody}</div>
+          </div>
         </section>
       </main>
     );
@@ -210,7 +213,8 @@ export function SplitView({ projects, labels, state = 'ready' }: SplitViewProps)
       role="region"
       aria-label={labels.listLabel}
       data-testid="split-list"
-      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="card"
+      style={{ padding: 0, overflow: 'hidden' }}
     >
       <div
         role="listbox"
@@ -266,14 +270,17 @@ export function SplitView({ projects, labels, state = 'ready' }: SplitViewProps)
                         aria-valuenow={progress}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        className="h-1.5 w-20 overflow-hidden rounded bg-slate-100"
+                        style={{ width: 80, height: 5, background: 'var(--gray-100)', borderRadius: 3, overflow: 'hidden' }}
                       >
                         <div
-                          className={progress >= 90 ? 'h-full bg-green-500' : 'h-full bg-blue-500'}
-                          style={{ width: `${progress}%` }}
+                          style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
+                          }}
                         />
                       </div>
-                      <span className="font-mono text-[11px] text-slate-600">{progress}%</span>
+                      <span className="mono muted" style={{ fontSize: 11 }}>{progress}%</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -298,7 +305,7 @@ export function SplitView({ projects, labels, state = 'ready' }: SplitViewProps)
       data-testid="split-screen"
       data-prototype-anchor="npd/pipeline.jsx:89-131"
       aria-labelledby="split-title"
-      className="mx-auto w-full max-w-7xl space-y-4 p-6"
+      className="space-y-4"
     >
       <SplitHeader labels={labels} />
 
@@ -319,13 +326,13 @@ function SplitHeader({ labels }: { labels: SplitLabels }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
       <div>
-        <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+        <nav aria-label="breadcrumb" className="breadcrumb">
           NPD / {labels.title}
         </nav>
-        <h1 id="split-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+        <h1 id="split-title" className="page-title" style={{ marginTop: 2 }}>
           {labels.title}
         </h1>
-        <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+        <p className="muted" style={{ marginTop: 2, fontSize: 12 }}>{labels.subtitle}</p>
       </div>
     </header>
   );

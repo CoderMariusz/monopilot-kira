@@ -92,6 +92,19 @@ function statusVariant(status: NutrientStatus): BadgeVariant {
   return status === 'warn' ? 'warning' : 'success';
 }
 
+/** Design-system tone class (single-dash `.badge-*` in globals.css carry colour;
+ *  the @monopilot/ui Badge BEM variants are unstyled). */
+function statusToneClass(status: NutrientStatus): string {
+  return status === 'warn' ? 'badge-amber' : 'badge-green';
+}
+
+const PRESENCE_TONE_CLASS: Record<AllergenPresence, string> = {
+  contains: 'badge-red',
+  may_contain: 'badge-amber',
+  free_from: 'badge-green',
+  unknown: 'badge-gray',
+};
+
 function statusText(status: NutrientStatus, labels: NutritionLabels): string {
   return status === 'warn' ? labels.statusWarn : labels.statusOk;
 }
@@ -159,30 +172,31 @@ export function buildNutritionCsv(rows: NutritionRow[], labels: NutritionLabels)
 function StateNotice({ state, labels }: { state: PageState; labels: NutritionLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-md border p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="card empty-state">
         {labels.loading}
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center">
-        <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-        <p className="mt-1 text-sm text-slate-500">{labels.emptyBody}</p>
+      <div className="card empty-state">
+        <div className="empty-state-icon" aria-hidden="true">🥗</div>
+        <div className="empty-state-title">{labels.empty}</div>
+        <div className="empty-state-body">{labels.emptyBody}</div>
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.error}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.error}</div>
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.forbidden}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.forbidden}</div>
       </div>
     );
   }
@@ -219,15 +233,15 @@ export function NutritionScreen({
       aria-labelledby="nutrition-title"
       className="mx-auto w-full max-w-5xl space-y-4 p-6"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
+      <header className="page-head flex flex-wrap items-start justify-between gap-4" data-region="page-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+          <nav aria-label="breadcrumb" className="breadcrumb">
             NPD / {labels.title}
           </nav>
-          <h1 id="nutrition-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="nutrition-title" className="page-title mt-1">
             {labels.title}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <p className="mt-1 text-sm muted">{labels.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -235,7 +249,7 @@ export function NutritionScreen({
             onClick={handleExportCsv}
             disabled={state !== 'ready'}
             aria-label={labels.exportCsv}
-            className="btn--ghost"
+            className="btn-ghost btn-sm"
           >
             {labels.exportCsv}
           </Button>
@@ -244,7 +258,7 @@ export function NutritionScreen({
             disabled
             aria-label={labels.generateLabel}
             title={labels.generateLabelDisabledHint}
-            className="btn--secondary"
+            className="btn-secondary btn-sm"
           >
             {labels.generateLabel}
           </Button>
@@ -272,12 +286,16 @@ export function NutritionScreen({
                       <TableCell className="font-medium" data-testid="nutrient-label">
                         {row.label}
                       </TableCell>
-                      <TableCell className="font-mono">{formatValue(row.per100g, row.unit)}</TableCell>
-                      <TableCell className="font-mono text-slate-500">
+                      <TableCell className="mono">{formatValue(row.per100g, row.unit)}</TableCell>
+                      <TableCell className="mono muted">
                         {formatValue(row.perPortion, row.unit)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(row.status)} data-status={row.status}>
+                        <Badge
+                          variant={statusVariant(row.status)}
+                          className={statusToneClass(row.status)}
+                          data-status={row.status}
+                        >
                           {statusText(row.status, labels)}
                         </Badge>
                       </TableCell>
@@ -295,7 +313,7 @@ export function NutritionScreen({
               </CardHeader>
               <CardContent className="p-0">
                 {data.allergens.length === 0 ? (
-                  <p className="p-4 text-sm text-slate-500">{labels.allergenEmpty}</p>
+                  <p className="p-4 text-sm muted">{labels.allergenEmpty}</p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -309,11 +327,15 @@ export function NutritionScreen({
                       {data.allergens.map((a) => (
                         <TableRow key={a.allergenCode} data-testid="allergen-row">
                           <TableCell className="font-medium capitalize">{a.allergenCode}</TableCell>
-                          <TableCell className="text-slate-600">
+                          <TableCell className="muted">
                             {a.sourceIngredient ?? '—'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={presenceVariant(a.presence)} data-presence={a.presence}>
+                            <Badge
+                              variant={presenceVariant(a.presence)}
+                              className={PRESENCE_TONE_CLASS[a.presence]}
+                              data-presence={a.presence}
+                            >
                               {presenceText(a.presence, labels)}
                             </Badge>
                           </TableCell>

@@ -297,6 +297,21 @@ a {
 .btn-success { background: var(--green); color: #fff; border-color: var(--green); }
 .btn-success:hover:not(:disabled) { background: #15803d; }
 
+/* BEM aliases — the @monopilot/ui <Button> primitive emits double-dash variant
+   classes (.btn--primary etc.); mirror the single-dash design-system tones so any
+   <Button variant> / className="btn--*" renders styled instead of as the bare
+   "black button" drift seen across modules. */
+.btn--primary   { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn--primary:hover:not(:disabled)   { background: var(--blue-600); }
+.btn--secondary { background: #fff; color: var(--text); border-color: var(--border); }
+.btn--secondary:hover:not(:disabled) { background: var(--gray-050); }
+.btn--ghost   { background: transparent; color: var(--gray-600); }
+.btn--ghost:hover:not(:disabled) { background: var(--gray-050); color: var(--text); }
+.btn--danger  { background: var(--red); color: #fff; border-color: var(--red); }
+.btn--danger:hover:not(:disabled) { background: #b91c1c; }
+.btn--success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn--success:hover:not(:disabled) { background: #15803d; }
+
 /* ---- Card ---- */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -318,6 +333,17 @@ a {
 .badge-red   { background: var(--red-050);   color: var(--red-700); }
 .badge-blue  { background: var(--blue-050);  color: var(--blue-700); }
 .badge-gray  { background: var(--gray-050);  color: var(--gray-600); }
+/* BEM aliases — @monopilot/ui <Badge variant> emits .badge--<tone>. */
+.badge--green { background: var(--green-050); color: var(--green-700); }
+.badge--amber { background: var(--amber-050); color: var(--amber-700); }
+.badge--red   { background: var(--red-050);   color: var(--red-700); }
+.badge--blue  { background: var(--blue-050);  color: var(--blue-700); }
+.badge--gray  { background: var(--gray-050);  color: var(--gray-600); }
+.badge--neutral { background: var(--gray-050); color: var(--gray-600); }
+.badge--success { background: var(--green-050); color: var(--green-700); }
+.badge--warning { background: var(--amber-050); color: var(--amber-700); }
+.badge--danger  { background: var(--red-050);   color: var(--red-700); }
+.badge--info    { background: var(--blue-050);  color: var(--blue-700); }
 
 /* ---- Bare table (prototype-style raw <table>) ----
    The @monopilot/ui <Table> primitive uses .table__* BEM (below) and keeps

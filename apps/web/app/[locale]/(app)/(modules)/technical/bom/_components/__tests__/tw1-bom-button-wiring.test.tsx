@@ -23,6 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   listItems: vi.fn(),
   approveBom: vi.fn(),
+  deleteBomVersion: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
 }));
@@ -32,6 +33,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('../../items/_actions/list-items', () => ({ listItems: mocks.listItems }));
 vi.mock('../../_actions/workflow', () => ({ approveBom: mocks.approveBom }));
+vi.mock('../../_actions/delete-bom-version', () => ({ deleteBomVersion: mocks.deleteBomVersion }));
 
 import { BomListScreen, type BomListData, type BomListLabels } from '../bom-list-screen';
 import { BomDetailActions } from '../bom-detail-actions';
@@ -129,6 +131,7 @@ describe('TW1-bom — detail action bar is wired', () => {
     productId: 'FG-1001',
     productName: 'Kabanosy',
     currentVersion: 3,
+    snapshotCount: 0,
     lines: [{ componentCode: 'RM-1', quantity: 1, uom: 'kg' }],
   };
 

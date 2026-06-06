@@ -1,0 +1,14 @@
+{
+  "npd.pipelineSwitcher.newProject": "New project",
+  "npd.pipelineSwitcher.importRecipe": "Import recipe",
+  "npd.pipelineKpi.activeLabel": "Active projects",
+  "npd.pipelineKpi.activeHint": "Projects in gates G0–G4",
+  "npd.pipelineKpi.awaitingLabel": "Awaiting approval",
+  "npd.pipelineKpi.awaitingHint": "At gates G3/G4",
+  "npd.pipelineKpi.launchedLabel": "Launched",
+  "npd.pipelineKpi.launchedHint": "Reached the final gate",
+  "npd.pipelineKpi.atRiskLabel": "At risk",
+  "npd.pipelineKpi.atRiskHint": "High priority, behind schedule",
+  "npd.pipelineKpi.totalLabel": "Total in view",
+  "npd.pipelineKpi.totalHint": "Matching the current filter"
+}

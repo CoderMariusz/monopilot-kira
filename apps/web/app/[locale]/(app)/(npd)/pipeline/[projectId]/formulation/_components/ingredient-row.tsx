@@ -122,26 +122,27 @@ export function IngredientRow({
         <div className="flex items-center gap-2" data-field="rmCode">
           {ingredient.rmCode ? (
             <span
-              className="font-mono text-xs font-semibold text-blue-700"
+              className="mono text-xs font-semibold"
+              style={{ color: 'var(--blue)' }}
               aria-label={labels.colIngredient}
               data-item-id={ingredient.itemId ?? undefined}
             >
               {ingredient.rmCode}
             </span>
           ) : (
-            <span className="text-xs text-slate-400">{labels.chooseItem}</span>
+            <span className="text-xs muted">{labels.chooseItem}</span>
           )}
           <ItemPicker
             labels={labels.picker}
             searchItemsAction={searchItemsAction}
             itemTypes={['rm', 'intermediate', 'co_product']}
             disabled={disabled}
-            triggerClassName="btn--ghost btn-sm"
+            triggerClassName="btn-ghost btn-sm"
             onSelect={(item) => onSelectItem(index, item)}
           />
         </div>
         {ingredient.name ? (
-          <div className="mt-0.5 font-mono text-[10px] text-slate-500">{ingredient.name}</div>
+          <div className="mt-0.5 text-[10px] muted">{ingredient.name}</div>
         ) : null}
         {error?.rmCode ? (
           <p id={rmErrorId} role="alert" className="mt-0.5 text-xs text-red-600">
@@ -158,7 +159,7 @@ export function IngredientRow({
           disabled={disabled}
           aria-invalid={error?.pct ? true : undefined}
           aria-describedby={error?.pct ? pctErrorId : undefined}
-          className="text-right"
+          className="form-input mono text-right"
           onChange={(e) => onChange(index, 'pct', e.target.value)}
           onBlur={() => onCommit(index)}
         />
@@ -175,21 +176,21 @@ export function IngredientRow({
           inputMode="decimal"
           value={ingredient.costPerKgEur}
           disabled={disabled}
-          className="text-right"
+          className="form-input mono text-right"
           onChange={(e) => onChange(index, 'costPerKgEur', e.target.value)}
           onBlur={() => onCommit(index)}
         />
       </TableCell>
 
-      <TableCell className="text-right font-mono" data-testid="ingredient-contribution">
+      <TableCell className="text-right mono" data-testid="ingredient-contribution">
         {contribution ? `${contribution} €` : '—'}
       </TableCell>
 
       <TableCell>
         {ingredient.allergen ? (
-          <Badge variant="warning">{ingredient.allergen}</Badge>
+          <Badge variant="warning" className="badge-amber">{ingredient.allergen}</Badge>
         ) : (
-          <span className="text-xs text-slate-400">{labels.noAllergen}</span>
+          <span className="text-xs muted">{labels.noAllergen}</span>
         )}
       </TableCell>
 
@@ -198,7 +199,7 @@ export function IngredientRow({
           type="button"
           aria-label={labels.deleteRow}
           disabled={disabled}
-          className="btn--ghost"
+          className="btn-ghost btn-icon"
           onClick={() => onDelete(index)}
         >
           <span aria-hidden="true">✕</span>

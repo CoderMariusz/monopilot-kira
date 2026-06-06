@@ -27,7 +27,6 @@
 import { getTranslations } from 'next-intl/server';
 
 import { listFaHistory, type FaHistoryEvent } from '@monopilot/queries';
-import { Badge } from '@monopilot/ui/Badge';
 
 import { FaTabs, type FaTabsLabels, type FaTabPanels } from './_components/fa-tabs';
 import {
@@ -492,13 +491,13 @@ type FaDetailLabels = {
 };
 
 const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
-  eyebrow: 'Factory Article',
-  subtitle: 'Department workspace · close each department to complete the FA',
+  eyebrow: 'Finished Good',
+  subtitle: 'Department workspace · close each department to complete the FG',
   built: 'Built',
-  empty: 'Factory Article not found',
-  emptyBody: 'No Factory Article matches this code in your organisation.',
-  forbidden: 'You do not have permission to view this Factory Article.',
-  error: 'Unable to load this Factory Article.',
+  empty: 'Finished Good not found',
+  emptyBody: 'No Finished Good matches this code in your organisation.',
+  forbidden: 'You do not have permission to view this Finished Good.',
+  error: 'Unable to load this Finished Good.',
   status: {
     Pending: 'Pending',
     InProgress: 'In progress',
@@ -886,31 +885,29 @@ function statusBadge(statusOverall: string | null, labels: FaDetailLabels) {
   if (!statusOverall) return null;
   const isKnown = (STATUS_KEYS as readonly string[]).includes(statusOverall);
   const label = isKnown ? labels.status[statusOverall as StatusKey] : statusOverall;
-  const tone =
+  // Design-system `.badge-<tone>` (globals.css) — the @monopilot/ui Badge primitive
+  // only emits the unstyled `.badge--<variant>`, hence the class passthrough.
+  const cls =
     statusOverall === 'Complete' || statusOverall === 'Built'
-      ? 'success'
+      ? 'badge-green'
       : statusOverall === 'Alert'
-        ? 'danger'
+        ? 'badge-red'
         : statusOverall === 'InProgress'
-          ? 'warning'
-          : 'muted';
+          ? 'badge-amber'
+          : 'badge-gray';
   return (
-    <Badge tone={tone} data-testid="fa-detail-status">
+    <span className={`badge ${cls}`} data-testid="fa-detail-status">
       {label}
-    </Badge>
+    </span>
   );
 }
 
 function StatePanel({ testId, title, body }: { testId: string; title: string; body?: string }) {
   return (
-    <main className="mx-auto w-full max-w-6xl p-6">
-      <div
-        role="alert"
-        data-testid={testId}
-        className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm"
-      >
-        <p className="text-base font-semibold text-slate-900">{title}</p>
-        {body ? <p className="mt-1 text-sm text-slate-600">{body}</p> : null}
+    <main className="flex w-full flex-col gap-4 px-6 py-6">
+      <div role="alert" data-testid={testId} className="card" style={{ textAlign: 'center', padding: 32 }}>
+        <p style={{ fontSize: 15, fontWeight: 600 }}>{title}</p>
+        {body ? <p className="muted" style={{ marginTop: 4, fontSize: 13 }}>{body}</p> : null}
       </div>
     </main>
   );
@@ -1092,30 +1089,33 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 p-6">
+    <main className="flex w-full flex-col gap-3">
+      {/* sticky-form-header — FG detail is very long (prototype lines 354-387) */}
       <section
         aria-label={labels.eyebrow}
-        className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+        className="sticky-form-header"
+        style={{ padding: '10px 0', marginBottom: 4 }}
       >
-        <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
-          {labels.eyebrow}
+        <nav aria-label="breadcrumb" className="breadcrumb">
+          NPD / <span>{labels.eyebrow}</span>
+        </nav>
+        <div className="page-head" style={{ marginBottom: 0 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span className="mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue)' }}>
+                {fa.productCode}
+              </span>
+              <h1 style={{ fontSize: 18, fontWeight: 600 }}>{fa.productName ?? fa.productCode}</h1>
+              {statusBadge(fa.statusOverall, labels)}
+              {fa.built ? (
+                <span className="badge badge-blue" data-testid="fa-detail-built">
+                  ⚡ {labels.built}
+                </span>
+              ) : null}
+            </div>
+            <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>{labels.subtitle}</p>
+          </div>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <span className="font-mono text-lg font-bold tracking-tight text-blue-700">
-            {fa.productCode}
-          </span>
-          <h1 className="text-xl font-semibold text-slate-950">
-            {fa.productName ?? fa.productCode}
-          </h1>
-          {statusBadge(fa.statusOverall, labels)}
-          {fa.built ? (
-            <Badge tone="info" data-testid="fa-detail-built">
-              {'⚡ '}
-              {labels.built}
-            </Badge>
-          ) : null}
-        </div>
-        <p className="mt-2 text-sm text-slate-600">{labels.subtitle}</p>
       </section>
 
       <FaTabs

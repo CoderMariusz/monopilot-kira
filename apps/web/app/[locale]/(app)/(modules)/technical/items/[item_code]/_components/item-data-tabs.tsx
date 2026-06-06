@@ -22,6 +22,7 @@ import type {
   LabTabData,
   D365TabData,
 } from '../_actions/tab-data';
+import type { SupplierSpecsData } from '../_actions/list-supplier-specs';
 
 // ── shared label bundles ──────────────────────────────────────────────────────
 export type TabStateLabels = { loading: string; empty: string; emptyBody: string; error: string };
@@ -59,6 +60,24 @@ const D365_STATUS_TONE: Record<string, string> = {
   drift: 'badge-amber',
   error: 'badge-red',
   unsynced: 'badge-gray',
+};
+const SUPPLIER_STATUS_TONE: Record<string, string> = {
+  pending: 'badge-gray',
+  approved: 'badge-green',
+  blocked: 'badge-red',
+};
+const SUPPLIER_LIFECYCLE_TONE: Record<string, string> = {
+  draft: 'badge-gray',
+  active: 'badge-green',
+  expired: 'badge-amber',
+  superseded: 'badge-gray',
+  blocked: 'badge-red',
+};
+const SUPPLIER_REVIEW_TONE: Record<string, string> = {
+  pending: 'badge-gray',
+  approved: 'badge-green',
+  rejected: 'badge-red',
+  blocked: 'badge-red',
 };
 
 // Section header inside a padding-0 card (prototype `padding: "10px 14px"` +
@@ -383,13 +402,85 @@ function DRow({
   );
 }
 
-// ── Supplier-specs tab (honest stub — no API yet) ─────────────────────────────
-export type SupplierTabLabels = { title: string; pending: string; pendingBody: string };
+// ── Supplier-specs tab (read-only) ────────────────────────────────────────────
+export type SupplierTabLabels = TabStateLabels & {
+  title: string;
+  supplier: string;
+  supplierStatus: string;
+  lifecycleStatus: string;
+  reviewStatus: string;
+  specVersion: string;
+  effectiveFrom: string;
+  expiryDate: string;
+  documents: string;
+  none: string;
+  document: string;
+  certificates: string;
+};
 
-export function SupplierSpecsTab({ labels }: { labels: SupplierTabLabels }) {
+export function SupplierSpecsTab({ data, labels }: { data: SupplierSpecsData; labels: SupplierTabLabels }) {
+  if (data.state === 'error') return <ErrorCard message={labels.error} />;
+  if (data.state === 'empty') return <EmptyCard icon="📄" title={labels.empty} body={labels.emptyBody} />;
+
   return (
-    <div data-testid="supplier-specs-tab">
-      <EmptyCard icon="📄" title={labels.pending} body={labels.pendingBody} />
+    <div className="card" style={{ padding: 0, overflowX: 'auto' }} data-testid="supplier-specs-tab">
+      <div className="card-head" style={SECTION_HEAD}>
+        <strong>{labels.title}</strong>
+      </div>
+      <table aria-label={labels.title}>
+        <thead>
+          <tr>
+            <th scope="col">{labels.supplier}</th>
+            <th scope="col">{labels.supplierStatus}</th>
+            <th scope="col">{labels.lifecycleStatus}</th>
+            <th scope="col">{labels.reviewStatus}</th>
+            <th scope="col">{labels.specVersion}</th>
+            <th scope="col">{labels.effectiveFrom}</th>
+            <th scope="col">{labels.expiryDate}</th>
+            <th scope="col">{labels.documents}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.specs.map((spec) => (
+            <tr key={spec.id}>
+              <td className="mono">{spec.supplierCode}</td>
+              <td>
+                <span className={`badge ${SUPPLIER_STATUS_TONE[spec.supplierStatus] ?? 'badge-gray'}`}>
+                  {spec.supplierStatus}
+                </span>
+              </td>
+              <td>
+                <span className={`badge ${SUPPLIER_LIFECYCLE_TONE[spec.lifecycleStatus] ?? 'badge-gray'}`}>
+                  {spec.lifecycleStatus}
+                </span>
+              </td>
+              <td>
+                <span className={`badge ${SUPPLIER_REVIEW_TONE[spec.reviewStatus] ?? 'badge-gray'}`}>
+                  {spec.reviewStatus}
+                </span>
+              </td>
+              <td className="mono">{spec.specVersion}</td>
+              <td className="mono">{fmtDate(spec.effectiveFrom, labels.none)}</td>
+              <td className="mono">{fmtDate(spec.expiryDate, labels.none)}</td>
+              <td>
+                <div className="flex flex-wrap gap-1">
+                  {spec.specDocumentUrl ? (
+                    <a className="badge badge-blue" href={spec.specDocumentUrl}>
+                      {labels.document}
+                    </a>
+                  ) : null}
+                  {spec.certificateRefs.length > 0 ? (
+                    <span className="badge badge-gray">
+                      {labels.certificates}: {spec.certificateRefs.length}
+                    </span>
+                  ) : null}
+                  {!spec.specDocumentUrl && spec.certificateRefs.length === 0 ? labels.none : null}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

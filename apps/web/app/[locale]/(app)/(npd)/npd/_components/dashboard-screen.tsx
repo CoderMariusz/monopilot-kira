@@ -21,8 +21,6 @@
 
 import React from 'react';
 
-import { Badge } from '@monopilot/ui/Badge';
-import { Card, CardContent } from '@monopilot/ui/Card';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import {
   Table,
@@ -186,40 +184,50 @@ function AlertBadge({
   labels: DashboardScreenLabels;
 }) {
   if (level === 'RED') {
-    return <Badge variant="danger">● {labels.alertRed}</Badge>;
+    return (
+      <span data-slot="badge" className="badge badge-red">
+        ● {labels.alertRed}
+      </span>
+    );
   }
   if (level === 'YELLOW') {
-    return <Badge variant="warning">● {labels.alertAmber}</Badge>;
+    return (
+      <span data-slot="badge" className="badge badge-amber">
+        ● {labels.alertAmber}
+      </span>
+    );
   }
-  return <Badge variant="success">● {labels.alertGreen}</Badge>;
+  return (
+    <span data-slot="badge" className="badge badge-green">
+      ● {labels.alertGreen}
+    </span>
+  );
 }
 
+/**
+ * Design-system KPI tile (`.kpi` + tone) — 1px border, 6px radius, 3px coloured
+ * bottom accent, value Inter 26/700 (never mono). `data-slot="card"` is preserved
+ * for the parity test that counts the four KPI cards.
+ */
 function KpiCard({
   title,
   hint,
   value,
   accentClassName,
-  valueClassName,
 }: {
   title: string;
   hint: string;
   value: number;
   accentClassName: string;
-  valueClassName?: string;
 }) {
   return (
-    <Card className={`m-0 border-b-[3px] ${accentClassName}`}>
-      <CardContent className="p-3">
-        <div className="text-[11px] text-slate-500">{title}</div>
-        <div
-          data-counter-value={title}
-          className={`text-2xl font-bold tabular-nums ${valueClassName ?? ''}`}
-        >
-          {value}
-        </div>
-        <div className="text-[11px] text-slate-500">{hint}</div>
-      </CardContent>
-    </Card>
+    <div data-slot="card" className={`kpi ${accentClassName}`}>
+      <div className="kpi-label">{title}</div>
+      <div data-counter-value={title} className="kpi-value">
+        {value}
+      </div>
+      <div className="kpi-change muted">{hint}</div>
+    </div>
   );
 }
 
@@ -232,21 +240,21 @@ function StateNotice({
 }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.forbidden}
       </div>
     );
@@ -278,8 +286,8 @@ export function DashboardScreen({
   // Permission-denied / error / loading short-circuit the data regions.
   if (state === 'permission_denied' || state === 'error' || state === 'loading') {
     return (
-      <section data-prototype-anchor={ANCHOR} className="p-6">
-        <nav aria-label="Breadcrumb" className="mb-3 text-xs text-slate-500">
+      <section data-prototype-anchor={ANCHOR}>
+        <nav aria-label="Breadcrumb" className="breadcrumb">
           {labels.breadcrumbRoot} / {labels.breadcrumbCurrent}
         </nav>
         <StateNotice state={state} labels={labels} />
@@ -288,34 +296,26 @@ export function DashboardScreen({
   }
 
   return (
-    <section data-prototype-anchor={ANCHOR} className="space-y-3.5 p-4">
-      <nav aria-label="Breadcrumb" className="text-xs text-slate-500">
+    <section data-prototype-anchor={ANCHOR}>
+      <nav aria-label="Breadcrumb" className="breadcrumb">
         {labels.breadcrumbRoot} / {labels.breadcrumbCurrent}
       </nav>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="page-head">
         <div>
-          <h1 className="text-xl font-semibold text-slate-950">{labels.title}</h1>
-          <p className="text-xs text-slate-500">{labels.subtitle}</p>
+          <h1 className="page-title">{labels.title}</h1>
+          <p className="muted" style={{ fontSize: 12 }}>
+            {labels.subtitle}
+          </p>
         </div>
         <div className="flex gap-2">
           {canRefresh ? (
-            <button
-              type="button"
-              data-slot="button"
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              onClick={onRefreshD365}
-            >
+            <button type="button" data-slot="button" className="btn btn-secondary" onClick={onRefreshD365}>
               ↻ {labels.refreshD365}
             </button>
           ) : null}
           {canCreate ? (
-            <button
-              type="button"
-              data-slot="button"
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-              onClick={onCreateFa}
-            >
+            <button type="button" data-slot="button" className="btn btn-primary" onClick={onCreateFa}>
               + {labels.createFa}
             </button>
           ) : null}
@@ -323,48 +323,41 @@ export function DashboardScreen({
       </div>
 
       {/* KPI row — §11.1 / §11.2 */}
-      <section
-        aria-label="Dashboard KPI summary counters"
-        className="grid grid-cols-2 gap-2.5 md:grid-cols-4"
-      >
+      <section aria-label="Dashboard KPI summary counters" className="kpi-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <KpiCard
           title={labels.kpiTotalActive}
           hint={labels.kpiTotalActiveHint}
           value={summary.totalActive}
-          accentClassName="border-b-blue-500"
+          accentClassName=""
         />
         <KpiCard
           title={labels.kpiComplete}
           hint={labels.kpiCompleteHint}
           value={summary.fullyComplete}
-          accentClassName="border-b-green-500"
-          valueClassName="text-green-700"
+          accentClassName="green"
         />
         <KpiCard
           title={labels.kpiInProgress}
           hint={labels.kpiInProgressHint}
           value={summary.inProgress}
-          accentClassName="border-b-amber-500"
-          valueClassName="text-amber-700"
+          accentClassName="amber"
         />
         <KpiCard
           title={labels.kpiBuilt}
           hint={labels.kpiBuiltHint}
           value={summary.totalBuilt}
-          accentClassName="border-b-blue-500"
-          valueClassName="text-blue-700"
+          accentClassName=""
         />
       </section>
 
       {/* Department progress + alert legend — §11.1 */}
       <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
-        <Card>
-          <CardContent className="p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">
-                {labels.deptProgressTitle}
-              </h2>
-              <span className="text-[11px] text-slate-500">{labels.deptProgressSubtitle}</span>
+        <div data-slot="card" className="card">
+            <div className="card-head">
+              <h2 className="card-title">{labels.deptProgressTitle}</h2>
+              <span className="muted" style={{ fontSize: 11 }}>
+                {labels.deptProgressSubtitle}
+              </span>
             </div>
             <Table aria-label={labels.deptProgressTitle}>
               <TableHeader>
@@ -420,30 +413,36 @@ export function DashboardScreen({
                 })}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+        </div>
 
-        <Card>
-          <CardContent className="p-3">
-            <h2 className="mb-2.5 text-sm font-semibold text-slate-900">{labels.legendTitle}</h2>
-            <div className="space-y-1.5 text-xs leading-relaxed">
+        <div data-slot="card" className="card">
+            <h2 className="card-title" style={{ marginBottom: 10 }}>
+              {labels.legendTitle}
+            </h2>
+            <div className="space-y-1.5" style={{ fontSize: 12, lineHeight: 1.6 }}>
               <div className="flex items-center gap-2">
-                <Badge variant="danger">{labels.alertRed}</Badge>
+                <span data-slot="badge" className="badge badge-red">
+                  {labels.alertRed}
+                </span>
                 <span>{labels.legendRed}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="warning">{labels.alertAmber}</Badge>
+                <span data-slot="badge" className="badge badge-amber">
+                  {labels.alertAmber}
+                </span>
                 <span>{labels.legendAmber}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="success">{labels.alertGreen}</Badge>
+                <span data-slot="badge" className="badge badge-green">
+                  {labels.alertGreen}
+                </span>
                 <span>{labels.legendGreen}</span>
               </div>
             </div>
-            <div className="mt-3.5 rounded-md border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-900">
+            <div className="alert alert-blue" style={{ marginTop: 12 }}>
               {labels.legendNote}
             </div>
-            <label className="mt-2.5 flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-2" style={{ marginTop: 10, fontSize: 12 }}>
               <Checkbox
                 checked={showBuilt}
                 onCheckedChange={setShowBuilt}
@@ -451,24 +450,22 @@ export function DashboardScreen({
               />
               {labels.showBuilt}
             </label>
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Launch alerts table — §11.1 / §11.3 */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">{labels.alertsTitle}</h2>
-            <span className="text-[11px] text-slate-500">{labels.alertsSubtitle}</span>
+      <div data-slot="card" className="card">
+          <div className="card-head">
+            <h2 className="card-title">{labels.alertsTitle}</h2>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {labels.alertsSubtitle}
+            </span>
           </div>
           {state === 'empty' || rows.length === 0 ? (
-            <div
-              data-testid="dashboard-empty"
-              className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-8 text-center"
-            >
-              <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-              <p className="mt-1 text-xs text-slate-500">{labels.emptyBody}</p>
+            <div data-testid="dashboard-empty" className="empty-state">
+              <div className="empty-state-icon">💡</div>
+              <div className="empty-state-title">{labels.empty}</div>
+              <div className="empty-state-body">{labels.emptyBody}</div>
             </div>
           ) : (
             <Table aria-label={labels.alertsTitle}>
@@ -501,17 +498,14 @@ export function DashboardScreen({
                         : 'border-l-4 border-l-transparent';
                   return (
                     <TableRow key={a.productCode} className={`${rowTone} ${borderTone}`}>
-                      <TableCell>
-                        <a
-                          className="font-mono text-blue-600 hover:underline"
-                          href={`/fa/${encodeURIComponent(a.productCode)}`}
-                        >
+                      <TableCell className="mono">
+                        <a style={{ color: 'var(--blue)' }} href={`/fa/${encodeURIComponent(a.productCode)}`}>
                           {a.productCode}
                         </a>
                       </TableCell>
-                      <TableCell className="font-medium">{a.productName ?? '—'}</TableCell>
-                      <TableCell className="font-mono">
-                        {a.launchDate ?? <span className="text-slate-500">{labels.noDate}</span>}
+                      <TableCell style={{ fontWeight: 500 }}>{a.productName ?? '—'}</TableCell>
+                      <TableCell className="mono">
+                        {a.launchDate ?? <span className="muted">{labels.noDate}</span>}
                       </TableCell>
                       <TableCell>
                         <DaysLeftCell days={a.daysLeft} noDate={labels.noDate} />
@@ -519,14 +513,11 @@ export function DashboardScreen({
                       <TableCell>
                         <AlertBadge level={a.alertLevel} labels={labels} />
                       </TableCell>
-                      <TableCell className="text-xs text-slate-500">
+                      <TableCell className="muted" style={{ fontSize: 12 }}>
                         {a.missingData ?? '—'}
                       </TableCell>
                       <TableCell>
-                        <a
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          href={`/fa/${encodeURIComponent(a.productCode)}`}
-                        >
+                        <a className="btn btn-secondary btn-sm" href={`/fa/${encodeURIComponent(a.productCode)}`}>
                           {labels.openFa} →
                         </a>
                       </TableCell>
@@ -536,8 +527,7 @@ export function DashboardScreen({
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* T-134 composition slot — T-133 Dashboard Pipeline preview region. */}
       {pipelinePreview}

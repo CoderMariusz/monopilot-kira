@@ -30,10 +30,7 @@
  */
 
 import React from 'react';
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card } from '@monopilot/ui/Card';
-import { EmptyState } from '@monopilot/ui/EmptyState';
 
 import {
   CRITERIA_ORDER,
@@ -101,21 +98,21 @@ export type ApprovalLabels = CriteriaLabels &
 function StateNotice({ state, labels }: { state: PageState; labels: ApprovalLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" data-testid="approval-loading" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" data-testid="approval-loading" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" data-testid="approval-error" className="p-6 text-sm text-red-700">
+      <div role="alert" data-testid="approval-error" className="alert alert-red">
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" data-testid="approval-forbidden" className="p-6 text-sm text-red-700">
+      <div role="alert" data-testid="approval-forbidden" className="alert alert-red">
         {labels.forbidden}
       </div>
     );
@@ -127,21 +124,21 @@ function stepStatusBadge(status: ChainStepStatus, labels: ApprovalLabels): React
   switch (status) {
     case 'done':
       return (
-        <Badge variant="success" aria-label={labels.stepDone}>
+        <span data-slot="badge" className="badge badge-green" aria-label={labels.stepDone}>
           <span aria-hidden="true">✓</span> {labels.stepDone}
-        </Badge>
+        </span>
       );
     case 'current':
       return (
-        <Badge variant="warning" aria-label={labels.stepCurrent}>
+        <span data-slot="badge" className="badge badge-amber" aria-label={labels.stepCurrent}>
           <span aria-hidden="true">⌛</span> {labels.stepCurrent}
-        </Badge>
+        </span>
       );
     default:
       return (
-        <Badge variant="secondary" aria-label={labels.stepPending}>
+        <span data-slot="badge" className="badge badge-gray" aria-label={labels.stepPending}>
           <span aria-hidden="true">○</span> {labels.stepPending}
-        </Badge>
+        </span>
       );
   }
 }
@@ -181,12 +178,20 @@ export function ApprovalScreen({
       <main
         data-testid="approval-screen"
         aria-labelledby="approval-title"
-        className="mx-auto w-full max-w-4xl space-y-4 p-6"
+        className="mx-auto w-full max-w-4xl"
       >
         <h1 id="approval-title" className="sr-only">
           {labels.title}
         </h1>
-        <EmptyState icon={<span aria-hidden="true">✓</span>} title={labels.empty} body={labels.emptyBody} action={<span />} />
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon" aria-hidden="true">
+              ✓
+            </div>
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">{labels.emptyBody}</div>
+          </div>
+        </div>
       </main>
     );
   }
@@ -195,29 +200,27 @@ export function ApprovalScreen({
   const canSubmit = counts.allSatisfied;
 
   return (
-    <main
-      data-testid="approval-screen"
-      aria-labelledby="approval-title"
-      className="mx-auto w-full max-w-4xl space-y-4 p-6"
-    >
-      <header>
-        <nav aria-label="breadcrumb" className="text-xs text-slate-500">
-          NPD / {data.projectCode} / {labels.title}
-        </nav>
-        <h1 id="approval-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
-          {data.projectName}
-        </h1>
+    <main data-testid="approval-screen" aria-labelledby="approval-title" className="mx-auto w-full max-w-4xl">
+      <nav aria-label="breadcrumb" className="breadcrumb">
+        NPD / {data.projectCode} / {labels.title}
+      </nav>
+      <header className="page-head">
+        <div>
+          <h1 id="approval-title" className="page-title">
+            {data.projectName}
+          </h1>
+        </div>
       </header>
 
       {/* Card 1 — 7-criteria gates summary */}
       <CriteriaCard criteria={data.criteria} labels={labels} />
 
       {/* Card 2 — approval chain status + Submit-for-approval CTA */}
-      <Card data-testid="approval-chain-card" className="space-y-3 p-4">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-950">
+      <div data-slot="card" data-testid="approval-chain-card" className="card">
+        <div className="card-head">
+          <h2 className="card-title" style={{ margin: 0 }}>
             {labels.chainTitle}{' '}
-            <span className="text-sm font-normal text-slate-500">
+            <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
               {data.approvalMode === 'multi' ? labels.chainMulti : labels.chainSingle}
             </span>
           </h2>
@@ -225,6 +228,7 @@ export function ApprovalScreen({
             <span>
               <Button
                 type="button"
+                className="btn-primary btn-sm"
                 data-testid="submit-for-approval"
                 disabled={!canSubmit}
                 aria-describedby={!canSubmit ? 'submit-blocked-hint' : undefined}
@@ -239,38 +243,52 @@ export function ApprovalScreen({
               ) : null}
             </span>
           ) : null}
-        </header>
+        </div>
 
         {!canSubmit ? (
-          <p role="note" data-testid="submit-blocked-note" className="text-xs text-amber-700">
+          <p role="note" data-testid="submit-blocked-note" className="alert alert-amber" style={{ fontSize: 12 }}>
             <span aria-hidden="true">⚠</span> {labels.submitBlocked}
           </p>
         ) : null}
 
-        <ol className="list-none space-y-2 p-0" data-testid="approval-chain-steps">
+        <ol className="list-none p-0" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="approval-chain-steps">
           {data.steps.map((step, index) => (
             <li
               key={`${step.who}-${index}`}
               data-testid={`chain-step-${index}`}
               data-status={step.status}
-              className={[
-                'flex items-center gap-3 rounded-md border p-2.5',
-                step.status === 'current'
-                  ? 'border-amber-200 bg-amber-50'
-                  : step.status === 'done'
-                    ? 'border-emerald-200 bg-emerald-50'
-                    : 'border-slate-200 bg-slate-50',
-              ].join(' ')}
+              className="flex items-center gap-3"
+              style={{
+                padding: 10,
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
+                background:
+                  step.status === 'current'
+                    ? 'var(--amber-050a)'
+                    : step.status === 'done'
+                      ? 'var(--green-050a)'
+                      : 'var(--gray-050)',
+              }}
             >
               <span
                 aria-hidden="true"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-600 ring-1 ring-slate-200"
+                className="flex shrink-0 items-center justify-center mono"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)',
+                }}
               >
                 {step.status === 'done' ? '✓' : index + 1}
               </span>
               <div className="flex-1">
-                <div className="text-sm font-medium text-slate-900">{step.who}</div>
-                <div className="text-xs text-slate-500">
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{step.who}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
                   {[step.name, step.when].filter(Boolean).join(' · ') || '—'}
                 </div>
               </div>
@@ -278,7 +296,7 @@ export function ApprovalScreen({
             </li>
           ))}
         </ol>
-      </Card>
+      </div>
 
       {canApprove && modalOpen ? (
         <GateApprovalModal

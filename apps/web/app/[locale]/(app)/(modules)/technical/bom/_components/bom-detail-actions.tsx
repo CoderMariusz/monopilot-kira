@@ -21,10 +21,8 @@
  * Real data — NO mocks. Clone-on-write: Add component / Save version always create
  * a NEW draft via createBomDraft; released rows are never mutated in place.
  *
- * NOTE (backend gap, reported to the orchestrator): there is NO BOM-version DELETE
- * Server Action in the codebase (only getVersionDeleteGuard, a read-only guard).
- * The Delete CTA is therefore intentionally NOT rendered here — wiring it would
- * require faking a mutation, which the protocol forbids.
+ * Delete version calls the real deleteBomVersion Server Action. The action is
+ * server-authoritative for draft-only, only-version, and snapshot guards.
  */
 
 import React from 'react';

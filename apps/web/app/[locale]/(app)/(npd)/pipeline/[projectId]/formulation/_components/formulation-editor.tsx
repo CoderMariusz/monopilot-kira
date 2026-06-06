@@ -299,30 +299,31 @@ function parseYield(value: string | null | undefined): number {
 function StateNotice({ state, labels }: { state: PageState; labels: FormulationLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-md border p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="card empty-state">
         {labels.loading}
       </div>
     );
   }
   if (state === 'empty') {
     return (
-      <div className="rounded-md border border-dashed p-8 text-center">
-        <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-        <p className="mt-1 text-sm text-slate-500">{labels.emptyBody}</p>
+      <div className="card empty-state">
+        <div className="empty-state-icon" aria-hidden="true">🧪</div>
+        <div className="empty-state-title">{labels.empty}</div>
+        <div className="empty-state-body">{labels.emptyBody}</div>
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.error}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.error}</div>
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {labels.forbidden}
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.forbidden}</div>
       </div>
     );
   }
@@ -588,25 +589,25 @@ export function FormulationEditor({
       aria-labelledby="formulation-title"
       className="mx-auto w-full max-w-6xl space-y-3 p-6"
     >
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-3" data-region="toolbar">
+      <header className="card flex flex-wrap items-center justify-between gap-4" data-region="toolbar">
         <div className="flex flex-wrap items-center gap-5">
           <div>
-            <div className="text-[10px] uppercase tracking-wide text-slate-500">{labels.title}</div>
-            <div id="formulation-title" className="font-semibold text-slate-950">
-              {data?.productCode ?? '—'}
-              {data ? ` · v${data.versionNumber} ${data.state}` : ''}
+            <div className="text-[10px] uppercase tracking-wide muted">{labels.title}</div>
+            <div id="formulation-title" className="font-semibold">
+              <span className="mono">{data?.productCode ?? '—'}</span>
+              {data ? <> · v{data.versionNumber} {data.state}</> : null}
             </div>
           </div>
 
           <div>
-            <label htmlFor="batch-size" className="block text-[10px] uppercase tracking-wide text-slate-500">
+            <label htmlFor="batch-size" className="block text-[10px] uppercase tracking-wide muted">
               {labels.batchSize}
             </label>
             <Input
               id="batch-size"
               type="number"
               step="0.01"
-              className="w-24"
+              className="form-input w-24"
               value={batchKg}
               disabled={!editable}
               onChange={(e) => setBatchKg(e.target.value)}
@@ -614,13 +615,13 @@ export function FormulationEditor({
           </div>
 
           <div>
-            <label htmlFor="target-price" className="block text-[10px] uppercase tracking-wide text-slate-500">
+            <label htmlFor="target-price" className="block text-[10px] uppercase tracking-wide muted">
               {labels.targetPrice}
             </label>
             <Input
               id="target-price"
               inputMode="decimal"
-              className="w-24"
+              className="form-input w-24"
               value={targetPrice}
               disabled={!editable}
               onChange={(e) => setTargetPrice(e.target.value)}
@@ -628,7 +629,7 @@ export function FormulationEditor({
           </div>
 
           <div>
-            <span className="block text-[10px] uppercase tracking-wide text-slate-500">{labels.version}</span>
+            <span className="block text-[10px] uppercase tracking-wide muted">{labels.version}</span>
             <Select
               value={versionId}
               onValueChange={setVersionId}
@@ -650,26 +651,26 @@ export function FormulationEditor({
         </div>
 
         <div className="flex gap-2">
-          <Button type="button" className="btn--ghost" disabled={!data}>
+          <Button type="button" className="btn-ghost" disabled={!data}>
             {labels.compareVersions}
           </Button>
           <Button
             type="button"
-            className="btn--secondary"
+            className="btn-secondary"
             disabled={!editable}
             data-status={saveStatus}
             onClick={() => runSave()}
           >
             {saveLabel}
           </Button>
-          <Button type="button" disabled={!editable || !balanced}>
-            {labels.submitForTrial}
+          <Button type="button" className="btn-primary" disabled={!editable || !balanced}>
+            {`${labels.submitForTrial} →`}
           </Button>
         </div>
       </header>
 
       {locked ? (
-        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div role="alert" className="alert alert-amber">
           {labels.locked}
         </div>
       ) : null}
@@ -686,7 +687,7 @@ export function FormulationEditor({
               </div>
               <Button
                 type="button"
-                className="btn--secondary"
+                className="btn-secondary btn-sm"
                 disabled={!editable}
                 aria-label={labels.addIngredient}
                 onClick={handleAdd}
@@ -730,16 +731,16 @@ export function FormulationEditor({
                       onDelete={handleDelete}
                     />
                   ))}
-                  <TableRow data-testid="total-row" className="font-medium">
+                  <TableRow data-testid="total-row" className="font-semibold">
                     <TableCell>{labels.total}</TableCell>
                     <TableCell
-                      className={['text-right font-mono', balanced ? 'text-emerald-600' : 'text-red-600'].join(' ')}
+                      className={['text-right mono', balanced ? 'text-emerald-600' : 'text-red-600'].join(' ')}
                       data-testid="total-pct"
                     >
                       {`${total}%`}
                     </TableCell>
-                    <TableCell className="text-right text-slate-400">—</TableCell>
-                    <TableCell className="text-right font-mono" data-testid="total-cost">
+                    <TableCell className="text-right muted">—</TableCell>
+                    <TableCell className="text-right mono" data-testid="total-cost">
                       {`${cost} €`}
                     </TableCell>
                     <TableCell />
@@ -752,7 +753,7 @@ export function FormulationEditor({
                 <div
                   role="alert"
                   data-testid="total-pct-warning"
-                  className="m-2.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800"
+                  className="alert alert-amber m-2.5"
                 >
                   {labels.totalPctWarning.replace('{pct}', total)}
                 </div>
@@ -768,7 +769,7 @@ export function FormulationEditor({
                 />
               ) : (
                 <div className="px-3.5 pb-4 pt-3">
-                  <div className="mb-1.5 text-[10px] uppercase tracking-wide text-slate-500">
+                  <div className="mb-1.5 text-[10px] uppercase tracking-wide muted">
                     {labels.composition}
                   </div>
                   <div
@@ -809,7 +810,7 @@ export function FormulationEditor({
           </Card>
 
           <aside className="space-y-3" data-testid="live-panels" aria-label={labels.livePanels}>
-            <p className="text-xs text-slate-500">{labels.livePanelsHint}</p>
+            <p className="text-xs muted">{labels.livePanelsHint}</p>
             {panelLabels ? (
               <>
                 {/* Sidebar order Nutrition → Cost → Allergen (recipe.jsx:253-258).

@@ -70,7 +70,7 @@ export function FaRightPanelActions({
     <div className="grid gap-2" data-slot="fa-right-panel-actions">
       <Button
         type="button"
-        className="justify-center"
+        className="btn-secondary btn-sm justify-center"
         disabled={deptCloseDisabled}
         aria-disabled={deptCloseDisabled}
         data-testid="fa-right-panel-action-deptClose"
@@ -81,7 +81,7 @@ export function FaRightPanelActions({
       </Button>
       <Button
         type="button"
-        className="justify-center"
+        className="btn-primary btn-sm justify-center"
         disabled={d365Disabled}
         aria-disabled={d365Disabled}
         data-testid="fa-right-panel-action-d365Build"

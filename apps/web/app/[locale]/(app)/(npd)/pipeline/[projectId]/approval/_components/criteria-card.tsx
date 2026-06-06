@@ -22,8 +22,6 @@
  */
 
 import React from 'react';
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
-import { Card } from '@monopilot/ui/Card';
 
 export type ApprovalCriterionKey = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7';
 export type ApprovalCriterionStatus = 'pass' | 'warn' | 'pending' | 'not_required';
@@ -66,16 +64,17 @@ function criterionDetail(key: ApprovalCriterionKey, labels: CriteriaLabels): str
   return labels[`${key.toLowerCase() as 'c1'}Detail` as keyof CriteriaLabels] as string;
 }
 
-function statusVariant(status: ApprovalCriterionStatus): BadgeVariant {
+/** Design-system 5-tone badge class (globals `.badge-*`). */
+function statusBadgeTone(status: ApprovalCriterionStatus): string {
   switch (status) {
     case 'pass':
-      return 'success';
+      return 'badge-green';
     case 'warn':
-      return 'warning';
+      return 'badge-amber';
     case 'not_required':
-      return 'muted';
+      return 'badge-gray';
     default:
-      return 'secondary';
+      return 'badge-gray';
   }
 }
 
@@ -136,9 +135,15 @@ export function tallyCriteria(
 function StatusBadge({ status, labels }: { status: ApprovalCriterionStatus; labels: CriteriaLabels }) {
   const label = statusLabel(status, labels);
   return (
-    <Badge variant={statusVariant(status)} data-testid="criterion-status-badge" data-status={status} aria-label={label}>
+    <span
+      data-slot="badge"
+      className={`badge ${statusBadgeTone(status)}`}
+      data-testid="criterion-status-badge"
+      data-status={status}
+      aria-label={label}
+    >
       <span aria-hidden="true">{statusGlyph(status)}</span> {label}
-    </Badge>
+    </span>
   );
 }
 
@@ -151,26 +156,30 @@ export function CriteriaCard({
 }) {
   const counts = tallyCriteria(criteria);
   return (
-    <Card data-testid="approval-gates-card" className="space-y-3 p-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div data-slot="card" data-testid="approval-gates-card" className="card">
+      <div className="card-head">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">{labels.title}</h2>
-          <p className="text-sm text-slate-600">{labels.subtitle}</p>
+          <h2 className="card-title" style={{ margin: 0 }}>
+            {labels.title}
+          </h2>
+          <p className="muted" style={{ fontSize: 12 }}>
+            {labels.subtitle}
+          </p>
         </div>
         <div className="flex flex-wrap gap-1.5" data-testid="criteria-counts">
-          <Badge variant="success" data-testid="count-pass">
+          <span data-slot="badge" className="badge badge-green" data-testid="count-pass">
             <span aria-hidden="true">✓</span> {labels.countPass.replace('{count}', String(counts.pass))}
-          </Badge>
-          <Badge variant="warning" data-testid="count-warn">
+          </span>
+          <span data-slot="badge" className="badge badge-amber" data-testid="count-warn">
             <span aria-hidden="true">!</span> {labels.countWarn.replace('{count}', String(counts.warn))}
-          </Badge>
-          <Badge variant="secondary" data-testid="count-pending">
+          </span>
+          <span data-slot="badge" className="badge badge-gray" data-testid="count-pending">
             <span aria-hidden="true">○</span> {labels.countPending.replace('{count}', String(counts.pending))}
-          </Badge>
+          </span>
         </div>
-      </header>
+      </div>
 
-      <ul className="list-none divide-y divide-slate-100 p-0">
+      <ul className="list-none p-0" style={{ margin: 0 }}>
         {CRITERIA_ORDER.map((key) => {
           const status = criteria[key];
           return (
@@ -179,36 +188,46 @@ export function CriteriaCard({
               data-testid={`criterion-row-${key}`}
               data-criterion={key}
               data-status={status}
-              className="flex items-center gap-3 py-2.5"
+              className="flex items-center gap-3"
+              style={{ padding: '10px 0', borderTop: '1px solid var(--border)' }}
             >
               <span
                 aria-hidden="true"
-                className={[
-                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                  status === 'pass'
-                    ? 'bg-emerald-600 text-white'
-                    : status === 'warn'
-                      ? 'bg-amber-500 text-white'
-                      : status === 'not_required'
-                        ? 'bg-slate-200 text-slate-500'
-                        : 'bg-slate-100 text-slate-400',
-                ].join(' ')}
+                className="flex shrink-0 items-center justify-center"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: status === 'not_required' || status === 'pending' ? 'var(--muted)' : '#fff',
+                  background:
+                    status === 'pass'
+                      ? 'var(--green)'
+                      : status === 'warn'
+                        ? 'var(--amber)'
+                        : 'var(--gray-100)',
+                }}
               >
                 {statusGlyph(status)}
               </span>
               <div className="flex-1">
-                <div className="text-sm font-medium text-slate-900">
-                  <span className="mr-1.5 font-mono text-xs text-slate-400">{key}</span>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>
+                  <span className="mono muted" style={{ marginRight: 6 }}>
+                    {key}
+                  </span>
                   {criterionName(key, labels)}
                 </div>
-                <div className="text-xs text-slate-500">{criterionDetail(key, labels)}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {criterionDetail(key, labels)}
+                </div>
               </div>
               <StatusBadge status={status} labels={labels} />
             </li>
           );
         })}
       </ul>
-    </Card>
+    </div>
   );
 }
 

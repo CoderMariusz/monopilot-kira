@@ -142,14 +142,17 @@ export function ProjectDetailPanel({ project, labels }: ProjectDetailPanelProps)
                 aria-valuenow={progress}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="h-2 flex-1 overflow-hidden rounded bg-slate-100"
+                style={{ flex: 1, height: 8, background: 'var(--gray-100)', borderRadius: 4, overflow: 'hidden' }}
               >
                 <div
-                  className={progress >= 90 ? 'h-full bg-green-500' : 'h-full bg-blue-500'}
-                  style={{ width: `${progress}%` }}
+                  style={{
+                    width: `${progress}%`,
+                    height: '100%',
+                    background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
+                  }}
                 />
               </div>
-              <span className="font-mono text-xs text-slate-700">{progress}%</span>
+              <span className="mono" style={{ fontSize: 12 }}>{progress}%</span>
             </div>
           </div>
 
@@ -164,7 +167,7 @@ export function ProjectDetailPanel({ project, labels }: ProjectDetailPanelProps)
             href={`/pipeline/${project.id}`}
             prefetch
             data-slot="button"
-            className="btn flex w-full items-center justify-center"
+            className="btn btn-primary flex w-full items-center justify-center"
           >
             {labels.openProject}
           </Link>

@@ -234,10 +234,12 @@ function SelectNativeFallback({
 export interface SelectTriggerProps {
   className?: string;
   children?: React.ReactNode;
+  /** Optional explicit id (e.g. for an external `<label htmlFor>`); falls back to the auto trigger id. */
+  id?: string;
   'aria-label'?: string;
 }
 
-export function SelectTrigger({ className, children, ...aria }: SelectTriggerProps) {
+export function SelectTrigger({ className, children, id, ...aria }: SelectTriggerProps) {
   const ctx = React.useContext(SelectCtx);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -270,7 +272,7 @@ export function SelectTrigger({ className, children, ...aria }: SelectTriggerPro
       ref={ctx?.triggerRef}
       type="button"
       role="combobox"
-      id={ctx?.triggerId}
+      id={id ?? ctx?.triggerId}
       aria-expanded={ctx?.open ? 'true' : 'false'}
       aria-haspopup="listbox"
       aria-controls={ctx?.open ? ctx?.contentId : undefined}

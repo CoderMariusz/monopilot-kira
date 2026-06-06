@@ -105,6 +105,9 @@ const LABELS: FaListLabels = {
   emptyBody: 'lbl.emptyBody',
   error: 'lbl.error',
   forbidden: 'lbl.forbidden',
+  viewTable: 'lbl.viewTable',
+  viewKanban: 'lbl.viewKanban',
+  kanbanDepts: 'lbl.kanbanDepts',
 };
 
 function renderTable(overrides: Partial<React.ComponentProps<typeof FaListTable>> = {}) {
@@ -153,14 +156,14 @@ describe('FaListTable — prototype parity (fa-screens.jsx:177-297)', () => {
     renderTable();
     // Toolbar region present
     expect(screen.getByRole('group', { name: LABELS.title })).toBeInTheDocument();
-    // shadcn Select (combobox) for dept + status — NO raw <select>
+    // styled @monopilot/ui Select (combobox) for dept + status — NO raw <select>
     const combos = screen.getAllByRole('combobox');
     expect(combos.length).toBeGreaterThanOrEqual(2);
     expect(document.querySelector('select')).toBeNull();
-    // shadcn Table primitive
-    expect(document.querySelector('[data-slot="table"]')).not.toBeNull();
-    // shadcn Badge for status pill
-    expect(document.querySelector('[data-slot="badge"]')).not.toBeNull();
+    // Design-system dense .table (prototype uses a plain <table>, not a heavy card grid)
+    expect(document.querySelector('table.table')).not.toBeNull();
+    // 5-tone design-system status badge (.badge-*) — NOT the unstyled .badge--<variant>
+    expect(document.querySelector('.badge.badge-green, .badge.badge-blue, .badge.badge-gray')).not.toBeNull();
   });
 
   it('renders a status pill (shadcn Badge) per row mapped from status_overall', () => {
@@ -195,6 +198,54 @@ describe('FaListTable — required UI states', () => {
   it('populated: renders one row per product', () => {
     renderTable();
     expect(screen.getAllByTestId(/^fa-list-row-/)).toHaveLength(ROWS.length);
+  });
+});
+
+describe('FaListTable — design-system parity (overnight sweep NPD-L1)', () => {
+  it('uses the design-system chrome: .breadcrumb, .page-title, .card, dense .table', () => {
+    renderTable();
+    expect(document.querySelector('.breadcrumb')).not.toBeNull();
+    expect(document.querySelector('.page-title')).not.toBeNull();
+    expect(document.querySelector('.card')).not.toBeNull();
+    expect(document.querySelector('table.table')).not.toBeNull();
+  });
+
+  it('Create FG CTA is a blue .btn-primary (NOT an unstyled/black button)', () => {
+    renderTable({ canCreate: true });
+    const btn = screen.getByRole('button', { name: LABELS.createFa });
+    expect(btn).toHaveClass('btn');
+    expect(btn).toHaveClass('btn-primary');
+  });
+
+  it('status pills use the design-system .badge-<tone> classes (not the dead .badge--<variant>)', () => {
+    renderTable();
+    const row = screen.getByTestId('fa-list-row-FA1001');
+    const badge = within(row).getByText(LABELS.statusComplete);
+    expect(badge).toHaveClass('badge');
+    expect(badge.className).toMatch(/badge-(green|blue|amber|red|gray)/);
+  });
+
+  it('row code cell leads with the mono product code', () => {
+    renderTable();
+    const row = screen.getByTestId('fa-list-row-FA1001');
+    const codeCell = row.querySelector('td.mono');
+    expect(codeCell).not.toBeNull();
+    expect(codeCell?.textContent).toContain('FA1001');
+  });
+
+  it('renders Table/Kanban view-toggle pills and switches to the Kanban board', async () => {
+    const { default: userEventMod } = await import('@testing-library/user-event');
+    const user = userEventMod.setup();
+    renderTable();
+    // pills present
+    const kanbanPill = screen.getByRole('button', { name: new RegExp(LABELS.viewKanban) });
+    expect(kanbanPill).toHaveClass('pill');
+    // default = table view
+    expect(screen.queryByTestId('fa-list-kanban')).toBeNull();
+    await user.click(kanbanPill);
+    // kanban board appears, cards lead with the mono code
+    expect(screen.getByTestId('fa-list-kanban')).toBeInTheDocument();
+    expect(screen.getByTestId('fa-kanban-card-FA1001')).toBeInTheDocument();
   });
 });
 

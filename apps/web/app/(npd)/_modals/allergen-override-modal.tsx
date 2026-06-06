@@ -128,105 +128,98 @@ export function AllergenOverrideModal({
       <Modal.Header title={`${labels.title}: ${allergenLabel}`} />
       <form onSubmit={handleSubmit} noValidate>
         <Modal.Body>
-          <div className="grid gap-4">
-            <p className="text-sm text-slate-600">{labels.subtitle}</p>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>{labels.subtitle}</div>
 
-            {/* Audit-trail warning (prototype amber alert). */}
-            <div
-              role="note"
-              data-testid="override-audit-alert"
-              className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
-            >
-              {labels.auditWarning}
+          {/* Audit-trail warning (prototype amber alert). */}
+          <div role="note" data-testid="override-audit-alert" className="alert alert-amber">
+            {labels.auditWarning}
+          </div>
+
+          {/* Allergen (read-only, preselected). */}
+          <div className="ff">
+            <label htmlFor="override-allergen">{labels.fieldAllergen}</label>
+            <input
+              id="override-allergen"
+              data-testid="override-allergen"
+              className="form-input"
+              value={allergenLabel}
+              readOnly
+              style={{ background: 'var(--gray-100)' }}
+            />
+          </div>
+
+          {/* Current auto-cascade status (read-only). */}
+          <div className="ff">
+            <label htmlFor="override-current">{labels.fieldCurrent}</label>
+            <input
+              id="override-current"
+              data-testid="override-current"
+              className="form-input"
+              value={currentLabel}
+              readOnly
+              style={{ background: 'var(--gray-100)' }}
+            />
+          </div>
+
+          {/* Action selector — two-button single-select (no raw <select>). */}
+          <div className="ff" role="group" aria-label={labels.fieldAction}>
+            <label>
+              {labels.fieldAction} <span className="req" aria-label="required">*</span>
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['add', 'remove'] as OverrideAction[]).map((value) => {
+                const selected = action === value;
+                return (
+                  <Button
+                    key={value}
+                    type="button"
+                    data-testid={`override-action-${value}`}
+                    aria-pressed={selected}
+                    className={`btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1 }}
+                    onClick={() => setAction(value)}
+                  >
+                    {value === 'add' ? labels.actionAdd : labels.actionRemove}
+                  </Button>
+                );
+              })}
             </div>
+          </div>
 
-            {/* Allergen (read-only, preselected). */}
-            <div className="grid gap-1">
-              <label htmlFor="override-allergen" className="text-sm font-medium text-slate-700">
-                {labels.fieldAllergen}
-              </label>
-              <input
-                id="override-allergen"
-                data-testid="override-allergen"
-                value={allergenLabel}
-                readOnly
-                className="rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700"
-              />
-            </div>
-
-            {/* Current auto-cascade status (read-only). */}
-            <div className="grid gap-1">
-              <label htmlFor="override-current" className="text-sm font-medium text-slate-700">
-                {labels.fieldCurrent}
-              </label>
-              <input
-                id="override-current"
-                data-testid="override-current"
-                value={currentLabel}
-                readOnly
-                className="rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700"
-              />
-            </div>
-
-            {/* Action selector — two-button single-select (no raw <select>). */}
-            <div className="grid gap-1" role="group" aria-label={labels.fieldAction}>
-              <span className="text-sm font-medium text-slate-700">
-                {labels.fieldAction} <span aria-label="required">*</span>
-              </span>
-              <div className="flex gap-2">
-                {(['add', 'remove'] as OverrideAction[]).map((value) => {
-                  const selected = action === value;
-                  return (
-                    <Button
-                      key={value}
-                      type="button"
-                      data-testid={`override-action-${value}`}
-                      aria-pressed={selected}
-                      className={`flex-1 text-sm ${selected ? '' : 'btn--secondary'}`}
-                      onClick={() => setAction(value)}
-                    >
-                      {value === 'add' ? labels.actionAdd : labels.actionRemove}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Reason (min 10 / max 500). ReasonInput renders its own wired <label>
-                and walks sibling [type=submit] buttons to set aria-disabled while
-                below minLength. */}
-            <div className="grid gap-1">
-              <ReasonInputBridge
-                value={reason}
-                onChange={(next) => {
-                  setReasonTouched(true);
-                  setReason(next);
-                }}
-                label={labels.fieldReason}
-                placeholder={labels.reasonPlaceholder}
-              />
-              {reasonTouched && !reasonValid ? (
-                <span id="override-reason-error" role="alert" className="text-xs text-red-700">
-                  {labels.reasonTooShort}
-                </span>
-              ) : null}
-            </div>
-
-            {serverError ? (
-              <div role="alert" className="text-sm text-red-700">
-                {serverError}
+          {/* Reason (min 10 / max 500). ReasonInput renders its own wired <label>
+              and walks sibling [type=submit] buttons to set aria-disabled while
+              below minLength. */}
+          <div className="ff">
+            <ReasonInputBridge
+              value={reason}
+              onChange={(next) => {
+                setReasonTouched(true);
+                setReason(next);
+              }}
+              label={labels.fieldReason}
+              placeholder={labels.reasonPlaceholder}
+            />
+            {reasonTouched && !reasonValid ? (
+              <div id="override-reason-error" role="alert" className="ff-error">
+                {labels.reasonTooShort}
               </div>
             ) : null}
           </div>
+
+          {serverError ? (
+            <div role="alert" className="alert alert-red">
+              {serverError}
+            </div>
+          ) : null}
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" className="btn--secondary text-sm" onClick={onClose} disabled={submitting}>
+          <Button type="button" className="btn-secondary btn-sm" onClick={onClose} disabled={submitting}>
             {labels.cancel}
           </Button>
           <Button
             type="submit"
             data-testid="override-save"
-            className="text-sm"
+            className="btn-primary btn-sm"
             aria-disabled={!reasonValid || submitting ? 'true' : 'false'}
             disabled={submitting}
           >

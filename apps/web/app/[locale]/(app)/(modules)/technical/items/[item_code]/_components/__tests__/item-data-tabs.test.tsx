@@ -9,8 +9,8 @@
  *
  * Asserts: real-data render (ready), empty-state (every empty list → EmptyState),
  * error-state (alert), the five semantic status badges, mono codes, NUMERIC-exact
- * cost (string, no float), and that the Supplier-specs tab renders an honest
- * "API pending" stub (no fabricated rows). Labels are passed directly (no
+ * cost (string, no float), and that the Supplier-specs tab renders real rows
+ * or an honest empty state. Labels are passed directly (no
  * next-intl provider needed) — confirming every visible string is a label prop.
  */
 import React from 'react';
@@ -62,7 +62,22 @@ const d365Labels: D365TabLabels = {
   none: '—', error: 'D365 error', statuses: { synced: 'Synced', drift: 'Drift' },
 };
 const supplierLabels: SupplierTabLabels = {
-  title: 'Supplier specifications', pending: 'Supplier specs API pending', pendingBody: 'pending body',
+  title: 'Supplier specifications',
+  supplier: 'Supplier',
+  supplierStatus: 'Supplier status',
+  lifecycleStatus: 'Lifecycle',
+  reviewStatus: 'Review',
+  specVersion: 'Spec version',
+  effectiveFrom: 'Effective from',
+  expiryDate: 'Expiry',
+  documents: 'Documents',
+  none: '—',
+  document: 'Spec',
+  certificates: 'Certificates',
+  loading: 'Loading',
+  empty: 'No supplier specs yet',
+  emptyBody: 'none',
+  error: 'Supplier specs error',
 };
 
 describe('BomTab', () => {
@@ -159,10 +174,53 @@ describe('D365Tab', () => {
   });
 });
 
-describe('SupplierSpecsTab (honest stub)', () => {
-  it('renders the API-pending EmptyState and fabricates NO rows', () => {
-    render(<SupplierSpecsTab labels={supplierLabels} />);
-    expect(screen.getByText('Supplier specs API pending')).toBeInTheDocument();
+describe('SupplierSpecsTab', () => {
+  it('renders the empty state when no supplier specs exist', () => {
+    render(
+      <SupplierSpecsTab
+        data={{ state: 'empty', itemCode: 'RM-1', specs: [], emptyState: { reason: 'no_supplier_specs' } }}
+        labels={supplierLabels}
+      />,
+    );
+    expect(screen.getByText('No supplier specs yet')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('renders real supplier spec rows with document refs', () => {
+    render(
+      <SupplierSpecsTab
+        data={{
+          state: 'ready',
+          itemCode: 'RM-1',
+          emptyState: null,
+          specs: [
+            {
+              id: 'spec-1',
+              itemCode: 'RM-1',
+              itemName: 'Pork',
+              supplierCode: 'SUP-1',
+              supplierStatus: 'approved',
+              lifecycleStatus: 'active',
+              reviewStatus: 'approved',
+              specVersion: '2026-Q1',
+              issuedDate: '2026-01-01',
+              effectiveFrom: '2026-01-01',
+              expiryDate: null,
+              specDocumentUrl: 'https://example.test/spec.pdf',
+              documentSha256: 'abc',
+              documentMimeType: 'application/pdf',
+              certificateRefs: [{ type: 'brcgs' }],
+              uploadedAt: '2026-01-02T00:00:00Z',
+            },
+          ],
+        }}
+        labels={supplierLabels}
+      />,
+    );
+    expect(screen.getByText('SUP-1')).toBeInTheDocument();
+    expect(screen.getByText('approved')).toHaveClass('badge', 'badge-green');
+    expect(screen.getByText('2026-Q1')).toBeInTheDocument();
+    expect(screen.getByText('Spec')).toHaveAttribute('href', 'https://example.test/spec.pdf');
+    expect(screen.getByText('Certificates: 1')).toBeInTheDocument();
   });
 });

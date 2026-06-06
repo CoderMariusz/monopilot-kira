@@ -30,12 +30,10 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { EmptyState } from '@monopilot/ui/EmptyState';
 import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { FaCreateModal, type CreateFaAction, type FaCreateLabels } from './fa-create-modal';
 
@@ -109,6 +107,11 @@ export type FaListLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  /** View-toggle pills (prototype lines 208-211). Optional so existing callers compile. */
+  viewTable?: string;
+  viewKanban?: string;
+  /** Kanban card meta (prototype lines 296-298). */
+  kanbanDepts?: string;
 };
 
 const DEPT_KEYS: Array<{ key: keyof FaDeptStates; label: keyof FaListLabels }> = [
@@ -123,18 +126,24 @@ const DEPT_KEYS: Array<{ key: keyof FaDeptStates; label: keyof FaListLabels }> =
 
 const STATUS_VALUES: FaStatusOverall[] = ['Pending', 'InProgress', 'Alert', 'Complete', 'Built'];
 
-function statusVariant(status: string): BadgeVariant {
+/**
+ * Map the FG status to a design-system badge class (5 semantic tones). The
+ * `@monopilot/ui` <Badge> primitive only emits `.badge--<variant>`, but globals.css
+ * defines `.badge-<tone>` (single dash) — so we pass the design-system class through
+ * className. This is the documented fix for the "unstyled badge" drift.
+ */
+function statusBadgeClass(status: string): string {
   switch (status) {
     case 'Complete':
-      return 'success';
+      return 'badge-green';
     case 'Built':
-      return 'info';
+      return 'badge-blue';
     case 'InProgress':
-      return 'warning';
+      return 'badge-amber';
     case 'Alert':
-      return 'danger';
+      return 'badge-red';
     default:
-      return 'muted';
+      return 'badge-gray';
   }
 }
 
@@ -156,16 +165,16 @@ function statusLabel(status: string, labels: FaListLabels): string {
 /** Dept readiness indicator — color is paired with a glyph + sr-only label (a11y). */
 function DeptIndicator({ state, label }: { state: DeptState; label: string }) {
   const glyph = state === 'done' ? '✓' : state === 'inprog' ? '◐' : state === 'blocked' ? '⊘' : '–';
-  const tone =
+  const color =
     state === 'done'
-      ? 'text-emerald-600'
+      ? 'var(--green)'
       : state === 'inprog'
-        ? 'text-amber-700'
+        ? 'var(--amber)'
         : state === 'blocked'
-          ? 'text-red-600'
-          : 'text-slate-300';
+          ? 'var(--red)'
+          : 'var(--gray-300, #cbd5e1)';
   return (
-    <span className={`font-semibold ${tone}`} data-dept-state={state}>
+    <span style={{ color, fontWeight: 600 }} data-dept-state={state}>
       <span aria-hidden="true">{glyph}</span>
       <span className="sr-only">{label}</span>
     </span>
@@ -174,32 +183,32 @@ function DeptIndicator({ state, label }: { state: DeptState; label: string }) {
 
 function DaysCell({ days, labels }: { days: number | null; labels: FaListLabels }) {
   if (days === null || days === undefined) {
-    return <span className="muted text-slate-500">{labels.noDate}</span>;
+    return <span className="muted">{labels.noDate}</span>;
   }
-  const tone = days <= 10 ? 'text-red-600' : days <= 21 ? 'text-amber-700' : 'text-slate-600';
-  const weight = days <= 21 ? 'font-semibold' : '';
+  const color = days <= 10 ? 'var(--red)' : days <= 21 ? 'var(--amber-700)' : 'var(--gray-600)';
+  const weight = days <= 21 ? 600 : 400;
   const text = days < 0 ? `overdue ${Math.abs(days)}d` : `${days}d`;
-  return <span className={`font-mono ${tone} ${weight}`}>{text}</span>;
+  return <span className="mono" style={{ color, fontWeight: weight }}>{text}</span>;
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: FaListLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -238,6 +247,8 @@ export function FaListTable({
   const [search, setSearch] = React.useState('');
   const [deptFilter, setDeptFilter] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
+  // Table ⇄ Kanban view toggle (prototype lines 208-211, 281-307).
+  const [view, setView] = React.useState<'table' | 'kanban'>('table');
 
   // Robust open mechanism (NF root-cause fix):
   //   The modal open state lives HERE, in the same client island as the button.
@@ -299,57 +310,90 @@ export function FaListTable({
 
   const deptOptions = [
     { value: 'all', label: labels.deptAll },
-    ...DEPT_KEYS.map(({ key, label }) => ({ value: key, label: labels[label] })),
+    ...DEPT_KEYS.map(({ key, label }) => ({ value: String(key), label: labels[label] ?? '' })),
   ];
   const statusOptions = [
     { value: 'all', label: labels.statusAll },
     ...STATUS_VALUES.map((value) => ({ value, label: statusLabel(value, labels) })),
   ];
 
+  const viewTableLabel = labels.viewTable ?? 'Table';
+  const viewKanbanLabel = labels.viewKanban ?? 'Kanban';
+  const isEmpty = filtered.length === 0;
+  const showStateNotice = state !== 'ready' && state !== 'empty';
+  const kanbanCols: FaStatusOverall[] = STATUS_VALUES;
+
   return (
     <main
       data-testid="fa-list-screen"
       aria-labelledby="fa-list-title"
-      className="mx-auto w-full max-w-7xl space-y-4 p-6"
+      className="flex w-full flex-col gap-3 px-6 py-6"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
+      {/* breadcrumb + page-head — prototype lines 201-214 */}
+      <nav aria-label="breadcrumb" className="breadcrumb">
+        NPD / {labels.title}
+      </nav>
+      <div className="page-head" data-region="page-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
-            NPD / {labels.title}
-          </nav>
-          <h1 id="fa-list-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="fa-list-title" className="page-title">
             {labels.title}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <div className="muted" style={{ fontSize: 12 }}>
             {labels.subtitle} · {filtered.length}/{rows.length}
-          </p>
+          </div>
         </div>
-        {canCreate ? (
-          <Button type="button" aria-label={labels.createFa} onClick={openCreate}>
-            {labels.createFa}
-          </Button>
-        ) : null}
-      </header>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="pills" role="group" aria-label={viewTableLabel + ' / ' + viewKanbanLabel}>
+            <button
+              type="button"
+              className={`pill ${view === 'table' ? 'on' : ''}`}
+              aria-pressed={view === 'table'}
+              onClick={() => setView('table')}
+            >
+              ≡ {viewTableLabel}
+            </button>
+            <button
+              type="button"
+              className={`pill ${view === 'kanban' ? 'on' : ''}`}
+              aria-pressed={view === 'kanban'}
+              onClick={() => setView('kanban')}
+            >
+              ▦ {viewKanbanLabel}
+            </button>
+          </div>
+          {canCreate ? (
+            <Button
+              type="button"
+              className="btn-primary"
+              aria-label={labels.createFa}
+              onClick={openCreate}
+            >
+              {labels.createFa}
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
-      {/* Filter chip region above the table — prototype lines 209-221 */}
-      <section
-        className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-        aria-labelledby="fa-list-title"
-        role="group"
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid flex-1 gap-1 text-sm font-medium text-slate-700">
-            <label htmlFor="fa-list-search">{labels.searchPlaceholder}</label>
+      {/* Filter chip region above the table — prototype lines 216-228 */}
+      <div className="card" style={{ padding: '10px 14px' }} role="group" aria-label={labels.title}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 240px', minWidth: 240, display: 'grid', gap: 4 }}>
+            <label htmlFor="fa-list-search" className="muted" style={{ fontSize: 11 }}>
+              {labels.searchPlaceholder}
+            </label>
             <Input
               id="fa-list-search"
               type="search"
+              className="form-input"
               placeholder={labels.searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="fa-list-dept-label">{labels.filterDept}</span>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span id="fa-list-dept-label" className="muted" style={{ fontSize: 11 }}>
+              {labels.filterDept}
+            </span>
             <Select value={deptFilter} onValueChange={setDeptFilter} options={deptOptions}>
               <SelectTrigger aria-label={labels.filterDept}>
                 <SelectValue />
@@ -363,8 +407,10 @@ export function FaListTable({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="fa-list-status-label">{labels.filterStatus}</span>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span id="fa-list-status-label" className="muted" style={{ fontSize: 11 }}>
+              {labels.filterStatus}
+            </span>
             <Select value={statusFilter} onValueChange={setStatusFilter} options={statusOptions}>
               <SelectTrigger aria-label={labels.filterStatus}>
                 <SelectValue />
@@ -378,113 +424,165 @@ export function FaListTable({
               </SelectContent>
             </Select>
           </div>
-          <Button type="button" onClick={clearFilters}>
+          <Button type="button" className="btn-ghost btn-sm" onClick={clearFilters}>
             {labels.clearFilters}
           </Button>
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        {state !== 'ready' && state !== 'empty' ? (
+      {showStateNotice ? (
+        <div className="card" style={{ padding: 0 }}>
           <StateNotice state={state} labels={labels} />
-        ) : filtered.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              icon="⭐"
-              title={labels.empty}
-              body={labels.emptyBody}
-              action={{ label: labels.clearFilters, onClick: clearFilters }}
-            />
-          </div>
-        ) : (
-          <div className="overflow-auto">
-            <Table aria-label={labels.title} className="w-full border-collapse text-left text-sm">
-              <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <TableRow>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colProductCode}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colProductName}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colPackSize}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colStatus}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colLaunch}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colDaysToLaunch}</TableHead>
-                  {DEPT_KEYS.map(({ key, label }) => (
-                    <TableHead key={key} scope="col" className="px-2 py-3 text-center" title={labels[label]}>
-                      <span aria-hidden="true">{labels[label].slice(0, 2)}</span>
-                      <span className="sr-only">{labels[label]}</span>
-                    </TableHead>
-                  ))}
-                  <TableHead scope="col" className="px-3 py-3 text-center">{labels.colBuilt}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colActions}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-slate-100">
-                {filtered.map((row) => {
-                  const status = String(row.statusOverall ?? 'Pending');
+        </div>
+      ) : isEmpty ? (
+        <div className="card" style={{ padding: 0 }}>
+          <EmptyState
+            icon="⭐"
+            title={labels.empty}
+            body={labels.emptyBody}
+            action={{ label: labels.clearFilters, onClick: clearFilters }}
+          />
+        </div>
+      ) : view === 'table' ? (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table className="table" aria-label={labels.title}>
+            <thead>
+              <tr>
+                <th scope="col">{labels.colProductCode}</th>
+                <th scope="col">{labels.colProductName}</th>
+                <th scope="col">{labels.colPackSize}</th>
+                <th scope="col">{labels.colStatus}</th>
+                <th scope="col">{labels.colLaunch}</th>
+                <th scope="col">{labels.colDaysToLaunch}</th>
+                {DEPT_KEYS.map(({ key, label }) => (
+                  <th key={key} scope="col" style={{ textAlign: 'center' }} title={labels[label]}>
+                    <span aria-hidden="true">{(labels[label] ?? '').slice(0, 2)}</span>
+                    <span className="sr-only">{labels[label]}</span>
+                  </th>
+                ))}
+                <th scope="col" style={{ textAlign: 'center' }}>{labels.colBuilt}</th>
+                <th scope="col">{labels.colActions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => {
+                const status = String(row.statusOverall ?? 'Pending');
+                return (
+                  <tr key={row.productCode} data-testid={`fa-list-row-${row.productCode}`} data-status={status}>
+                    <td className="mono">
+                      <Link href={`/fa/${row.productCode}`} prefetch style={{ color: 'var(--blue)' }}>
+                        {row.productCode}
+                      </Link>
+                    </td>
+                    <td style={{ fontWeight: 500 }}>
+                      {row.productName ?? <span className="muted">—</span>}
+                    </td>
+                    <td className="mono">
+                      {row.packSize ?? <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      <span className={`badge ${statusBadgeClass(status)}`} aria-label={statusLabel(status, labels)}>
+                        {statusLabel(status, labels)}
+                      </span>
+                    </td>
+                    <td className="mono">
+                      {row.launchDate ?? <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      <DaysCell days={row.daysToLaunch} labels={labels} />
+                    </td>
+                    {DEPT_KEYS.map(({ key, label }) => (
+                      <td key={key} style={{ textAlign: 'center' }}>
+                        <DeptIndicator state={row.dept[key]} label={labels[label] ?? ''} />
+                      </td>
+                    ))}
+                    <td style={{ textAlign: 'center' }}>
+                      {row.built ? (
+                        <span style={{ color: 'var(--blue)', fontWeight: 700 }} title={labels.colBuilt}>
+                          <span aria-hidden="true">⚡</span>
+                          <span className="sr-only">{labels.colBuilt}</span>
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <Link
+                        href={`/fa/${row.productCode}`}
+                        prefetch
+                        className="btn btn-ghost btn-sm"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        {labels.open}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        // Kanban view — prototype lines 281-307. Status columns; cards lead with
+        // the FG code (mono) + name. `.kanban` has no global class, styled inline
+        // from design tokens (this lane cannot touch globals.css).
+        <div
+          data-testid="fa-list-kanban"
+          style={{ display: 'grid', gridTemplateColumns: `repeat(${kanbanCols.length}, minmax(180px, 1fr))`, gap: 10, overflowX: 'auto' }}
+        >
+          {kanbanCols.map((col) => {
+            const items = filtered.filter((f) => String(f.statusOverall ?? 'Pending') === col);
+            return (
+              <div
+                key={col}
+                data-kanban-col={col}
+                style={{ background: 'var(--gray-050)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 8 }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, padding: '2px 4px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{statusLabel(col, labels)}</span>
+                  <span className="badge badge-gray" style={{ fontSize: 10 }}>{items.length}</span>
+                </div>
+                {items.map((f) => {
+                  const doneCount = DEPT_KEYS.filter(({ key }) => f.dept[key] === 'done').length;
                   return (
-                    <TableRow
-                      key={row.productCode}
-                      data-testid={`fa-list-row-${row.productCode}`}
-                      data-status={status}
-                      className="align-middle hover:bg-slate-50"
+                    <Link
+                      key={f.productCode}
+                      href={`/fa/${f.productCode}`}
+                      prefetch
+                      data-testid={`fa-kanban-card-${f.productCode}`}
+                      style={{
+                        display: 'block',
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: 10,
+                        marginBottom: 8,
+                        textDecoration: 'none',
+                        color: 'inherit',
+                      }}
                     >
-                      <TableCell className="px-3 py-2 font-mono text-xs">
-                        <Link
-                          href={`/fa/${row.productCode}`}
-                          prefetch
-                          className="text-blue-600 hover:underline"
-                        >
-                          {row.productCode}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="px-3 py-2 font-medium text-slate-950">
-                        {row.productName ?? <span className="muted text-slate-400">—</span>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2 font-mono text-xs text-slate-600">
-                        {row.packSize ?? <span className="muted text-slate-400">—</span>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2">
-                        <Badge variant={statusVariant(status)} aria-label={statusLabel(status, labels)}>
-                          {statusLabel(status, labels)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-3 py-2 font-mono text-xs text-slate-600">
-                        {row.launchDate ?? <span className="muted text-slate-400">—</span>}
-                      </TableCell>
-                      <TableCell className="px-3 py-2">
-                        <DaysCell days={row.daysToLaunch} labels={labels} />
-                      </TableCell>
-                      {DEPT_KEYS.map(({ key, label }) => (
-                        <TableCell key={key} className="px-2 py-2 text-center">
-                          <DeptIndicator state={row.dept[key]} label={labels[label]} />
-                        </TableCell>
-                      ))}
-                      <TableCell className="px-3 py-2 text-center">
-                        {row.built ? (
-                          <span className="font-semibold text-blue-600" title={labels.colBuilt}>
-                            <span aria-hidden="true">⚡</span>
-                            <span className="sr-only">{labels.colBuilt}</span>
-                          </span>
-                        ) : (
-                          <span className="muted text-slate-400">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-3 py-2 whitespace-nowrap">
-                        <Link
-                          href={`/fa/${row.productCode}`}
-                          prefetch
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          {labels.open}
-                        </Link>
-                      </TableCell>
-                    </TableRow>
+                      <div className="muted mono" style={{ fontSize: 10 }}>{f.productCode}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13, marginTop: 2 }}>
+                        {f.productName ?? f.productCode}
+                      </div>
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                        {f.packSize ?? '—'}
+                      </div>
+                      <div className="muted" style={{ fontSize: 11, marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{doneCount}/{DEPT_KEYS.length} {labels.kanbanDepts ?? 'depts'}</span>
+                        <DaysCell days={f.daysToLaunch} labels={labels} />
+                      </div>
+                    </Link>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </section>
+                {items.length === 0 ? (
+                  <div className="muted" style={{ textAlign: 'center', fontSize: 12, padding: 12 }}>—</div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/*
         Robust create modal — rendered INLINE in this client island so the

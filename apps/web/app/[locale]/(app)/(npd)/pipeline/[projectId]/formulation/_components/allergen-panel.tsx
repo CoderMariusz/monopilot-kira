@@ -108,6 +108,14 @@ const VARIANT_BY_STATUS: Record<AllergenPresence, BadgeVariant> = {
   absent: 'muted',
 };
 
+/** Design-system tone class per status (the @monopilot/ui Badge BEM variants are
+ *  unstyled; the single-dash `.badge-*` tones in globals.css carry the colour). */
+const TONE_CLASS_BY_STATUS: Record<AllergenPresence, string> = {
+  present: 'badge-red',
+  trace: 'badge-amber',
+  absent: 'badge-gray',
+};
+
 /** Filled circle for present/trace, hollow for absent — a secondary (non-color) signal. */
 const GLYPH_BY_STATUS: Record<AllergenPresence, string> = {
   present: '●',
@@ -136,7 +144,7 @@ export function AllergenPanel({
     <Card data-testid="allergen-panel" aria-labelledby="allergen-panel-title">
       <CardHeader>
         <CardTitle id="allergen-panel-title">{labels.title}</CardTitle>
-        <p className="text-xs text-slate-500">{labels.subtitle}</p>
+        <p className="text-xs muted">{labels.subtitle}</p>
       </CardHeader>
       <CardContent>
         <ul
@@ -156,7 +164,7 @@ export function AllergenPanel({
               >
                 <Badge
                   variant={VARIANT_BY_STATUS[a.status]}
-                  className="flex w-full items-center justify-between gap-1"
+                  className={`${TONE_CLASS_BY_STATUS[a.status]} flex w-full items-center justify-between gap-1`}
                   aria-label={accessibleName}
                 >
                   <span className="flex items-center gap-1">
@@ -176,7 +184,7 @@ export function AllergenPanel({
           <div
             role="alert"
             data-testid="allergen-panel-alert"
-            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"
+            className="alert alert-amber mt-3"
           >
             <strong>{labels.detectedHeading.replace('{count}', String(detected.length))}</strong>{' '}
             {detected.map((d) => d.name).join(', ')}. {labels.mustDeclare}
@@ -184,7 +192,7 @@ export function AllergenPanel({
         ) : (
           <p
             data-testid="allergen-panel-empty"
-            className="mt-3 text-xs text-slate-500"
+            className="mt-3 text-xs muted"
           >
             {labels.noneDetected}
           </p>

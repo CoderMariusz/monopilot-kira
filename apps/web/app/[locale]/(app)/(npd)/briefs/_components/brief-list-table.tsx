@@ -28,10 +28,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { EmptyState } from '@monopilot/ui/EmptyState';
-import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
@@ -103,19 +100,6 @@ function localePrefixFrom(pathname: string | null): string {
   return SUPPORTED_LOCALES.has(segment) ? `/${segment}` : '';
 }
 
-function statusVariant(status: string): BadgeVariant {
-  switch (status) {
-    case 'complete':
-      return 'warning';
-    case 'converted':
-      return 'success';
-    case 'abandoned':
-      return 'muted';
-    default:
-      return 'muted';
-  }
-}
-
 function statusLabel(status: string, labels: BriefListLabels): string {
   switch (status) {
     case 'complete':
@@ -133,34 +117,50 @@ function templateLabel(template: string, labels: BriefListLabels): string {
   return template === 'multi_component' ? labels.templateMulti : labels.templateSingle;
 }
 
-/** Status pill — color is paired with text (a11y: color is never the sole signal). */
+/**
+ * Status pill — design-system 5-tone badge (`.badge .badge-*`), color paired with
+ * text (a11y: color is never the sole signal). The `@monopilot/ui` Badge emits an
+ * unstyled BEM `badge--*` that has no token mapping in globals.css, so the
+ * design-system `badge-{tone}` class is applied directly (presentation-only fix).
+ */
+function statusBadgeTone(status: string): string {
+  switch (status) {
+    case 'complete':
+      return 'badge-amber';
+    case 'converted':
+      return 'badge-green';
+    default:
+      return 'badge-gray';
+  }
+}
+
 function BriefStatusBadge({ status, labels }: { status: string; labels: BriefListLabels }) {
   const text = statusLabel(status, labels);
   return (
-    <Badge variant={statusVariant(status)} aria-label={text}>
+    <span data-slot="badge" className={`badge ${statusBadgeTone(status)}`} aria-label={text}>
       {text}
-    </Badge>
+    </span>
   );
 }
 
 function StateNotice({ state, labels }: { state: PageState; labels: BriefListLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: '24px', fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -228,29 +228,23 @@ export function BriefListTable({
   ];
 
   return (
-    <main
-      data-testid="brief-list-screen"
-      aria-labelledby="brief-list-title"
-      className="mx-auto w-full max-w-7xl space-y-4 p-6"
-    >
-      <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
+    <main data-testid="brief-list-screen" aria-labelledby="brief-list-title">
+      <nav aria-label="breadcrumb" className="breadcrumb">
+        NPD / {labels.title}
+      </nav>
+      <header className="page-head" data-region="page-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
-            NPD / {labels.title}
-          </nav>
-          <h1
-            id="brief-list-title"
-            className="mt-1 text-2xl font-bold tracking-tight text-slate-950"
-          >
+          <h1 id="brief-list-title" className="page-title">
             {labels.title}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {labels.subtitle} · {filtered.length}/{rows.length}
+          <p className="muted" style={{ fontSize: 12 }}>
+            {filtered.length} of {rows.length} visible · {labels.subtitle}
           </p>
         </div>
         {canCreate ? (
           <Button
             type="button"
+            className="btn-primary"
             aria-label={labels.createBrief}
             onClick={() => openModal('briefCreate')}
           >
@@ -259,25 +253,27 @@ export function BriefListTable({
         ) : null}
       </header>
 
-      {/* Filter region above the table — prototype lines 39-49 (search + status + template). */}
+      {/* Filter region above the table — prototype lines 46-56 (search + status + template). */}
       <section
-        className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+        className="card"
+        style={{ padding: '10px 14px' }}
         aria-labelledby="brief-list-title"
         role="group"
       >
         <div className="flex flex-wrap items-end gap-3">
-          <div className="grid flex-1 gap-1 text-sm font-medium text-slate-700">
+          <div className="ff" style={{ flex: '1 1 240px', marginBottom: 0 }}>
             <label htmlFor="brief-list-search">{labels.searchPlaceholder}</label>
-            <Input
+            <input
               id="brief-list-search"
               type="search"
+              className="form-input"
               placeholder={labels.searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="brief-list-status-label">{labels.filterStatus}</span>
+          <div className="ff" style={{ marginBottom: 0 }}>
+            <label id="brief-list-status-label">{labels.filterStatus}</label>
             <Select value={statusFilter} onValueChange={setStatusFilter} options={statusOptions}>
               <SelectTrigger aria-label={labels.filterStatus}>
                 <SelectValue />
@@ -291,8 +287,8 @@ export function BriefListTable({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="brief-list-template-label">{labels.filterTemplate}</span>
+          <div className="ff" style={{ marginBottom: 0 }}>
+            <label id="brief-list-template-label">{labels.filterTemplate}</label>
             <Select
               value={templateFilter}
               onValueChange={setTemplateFilter}
@@ -310,28 +306,30 @@ export function BriefListTable({
               </SelectContent>
             </Select>
           </div>
-          <Button type="button" onClick={clearFilters}>
+          <Button type="button" className="btn-secondary" onClick={clearFilters}>
             {labels.clearFilters}
           </Button>
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {state !== 'ready' && state !== 'empty' ? (
           <StateNotice state={state} labels={labels} />
         ) : filtered.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              icon="📝"
-              title={labels.empty}
-              body={labels.emptyBody}
-              action={{ label: labels.clearFilters, onClick: clearFilters }}
-            />
+          <div className="empty-state">
+            <div className="empty-state-icon">📝</div>
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">{labels.emptyBody}</div>
+            <div className="empty-state-action">
+              <Button type="button" className="btn-primary" onClick={clearFilters}>
+                {labels.clearFilters}
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="overflow-auto">
-            <Table aria-label={labels.title} className="w-full border-collapse text-left text-sm">
-              <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <Table aria-label={labels.title} className="w-full text-left">
+              <TableHeader>
                 <TableRow>
                   <TableHead scope="col" className="px-3 py-3">
                     {labels.colDevCode}
@@ -359,7 +357,7 @@ export function BriefListTable({
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-slate-100">
+              <TableBody>
                 {filtered.map((row) => {
                   const status = String(row.status ?? 'draft');
                   return (
@@ -367,66 +365,57 @@ export function BriefListTable({
                       key={row.briefId}
                       data-testid={`brief-list-row-${row.devCode}`}
                       data-status={status}
-                      className="align-middle hover:bg-slate-50"
                     >
-                      <TableCell className="px-3 py-2 font-mono text-xs">
-                        <Link
-                          href={briefHref(row.briefId)}
-                          prefetch
-                          className="text-blue-600 hover:underline"
-                        >
+                      <TableCell className="mono">
+                        <Link href={briefHref(row.briefId)} prefetch style={{ color: 'var(--blue)' }}>
                           {row.devCode}
                         </Link>
                       </TableCell>
-                      <TableCell className="px-3 py-2 font-medium text-slate-950">
-                        {row.productName ?? <span className="muted text-slate-400">—</span>}
+                      <TableCell style={{ fontWeight: 500 }}>
+                        {row.productName ?? <span className="muted">—</span>}
                       </TableCell>
-                      <TableCell className="px-3 py-2">
-                        <Badge variant={row.template === 'multi_component' ? 'info' : 'muted'}>
+                      <TableCell>
+                        <span
+                          data-slot="badge"
+                          className={`badge ${row.template === 'multi_component' ? 'badge-blue' : 'badge-gray'}`}
+                        >
                           {templateLabel(String(row.template), labels)}
-                        </Badge>
+                        </span>
                       </TableCell>
-                      <TableCell className="px-3 py-2">
+                      <TableCell>
                         <BriefStatusBadge status={status} labels={labels} />
                       </TableCell>
-                      <TableCell className="px-3 py-2 font-mono text-xs">
+                      <TableCell className="mono">
                         {row.projectCode && row.projectId ? (
-                          <Link
-                            href={`/pipeline/${row.projectId}`}
-                            prefetch
-                            className="text-blue-600 hover:underline"
-                          >
+                          <Link href={`/pipeline/${row.projectId}`} prefetch style={{ color: 'var(--blue)' }}>
                             {row.projectCode}
                             {row.projectGate ? (
-                              <span className="ml-1 text-slate-500">· {row.projectGate}</span>
+                              <span className="muted" style={{ marginLeft: 4 }}>
+                                · {row.projectGate}
+                              </span>
                             ) : null}
                           </Link>
                         ) : (
-                          <span className="muted text-slate-400">{labels.noProject}</span>
+                          <span className="muted">{labels.noProject}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-3 py-2 font-mono text-xs text-slate-600">
-                        {row.createdAt ?? <span className="muted text-slate-400">—</span>}
+                      <TableCell className="mono">
+                        {row.createdAt ?? <span className="muted">—</span>}
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-slate-700">
-                        {row.owner ?? <span className="muted text-slate-400">{labels.noOwner}</span>}
+                      <TableCell>
+                        {row.owner ?? <span className="muted">{labels.noOwner}</span>}
                       </TableCell>
-                      <TableCell className="px-3 py-2 whitespace-nowrap">
+                      <TableCell style={{ whiteSpace: 'nowrap' }}>
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={briefHref(row.briefId)}
-                            prefetch
-                            className="text-sm text-blue-600 hover:underline"
-                          >
+                          <Link href={briefHref(row.briefId)} prefetch className="btn btn-ghost btn-sm">
                             {labels.open}
                           </Link>
                           {status === 'complete' && canConvert ? (
                             <Button
                               type="button"
+                              className="btn-secondary btn-sm"
                               aria-label={labels.convert}
-                              onClick={() =>
-                                openModal('briefConvert', { brief: row.briefId })
-                              }
+                              onClick={() => openModal('briefConvert', { brief: row.briefId })}
                             >
                               {labels.convert}
                             </Button>

@@ -34,7 +34,7 @@ import {
   type ProjectSummary,
 } from '../../../../(npd)/pipeline/_actions/shared';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
-import { PipelineTabs, type PipelineTabsLabels } from './_components/pipeline-tabs';
+import { PipelineTabs, type PipelineTabsLabels, type PipelineKpiLabels } from './_components/pipeline-tabs';
 import type { TableLabels } from './_components/table-view';
 import type { SplitLabels } from './_components/split-labels';
 import type {
@@ -201,6 +201,21 @@ const DEFAULT_SWITCHER_LABELS: PipelineTabsLabels = {
   filterG4: 'G4',
   searchLabel: 'Search projects',
   searchPlaceholder: 'Search by name or code…',
+  newProject: 'New project',
+  importRecipe: 'Import recipe',
+};
+
+const DEFAULT_KPI_LABELS: PipelineKpiLabels = {
+  activeLabel: 'Active projects',
+  activeHint: 'Projects in gates G0–G4',
+  awaitingLabel: 'Awaiting approval',
+  awaitingHint: 'At gates G3/G4',
+  launchedLabel: 'Launched',
+  launchedHint: 'Reached the final gate',
+  atRiskLabel: 'At risk',
+  atRiskHint: 'High priority, behind schedule',
+  totalLabel: 'Total in view',
+  totalHint: 'Matching the current filter',
 };
 
 /**
@@ -329,11 +344,12 @@ export default async function PipelinePage(propsInput: unknown = {}) {
   const filter = parseFilter(readParam(search, 'filter'));
   const searchQuery = readParam(search, 'search')?.trim() || null;
 
-  const [kanbanLabels, tableLabels, splitLabels, switcherLabels] = await Promise.all([
+  const [kanbanLabels, tableLabels, splitLabels, switcherLabels, kpiLabels] = await Promise.all([
     buildLabels(locale),
     buildLabelSet(locale, 'npd.pipelineTable', DEFAULT_TABLE_LABELS),
     buildLabelSet(locale, 'npd.pipelineSplit', DEFAULT_SPLIT_LABELS),
     buildLabelSet(locale, 'npd.pipelineSwitcher', DEFAULT_SWITCHER_LABELS),
+    buildLabelSet(locale, 'npd.pipelineKpi', DEFAULT_KPI_LABELS),
   ]);
 
   const injected = Array.isArray(props.projects);
@@ -349,6 +365,7 @@ export default async function PipelinePage(propsInput: unknown = {}) {
     <PipelineTabs
       projects={loaded.projects}
       switcherLabels={switcherLabels}
+      kpiLabels={kpiLabels}
       kanbanLabels={kanbanLabels}
       tableLabels={tableLabels}
       splitLabels={splitLabels}

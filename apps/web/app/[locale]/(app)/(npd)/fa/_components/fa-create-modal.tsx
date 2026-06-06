@@ -138,86 +138,83 @@ export function FaCreateModal({
       <FormProvider {...methods}>
         <form onSubmit={onSubmit} noValidate>
           <Modal.Body>
-            <div className="grid gap-4">
-              <p className="text-xs text-slate-500">{labels.subtitle}</p>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>{labels.subtitle}</p>
 
-              <div className="grid gap-1">
-                <label htmlFor="fa-create-product-code" className="text-sm font-medium text-slate-700">
-                  {labels.fieldProductCode} <span aria-label="required">*</span>
-                </label>
-                {/*
-                  Prototype autofocuses the first field; Radix Dialog already moves
-                  focus into the dialog on open, so an explicit autoFocus is omitted
-                  (deviation logged) to avoid double focus-management + a11y noise.
-                */}
-                <Input
-                  id="fa-create-product-code"
-                  className="font-mono"
-                  placeholder="FA5609"
-                  aria-invalid={errors.productCode ? 'true' : undefined}
-                  aria-describedby={errors.productCode ? 'fa-create-product-code-error' : 'fa-create-product-code-hint'}
-                  {...register('productCode', {
-                    onChange: (event) => {
-                      // Codes are uppercase (mirrors the prototype's toUpperCase()).
-                      setValue('productCode', event.target.value.toUpperCase(), {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                      });
-                    },
-                  })}
-                />
-                {errors.productCode ? (
-                  <span id="fa-create-product-code-error" role="alert" className="text-xs text-red-700">
-                    {errors.productCode.message}
-                  </span>
-                ) : (
-                  <span id="fa-create-product-code-hint" className="text-xs text-slate-500">
-                    {labels.fieldProductCodeHint}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid gap-1">
-                <label htmlFor="fa-create-product-name" className="text-sm font-medium text-slate-700">
-                  {labels.fieldProductName} <span aria-label="required">*</span>
-                </label>
-                <Input
-                  id="fa-create-product-name"
-                  placeholder="e.g. Pulled Chicken Shawarma"
-                  aria-invalid={errors.productName ? 'true' : undefined}
-                  aria-describedby={errors.productName ? 'fa-create-product-name-error' : 'fa-create-product-name-hint'}
-                  {...register('productName')}
-                />
-                {errors.productName ? (
-                  <span id="fa-create-product-name-error" role="alert" className="text-xs text-red-700">
-                    {errors.productName.message}
-                  </span>
-                ) : (
-                  <span id="fa-create-product-name-hint" className="text-xs text-slate-500">
-                    {labels.fieldProductNameHint}
-                  </span>
-                )}
-              </div>
-
-              <div
-                className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800"
-                data-testid="fa-create-range-hint"
-              >
-                {labels.rangeHint}
-              </div>
-
-              {serverError ? (
-                <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {serverError}
-                </div>
-              ) : null}
+            {/* .ff modal field (uppercase label) + .form-input — design-system chrome */}
+            <div className="ff">
+              <label htmlFor="fa-create-product-code">
+                {labels.fieldProductCode} <span className="req" aria-label="required">*</span>
+              </label>
+              {/*
+                Prototype autofocuses the first field; Radix Dialog already moves
+                focus into the dialog on open, so an explicit autoFocus is omitted
+                (deviation logged) to avoid double focus-management + a11y noise.
+              */}
+              <Input
+                id="fa-create-product-code"
+                className="form-input mono"
+                placeholder="FA5609"
+                aria-invalid={errors.productCode ? 'true' : undefined}
+                aria-describedby={errors.productCode ? 'fa-create-product-code-error' : 'fa-create-product-code-hint'}
+                {...register('productCode', {
+                  onChange: (event) => {
+                    // Codes are uppercase (mirrors the prototype's toUpperCase()).
+                    setValue('productCode', event.target.value.toUpperCase(), {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                  },
+                })}
+              />
+              {errors.productCode ? (
+                <span id="fa-create-product-code-error" role="alert" className="ff-error">
+                  {errors.productCode.message}
+                </span>
+              ) : (
+                <span id="fa-create-product-code-hint" className="ff-help">
+                  {labels.fieldProductCodeHint}
+                </span>
+              )}
             </div>
+
+            <div className="ff">
+              <label htmlFor="fa-create-product-name">
+                {labels.fieldProductName} <span className="req" aria-label="required">*</span>
+              </label>
+              <Input
+                id="fa-create-product-name"
+                className="form-input"
+                placeholder="e.g. Pulled Chicken Shawarma"
+                aria-invalid={errors.productName ? 'true' : undefined}
+                aria-describedby={errors.productName ? 'fa-create-product-name-error' : 'fa-create-product-name-hint'}
+                {...register('productName')}
+              />
+              {errors.productName ? (
+                <span id="fa-create-product-name-error" role="alert" className="ff-error">
+                  {errors.productName.message}
+                </span>
+              ) : (
+                <span id="fa-create-product-name-hint" className="ff-help">
+                  {labels.fieldProductNameHint}
+                </span>
+              )}
+            </div>
+
+            <div className="alert alert-blue" data-testid="fa-create-range-hint">
+              {labels.rangeHint}
+            </div>
+
+            {serverError ? (
+              <div role="alert" className="alert alert-red">
+                {serverError}
+              </div>
+            ) : null}
           </Modal.Body>
           <Modal.Footer>
-            <Button type="button" className="btn--secondary text-sm" onClick={onClose} disabled={isSubmitting}>
+            <Button type="button" className="btn-secondary btn-sm" onClick={onClose} disabled={isSubmitting}>
               {labels.cancel}
             </Button>
-            <Button type="submit" className="text-sm" disabled={submitDisabled}>
+            <Button type="submit" className="btn-primary btn-sm" disabled={submitDisabled}>
               {isSubmitting ? labels.creating : labels.create}
             </Button>
           </Modal.Footer>

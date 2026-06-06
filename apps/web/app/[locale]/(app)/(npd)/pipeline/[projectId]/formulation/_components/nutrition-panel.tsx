@@ -238,7 +238,7 @@ function NutrientBar({
           style={{ width: `${width}%`, transition: 'width 0.2s' }}
         />
       </div>
-      <span className="flex items-center justify-end gap-1 text-right font-mono text-xs tabular-nums text-slate-700">
+      <span className="flex items-center justify-end gap-1 text-right mono text-xs tabular-nums text-slate-700">
         {/* glyph + text status pair so color is never the only signal (a11y) */}
         <span aria-hidden="true" data-testid="nutrition-status-glyph">
           {STATUS_GLYPH[status]}
@@ -320,7 +320,7 @@ export function NutritionPanel({
         </h3>
         <Button
           type="button"
-          className="text-xs"
+          className="btn-ghost btn-sm text-xs"
           data-testid="nutrition-export-label"
           onClick={onExportLabel}
         >

@@ -87,6 +87,14 @@ function scoreVariant(score: number): BadgeVariant {
   return 'muted';
 }
 
+// Design-system badge tone class (the @monopilot/ui Badge BEM `.badge--*` variant is
+// unstyled in globals.css; the explicit `.badge-{tone}` class carries the real color).
+function scoreBadgeClass(score: number): string {
+  if (score >= 6) return 'badge-red';
+  if (score >= 3) return 'badge-amber';
+  return 'badge-gray';
+}
+
 function levelLabel(level: Level, kind: 'likelihood' | 'impact', labels: RiskRegisterLabels): string {
   if (kind === 'likelihood') {
     return level === '1' ? labels.likelihoodLow : level === '2' ? labels.likelihoodMed : labels.likelihoodHigh;
@@ -222,177 +230,189 @@ export function RiskAddModal({
       <FormProvider {...methods}>
         <form onSubmit={onSubmit} noValidate>
           <Modal.Body>
-            <div className="grid gap-4">
-              <div className="grid gap-1">
-                <label htmlFor="risk-description" className="text-sm font-medium text-slate-700">
-                  {labels.fieldDescription} <span aria-label="required">*</span>
-                </label>
-                <Textarea
-                  id="risk-description"
-                  rows={2}
-                  aria-invalid={errors.description ? 'true' : undefined}
-                  aria-describedby={errors.description ? 'risk-description-error' : 'risk-description-hint'}
-                  {...register('description')}
-                />
-                {errors.description ? (
-                  <span id="risk-description-error" role="alert" className="text-xs text-red-700">
-                    {errors.description.message}
-                  </span>
-                ) : (
-                  <span id="risk-description-hint" className="text-xs text-slate-500">
-                    {labels.fieldDescriptionHint}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1">
-                  <span id="risk-likelihood-label" className="text-sm font-medium text-slate-700">
-                    {labels.fieldLikelihood} <span aria-label="required">*</span>
-                  </span>
-                  <Controller
-                    control={control}
-                    name="likelihood"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange} options={likelihoodOptions}>
-                        <SelectTrigger aria-label={labels.fieldLikelihood}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {likelihoodOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
+            <div className="ff">
+              <label htmlFor="risk-description">
+                {labels.fieldDescription} <span className="req" aria-label="required">*</span>
+              </label>
+              <Textarea
+                id="risk-description"
+                className="form-input"
+                rows={2}
+                aria-invalid={errors.description ? 'true' : undefined}
+                aria-describedby={errors.description ? 'risk-description-error' : 'risk-description-hint'}
+                {...register('description')}
+              />
+              {errors.description ? (
+                <div id="risk-description-error" role="alert" className="ff-error">
+                  {errors.description.message}
                 </div>
-                <div className="grid gap-1">
-                  <span id="risk-impact-label" className="text-sm font-medium text-slate-700">
-                    {labels.fieldImpact} <span aria-label="required">*</span>
-                  </span>
-                  <Controller
-                    control={control}
-                    name="impact"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange} options={impactOptions}>
-                        <SelectTrigger aria-label={labels.fieldImpact}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {impactOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
+              ) : (
+                <div id="risk-description-hint" className="ff-help">
+                  {labels.fieldDescriptionHint}
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {labels.scoreLabel}:{' '}
-                <Badge variant={scoreVariant(score)} aria-label={`${labels.scoreLabel} ${score}`}>
-                  {score}
-                </Badge>
-              </div>
-
-              <div className="grid gap-1">
-                <label htmlFor="risk-mitigation" className="text-sm font-medium text-slate-700">
-                  {labels.fieldMitigation}
+            <div className="ff-inline">
+              <div className="ff">
+                <label id="risk-likelihood-label" htmlFor="risk-likelihood">
+                  {labels.fieldLikelihood} <span className="req" aria-label="required">*</span>
                 </label>
-                <Textarea
-                  id="risk-mitigation"
-                  rows={2}
-                  aria-invalid={errors.mitigation ? 'true' : undefined}
-                  aria-describedby={errors.mitigation ? 'risk-mitigation-error' : 'risk-mitigation-hint'}
-                  {...register('mitigation')}
+                <Controller
+                  control={control}
+                  name="likelihood"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange} options={likelihoodOptions}>
+                      <SelectTrigger id="risk-likelihood" aria-label={labels.fieldLikelihood}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {likelihoodOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 />
-                {errors.mitigation ? (
-                  <span id="risk-mitigation-error" role="alert" className="text-xs text-red-700">
-                    {errors.mitigation.message}
-                  </span>
-                ) : (
-                  <span id="risk-mitigation-hint" className="text-xs text-slate-500">
-                    {labels.fieldMitigationHint}
-                  </span>
-                )}
               </div>
-
-              <div className="grid gap-1">
-                <label htmlFor="risk-owner" className="text-sm font-medium text-slate-700">
-                  {labels.fieldOwner}
+              <div className="ff">
+                <label id="risk-impact-label" htmlFor="risk-impact">
+                  {labels.fieldImpact} <span className="req" aria-label="required">*</span>
                 </label>
-                <Input id="risk-owner" {...register('owner')} />
+                <Controller
+                  control={control}
+                  name="impact"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange} options={impactOptions}>
+                      <SelectTrigger id="risk-impact" aria-label={labels.fieldImpact}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {impactOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
+            </div>
 
-              {mode === 'edit' && risk ? (
-                <div className="grid gap-2 rounded-md border border-slate-200 p-3">
-                  <span className="text-sm font-medium text-slate-700">{labels.fieldStatus}</span>
-                  <div className="flex flex-wrap gap-2">
-                    {risk.state === 'Open' ? (
-                      <Button type="button" className="btn--secondary text-sm" onClick={() => startTransition('Mitigated')}>
-                        {labels.mitigate}
-                      </Button>
-                    ) : null}
-                    {risk.state === 'Mitigated' ? (
-                      <Button type="button" className="btn--secondary text-sm" onClick={() => startTransition('Closed')}>
-                        {labels.close}
-                      </Button>
-                    ) : null}
-                    {risk.state === 'Closed' ? (
-                      <Button type="button" className="btn--secondary text-sm" onClick={() => startTransition('Open')}>
-                        {labels.reopen}
-                      </Button>
-                    ) : null}
-                  </div>
+            <div
+              style={{
+                padding: '10px 14px',
+                background: 'var(--gray-050)',
+                borderRadius: 6,
+                marginBottom: 12,
+                fontSize: 13,
+              }}
+            >
+              {labels.scoreLabel}:{' '}
+              <Badge
+                variant={scoreVariant(score)}
+                className={scoreBadgeClass(score)}
+                aria-label={`${labels.scoreLabel} ${score}`}
+              >
+                {score}
+              </Badge>
+            </div>
 
-                  {transition ? (
-                    <div className="grid gap-1">
-                      <label htmlFor="risk-reason" className="text-sm font-medium text-slate-700">
-                        {labels.fieldReason} <span aria-label="required">*</span>
-                      </label>
-                      <Textarea
-                        id="risk-reason"
-                        rows={2}
-                        value={transition.reason}
-                        aria-invalid={reasonError ? 'true' : undefined}
-                        aria-describedby={reasonError ? 'risk-reason-error' : 'risk-reason-hint'}
-                        onChange={(event) => {
-                          setReasonError(null);
-                          setTransition((prev) => (prev ? { ...prev, reason: event.target.value } : prev));
-                        }}
-                      />
-                      {reasonError ? (
-                        <span id="risk-reason-error" role="alert" className="text-xs text-red-700">
-                          {reasonError}
-                        </span>
-                      ) : (
-                        <span id="risk-reason-hint" className="text-xs text-slate-500">
-                          {labels.fieldReasonHint}
-                        </span>
-                      )}
-                    </div>
+            <div className="ff">
+              <label htmlFor="risk-mitigation">{labels.fieldMitigation}</label>
+              <Textarea
+                id="risk-mitigation"
+                className="form-input"
+                rows={2}
+                aria-invalid={errors.mitigation ? 'true' : undefined}
+                aria-describedby={errors.mitigation ? 'risk-mitigation-error' : 'risk-mitigation-hint'}
+                {...register('mitigation')}
+              />
+              {errors.mitigation ? (
+                <div id="risk-mitigation-error" role="alert" className="ff-error">
+                  {errors.mitigation.message}
+                </div>
+              ) : (
+                <div id="risk-mitigation-hint" className="ff-help">
+                  {labels.fieldMitigationHint}
+                </div>
+              )}
+            </div>
+
+            <div className="ff">
+              <label htmlFor="risk-owner">{labels.fieldOwner}</label>
+              <Input id="risk-owner" className="form-input" {...register('owner')} />
+            </div>
+
+            {mode === 'edit' && risk ? (
+              <div
+                className="ff"
+                style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}
+              >
+                <label>{labels.fieldStatus}</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {risk.state === 'Open' ? (
+                    <Button type="button" className="btn-secondary btn-sm" onClick={() => startTransition('Mitigated')}>
+                      {labels.mitigate}
+                    </Button>
+                  ) : null}
+                  {risk.state === 'Mitigated' ? (
+                    <Button type="button" className="btn-secondary btn-sm" onClick={() => startTransition('Closed')}>
+                      {labels.close}
+                    </Button>
+                  ) : null}
+                  {risk.state === 'Closed' ? (
+                    <Button type="button" className="btn-secondary btn-sm" onClick={() => startTransition('Open')}>
+                      {labels.reopen}
+                    </Button>
                   ) : null}
                 </div>
-              ) : null}
 
-              {serverError ? (
-                <div role="alert" className="text-sm text-red-700">
-                  {serverError}
-                </div>
-              ) : null}
-            </div>
+                {transition ? (
+                  <div className="ff" style={{ marginTop: 10, marginBottom: 0 }}>
+                    <label htmlFor="risk-reason">
+                      {labels.fieldReason} <span className="req" aria-label="required">*</span>
+                    </label>
+                    <Textarea
+                      id="risk-reason"
+                      className="form-input"
+                      rows={2}
+                      value={transition.reason}
+                      aria-invalid={reasonError ? 'true' : undefined}
+                      aria-describedby={reasonError ? 'risk-reason-error' : 'risk-reason-hint'}
+                      onChange={(event) => {
+                        setReasonError(null);
+                        setTransition((prev) => (prev ? { ...prev, reason: event.target.value } : prev));
+                      }}
+                    />
+                    {reasonError ? (
+                      <div id="risk-reason-error" role="alert" className="ff-error">
+                        {reasonError}
+                      </div>
+                    ) : (
+                      <div id="risk-reason-hint" className="ff-help">
+                        {labels.fieldReasonHint}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {serverError ? (
+              <div role="alert" className="alert alert-red">
+                {serverError}
+              </div>
+            ) : null}
           </Modal.Body>
           <Modal.Footer>
-            <Button type="button" className="btn--secondary text-sm" onClick={onClose} disabled={isSubmitting}>
+            <Button type="button" className="btn-secondary btn-sm" onClick={onClose} disabled={isSubmitting}>
               {labels.cancel}
             </Button>
-            <Button type="submit" className="text-sm" disabled={isSubmitting}>
+            <Button type="submit" className="btn-primary btn-sm" disabled={isSubmitting}>
               {mode === 'edit' ? labels.save : labels.create}
             </Button>
           </Modal.Footer>

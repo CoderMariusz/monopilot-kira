@@ -122,9 +122,21 @@ const DEFAULTS: DataTabLabels = {
   },
   supplier: {
     title: 'Supplier specifications',
-    pending: 'Supplier specs API pending',
-    pendingBody:
-      'The supplier-specs read model is not yet exposed via a Server Action. This tab will list approved supplier specifications once the API lands.',
+    supplier: 'Supplier',
+    supplierStatus: 'Supplier status',
+    lifecycleStatus: 'Lifecycle',
+    reviewStatus: 'Review',
+    specVersion: 'Spec version',
+    effectiveFrom: 'Effective from',
+    expiryDate: 'Expiry',
+    documents: 'Documents',
+    none: '—',
+    document: 'Spec',
+    certificates: 'Certificates',
+    loading: 'Loading supplier specs…',
+    empty: 'No supplier specs yet',
+    emptyBody: 'No supplier specification rows are linked to this item.',
+    error: 'Unable to load supplier specs. Please try again.',
   },
 };
 

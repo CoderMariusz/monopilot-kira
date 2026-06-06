@@ -1102,7 +1102,10 @@
       "empty": "No Finished Goods match your filters",
       "emptyBody": "Finished Goods are the master NPD record created from a converted Brief. Create one or clear filters.",
       "error": "Unable to load Finished Goods. Try again after the backend is available.",
-      "forbidden": "You do not have permission to view Finished Goods."
+      "forbidden": "You do not have permission to view Finished Goods.",
+      "viewTable": "Table",
+      "viewKanban": "Kanban",
+      "kanbanDepts": "depts"
     },
     "faCreateModal": {
       "title": "Create Finished Good",
@@ -1974,7 +1977,9 @@
       "filterG3": "G3",
       "filterG4": "G4",
       "searchLabel": "Search projects",
-      "searchPlaceholder": "Search by name or code…"
+      "searchPlaceholder": "Search by name or code…",
+      "newProject": "New project",
+      "importRecipe": "Import recipe"
     },
     "compositionBar": {
       "title": "Composition",
@@ -2240,6 +2245,18 @@
       "statusInProgress": "In progress",
       "statusBlocked": "Blocked",
       "statusDone": "Done"
+    },
+    "pipelineKpi": {
+      "activeLabel": "Active projects",
+      "activeHint": "Projects in gates G0–G4",
+      "awaitingLabel": "Awaiting approval",
+      "awaitingHint": "At gates G3/G4",
+      "launchedLabel": "Launched",
+      "launchedHint": "Reached the final gate",
+      "atRiskLabel": "At risk",
+      "atRiskHint": "High priority, behind schedule",
+      "totalLabel": "Total in view",
+      "totalHint": "Matching the current filter"
     }
   },
   "technical": {

@@ -37,8 +37,6 @@
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import Input from '@monopilot/ui/Input';
-
 import { KanbanView } from './kanban-view';
 import { TableView, type TableLabels, type TableProject } from './table-view';
 import { SplitView } from './split-view';
@@ -53,6 +51,23 @@ import type {
 export type PipelineView = 'kanban' | 'table' | 'split';
 
 const VIEWS: PipelineView[] = ['kanban', 'table', 'split'];
+
+/** View-mode glyphs mirror the prototype's ▦ / ≡ / ⊟ affordances (pipeline.jsx:197-201). */
+const VIEW_GLYPH: Record<PipelineView, string> = { kanban: '▦', table: '≡', split: '⊟' };
+
+/** KPI strip copy — keyed under the NEW npd.pipelineKpi namespace. */
+export type PipelineKpiLabels = {
+  activeLabel: string;
+  activeHint: string;
+  awaitingLabel: string;
+  awaitingHint: string;
+  launchedLabel: string;
+  launchedHint: string;
+  atRiskLabel: string;
+  atRiskHint: string;
+  totalLabel: string;
+  totalHint: string;
+};
 
 export type FilterKey = 'all' | 'mine' | 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
 
@@ -74,6 +89,8 @@ export type PipelineTabsLabels = {
   filterG4: string;
   searchLabel: string;
   searchPlaceholder: string;
+  newProject: string;
+  importRecipe: string;
 };
 
 function parseView(raw: string | null): PipelineView {
@@ -118,6 +135,7 @@ export type PipelineTabsProps = {
   /** Org-scoped, RLS-enforced, already-filtered projects from the RSC (T-057). */
   projects: KanbanProject[];
   switcherLabels: PipelineTabsLabels;
+  kpiLabels?: PipelineKpiLabels;
   kanbanLabels: KanbanLabels;
   tableLabels: TableLabels;
   splitLabels: SplitLabels;
@@ -131,6 +149,7 @@ export type PipelineTabsProps = {
 export function PipelineTabs({
   projects,
   switcherLabels,
+  kpiLabels,
   kanbanLabels,
   tableLabels,
   splitLabels,
@@ -187,14 +206,64 @@ export function PipelineTabs({
   // merged ProjectSummary — the same shared list feeds every view (AC2).
   const tableProjects = projects as unknown as TableProject[];
 
+  // KPI counters derived from the REAL, org-scoped project list (no hard-coded numbers).
+  const kpiActive = projects.filter((p) => p.currentGate !== 'Launched').length;
+  const kpiAwaiting = projects.filter((p) => p.currentGate === 'G3' || p.currentGate === 'G4').length;
+  const kpiLaunched = projects.filter((p) => p.currentGate === 'Launched').length;
+  const kpiAtRisk = projects.filter((p) => p.prio === 'high' && p.progressPercent < 50).length;
+  const kpiTotal = projects.length;
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 p-6" data-testid="pipeline-tabs">
+      {/* Page head — title + the New project / Import recipe CTAs (pipeline.jsx:152-163). */}
+      <div className="card-head" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-secondary" data-testid="pipeline-import-recipe">
+            {switcherLabels.importRecipe}
+          </button>
+          <button type="button" className="btn btn-primary" data-testid="pipeline-new-project">
+            + {switcherLabels.newProject}
+          </button>
+        </div>
+      </div>
+
+      {/* KPI strip — 5 accent cards reflecting the live, filtered pipeline (pipeline.jsx:165-191). */}
+      {kpiLabels ? (
+        <div className="kpi-row" data-testid="pipeline-kpi-row">
+          <div className="kpi">
+            <div className="kpi-label">{kpiLabels.activeLabel}</div>
+            <div className="kpi-value">{kpiActive}</div>
+            <div className="kpi-change muted">{kpiLabels.activeHint}</div>
+          </div>
+          <div className="kpi amber">
+            <div className="kpi-label">{kpiLabels.awaitingLabel}</div>
+            <div className="kpi-value">{kpiAwaiting}</div>
+            <div className="kpi-change muted">{kpiLabels.awaitingHint}</div>
+          </div>
+          <div className="kpi green">
+            <div className="kpi-label">{kpiLabels.launchedLabel}</div>
+            <div className="kpi-value">{kpiLaunched}</div>
+            <div className="kpi-change muted">{kpiLabels.launchedHint}</div>
+          </div>
+          <div className="kpi red">
+            <div className="kpi-label">{kpiLabels.atRiskLabel}</div>
+            <div className="kpi-value">{kpiAtRisk}</div>
+            <div className="kpi-change muted">{kpiLabels.atRiskHint}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">{kpiLabels.totalLabel}</div>
+            <div className="kpi-value">{kpiTotal}</div>
+            <div className="kpi-change muted">{kpiLabels.totalHint}</div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Shared filter strip + search — drives ?filter / ?search for every view. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div
           role="group"
           aria-label={switcherLabels.filtersLabel}
-          className="flex flex-wrap items-center gap-1"
+          className="pills"
         >
           {FILTERS.map((filter) => {
             const pressed = activeFilter === filter;
@@ -205,11 +274,7 @@ export function PipelineTabs({
                 data-testid={`pipeline-filter-${filter}`}
                 aria-pressed={pressed}
                 onClick={() => selectFilter(filter)}
-                className={
-                  pressed
-                    ? 'rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white'
-                    : 'rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50'
-                }
+                className={pressed ? 'pill on' : 'pill'}
               >
                 {filterLabel(filter, switcherLabels)}
               </button>
@@ -218,8 +283,9 @@ export function PipelineTabs({
         </div>
 
         <div className="w-full max-w-xs">
-          <Input
+          <input
             type="search"
+            className="form-input"
             aria-label={switcherLabels.searchLabel}
             placeholder={switcherLabels.searchPlaceholder}
             data-testid="pipeline-search"
@@ -229,12 +295,12 @@ export function PipelineTabs({
         </div>
       </div>
 
-      {/* View-mode switcher — WAI-ARIA tablist; active tab driven by ?view=. */}
+      {/* View-mode switcher — WAI-ARIA tablist styled with the design-system pills. */}
       <div
         role="tablist"
         aria-label={switcherLabels.viewsLabel}
         onKeyDown={onTablistKeyDown}
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1"
+        className="pills"
       >
         {VIEWS.map((view) => {
           const selected = activeView === view;
@@ -249,12 +315,11 @@ export function PipelineTabs({
               tabIndex={selected ? 0 : -1}
               data-testid={`pipeline-tab-${view}`}
               onClick={() => selectView(view)}
-              className={
-                selected
-                  ? 'rounded-md bg-white px-3 py-1.5 text-sm font-medium text-slate-900 shadow-sm'
-                  : 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900'
-              }
+              className={selected ? 'pill on' : 'pill'}
             >
+              <span aria-hidden="true" style={{ marginRight: 4 }}>
+                {VIEW_GLYPH[view]}
+              </span>
               {viewLabel(view, switcherLabels)}
             </button>
           );

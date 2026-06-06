@@ -22,8 +22,8 @@
  * mirrors the prototype. No inline styles for layout (Tailwind), no raw <select>,
  * FG canonical (no FA labels). Every visible string is an injected i18n label.
  *
- * The actual DELETE Server Action is OWNED elsewhere (out of scope): the caller
- * passes `onConfirm` and we fire it only when the guards pass.
+ * The actual DELETE Server Action is called by the owning action bar through
+ * `onConfirm`; this component only enforces the client-side guard affordances.
  */
 
 import React from 'react';

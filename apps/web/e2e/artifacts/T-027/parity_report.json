@@ -5,7 +5,7 @@
     "prototype-index-npd.json#fa_history_tab declares 921-950 (labelled region; body at 938-968)"
   ],
   "data_source": "REAL public.outbox_events (fa.* events) ∪ public.audit_events — org-scoped via withOrgContext/RLS; NO mocks",
-  "generated_at": "2026-06-04T07:13:29.263Z",
+  "generated_at": "2026-06-06T00:20:26.507Z",
   "states": {
     "loading": {
       "tab": true,

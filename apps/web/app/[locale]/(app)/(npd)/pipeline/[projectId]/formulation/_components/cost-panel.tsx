@@ -175,7 +175,7 @@ function CostLine({
       ].join(' ')}
     >
       <span className="text-sm text-slate-600">{label}</span>
-      <span data-testid={testId} className="font-mono text-sm tabular-nums text-slate-900">
+      <span data-testid={testId} className="mono text-sm tabular-nums text-slate-900">
         {value}
       </span>
     </div>
@@ -185,30 +185,31 @@ function CostLine({
 function StateNotice({ state, labels }: { state: CostPanelState; labels: CostPanelLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="rounded-md border p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="empty-state">
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red">
         {labels.forbidden}
       </div>
     );
   }
   // 'empty' (and the ready-but-null fallback).
   return (
-    <div className="rounded-md border border-dashed p-8 text-center">
-      <p className="text-sm font-medium text-slate-700">{labels.empty}</p>
-      <p className="mt-1 text-sm text-slate-500">{labels.emptyBody}</p>
+    <div className="empty-state">
+      <div className="empty-state-icon" aria-hidden="true">💶</div>
+      <div className="empty-state-title">{labels.empty}</div>
+      <div className="empty-state-body">{labels.emptyBody}</div>
     </div>
   );
 }
@@ -242,7 +243,7 @@ export function CostPanel({
     <CardHeader>
       <CardTitle id={titleId}>
         {labels.title}{' '}
-        <span className="text-xs font-normal text-slate-500">· {labels.live}</span>
+        <span className="text-xs font-normal muted">· {labels.live}</span>
       </CardTitle>
     </CardHeader>
   );
@@ -298,23 +299,25 @@ export function CostPanel({
         {/* Controlled target-price + yield inputs (recipe.jsx:81-88). */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label htmlFor="cost-target-price" className="block text-xs font-medium text-slate-600">
+            <label htmlFor="cost-target-price" className="block text-xs font-medium muted">
               {labels.targetPrice}
             </label>
             <Input
               id="cost-target-price"
               inputMode="decimal"
+              className="form-input mono"
               value={targetPrice}
               onChange={(e) => onTargetPriceChange(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="cost-yield" className="block text-xs font-medium text-slate-600">
+            <label htmlFor="cost-yield" className="block text-xs font-medium muted">
               {labels.expectedYield}
             </label>
             <Input
               id="cost-yield"
               type="number"
+              className="form-input mono"
               value={yieldPct}
               onChange={(e) => onYieldChange(Number(e.target.value))}
             />
@@ -339,7 +342,7 @@ export function CostPanel({
             <span
               data-testid="cost-margin"
               className={[
-                'font-mono text-sm tabular-nums',
+                'mono text-sm tabular-nums',
                 marginNegative ? 'text-red-600' : 'text-emerald-600',
               ].join(' ')}
             >
@@ -350,7 +353,7 @@ export function CostPanel({
             <span className="text-sm text-slate-700">{labels.marginPct}</span>
             <span
               data-testid="cost-margin-pct"
-              className={['font-mono text-sm tabular-nums', marginPctColour(calc.marginPct)].join(' ')}
+              className={['mono text-sm tabular-nums', marginPctColour(calc.marginPct)].join(' ')}
             >
               {formatPct(calc.marginPct)}
             </span>

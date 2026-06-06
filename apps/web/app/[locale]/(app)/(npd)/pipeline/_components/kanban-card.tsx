@@ -78,74 +78,108 @@ export function KanbanCard({
   const prioText = prioLabel(project.prio, labels);
   const progress = Math.max(0, Math.min(100, project.progressPercent));
   const showAdvance = canAdvance && nextGate !== null;
+  // Left accent rail mirrors the prototype's prio-${p.prio} card border.
+  const accent =
+    project.prio === 'high'
+      ? 'var(--red)'
+      : project.prio === 'low'
+        ? 'var(--gray-300, #cbd5e1)'
+        : 'var(--amber)';
 
   return (
     <div data-testid={`kanban-card-${project.code}`} data-gate={project.currentGate}>
-      <Card className="kanban-card">
-      <CardContent className="space-y-2 p-3">
-        <div className="flex items-start justify-between gap-2">
-          <Link
-            href={`/pipeline/${project.id}`}
-            prefetch
-            className="text-sm font-semibold text-slate-950 hover:underline"
-          >
-            {project.name}
-          </Link>
-          <Badge variant={prioVariant(project.prio)} aria-label={prioText}>
-            {prioText}
-          </Badge>
-        </div>
-
-        <div className="font-mono text-[11px] text-slate-500">
-          {project.code} · {project.type}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div
-            role="progressbar"
-            aria-label={project.name}
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="h-1 flex-1 overflow-hidden rounded bg-slate-100"
-          >
-            <div
-              className={progress >= 90 ? 'h-full bg-green-500' : 'h-full bg-blue-500'}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <span className="font-mono text-[10px] text-slate-500">{progress}%</span>
-        </div>
-
-        <div className="flex items-center justify-between text-[11px] text-slate-600">
-          <span>{project.owner ?? <span className="text-slate-400">{labels.noOwner}</span>}</span>
-          <span>
-            {project.targetLaunch ? (
-              <>▶ {project.targetLaunch}</>
-            ) : (
-              <span className="text-slate-400">{labels.noTarget}</span>
-            )}
-          </span>
-        </div>
-
-        {project.currentGate === 'Launched' && project.closeoutStatus ? (
-          <LaunchedCardCloseoutPill status={project.closeoutStatus} />
-        ) : null}
-
-        {showAdvance ? (
-          <div className="pt-1">
-            <Button
-              type="button"
-              data-testid={`kanban-advance-${project.code}`}
-              aria-label={labels.advance}
-              disabled={advancing}
-              onClick={() => onAdvance(project)}
+      <Card
+        className="kanban-card"
+        style={{
+          margin: 0,
+          padding: 0,
+          borderLeft: `3px solid ${accent}`,
+          cursor: 'pointer',
+        }}
+      >
+        <CardContent className="space-y-2" style={{ padding: 10 }}>
+          <div className="flex items-start justify-between gap-2">
+            <Link
+              href={`/pipeline/${project.id}`}
+              prefetch
+              style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}
             >
-              {advancing ? labels.advancing : labels.advance}
-            </Button>
+              {project.name}
+            </Link>
+            <Badge variant={prioVariant(project.prio)} aria-label={prioText}>
+              {prioText}
+            </Badge>
           </div>
-        ) : null}
-      </CardContent>
+
+          <div className="mono muted" style={{ fontSize: 11 }}>
+            {project.code} · {project.type}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div
+              role="progressbar"
+              aria-label={project.name}
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              style={{
+                flex: 1,
+                height: 4,
+                background: 'var(--gray-100)',
+                borderRadius: 2,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${progress}%`,
+                  height: '100%',
+                  background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
+                }}
+              />
+            </div>
+            <span className="mono muted" style={{ fontSize: 10 }}>
+              {progress}%
+            </span>
+          </div>
+
+          <div
+            className="flex items-center justify-between muted"
+            style={{ fontSize: 11 }}
+          >
+            <span>
+              {project.owner ?? (
+                <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noOwner}</span>
+              )}
+            </span>
+            <span>
+              {project.targetLaunch ? (
+                <>▶ {project.targetLaunch}</>
+              ) : (
+                <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noTarget}</span>
+              )}
+            </span>
+          </div>
+
+          {project.currentGate === 'Launched' && project.closeoutStatus ? (
+            <LaunchedCardCloseoutPill status={project.closeoutStatus} />
+          ) : null}
+
+          {showAdvance ? (
+            <div style={{ paddingTop: 2 }}>
+              <Button
+                type="button"
+                className="btn-primary btn-sm"
+                data-testid={`kanban-advance-${project.code}`}
+                aria-label={labels.advance}
+                disabled={advancing}
+                onClick={() => onAdvance(project)}
+              >
+                {advancing ? labels.advancing : labels.advance}
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
       </Card>
     </div>
   );

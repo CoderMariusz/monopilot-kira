@@ -127,6 +127,30 @@ function bucketVariant(bucket: RiskBucket): BadgeVariant {
   }
 }
 
+// Design-system badge tone class (the @monopilot/ui Badge BEM `.badge--*` variant is
+// unstyled in globals.css; the explicit `.badge-{tone}` class carries the real color).
+function bucketBadgeClass(bucket: RiskBucket): string {
+  switch (bucket) {
+    case 'High':
+      return 'badge-red';
+    case 'Med':
+      return 'badge-amber';
+    default:
+      return 'badge-gray';
+  }
+}
+
+function stateBadgeClass(state: RiskState): string {
+  switch (state) {
+    case 'Open':
+      return 'badge-amber';
+    case 'Mitigated':
+      return 'badge-green';
+    default:
+      return 'badge-gray';
+  }
+}
+
 function bucketLabel(bucket: RiskBucket, labels: RiskRegisterLabels): string {
   switch (bucket) {
     case 'High':
@@ -166,6 +190,7 @@ function RiskBucketBadge({ bucket, score, labels }: { bucket: RiskBucket; score:
   return (
     <Badge
       variant={bucketVariant(bucket)}
+      className={bucketBadgeClass(bucket)}
       data-testid="risk-bucket-badge"
       data-bucket={bucket}
       aria-label={`${label} · ${score}`}
@@ -178,21 +203,21 @@ function RiskBucketBadge({ bucket, score, labels }: { bucket: RiskBucket; score:
 function StateNotice({ state, labels }: { state: PageState; labels: RiskRegisterLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -260,155 +285,157 @@ export function RiskRegisterScreen({
     <main
       data-testid="risk-register-screen"
       aria-labelledby="risk-register-title"
-      className="mx-auto w-full max-w-6xl space-y-4 p-6"
+      className="card"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="card-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
-            NPD / {productCode} / {labels.title}
+          <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
+            NPD / <span className="mono">{productCode}</span> / {labels.title}
           </nav>
-          <h1 id="risk-register-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="risk-register-title" className="card-title" style={{ marginTop: 2 }}>
             {labels.title}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
         </div>
         {canWrite ? (
-          <Button type="button" aria-label={labels.addRisk} onClick={() => setModal({ mode: 'create' })}>
+          <Button
+            type="button"
+            className="btn-secondary btn-sm"
+            aria-label={labels.addRisk}
+            onClick={() => setModal({ mode: 'create' })}
+          >
             {labels.addRisk}
           </Button>
         ) : null}
-      </header>
+      </div>
 
       {builtBlocked ? (
-        <div
-          role="alert"
-          data-testid="risk-built-blocker"
-          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-        >
-          <span className="font-semibold">{labels.builtBlocked}</span> — {labels.builtBlockedBody}
+        <div role="alert" data-testid="risk-built-blocker" className="alert alert-red">
+          <span className="alert-title">{labels.builtBlocked}</span> — {labels.builtBlockedBody}
         </div>
       ) : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" role="group" aria-labelledby="risk-register-title">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="risk-bucket-label">{labels.filterBucket}</span>
-            <Select value={bucketFilter} onValueChange={setBucketFilter} options={bucketOptions}>
-              <SelectTrigger aria-label={labels.filterBucket}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {bucketOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700">
-            <span id="risk-state-label">{labels.filterState}</span>
-            <Select value={stateFilter} onValueChange={setStateFilter} options={stateOptions}>
-              <SelectTrigger aria-label={labels.filterState}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {stateOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="button" onClick={clearFilters}>
-            {labels.clearFilters}
-          </Button>
+      <div
+        role="group"
+        aria-labelledby="risk-register-title"
+        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}
+      >
+        <div className="ff" style={{ marginBottom: 0, minWidth: 160 }}>
+          <label id="risk-bucket-label" htmlFor="risk-bucket-filter">{labels.filterBucket}</label>
+          <Select value={bucketFilter} onValueChange={setBucketFilter} options={bucketOptions}>
+            <SelectTrigger id="risk-bucket-filter" aria-label={labels.filterBucket}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {bucketOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </section>
+        <div className="ff" style={{ marginBottom: 0, minWidth: 160 }}>
+          <label id="risk-state-label" htmlFor="risk-state-filter">{labels.filterState}</label>
+          <Select value={stateFilter} onValueChange={setStateFilter} options={stateOptions}>
+            <SelectTrigger id="risk-state-filter" aria-label={labels.filterState}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {stateOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="button" className="btn-secondary btn-sm" onClick={clearFilters}>
+          {labels.clearFilters}
+        </Button>
+      </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        {!showTable ? (
-          <StateNotice state={state} labels={labels} />
-        ) : filtered.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              icon="⚠"
-              title={labels.empty}
-              body={labels.emptyBody}
-              action={
-                canWrite
-                  ? { label: labels.addRisk, onClick: () => setModal({ mode: 'create' }) }
-                  : { label: labels.clearFilters, onClick: clearFilters }
-              }
-            />
-          </div>
-        ) : (
-          <div className="overflow-auto">
-            <Table aria-label={labels.title} className="w-full border-collapse text-left text-sm">
-              <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <TableRow>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colScore}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colDescription}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3 text-center">{labels.colLikelihood}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3 text-center">{labels.colImpact}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colStatus}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colOwner}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colMitigation}</TableHead>
-                  <TableHead scope="col" className="px-3 py-3">{labels.colActions}</TableHead>
+      {!showTable ? (
+        <StateNotice state={state} labels={labels} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="⚠"
+          title={labels.empty}
+          body={labels.emptyBody}
+          action={
+            canWrite
+              ? { label: labels.addRisk, onClick: () => setModal({ mode: 'create' }) }
+              : { label: labels.clearFilters, onClick: clearFilters }
+          }
+        />
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <Table aria-label={labels.title}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{labels.colScore}</TableHead>
+                <TableHead scope="col">{labels.colDescription}</TableHead>
+                <TableHead scope="col" style={{ textAlign: 'center' }}>{labels.colLikelihood}</TableHead>
+                <TableHead scope="col" style={{ textAlign: 'center' }}>{labels.colImpact}</TableHead>
+                <TableHead scope="col">{labels.colStatus}</TableHead>
+                <TableHead scope="col">{labels.colOwner}</TableHead>
+                <TableHead scope="col">{labels.colMitigation}</TableHead>
+                <TableHead scope="col">{labels.colActions}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-testid={`risk-row-${row.id}`}
+                  data-bucket={row.bucket}
+                  data-state={row.state}
+                >
+                  <TableCell>
+                    <RiskBucketBadge bucket={row.bucket} score={row.score} labels={labels} />
+                  </TableCell>
+                  <TableCell style={{ fontWeight: 500 }}>{row.title}</TableCell>
+                  <TableCell className="mono" style={{ textAlign: 'center', fontSize: 12 }}>
+                    {row.likelihood}
+                  </TableCell>
+                  <TableCell className="mono" style={{ textAlign: 'center', fontSize: 12 }}>
+                    {row.impact}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={stateVariant(row.state)}
+                      className={stateBadgeClass(row.state)}
+                      aria-label={stateLabel(row.state, labels)}
+                    >
+                      {stateLabel(row.state, labels)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="muted" style={{ fontSize: 12 }}>
+                    {row.owner ?? <span className="muted">—</span>}
+                  </TableCell>
+                  <TableCell className="muted" style={{ fontSize: 12 }}>
+                    {row.mitigation ?? <span className="muted">—</span>}
+                  </TableCell>
+                  <TableCell style={{ whiteSpace: 'nowrap' }}>
+                    {canWrite ? (
+                      <Button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        aria-label={`${labels.edit} ${row.title}`}
+                        onClick={() => setModal({ mode: 'edit', risk: row })}
+                      >
+                        {labels.edit}
+                      </Button>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-slate-100">
-                {filtered.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-testid={`risk-row-${row.id}`}
-                    data-bucket={row.bucket}
-                    data-state={row.state}
-                    className="align-middle hover:bg-slate-50"
-                  >
-                    <TableCell className="px-3 py-2">
-                      <RiskBucketBadge bucket={row.bucket} score={row.score} labels={labels} />
-                    </TableCell>
-                    <TableCell className="px-3 py-2 font-medium text-slate-950">{row.title}</TableCell>
-                    <TableCell className="px-3 py-2 text-center font-mono text-xs text-slate-600">
-                      {row.likelihood}
-                    </TableCell>
-                    <TableCell className="px-3 py-2 text-center font-mono text-xs text-slate-600">
-                      {row.impact}
-                    </TableCell>
-                    <TableCell className="px-3 py-2">
-                      <Badge variant={stateVariant(row.state)} aria-label={stateLabel(row.state, labels)}>
-                        {stateLabel(row.state, labels)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2 text-xs text-slate-600">
-                      {row.owner ?? <span className="text-slate-400">—</span>}
-                    </TableCell>
-                    <TableCell className="px-3 py-2 text-xs text-slate-600">
-                      {row.mitigation ?? <span className="text-slate-400">—</span>}
-                    </TableCell>
-                    <TableCell className="px-3 py-2 whitespace-nowrap">
-                      {canWrite ? (
-                        <Button
-                          type="button"
-                          className="btn--ghost text-sm"
-                          aria-label={`${labels.edit} ${row.title}`}
-                          onClick={() => setModal({ mode: 'edit', risk: row })}
-                        >
-                          {labels.edit}
-                        </Button>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </section>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {modal ? (
         <RiskAddModal

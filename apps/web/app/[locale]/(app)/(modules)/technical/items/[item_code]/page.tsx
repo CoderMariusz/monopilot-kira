@@ -40,6 +40,7 @@ import {
 } from './_components/item-data-tabs';
 import { buildDataTabLabels } from './_components/item-data-tab-labels';
 import { loadBomTab, loadCostTab, loadRoutingTab, loadLabTab, loadD365Tab } from './_actions/tab-data';
+import { listSupplierSpecs } from './_actions/list-supplier-specs';
 import type { DeactivateLabels } from '../_components/deactivate-modal';
 import type { ItemWizardLabels } from '../_components/item-create-wizard';
 
@@ -216,7 +217,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   };
 
   // ── deferred-tab data: real Supabase reads under withOrgContext + RLS ────────
-  const [dataTabLabels, allergensTabLabels, bomData, costData, routingData, labData, d365Data] =
+  const [dataTabLabels, allergensTabLabels, bomData, costData, routingData, labData, d365Data, supplierSpecsData] =
     await Promise.all([
       buildDataTabLabels(locale),
       buildAllergensTabLabels(locale),
@@ -225,6 +226,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
       loadRoutingTab(item.itemCode),
       loadLabTab(item.itemCode),
       loadD365Tab(item.itemCode),
+      listSupplierSpecs(item.itemCode),
     ]);
 
   return (
@@ -268,7 +270,7 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
           routing: <RoutingTab data={routingData} labels={dataTabLabels.routing} />,
           labResults: <LabTab data={labData} labels={dataTabLabels.lab} />,
           d365: <D365Tab data={d365Data} labels={dataTabLabels.d365} />,
-          supplierSpecs: <SupplierSpecsTab labels={dataTabLabels.supplier} />,
+          supplierSpecs: <SupplierSpecsTab data={supplierSpecsData} labels={dataTabLabels.supplier} />,
         }}
       />
     </main>

@@ -45,21 +45,21 @@ export type { AdvanceAction, AdvanceResult, AdvanceInput } from './kanban-types'
 function StateNotice({ state, labels }: { state: PageState; labels: KanbanLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -144,10 +144,10 @@ export function KanbanView({
         data-testid="kanban-screen"
         data-prototype-anchor="npd/pipeline.jsx:19-52"
         aria-labelledby="kanban-title"
-        className="mx-auto w-full max-w-7xl space-y-4 p-6"
+        className="space-y-4"
       >
         <KanbanHeader labels={labels} count={0} />
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="card" style={{ padding: 0 }}>
           <StateNotice state={state} labels={labels} />
         </section>
       </main>
@@ -160,12 +160,15 @@ export function KanbanView({
         data-testid="kanban-screen"
         data-prototype-anchor="npd/pipeline.jsx:19-52"
         aria-labelledby="kanban-title"
-        className="mx-auto w-full max-w-7xl space-y-4 p-6"
+        className="space-y-4"
       >
         <KanbanHeader labels={labels} count={0} />
-        <section className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <p className="text-base font-semibold text-slate-900">{labels.empty}</p>
-          <p className="mt-1 text-sm text-slate-600">{labels.emptyBody}</p>
+        <section className="card">
+          <div className="empty-state">
+            <div className="empty-state-icon">🧪</div>
+            <div className="empty-state-title">{labels.empty}</div>
+            <div className="empty-state-body">{labels.emptyBody}</div>
+          </div>
         </section>
       </main>
     );
@@ -181,12 +184,12 @@ export function KanbanView({
       data-testid="kanban-screen"
       data-prototype-anchor="npd/pipeline.jsx:19-52"
       aria-labelledby="kanban-title"
-      className="mx-auto w-full max-w-7xl space-y-4 p-6"
+      className="space-y-4"
     >
       <KanbanHeader labels={labels} count={projects.length} />
 
       {advanceError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="alert alert-red">
           {advanceError}
         </div>
       ) : null}
@@ -200,21 +203,42 @@ export function KanbanView({
             key={gate}
             data-testid={`kanban-col-${gate}`}
             data-gate={gate}
-            className="flex min-w-0 flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2"
+            className="flex min-w-0 flex-col gap-2 rounded-[10px] p-2"
+            style={{ background: 'var(--gray-050)', border: '1px solid var(--border)' }}
           >
-            <div className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <div
+              className="flex items-center justify-between px-1"
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: 'var(--muted)',
+              }}
+            >
               <span>{gateLabel(gate, labels)}</span>
               <span
                 data-testid={`kanban-count-${gate}`}
                 aria-label={`${gateLabel(gate, labels)}: ${items.length}`}
-                className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] text-slate-700"
+                className="mono"
+                style={{
+                  fontSize: 11,
+                  background: 'var(--gray-100)',
+                  color: 'var(--gray-600)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '1px 8px',
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}
               >
                 {items.length}
               </span>
             </div>
 
             {items.length === 0 ? (
-              <p className="px-1 py-4 text-center text-xs text-slate-400">{labels.columnEmpty}</p>
+              <p className="muted" style={{ padding: '16px 4px', textAlign: 'center', fontSize: 12 }}>
+                {labels.columnEmpty}
+              </p>
             ) : (
               items.map((project) => (
                 <KanbanCard
@@ -239,13 +263,13 @@ function KanbanHeader({ labels, count }: { labels: KanbanLabels; count: number }
   return (
     <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
       <div>
-        <nav aria-label="breadcrumb" className="text-xs text-slate-500">
+        <nav aria-label="breadcrumb" className="breadcrumb">
           NPD / {labels.title}
         </nav>
-        <h1 id="kanban-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+        <h1 id="kanban-title" className="page-title" style={{ marginTop: 2 }}>
           {labels.title}
         </h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="muted" style={{ marginTop: 2, fontSize: 12 }}>
           {labels.subtitle} · {count}
         </p>
       </div>

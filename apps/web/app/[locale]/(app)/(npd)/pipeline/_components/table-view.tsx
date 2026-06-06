@@ -250,21 +250,21 @@ const COLUMNS: ColumnDef[] = [
 function StateNotice({ state, labels }: { state: PageState; labels: TableLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -334,7 +334,8 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
         data-testid="pipeline-table-screen"
         data-prototype-anchor="npd/pipeline.jsx:54-88"
         aria-label={labels.title}
-        className="rounded-xl border border-slate-200 bg-white shadow-sm"
+        className="card"
+        style={{ padding: 0 }}
       >
         <StateNotice state={state} labels={labels} />
       </section>
@@ -347,10 +348,13 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
         data-testid="pipeline-table-screen"
         data-prototype-anchor="npd/pipeline.jsx:54-88"
         aria-label={labels.title}
-        className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm"
+        className="card"
       >
-        <p className="text-base font-semibold text-slate-900">{labels.empty}</p>
-        <p className="mt-1 text-sm text-slate-600">{labels.emptyBody}</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">🧪</div>
+          <div className="empty-state-title">{labels.empty}</div>
+          <div className="empty-state-body">{labels.emptyBody}</div>
+        </div>
       </section>
     );
   }
@@ -376,24 +380,30 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
         <div
           role="toolbar"
           aria-label={labels.selectedCount.replace('{count}', String(selectedCount))}
-          className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2"
+          className="flex flex-wrap items-center gap-2"
+          style={{
+            background: 'var(--gray-050)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: 8,
+          }}
         >
-          <span data-testid="pipeline-bulk-count" className="px-1 text-sm font-medium text-slate-700">
+          <span data-testid="pipeline-bulk-count" className="px-1" style={{ fontSize: 13, fontWeight: 500 }}>
             {labels.selectedCount.replace('{count}', String(selectedCount))}
           </span>
-          <Button type="button" data-testid="bulk-assign-owner">
+          <Button type="button" className="btn-secondary btn-sm" data-testid="bulk-assign-owner">
             {labels.bulkAssignOwner}
           </Button>
-          <Button type="button" data-testid="bulk-set-priority">
+          <Button type="button" className="btn-secondary btn-sm" data-testid="bulk-set-priority">
             {labels.bulkSetPriority}
           </Button>
-          <Button type="button" data-testid="bulk-move-gate">
+          <Button type="button" className="btn-primary btn-sm" data-testid="bulk-move-gate">
             {labels.bulkMoveGate}
           </Button>
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <Table>
           <TableCaption className="sr-only">{labels.caption}</TableCaption>
           <TableHeader>
@@ -484,14 +494,18 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
                         aria-valuenow={progress}
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        className="h-1.5 max-w-[100px] flex-1 overflow-hidden rounded bg-slate-100"
+                        className="max-w-[100px] flex-1"
+                        style={{ height: 5, background: 'var(--gray-100)', borderRadius: 3, overflow: 'hidden' }}
                       >
                         <div
-                          className={progress >= 90 ? 'h-full bg-green-500' : 'h-full bg-blue-500'}
-                          style={{ width: `${progress}%` }}
+                          style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
+                          }}
                         />
                       </div>
-                      <span className="min-w-[30px] font-mono text-[11px] text-slate-500">
+                      <span className="mono muted" style={{ minWidth: 30, fontSize: 11 }}>
                         {progress}%
                       </span>
                     </div>

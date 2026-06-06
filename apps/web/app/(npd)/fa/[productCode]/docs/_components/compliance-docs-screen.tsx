@@ -186,12 +186,26 @@ function formatDate(value: string | null): string | null {
   return value.slice(0, 10);
 }
 
+// Design-system badge tone class (the @monopilot/ui Badge BEM `.badge--*` variant is
+// unstyled in globals.css; the explicit `.badge-{tone}` class carries the real color).
+function statusBadgeClass(status: ExpiryStatus): string {
+  switch (status) {
+    case 'Expired':
+      return 'badge-red';
+    case 'Expiring':
+      return 'badge-amber';
+    default:
+      return 'badge-green';
+  }
+}
+
 /** Status badge — color is paired with a glyph + text label so status is never color-only (a11y). */
 function ExpiryStatusBadge({ status, labels }: { status: ExpiryStatus; labels: ComplianceDocsLabels }) {
   const label = statusLabel(status, labels);
   return (
     <Badge
       variant={statusVariant(status)}
+      className={statusBadgeClass(status)}
       data-testid="doc-status-badge"
       data-status={status}
       aria-label={label}
@@ -204,21 +218,21 @@ function ExpiryStatusBadge({ status, labels }: { status: ExpiryStatus; labels: C
 function StateNotice({ state, labels }: { state: PageState; labels: ComplianceDocsLabels }) {
   if (state === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="p-6 text-sm text-slate-600">
+      <div role="status" aria-live="polite" className="muted" style={{ padding: 24, fontSize: 13 }}>
         {labels.loading}
       </div>
     );
   }
   if (state === 'error') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.error}
       </div>
     );
   }
   if (state === 'permission_denied') {
     return (
-      <div role="alert" className="p-6 text-sm text-red-700">
+      <div role="alert" className="alert alert-red" style={{ margin: 16 }}>
         {labels.forbidden}
       </div>
     );
@@ -305,142 +319,141 @@ export function ComplianceDocsScreen({
     <main
       data-testid="compliance-docs-screen"
       aria-labelledby="compliance-docs-title"
-      className="mx-auto w-full max-w-6xl space-y-4 p-6"
+      className="card"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="card-head">
         <div>
-          <nav aria-label="breadcrumb" className="text-xs text-slate-500">
-            NPD / {productCode} / {labels.title}
+          <nav aria-label="breadcrumb" className="muted" style={{ fontSize: 11 }}>
+            NPD / <span className="mono">{productCode}</span> / {labels.title}
           </nav>
-          <h1 id="compliance-docs-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+          <h1 id="compliance-docs-title" className="card-title" style={{ marginTop: 2 }}>
             {labels.title}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <div className="muted" style={{ fontSize: 11 }}>{labels.subtitle}</div>
         </div>
         {canWrite ? (
-          <Button type="button" aria-label={labels.upload} onClick={() => setUploadOpen(true)}>
+          <Button
+            type="button"
+            className="btn-secondary btn-sm"
+            aria-label={labels.upload}
+            onClick={() => setUploadOpen(true)}
+          >
             {labels.upload}
           </Button>
         ) : null}
-      </header>
+      </div>
 
       {actionError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div role="alert" className="alert alert-red">
           {actionError}
         </div>
       ) : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        {!dataLoaded ? (
-          <StateNotice state={state} labels={labels} />
-        ) : rows.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              icon="📄"
-              title={labels.empty}
-              body={labels.emptyBody}
-              action={
-                canWrite
-                  ? { label: labels.upload, onClick: () => setUploadOpen(true) }
-                  : (<span className="text-slate-400">—</span> as React.ReactElement)
-              }
-            />
-          </div>
-        ) : (
-          <div className="space-y-6 p-4">
-            {groups.map(({ docType, docs }) => (
-              <div key={docType} data-testid={`doc-group-${docType}`} data-doc-type={docType}>
-                <h2 className="mb-2 text-sm font-semibold text-slate-700">
-                  <Badge variant="muted" aria-hidden="true" className="mr-2">
-                    {docTypeLabel(docType, labels)}
-                  </Badge>
-                  <span className="sr-only">{docTypeLabel(docType, labels)}</span>
-                  <span className="text-xs font-normal text-slate-500">({docs.length})</span>
-                </h2>
-                <div className="overflow-auto">
-                  <Table
-                    aria-label={`${docTypeLabel(docType, labels)} — ${labels.title}`}
-                    className="w-full border-collapse text-left text-sm"
-                  >
-                    <TableHeader className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <TableRow>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colType}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colTitle}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3 text-center">{labels.colVersion}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colUploaded}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colExpires}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colStatus}</TableHead>
-                        <TableHead scope="col" className="px-3 py-3">{labels.colActions}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="divide-y divide-slate-100">
-                      {docs.map((doc) => {
-                        const status = classifyExpiry(doc.expiresAt);
-                        const expiresText = formatDate(doc.expiresAt);
-                        return (
-                          <TableRow
-                            key={doc.id}
-                            data-testid={`doc-row-${doc.id}`}
-                            data-doc-type={doc.docType}
-                            data-status={status}
-                            className="align-middle hover:bg-slate-50"
-                          >
-                            <TableCell className="px-3 py-2">
-                              <Badge variant="muted" aria-label={docTypeLabel(doc.docType, labels)}>
-                                {docTypeLabel(doc.docType, labels)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="px-3 py-2 font-medium text-slate-950">
-                              <span aria-hidden="true">📄</span> {doc.title}
-                            </TableCell>
-                            <TableCell className="px-3 py-2 text-center font-mono text-xs text-slate-600">
-                              v{doc.versionNumber}
-                            </TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-600">
-                              {formatDate(doc.uploadedAt) ?? <span className="text-slate-400">—</span>}
-                            </TableCell>
-                            <TableCell className="px-3 py-2 font-mono text-xs text-slate-600">
-                              {expiresText ?? <span className="text-slate-400">{labels.noExpiry}</span>}
-                            </TableCell>
-                            <TableCell className="px-3 py-2">
-                              <ExpiryStatusBadge status={status} labels={labels} />
-                            </TableCell>
-                            <TableCell className="px-3 py-2 whitespace-nowrap">
-                              <div className="flex gap-2">
+      {!dataLoaded ? (
+        <StateNotice state={state} labels={labels} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon="📄"
+          title={labels.empty}
+          body={labels.emptyBody}
+          action={
+            canWrite
+              ? { label: labels.upload, onClick: () => setUploadOpen(true) }
+              : (<span className="muted">—</span> as React.ReactElement)
+          }
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {groups.map(({ docType, docs }) => (
+            <div key={docType} data-testid={`doc-group-${docType}`} data-doc-type={docType}>
+              <h2 style={{ marginBottom: 8, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Badge variant="muted" className="badge-gray" aria-hidden="true">
+                  {docTypeLabel(docType, labels)}
+                </Badge>
+                <span className="sr-only">{docTypeLabel(docType, labels)}</span>
+                <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}>({docs.length})</span>
+              </h2>
+              <div style={{ overflowX: 'auto' }}>
+                <Table aria-label={`${docTypeLabel(docType, labels)} — ${labels.title}`}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">{labels.colType}</TableHead>
+                      <TableHead scope="col">{labels.colTitle}</TableHead>
+                      <TableHead scope="col" style={{ textAlign: 'center' }}>{labels.colVersion}</TableHead>
+                      <TableHead scope="col">{labels.colUploaded}</TableHead>
+                      <TableHead scope="col">{labels.colExpires}</TableHead>
+                      <TableHead scope="col">{labels.colStatus}</TableHead>
+                      <TableHead scope="col">{labels.colActions}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {docs.map((doc) => {
+                      const status = classifyExpiry(doc.expiresAt);
+                      const expiresText = formatDate(doc.expiresAt);
+                      return (
+                        <TableRow
+                          key={doc.id}
+                          data-testid={`doc-row-${doc.id}`}
+                          data-doc-type={doc.docType}
+                          data-status={status}
+                        >
+                          <TableCell>
+                            <Badge variant="muted" className="badge-gray" aria-label={docTypeLabel(doc.docType, labels)}>
+                              {docTypeLabel(doc.docType, labels)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell style={{ fontWeight: 500 }}>
+                            <span aria-hidden="true">📄</span>{' '}
+                            <span style={{ color: 'var(--blue)' }}>{doc.title}</span>
+                          </TableCell>
+                          <TableCell className="mono" style={{ textAlign: 'center', fontSize: 12 }}>
+                            v{doc.versionNumber}
+                          </TableCell>
+                          <TableCell className="mono" style={{ fontSize: 12 }}>
+                            {formatDate(doc.uploadedAt) ?? <span className="muted">—</span>}
+                          </TableCell>
+                          <TableCell className="mono" style={{ fontSize: 12 }}>
+                            {expiresText ?? <span className="muted">{labels.noExpiry}</span>}
+                          </TableCell>
+                          <TableCell>
+                            <ExpiryStatusBadge status={status} labels={labels} />
+                          </TableCell>
+                          <TableCell style={{ whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <Button
+                                type="button"
+                                className="btn-ghost btn-sm"
+                                aria-label={`${labels.download} ${doc.title}`}
+                                disabled={busyDownloadId === doc.id || !getSignedUrlAction}
+                                onClick={() => handleDownload(doc.id)}
+                              >
+                                {labels.download}
+                              </Button>
+                              {canWrite && softDeleteDocAction ? (
                                 <Button
                                   type="button"
-                                  className="btn--ghost text-sm"
-                                  aria-label={`${labels.download} ${doc.title}`}
-                                  disabled={busyDownloadId === doc.id || !getSignedUrlAction}
-                                  onClick={() => handleDownload(doc.id)}
+                                  className="btn-ghost btn-sm"
+                                  style={{ color: 'var(--red)' }}
+                                  aria-label={`${labels.delete} ${doc.title}`}
+                                  onClick={() => handleDelete(doc.id)}
                                 >
-                                  {labels.download}
+                                  {labels.delete}
                                 </Button>
-                                {canWrite && softDeleteDocAction ? (
-                                  <Button
-                                    type="button"
-                                    className="btn--ghost text-sm text-red-700"
-                                    aria-label={`${labels.delete} ${doc.title}`}
-                                    onClick={() => handleDelete(doc.id)}
-                                  >
-                                    {labels.delete}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <p className="text-xs text-slate-500">{labels.fileTypesNote}</p>
+      <div className="alert alert-blue" style={{ marginTop: 12 }}>{labels.fileTypesNote}</div>
 
       {uploadOpen ? (
         <DocUploadModal

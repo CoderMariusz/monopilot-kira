@@ -26,9 +26,7 @@
  */
 import { getTranslations } from 'next-intl/server';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
@@ -179,7 +177,7 @@ type FaRightPanelLabels = {
 
 const DEFAULT_LABELS: FaRightPanelLabels = {
   title: 'Validation status',
-  subtitle: 'Right-panel summary for this Factory Article.',
+  subtitle: 'Right-panel summary for this Finished Good.',
   keyFacts: 'Key facts',
   code: 'Code',
   name: 'Product',
@@ -197,7 +195,7 @@ const DEFAULT_LABELS: FaRightPanelLabels = {
   actionsDeferred: 'Available once the action workflow ships.',
   loading: 'Loading summary…',
   empty: 'No summary',
-  emptyBody: 'No Factory Article matches this code in your organisation.',
+  emptyBody: 'No Finished Good matches this code in your organisation.',
   forbidden: 'You do not have permission to view this summary.',
   error: 'Unable to load the summary.',
   status: {
@@ -261,13 +259,13 @@ async function buildLabels(locale: string): Promise<FaRightPanelLabels> {
 // View helpers
 // ---------------------------------------------------------------------------
 
-type BadgeTone = 'success' | 'danger' | 'warning' | 'info' | 'muted';
-
-function statusTone(statusOverall: string | null): BadgeTone {
-  if (statusOverall === 'Complete' || statusOverall === 'Built') return 'success';
-  if (statusOverall === 'Alert') return 'danger';
-  if (statusOverall === 'InProgress') return 'warning';
-  return 'muted';
+/** Map status → design-system `.badge-<tone>` class (globals.css; the `.badge--*`
+ *  emitted by the primitive has no CSS rule, hence the unstyled-badge drift). */
+function statusBadgeClass(statusOverall: string | null): string {
+  if (statusOverall === 'Complete' || statusOverall === 'Built') return 'badge-green';
+  if (statusOverall === 'Alert') return 'badge-red';
+  if (statusOverall === 'InProgress') return 'badge-amber';
+  return 'badge-gray';
 }
 
 function statusLabel(statusOverall: string | null, labels: FaRightPanelLabels): string {
@@ -287,7 +285,7 @@ function formatDate(value: string | null): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-const ASIDE_CLASS = 'sticky top-4 self-start w-full max-w-[280px] space-y-3';
+const ASIDE_CLASS = 'sticky top-4 self-start w-full max-w-[280px]';
 
 function StatePanel({ testId, title, body }: { testId: string; title: string; body?: string }) {
   return (
@@ -296,14 +294,14 @@ function StatePanel({ testId, title, body }: { testId: string; title: string; bo
       className={ASIDE_CLASS}
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
     >
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm" data-slot="card">
-        <CardContent className="p-6 text-center">
-          <p role="alert" data-testid={testId} className="text-sm font-semibold text-slate-900">
+      <div className="card" data-slot="card">
+        <div style={{ textAlign: 'center' }}>
+          <p role="alert" data-testid={testId} style={{ fontSize: 13, fontWeight: 600 }}>
             {title}
           </p>
-          {body ? <p className="mt-1 text-xs text-slate-600">{body}</p> : null}
-        </CardContent>
-      </Card>
+          {body ? <p className="muted" style={{ marginTop: 4, fontSize: 12 }}>{body}</p> : null}
+        </div>
+      </div>
     </aside>
   );
 }
@@ -321,16 +319,16 @@ export function FaRightPanelSkeleton() {
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
       data-testid="fa-right-panel-skeleton"
     >
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm" data-slot="card">
-        <CardHeader className="border-b border-slate-100 px-4 py-3">
+      <div className="card" data-slot="card">
+        <div className="card-head">
           <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
-        </CardHeader>
-        <CardContent className="space-y-3 px-4 py-4">
+        </div>
+        <div className="space-y-3">
           <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
           <div className="h-3 w-32 animate-pulse rounded bg-slate-100" />
           <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </aside>
   );
 }
@@ -372,79 +370,81 @@ export async function FaRightPanel(props: FaRightPanelProps) {
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
     >
       {/* Card 1 — Validation/Status + key facts (prototype lines 437-452) */}
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm" data-slot="card">
-        <CardHeader className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
+      <div className="card" data-slot="card">
+        <div className="card-head">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">{labels.title}</h2>
-            <p className="mt-1 text-xs text-slate-500">{labels.subtitle}</p>
+            <h2 className="card-title">{labels.title}</h2>
+            <p className="muted" style={{ marginTop: 2, fontSize: 11 }}>{labels.subtitle}</p>
           </div>
-          <Badge
-            tone={statusTone(fa.statusOverall)}
+          <span
+            className={`badge ${statusBadgeClass(fa.statusOverall)}`}
+            data-slot="badge"
             data-testid="fa-right-panel-status"
             aria-label={`${labels.statusLabel}: ${statusLabel(fa.statusOverall, labels)}`}
           >
             {statusLabel(fa.statusOverall, labels)}
-          </Badge>
-        </CardHeader>
+          </span>
+        </div>
 
-        <CardContent className="space-y-4 px-4 py-4">
+        <div className="space-y-4">
           <div className="space-y-1">
-            <div className="font-mono text-xs font-semibold text-blue-700">{fa.productCode}</div>
-            <div className="text-sm font-medium text-slate-900">
+            <div className="mono" style={{ fontWeight: 600, color: 'var(--blue)' }}>{fa.productCode}</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>
               {fa.productName ?? fa.productCode}
             </div>
           </div>
 
-          <dl className="grid gap-2 text-xs text-slate-600">
-            <div className="flex items-center justify-between gap-3">
+          <dl className="muted" style={{ display: 'grid', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <dt>{labels.daysToLaunch}</dt>
-              <dd className="font-medium text-slate-800" data-testid="fa-right-panel-days-to-launch">
+              <dd style={{ fontWeight: 500, color: 'var(--text)' }} data-testid="fa-right-panel-days-to-launch">
                 {fa.daysToLaunch ?? '—'}
               </dd>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <dt>{labels.launchDate}</dt>
-              <dd className="font-medium text-slate-800">{launchDate ?? '—'}</dd>
+              <dd className="mono" style={{ fontWeight: 500, color: 'var(--text)' }}>{launchDate ?? '—'}</dd>
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <dt>{labels.lastUpdated}</dt>
-              <dd className="font-medium text-slate-800">{lastUpdated ?? '—'}</dd>
+              <dd className="mono" style={{ fontWeight: 500, color: 'var(--text)' }}>{lastUpdated ?? '—'}</dd>
             </div>
           </dl>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Card 2 — Built status (prototype lines 454-467) */}
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm" data-slot="card">
-        <CardHeader className="border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">{labels.builtTitle}</h3>
-        </CardHeader>
-        <CardContent className="space-y-2 px-4 py-4">
-          <Badge
-            tone={fa.built ? 'info' : 'muted'}
+      <div className="card" data-slot="card">
+        <div className="card-head">
+          <h3 className="card-title">{labels.builtTitle}</h3>
+        </div>
+        <div className="space-y-2">
+          <span
+            className={`badge ${fa.built ? 'badge-blue' : 'badge-gray'}`}
+            data-slot="badge"
             data-testid="fa-right-panel-built"
             aria-label={fa.built ? labels.built : labels.notBuilt}
           >
             {fa.built ? `⚡ ${labels.built}` : labels.notBuilt}
-          </Badge>
+          </span>
           {fa.built && lastUpdated ? (
-            <p className="text-xs text-slate-500">
+            <p className="muted" style={{ fontSize: 11 }}>
               {labels.lastUpdated}: {lastUpdated}
             </p>
           ) : (
-            <p className="text-xs text-slate-500">{labels.builtNote}</p>
+            <p className="muted" style={{ fontSize: 11 }}>{labels.builtNote}</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Card 3 — Action affordances (deferred seams; modal workflow = T-123) */}
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm" data-slot="card">
-        <CardHeader className="border-b border-slate-100 px-4 py-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="card" data-slot="card">
+        <div className="card-head">
+          <h3 className="muted" style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {labels.actions}
           </h3>
-        </CardHeader>
-        <CardContent className="space-y-2 px-4 py-4">
+        </div>
+        <div className="space-y-2">
           {props.actionsSlot !== undefined ? (
             // T-138: wired client actions (route to ?modal=deptClose|d365Build).
             props.actionsSlot
@@ -454,7 +454,7 @@ export async function FaRightPanel(props: FaRightPanelProps) {
               <div className="grid gap-2">
                 <Button
                   type="button"
-                  className="justify-center"
+                  className="btn-secondary btn-sm justify-center"
                   disabled
                   data-testid="fa-right-panel-action-deptClose"
                   title={labels.actionsDeferred}
@@ -463,7 +463,7 @@ export async function FaRightPanel(props: FaRightPanelProps) {
                 </Button>
                 <Button
                   type="button"
-                  className="justify-center"
+                  className="btn-primary btn-sm justify-center"
                   disabled
                   data-testid="fa-right-panel-action-d365Build"
                   title={labels.actionsDeferred}
@@ -471,11 +471,11 @@ export async function FaRightPanel(props: FaRightPanelProps) {
                   {labels.d365Build}
                 </Button>
               </div>
-              <p className="text-[11px] text-slate-400">{labels.actionsDeferred}</p>
+              <p className="muted" style={{ fontSize: 11 }}>{labels.actionsDeferred}</p>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </aside>
   );
 }
