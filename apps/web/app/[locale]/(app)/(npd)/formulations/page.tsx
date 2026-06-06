@@ -57,7 +57,12 @@ type FormulationLoaderRow = {
 
 type LoaderResult = { state: PageState; rows: FormulationListRow[] };
 
-const READ_PERMISSION = 'npd.formulation.read';
+// NOTE: there is no dedicated `npd.formulation.read` in the seeded permission
+// vocabulary (migration 080/149 seed only npd.formulation.create_draft / .lock).
+// This cross-FG list is a read view scoped to Finished Goods, so it gates on the
+// already-seeded FG read permission. A dedicated npd.formulation.read can be added
+// to the org-admin seed (mirror mig 149) during the NPD backend wave if desired.
+const READ_PERMISSION = 'npd.fa.read';
 
 const DEFAULT_LABELS: FormulationsListLabels = {
   title: 'Formulations',
