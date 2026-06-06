@@ -27,9 +27,21 @@ const setPrioritySchema = z.object({
   priority: z.enum(['high', 'normal', 'low']),
 });
 
+// Stage-native bulk move (2026-06-06 pivot): the user picks the next operational
+// stage; each selected project advances exactly one step into it (adjacency enforced
+// per-project by advanceProjectGate — non-adjacent projects land in `failed`).
 const moveGateSchema = z.object({
   projectIds: projectIdsSchema,
-  targetGate: z.enum(['G0', 'G1', 'G2', 'G3', 'G4', 'Launched']),
+  targetStage: z.enum([
+    'recipe',
+    'packaging',
+    'trial',
+    'sensory',
+    'pilot',
+    'approval',
+    'handoff',
+    'launched',
+  ]),
 });
 
 // NOTE: types cannot be exported from a 'use server' file (Next build rule); kept local.
@@ -100,7 +112,7 @@ export async function bulkMoveGate(rawInput: unknown): Promise<BulkMoveGateResul
   const moved: Array<{ projectId: string; previousGate: ProjectGate; currentGate: ProjectGate }> = [];
 
   for (const projectId of parsed.data.projectIds) {
-    const result = await advanceProjectGate({ projectId, targetGate: parsed.data.targetGate });
+    const result = await advanceProjectGate({ projectId, targetStage: parsed.data.targetStage });
     if (result.ok) {
       moved.push({
         projectId,

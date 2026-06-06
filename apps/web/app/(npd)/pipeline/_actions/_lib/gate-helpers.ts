@@ -18,14 +18,106 @@ export const FG_CANDIDATE_MAPPED_EVENT = 'npd.fg_candidate_mapped';
 export const APP_VERSION = 'npd-gate-actions-v1';
 
 const GATES: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'];
-const STAGE_BY_GATE: Record<ProjectGate, string> = {
-  G0: 'brief',
-  G1: 'brief',
-  G2: 'recipe',
-  G3: 'trial',
-  G4: 'approval',
-  Launched: 'handoff',
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE MACHINE (2026-06-06 pivot — gate-centric → 8-stage operational pipeline).
+//
+// `current_stage` is now the AUTHORITATIVE step the user drives. It advances ONE
+// step at a time through STAGE_ORDER; `current_gate` is DERIVED from the stage so
+// all existing gate-keyed infra (gate_checklist_items.gate_code, gate_approvals,
+// closeout, factory-release preflight) keeps working unchanged.
+//
+//   STAGE_ORDER : brief → recipe → packaging → trial → sensory → pilot → approval
+//                 → handoff → (launched, terminal)
+//
+//   STAGE → GATE (derived):
+//     brief     → G1   (Feasibility)
+//     recipe    → G2   (Business Case)
+//     packaging → G3   (Development)  ← FG candidate is created ENTERING here
+//     trial     → G3
+//     sensory   → G3
+//     pilot     → G3
+//     approval  → G4   (Testing — e-signature checkpoint)
+//     handoff   → G4   (handoff work runs UNDER the G4 testing gate; the project is
+//                       NOT 'Launched' until the terminal stage — see deviation note)
+//     launched  → Launched (terminal — set only by closeout / handoff promotion)
+//
+//   DEVIATION from the original proposal (handoff→Launched): we map handoff→G4 and
+//   reserve gate 'Launched' for the terminal `launched` stage ONLY. Rationale:
+//   (a) the FG-not-active invariant — gate 'Launched' should never be visible while
+//   handoff work is still in progress; (b) mapCloseoutStatus() + the standalone
+//   closeOutLegacyStages() key off current_gate==='Launched' to mean truly launched;
+//   collapsing handoff into Launched would surface closeout status prematurely.
+//
+//   Creation is the single special case: stage='brief' AND gate='G0' (Idea), set
+//   by create-project.ts. The FIRST advance (brief→recipe) moves gate G0→G2 via the
+//   derived map below; G1 (Feasibility) is collapsed into the brief stage so the
+//   gate the project SITS at while on `brief` is G1 once advanced into. Migration 242
+//   widened npd_projects.current_stage to exactly these 9 values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The fixed operational stage pipeline + terminal 'launched' (matches mig 242). */
+export const STAGE_ORDER = [
+  'brief',
+  'recipe',
+  'packaging',
+  'trial',
+  'sensory',
+  'pilot',
+  'approval',
+  'handoff',
+] as const;
+
+export type ProjectStage = (typeof STAGE_ORDER)[number];
+export type TerminalStage = 'launched';
+export type AnyStage = ProjectStage | TerminalStage;
+
+/** Stages, in order, that derive into gate G3 (FG candidate is created entering the first). */
+const G3_STAGES: ProjectStage[] = ['packaging', 'trial', 'sensory', 'pilot'];
+
+/** The stage on which the FG candidate is created (the 3rd stage = entering G3). */
+export const FG_CANDIDATE_STAGE: ProjectStage = 'packaging';
+
+/**
+ * Derived STAGE → GATE map. Single source of truth for keeping current_gate in
+ * sync with current_stage. (Creation's G0/brief is the one exception, handled in
+ * create-project.ts — see header.)
+ */
+const GATE_BY_STAGE: Record<AnyStage, ProjectGate> = {
+  brief: 'G1',
+  recipe: 'G2',
+  packaging: 'G3',
+  trial: 'G3',
+  sensory: 'G3',
+  pilot: 'G3',
+  approval: 'G4',
+  handoff: 'G4',
+  launched: 'Launched',
 };
+
+export function gateForStage(stage: AnyStage): ProjectGate {
+  return GATE_BY_STAGE[stage];
+}
+
+export function isProjectStage(value: string): value is AnyStage {
+  return value in GATE_BY_STAGE;
+}
+
+/** The next operational stage after `stage`, or 'launched' after handoff, or null at terminal. */
+export function nextStage(stage: string): AnyStage | null {
+  if (stage === 'launched') return null;
+  const index = STAGE_ORDER.indexOf(stage as ProjectStage);
+  if (index < 0) return null;
+  if (index === STAGE_ORDER.length - 1) return 'launched'; // handoff → launched
+  return STAGE_ORDER[index + 1] ?? null;
+}
+
+/** Adjacency in STAGE space — the target must be exactly the next stage (no skipping). */
+export function assertAdjacentStage(currentStage: string, targetStage: AnyStage): void {
+  if (nextStage(currentStage) !== targetStage) {
+    throw new GateActionError('ADJACENCY_VIOLATION', 422);
+  }
+}
 
 export type GateProjectRow = {
   id: string;
@@ -59,6 +151,10 @@ export class GateActionError extends Error {
   }
 }
 
+// ─── Gate-space navigation primitives (legacy) ───
+// The advance engine is now STAGE-native (nextStage / assertAdjacentStage above).
+// These gate primitives remain for revert-gate.ts, which still reasons in gate space
+// (admin rollback to an earlier gate), and as the documented gate adjacency rule.
 export function nextGate(gate: ProjectGate): ProjectGate | null {
   const index = GATES.indexOf(gate);
   if (index < 0 || index >= GATES.length - 1) return null;
@@ -71,14 +167,11 @@ export function previousGate(gate: ProjectGate): ProjectGate | null {
   return GATES[index - 1] ?? null;
 }
 
+/** @deprecated Stage advance uses assertAdjacentStage. Kept for gate-space rollback docs. */
 export function assertAdjacent(currentGate: ProjectGate, targetGate: ProjectGate): void {
   if (nextGate(currentGate) !== targetGate) {
     throw new GateActionError('ADJACENCY_VIOLATION', 422);
   }
-}
-
-export function stageForGate(gate: ProjectGate): string {
-  return STAGE_BY_GATE[gate];
 }
 
 export async function requireActionPermission(ctx: OrgContextLike, permission: string): Promise<void> {
@@ -103,6 +196,33 @@ export async function requireAdmin(ctx: OrgContextLike): Promise<void> {
   if (role.rows.length === 0) throw new GateActionError('FORBIDDEN', 403);
 }
 
+/**
+ * G4 e-signature checkpoint guard for the approval → handoff stage transition.
+ *
+ * Advancing FROM `approval` TO `handoff` is the BRCGS/CFR-21 e-sign checkpoint. The
+ * signature itself is collected by the existing approveProjectGate flow (gateCode
+ * 'G4', signEvent intent 'npd.gate.approved' → gate_approvals with esigned_at +
+ * esign_hash). This guard verifies a valid, immutable G4 e-sign approval exists
+ * before allowing the stage to advance — advancing without one throws ESIGN_REQUIRED.
+ */
+export async function assertG4ESignForHandoff(ctx: OrgContextLike, projectId: string): Promise<void> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.gate_approvals
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and gate_code = 'G4'
+        and decision = 'approved'
+        and esigned_at is not null
+        and esign_hash is not null
+      limit 1`,
+    [projectId],
+  );
+  if (rows.length === 0) {
+    throw new GateActionError('ESIGN_REQUIRED', 403);
+  }
+}
+
 export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: string): Promise<GateProjectRow> {
   const { rows } = await ctx.client.query<GateProjectRow>(
     `select id, code, name, type, current_gate, current_stage, product_code
@@ -117,35 +237,27 @@ export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: strin
   return project;
 }
 
+/**
+ * Blockers that must be resolved before advancing the project's CURRENT stage.
+ * Checklist completeness is checked against the CURRENT stage's gate (the gate the
+ * project currently sits at), preserving the existing gate_checklist_items behaviour.
+ * The FG-already-linked guard fires only when ENTERING the FG candidate stage.
+ */
 export async function getBlockers(
   ctx: OrgContextLike,
   project: GateProjectRow,
-  targetGate: ProjectGate,
+  targetStage: AnyStage,
 ): Promise<GateBlocker[]> {
-  const checklist = await ctx.client.query<{
-    id: string;
-    gate_code: ProjectGate;
-    item_text: string;
-  }>(
-    `select id, gate_code, item_text
-       from public.gate_checklist_items
-      where org_id = app.current_org_id()
-        and project_id = $1::uuid
-        and gate_code = $2
-        and required = true
-        and completed_at is null
-      order by created_at, id`,
-    [project.id, project.current_gate],
-  );
-  const blockers: GateBlocker[] = checklist.rows.map((row) => ({
-    code: 'CHECKLIST_REQUIRED',
-    message: row.item_text,
-    gateCode: row.gate_code,
-    itemId: row.id,
-    itemText: row.item_text,
-  }));
+  // 2026-06-06 pivot: the gate checklist is ADVISORY in the simplified R&D pipeline
+  // (the user has no UI to tick the seeded ideation items, and stage/brief fields are
+  // the real completeness signal). It NO LONGER hard-blocks a stage advance. The only
+  // hard gates are: (1) the FG-conflict guard below, and (2) the approval→handoff
+  // e-signature (enforced in advance-project-gate via assertG4ESignForHandoff).
+  const blockers: GateBlocker[] = [];
 
-  if (targetGate === 'G3' && !project.product_code) {
+  // FG conflict guard: only relevant when about to create the FG candidate (entering
+  // the `packaging` stage) and the project has no FG mapped yet.
+  if (targetStage === FG_CANDIDATE_STAGE && !project.product_code) {
     const conflict = await findFgConflict(ctx.client, project.id, normalizeProductCode(null, project));
     if (conflict) {
       blockers.push({
@@ -156,6 +268,51 @@ export async function getBlockers(
   }
 
   return blockers;
+}
+
+/**
+ * Persist a stage transition. `current_stage` is authoritative; `current_gate` is
+ * DERIVED via GATE_BY_STAGE so all gate-keyed infra stays in sync. The 'launched'
+ * terminal stage maps to gate 'Launched'.
+ */
+export async function updateProjectStage(
+  ctx: OrgContextLike,
+  projectId: string,
+  targetStage: AnyStage,
+): Promise<void> {
+  await ctx.client.query(
+    `update public.npd_projects
+        set current_stage = $2,
+            current_gate = $3
+      where id = $1::uuid
+        and org_id = app.current_org_id()`,
+    [projectId, targetStage, gateForStage(targetStage)],
+  );
+}
+
+/**
+ * Legacy gate-only setter (kept for revert-gate / approve-gate which still reason in
+ * gate space). It derives a representative stage for the target gate so current_stage
+ * never drifts. For G3 (4 stages) it lands on the FIRST G3 stage (packaging); for a
+ * downward gate revert this is the safe, earliest stage of that gate.
+ */
+export function representativeStageForGate(gate: ProjectGate): AnyStage {
+  switch (gate) {
+    case 'G0':
+      return 'brief';
+    case 'G1':
+      return 'brief';
+    case 'G2':
+      return 'recipe';
+    case 'G3':
+      return G3_STAGES[0];
+    case 'G4':
+      return 'approval';
+    case 'Launched':
+      return 'launched';
+    default:
+      return 'brief';
+  }
 }
 
 export async function updateProjectGate(
@@ -169,7 +326,7 @@ export async function updateProjectGate(
             current_stage = $3
       where id = $1::uuid
         and org_id = app.current_org_id()`,
-    [projectId, targetGate, stageForGate(targetGate)],
+    [projectId, targetGate, representativeStageForGate(targetGate)],
   );
 }
 

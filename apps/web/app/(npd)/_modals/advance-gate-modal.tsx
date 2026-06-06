@@ -170,14 +170,12 @@ export function AdvanceGateModal({
   onAdvanced?: () => void;
   onClose: () => void;
 }) {
-  const { register, handleSubmit, watch, reset, formState } = useForm<NotesForm>({
+  const { register, handleSubmit, reset, formState } = useForm<NotesForm>({
     defaultValues: { notes: '' },
     mode: 'onChange',
   });
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
-
-  const notes = watch('notes');
 
   React.useEffect(() => {
     if (!open) {
@@ -187,23 +185,26 @@ export function AdvanceGateModal({
     }
   }, [open, reset]);
 
-  // Empty when there are no items to summarise (treated as a UI state).
-  const effectiveState: AdvanceGateState =
-    state === 'ready' && items.length === 0 ? 'empty' : state;
+  // 2026-06-06 pivot: the gate checklist is ADVISORY in the simplified R&D pipeline
+  // — the items are shown as progress/info but DO NOT hard-block the stage advance
+  // (the user has no UI to tick them; brief/stage fields are the real completeness
+  // signal). The one hard regulatory gate is the approval→handoff e-signature, which
+  // is enforced server-side (advanceProjectGate → ESIGN_REQUIRED) and surfaced here as
+  // a serverError. So the modal always renders ready and never gates on the checklist.
+  const effectiveState: AdvanceGateState = state;
 
-  const blockers = React.useMemo(() => items.filter((i) => i.required && !i.done), [items]);
+  const incompleteRequired = React.useMemo(() => items.filter((i) => i.required && !i.done), [items]);
   const requiredItems = React.useMemo(() => items.filter((i) => i.required), [items]);
   const requiredDone = requiredItems.filter((i) => i.done).length;
   const pct = items.length
     ? Math.round((items.filter((i) => i.done).length / items.length) * 100)
     : 0;
 
-  const isBlocked = blockers.length > 0;
-  const canAdvance = !isBlocked && notes.trim().length > 0;
+  const isBlocked = false; // checklist is advisory; see note above
+  const canAdvance = true; // notes optional; e-sign (if any) is enforced server-side
   const submitting = formState.isSubmitting;
 
   const onSubmit = handleSubmit(async (values) => {
-    if (isBlocked) return; // defence in depth: never submit when blockers exist
     setServerError(null);
     try {
       const result = await advanceProjectGate?.({
@@ -354,17 +355,17 @@ export function AdvanceGateModal({
               </p>
             </div>
 
-            {/* ——— Blockers / ready ——— */}
-            {isBlocked ? (
-              <div role="alert" data-testid="advance-gate-blockers" className="alert alert-red">
-                <p className="alert-title text-red-800">
-                  <span aria-hidden="true">⚠</span>{' '}
-                  {fmt(labels.blockersTitle, { count: blockers.length })}
+            {/* ——— Advisory pending items / ready ——— */}
+            {incompleteRequired.length > 0 ? (
+              <div role="note" data-testid="advance-gate-blockers" className="alert alert-amber">
+                <p className="alert-title text-amber-800">
+                  <span aria-hidden="true">ℹ</span>{' '}
+                  {fmt(labels.blockersTitle, { count: incompleteRequired.length })}
                 </p>
                 <ul data-testid="advance-gate-blocker-list" className="list-none p-0">
-                  {blockers.map((b) => (
-                    <li key={b.id} data-testid="advance-gate-blocker-item" className="text-xs text-red-900">
-                      <span aria-hidden="true">✗</span> {b.text}
+                  {incompleteRequired.map((b) => (
+                    <li key={b.id} data-testid="advance-gate-blocker-item" className="text-xs text-amber-900">
+                      <span aria-hidden="true">○</span> {b.text}
                     </li>
                   ))}
                 </ul>

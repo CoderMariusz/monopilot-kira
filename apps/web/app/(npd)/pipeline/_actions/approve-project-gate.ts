@@ -14,10 +14,10 @@ import {
   emitOutbox,
   getBlockers,
   loadProjectForUpdate,
-  nextGate,
+  nextStage,
   requireActionPermission,
   serializeGateError,
-  updateProjectGate,
+  type AnyStage,
   type GateBlocker,
 } from './_lib/gate-helpers';
 import { type OrgContextLike, type ProjectGate } from './shared';
@@ -69,15 +69,24 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       await requireActionPermission(context, GATE_APPROVE_PERMISSION);
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
+      // The project's DERIVED gate (from current_stage) must match the gate being
+      // approved. G3 → packaging/trial/sensory/pilot; G4 → approval/handoff.
       if (project.current_gate !== parsed.data.gateCode) {
         return { ok: false, error: 'GATE_MISMATCH', status: 409 };
       }
 
-      const targetGate = parsed.data.decision === 'approved' ? nextGate(project.current_gate) : project.current_gate;
-      if (!targetGate) return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
-
-      const blockers = parsed.data.decision === 'approved' ? await getBlockers(context, project, targetGate) : [];
+      // E-sign approval is now a CHECKPOINT RECORD — it no longer auto-advances the
+      // project. Advancement is stage-driven via advanceProjectGate; the G4 e-sign
+      // recorded here is what assertG4ESignForHandoff verifies for approval→handoff.
+      // Blockers are still checked against the current stage's gate checklist.
+      const nextStg = nextStage(project.current_stage) as AnyStage | null;
+      const blockers =
+        parsed.data.decision === 'approved' && nextStg
+          ? await getBlockers(context, project, nextStg)
+          : [];
       if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
+
+      const currentGate = project.current_gate;
 
       // E-signature is collected ONLY on the approve path (G3/G4 require it). A rejection
       // records the reason with no password and no signature (esigned_at/esign_hash null).
@@ -126,10 +135,8 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
       const approvalId = approval.rows[0]?.id;
       if (!approvalId) return { ok: false, error: 'PERSISTENCE_FAILED', status: 500 };
 
-      if (parsed.data.decision === 'approved' && targetGate !== project.current_gate) {
-        await updateProjectGate(context, project.id, targetGate);
-      }
-
+      // No auto-advance: the project stays on its current stage/gate. The e-sign is a
+      // recorded checkpoint; advancing the stage is the user's separate explicit step.
       await emitOutbox(context, {
         eventType: GATE_APPROVED_EVENT,
         aggregateType: 'npd_project',
@@ -141,7 +148,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           project_code: project.code,
           gate_code: parsed.data.gateCode,
           decision: parsed.data.decision,
-          current_gate: targetGate,
+          current_gate: currentGate,
           approval_id: approvalId,
           e_sign_signature_id: signatureId,
           esign_hash: esignHash,
@@ -156,7 +163,7 @@ export async function approveProjectGate(rawInput: unknown): Promise<ApproveProj
           projectId: project.id,
           approvedGate: parsed.data.gateCode,
           decision: parsed.data.decision,
-          currentGate: targetGate,
+          currentGate,
           approvalId,
           outboxEventType: GATE_APPROVED_EVENT,
         },

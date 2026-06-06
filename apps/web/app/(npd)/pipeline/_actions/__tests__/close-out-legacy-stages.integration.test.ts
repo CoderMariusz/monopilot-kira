@@ -1,7 +1,7 @@
 /**
  * T-100 — REAL DB-backed integration tests for G4 legacy closeout.
  *
- * Exercises advanceProjectGate({ targetGate: 'Launched' }) through the real
+ * Exercises advanceProjectGate({ targetStage: 'launched' }) through the real
  * withOrgContext app-role transaction and RLS. Requires DATABASE_URL; skipped in
  * no-DB CI.
  */
@@ -129,7 +129,7 @@ async function seedLaunchReadyProject(input: {
     `insert into public.npd_projects
        (id, org_id, code, name, type, current_gate, current_stage, product_code, created_by_user)
      values
-       ($1::uuid, $2::uuid, $3, $4, 'standard', 'G4', 'approval', $5, $6::uuid)`,
+       ($1::uuid, $2::uuid, $3, $4, 'standard', 'G4', 'handoff', $5, $6::uuid)`,
     [input.projectId, input.orgId, input.code, `${input.code} Project`, input.productCode, input.userId],
   );
   await owner.query(
@@ -268,7 +268,7 @@ run('T-100 G4 legacy closeout — REAL DB integration', () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const result = await withActionActor(seed.userAId, seed.orgAId, () =>
-      advanceProjectGate({ projectId: projectAId, targetGate: 'Launched' }),
+      advanceProjectGate({ projectId: projectAId, targetStage: 'launched' }),
     );
 
     expect(result).toMatchObject({ ok: true, data: { currentGate: 'Launched', productCode: productA } });
@@ -317,7 +317,7 @@ run('T-100 G4 legacy closeout — REAL DB integration', () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const result = await withActionActor(seed.userAId, seed.orgAId, () =>
-      advanceProjectGate({ projectId: missingPilotProjectId, targetGate: 'Launched' }),
+      advanceProjectGate({ projectId: missingPilotProjectId, targetStage: 'launched' }),
     );
 
     expect(result).toMatchObject({ ok: false, error: 'PILOT_WO_NOT_LINKED', status: 409 });
@@ -335,8 +335,8 @@ run('T-100 G4 legacy closeout — REAL DB integration', () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const results = await Promise.all([
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: raceProjectId, targetGate: 'Launched' })),
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: raceProjectId, targetGate: 'Launched' })),
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: raceProjectId, targetStage: 'launched' })),
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: raceProjectId, targetStage: 'launched' })),
     ]);
 
     expect(results).toEqual(
@@ -358,7 +358,7 @@ run('T-100 G4 legacy closeout — REAL DB integration', () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     await expect(
-      withActionActor(seed.userBId, seed.orgBId, () => advanceProjectGate({ projectId: projectBId, targetGate: 'Launched' })),
+      withActionActor(seed.userBId, seed.orgBId, () => advanceProjectGate({ projectId: projectBId, targetStage: 'launched' })),
     ).resolves.toMatchObject({ ok: true, data: { currentGate: 'Launched' } });
 
     const orgACount = await withAppOrg(owner, app, seed.orgAId, (client) =>

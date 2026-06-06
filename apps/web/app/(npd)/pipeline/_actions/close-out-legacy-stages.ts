@@ -12,7 +12,7 @@ import {
   loadProjectForUpdate,
   requireActionPermission,
   serializeGateError,
-  updateProjectGate,
+  updateProjectStage,
   type GateProjectRow,
 } from './_lib/gate-helpers';
 import { LEGACY_STAGES_CLOSED_EVENT, type OrgContextLike } from './shared';
@@ -107,16 +107,19 @@ export async function closeOutLegacyStages(rawInput: unknown): Promise<CloseOutL
       await requireActionPermission(context, GATE_ADVANCE_PERMISSION);
 
       const project = await loadProjectForUpdate(context, parsed.data.projectId);
-      if (project.current_gate === 'Launched') {
+      if (project.current_stage === 'launched' || project.current_gate === 'Launched') {
         const existing = await loadExistingCloseout(context, project.id);
         if (existing) return alreadyClosed(existing);
       }
-      if (project.current_gate !== 'G4') {
+      // Closeout (→ launched) is only adjacent from the handoff stage. Both approval
+      // and handoff derive to gate G4, so we gate on the stage, not the gate.
+      if (project.current_stage !== 'handoff') {
         return { ok: false, error: 'ADJACENCY_VIOLATION', status: 422 };
       }
 
       const closeout = await closeOutLegacyStagesForLaunch(context, project);
-      await updateProjectGate(context, project.id, 'Launched');
+      // Terminal: set stage='launched' → current_gate derives to 'Launched'.
+      await updateProjectStage(context, project.id, 'launched');
 
       safeRevalidatePath(`/npd/pipeline/${project.id}`);
       return {

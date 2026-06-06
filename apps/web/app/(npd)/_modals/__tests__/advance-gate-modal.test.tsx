@@ -191,29 +191,23 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
 
     const dialog = screen.getByRole('dialog');
 
-    // blocked arrow
-    expect(within(dialog).getByTestId('advance-gate-arrow')).toHaveAttribute('data-blocked', 'true');
+    // 2026-06-06 pivot: the checklist is ADVISORY — incomplete required items no longer
+    // block the advance. The arrow is NOT blocked, notes stay enabled, Advance is enabled.
+    expect(within(dialog).getByTestId('advance-gate-arrow')).toHaveAttribute('data-blocked', 'false');
 
-    // red blocker alert lists each blocking item text
-    const blockerAlert = within(dialog).getByTestId('advance-gate-blockers');
-    expect(blockerAlert).toHaveAttribute('role', 'alert');
-    expect(within(blockerAlert).getByText('Target margin confirmed')).toBeInTheDocument();
-    expect(within(blockerAlert).getByText('Resource plan approved')).toBeInTheDocument();
-    // count copy
-    expect(within(blockerAlert).getByText(/2 blocker/)).toBeInTheDocument();
+    // incomplete required items are surfaced as an advisory note (role="note"), not a blocker.
+    const advisory = within(dialog).getByTestId('advance-gate-blockers');
+    expect(advisory).toHaveAttribute('role', 'note');
+    expect(within(advisory).getByText('Target margin confirmed')).toBeInTheDocument();
+    expect(within(advisory).getByText('Resource plan approved')).toBeInTheDocument();
+    expect(within(advisory).getByText(/2 blocker/)).toBeInTheDocument();
 
-    // notes disabled
-    expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeDisabled();
-
-    // advance disabled
-    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeDisabled();
-
-    // no ready/success alert
-    expect(within(dialog).queryByTestId('advance-gate-ready')).not.toBeInTheDocument();
+    // notes enabled + Advance enabled despite incomplete checklist.
+    expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
   });
 
-  it('ready state: with no blockers, the green ready note shows, notes enabled, Advance disabled until notes present then enabled', async () => {
-    const user = userEvent.setup();
+  it('ready state: with all required items done, the green ready note shows and Advance is enabled (notes optional)', async () => {
     render(
       <AdvanceGateModal
         open
@@ -231,19 +225,9 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(ready).toHaveAttribute('role', 'status');
     expect(within(ready).getByText('No blockers — ready to advance!')).toBeInTheDocument();
 
-    const notes = within(dialog).getByLabelText(/Gate advancement notes/);
-    expect(notes).toBeEnabled();
-
-    const advanceBtn = within(dialog).getByRole('button', { name: /Advance to G3/ });
-    expect(advanceBtn).toBeDisabled();
-
-    // whitespace only does not enable
-    await user.type(notes, '   ');
-    expect(advanceBtn).toBeDisabled();
-
-    await user.clear(notes);
-    await user.type(notes, 'All required evidence captured.');
-    expect(advanceBtn).toBeEnabled();
+    expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeEnabled();
+    // Notes are optional now — Advance is enabled without typing anything.
+    expect(within(dialog).getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
   });
 
   it('submit: clicking Advance calls advanceProjectGate({ projectId, targetGate, notes }) exactly once and renders a success alert', async () => {
@@ -380,7 +364,7 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(screen.getByText('Loading gate details…')).toBeInTheDocument();
   });
 
-  it('empty state: renders the empty notice when there are no items', () => {
+  it('no items: with no checklist items the modal is ready (advisory checklist) and Advance is enabled', () => {
     render(
       <AdvanceGateModal
         open
@@ -392,7 +376,9 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByText('No checklist configured for this gate.')).toBeInTheDocument();
+    // Checklist is advisory now — no items means nothing pending, so the modal is ready.
+    expect(screen.getByTestId('advance-gate-ready')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
   });
 
   it('parity evidence: writes a DOM snapshot artifact', () => {

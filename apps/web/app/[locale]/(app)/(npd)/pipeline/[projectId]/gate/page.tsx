@@ -31,7 +31,7 @@ import {
 } from '../../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { approveProjectGate as approveProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/approve-project-gate';
-import { GATE_ADVANCE_PERMISSION, GATE_APPROVE_PERMISSION } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { GATE_ADVANCE_PERMISSION, GATE_APPROVE_PERMISSION, nextStage } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_VIEW_PERMISSION,
   hasPermission,
@@ -418,7 +418,14 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
 async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string }) {
   'use server';
-  const result = await advanceProjectGateAction(input);
+  // Stage-native engine: advance exactly one operational stage from the project's
+  // real current_stage (the modal's `targetGate` is the old gate-transition UI shape
+  // and is intentionally ignored here).
+  const current = await getProject({ projectId: input.projectId });
+  if (!current.ok) return { ok: false as const, error: current.error, status: 400 };
+  const next = nextStage(current.data.project.currentStage);
+  if (!next) return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
+  const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
   if (result.ok) return { ok: true as const, data: result.data };
   return { ok: false as const, error: result.error, status: result.status };
 }

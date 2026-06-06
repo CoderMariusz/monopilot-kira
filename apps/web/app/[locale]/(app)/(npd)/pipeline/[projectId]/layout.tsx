@@ -38,7 +38,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
-import { GATE_ADVANCE_PERMISSION } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { GATE_ADVANCE_PERMISSION, nextStage } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_VIEW_PERMISSION,
   hasPermission,
@@ -178,9 +178,21 @@ async function pickerFor(locale: string, namespace: string) {
 }
 
 // ─── Server-Action adapter passed to the client (the action itself is NOT authored here). ───
+// The detail-page "Advance stage →" button drives a STAGE step. The modal still passes
+// a `targetGate` (its gate-transition UI), but the engine is stage-native now: the
+// adapter loads the project's real current_stage and advances exactly one operational
+// stage (STAGE_ORDER). `targetGate` is accepted for the existing prop shape but ignored.
 async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string }) {
   'use server';
-  const result = await advanceProjectGateAction(input);
+  const current = await getProject({ projectId: input.projectId });
+  if (!current.ok) {
+    return { ok: false as const, error: current.error, status: 400 };
+  }
+  const next = nextStage(current.data.project.currentStage);
+  if (!next) {
+    return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
+  }
+  const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
   if (result.ok) return { ok: true as const, data: result.data };
   return { ok: false as const, error: result.error, status: result.status };
 }

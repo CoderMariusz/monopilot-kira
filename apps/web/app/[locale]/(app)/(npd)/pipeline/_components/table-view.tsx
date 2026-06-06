@@ -125,10 +125,33 @@ export type BulkActionResult =
 export type BulkActions = {
   assignOwner: (input: { projectIds: string[]; owner: string | null }) => Promise<BulkActionResult>;
   setPriority: (input: { projectIds: string[]; priority: ProjectPriority }) => Promise<BulkActionResult>;
-  moveGate: (input: { projectIds: string[]; targetGate: ProjectGate }) => Promise<BulkActionResult>;
+  moveGate: (input: { projectIds: string[]; targetStage: BulkTargetStage }) => Promise<BulkActionResult>;
 };
 
 const GATE_ORDER: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'];
+
+// Stage-native bulk move (2026-06-06 pivot): the operational stages a project can be
+// advanced INTO (brief is the creation stage, never a move target).
+export type BulkTargetStage =
+  | 'recipe'
+  | 'packaging'
+  | 'trial'
+  | 'sensory'
+  | 'pilot'
+  | 'approval'
+  | 'handoff'
+  | 'launched';
+
+const BULK_TARGET_STAGES: BulkTargetStage[] = [
+  'recipe',
+  'packaging',
+  'trial',
+  'sensory',
+  'pilot',
+  'approval',
+  'handoff',
+  'launched',
+];
 const PRIO_ORDER: Record<ProjectPriority, number> = { high: 0, normal: 1, low: 2 };
 
 function gateLabel(gate: ProjectGate, labels: TableLabels): string {
@@ -380,9 +403,9 @@ export function TableView({ projects, labels, state = 'ready', bulkActions, onSe
 
   const promptMoveGate = React.useCallback(() => {
     if (!bulkActions) return;
-    const gate = window.prompt(`${labels.bulkMoveGate}: G0, G1, G2, G3, G4, Launched`);
-    if (!gate || !(GATE_ORDER as string[]).includes(gate)) return;
-    runBulkAction(() => bulkActions.moveGate({ projectIds: selectedIds, targetGate: gate as ProjectGate }));
+    const stage = window.prompt(`${labels.bulkMoveGate}: ${BULK_TARGET_STAGES.join(', ')}`);
+    if (!stage || !(BULK_TARGET_STAGES as string[]).includes(stage)) return;
+    runBulkAction(() => bulkActions.moveGate({ projectIds: selectedIds, targetStage: stage as BulkTargetStage }));
   }, [bulkActions, labels.bulkMoveGate, runBulkAction, selectedIds]);
 
   if (state !== 'ready' && state !== 'empty') {

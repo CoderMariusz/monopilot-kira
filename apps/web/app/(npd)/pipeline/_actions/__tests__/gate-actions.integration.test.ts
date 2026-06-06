@@ -23,6 +23,8 @@ const otherProjectId = randomUUID();
 const checklistProjectId = randomUUID();
 const rollbackProjectId = randomUUID();
 const rejectProjectId = randomUUID();
+const approveProjectId = randomUUID();
+const handoffProjectId = randomUUID();
 const productCode = `FG-T095-${randomUUID().slice(0, 8).toUpperCase()}`;
 const pin = '123456';
 
@@ -80,7 +82,9 @@ async function seedGateFixtures(): Promise<void> {
        ($4, $5, 'NPD-T058-B', 'Other org project', 'standard', 'G2', 'recipe', $6),
        ($7, $2, 'NPD-T058-C', 'Checklist blocker project', 'standard', 'G2', 'recipe', $3),
        ($8, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3),
-       ($9, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3)
+       ($9, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3),
+       ($10, $2, 'NPD-T058-P', 'Approval project', 'standard', 'G4', 'approval', $3),
+       ($11, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
      on conflict (id) do nothing`,
     [
       projectId,
@@ -92,6 +96,8 @@ async function seedGateFixtures(): Promise<void> {
       checklistProjectId,
       rollbackProjectId,
       rejectProjectId,
+      approveProjectId,
+      handoffProjectId,
     ],
   );
   await owner.query(
@@ -144,43 +150,44 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     await owner.end();
   });
 
-  it('advances G0→G1→G2 and rejects G2→G3 when required checklist blockers remain', async () => {
+  it('advances brief→recipe (G1→G2) and rejects recipe→packaging when required checklist blockers remain', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
+    // Stage-native: brief → recipe (derived gate G1 → G2).
     await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetGate: 'G1' })),
-    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G1' } });
-    await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetGate: 'G2' })),
-    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G2' } });
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'recipe' })),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
 
+    // checklistProjectId starts at recipe/G2 with an INCOMPLETE required G2 checklist
+    // item → advancing recipe → packaging (entering G3, creates FG) must be blocked.
     const blocked = await withActionActor(seed.userAId, seed.orgAId, () =>
-      advanceProjectGate({ projectId: checklistProjectId, targetGate: 'G3', productCode: `FG-BLOCK-${randomUUID().slice(0, 6)}` }),
+      advanceProjectGate({ projectId: checklistProjectId, targetStage: 'packaging', productCode: `FG-BLOCK-${randomUUID().slice(0, 6)}` }),
     );
     expect(blocked).toMatchObject({ ok: false, error: 'BLOCKERS_PRESENT' });
 
-    const gate = await owner.query<{ current_gate: string }>(
-      `select current_gate from public.npd_projects where id = $1::uuid`,
+    const gate = await owner.query<{ current_gate: string; current_stage: string }>(
+      `select current_gate, current_stage from public.npd_projects where id = $1::uuid`,
       [checklistProjectId],
     );
-    expect(gate.rows[0]?.current_gate).toBe('G2');
+    expect(gate.rows[0]?.current_stage).toBe('recipe');
   });
 
-  it('rejects non-adjacent G2→G4 with ADJACENCY_VIOLATION', async () => {
+  it('rejects non-adjacent recipe→trial (skipping packaging) with ADJACENCY_VIOLATION', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
+    // projectId is now at `recipe`; jumping straight to `trial` skips `packaging`.
     await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetGate: 'G4' })),
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'trial' })),
     ).resolves.toMatchObject({ ok: false, error: 'ADJACENCY_VIOLATION', status: 422 });
   });
 
-  it('advancing G2→G3 creates/maps one FG product row and emits fg.created plus gate events', async () => {
+  it('advancing recipe→packaging (entering G3) creates/maps one FG product row and emits fg.created plus gate events', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     const result = await withActionActor(seed.userAId, seed.orgAId, () =>
-      advanceProjectGate({ projectId, targetGate: 'G3', productCode }),
+      advanceProjectGate({ projectId, targetStage: 'packaging', productCode }),
     );
-    expect(result).toMatchObject({ ok: true, data: { currentGate: 'G3', productCode } });
+    expect(result).toMatchObject({ ok: true, data: { currentStage: 'packaging', currentGate: 'G3', productCode } });
 
     const persisted = await owner.query<{
       current_gate: string;
@@ -200,18 +207,21 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
         where p.id = $1::uuid`,
       [projectId, productCode],
     );
+    // Two advances on projectId so far in this suite: brief→recipe, recipe→packaging.
     expect(persisted.rows[0]).toMatchObject({
       current_gate: 'G3',
       product_code: productCode,
       product_count: '1',
       fg_created_events: '1',
       mapped_events: '1',
-      advanced_events: '3',
+      advanced_events: '2',
     });
 
+    // packaging → trial: still G3, NO new FG created (FG candidate is idempotent and
+    // only created entering `packaging`). Proves the FG stays a single candidate row.
     await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetGate: 'G4', productCode })),
-    ).resolves.toMatchObject({ ok: true, data: { currentGate: 'G4', productCode } });
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'trial', productCode })),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'trial', currentGate: 'G3', productCode } });
     const dedup = await owner.query<{ product_count: string; fg_created_events: string }>(
       `select
          (select count(*) from public.product where org_id = $1::uuid and product_code = $2) as product_count,
@@ -224,10 +234,19 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
   it('approves with e-sign and stores deterministic gate_approvals esign_hash', async () => {
     const { approveProjectGate } = await import('../approve-project-gate');
 
+    // approveProjectId is at approval/G4. Approval is a CHECKPOINT RECORD — it records
+    // the e-sign in gate_approvals but does NOT advance the stage (advance is separate).
     const approved = await withActionActor(seed.userAId, seed.orgAId, () =>
-      approveProjectGate({ projectId, gateCode: 'G4', decision: 'approved', notes: 'Ready for testing approval.', password: pin }),
+      approveProjectGate({ projectId: approveProjectId, gateCode: 'G4', decision: 'approved', notes: 'Ready for testing approval.', password: pin }),
     );
-    expect(approved).toMatchObject({ ok: true, data: { approvedGate: 'G4' } });
+    expect(approved).toMatchObject({ ok: true, data: { approvedGate: 'G4', currentGate: 'G4' } });
+
+    // Approval did NOT advance the project's stage.
+    const stillApproval = await owner.query<{ current_stage: string }>(
+      `select current_stage from public.npd_projects where id = $1::uuid`,
+      [approveProjectId],
+    );
+    expect(stillApproval.rows[0]?.current_stage).toBe('approval');
 
     const approval = await owner.query<{ gate_code: string; esigned_at: Date; esign_hash: string; approved_events: string }>(
       `select ga.gate_code,
@@ -239,11 +258,11 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
         where ga.project_id = $1::uuid and ga.gate_code = 'G4'
         order by ga.created_at desc
         limit 1`,
-      [projectId],
+      [approveProjectId],
     );
     const row = approval.rows[0]!;
     const expected = createHash('sha256')
-      .update(`${seed.userAId}${projectId}${row.gate_code}${row.esigned_at.toISOString()}`, 'utf8')
+      .update(`${seed.userAId}${approveProjectId}${row.gate_code}${row.esigned_at.toISOString()}`, 'utf8')
       .digest('hex');
     expect(row.esign_hash).toBe(expected);
     expect(row.approved_events).toBe('1');
@@ -320,7 +339,7 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     await expect(
-      withActionActor(viewerUserId, seed.orgAId, () => advanceProjectGate({ projectId: rollbackProjectId, targetGate: 'G4' })),
+      withActionActor(viewerUserId, seed.orgAId, () => advanceProjectGate({ projectId: rollbackProjectId, targetStage: 'sensory' })),
     ).resolves.toMatchObject({ ok: false, error: 'FORBIDDEN' });
 
     await expect(
@@ -340,11 +359,42 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     expect(audit.rows[0]).toEqual({ current_gate: 'G2', audit_count: '1', outbox_count: '1' });
   });
 
+  it('blocks approval→handoff without a G4 e-signature, then allows it once approved', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+    const { approveProjectGate } = await import('../approve-project-gate');
+
+    // handoffProjectId is at approval/G4 with NO gate_approvals row yet → the
+    // approval→handoff e-sign checkpoint must block the advance.
+    const blocked = await withActionActor(seed.userAId, seed.orgAId, () =>
+      advanceProjectGate({ projectId: handoffProjectId, targetStage: 'handoff' }),
+    );
+    expect(blocked).toMatchObject({ ok: false, error: 'ESIGN_REQUIRED', status: 403 });
+
+    const stillApproval = await owner.query<{ current_stage: string }>(
+      `select current_stage from public.npd_projects where id = $1::uuid`,
+      [handoffProjectId],
+    );
+    expect(stillApproval.rows[0]?.current_stage).toBe('approval');
+
+    // Record the G4 e-signature via the existing approve flow, then the advance passes.
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        approveProjectGate({ projectId: handoffProjectId, gateCode: 'G4', decision: 'approved', notes: 'Handoff e-sign.', password: pin }),
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId: handoffProjectId, targetStage: 'handoff' }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'handoff', currentGate: 'G4' } });
+  });
+
   it('isolates cross-org projects through RLS', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     await expect(
-      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: otherProjectId, targetGate: 'G3' })),
+      withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId: otherProjectId, targetStage: 'packaging' })),
     ).resolves.toMatchObject({ ok: false, error: 'NOT_FOUND' });
 
     const crossOrgUpdate = await withAppOrg(owner, app, seed.orgAId, (client) =>
