@@ -83,15 +83,6 @@ type BomRow = {
   status: string;
 };
 
-type BriefPackagingRow = {
-  c14: string | null;
-  c15: string | null;
-  c16: string | null;
-  c17: string | null;
-  c18: string | null;
-  c19: string | null;
-};
-
 type CloseoutInsertRow = {
   id: string;
   fg_product_code: string;
@@ -182,7 +173,7 @@ export async function closeOutLegacyStagesForLaunch(
   const packagingMrpComplete = product.done_mrp === true || product.closed_mrp === 'Yes';
   if (!packagingMrpComplete) throw new GateActionError('PACKAGING_MRP_INCOMPLETE', 409);
 
-  const packagingSnapshot = await buildPackagingSnapshot(ctx, project.id, project.product_code, product);
+  const packagingSnapshot = buildPackagingSnapshot(project.product_code, product);
   const inserted = await ctx.client.query<CloseoutInsertRow>(
     `insert into public.npd_legacy_closeout
        (org_id, npd_project_id, fg_product_code, closed_by, release_event_id,
@@ -358,40 +349,24 @@ async function loadBom(
   return rows[0] ?? null;
 }
 
-async function buildPackagingSnapshot(
-  ctx: OrgContextLike,
-  projectId: string,
+function buildPackagingSnapshot(
   productCode: string,
   product: ProductCloseoutRow,
-): Promise<Record<string, unknown>> {
-  const { rows } = await ctx.client.query<BriefPackagingRow>(
-    `select bl.primary_packaging as c14,
-            bl.secondary_packaging as c15,
-            bl.base_web_code as c16,
-            bl.base_web_price::text as c17,
-            bl.top_web_type as c18,
-            bl.sleeve_carton_code as c19
-       from public.brief b
-       join public.brief_lines bl
-         on bl.brief_id = b.brief_id
-        and bl.org_id = app.current_org_id()
-        and bl.line_type = 'product'
-      where b.org_id = app.current_org_id()
-        and b.npd_project_id = $1::uuid
-      order by bl.line_index
-      limit 1`,
-    [projectId],
-  );
-  const brief = rows[0];
+): Record<string, unknown> {
+  // NPD pivot Phase 2C (mig 243): the standalone public.brief / public.brief_lines
+  // tables were dropped — the brief is now merged into npd_projects, which does NOT
+  // carry the granular C14-C19 packaging-line fields (those only ever lived in
+  // brief_lines). The packaging snapshot is therefore sourced entirely from the
+  // product's own packaging columns (the live system-of-record for packaging).
   return {
-    source: brief ? 'brief_lines' : 'product',
+    source: 'product',
     product_code: productCode,
-    C14: brief?.c14 ?? product.box ?? product.mrp_box,
-    C15: brief?.c15 ?? product.mrp_cartons,
-    C16: brief?.c16 ?? product.web,
-    C17: brief?.c17 ?? null,
-    C18: brief?.c18 ?? product.top_label,
-    C19: brief?.c19 ?? product.mrp_sleeves ?? product.mrp_cartons,
+    C14: product.box ?? product.mrp_box,
+    C15: product.mrp_cartons,
+    C16: product.web,
+    C17: null,
+    C18: product.top_label,
+    C19: product.mrp_sleeves ?? product.mrp_cartons,
     product_mrp: {
       box: product.mrp_box,
       labels: product.mrp_labels,

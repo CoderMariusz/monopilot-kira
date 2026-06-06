@@ -148,6 +148,9 @@ export type FormulationLabels = {
   loading: string;
   empty: string;
   emptyBody: string;
+  createDraft: string;
+  creatingDraft: string;
+  createDraftError: string;
   error: string;
   forbidden: string;
   locked: string;
@@ -356,10 +359,16 @@ export function FormulationEditor({
   saveDraftAction,
   recomputeAction,
   searchItemsAction,
+  projectId,
+  createDraftAction,
 }: {
   state?: PageState;
   data: FormulationEditorData | null;
   labels: FormulationLabels;
+  /** Project id — needed to create the FIRST draft from the empty Recipe stage. */
+  projectId?: string;
+  /** Injected create-draft Server Action (empty-state "Create draft" button). */
+  createDraftAction?: (input: { projectId: string }) => Promise<{ ok: boolean }>;
   /** Pre-resolved i18n bundles for the four live panels (T-113-116). */
   panelLabels?: FormulationPanelLabels;
   /** Per-nutrient amber/red thresholds (reference data, NUMERIC strings). */
@@ -375,6 +384,24 @@ export function FormulationEditor({
   searchItemsAction?: ItemSearchFn;
 }) {
   const searchAction: ItemSearchFn = searchItemsAction ?? searchItems;
+  const [creatingDraft, setCreatingDraft] = React.useState(false);
+  const onCreateDraft = React.useCallback(async () => {
+    if (!createDraftAction || !projectId || creatingDraft) return;
+    setCreatingDraft(true);
+    try {
+      const result = await createDraftAction({ projectId });
+      if (result.ok) {
+        // Reload so the page's RSC loader re-fetches the just-created draft.
+        window.location.reload();
+        return;
+      }
+      window.alert(labels.createDraftError);
+      setCreatingDraft(false);
+    } catch {
+      window.alert(labels.createDraftError);
+      setCreatingDraft(false);
+    }
+  }, [createDraftAction, projectId, creatingDraft, labels.createDraftError]);
   const locked = data?.state === 'locked';
   const editable = canEdit && !locked && state === 'ready';
 
@@ -676,7 +703,22 @@ export function FormulationEditor({
       ) : null}
 
       {state !== 'ready' || !data ? (
-        <StateNotice state={state === 'ready' ? 'empty' : state} labels={labels} />
+        <div className="space-y-3">
+          <StateNotice state={state === 'ready' ? 'empty' : state} labels={labels} />
+          {state === 'empty' && canEdit && createDraftAction && projectId ? (
+            <div style={{ textAlign: 'center' }}>
+              <Button
+                type="button"
+                className="btn-primary"
+                onClick={onCreateDraft}
+                disabled={creatingDraft}
+                data-testid="formulation-create-draft"
+              >
+                {creatingDraft ? labels.creatingDraft : labels.createDraft}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <Card className="overflow-hidden">

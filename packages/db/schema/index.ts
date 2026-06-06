@@ -66,15 +66,6 @@ export type {
   PackSize,
   Template,
 } from './reference-lookups.js';
-export { brief, briefLines } from './brief.js';
-export type { Brief, BriefLine, NewBrief, NewBriefLine } from './brief.js';
-export { briefToFaAudit } from './brief-to-fa-audit.js';
-export type { BriefToFaAudit, NewBriefToFaAudit } from './brief-to-fa-audit.js';
-export { briefFieldMapping } from './brief-field-mapping.js';
-export type {
-  BriefFieldMapping,
-  NewBriefFieldMapping,
-} from './brief-field-mapping.js';
 export {
   referenceAllergens,
   referenceAllergensAddedByProcess,

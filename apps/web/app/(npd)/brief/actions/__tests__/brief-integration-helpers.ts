@@ -112,8 +112,6 @@ export async function seedIdentities(owner: pg.Pool, seed: IdentitySeed): Promis
 
 export async function cleanupIdentities(owner: pg.Pool, seed: IdentitySeed): Promise<void> {
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
-  await owner.query(`delete from public.brief_lines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
-  await owner.query(`delete from public.brief where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.npd_projects where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.user_roles where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(

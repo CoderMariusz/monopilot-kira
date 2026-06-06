@@ -98,72 +98,79 @@ export function KanbanCard({
         }}
       >
         <CardContent className="space-y-2" style={{ padding: 10 }}>
-          <div className="flex items-start justify-between gap-2">
-            <Link
-              href={`/pipeline/${project.id}`}
-              prefetch
-              style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}
-            >
-              {project.name}
-            </Link>
-            <Badge variant={prioVariant(project.prio)} aria-label={prioText}>
-              {prioText}
-            </Badge>
-          </div>
-
-          <div className="mono muted" style={{ fontSize: 11 }}>
-            {project.code} · {project.type}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div
-              role="progressbar"
-              aria-label={project.name}
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              style={{
-                flex: 1,
-                height: 4,
-                background: 'var(--gray-100)',
-                borderRadius: 2,
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  width: `${progress}%`,
-                  height: '100%',
-                  background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
-                }}
-              />
-            </div>
-            <span className="mono muted" style={{ fontSize: 10 }}>
-              {progress}%
-            </span>
-          </div>
-
-          <div
-            className="flex items-center justify-between muted"
-            style={{ fontSize: 11 }}
+          {/* The WHOLE card body navigates to the project (lands on its current
+              stage — see the index redirect). The Advance button is a SIBLING of
+              this Link, so clicking it advances the stage instead of opening. */}
+          <Link
+            href={`/pipeline/${project.id}`}
+            prefetch
+            aria-label={project.name}
+            className="block space-y-2"
+            style={{ color: 'inherit', textDecoration: 'none' }}
           >
-            <span>
-              {project.owner ?? (
-                <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noOwner}</span>
-              )}
-            </span>
-            <span>
-              {project.targetLaunch ? (
-                <>▶ {project.targetLaunch}</>
-              ) : (
-                <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noTarget}</span>
-              )}
-            </span>
-          </div>
+            <div className="flex items-start justify-between gap-2">
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                {project.name}
+              </span>
+              <Badge variant={prioVariant(project.prio)} aria-label={prioText}>
+                {prioText}
+              </Badge>
+            </div>
 
-          {project.currentGate === 'Launched' && project.closeoutStatus ? (
-            <LaunchedCardCloseoutPill status={project.closeoutStatus} />
-          ) : null}
+            <div className="mono muted" style={{ fontSize: 11 }}>
+              {project.code} · {project.type}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div
+                role="progressbar"
+                aria-label={project.name}
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                style={{
+                  flex: 1,
+                  height: 4,
+                  background: 'var(--gray-100)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: '100%',
+                    background: progress >= 90 ? 'var(--green)' : 'var(--blue)',
+                  }}
+                />
+              </div>
+              <span className="mono muted" style={{ fontSize: 10 }}>
+                {progress}%
+              </span>
+            </div>
+
+            <div
+              className="flex items-center justify-between muted"
+              style={{ fontSize: 11 }}
+            >
+              <span>
+                {project.owner ?? (
+                  <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noOwner}</span>
+                )}
+              </span>
+              <span>
+                {project.targetLaunch ? (
+                  <>▶ {project.targetLaunch}</>
+                ) : (
+                  <span style={{ color: 'var(--gray-400, #94a3b8)' }}>{labels.noTarget}</span>
+                )}
+              </span>
+            </div>
+
+            {project.currentGate === 'Launched' && project.closeoutStatus ? (
+              <LaunchedCardCloseoutPill status={project.closeoutStatus} />
+            ) : null}
+          </Link>
 
           {showAdvance ? (
             <div style={{ paddingTop: 2 }}>

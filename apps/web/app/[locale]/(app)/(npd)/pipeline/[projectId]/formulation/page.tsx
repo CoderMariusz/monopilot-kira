@@ -42,6 +42,7 @@ import { EU14_ALLERGEN_CODES } from './_components/eu14-allergen-codes';
 import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/get-formulation';
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
+import { createFormulationDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-draft';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -96,6 +97,9 @@ const DEFAULT_LABELS: FormulationLabels = {
   loading: 'Loading formulation…',
   empty: 'No formulation draft yet',
   emptyBody: 'Create a draft version to start formulating.',
+  createDraft: 'Create draft',
+  creatingDraft: 'Creating…',
+  createDraftError: 'Could not create the draft. Try again.',
   error: 'Unable to load the formulation.',
   forbidden: 'You do not have permission to edit this formulation.',
   locked: 'This version is locked and cannot be edited.',
@@ -462,6 +466,16 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       canEdit={loaded.canEdit}
       saveDraftAction={saveDraft}
       recomputeAction={recomputeAndCache}
+      projectId={projectId}
+      createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
     />
   );
+}
+
+// Create-draft Server Action adapter (RBAC enforced inside the action + only injected
+// when canEdit). Returns the minimal { ok } the editor's empty-state button needs.
+async function createDraftAdapter(input: { projectId: string }): Promise<{ ok: boolean }> {
+  'use server';
+  const result = await createFormulationDraft(input);
+  return { ok: result.ok };
 }

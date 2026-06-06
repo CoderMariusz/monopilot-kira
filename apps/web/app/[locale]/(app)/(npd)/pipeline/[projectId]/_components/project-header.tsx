@@ -58,7 +58,16 @@ export type ProjectHeaderLabels = {
   duplicateDisabledHint: string;
   advanceStage: string;
   advanceDisabledHint: string;
+  deleteProject: string;
+  deleting: string;
+  deleteConfirm: string;
+  deleteError: string;
+  deleteHasDependents: string;
 };
+
+export type DeleteProjectAction = (
+  input: { projectId: string },
+) => Promise<{ ok: true } | { ok: false; error: string }>;
 
 export type ProjectHeaderView = {
   id: string;
@@ -89,6 +98,10 @@ export type ProjectHeaderProps = {
   canAdvance: boolean;
   /** Injected only when the user may advance (RBAC resolved server-side). */
   advanceProjectGate?: AdvanceProjectGateAction;
+  /** Server-resolved permission to delete the project (never client-trusted). */
+  canDelete?: boolean;
+  /** Injected only when the user may delete (RBAC resolved server-side). */
+  deleteProject?: DeleteProjectAction;
 };
 
 export function ProjectHeader({
@@ -97,16 +110,38 @@ export function ProjectHeader({
   advanceModal,
   canAdvance,
   advanceProjectGate,
+  canDelete,
+  deleteProject,
 }: ProjectHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [deleting, setDeleting] = React.useState(false);
 
   const openAdvance = React.useCallback(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     params.set('modal', ADVANCE_GATE_MODAL_PARAM);
     router.push(`${pathname}?${params.toString()}`);
   }, [pathname, router, searchParams]);
+
+  const onDelete = React.useCallback(async () => {
+    if (!deleteProject || deleting) return;
+    if (!window.confirm(labels.deleteConfirm)) return;
+    setDeleting(true);
+    try {
+      const result = await deleteProject({ projectId: project.id });
+      if (result.ok) {
+        const locale = pathname?.split('/').filter(Boolean)[0] ?? 'en';
+        router.push(`/${locale}/pipeline`);
+        return;
+      }
+      window.alert(result.error === 'HAS_DEPENDENTS' ? labels.deleteHasDependents : labels.deleteError);
+      setDeleting(false);
+    } catch {
+      window.alert(labels.deleteError);
+      setDeleting(false);
+    }
+  }, [deleteProject, deleting, labels.deleteConfirm, labels.deleteError, labels.deleteHasDependents, pathname, project.id, router]);
 
   return (
     <section aria-label={project.name} data-testid="project-header">
@@ -157,6 +192,17 @@ export function ProjectHeader({
           >
             {labels.duplicate}
           </button>
+          {canDelete && deleteProject ? (
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={onDelete}
+              disabled={deleting}
+              data-testid="project-header-delete"
+            >
+              {deleting ? labels.deleting : labels.deleteProject}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn-primary"

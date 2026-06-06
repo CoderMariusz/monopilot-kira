@@ -24,6 +24,10 @@ const runIntegrationTest = databaseUrl ? describe : describe.skip;
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationPath = resolve(packageRoot, 'migrations/115-npd-gdpr-erasure.sql');
+// NPD pivot Phase 2C (mig 243) drops the standalone brief tables and re-points the
+// erasure function so it no longer touches public.brief. We apply 243 on top of 115
+// so this contract reflects the production function body (no brief block).
+const dropBriefMigrationPath = resolve(packageRoot, 'migrations/243-drop-brief-tables.sql');
 
 const appUserPassword = process.env.APP_USER_PASSWORD ?? 'app-user-test-password';
 const PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
@@ -55,6 +59,9 @@ async function ensureAppUser(pool: pg.Pool): Promise<void> {
 
 async function applyMigration(pool: pg.Pool): Promise<void> {
   const sql = readFileSync(migrationPath, 'utf8');
+  // Mig 243 re-points the function (removes the brief block) + drops the brief tables.
+  // Apply it after 115 so the function reflects production. Both are idempotent.
+  const dropBriefSql = readFileSync(dropBriefMigrationPath, 'utf8');
   // Serialise concurrent applies across parallel integration test files — two
   // simultaneous `create or replace function` on the same object can deadlock.
   const client = await pool.connect();
@@ -66,6 +73,7 @@ async function applyMigration(pool: pg.Pool): Promise<void> {
     // body changes (e.g. the prod_detail count branch) on clones where 115 was
     // already applied by the migration runner.
     await client.query(sql);
+    await client.query(dropBriefSql);
     await client.query('commit');
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
@@ -83,7 +91,6 @@ async function cleanup(pool: pg.Pool): Promise<void> {
     'formulations',
     'compliance_docs',
     'risks',
-    'brief',
     'npd_projects',
     'product',
   ]) {
@@ -172,12 +179,9 @@ async function seed(pool: pg.Pool): Promise<void> {
     [orgA, projectA, subjectUser],
   );
 
-  // ---- org A: brief + compliance_docs ----
-  await pool.query(
-    `insert into public.brief (org_id, template, dev_code, created_by_user, converted_by_user)
-     values ($1, 'single_component', 'DEV-T089-A', $2, $2)`,
-    [orgA, subjectUser],
-  );
+  // ---- org A: compliance_docs ----
+  // (brief insert removed — mig 243 dropped the standalone brief tables; the brief is
+  //  now merged into npd_projects, covered by the npd_projects pseudonymisation block.)
   await pool.query(
     `insert into public.compliance_docs
        (org_id, product_code, doc_type, title, file_path, mime_type, file_size_bytes, uploaded_by_user, created_by_user)
@@ -289,7 +293,8 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
     expect(counts.gate_checklist_items).toBe(1);
     expect(counts.gate_approvals).toBe(1);
     expect(counts.formulations).toBe(1);
-    expect(counts.brief).toBe(1);
+    // brief count key removed in mig 243 (standalone brief tables dropped).
+    expect(counts).not.toHaveProperty('brief');
     expect(counts.compliance_docs).toBe(1);
     // prod_detail is in the named erasure scope but has no user-FK yet → always 0,
     // but the key MUST be present so the contract scope is provably covered.
@@ -305,7 +310,6 @@ runIntegrationTest('115 NPD GDPR erasure behaviour (DATABASE_URL required)', () 
        + (select count(*) from public.gate_checklist_items where org_id = $1 and completed_by_user = $2)
        + (select count(*) from public.gate_approvals where org_id = $1 and approver_user_id = $2)
        + (select count(*) from public.formulations where org_id = $1 and (created_by_user = $2 or locked_by_user = $2))
-       + (select count(*) from public.brief where org_id = $1 and (created_by_user = $2 or converted_by_user = $2))
        + (select count(*) from public.compliance_docs where org_id = $1 and (uploaded_by_user = $2 or created_by_user = $2))
        )::text as count`,
       [orgA, subjectUser],

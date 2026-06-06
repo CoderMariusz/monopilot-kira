@@ -31,11 +31,3 @@ export {
   type V06SuffixMatchInput,
   type V06SuffixMatchResult,
 } from './v06-suffix-match.js';
-export {
-  V08_MANDATORY_FIELDS,
-  V08_OPTIONAL_FIELDS,
-  validateBriefMappingV08,
-  type V08AuditRow,
-  type V08BriefMappingDetail,
-  type V08BriefMappingResult,
-} from './v08-brief-mapping.js';

@@ -168,24 +168,9 @@ async function seedLaunchReadyProject(input: {
        ($1::uuid, $2::uuid, 'G4', 'approved', $3::uuid, 'Approved for G4 closeout.', now(), $4)`,
     [input.orgId, input.projectId, input.userId, `hash-${input.projectId}`],
   );
-  await owner.query(
-    `insert into public.brief
-       (org_id, npd_project_id, template, dev_code, status, product_name, created_by_user)
-     values
-       ($1::uuid, $2::uuid, 'single_component', $3, 'converted', $4, $5::uuid)`,
-    [input.orgId, input.projectId, `DEV-${input.code}`, `${input.code} Product`, input.userId],
-  );
-  await owner.query(
-    `insert into public.brief_lines
-       (brief_id, org_id, line_type, line_index, product, primary_packaging, secondary_packaging,
-        base_web_code, base_web_price, top_web_type, sleeve_carton_code)
-     select brief_id, org_id, 'product', 0, product_name, 'C14 primary', 'C15 secondary',
-            'C16 base web', 1.23, 'C18 top web', 'C19 sleeve'
-       from public.brief
-      where org_id = $1::uuid
-        and npd_project_id = $2::uuid`,
-    [input.orgId, input.projectId],
-  );
+  // NPD pivot Phase 2C (mig 243): the standalone public.brief / public.brief_lines
+  // tables were dropped. The packaging snapshot is now sourced entirely from the
+  // product packaging columns seeded above (box/web/top_label/mrp_sleeves/mrp_cartons).
 
   const event = await owner.query<{ id: number }>(
     `insert into public.outbox_events
@@ -229,8 +214,6 @@ async function seedLaunchReadyProject(input: {
 async function cleanup(): Promise<void> {
   await owner.query(`delete from public.npd_legacy_closeout where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.factory_release_status where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
-  await owner.query(`delete from public.brief_lines where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
-  await owner.query(`delete from public.brief where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.gate_approvals where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.bom_headers where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
   await owner.query(`delete from public.work_order where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]).catch(() => undefined);
@@ -304,12 +287,16 @@ run('T-100 G4 legacy closeout — REAL DB integration', () => {
       closeout_events: '1',
     });
     expect(persisted.rows[0]?.pilot_wo_id).toMatch(/[0-9a-f-]{36}/);
+    // Phase 2C (mig 243): snapshot now sourced from the product packaging columns
+    // (brief tables dropped) — box/mrp_cartons/web/top_label/mrp_sleeves seeded above.
     expect(persisted.rows[0]?.packaging_snapshot_jsonb).toMatchObject({
-      C14: 'C14 primary',
-      C15: 'C15 secondary',
-      C16: 'C16 base web',
-      C18: 'C18 top web',
-      C19: 'C19 sleeve',
+      source: 'product',
+      C14: 'C14-box',
+      C15: 'C15-CARTON',
+      C16: 'C16-web',
+      C17: null,
+      C18: 'C18-top',
+      C19: 'C19-SLEEVE',
     });
   });
 

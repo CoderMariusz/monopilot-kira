@@ -38,8 +38,10 @@ import { getTranslations } from 'next-intl/server';
 
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
+import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
 import { GATE_ADVANCE_PERMISSION, nextStage } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
+  PROJECT_CREATE_PERMISSION,
   PROJECT_VIEW_PERMISSION,
   hasPermission,
   type OrgContextLike,
@@ -116,6 +118,11 @@ const HEADER_DEFAULTS: ProjectHeaderLabels = {
   duplicateDisabledHint: 'Duplicating projects is not available yet.',
   advanceStage: 'Advance stage →',
   advanceDisabledHint: 'You do not have permission to advance this gate.',
+  deleteProject: 'Delete',
+  deleting: 'Deleting…',
+  deleteConfirm: 'Delete this project? This cannot be undone.',
+  deleteError: 'Could not delete the project. Try again.',
+  deleteHasDependents: 'This project has downstream work (recipe/trial/…) and cannot be deleted.',
 };
 
 const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
@@ -197,6 +204,15 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
   return { ok: false as const, error: result.error, status: result.status };
 }
 
+// Delete-project Server Action adapter (RBAC enforced inside deleteProject + only
+// injected when canDelete). Returns the shape the header's DeleteProjectAction expects.
+async function deleteAdapter(input: { projectId: string }) {
+  'use server';
+  const result = await deleteProjectAction(input.projectId);
+  if (result.ok) return { ok: true as const };
+  return { ok: false as const, error: result.error };
+}
+
 export default async function ProjectWorkbenchLayout({ children, params }: ProjectLayoutProps) {
   const { locale, projectId } = await params;
 
@@ -217,15 +233,17 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   // Load the project for the header + current_stage (real data, org-scoped).
   let result: Awaited<ReturnType<typeof getProject>>;
   let canAdvance = false;
+  let canDelete = false;
   try {
-    canAdvance = await withOrgContext(async (rawCtx): Promise<boolean> => {
+    ({ canAdvance, canDelete } = await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
-      const [canView, mayAdvance] = await Promise.all([
+      const [canView, mayAdvance, mayDelete] = await Promise.all([
         hasPermission(ctx, PROJECT_VIEW_PERMISSION),
         hasPermission(ctx, GATE_ADVANCE_PERMISSION),
+        hasPermission(ctx, PROJECT_CREATE_PERMISSION),
       ]);
-      return canView && mayAdvance;
-    });
+      return { canAdvance: canView && mayAdvance, canDelete: canView && mayDelete };
+    }));
     result = await getProject({ projectId });
   } catch (error) {
     console.error('[project-layout] header load failed:', error);
@@ -254,6 +272,11 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     duplicateDisabledHint: p('header.duplicateDisabledHint', HEADER_DEFAULTS.duplicateDisabledHint),
     advanceStage: p('header.advanceStage', HEADER_DEFAULTS.advanceStage),
     advanceDisabledHint: p('header.advanceDisabledHint', HEADER_DEFAULTS.advanceDisabledHint),
+    deleteProject: p('header.deleteProject', HEADER_DEFAULTS.deleteProject),
+    deleting: p('header.deleting', HEADER_DEFAULTS.deleting),
+    deleteConfirm: p('header.deleteConfirm', HEADER_DEFAULTS.deleteConfirm),
+    deleteError: p('header.deleteError', HEADER_DEFAULTS.deleteError),
+    deleteHasDependents: p('header.deleteHasDependents', HEADER_DEFAULTS.deleteHasDependents),
   };
 
   const currentGate = project.currentGate;
@@ -333,6 +356,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
         advanceModal={advanceModal}
         canAdvance={canAdvance}
         advanceProjectGate={advanceAdapter}
+        canDelete={canDelete}
+        deleteProject={deleteAdapter}
       />
 
       {/* PERSISTENT 8-stage operational rail (prototype project.jsx:4-20). */}
