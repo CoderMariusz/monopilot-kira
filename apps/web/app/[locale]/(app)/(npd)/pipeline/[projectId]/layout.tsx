@@ -1,37 +1,96 @@
 /**
- * NPD project workbench layout (RSC) — mounts the shared 8-step ProjectStepper
- * above the project index AND every per-stage child route.
+ * NPD project workbench layout (RSC) — owns the PERSISTENT project header + the
+ * 8-stage operational stepper that frame the project index AND every per-stage
+ * child route (brief/formulation/packaging/trial/sensory/pilot/approval/handoff).
  *
- * Route: /[locale]/(app)/(npd)/pipeline/[projectId]/*  (index + brief/formulation/
- * packaging/trial/sensory/pilot/approval/handoff).
+ * Route: /[locale]/(app)/(npd)/pipeline/[projectId]/*
  *
  * Prototype parity source (1:1):
- *   prototypes/design/Monopilot Design System/npd/project.jsx:4-20,130-142
- *   (the workbench top stepper — see project-stepper.tsx for the full anchor map).
+ *   prototypes/design/Monopilot Design System/npd/project.jsx:22-43 (ProjectHeader)
+ *     - breadcrumb "NPD / Pipeline / {code}", title + stage badge + priority badge,
+ *       muted "{code} · {type} · Owner · Target launch", Watch/Duplicate/Advance.
+ *   prototypes/design/Monopilot Design System/npd/project.jsx:4-20 (StageRail)
+ *     - horizontal numbered rail of the 8 OPERATIONAL stages; earlier → ✓ done,
+ *       current → active, later → number; clicking a stage navigates to it.
  *
- * Next 16 RSC safety: the layout resolves the projectId + locale from params and
- * the 8 step labels via getTranslations (server-side), then hands the client
- * <ProjectStepper> ONLY serializable props (strings) — no function props cross
- * the RSC→client boundary.
+ * Why the layout (not the page) owns these: the header + rail must persist across
+ * every stage route, and the user complaint was that the index page showed a
+ * SECOND, redundant G0-G4 gate rail ("too many tabs instead of a header"). The
+ * G0-G4 gate stepper has been removed from the index page; the canonical operational
+ * navigation now lives here, once.
  *
- * i18n: labels come from the `npd.stepper` namespace; getTranslations falls back
- * to the literal key when a locale value is missing (next-intl default), so a
- * missing key surfaces visibly rather than crashing the layout.
+ * Real-data wiring (NO mocks): the project summary comes from the MERGED `getProject`
+ * Server Action (org-scoped via withOrgContext + RLS). `current_stage` (mig 242)
+ * drives the rail's done/active state. The Advance button keeps calling the EXISTING
+ * advanceProjectGate action (full 8-step advance semantics is a later phase).
+ *
+ * Next 16 RSC safety: the layout resolves locale/projectId + localized strings
+ * server-side and hands the client islands ONLY serializable props (strings/data)
+ * plus the advanceProjectGate Server Action (a Server Action, not a raw function).
+ * PROJECT_STAGES is imported from the non-'use client' sibling so this Server
+ * Component gets the real array (see project-stages.ts header).
+ *
+ * i18n: stepper labels via `npd.stepper.*`; header/states via `npd.projectDetail.*`.
  */
 
 import type { ReactNode } from 'react';
 import { getTranslations } from 'next-intl/server';
 
+import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
+import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
+import { GATE_ADVANCE_PERMISSION } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import {
+  PROJECT_VIEW_PERMISSION,
+  hasPermission,
+  type OrgContextLike,
+  type ProjectGate,
+  type ProjectPriority,
+} from '../../../../../(npd)/pipeline/_actions/shared';
+import type { TargetGate } from '../../../../../(npd)/_modals/advance-gate-modal';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+
 import { ProjectStepper } from './_components/project-stepper';
-// Import the plain data array DIRECTLY from the non-'use client' module — importing
-// it via the client component yields a client-reference (undefined at runtime in the
-// RSC production bundle → 500 TypeError). See project-stages.ts header.
+import {
+  ProjectHeader,
+  type ProjectHeaderBadgeTone,
+  type ProjectHeaderLabels,
+  type ProjectHeaderView,
+} from './_components/project-header';
 import { PROJECT_STAGES, type ProjectStageKey } from './_components/project-stages';
 
 type ProjectLayoutProps = {
   children: ReactNode;
   params: Promise<{ locale: string; projectId: string }>;
 };
+
+// ─── Stage-Gate metadata (static G0..G4; mirrors prototype GATE_INFO). ───
+type GateKey = 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
+
+type GateMeta = {
+  label: string;
+  nextLabel: string;
+  advanceTarget: TargetGate;
+  requiresApproval: boolean;
+  tone: ProjectHeaderBadgeTone;
+};
+
+const GATE_META: Record<GateKey, GateMeta> = {
+  G0: { label: 'Idea', nextLabel: 'Feasibility', advanceTarget: 'G1', requiresApproval: false, tone: 'gray' },
+  G1: { label: 'Feasibility', nextLabel: 'Business Case', advanceTarget: 'G2', requiresApproval: false, tone: 'blue' },
+  G2: { label: 'Business Case', nextLabel: 'Development', advanceTarget: 'G3', requiresApproval: true, tone: 'blue' },
+  G3: { label: 'Development', nextLabel: 'Testing', advanceTarget: 'G4', requiresApproval: true, tone: 'amber' },
+  G4: { label: 'Testing', nextLabel: 'Launched', advanceTarget: 'Launched', requiresApproval: true, tone: 'amber' },
+};
+
+const PRIO_TONE: Record<ProjectPriority, ProjectHeaderBadgeTone> = {
+  high: 'red',
+  normal: 'amber',
+  low: 'gray',
+};
+
+function isGateKey(gate: ProjectGate): gate is GateKey {
+  return gate !== 'Launched';
+}
 
 const STEP_FALLBACKS: Record<ProjectStageKey, string> = {
   brief: 'Brief',
@@ -44,37 +103,235 @@ const STEP_FALLBACKS: Record<ProjectStageKey, string> = {
   handoff: 'Handoff',
 };
 
+const HEADER_DEFAULTS: ProjectHeaderLabels = {
+  breadcrumbNpd: 'NPD',
+  breadcrumbPipeline: 'Pipeline',
+  ownerLabel: 'Owner',
+  targetLabel: 'Target launch',
+  noOwner: 'Unassigned',
+  noTarget: 'Not set',
+  watch: 'Watch',
+  watchDisabledHint: 'Watching projects is not available yet.',
+  duplicate: 'Duplicate',
+  duplicateDisabledHint: 'Duplicating projects is not available yet.',
+  advanceStage: 'Advance stage →',
+  advanceDisabledHint: 'You do not have permission to advance this gate.',
+};
+
+const GATE_LABEL_DEFAULTS: Record<GateKey | 'Launched', string> = {
+  G0: 'Idea',
+  G1: 'Feasibility',
+  G2: 'Business Case',
+  G3: 'Development',
+  G4: 'Testing',
+  Launched: 'Launched',
+};
+
+const PRIO_LABEL_DEFAULTS: Record<ProjectPriority, string> = {
+  high: 'High priority',
+  normal: 'Normal priority',
+  low: 'Low priority',
+};
+
+const ADVANCE_DEFAULTS = {
+  title: 'Advance gate',
+  gateTransition: 'Gate transition',
+  currentTag: 'Current',
+  targetTag: 'Target',
+  approvalRequired: 'This transition requires gate approval.',
+  checklistSummary: '{gate} checklist — {label}',
+  done: 'Done',
+  blocking: 'Blocking',
+  optional: 'Optional',
+  requiredComplete: '{done} of {total} required items complete',
+  blockersTitle: '{count} blocker(s) must be resolved first',
+  readyAlert: 'All required items complete — ready to advance.',
+  notesLabel: 'Advance notes',
+  notesPlaceholder: 'Add a note for this gate transition…',
+  notesHint: 'A short note is recorded with this gate transition.',
+  cancel: 'Cancel',
+  advance: 'Advance to {gate}: {nextLabel}',
+  advancing: 'Advancing…',
+  successTitle: 'Gate advanced to {gate}: {nextLabel}',
+  successBody: 'The project has moved to the next gate.',
+  loading: 'Loading gate summary…',
+  empty: 'No checklist items to summarise.',
+  error: 'Could not advance the gate. Try again.',
+  forbidden: 'You do not have permission to advance this gate.',
+};
+
+async function pickerFor(locale: string, namespace: string) {
+  try {
+    const t = await getTranslations({ locale, namespace });
+    return (key: string, fallback: string) => {
+      try {
+        const value = t(key);
+        if (value === key || value === `${namespace}.${key}`) return fallback;
+        return value;
+      } catch {
+        return fallback;
+      }
+    };
+  } catch {
+    return (_key: string, fallback: string) => fallback;
+  }
+}
+
+// ─── Server-Action adapter passed to the client (the action itself is NOT authored here). ───
+async function advanceAdapter(input: { projectId: string; targetGate: TargetGate; notes: string }) {
+  'use server';
+  const result = await advanceProjectGateAction(input);
+  if (result.ok) return { ok: true as const, data: result.data };
+  return { ok: false as const, error: result.error, status: result.status };
+}
+
 export default async function ProjectWorkbenchLayout({ children, params }: ProjectLayoutProps) {
   const { locale, projectId } = await params;
 
-  const t = await getTranslations({ locale, namespace: 'npd.stepper' });
-  const pick = (key: string, fallback: string) => {
-    try {
-      const value = t(key);
-      return value === key || value === `npd.stepper.${key}` ? fallback : value;
-    } catch {
-      return fallback;
-    }
-  };
+  const p = await pickerFor(locale, 'npd.projectDetail');
+  const a = await pickerFor(locale, 'npd.advanceGateModal');
+  const stepPick = await pickerFor(locale, 'npd.stepper');
 
-  const labels = PROJECT_STAGES.reduce(
+  // 8-stage rail labels.
+  const stepLabels = PROJECT_STAGES.reduce(
     (acc, stage) => {
-      acc[stage.key] = pick(stage.i18nKey, STEP_FALLBACKS[stage.key]);
+      acc[stage.key] = stepPick(stage.i18nKey, STEP_FALLBACKS[stage.key]);
       return acc;
     },
     {} as Record<ProjectStageKey, string>,
   );
+  const stepperAriaLabel = stepPick('ariaLabel', 'Project stages');
 
-  const ariaLabel = pick('ariaLabel', 'Project stages');
+  // Load the project for the header + current_stage (real data, org-scoped).
+  let result: Awaited<ReturnType<typeof getProject>>;
+  let canAdvance = false;
+  try {
+    canAdvance = await withOrgContext(async (rawCtx): Promise<boolean> => {
+      const ctx = rawCtx as OrgContextLike;
+      const [canView, mayAdvance] = await Promise.all([
+        hasPermission(ctx, PROJECT_VIEW_PERMISSION),
+        hasPermission(ctx, GATE_ADVANCE_PERMISSION),
+      ]);
+      return canView && mayAdvance;
+    });
+    result = await getProject({ projectId });
+  } catch (error) {
+    console.error('[project-layout] header load failed:', error);
+    result = { ok: false, error: 'PERSISTENCE_FAILED' };
+  }
+
+  // When the header cannot load (forbidden/not-found/error) we still render the
+  // child (the page renders its own state panel) — but without the header/rail
+  // chrome, which would otherwise show empty/garbled data.
+  if (!result.ok) {
+    return <div className="page-pad flex w-full flex-col">{children}</div>;
+  }
+
+  const { project, checklistByGate } = result.data;
+
+  const headerLabels: ProjectHeaderLabels = {
+    breadcrumbNpd: p('header.breadcrumbNpd', HEADER_DEFAULTS.breadcrumbNpd),
+    breadcrumbPipeline: p('header.breadcrumbPipeline', HEADER_DEFAULTS.breadcrumbPipeline),
+    ownerLabel: p('header.ownerLabel', HEADER_DEFAULTS.ownerLabel),
+    targetLabel: p('header.targetLabel', HEADER_DEFAULTS.targetLabel),
+    noOwner: p('header.noOwner', HEADER_DEFAULTS.noOwner),
+    noTarget: p('header.noTarget', HEADER_DEFAULTS.noTarget),
+    watch: p('header.watch', HEADER_DEFAULTS.watch),
+    watchDisabledHint: p('header.watchDisabledHint', HEADER_DEFAULTS.watchDisabledHint),
+    duplicate: p('header.duplicate', HEADER_DEFAULTS.duplicate),
+    duplicateDisabledHint: p('header.duplicateDisabledHint', HEADER_DEFAULTS.duplicateDisabledHint),
+    advanceStage: p('header.advanceStage', HEADER_DEFAULTS.advanceStage),
+    advanceDisabledHint: p('header.advanceDisabledHint', HEADER_DEFAULTS.advanceDisabledHint),
+  };
+
+  const currentGate = project.currentGate;
+  const currentKey: GateKey = isGateKey(currentGate) ? currentGate : 'G4';
+  const meta = GATE_META[currentKey];
+  const gateLabel = p(
+    `gate.${isGateKey(currentGate) ? currentGate : 'Launched'}`,
+    GATE_LABEL_DEFAULTS[isGateKey(currentGate) ? currentGate : 'Launched'],
+  );
+  const gateTone: ProjectHeaderBadgeTone = currentGate === 'Launched' ? 'green' : meta.tone;
+
+  const headerView: ProjectHeaderView = {
+    id: project.id,
+    code: project.code,
+    name: project.name,
+    type: project.type,
+    owner: project.owner,
+    targetLaunch: project.targetLaunch,
+    gateLabel,
+    gateTone,
+    prioLabel: p(`prio.${project.prio}`, PRIO_LABEL_DEFAULTS[project.prio]),
+    prioTone: PRIO_TONE[project.prio],
+  };
+
+  // Advance-modal props (resolved from the real getProject checklist).
+  const currentChecklist = isGateKey(currentGate) ? (checklistByGate?.[currentGate] ?? []) : [];
+  const advanceItems = currentChecklist.map((item) => ({
+    id: item.id,
+    text: item.itemText,
+    required: item.required,
+    done: item.completedAt !== null,
+  }));
+  const advanceModal = {
+    labels: {
+      title: a('title', ADVANCE_DEFAULTS.title),
+      gateTransition: a('gateTransition', ADVANCE_DEFAULTS.gateTransition),
+      currentTag: a('currentTag', ADVANCE_DEFAULTS.currentTag),
+      targetTag: a('targetTag', ADVANCE_DEFAULTS.targetTag),
+      approvalRequired: a('approvalRequired', ADVANCE_DEFAULTS.approvalRequired),
+      checklistSummary: a('checklistSummary', ADVANCE_DEFAULTS.checklistSummary),
+      done: a('done', ADVANCE_DEFAULTS.done),
+      blocking: a('blocking', ADVANCE_DEFAULTS.blocking),
+      optional: a('optional', ADVANCE_DEFAULTS.optional),
+      requiredComplete: a('requiredComplete', ADVANCE_DEFAULTS.requiredComplete),
+      blockersTitle: a('blockersTitle', ADVANCE_DEFAULTS.blockersTitle),
+      readyAlert: a('readyAlert', ADVANCE_DEFAULTS.readyAlert),
+      notesLabel: a('notesLabel', ADVANCE_DEFAULTS.notesLabel),
+      notesPlaceholder: a('notesPlaceholder', ADVANCE_DEFAULTS.notesPlaceholder),
+      notesHint: a('notesHint', ADVANCE_DEFAULTS.notesHint),
+      cancel: a('cancel', ADVANCE_DEFAULTS.cancel),
+      advance: a('advance', ADVANCE_DEFAULTS.advance),
+      advancing: a('advancing', ADVANCE_DEFAULTS.advancing),
+      successTitle: a('successTitle', ADVANCE_DEFAULTS.successTitle),
+      successBody: a('successBody', ADVANCE_DEFAULTS.successBody),
+      loading: a('loading', ADVANCE_DEFAULTS.loading),
+      empty: a('empty', ADVANCE_DEFAULTS.empty),
+      error: a('error', ADVANCE_DEFAULTS.error),
+      forbidden: a('forbidden', ADVANCE_DEFAULTS.forbidden),
+    },
+    project: { id: project.id, code: project.code, name: project.name, currentGate: currentKey },
+    gateInfo: {
+      current: currentKey,
+      currentLabel: meta.label,
+      next: meta.advanceTarget,
+      nextLabel: meta.nextLabel,
+      requiresApproval: meta.requiresApproval,
+    },
+    items: advanceItems,
+  };
 
   return (
-    <div className="flex w-full flex-col">
+    <div className="page-pad flex w-full flex-col gap-3">
+      {/* PERSISTENT ProjectHeader (prototype project.jsx:22-43). */}
+      <ProjectHeader
+        project={headerView}
+        labels={headerLabels}
+        advanceModal={advanceModal}
+        canAdvance={canAdvance}
+        advanceProjectGate={advanceAdapter}
+      />
+
+      {/* PERSISTENT 8-stage operational rail (prototype project.jsx:4-20). */}
       <ProjectStepper
         projectId={projectId}
         locale={locale}
-        labels={labels}
-        ariaLabel={ariaLabel}
+        labels={stepLabels}
+        ariaLabel={stepperAriaLabel}
+        currentStageKey={project.currentStage}
       />
+
       {children}
     </div>
   );

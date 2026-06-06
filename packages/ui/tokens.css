@@ -41,3 +41,81 @@
   --modal-size-lg-width: 640px;
   --modal-size-xl-width: 896px;
 }
+
+/* ──────────────────────────────────────────────────────────────
+ * Modal primitive presentation (consumed by src/Modal.tsx)
+ * Portal renders overlay + content to <body>; these classes paint
+ * the scrim, center the box, animate it in, and pad header/body/foot
+ * so the dialog is never glued to the page or its own edge.
+ * ────────────────────────────────────────────────────────────── */
+.mp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 300;
+  animation: mp-modal-overlay-in 0.16s ease-out;
+}
+
+.mp-modal-content {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 301;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+  animation: mp-modal-content-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mp-modal-content:focus { outline: none; }
+
+.mp-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+.mp-modal-title { font-size: 15px; font-weight: 600; }
+.mp-modal-close {
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-muted, #64748b);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.mp-modal-close:hover { background: var(--color-gray-050, #f1f5f9); color: var(--color-text, #1e293b); }
+
+.mp-modal-body { padding: 16px 18px; }
+
+.mp-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 12px 18px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-gray-050, #f8fafc);
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+@keyframes mp-modal-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mp-modal-content-in {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-modal-overlay,
+  .mp-modal-content { animation: none; }
+}

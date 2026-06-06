@@ -19,12 +19,14 @@
  *     locale-prefixed `next/link` to /[locale]/pipeline/[id]/<stage>.
  *   - The legacy mock `window.NPD_STAGE_DETAIL` ordered model becomes the fixed
  *     8-step workflow Brief→Recipe→Packaging→Trial→Sensory→Pilot→Approval→Handoff.
- *   - Active step is derived from `usePathname()` (the trailing /<stage> segment),
- *     NOT from props, so it stays correct on hard navigation + back/forward.
- *   - Completed vs future is derived presentationally by position relative to the
- *     active step (steps before the active one are "done"). When the route is the
- *     bare /pipeline/[id] index there is no active stage: no step is highlighted
- *     and every step renders in its "future" (un-visited) tone.
+ *   - done/active is derived from the PROJECT's real `current_stage` (mig 242), so
+ *     the rail shows true progress on every child route (prototype project.jsx:4-20
+ *     derives done-ness from `project`, NOT from the viewed screen). The CURRENTLY
+ *     VIEWED route segment (usePathname) additionally gets aria-current="page" so
+ *     keyboard/SR users know which stage they are reading.
+ *   - When the project's current_stage is unknown/blank, it falls back to the
+ *     viewed route segment; on the bare /pipeline/[id] index with no stage at all,
+ *     every step renders in its "future" tone.
  *
  * Next 16 RSC safety: this is a Client island. The parent layout (a Server
  * Component) passes only serializable props (projectId, locale, labels) — no
@@ -59,6 +61,12 @@ export type ProjectStepperProps = {
   labels: Record<ProjectStageKey, string>;
   /** Accessible label for the stepper nav (already localized). */
   ariaLabel: string;
+  /**
+   * The project's real current stage (npd_projects.current_stage, mig 242). Drives
+   * which step is "active" + which earlier steps are "done". When omitted/unknown
+   * the stepper falls back to the viewed route segment.
+   */
+  currentStageKey?: string | null;
   /** Test-only pathname override (mirrors settings-subnav). */
   pathnameOverride?: string;
 };
@@ -96,11 +104,19 @@ export function ProjectStepper({
   locale,
   labels,
   ariaLabel,
+  currentStageKey,
   pathnameOverride,
 }: ProjectStepperProps) {
   const runtimePathname = usePathname();
   const pathname = pathnameOverride ?? runtimePathname ?? '';
-  const currentIndex = activeStageIndex(pathname, projectId);
+  // The step the USER is currently reading (route segment) — gets aria-current="page".
+  const viewedIndex = activeStageIndex(pathname, projectId);
+  // The project's REAL progress (current_stage) drives done/active styling; fall
+  // back to the viewed route when the project's stage is unknown.
+  const stageIndex = currentStageKey
+    ? PROJECT_STAGES.findIndex((s) => s.key === currentStageKey)
+    : -1;
+  const currentIndex = stageIndex >= 0 ? stageIndex : viewedIndex;
 
   return (
     <nav
@@ -125,6 +141,9 @@ export function ProjectStepper({
           const done = currentIndex >= 0 && i < currentIndex;
           const active = currentIndex >= 0 && i === currentIndex;
           const status = done ? 'done' : active ? 'active' : 'future';
+          // The step whose ROUTE is currently displayed (may differ from the
+          // project's current_stage when the user clicks ahead/behind).
+          const viewed = viewedIndex >= 0 && i === viewedIndex;
           const bg = done ? 'var(--green)' : active ? 'var(--blue)' : 'var(--gray-100)';
           const color = done || active ? '#fff' : 'var(--muted)';
           const href = `/${locale}/pipeline/${projectId}/${stage.segment}`;
@@ -135,7 +154,8 @@ export function ProjectStepper({
               key={stage.key}
               data-testid={`project-step-${stage.key}`}
               data-status={status}
-              aria-current={active ? 'step' : undefined}
+              data-viewed={viewed ? 'true' : undefined}
+              aria-current={viewed ? 'page' : active ? 'step' : undefined}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -167,8 +187,10 @@ export function ProjectStepper({
                     textAlign: 'center',
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
-                    fontWeight: active ? 700 : 400,
-                    color: done || active ? 'var(--text)' : 'var(--muted)',
+                    fontWeight: active || viewed ? 700 : 400,
+                    color: done || active || viewed ? 'var(--text)' : 'var(--muted)',
+                    textDecoration: viewed ? 'underline' : undefined,
+                    textUnderlineOffset: viewed ? 3 : undefined,
                   }}
                 >
                   {labels[stage.key]}

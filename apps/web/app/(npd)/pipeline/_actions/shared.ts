@@ -51,6 +51,19 @@ export function trimOptionalString(value: unknown, maxLength: number): string | 
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/** Optional non-negative money/number. Accepts number | numeric-string | ''/null. */
+export function parseOptionalNonNegNumber(value: unknown): number | null | undefined {
+  if (value === undefined || value === null || value === '') return null;
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
+/** Wizard "Starting point" — blank | clone | template (defaults to blank). */
+export function parseStartFrom(value: unknown): 'blank' | 'clone' | 'template' {
+  return value === 'clone' || value === 'template' ? value : 'blank';
+}
+
 export function parsePriority(value: unknown): ProjectPriority | null {
   if (value === undefined || value === null || value === '') return 'normal';
   return value === 'high' || value === 'normal' || value === 'low' ? value : null;

@@ -29,7 +29,6 @@ import {
   bulkMoveGate,
   bulkSetPriority,
 } from '../../../../(npd)/pipeline/_actions/bulk-update-projects';
-import { createProject } from '../../../../(npd)/pipeline/_actions/create-project';
 import { listProjects, type ListProjectsInput } from '../../../../(npd)/pipeline/_actions/list-projects';
 import { GATE_ADVANCE_PERMISSION } from '../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
@@ -44,7 +43,6 @@ import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 import { PipelineTabs, type PipelineTabsLabels, type PipelineKpiLabels } from './_components/pipeline-tabs';
 import type { BulkActions, TableLabels } from './_components/table-view';
 import type { SplitLabels } from './_components/split-labels';
-import type { CreateProjectAction, ProjectCreateLabels } from './_components/project-create-modal';
 import {
   normalizeStage,
   type AdvanceInput,
@@ -243,31 +241,6 @@ const DEFAULT_KPI_LABELS: PipelineKpiLabels = {
   empty: '—',
 };
 
-const DEFAULT_PROJECT_CREATE_LABELS: ProjectCreateLabels = {
-  title: 'Create NPD project',
-  subtitle: 'A new project ID is assigned and a gate checklist is seeded.',
-  fieldName: 'Product working name',
-  fieldNameHint: 'e.g. Sliced Ham 200g',
-  fieldType: 'Category',
-  fieldTarget: 'Target launch date',
-  fieldTargetHint: 'Optional — format YYYY-MM-DD',
-  fieldPriority: 'Priority',
-  fieldOwner: 'Owner',
-  fieldOwnerHint: 'Optional — who leads this project',
-  fieldNotes: 'Notes',
-  prioHigh: 'High',
-  prioNormal: 'Normal',
-  prioLow: 'Low',
-  cancel: 'Cancel',
-  create: 'Create project',
-  creating: 'Creating…',
-  errorName: 'Product name is required (max 160 chars).',
-  errorType: 'Category is required.',
-  errorTarget: 'Use the date format YYYY-MM-DD.',
-  errorGeneric: 'Could not create the project. Try again.',
-  errorForbidden: 'You do not have permission to create projects.',
-};
-
 /**
  * Resolve a label dictionary through next-intl, falling back to the typed defaults
  * for any missing key (and for the whole namespace if next-intl is unavailable).
@@ -389,22 +362,6 @@ async function advanceActionAdapter(input: AdvanceInput): Promise<AdvanceResult>
   return { ok: false, error: result.error, status: result.status };
 }
 
-/**
- * Create-project Server Action adapter (T-057 owns createProject). This is a
- * `'use server'` async function — a serializable Server Action reference, NOT a
- * raw client function — so it crosses the RSC→Client boundary safely (Next16).
- * RBAC is still enforced inside createProject (npd.project.create) AND the page
- * only injects this adapter when `canCreate` is true.
- */
-const createProjectAdapter: CreateProjectAction = async (input) => {
-  'use server';
-  const result = await createProject(input);
-  if (result.ok) {
-    return { ok: true, data: { id: result.data.id, code: result.data.code } };
-  }
-  return { ok: false, error: result.error };
-};
-
 async function bulkAssignOwnerAdapter(input: Parameters<BulkActions['assignOwner']>[0]) {
   'use server';
   return bulkAssignOwner(input);
@@ -434,14 +391,13 @@ export default async function PipelinePage(propsInput: unknown = {}) {
   const filter = parseFilter(readParam(search, 'filter'));
   const searchQuery = readParam(search, 'search')?.trim() || null;
 
-  const [kanbanLabels, tableLabels, splitLabels, switcherLabels, kpiLabels, projectCreateLabels] =
+  const [kanbanLabels, tableLabels, splitLabels, switcherLabels, kpiLabels] =
     await Promise.all([
       buildLabels(locale),
       buildLabelSet(locale, 'npd.pipelineTable', DEFAULT_TABLE_LABELS),
       buildLabelSet(locale, 'npd.pipelineSplit', DEFAULT_SPLIT_LABELS),
       buildLabelSet(locale, 'npd.pipelineSwitcher', DEFAULT_SWITCHER_LABELS),
       buildLabelSet(locale, 'npd.pipelineKpi', DEFAULT_KPI_LABELS),
-      buildLabelSet(locale, 'npd.pipelineCreate', DEFAULT_PROJECT_CREATE_LABELS),
     ]);
 
   const injected = Array.isArray(props.projects);
@@ -469,8 +425,6 @@ export default async function PipelinePage(propsInput: unknown = {}) {
       advanceAction={advanceActionAdapter}
       bulkActions={bulkActionsAdapter}
       canCreate={canCreate}
-      createAction={createProjectAdapter}
-      projectCreateLabels={projectCreateLabels}
     />
   );
 }

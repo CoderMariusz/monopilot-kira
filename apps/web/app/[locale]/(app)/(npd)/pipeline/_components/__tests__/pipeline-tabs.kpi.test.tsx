@@ -1,29 +1,27 @@
 /**
  * @vitest-environment jsdom
- * Pipeline — Create NPD project modal + "+ New project" wiring + 5 KPI formulas.
+ * Pipeline — 5 KPI formulas + "+ New project" navigation (full-page wizard) + RBAC.
  *
  * Prototype parity source:
- *   prototypes/design/Monopilot Design System/npd/project.jsx:107-263 (CreateProjectWizard)
  *   prototypes/design/Monopilot Design System/npd/pipeline.jsx:144-184 (header CTAs + 5 KPI cards)
  *
- * Asserts:
- *   - the dead "+ New project" button now OPENS a create modal (the live Gate-5 bug);
- *   - submitting calls the injected createProject Server Action and redirects to the
- *     new project on success (router.push /pipeline/<id>);
- *   - RBAC: with canCreate=false the trigger is disabled and the action is withheld;
- *   - Import recipe is disabled (no backend) — never a fake action;
+ * The condensed create modal was replaced by a full-page wizard at
+ * /{locale}/pipeline/new. The "+ New project" CTA now NAVIGATES (a <Link>) instead
+ * of opening a modal; this suite asserts:
  *   - the 5 KPI cards compute from REAL rows (Active / Awaiting / Launched YTD /
  *     At risk / Avg time to launch), showing "—" honestly when no launched data;
+ *   - "+ New project" links to /{locale}/pipeline/new when canCreate is true;
+ *   - RBAC: with canCreate=false the CTA is a disabled button (no link target);
+ *   - Import recipe stays disabled (no backend — never a fake action);
  *   - i18n: all chrome comes from injected labels (no hard-coded copy).
  */
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PipelineTabs, type PipelineTabsLabels, type PipelineKpiLabels } from '../pipeline-tabs';
-import { ProjectCreateModal, type ProjectCreateLabels } from '../project-create-modal';
 import type { KanbanLabels, KanbanProject } from '../kanban-types';
 import type { TableLabels } from '../table-view';
 import type { SplitLabels } from '../split-labels';
@@ -44,20 +42,6 @@ vi.mock('next/link', () => ({
 
 beforeEach(() => {
   currentParams = new URLSearchParams();
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    configurable: true,
-    value: () => ({
-      matches: true,
-      media: '',
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  });
   Object.defineProperty(window, 'location', {
     writable: true,
     configurable: true,
@@ -69,31 +53,6 @@ afterEach(() => {
   cleanup();
   pushMock.mockReset();
 });
-
-const CREATE_LABELS: ProjectCreateLabels = {
-  title: 'lbl.create.title',
-  subtitle: 'lbl.create.subtitle',
-  fieldName: 'lbl.create.name',
-  fieldNameHint: 'lbl.create.nameHint',
-  fieldType: 'lbl.create.type',
-  fieldTarget: 'lbl.create.target',
-  fieldTargetHint: 'lbl.create.targetHint',
-  fieldPriority: 'lbl.create.priority',
-  fieldOwner: 'lbl.create.owner',
-  fieldOwnerHint: 'lbl.create.ownerHint',
-  fieldNotes: 'lbl.create.notes',
-  prioHigh: 'High',
-  prioNormal: 'Normal',
-  prioLow: 'Low',
-  cancel: 'lbl.create.cancel',
-  create: 'lbl.create.create',
-  creating: 'lbl.create.creating',
-  errorName: 'lbl.create.errorName',
-  errorType: 'lbl.create.errorType',
-  errorTarget: 'lbl.create.errorTarget',
-  errorGeneric: 'lbl.create.errorGeneric',
-  errorForbidden: 'lbl.create.errorForbidden',
-};
 
 const SWITCHER_LABELS: PipelineTabsLabels = {
   viewsLabel: 'Pipeline views',
@@ -177,41 +136,35 @@ const advanceStub = vi.fn(async () => ({ ok: true as const, data: { currentGate:
 
 const thisYear = new Date().getUTCFullYear();
 const KPI_PROJECTS: KanbanProject[] = [
-  // Active (G1), high prio, low progress + future target → not at risk by progress, but high+low<50 → at risk
   { id: '1', code: 'NPD-001', name: 'Alpha', type: 'Meat', currentGate: 'G1', currentStage: 'brief', prio: 'high', owner: 'A', targetLaunch: '2999-01-01', progressPercent: 10, createdAt: `${thisYear}-01-01T00:00:00.000Z` },
-  // Awaiting (G3) + active
   { id: '2', code: 'NPD-002', name: 'Beta', type: 'Meat', currentGate: 'G3', currentStage: 'approval', prio: 'normal', owner: 'B', targetLaunch: '2999-01-01', progressPercent: 80, createdAt: `${thisYear}-02-01T00:00:00.000Z` },
-  // Launched this year
   { id: '3', code: 'NPD-003', name: 'Gamma', type: 'Meat', currentGate: 'Launched', currentStage: 'handoff', prio: 'low', owner: 'C', targetLaunch: '2025-01-01', progressPercent: 100, createdAt: `${thisYear}-01-15T00:00:00.000Z` },
 ];
 
 function renderTabs(overrides: Partial<React.ComponentProps<typeof PipelineTabs>> = {}) {
-  return render(
-    <PipelineTabs
-      projects={KPI_PROJECTS}
-      switcherLabels={SWITCHER_LABELS}
-      kpiLabels={KPI_LABELS}
-      kanbanLabels={stageLabels()}
-      tableLabels={TABLE_LABELS}
-      splitLabels={SPLIT_LABELS}
-      canAdvance={false}
-      state="ready"
-      advanceAction={advanceStub}
-      canCreate
-      createAction={vi.fn(async () => ({ ok: true as const, data: { id: 'new-id-123', code: 'NPD-099' } }))}
-      projectCreateLabels={CREATE_LABELS}
-      {...overrides}
-    />,
-  );
+  const props = {
+    projects: KPI_PROJECTS,
+    switcherLabels: SWITCHER_LABELS,
+    kpiLabels: KPI_LABELS,
+    kanbanLabels: stageLabels(),
+    tableLabels: TABLE_LABELS,
+    splitLabels: SPLIT_LABELS,
+    canAdvance: false,
+    state: 'ready' as const,
+    advanceAction: advanceStub,
+    canCreate: true,
+    ...overrides,
+  };
+  return render(<PipelineTabs {...props} />);
 }
 
 describe('PipelineTabs — 5 KPI cards from real rows', () => {
   it('computes Active / Awaiting / Launched YTD / At risk from the row data', () => {
     renderTabs();
-    expect(screen.getByTestId('kpi-active')).toHaveTextContent('2'); // G1 + G3 (not Launched)
-    expect(screen.getByTestId('kpi-awaiting')).toHaveTextContent('1'); // G3
-    expect(screen.getByTestId('kpi-launched')).toHaveTextContent('1'); // Launched this year
-    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1'); // high + progress<50
+    expect(screen.getByTestId('kpi-active')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-awaiting')).toHaveTextContent('1');
+    expect(screen.getByTestId('kpi-launched')).toHaveTextContent('1');
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
 
   it('shows "—" for Avg time to launch when there is no launched-with-dates data', () => {
@@ -234,55 +187,22 @@ describe('PipelineTabs — 5 KPI cards from real rows', () => {
   });
 });
 
-describe('PipelineTabs — "+ New project" wiring (dead-button fix) + RBAC', () => {
-  it('opens the create modal when the enabled "+ New project" button is clicked', () => {
+describe('PipelineTabs — "+ New project" navigation + RBAC', () => {
+  it('links to /{locale}/pipeline/new when canCreate is true', () => {
     renderTabs();
-    const trigger = screen.getByTestId('pipeline-new-project');
-    expect(trigger).not.toBeDisabled();
-    fireEvent.click(trigger);
-    expect(screen.getByTestId('project-create-form')).toBeInTheDocument();
+    const cta = screen.getByTestId('pipeline-new-project');
+    expect(cta).toHaveAttribute('href', '/en/pipeline/new');
   });
 
-  it('disables the "+ New project" button when canCreate is false (no client bypass)', () => {
+  it('disables the "+ New project" CTA (a plain button, no link) when canCreate is false', () => {
     renderTabs({ canCreate: false });
-    expect(screen.getByTestId('pipeline-new-project')).toBeDisabled();
+    const cta = screen.getByTestId('pipeline-new-project');
+    expect(cta).toBeDisabled();
+    expect(cta).not.toHaveAttribute('href');
   });
 
   it('keeps "Import recipe" disabled (no backend — never a fake action)', () => {
     renderTabs();
     expect(screen.getByTestId('pipeline-import-recipe')).toBeDisabled();
-  });
-});
-
-describe('ProjectCreateModal — submit calls the injected action + redirects', () => {
-  it('calls createAction and onCreated with the new project id', async () => {
-    const createAction = vi.fn(async () => ({ ok: true as const, data: { id: 'pid-42', code: 'NPD-042' } }));
-    const onCreated = vi.fn();
-    render(
-      <ProjectCreateModal
-        open
-        labels={CREATE_LABELS}
-        createAction={createAction}
-        onCreated={onCreated}
-        onClose={vi.fn()}
-      />,
-    );
-    const form = screen.getByTestId('project-create-form');
-    fireEvent.change(within(form).getByLabelText(/lbl\.create\.name/), { target: { value: 'Sliced Ham 200g' } });
-    await act(async () => {
-      fireEvent.submit(form);
-    });
-    await waitFor(() => expect(createAction).toHaveBeenCalledTimes(1));
-    expect(createAction.mock.calls[0]![0]).toMatchObject({ name: 'Sliced Ham 200g', templateId: 'APEX_DEFAULT' });
-    expect(onCreated).toHaveBeenCalledWith('pid-42');
-  });
-
-  it('surfaces a forbidden error when no action is injected (RBAC withheld)', async () => {
-    render(
-      <ProjectCreateModal open labels={CREATE_LABELS} createAction={undefined} onCreated={vi.fn()} onClose={vi.fn()} />,
-    );
-    const submit = screen.getByRole('button', { name: CREATE_LABELS.create });
-    // submit is disabled without an action — assert the RBAC gate (no client bypass).
-    expect(submit).toBeDisabled();
   });
 });

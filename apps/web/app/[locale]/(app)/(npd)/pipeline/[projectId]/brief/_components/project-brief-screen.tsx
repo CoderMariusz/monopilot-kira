@@ -60,8 +60,6 @@ export type ProjectBriefScreenProps = {
   state: ProjectBriefState;
   data: ProjectBriefView | null;
   labels: ProjectBriefLabels;
-  /** Locale-prefixed link back to the editable brief detail, when one is linked. */
-  briefHref: string | null;
 };
 
 function ReadField({ label, value, placeholder }: { label: string; value: string | null; placeholder: string }) {
@@ -93,7 +91,7 @@ function StatePanel({ testId, title, body }: { testId: string; title: string; bo
   );
 }
 
-export function ProjectBriefScreen({ state, data, labels, briefHref }: ProjectBriefScreenProps) {
+export function ProjectBriefScreen({ state, data, labels }: ProjectBriefScreenProps) {
   if (state === 'loading') {
     return (
       <Card data-testid="project-brief-loading" aria-busy="true">
@@ -167,12 +165,6 @@ export function ProjectBriefScreen({ state, data, labels, briefHref }: ProjectBr
           </p>
         </CardContent>
       </Card>
-
-      {briefHref ? (
-        <a className="link" href={briefHref} data-testid="project-brief-edit-link">
-          {data.devCode}
-        </a>
-      ) : null}
     </div>
   );
 }

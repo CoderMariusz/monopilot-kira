@@ -12,8 +12,8 @@
  *   - public.brief_lines                           → product line (name/volume/comments) + packaging
  *   - public.npd_projects                          → project name + target_launch (enrichment)
  *
- * REUSE of the existing brief read path: the resolver mirrors the brief-detail
- * page (briefs/[briefId]/page.tsx) — same `withOrgContext`, same `hasPermission`
+ * REUSE of the existing brief read path (Postgres query only): the query mirrors
+ * the brief-detail page structure — same `withOrgContext`, same `hasPermission`
  * shape, same `public.brief`/`public.brief_lines` columns + ::text decimal carry.
  * It resolves by the project→brief link `brief.npd_project_id` instead of by
  * brief_id, and shapes a read-oriented project-stage view (the brief is frozen).
@@ -108,15 +108,11 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
       }
     : await readProjectBrief(projectId);
 
-  const briefHref =
-    loaded.state === 'ready' && loaded.data ? `/${locale}/briefs/${loaded.data.briefId}` : null;
-
   return (
     <ProjectBriefScreen
       state={loaded.state}
       data={loaded.data}
       labels={labels}
-      briefHref={briefHref}
     />
   );
 }

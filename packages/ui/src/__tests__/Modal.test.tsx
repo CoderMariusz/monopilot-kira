@@ -28,7 +28,7 @@ function findFiles(root: string, predicate: (filePath: string) => boolean): stri
 
 describe('Modal primitive contract', () => {
   it('matches the settings access invite-modal hierarchy and reads width from tokens.css', () => {
-    const { container } = render(
+    render(
       <Modal open onOpenChange={() => {}} size="md">
         <Modal.Header title="Invite user" />
         <Modal.Body>
@@ -53,11 +53,12 @@ describe('Modal primitive contract', () => {
     expect(dialog).toHaveAttribute('data-size', 'md');
     expect(dialog.getAttribute('style')).toMatch(/--modal-size-md-width(?!,)/);
 
-    expect(container.querySelector('[data-testid="modal-header"]')).toContainElement(screen.getByText('Invite user'));
-    expect(container.querySelector('[data-testid="modal-close-button"]')).toHaveAttribute('aria-label', 'Close');
-    expect(container.querySelector('[data-testid="modal-body"] .form-grid-2')).toBeTruthy();
-    expect(container.querySelector('[data-testid="modal-footer"]')).toContainElement(screen.getByRole('button', { name: 'Cancel' }));
-    expect(container.querySelector('[data-testid="modal-footer"]')).toContainElement(screen.getByRole('button', { name: 'Send invitation' }));
+    // Content is portalled to <body>, so query the document (not a render container).
+    expect(screen.getByTestId('modal-header')).toContainElement(screen.getByText('Invite user'));
+    expect(screen.getByTestId('modal-close-button')).toHaveAttribute('aria-label', 'Close');
+    expect(screen.getByTestId('modal-body').querySelector('.form-grid-2')).toBeTruthy();
+    expect(screen.getByTestId('modal-footer')).toContainElement(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByTestId('modal-footer')).toContainElement(screen.getByRole('button', { name: 'Send invitation' }));
   });
 
   it('traps focus while open, closes on Escape only when dismissible, and restores focus to the invoker', async () => {

@@ -17,13 +17,14 @@ interface ModalHeaderProps {
 
 function ModalHeader({ title }: ModalHeaderProps) {
   return (
-    <div data-testid="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div data-testid="modal-header" className="mp-modal-head">
       <Dialog.Title asChild>
-        <h2 style={{ margin: 0 }}>{title}</h2>
+        <h2 className="mp-modal-title" style={{ margin: 0 }}>{title}</h2>
       </Dialog.Title>
       <Dialog.Close asChild>
         <button
           data-testid="modal-close-button"
+          className="mp-modal-close"
           aria-label="Close"
           type="button"
         >
@@ -45,11 +46,12 @@ function ModalBody({ children }: ModalBodyProps) {
   return (
     <div
       data-testid="modal-body"
+      className="mp-modal-body"
       // The body is the scroll region: it grows to fill the space between the
       // (fixed) header and footer and scrolls when the form is taller than the
       // viewport, so the last fields + submit stay reachable on small screens.
-      // Mirrors prototype `.modal-body { overflow-y: auto; flex: 1; }`
-      // (prototypes/design/Monopilot Design System/_shared/shared.css:12).
+      // Padding lives in `.mp-modal-body` (tokens.css) so the form is never
+      // glued to the dialog edge.
       style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}
     >
       {children}
@@ -66,10 +68,7 @@ interface ModalFooterProps {
 
 function ModalFooter({ children }: ModalFooterProps) {
   return (
-    <div
-      data-testid="modal-footer"
-      style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}
-    >
+    <div data-testid="modal-footer" className="mp-modal-foot">
       {children}
     </div>
   );
@@ -123,35 +122,35 @@ function Modal({ open, onOpenChange, size = 'md', modalId, dismissible = true, c
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={true}>
       {/*
-        Render content without a Portal so tests can query via container.
-        In a real browser, use Dialog.Portal for proper stacking context.
-        Portal is skipped here by not wrapping in Dialog.Portal.
+        Portal the overlay + content to <body> so the dialog escapes the page's
+        stacking/overflow context and renders as a true centered overlay (was
+        previously rendered inline — which glued the box under the page with no
+        backdrop). `.mp-modal-overlay` paints the scrim; `.mp-modal-content`
+        positions the box dead-center with a spring-in animation (tokens.css).
       */}
-      <Dialog.Overlay />
-      <Dialog.Content
-        role="dialog"
-        aria-modal="true"
-        aria-describedby={undefined}
-        data-focus-trap="radix-dialog"
-        data-size={size}
-        data-modal-id={modalId}
-        // Constrain height to the viewport and lay the dialog out as a column so
-        // the header/footer stay pinned while Modal.Body scrolls. Without this
-        // the content (e.g. the Invite-user form) overflowed past the viewport
-        // with no scroll, hiding the lower fields + submit. Mirrors prototype
-        // `.modal-box { max-height: 86vh; display: flex; flex-direction: column; }`
-        // (prototypes/design/Monopilot Design System/_shared/shared.css:7).
-        style={{
-          maxWidth: sizeVar,
-          maxHeight: '86vh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        onEscapeKeyDown={handleEscapeKeyDown}
-        onPointerDownOutside={handlePointerDownOutside}
-      >
-        {children}
-      </Dialog.Content>
+      <Dialog.Portal>
+        <Dialog.Overlay className="mp-modal-overlay" />
+        <Dialog.Content
+          role="dialog"
+          aria-modal="true"
+          aria-describedby={undefined}
+          data-focus-trap="radix-dialog"
+          data-size={size}
+          data-modal-id={modalId}
+          className="mp-modal-content"
+          // Width is read from the design-system token (parity contract asserted
+          // in Modal.test.tsx); centering/elevation/animation come from the class.
+          style={{
+            width: sizeVar,
+            maxWidth: 'calc(100vw - 32px)',
+            maxHeight: '86vh',
+          }}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          onPointerDownOutside={handlePointerDownOutside}
+        >
+          {children}
+        </Dialog.Content>
+      </Dialog.Portal>
     </Dialog.Root>
   );
 }

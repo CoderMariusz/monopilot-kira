@@ -3,20 +3,14 @@
 /**
  * NPD project-stage Brief — read action.
  *
- * Resolves the brief that created an `npd_project` (the project-stage view of the
- * brief). The link is `public.brief.npd_project_id = public.npd_projects.id`
- * (unique constraint `brief_npd_project_unique`, migration 081). A project may
- * have no linked brief (created directly), in which case we surface an empty
- * state rather than an error.
- *
- * Reuses the SAME org-scoped read path as the brief-detail page
- * (`briefs/[briefId]/page.tsx`): `withOrgContext` (RLS as app_user with
- * app.current_org_id()), the same `hasPermission` shape, and the same
- * `public.brief` + `public.brief_lines` columns. Money/decimal columns are cast
+ * Since the 2026-06-06 pivot the brief is FOLDED INTO the project (mig 242): the
+ * capture fields live directly on `public.npd_projects` and are written by the
+ * create-wizard. There is no longer a separate `public.brief` row, so this reads
+ * the merged columns straight off the project. Money/decimal columns are cast
  * ::text and carried as decimal STRINGS — never coerced to JS floats here.
  *
- * The brief is FROZEN after conversion (`convertBriefToFa` sets status). This is
- * a read-oriented stage view, so no write action is needed.
+ * `withOrgContext` (RLS as app_user with app.current_org_id()). The brief view is
+ * read-oriented (the wizard owns writes), so no write action is needed here.
  *
  * RBAC read permission: `npd.brief.read` (already seeded). Resolved server-side,
  * never client-trusted.
@@ -78,24 +72,21 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
   return rows.length > 0;
 }
 
-type BriefHeaderRow = {
-  brief_id: string;
-  dev_code: string;
-  product_name: string | null;
-  status: ProjectBriefView['status'];
-  project_name: string | null;
+type ProjectBriefRow = {
+  id: string;
+  code: string;
+  name: string | null;
+  type: string | null;
+  current_stage: string;
   target_launch: string | null;
-};
-
-type BriefLineRow = {
-  line_type: 'product' | 'component' | 'summary';
-  line_index: number;
-  product: string | null;
-  volume: string | null;
-  comments: string | null;
-  benchmark_identified: string | null;
-  price: string | null;
-  primary_packaging: string | null;
+  pack_format: string | null;
+  sales_channel: string | null;
+  expected_volume: string | null;
+  target_retail_price_eur: string | null;
+  target_audience: string | null;
+  marketing_claims: string | null;
+  constraints: string | null;
+  notes: string | null;
 };
 
 export async function readProjectBrief(projectId: string): Promise<ReadProjectBriefResult> {
@@ -109,66 +100,52 @@ export async function readProjectBrief(projectId: string): Promise<ReadProjectBr
         return { state: 'permission_denied', data: null };
       }
 
-      // Resolve the brief that created this project. RLS scopes both rows to the org.
-      const header = await ctx.client.query<BriefHeaderRow>(
-        `select b.brief_id,
-                b.dev_code,
-                b.product_name,
-                b.status,
-                p.name          as project_name,
-                p.target_launch::text as target_launch
-           from public.brief b
-           join public.npd_projects p
-             on p.id = b.npd_project_id
-            and p.org_id = b.org_id
-          where b.npd_project_id = $1::uuid
-            and b.org_id = app.current_org_id()
+      // Brief fields are merged onto the project (mig 242). RLS scopes to the org.
+      const result = await ctx.client.query<ProjectBriefRow>(
+        `select id,
+                code,
+                name,
+                type,
+                current_stage,
+                target_launch::text            as target_launch,
+                pack_format,
+                sales_channel,
+                expected_volume,
+                target_retail_price_eur::text  as target_retail_price_eur,
+                target_audience,
+                marketing_claims,
+                constraints,
+                notes
+           from public.npd_projects
+          where id = $1::uuid
+            and org_id = app.current_org_id()
           limit 1`,
         [projectId],
       );
-      const head = header.rows[0];
-      if (!head) {
+      const row = result.rows[0];
+      if (!row) {
         return { state: 'empty', data: null };
       }
 
-      const lines = await ctx.client.query<BriefLineRow>(
-        `select line_type,
-                line_index,
-                product,
-                volume::text as volume,
-                comments,
-                benchmark_identified,
-                price,
-                primary_packaging
-           from public.brief_lines
-          where brief_id = $1::uuid
-            and org_id = app.current_org_id()
-          order by line_index asc`,
-        [head.brief_id],
-      );
-
-      const productLine = lines.rows.find((l) => l.line_type === 'product');
-      const summaryLine = lines.rows.find((l) => l.line_type === 'summary');
-      const packagingLine = lines.rows.find((l) => l.primary_packaging !== null) ?? productLine;
-
       const data: ProjectBriefView = {
-        briefId: head.brief_id,
-        devCode: head.dev_code,
-        projectName: head.project_name,
-        status: head.status,
-        productName: productLine?.product ?? head.product_name,
-        targetLaunchDate: head.target_launch,
-        packFormat: packagingLine?.primary_packaging ?? null,
-        expectedVolume: productLine?.volume ?? null,
-        // Free-text brief comments carry the marketing-claims / constraints copy
-        // until the dedicated columns land (Phase B.2 rescan). Read-only here.
-        marketingClaims: null,
-        category: null,
-        targetRetailPriceEur: (summaryLine ?? productLine)?.price ?? null,
-        salesChannel: null,
-        targetAudience: null,
-        constraints: productLine?.comments ?? null,
-        notes: summaryLine?.comments ?? null,
+        // No separate brief row — the project IS the brief.
+        briefId: row.id,
+        devCode: row.code,
+        projectName: row.name,
+        // Brief is captured at creation, so it is always "complete"; once the
+        // project leaves the brief stage it reads as frozen ("converted").
+        status: row.current_stage === 'brief' ? 'complete' : 'converted',
+        productName: row.name,
+        targetLaunchDate: row.target_launch,
+        packFormat: row.pack_format,
+        expectedVolume: row.expected_volume,
+        marketingClaims: row.marketing_claims,
+        category: row.type,
+        targetRetailPriceEur: row.target_retail_price_eur,
+        salesChannel: row.sales_channel,
+        targetAudience: row.target_audience,
+        constraints: row.constraints,
+        notes: row.notes,
       };
 
       return { state: 'ready', data };

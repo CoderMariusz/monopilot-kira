@@ -11,18 +11,32 @@ import {
   type OrgContextLike,
   type ProjectPriority,
   hasPermission,
+  parseOptionalNonNegNumber,
   parsePriority,
+  parseStartFrom,
   parseTargetLaunch,
   trimOptionalString,
 } from './shared';
 
 export type CreateProjectInput = {
   name: string;
+  /** Category (project.jsx wizard "Category" select). Stored in npd_projects.type. */
   type: string;
   prio?: ProjectPriority;
   owner?: string | null;
   targetLaunch?: string | null;
   notes?: string | null;
+  // Brief step (folded in — mig 242). All optional.
+  packFormat?: string | null;
+  salesChannel?: string | null;
+  expectedVolume?: string | null;
+  targetRetailPriceEur?: number | null;
+  targetAudience?: string | null;
+  marketingClaims?: string | null;
+  constraints?: string | null;
+  // Starting point step.
+  startFrom: 'blank' | 'clone' | 'template';
+  cloneSource?: string | null;
   templateId: string;
 };
 
@@ -61,9 +75,15 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
       const code = await allocateProjectCode(context);
       const { rows } = await context.client.query<ProjectInsertRow>(
         `insert into public.npd_projects
-           (org_id, code, name, type, prio, owner, target_launch, notes, current_gate, current_stage, start_from, created_by_user, app_version)
+           (org_id, code, name, type, prio, owner, target_launch, notes,
+            pack_format, sales_channel, expected_volume, target_retail_price_eur,
+            target_audience, marketing_claims, constraints,
+            current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
-           ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8, 'G0', 'brief', 'blank', $9::uuid, 'npd-project-actions-v1')
+           ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
+            $9, $10, $11, $12::numeric,
+            $13, $14, $15,
+            'G0', 'brief', $16, $17, $18::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           context.orgId,
@@ -74,6 +94,15 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.owner,
           input.targetLaunch,
           input.notes,
+          input.packFormat ?? null,
+          input.salesChannel ?? null,
+          input.expectedVolume ?? null,
+          input.targetRetailPriceEur ?? null,
+          input.targetAudience ?? null,
+          input.marketingClaims ?? null,
+          input.constraints ?? null,
+          input.startFrom,
+          input.cloneSource ?? null,
           context.userId,
         ],
       );
@@ -118,11 +147,33 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const notes = trimOptionalString(input.notes, 2000);
   const templateId = trimOptionalString(input.templateId, 80) ?? DEFAULT_TEMPLATE_ID;
 
-  if (!name || !type || !prio || owner === undefined || targetLaunch === undefined || notes === undefined || !templateId) {
+  // Brief step — all optional (undefined === over-length/invalid → reject).
+  const packFormat = trimOptionalString(input.packFormat, 160);
+  const salesChannel = trimOptionalString(input.salesChannel, 80);
+  const expectedVolume = trimOptionalString(input.expectedVolume, 120);
+  const targetAudience = trimOptionalString(input.targetAudience, 400);
+  const marketingClaims = trimOptionalString(input.marketingClaims, 600);
+  const constraints = trimOptionalString(input.constraints, 2000);
+  const targetRetailPriceEur = parseOptionalNonNegNumber(input.targetRetailPriceEur);
+  const startFrom = parseStartFrom(input.startFrom);
+  const cloneSource = trimOptionalString(input.cloneSource, 120);
+
+  if (
+    !name || !type || !prio || !templateId ||
+    owner === undefined || targetLaunch === undefined || notes === undefined ||
+    packFormat === undefined || salesChannel === undefined || expectedVolume === undefined ||
+    targetAudience === undefined || marketingClaims === undefined || constraints === undefined ||
+    targetRetailPriceEur === undefined || cloneSource === undefined
+  ) {
     return null;
   }
 
-  return { name, type, prio, owner, targetLaunch, notes, templateId };
+  return {
+    name, type, prio, owner, targetLaunch, notes,
+    packFormat, salesChannel, expectedVolume, targetRetailPriceEur,
+    targetAudience, marketingClaims, constraints,
+    startFrom, cloneSource, templateId,
+  };
 }
 
 async function allocateProjectCode(ctx: OrgContextLike): Promise<string> {

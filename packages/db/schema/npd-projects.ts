@@ -1,4 +1,4 @@
-import { check, date, foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, foreignKey, index, integer, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 
@@ -21,6 +21,15 @@ export const npdProjects = pgTable(
     owner: text('owner'),
     targetLaunch: date('target_launch'),
     notes: text('notes'),
+    // Brief capture fields (folded in from the retired standalone brief flow, mig 242).
+    // `type` above doubles as the category. name+type are required; these are optional.
+    targetRetailPriceEur: numeric('target_retail_price_eur', { precision: 12, scale: 2 }),
+    packFormat: text('pack_format'),
+    salesChannel: text('sales_channel'),
+    expectedVolume: text('expected_volume'),
+    targetAudience: text('target_audience'),
+    marketingClaims: text('marketing_claims'),
+    constraints: text('constraints'),
     productCode: text('product_code'),
     startFrom: text('start_from'),
     cloneSource: text('clone_source'),
@@ -48,7 +57,11 @@ export const npdProjects = pgTable(
     ),
     currentStageCheck: check(
       'npd_projects_current_stage_check',
-      sql`${table.currentStage} in ('brief', 'recipe', 'trial', 'approval', 'handoff')`,
+      sql`${table.currentStage} in ('brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff', 'launched')`,
+    ),
+    targetPriceNonneg: check(
+      'npd_projects_target_price_nonneg',
+      sql`${table.targetRetailPriceEur} is null or ${table.targetRetailPriceEur} >= 0`,
     ),
     prioCheck: check('npd_projects_prio_check', sql`${table.prio} in ('high', 'normal', 'low')`),
     startFromCheck: check(

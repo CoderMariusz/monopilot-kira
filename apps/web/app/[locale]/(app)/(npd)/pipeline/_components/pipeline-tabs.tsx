@@ -35,17 +35,13 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { KanbanView } from './kanban-view';
 import { TableView, type BulkActions, type TableLabels, type TableProject } from './table-view';
 import { SplitView } from './split-view';
 import type { SplitLabels } from './split-labels';
-import {
-  ProjectCreateModal,
-  type CreateProjectAction,
-  type ProjectCreateLabels,
-} from './project-create-modal';
 import {
   normalizeStage,
   type AdvanceAction,
@@ -164,16 +160,12 @@ export type PipelineTabsProps = {
   advanceAction: AdvanceAction;
   /** Bulk table Server Actions, resolved by the RSC page. */
   bulkActions?: BulkActions;
-  /** Server-resolved RBAC gate for creating projects (never client-trusted). */
-  canCreate?: boolean;
   /**
-   * Merged createProject Server Action (T-057), injected by page.tsx ONLY when
-   * `canCreate` is true. Undefined disables the create form (no client bypass).
+   * Server-resolved RBAC gate for creating projects (never client-trusted).
+   * Gates the "+ New project" CTA, which navigates to the full-page wizard
+   * (/{locale}/pipeline/new) where the create Server Action is RBAC-injected again.
    */
-  createAction?: CreateProjectAction;
-  projectCreateLabels?: ProjectCreateLabels;
-  /** Test seam: open the create modal on mount. */
-  initialCreateOpen?: boolean;
+  canCreate?: boolean;
 };
 
 export function PipelineTabs({
@@ -188,9 +180,6 @@ export function PipelineTabs({
   advanceAction,
   bulkActions,
   canCreate = false,
-  createAction,
-  projectCreateLabels,
-  initialCreateOpen = false,
 }: PipelineTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -199,20 +188,13 @@ export function PipelineTabs({
   const activeFilter = parseFilter(searchParams.get('filter'));
   const searchValue = searchParams.get('search') ?? '';
 
-  const [createOpen, setCreateOpen] = React.useState(initialCreateOpen);
-
-  const onProjectCreated = React.useCallback(
-    (projectId: string) => {
-      setCreateOpen(false);
-      // Resolve the locale from the first path segment (e.g. /en/pipeline).
-      const segments = (typeof window !== 'undefined' ? window.location.pathname : '/en/pipeline')
-        .split('/')
-        .filter(Boolean);
-      const locale = segments[0] ?? 'en';
-      router.push(`/${locale}/pipeline/${projectId}`);
-    },
-    [router],
-  );
+  // Resolve the locale from the first path segment (e.g. /en/pipeline) for the
+  // "+ New project" link target (full-page wizard at /{locale}/pipeline/new).
+  const locale =
+    (typeof window !== 'undefined' ? window.location.pathname : '/en/pipeline')
+      .split('/')
+      .filter(Boolean)[0] ?? 'en';
+  const newProjectHref = `/${locale}/pipeline/new`;
 
   /** Mutate one URL param while preserving every other shared param (?sort/?dir/?selected/…). */
   const setParam = React.useCallback(
@@ -328,16 +310,28 @@ export function PipelineTabs({
           >
             {switcherLabels.importRecipe}
           </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            data-testid="pipeline-new-project"
-            disabled={!canCreate}
-            aria-disabled={!canCreate || undefined}
-            onClick={() => setCreateOpen(true)}
-          >
-            + {switcherLabels.newProject}
-          </button>
+          {/* Navigates to the full-page Create project wizard (/{locale}/pipeline/new).
+              RBAC: when canCreate is false we render a disabled affordance (no link)
+              so the user can't reach a wizard whose create action the server withholds. */}
+          {canCreate ? (
+            <Link
+              href={newProjectHref}
+              className="btn btn-primary"
+              data-testid="pipeline-new-project"
+            >
+              + {switcherLabels.newProject}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="pipeline-new-project"
+              disabled
+              aria-disabled="true"
+            >
+              + {switcherLabels.newProject}
+            </button>
+          )}
         </div>
       </header>
 
@@ -476,19 +470,6 @@ export function PipelineTabs({
           <SplitView projects={visibleProjects} labels={splitLabels} state={state} />
         ) : null}
       </div>
-
-      {/* Create-project modal — mounted INLINE in the same client island as the
-          "+ New project" trigger (robust on first paint; the FA-create NF fix).
-          RBAC: the Server Action is injected only when canCreate is true. */}
-      {projectCreateLabels ? (
-        <ProjectCreateModal
-          open={createOpen}
-          labels={projectCreateLabels}
-          createAction={canCreate ? createAction : undefined}
-          onCreated={onProjectCreated}
-          onClose={() => setCreateOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }

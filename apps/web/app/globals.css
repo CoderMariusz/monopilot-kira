@@ -100,6 +100,12 @@
   --cell-row-ready:    #C0FFC0;
   --cell-row-alert:    #C0C0FF;
 
+  /* Standard page gutter — the ONE place to tune content edge padding.
+     Apply via the `.page-pad` utility (or `--page-pad` directly). Pages were
+     previously glued to the left because the (npd) layout main is padding-less
+     and each page invented its own; this is now the shared standard. */
+  --page-pad: 24px;
+
   /* Radius, shadow */
   --radius:      6px;
   --radius-sm:   4px;
@@ -184,6 +190,13 @@
 }
 
 @layer utilities {
+  /* Standard page gutter — wrap a route's top-level content in `.page-pad`
+     (or `.page-pad-x` for horizontal-only) so it is never glued to the chrome.
+     One token (`--page-pad`) controls the value app-wide. */
+  .page-pad   { padding: var(--page-pad); }
+  .page-pad-x { padding-left: var(--page-pad); padding-right: var(--page-pad); }
+  .page-pad-y { padding-top: var(--page-pad); padding-bottom: var(--page-pad); }
+
   .w-sidebar {
     width: var(--shell-sidebar-w);
   }
