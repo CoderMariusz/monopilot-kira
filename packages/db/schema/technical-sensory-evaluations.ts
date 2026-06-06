@@ -1,6 +1,18 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { boolean, check, index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { organizations, users } from './baseline.js';
 import { items } from './items.js';
@@ -30,6 +42,11 @@ export const technicalSensoryEvaluations = pgTable(
     status: text('status').notNull().default('not_required'),
     statusReason: text('status_reason'),
     policyRequired: boolean('policy_required').notNull().default(false),
+    // Sensory PANEL extension (migration 237) — attribute-level panel header fields.
+    panelDate: date('panel_date'),
+    panelistCount: integer('panelist_count'),
+    benchmarkProductCode: text('benchmark_product_code'),
+    overallScore: numeric('overall_score', { precision: 4, scale: 2 }),
     evaluatedAt: timestamp('evaluated_at', { withTimezone: true }),
     evaluatedBy: uuid('evaluated_by').references(() => users.id, { onDelete: 'restrict' }),
     schemaVersion: integer('schema_version').notNull().default(1),
@@ -68,6 +85,15 @@ export const technicalSensoryEvaluations = pgTable(
     schemaVersionCheck: check(
       'technical_sensory_evaluations_schema_version_check',
       sql`${table.schemaVersion} >= 1`,
+    ),
+    // Sensory PANEL extension (migration 237).
+    panelistCountCheck: check(
+      'technical_sensory_evaluations_panelist_count_check',
+      sql`${table.panelistCount} is null or ${table.panelistCount} >= 0`,
+    ),
+    overallScoreCheck: check(
+      'technical_sensory_evaluations_overall_score_check',
+      sql`${table.overallScore} is null or (${table.overallScore} >= 0 and ${table.overallScore} <= 10)`,
     ),
   }),
 );

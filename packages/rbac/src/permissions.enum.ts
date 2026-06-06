@@ -136,6 +136,26 @@ export const Permission = {
   /** NPD BOM export permission; PRD 01-NPD §2.2, §18, §19. */
   NPD_BOM_EXPORT: 'npd.bom.export',
 
+  // NPD Fala-3 stage permissions (formulation read + packaging/trial/pilot/handoff stages)
+  /** NPD formulation read permission (Fala-3; fixes the live Gate-5 formulation gap); PRD 01-NPD §2.2, §18. */
+  NPD_FORMULATION_READ: 'npd.formulation.read',
+  /** NPD packaging stage read permission; PRD 01-NPD §2.2 (Packaging stage). */
+  NPD_PACKAGING_READ: 'npd.packaging.read',
+  /** NPD packaging stage write permission; PRD 01-NPD §2.2 (Packaging stage). */
+  NPD_PACKAGING_WRITE: 'npd.packaging.write',
+  /** NPD trial stage read permission; PRD 01-NPD §2.2 (Trial stage). */
+  NPD_TRIAL_READ: 'npd.trial.read',
+  /** NPD trial stage write permission; PRD 01-NPD §2.2 (Trial stage). */
+  NPD_TRIAL_WRITE: 'npd.trial.write',
+  /** NPD pilot stage read permission; PRD 01-NPD §2.2 (Pilot stage). */
+  NPD_PILOT_READ: 'npd.pilot.read',
+  /** NPD pilot stage write permission; PRD 01-NPD §2.2 (Pilot stage). */
+  NPD_PILOT_WRITE: 'npd.pilot.write',
+  /** NPD handoff stage read permission; PRD 01-NPD §2.2 (Handoff stage). */
+  NPD_HANDOFF_READ: 'npd.handoff.read',
+  /** NPD handoff promote-to-factory permission; PRD 01-NPD §2.2 (Handoff stage). */
+  NPD_HANDOFF_PROMOTE: 'npd.handoff.promote',
+
   // GDPR
   /** GDPR Art.17 right-to-erasure execution (admin); PRD 01-NPD §15 Compliance + Foundation §15 GDPR. Gates the redact-user Server Action (T-089). */
   GDPR_ERASURE_EXECUTE: 'gdpr.erasure.execute',
@@ -161,6 +181,12 @@ export const Permission = {
   TECHNICAL_COST_EDIT: 'technical.cost.edit',
   /** Technical D365 sync trigger permission; PRD 03-TECHNICAL §3 (RBAC). */
   TECHNICAL_D365_SYNC_TRIGGER: 'technical.d365.sync_trigger',
+  /** Technical ECO/change-control authoring permission; PRD 03-TECHNICAL change control. */
+  TECHNICAL_ECO_WRITE: 'technical.eco.write',
+  /** Technical ECO/change-control approval permission; PRD 03-TECHNICAL change control. */
+  TECHNICAL_ECO_APPROVE: 'technical.eco.approve',
+  /** Technical sensory read permission (Technical owns sensory; consumed read-only by NPD); PRD 03-TECHNICAL §5, §17 (T-084/T-092). */
+  TECHNICAL_SENSORY_READ: 'technical.sensory.read',
 
   // Production (08-production)
   /** Production WO start permission; PRD 08-PRODUCTION §3.2 (RBAC). */
@@ -566,6 +592,15 @@ export const ALL_NPD_PERMISSIONS = [
   Permission.NPD_GATE_ADVANCE,
   Permission.NPD_GATE_APPROVE,
   Permission.NPD_BOM_EXPORT,
+  Permission.NPD_FORMULATION_READ,
+  Permission.NPD_PACKAGING_READ,
+  Permission.NPD_PACKAGING_WRITE,
+  Permission.NPD_TRIAL_READ,
+  Permission.NPD_TRIAL_WRITE,
+  Permission.NPD_PILOT_READ,
+  Permission.NPD_PILOT_WRITE,
+  Permission.NPD_HANDOFF_READ,
+  Permission.NPD_HANDOFF_PROMOTE,
   Permission.GDPR_ERASURE_EXECUTE,
 ] as readonly Permission[];
 
@@ -587,6 +622,9 @@ export const ALL_TECHNICAL_PERMISSIONS = [
   Permission.TECHNICAL_ALLERGENS_EDIT,
   Permission.TECHNICAL_COST_EDIT,
   Permission.TECHNICAL_D365_SYNC_TRIGGER,
+  Permission.TECHNICAL_ECO_WRITE,
+  Permission.TECHNICAL_ECO_APPROVE,
+  Permission.TECHNICAL_SENSORY_READ,
 ] as readonly Permission[];
 
 /**

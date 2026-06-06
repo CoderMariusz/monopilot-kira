@@ -78,6 +78,15 @@ const expectedNpdPermissions = [
   'npd.gate.advance',
   'npd.gate.approve',
   'npd.bom.export',
+  'npd.formulation.read',
+  'npd.packaging.read',
+  'npd.packaging.write',
+  'npd.trial.read',
+  'npd.trial.write',
+  'npd.pilot.read',
+  'npd.pilot.write',
+  'npd.handoff.read',
+  'npd.handoff.promote',
   'gdpr.erasure.execute',
 ] as const;
 
@@ -92,6 +101,9 @@ const expectedTechnicalPermissions = [
   'technical.allergens.edit',
   'technical.cost.edit',
   'technical.d365.sync_trigger',
+  'technical.eco.write',
+  'technical.eco.approve',
+  'technical.sensory.read',
 ] as const;
 
 const expectedProductionPermissions = [
@@ -299,6 +311,15 @@ const expectedCanonicalPermissions = [
   'npd.gate.advance',
   'npd.gate.approve',
   'npd.bom.export',
+  'npd.formulation.read',
+  'npd.packaging.read',
+  'npd.packaging.write',
+  'npd.trial.read',
+  'npd.trial.write',
+  'npd.pilot.read',
+  'npd.pilot.write',
+  'npd.handoff.read',
+  'npd.handoff.promote',
   'gdpr.erasure.execute',
   'technical.items.create',
   'technical.items.edit',
@@ -310,6 +331,9 @@ const expectedCanonicalPermissions = [
   'technical.allergens.edit',
   'technical.cost.edit',
   'technical.d365.sync_trigger',
+  'technical.eco.write',
+  'technical.eco.approve',
+  'technical.sensory.read',
   'production.wo.start',
   'production.wo.pause',
   'production.wo.resume',
@@ -568,7 +592,7 @@ describe('rbac permission source of truth', () => {
     const { ALL_PERMISSIONS, ALL_NPD_PERMISSIONS, Permission } = await loadPermissionsModule();
 
     expect(ALL_NPD_PERMISSIONS).toEqual(expectedNpdPermissions);
-    expect(ALL_NPD_PERMISSIONS).toHaveLength(19);
+    expect(ALL_NPD_PERMISSIONS).toHaveLength(28);
     expect(new Set(ALL_NPD_PERMISSIONS).size).toBe(ALL_NPD_PERMISSIONS.length);
     expect(new Set(Object.values(Permission)).size).toBe(Object.values(Permission).length);
 
@@ -592,10 +616,10 @@ describe('rbac permission source of truth', () => {
   it('exports the technical permissions as a typed Permission array literal (T-091 §3)', async () => {
     const { ALL_PERMISSIONS, ALL_TECHNICAL_PERMISSIONS, Permission } = await loadPermissionsModule();
 
-    // AC1 — all 10 strings present exactly once.
+    // AC1 — all technical strings present exactly once.
     expect(ALL_TECHNICAL_PERMISSIONS).toEqual(expectedTechnicalPermissions);
-    // AC3 — typed readonly Permission[] with length === 10.
-    expect(ALL_TECHNICAL_PERMISSIONS).toHaveLength(10);
+    // AC3 — typed readonly Permission[] with the expected length.
+    expect(ALL_TECHNICAL_PERMISSIONS).toHaveLength(13);
     expect(new Set(ALL_TECHNICAL_PERMISSIONS).size).toBe(ALL_TECHNICAL_PERMISSIONS.length);
 
     // AC2 — regex + uniqueness across the whole enum.

@@ -94,6 +94,27 @@ export { npdProjects } from './npd-projects.js';
 export type { NewNpdProject, NpdProject } from './npd-projects.js';
 export { gateChecklistItems } from './gate-checklist-items.js';
 export type { GateChecklistItem, NewGateChecklistItem } from './gate-checklist-items.js';
+// NPD project-stage tables (migrations 232-235)
+export { packagingComponents } from './packaging-components.js';
+export type { NewPackagingComponent, PackagingComponent } from './packaging-components.js';
+export { trialBatches } from './trial-batches.js';
+export type { NewTrialBatch, TrialBatch } from './trial-batches.js';
+export { pilotRunChecklistItems, pilotRunMaterials, pilotRuns } from './pilot-runs.js';
+export type {
+  NewPilotRun,
+  NewPilotRunChecklistItem,
+  NewPilotRunMaterial,
+  PilotRun,
+  PilotRunChecklistItem,
+  PilotRunMaterial,
+} from './pilot-runs.js';
+export { handoffChecklistItems, handoffChecklists } from './handoff-checklists.js';
+export type {
+  HandoffChecklist,
+  HandoffChecklistItem,
+  NewHandoffChecklist,
+  NewHandoffChecklistItem,
+} from './handoff-checklists.js';
 export { gateChecklistTemplates } from './gate-checklist-templates.js';
 export type {
   GateChecklistTemplate,
@@ -220,6 +241,16 @@ export type {
   NewTechnicalSensoryEvaluation,
   TechnicalSensoryEvaluation,
 } from './technical-sensory-evaluations.js';
+export { technicalSensoryAttributeScores } from './technical-sensory-attribute-scores.js';
+export type {
+  NewTechnicalSensoryAttributeScore,
+  TechnicalSensoryAttributeScore,
+} from './technical-sensory-attribute-scores.js';
+export { technicalSensoryPanelistComments } from './technical-sensory-panelist-comments.js';
+export type {
+  NewTechnicalSensoryPanelistComment,
+  TechnicalSensoryPanelistComment,
+} from './technical-sensory-panelist-comments.js';
 
 // 04-planning-basic — scheduling-core schema (T-004 + T-005).
 export { woMaterials, woOperations, workOrders } from './work-orders.js';
