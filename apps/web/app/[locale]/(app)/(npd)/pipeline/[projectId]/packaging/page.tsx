@@ -1,0 +1,256 @@
+/**
+ * NPD PACKAGING stage page (RSC).
+ *
+ * Route: /[locale]/(app)/(npd)/pipeline/[projectId]/packaging
+ *
+ * Server Component. Reads REAL, org-scoped data via `withOrgContext` (RLS as
+ * app_user with app.current_org_id()). No mocks, no hard-coded rows.
+ *
+ *   - npd_projects                  → resolve product_name + confirm the project
+ *   - public.packaging_components   → primary + secondary tier components (mig 232)
+ *
+ * Prototype parity source (1:1):
+ *   prototypes/design/Monopilot Design System/npd/other-stages.jsx:165-219
+ *   (PackagingScreen). The prototype "LEGACY — Phase 2 deprecation" banner is
+ *   DELIBERATELY NOT rendered (product-owner decision: all 8 stages are real).
+ *
+ * RBAC (resolved server-side, never client-trusted):
+ *   read  → npd.packaging.read   (gates the whole screen → permission_denied)
+ *   write → npd.packaging.write  (gates Add/Edit/Delete → canWrite flag)
+ *
+ * Money (cost_per_unit) is read as a decimal STRING (::text) and rendered
+ * without float coercion. The write Server Actions are wrapped in small
+ * 'use server' adapters and passed across the RSC boundary (Next16 guard).
+ */
+
+import { getTranslations } from 'next-intl/server';
+
+import {
+  PackagingScreen,
+  type PackagingLabels,
+  type PackagingScreenData,
+  type PageState,
+  type MutationOutcome,
+  type UpsertCall,
+} from './_components/packaging-screen';
+import { upsertPackagingComponent } from './_actions/upsertPackagingComponent';
+import { deletePackagingComponent } from './_actions/deletePackagingComponent';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import {
+  PACKAGING_READ_PERMISSION,
+  PACKAGING_WRITE_PERMISSION,
+  hasPermission,
+  type PackagingComponentRow,
+  type PackagingStatus,
+  type PackagingTier,
+  type QueryClient,
+} from './_actions/shared';
+
+export const dynamic = 'force-dynamic';
+
+type PackagingPageProps = {
+  params?: Promise<{ locale: string; projectId: string }>;
+  // Test-only injection seam (mirrors costing/nutrition pages).
+  data?: PackagingScreenData | null;
+  state?: PageState;
+  canWrite?: boolean;
+};
+
+type LoaderResult = { state: PageState; data: PackagingScreenData | null; canWrite: boolean };
+
+const DEFAULT_LABELS: PackagingLabels = {
+  title: 'Packaging',
+  subtitle: 'Primary & secondary packaging specification and artwork.',
+  breadcrumb: 'NPD / Packaging',
+  primaryTitle: 'Primary packaging',
+  secondaryTitle: 'Secondary packaging',
+  artworkTitle: 'Artwork',
+  addComponent: '+ Add component',
+  editComponent: 'Edit',
+  deleteComponent: 'Delete',
+  colComponent: 'Component',
+  colMaterial: 'Material',
+  colSupplier: 'Supplier',
+  colSpec: 'Spec',
+  colCostUnit: 'Cost / unit',
+  colStatus: 'Status',
+  colActions: 'Actions',
+  statusApproved: 'Approved',
+  statusPendingArtwork: 'Pending artwork',
+  statusDraft: 'Draft',
+  artworkPreview: 'Preview',
+  artworkNewVersion: 'New version',
+  artworkNone: 'No artwork uploaded yet.',
+  fieldComponent: 'Component name',
+  fieldMaterial: 'Material',
+  fieldSupplier: 'Supplier',
+  fieldSpec: 'Spec',
+  fieldCostUnit: 'Cost per unit (€)',
+  fieldStatus: 'Status',
+  fieldTier: 'Tier',
+  tierPrimary: 'Primary',
+  tierSecondary: 'Secondary',
+  save: 'Save',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  saveError: 'Could not save the component. Check the fields and try again.',
+  confirmDelete: 'Remove this component?',
+  emDash: '—',
+  loading: 'Loading packaging data…',
+  empty: 'No packaging components yet',
+  emptyBody: 'Add a primary or secondary packaging component to get started.',
+  error: 'Unable to load packaging data.',
+  forbidden: 'You do not have permission to view packaging data.',
+};
+
+const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PackagingLabels>;
+
+function translateLabel(t: (key: string) => string, key: keyof PackagingLabels): string {
+  try {
+    const value = t(key);
+    return value === key ? DEFAULT_LABELS[key] : value;
+  } catch {
+    return DEFAULT_LABELS[key];
+  }
+}
+
+async function buildLabels(locale: string): Promise<PackagingLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'npd.packaging' });
+    return LABEL_KEYS.reduce((labels, key) => {
+      labels[key] = translateLabel(t, key);
+      return labels;
+    }, {} as PackagingLabels);
+  } catch {
+    return { ...DEFAULT_LABELS };
+  }
+}
+
+type LoaderRow = {
+  id: string;
+  tier: string;
+  component_name: string;
+  material: string | null;
+  supplier_code: string | null;
+  spec: string | null;
+  cost_per_unit: string | null;
+  status: string;
+  artwork_file_id: string | null;
+  artwork_status: string | null;
+  display_order: number;
+};
+
+function toRow(r: LoaderRow): PackagingComponentRow {
+  return {
+    id: r.id,
+    tier: r.tier as PackagingTier,
+    componentName: r.component_name,
+    material: r.material,
+    supplierCode: r.supplier_code,
+    spec: r.spec,
+    costPerUnit: r.cost_per_unit,
+    status: r.status as PackagingStatus,
+    artworkFileId: r.artwork_file_id,
+    artworkStatus: r.artwork_status,
+    displayOrder: r.display_order,
+  };
+}
+
+async function readPageData(projectId: string): Promise<LoaderResult> {
+  try {
+    return await withOrgContext(async ({ userId, orgId, client }) => {
+      const queryClient = client as unknown as QueryClient;
+
+      const canRead = await hasPermission(queryClient, userId, orgId, PACKAGING_READ_PERMISSION);
+      if (!canRead) return { state: 'permission_denied' as const, data: null, canWrite: false };
+
+      const canWrite = await hasPermission(queryClient, userId, orgId, PACKAGING_WRITE_PERMISSION);
+
+      const project = await queryClient.query<{ product_code: string | null; product_name: string | null }>(
+        `select p.product_code,
+                pr.product_name
+           from public.npd_projects p
+           left join public.product pr
+             on pr.org_id = p.org_id and pr.product_code = p.product_code
+          where p.id = $1::uuid and p.org_id = app.current_org_id()
+          limit 1`,
+        [projectId],
+      );
+      if (project.rows.length === 0) {
+        return { state: 'empty' as const, data: null, canWrite };
+      }
+      const productName = project.rows[0]?.product_name ?? project.rows[0]?.product_code ?? projectId;
+
+      const { rows } = await queryClient.query<LoaderRow>(
+        `select id, tier, component_name, material, supplier_code, spec,
+                cost_per_unit::text as cost_per_unit, status, artwork_file_id,
+                artwork_status, display_order
+           from public.packaging_components
+          where org_id = app.current_org_id() and project_id = $1::uuid
+          order by tier asc, display_order asc, component_name asc`,
+        [projectId],
+      );
+
+      if (rows.length === 0) {
+        return { state: 'empty' as const, data: null, canWrite };
+      }
+
+      const components = rows.map(toRow);
+      const data: PackagingScreenData = {
+        projectId,
+        productName,
+        primary: components.filter((c) => c.tier === 'primary'),
+        secondary: components.filter((c) => c.tier === 'secondary'),
+        // Artwork file store is a future deliverable (artwork_file_id is a soft
+        // nullable ref per mig 232) — no fabricated artwork metadata.
+        artwork: null,
+      };
+      return { state: 'ready' as const, data, canWrite };
+    });
+  } catch (error) {
+    console.error('[packaging] org-scoped read failed:', error);
+    return { state: 'error', data: null, canWrite: false };
+  }
+}
+
+// ─── Server Action adapters (passed across the RSC boundary, Next16 guard) ─────
+async function upsertAction(call: UpsertCall): Promise<MutationOutcome> {
+  'use server';
+  const result = await upsertPackagingComponent(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+async function deleteAction(call: { id: string; projectId: string }): Promise<MutationOutcome> {
+  'use server';
+  const result = await deletePackagingComponent(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+export default async function PackagingPage(propsInput: unknown = {}) {
+  const props = (propsInput ?? {}) as PackagingPageProps;
+  const { locale, projectId } = props.params
+    ? await props.params
+    : { locale: 'en', projectId: '' };
+
+  const labels = await buildLabels(locale);
+
+  const injected = props.data !== undefined || props.state !== undefined;
+  const loaded: LoaderResult = injected
+    ? {
+        state: props.state ?? (props.data ? 'ready' : 'empty'),
+        data: props.data ?? null,
+        canWrite: props.canWrite ?? false,
+      }
+    : await readPageData(projectId);
+
+  return (
+    <PackagingScreen
+      state={loaded.state}
+      data={loaded.data}
+      labels={labels}
+      canWrite={loaded.canWrite}
+      onUpsert={upsertAction}
+      onDelete={deleteAction}
+    />
+  );
+}

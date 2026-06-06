@@ -1,0 +1,339 @@
+'use client';
+
+/**
+ * 01-NPD TRIAL stage — TrialScreen (trial_screen prototype).
+ *
+ * Prototype parity source (1:1):
+ *   prototypes/design/Monopilot Design System/npd/other-stages.jsx:222-257 (TrialScreen)
+ *
+ * NOTE: the prototype block 222-230 renders a "LEGACY — Phase 2 deprecation"
+ * banner. Per the task spec all 8 stages are built for real, so the LEGACY
+ * banner is intentionally NOT translated/rendered.
+ *
+ * Translation notes (TrialScreen):
+ *   - card-head "Lab & kitchen trials" + subtitle           → Card header + muted subtitle
+ *   - "+ Log new trial" button                              → @monopilot/ui Button (opens LogTrialModal)
+ *   - table cols Trial # / Date / Batch / Yield / Tech /    → @monopilot/ui Table
+ *     Result / Notes
+ *   - result badge ✓ Pass (green) / ✗ Fail (red) /          → @monopilot/ui Badge (success / danger / muted)
+ *     ⟳ In progress (amber→pending)
+ *
+ * Money/percent are rendered straight from NUMERIC decimal STRINGS (never JS
+ * floats). RBAC (`permission_denied`) is resolved server-side in page.tsx and
+ * is never trusted from the client. The Log/Update writes are owned by the
+ * trial Server Actions and passed in as `onLogTrial` / `onUpdateTrial`.
+ */
+
+import React from 'react';
+
+import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
+import { Button } from '@monopilot/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import { LogTrialModal, type TrialFormValues } from './log-trial-modal';
+import type { TrialBatchView, TrialResult } from '../_actions/errors';
+
+export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
+
+export type TechnologistOption = { id: string; name: string };
+
+export type TrialScreenData = {
+  projectId: string;
+  productName: string;
+  batches: TrialBatchView[];
+  technologists: TechnologistOption[];
+  /** True when the caller holds npd.trial.write (server-resolved). */
+  canWrite: boolean;
+};
+
+export type TrialLabels = {
+  title: string;
+  subtitle: string;
+  logNewTrial: string;
+  colTrialNo: string;
+  colDate: string;
+  colBatch: string;
+  colYield: string;
+  colTechnologist: string;
+  colResult: string;
+  colNotes: string;
+  resultPass: string;
+  resultFail: string;
+  resultPending: string;
+  // Modal
+  modalTitle: string;
+  fieldTrialNo: string;
+  fieldDate: string;
+  fieldBatch: string;
+  fieldYield: string;
+  fieldTechnologist: string;
+  fieldResult: string;
+  fieldNotes: string;
+  technologistNone: string;
+  save: string;
+  saving: string;
+  cancel: string;
+  saveError: string;
+  duplicateError: string;
+  // States
+  loading: string;
+  empty: string;
+  emptyBody: string;
+  error: string;
+  forbidden: string;
+};
+
+export type TrialActionOutcome = { ok: boolean; error?: string };
+
+export type LogTrialCall = {
+  projectId: string;
+  trialNo: string;
+  trialDate: string | null;
+  batchSizeKg: string | null;
+  yieldPct: string | null;
+  technologistUserId: string | null;
+  result: TrialResult;
+  notes: string | null;
+};
+
+function resultVariant(result: TrialResult): BadgeVariant {
+  switch (result) {
+    case 'pass':
+      return 'success';
+    case 'fail':
+      return 'danger';
+    default:
+      return 'muted';
+  }
+}
+
+function resultToneClass(result: TrialResult): string {
+  switch (result) {
+    case 'pass':
+      return 'badge-green';
+    case 'fail':
+      return 'badge-red';
+    default:
+      return 'badge-amber';
+  }
+}
+
+function resultLabel(result: TrialResult, labels: TrialLabels): string {
+  switch (result) {
+    case 'pass':
+      return `✓ ${labels.resultPass}`;
+    case 'fail':
+      return `✗ ${labels.resultFail}`;
+    default:
+      return `⟳ ${labels.resultPending}`;
+  }
+}
+
+/** Display yield as "78%" (string slicing only — never float math). */
+function formatYield(value: string | null): string {
+  if (value === null || value.trim() === '') return '—';
+  const [intPart, fracRaw = ''] = value.trim().split('.');
+  const frac = fracRaw.replace(/0+$/, '');
+  return frac ? `${intPart}.${frac}%` : `${intPart}%`;
+}
+
+function formatBatch(value: string | null): string {
+  if (value === null || value.trim() === '') return '—';
+  const [intPart, fracRaw = ''] = value.trim().split('.');
+  const frac = fracRaw.replace(/0+$/, '');
+  return `${frac ? `${intPart}.${frac}` : intPart} kg`;
+}
+
+function StateNotice({ state, labels }: { state: PageState; labels: TrialLabels }) {
+  if (state === 'loading') {
+    return (
+      <div role="status" aria-live="polite" className="card empty-state">
+        {labels.loading}
+      </div>
+    );
+  }
+  if (state === 'empty') {
+    return (
+      <div className="card empty-state">
+        <div className="empty-state-icon" aria-hidden="true">
+          🧪
+        </div>
+        <div className="empty-state-title">{labels.empty}</div>
+        <div className="empty-state-body">{labels.emptyBody}</div>
+      </div>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.error}</div>
+      </div>
+    );
+  }
+  if (state === 'permission_denied') {
+    return (
+      <div role="alert" className="alert alert-red">
+        <div className="alert-title">{labels.forbidden}</div>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function TrialScreen({
+  state = 'ready',
+  data,
+  labels,
+  onLogTrial,
+}: {
+  state?: PageState;
+  data: TrialScreenData | null;
+  labels: TrialLabels;
+  onLogTrial?: (call: LogTrialCall) => Promise<TrialActionOutcome>;
+}) {
+  const [modalOpen, setModalOpen] = React.useState(false);
+
+  // The Log-new-trial button + modal are an OPTIMISTIC affordance: on a
+  // successful action the list is revalidated server-side (RSC re-render).
+  const [optimistic, setOptimistic] = React.useState<TrialBatchView[]>([]);
+
+  if (state !== 'ready' || !data) {
+    return (
+      <main
+        data-testid="trial-screen"
+        aria-labelledby="trial-title"
+        className="mx-auto w-full max-w-6xl space-y-4 p-6"
+      >
+        <header>
+          <h1 id="trial-title" className="page-title">
+            {labels.title}
+          </h1>
+        </header>
+        <StateNotice state={state} labels={labels} />
+      </main>
+    );
+  }
+
+  const rows = [...optimistic, ...data.batches];
+
+  async function handleSubmit(values: TrialFormValues): Promise<TrialActionOutcome> {
+    if (!onLogTrial) return { ok: false, error: 'persistence_failed' };
+    const call: LogTrialCall = {
+      projectId: data!.projectId,
+      trialNo: values.trialNo,
+      trialDate: values.trialDate || null,
+      batchSizeKg: values.batchSizeKg || null,
+      yieldPct: values.yieldPct || null,
+      technologistUserId: values.technologistUserId || null,
+      result: values.result,
+      notes: values.notes || null,
+    };
+    // Optimistic insert at the top while the server confirms.
+    const tempId = `optimistic-${Date.now()}`;
+    const tech = data!.technologists.find((t) => t.id === call.technologistUserId);
+    setOptimistic((prev) => [
+      {
+        id: tempId,
+        trialNo: call.trialNo,
+        trialDate: call.trialDate,
+        batchSizeKg: call.batchSizeKg,
+        yieldPct: call.yieldPct,
+        technologistUserId: call.technologistUserId,
+        technologistName: tech?.name ?? null,
+        result: call.result,
+        notes: call.notes,
+      },
+      ...prev,
+    ]);
+    const result = await onLogTrial(call);
+    if (!result.ok) {
+      // Roll back the optimistic row on failure.
+      setOptimistic((prev) => prev.filter((r) => r.id !== tempId));
+    }
+    return result;
+  }
+
+  return (
+    <main
+      data-testid="trial-screen"
+      aria-labelledby="trial-title"
+      className="mx-auto w-full max-w-6xl space-y-4 p-6"
+    >
+      <header className="page-head" data-region="page-head">
+        <nav aria-label="breadcrumb" className="breadcrumb">
+          NPD / {labels.title}
+        </nav>
+        <h1 id="trial-title" className="page-title mt-1">
+          {labels.title} — {data.productName}
+        </h1>
+      </header>
+
+      <Card data-testid="trial-card">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>{labels.title}</CardTitle>
+            <p className="mt-1 text-sm muted">{labels.subtitle}</p>
+          </div>
+          {data.canWrite ? (
+            <Button
+              type="button"
+              className="btn-sm"
+              data-testid="log-new-trial-button"
+              onClick={() => setModalOpen(true)}
+            >
+              {labels.logNewTrial}
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table data-testid="trial-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{labels.colTrialNo}</TableHead>
+                <TableHead scope="col">{labels.colDate}</TableHead>
+                <TableHead scope="col">{labels.colBatch}</TableHead>
+                <TableHead scope="col">{labels.colYield}</TableHead>
+                <TableHead scope="col">{labels.colTechnologist}</TableHead>
+                <TableHead scope="col">{labels.colResult}</TableHead>
+                <TableHead scope="col">{labels.colNotes}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((t) => (
+                <TableRow key={t.id} data-testid="trial-row">
+                  <TableCell className="mono">{t.trialNo}</TableCell>
+                  <TableCell className="mono">{t.trialDate ?? '—'}</TableCell>
+                  <TableCell className="mono">{formatBatch(t.batchSizeKg)}</TableCell>
+                  <TableCell className="mono">{formatYield(t.yieldPct)}</TableCell>
+                  <TableCell>{t.technologistName ?? '—'}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={resultVariant(t.result)}
+                      className={resultToneClass(t.result)}
+                      data-testid={`trial-result-${t.result}`}
+                    >
+                      {resultLabel(t.result, labels)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="muted">{t.notes ?? ''}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {data.canWrite ? (
+        <LogTrialModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          labels={labels}
+          technologists={data.technologists}
+          technologistNone={labels.technologistNone}
+          onSubmit={handleSubmit}
+        />
+      ) : null}
+    </main>
+  );
+}
