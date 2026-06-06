@@ -968,7 +968,8 @@
         "ship_override_reasons": "Motive override expediere",
         "gallery": "Galerie modale",
         "my_profile": "Profilul meu",
-        "my_notifications": "Notificări"
+        "my_notifications": "Notificări",
+        "d365_cost_import": "Import costuri D365"
       }
     }
   },

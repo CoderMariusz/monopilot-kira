@@ -987,7 +987,8 @@
         "ship_override_reasons": "Shipping override reasons",
         "gallery": "Modal gallery",
         "my_profile": "My profile",
-        "my_notifications": "Notifications"
+        "my_notifications": "Notifications",
+        "d365_cost_import": "D365 cost import"
       }
     }
   },

@@ -968,7 +968,8 @@
         "ship_override_reasons": "Причини override відвантаження",
         "gallery": "Галерея модалів",
         "my_profile": "Мій профіль",
-        "my_notifications": "Сповіщення"
+        "my_notifications": "Сповіщення",
+        "d365_cost_import": "Імпорт витрат D365"
       }
     }
   },

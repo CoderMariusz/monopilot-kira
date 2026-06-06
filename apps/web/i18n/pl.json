@@ -968,7 +968,8 @@
         "ship_override_reasons": "Powody nadpisania wysyłki",
         "gallery": "Galeria modali",
         "my_profile": "Mój profil",
-        "my_notifications": "Powiadomienia"
+        "my_notifications": "Powiadomienia",
+        "d365_cost_import": "Import kosztów D365"
       }
     }
   },
