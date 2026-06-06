@@ -1,7 +1,16 @@
 'use client';
 
 import React from 'react';
-import './Select.module.css';
+import ReactDOM from 'react-dom';
+// Plain (non-module) stylesheet so class names ship VERBATIM in the production
+// bundle. Previously this was `Select.module.css`, which made Next/Turbopack
+// hash the selectors (e.g. `.Select-module__xxxx__select__content`) while the
+// markup below still used the literal strings (`select__content`). The hashed
+// CSS never matched the literal DOM classes, so the popover shipped UNSTYLED in
+// the production build (transparent background, no z-index) = the "unreadable
+// dropdown on Vercel" report. A plain `.css` import (supported for component
+// libraries) emits the BEM-namespaced `select__*` classes unchanged.
+import './Select.css';
 
 export interface SelectOption {
   value: string;
@@ -41,6 +50,8 @@ interface SelectContextValue {
   moveFocus: (dir: 'next' | 'prev' | 'first' | 'last') => void;
   /** ref to the trigger button so we can restore focus on close */
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  /** ref to the portaled listbox content (for click-outside detection) */
+  contentRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const SelectCtx = React.createContext<SelectContextValue | null>(null);
@@ -69,6 +80,7 @@ export function Select({
 
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
   // Map preserves DOM order of option elements for roving focus.
   const itemsRef = React.useRef<Map<string, { el: HTMLDivElement; disabled: boolean }>>(
     new Map(),
@@ -105,16 +117,19 @@ export function Select({
     [],
   );
 
-  // Returns the enabled option elements in DOM order.
+  // Returns the enabled option elements in DOM order. The listbox is portaled
+  // to <body>, so the options live under `contentRef`, NOT under the trigger
+  // root — query the content element first, then fall back to root (legacy /
+  // non-portal paths) and finally the registered-items map.
   const orderedEnabled = React.useCallback((): HTMLDivElement[] => {
-    const root = rootRef.current;
-    if (!root) {
+    const scope = contentRef.current ?? rootRef.current;
+    if (!scope) {
       return Array.from(itemsRef.current.values())
         .filter((i) => !i.disabled)
         .map((i) => i.el);
     }
     const all = Array.from(
-      root.querySelectorAll<HTMLDivElement>('[data-slot="select-item"]'),
+      scope.querySelectorAll<HTMLDivElement>('[data-slot="select-item"]'),
     );
     return all.filter((el) => el.getAttribute('aria-disabled') !== 'true');
   }, []);
@@ -150,7 +165,14 @@ export function Select({
     if (!open) return;
     const onPointerDown = (event: MouseEvent | TouchEvent) => {
       const root = rootRef.current;
-      if (root && !root.contains(event.target as Node)) {
+      const content = contentRef.current;
+      const target = event.target as Node;
+      // The listbox is portaled to document.body, so it is NOT inside `root`.
+      // Treat a click inside either the trigger root OR the portaled content as
+      // "inside"; only close when the click is genuinely elsewhere.
+      const insideRoot = root ? root.contains(target) : false;
+      const insideContent = content ? content.contains(target) : false;
+      if (!insideRoot && !insideContent) {
         setOpenState(false);
       }
     };
@@ -188,6 +210,7 @@ export function Select({
     registerItem,
     moveFocus,
     triggerRef,
+    contentRef,
   };
 
   return (
@@ -339,23 +362,69 @@ export function SelectContent({ children }: { children?: React.ReactNode }) {
     }
   };
 
+  // Position the portaled listbox under the trigger using fixed coordinates
+  // derived from the trigger's viewport rect. Recomputed on open and on
+  // scroll/resize so it tracks the trigger. Portaling to <body> escapes any
+  // ancestor `overflow:hidden`/`transform` stacking context (sticky settings
+  // headers, transformed cards) that previously clipped or buried the popover.
+  const [pos, setPos] = React.useState<{ top: number; left: number; minWidth: number } | null>(
+    null,
+  );
+
+  const computePosition = React.useCallback(() => {
+    const trigger = ctx?.triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.left, minWidth: rect.width });
+  }, [ctx?.triggerRef]);
+
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    computePosition();
+    window.addEventListener('scroll', computePosition, true);
+    window.addEventListener('resize', computePosition);
+    return () => {
+      window.removeEventListener('scroll', computePosition, true);
+      window.removeEventListener('resize', computePosition);
+    };
+  }, [open, computePosition]);
+
   // Closed: render nothing so options are not present in the accessibility tree
   // or visually — fixes the "always expanded inline" bug.
   if (!open) return null;
 
-  return (
+  const node = (
     <div
+      ref={ctx?.contentRef}
       role="listbox"
       id={ctx?.contentId}
       aria-labelledby={ctx?.triggerId}
       data-slot="select-content"
       data-state="open"
       className="select__content"
+      // Inline positioning guarantees the popover is fixed, on top, and aligned
+      // to the trigger regardless of the host page's CSS. `pos` is null only for
+      // the first synchronous paint before useLayoutEffect runs.
+      style={
+        pos
+          ? { position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth }
+          : { position: 'fixed', visibility: 'hidden' }
+      }
       onKeyDown={handleKeyDown}
     >
       {children}
     </div>
   );
+
+  // Portal to <body> when a DOM is available (browser / jsdom); fall back to
+  // in-place render otherwise (e.g. SSR) so the markup is still produced.
+  if (typeof document !== 'undefined') {
+    return ReactDOM.createPortal(node, document.body);
+  }
+  return node;
 }
 
 export interface SelectItemProps {

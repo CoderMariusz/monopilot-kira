@@ -1,8 +1,15 @@
 /* Design system fonts — Inter (everything) + JetBrains Mono (codes/IDs/timestamps only).
-   Must precede the tailwindcss import (which inlines and would push this after rules).
+   A3: fonts are now loaded self-hosted via next/font/google in app/layout.tsx
+   (no FOUT, no CDN round-trip). The faces arrive as the CSS variables
+   --font-inter / --font-jetbrains-mono on <html>; --font-sans / --font-mono
+   below reference them (with the original stacks as fallback). The previous
+   Google-Fonts CDN @import has been removed — next/font covers it fully.
    Source of truth: design/monopilot/handoff/monopilot-tokens.css */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+/* Settings design-system CSS (A1 port). Local @import must follow the
+   tailwindcss import; it is wrapped in @layer components internally so
+   Tailwind utilities still win. See apps/web/app/settings-design-system.css. */
+@import "./settings-design-system.css";
 
 @source "../app/**/*.{js,jsx,ts,tsx}";
 @source "../../../packages/ui/src/**/*.{js,jsx,ts,tsx}";
@@ -10,7 +17,7 @@
 @theme {
   --color-background: #f8fafc;
   --color-foreground: #1e293b;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
 
   --spacing-sidebar: var(--shell-sidebar-w);
   --spacing-subnav: var(--shell-subnav-w);
@@ -102,7 +109,7 @@
   --shadow-modal: 0 10px 30px rgba(15, 23, 42, .15);
 
   /* Type */
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --fs-page-title: 20px;
   --fs-page-title-lg: 24px;
   --fs-card-title: 14px;

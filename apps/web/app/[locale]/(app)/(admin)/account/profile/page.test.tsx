@@ -146,10 +146,12 @@ async function renderMyProfile(overrides: Partial<MyProfilePageProps> = {}) {
 }
 
 function profileSections() {
-  return screen.getAllByTestId('my-profile-section').map((section: HTMLElement) => {
-    const heading = within(section).getByRole('heading', { level: 2 });
-    return heading.textContent;
-  });
+  // Migrated to the shared settings primitives (plan A2/A5): each section is now
+  // a `.sg-section` labelled region whose heading is the `.sg-section-title`
+  // element (14px/600 from the ported design-system CSS), not a Tailwind `<h2>`.
+  return Array.from(document.querySelectorAll<HTMLElement>('.sg-section[role="region"]')).map(
+    (section) => section.querySelector('.sg-section-title')?.textContent ?? null,
+  );
 }
 
 function profileFieldSummary() {
@@ -195,8 +197,12 @@ describe('SET-101 my_profile_screen prototype parity', () => {
     const user = userEvent.setup();
     const { container } = await renderMyProfile();
 
-    expect(screen.getByRole('heading', { name: /^My profile$/i })).toBeInTheDocument();
-    expect(screen.getByText(/your personal info — only visible to admins and you/i)).toBeInTheDocument();
+    // PageHead renders the page title via `.sg-title` (22px/600 from the ported
+    // design-system CSS), not a Tailwind `<h1>` heading element.
+    const head = container.querySelector('.sg-head');
+    expect(head).not.toBeNull();
+    expect(head?.querySelector('.sg-title')?.textContent).toMatch(/^My profile$/i);
+    expect(head?.querySelector('.sg-sub')?.textContent).toMatch(/your personal info — only visible to admins and you/i);
     expect(profileSections()).toEqual(['Profile', 'Password', 'Two-factor authentication', 'Active sessions', 'Danger zone']);
 
     const profile = screen.getByRole('region', { name: /^Profile$/i });
@@ -244,7 +250,14 @@ describe('SET-101 my_profile_screen prototype parity', () => {
       'button',
     );
     expect(container).not.toHaveTextContent(/raw-session-token|supabase-refresh-token|access_token/i);
-    expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(6);
+    // Text/password inputs are now native `<input>`s inside `.sg-field` (capped
+    // at 420px by the ported `.sg-field input` CSS), composed via the shared
+    // SettingField/SRow primitives — not the `@monopilot/ui/Input`
+    // (`data-slot="input"`) wrapper. Dropdowns stay on the shared shadcn Select
+    // (`data-slot="select-trigger"`), never a native `<select>`.
+    expect(container.querySelectorAll('.sg-field input').length).toBeGreaterThanOrEqual(6);
+    expect(container.querySelectorAll('[data-slot="select-trigger"]').length).toBe(2);
+    expect(container.querySelectorAll('select')).toHaveLength(0);
 
     await user.tab();
     expect(screen.getByRole('button', { name: /^Upload$/i })).toHaveFocus();

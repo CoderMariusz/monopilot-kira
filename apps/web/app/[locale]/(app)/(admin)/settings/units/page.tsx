@@ -1,11 +1,10 @@
 import { getTranslations } from 'next-intl/server';
 
-import { Badge } from '@monopilot/ui/Badge';
-import { Card, CardContent, CardDescription, CardHeader } from '@monopilot/ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
-
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+import { PageHead, Section } from '../_components';
 import { UnitsManager, type UnitsManagerLabels } from './_components/UnitsManager';
+
+const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/data-screens.jsx:151-187';
 
 export const dynamic = 'force-dynamic';
 
@@ -296,47 +295,46 @@ function toManagerLabels(labels: UnitsLabels): UnitsManagerLabels {
 
 function UnitsSection({ category, units, labels }: { category: UnitCategory; units: UnitOfMeasure[]; labels: UnitsLabels }) {
   const baseUnit = units.find((unit) => unit.isBase);
+  // Parity: prototype renders each category as a `Section` (.sg-section frame +
+  // .sg-section-head 14px/600) wrapping a bare prototype-style <table>
+  // (grey th, td borders, "Base" badge). data-screens.jsx:163-180.
   return (
-    <Card role="region" aria-label={category} className="rounded-xl border bg-white shadow-sm">
-      <CardHeader className="space-y-1 border-b px-6 py-4">
-        <h2 className="text-lg font-semibold tracking-tight">{category}</h2>
-        <CardDescription className="text-sm text-muted-foreground">
-          {labels.baseUnitPrefix} {baseUnit?.name ?? '—'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table aria-label={`${category} units`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">{labels.code}</TableHead>
-              <TableHead scope="col">{labels.name}</TableHead>
-              <TableHead scope="col">{labels.factorToBase}</TableHead>
-              <TableHead scope="col">{labels.baseQuestion}</TableHead>
-              <TableHead scope="col">{labels.actions}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {units.map((unit) => (
-              <TableRow key={unit.id}>
-                <TableCell className="font-mono text-sm">{unit.code}</TableCell>
-                <TableCell className="font-medium">{unit.name}</TableCell>
-                <TableCell className="font-mono text-sm tabular-nums">{formatFactor(unit.factorToBase)}</TableCell>
-                {unit.isBase ? (
-                  <TableCell>
-                    <Badge variant="info">{labels.base}</Badge>
-                  </TableCell>
-                ) : (
-                  <TableCell>
-                    <span className="text-muted-foreground">—</span>
-                  </TableCell>
-                )}
-                <TableCell className="text-muted-foreground" aria-label={`${unit.code} actions menu`} />
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <Section title={category} sub={`${labels.baseUnitPrefix} ${baseUnit?.name ?? '—'}`}>
+      <table aria-label={`${category} units`}>
+        <thead>
+          <tr>
+            <th scope="col">{labels.code}</th>
+            <th scope="col">{labels.name}</th>
+            <th scope="col" className="num">{labels.factorToBase}</th>
+            <th scope="col">{labels.baseQuestion}</th>
+            <th scope="col">{labels.actions}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {units.map((unit) => (
+            <tr key={unit.id}>
+              <td className="mono">{unit.code}</td>
+              <td style={{ fontWeight: 500 }}>{unit.name}</td>
+              <td className="mono num" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {formatFactor(unit.factorToBase)}
+              </td>
+              {unit.isBase ? (
+                <td>
+                  <span className="badge badge-blue">{labels.base}</span>
+                </td>
+              ) : (
+                <td>
+                  <span className="muted">—</span>
+                </td>
+              )}
+              <td className="muted" aria-label={`${unit.code} actions menu`}>
+                ⋮
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
   );
 }
 
@@ -359,31 +357,27 @@ function CustomConversionsSection({
     </a>
   );
 
+  // Parity: prototype "Custom conversions" Section with the empty-state line +
+  // "+ Add conversion" link (data-screens.jsx:182-184).
   return (
-    <Card role="region" aria-label={labels.customConversions} className="rounded-xl border bg-white shadow-sm">
-      <CardHeader className="space-y-1 border-b px-6 py-4">
-        <h2 className="text-lg font-semibold tracking-tight">{labels.customConversions}</h2>
-        <CardDescription className="text-sm text-muted-foreground">{labels.customConversionsSubtitle}</CardDescription>
-      </CardHeader>
-      <CardContent className="px-6 py-4 text-sm text-muted-foreground">
-        {conversions.length > 0 ? (
-          <div className="space-y-3">
-            <ul className="space-y-2">
-              {conversions.map((conversion) => (
-                <li key={conversion.id}>
-                  <span className="font-medium text-slate-900">{conversion.label}</span>: {conversion.from} → {conversion.to} × {formatFactor(conversion.factor)}
-                </li>
-              ))}
-            </ul>
-            <p>{addConversionCta}</p>
-          </div>
-        ) : (
-          <p>
-            {labels.noCustomConversions} {addConversionCta}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <Section title={labels.customConversions} sub={labels.customConversionsSubtitle}>
+      {conversions.length > 0 ? (
+        <div className="space-y-3">
+          <ul className="space-y-2 text-sm">
+            {conversions.map((conversion) => (
+              <li key={conversion.id}>
+                <span style={{ fontWeight: 500 }}>{conversion.label}</span>: {conversion.from} → {conversion.to} × {formatFactor(conversion.factor)}
+              </li>
+            ))}
+          </ul>
+          <p className="muted" style={{ fontSize: 12 }}>{addConversionCta}</p>
+        </div>
+      ) : (
+        <p className="muted" style={{ fontSize: 12 }}>
+          {labels.noCustomConversions} {addConversionCta}
+        </p>
+      )}
+    </Section>
   );
 }
 
@@ -432,14 +426,12 @@ export default async function UnitsPage(propsInput: unknown) {
   const managerLabels = toManagerLabels(labels);
 
   return (
-    <main data-screen="settings-units" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
-        </div>
-        {canEdit ? <UnitsManager labels={managerLabels} unitCodes={unitCodes} variant="unit" /> : null}
-      </header>
+    <main data-screen="settings-units" data-prototype-source={PROTOTYPE_SOURCE} className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-6">
+      <PageHead
+        title={labels.title}
+        sub={labels.subtitle}
+        actions={canEdit ? <UnitsManager labels={managerLabels} unitCodes={unitCodes} variant="unit" /> : undefined}
+      />
 
       {state === 'ready' ? (
         <>

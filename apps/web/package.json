@@ -39,6 +39,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.75.0",
+    "resend": "^6.12.4",
     "server-only": "^0.0.1",
     "serwist": "^9.5.11",
     "zod": "^3.25.76",

@@ -103,19 +103,36 @@ async function renderMyNotifications(overrides: Partial<MyNotificationsPageProps
   return { props, ...render(React.createElement(Page as React.ComponentType<MyNotificationsPageProps>, props)) };
 }
 
-function orderedRegions() {
-  return Array.from(document.querySelectorAll('[data-region]')).map((element) => element.getAttribute('data-region'));
+// After the design-system migration the page is composed of shared `.sg-*`
+// primitives: each `Section` is a labelled `role="region"` card (titled by its
+// `.sg-section-title`) and each toggle is the `.sg-toggle` slider — a
+// `label.sg-toggle > input[type=checkbox] + span.slider`. The page header is a
+// `.sg-head` block (title `.sg-title`, sub `.sg-sub`), not an aria heading.
+function orderedRegionNames() {
+  return Array.from(document.querySelectorAll('.sg-head .sg-title, .sg-section'))
+    .map((element) => {
+      if (element.classList.contains('sg-title')) return element.textContent;
+      return element.querySelector('.sg-section-title')?.textContent ?? null;
+    })
+    .filter((name): name is string => Boolean(name));
+}
+
+function toggleSummary() {
+  return Array.from(document.querySelectorAll('label.sg-toggle')).map((toggle) => {
+    const input = toggle.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    return {
+      name: input?.getAttribute('aria-label') ?? null,
+      checked: input?.checked ?? null,
+      hasSlider: Boolean(toggle.querySelector('span.slider')),
+    };
+  });
 }
 
 function notificationSummary() {
   return {
-    regions: orderedRegions(),
-    headings: screen.getAllByRole('heading').map((heading) => heading.textContent),
-    switches: screen.getAllByRole('switch').map((control) => ({
-      name: control.getAttribute('aria-label'),
-      checked: control.getAttribute('aria-checked'),
-      slot: control.getAttribute('data-slot'),
-    })),
+    sectionOrder: orderedRegionNames(),
+    head: screen.getByText(/^My notifications$/i).className,
+    toggles: toggleSummary(),
     quietHourInputs: [
       screen.getByLabelText(/^From$/i).getAttribute('type'),
       screen.getByLabelText(/^To$/i).getAttribute('type'),
@@ -148,110 +165,112 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the prototype regions, labels, shadcn switches, quiet-hour inputs, and keyboard order', async () => {
+  it('renders the prototype head + sections, labels, sg-toggle switches, quiet-hour inputs, and keyboard order', async () => {
     const user = userEvent.setup();
-    await renderMyNotifications();
+    const { container } = await renderMyNotifications();
 
-    expect(screen.getByRole('heading', { name: /^My notifications$/i })).toBeInTheDocument();
+    // Page header is the shared `.sg-head` block (not an aria heading).
+    expect(container.querySelector('.sg-head .sg-title')).toHaveTextContent('My notifications');
     expect(screen.getByText(/choose which alerts reach you, and where/i)).toBeInTheDocument();
-    expect(orderedRegions()).toEqual(['page-head', 'browser-push', 'per-event-prefs', 'quiet-hours']);
+    // Section cards render in prototype order, each a labelled region.
+    expect(orderedRegionNames()).toEqual(['My notifications', 'In-app', 'Email preferences', 'Quiet hours']);
 
     const perEvent = screen.getByRole('region', { name: /^Email preferences$/i });
-    expect(within(perEvent).getByRole('switch', { name: /^Work order assigned to me$/i })).toBeChecked();
-    expect(within(perEvent).getByRole('switch', { name: /^Approval requested$/i })).toBeChecked();
-    expect(within(perEvent).getByRole('switch', { name: /^Daily plant summary$/i })).toBeChecked();
+    expect(within(perEvent).getByRole('checkbox', { name: /^Work order assigned to me$/i })).toBeChecked();
+    expect(within(perEvent).getByRole('checkbox', { name: /^Approval requested$/i })).toBeChecked();
+    expect(within(perEvent).getByRole('checkbox', { name: /^Daily plant summary$/i })).toBeChecked();
     expect(within(perEvent).getByText(/sent at 18:00 every workday/i)).toBeInTheDocument();
-    expect(within(perEvent).getByRole('switch', { name: /^Weekly NPD digest$/i })).not.toBeChecked();
-    expect(within(perEvent).getByRole('switch', { name: /^Product updates & tips$/i })).not.toBeChecked();
+    expect(within(perEvent).getByRole('checkbox', { name: /^Weekly NPD digest$/i })).not.toBeChecked();
+    expect(within(perEvent).getByRole('checkbox', { name: /^Product updates & tips$/i })).not.toBeChecked();
     expect(within(perEvent).getByText(/from monopilot/i)).toBeInTheDocument();
 
     const browserPush = screen.getByRole('region', { name: /^In-app$/i });
-    expect(within(browserPush).getByRole('switch', { name: /^Show notification badges$/i })).toBeChecked();
+    expect(within(browserPush).getByRole('checkbox', { name: /^Show notification badges$/i })).toBeChecked();
     expect(within(browserPush).getByText(/red dot on sidebar modules with unread items/i)).toBeInTheDocument();
-    expect(within(browserPush).getByRole('switch', { name: /^Desktop notifications$/i })).toBeChecked();
+    expect(within(browserPush).getByRole('checkbox', { name: /^Desktop notifications$/i })).toBeChecked();
     expect(within(browserPush).getByText(/browser push notifications/i)).toBeInTheDocument();
-    expect(within(browserPush).getByRole('switch', { name: /^Sound on alert$/i })).not.toBeChecked();
+    expect(within(browserPush).getByRole('checkbox', { name: /^Sound on alert$/i })).not.toBeChecked();
 
     const quietHours = screen.getByRole('region', { name: /^Quiet hours$/i });
     expect(within(quietHours).getByText(/pause non-critical notifications during these times/i)).toBeInTheDocument();
-    expect(within(quietHours).getByRole('switch', { name: /^Enable quiet hours$/i })).not.toBeChecked();
+    expect(within(quietHours).getByRole('checkbox', { name: /^Enable quiet hours$/i })).not.toBeChecked();
     expect(within(quietHours).getByLabelText(/^From$/i)).toHaveValue('20:00');
     expect(within(quietHours).getByLabelText(/^To$/i)).toHaveValue('07:00');
 
-    for (const control of screen.getAllByRole('switch')) {
-      expect(control).toHaveAttribute('data-slot', 'switch');
+    // Every toggle is the design-system `.sg-toggle` slider (label > checkbox + .slider),
+    // NOT the old `<button role="switch">` and NOT the shadcn Switch.
+    expect(document.querySelectorAll('label.sg-toggle')).toHaveLength(9);
+    expect(document.querySelectorAll('button[role="switch"]')).toHaveLength(0);
+    for (const toggle of Array.from(document.querySelectorAll('label.sg-toggle'))) {
+      expect(toggle.querySelector('input[type="checkbox"]')).not.toBeNull();
+      expect(toggle.querySelector('span.slider')).not.toBeNull();
     }
 
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Show notification badges$/i })).toHaveFocus();
+    expect(screen.getByRole('checkbox', { name: /^Show notification badges$/i })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Desktop notifications$/i })).toHaveFocus();
+    expect(screen.getByRole('checkbox', { name: /^Desktop notifications$/i })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('switch', { name: /^Sound on alert$/i })).toHaveFocus();
+    expect(screen.getByRole('checkbox', { name: /^Sound on alert$/i })).toHaveFocus();
 
     expect(notificationSummary()).toMatchInlineSnapshot(`
       {
-        "headings": [
+        "head": "sg-title",
+        "quietHourInputs": [
+          "time",
+          "time",
+        ],
+        "sectionOrder": [
           "My notifications",
           "In-app",
           "Email preferences",
           "Quiet hours",
         ],
-        "quietHourInputs": [
-          "time",
-          "time",
-        ],
-        "regions": [
-          "page-head",
-          "browser-push",
-          "per-event-prefs",
-          "quiet-hours",
-        ],
-        "switches": [
+        "toggles": [
           {
-            "checked": "true",
+            "checked": true,
+            "hasSlider": true,
             "name": "Show notification badges",
-            "slot": "switch",
           },
           {
-            "checked": "true",
+            "checked": true,
+            "hasSlider": true,
             "name": "Desktop notifications",
-            "slot": "switch",
           },
           {
-            "checked": "false",
+            "checked": false,
+            "hasSlider": true,
             "name": "Sound on alert",
-            "slot": "switch",
           },
           {
-            "checked": "true",
+            "checked": true,
+            "hasSlider": true,
             "name": "Work order assigned to me",
-            "slot": "switch",
           },
           {
-            "checked": "true",
+            "checked": true,
+            "hasSlider": true,
             "name": "Approval requested",
-            "slot": "switch",
           },
           {
-            "checked": "true",
+            "checked": true,
+            "hasSlider": true,
             "name": "Daily plant summary",
-            "slot": "switch",
           },
           {
-            "checked": "false",
+            "checked": false,
+            "hasSlider": true,
             "name": "Weekly NPD digest",
-            "slot": "switch",
           },
           {
-            "checked": "false",
+            "checked": false,
+            "hasSlider": true,
             "name": "Product updates & tips",
-            "slot": "switch",
           },
           {
-            "checked": "false",
+            "checked": false,
+            "hasSlider": true,
             "name": "Enable quiet hours",
-            "slot": "switch",
           },
         ],
       }
@@ -261,7 +280,7 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
   it('renders loading, empty, error, and permission-denied states without silently skipping invariants', async () => {
     await renderMyNotifications({ state: 'loading' });
     expect(screen.getByTestId('my-notifications-loading')).toBeInTheDocument();
-    expect(screen.queryByRole('switch', { name: /desktop notifications/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /desktop notifications/i })).not.toBeInTheDocument();
 
     cleanup();
     await renderMyNotifications({ state: 'empty' });
@@ -274,7 +293,7 @@ describe('SET-102 my_notifications_screen prototype parity', () => {
     cleanup();
     await renderMyNotifications({ state: 'permission-denied' });
     expect(screen.getByRole('alert')).toHaveTextContent(/permission denied/i);
-    expect(screen.queryByRole('switch', { name: /desktop notifications/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /desktop notifications/i })).not.toBeInTheDocument();
   });
 });
 
@@ -295,7 +314,7 @@ describe('SET-102 notification preference mutations', () => {
       persistBrowserPushSubscription,
     });
 
-    await user.click(screen.getByRole('switch', { name: /^Desktop notifications$/i }));
+    await user.click(screen.getByRole('checkbox', { name: /^Desktop notifications$/i }));
 
     expect(push.register).toHaveBeenCalledWith('/sw.js');
     expect(push.subscribe).toHaveBeenCalledWith(
@@ -318,7 +337,7 @@ describe('SET-102 notification preference mutations', () => {
 
     await renderMyNotifications({ saveNotificationPreferences });
 
-    await user.click(screen.getByRole('switch', { name: /^Enable quiet hours$/i }));
+    await user.click(screen.getByRole('checkbox', { name: /^Enable quiet hours$/i }));
     await user.clear(screen.getByLabelText(/^From$/i));
     await user.type(screen.getByLabelText(/^From$/i), '22:00');
     await user.clear(screen.getByLabelText(/^To$/i));
@@ -374,11 +393,11 @@ describe('SET-102 real preferences fetch (no injected props)', () => {
     expect(readMyNotificationPreferences).toHaveBeenCalledTimes(1);
     // The REAL stored value (sound_on_alert=true) is reflected — not the
     // hardcoded prototype default of false.
-    expect(screen.getByRole('switch', { name: /^Sound on alert$/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /^Sound on alert$/i })).toBeChecked();
 
     // Saving uses the REAL signed-in userId, never the old 'current-user' literal.
     const user = userEvent.setup();
-    await user.click(screen.getByRole('switch', { name: /^Enable quiet hours$/i }));
+    await user.click(screen.getByRole('checkbox', { name: /^Enable quiet hours$/i }));
     await user.click(screen.getByRole('button', { name: /^Save changes$/i }));
     expect(saveNotificationPreferencesAction).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'real-user-uuid' }),

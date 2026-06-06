@@ -208,18 +208,30 @@ describe('SET-094 Units (UoM) screen parity', () => {
     expect(screen.getByTestId('app-sidebar')).toHaveAttribute('role', 'navigation');
 
     const main = screen.getByTestId('app-shell-main');
-    expect(within(main).getByRole('heading', { name: /units & conversions/i })).toBeInTheDocument();
+    // Page title now renders through the shared PageHead primitive as a
+    // `.sg-title` element (design parity: not an oversized text-2xl heading).
+    const pageTitle = main.querySelector('.sg-title');
+    expect(pageTitle, 'units screen must render the title via PageHead `.sg-title`').not.toBeNull();
+    expect(pageTitle).toHaveTextContent(/units & conversions/i);
     expect(within(main).getByText(/units of measure used across recipes, stock, and shipping/i)).toBeInTheDocument();
     expect(within(main).getByRole('button', { name: /add unit/i })).toHaveAttribute('data-slot', 'button');
 
-    const regions = within(main).getAllByRole('region').map((region) => region.getAttribute('aria-label'));
-    expect(regions).toEqual(['mass', 'volume', 'Custom conversions']);
+    // Each grouped table + custom-conversions block is wrapped in the shared
+    // `Section` primitive, which exposes a labelled region (role=region +
+    // aria-labelledby -> the `.sg-section-title`).
+    const regions = within(main).getAllByRole('region', { name: /mass|volume|custom conversions/i });
+    expect(regions.map((region) => region.querySelector('.sg-section-title')?.textContent)).toEqual([
+      'mass',
+      'volume',
+      'Custom conversions',
+    ]);
     expect(within(main).getByText(/base unit:\s*kilogram/i)).toBeInTheDocument();
     expect(within(main).getByText(/base unit:\s*litre/i)).toBeInTheDocument();
 
     for (const tableName of [/mass units/i, /volume units/i]) {
+      // Prototype-style bare <table> (globals `table` styling: grey th, td
+      // borders) instead of the @monopilot/ui BEM Table.
       const table = within(main).getByRole('table', { name: tableName });
-      expect(table).toHaveAttribute('data-slot', 'table');
       for (const header of ['Code', 'Name', 'Factor to base', 'Base?', 'Actions']) {
         expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
       }
@@ -234,7 +246,8 @@ describe('SET-094 Units (UoM) screen parity', () => {
 
     const massTable = screen.getByRole('table', { name: /mass units/i });
     const kgRow = within(massTable).getByRole('row', { name: /kg kilogram 1 base/i });
-    expect(within(kgRow).getByText('Base')).toHaveAttribute('data-slot', 'badge');
+    // Prototype "Base" badge (data-screens.jsx:173) — bare `.badge.badge-blue`.
+    expect(within(kgRow).getByText('Base')).toHaveClass('badge', 'badge-blue');
     expect(within(massTable).getByRole('row', { name: /g gram 0\.001/i })).toHaveTextContent('—');
 
     const customConversions = screen.getByRole('region', { name: /custom conversions/i });
@@ -271,8 +284,8 @@ describe('SET-094 Units (UoM) screen parity', () => {
     const main = container.querySelector('main, [data-screen="settings-units"]');
     expect(main, 'ready-state snapshot must cover the units screen root').not.toBeNull();
     expect(
-      Array.from(main!.querySelectorAll('h1,h2,button,a,th,td,[data-slot="badge"]'))
-        .filter((node) => !(node instanceof HTMLElement && node.matches('td') && node.querySelector('[data-slot="badge"]')))
+      Array.from(main!.querySelectorAll('.sg-title,.sg-section-title,button,a,th,td,.badge'))
+        .filter((node) => !(node instanceof HTMLElement && node.matches('td') && node.querySelector('.badge')))
         .map((node) => node.textContent?.replace(/\s+/g, ' ').trim())
         .filter(Boolean),
     ).toMatchInlineSnapshot(`
@@ -289,10 +302,12 @@ describe('SET-094 Units (UoM) screen parity', () => {
         "Kilogram",
         "1",
         "Base",
+        "⋮",
         "g",
         "Gram",
         "0.001",
         "—",
+        "⋮",
         "volume",
         "Code",
         "Name",
@@ -303,6 +318,7 @@ describe('SET-094 Units (UoM) screen parity', () => {
         "Litre",
         "1",
         "Base",
+        "⋮",
         "Custom conversions",
         "+ Add custom conversion",
       ]

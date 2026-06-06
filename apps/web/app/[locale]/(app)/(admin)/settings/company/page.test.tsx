@@ -46,6 +46,11 @@ const messages: Record<string, string> = {
   field_timezone: 'Timezone',
   field_date_format: 'Date format',
   field_region: 'Region',
+  hint_trading_name: 'Short name used in the UI.',
+  hint_legal_name: 'Full registered name for documents.',
+  hint_logo: 'Appears on labels, invoices, and the login page.',
+  hint_vat: 'Tax identification number.',
+  hint_default_currency: 'Used for costing and reports.',
   hint_upload: 'PNG or SVG · max 2MB · 400×400px recommended',
   region_tooltip: 'Region change requires support ticket',
   action_upload_new: 'Upload new',
@@ -155,8 +160,11 @@ async function renderCompanyProfile(overrides: Partial<CompanyProfilePageProps> 
 }
 
 function sectionTitles() {
-  return screen.getAllByTestId('company-profile-section').map((section) => {
-    return within(section).getByRole('heading', { level: 2 }).textContent;
+  // Migrated to the shared settings primitives (plan A2/A5): each section is now
+  // a `.sg-section` labelled region whose heading is the `.sg-section-title`
+  // element (14px/600 per the ported design-system CSS), not a Tailwind `<h2>`.
+  return Array.from(document.querySelectorAll<HTMLElement>('.sg-section[role="region"]')).map((section) => {
+    return section.querySelector('.sg-section-title')?.textContent ?? null;
   });
 }
 
@@ -191,8 +199,12 @@ describe('SET-010 company profile prototype parity', () => {
     const user = userEvent.setup();
     const { container } = await renderCompanyProfile();
 
-    expect(screen.getByRole('heading', { name: /company profile/i })).toBeInTheDocument();
-    expect(screen.getByText(/used across labels, invoices, and exports/i)).toBeInTheDocument();
+    // PageHead renders the page title via `.sg-title` (22px/600 from the ported
+    // design-system CSS), not a Tailwind `<h1>` heading element.
+    const head = container.querySelector('.sg-head');
+    expect(head).not.toBeNull();
+    expect(head?.querySelector('.sg-title')?.textContent).toMatch(/company profile/i);
+    expect(head?.querySelector('.sg-sub')?.textContent).toMatch(/used across labels, invoices, and exports/i);
     expect(sectionTitles()).toEqual(['Identity', 'Registered address', 'Contact', 'Locale']);
 
     const identity = screen.getByRole('region', { name: /identity/i });
@@ -226,7 +238,12 @@ describe('SET-010 company profile prototype parity', () => {
     expect(within(locale).getByRole('combobox', { name: /date format/i })).toHaveValue('YYYY-MM-DD');
     expect(within(locale).getByLabelText(/region/i)).toHaveValue('eu-central');
 
-    expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(9);
+    // Text inputs are now native `<input>`s inside `.sg-field` (capped at 420px
+    // by the ported `.sg-field input` CSS), composed via the shared
+    // SettingField/SRow primitives — not the `@monopilot/ui/Input`
+    // (`data-slot="input"`) wrapper. Dropdowns remain on the shared shadcn
+    // Select (`data-slot="select-trigger"`), never a native `<select>`.
+    expect(container.querySelectorAll('.sg-field input').length).toBeGreaterThanOrEqual(9);
     expect(container.querySelectorAll('[data-slot="select-trigger"]').length).toBe(5);
     expect(container.querySelectorAll('select')).toHaveLength(0);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -266,6 +283,41 @@ describe('SET-010 company profile prototype parity', () => {
         ],
       }
     `);
+  });
+
+  it('composes the shared settings primitives: grey Identity footer, row separators, restored hints, SelectField dropdowns', async () => {
+    const { container } = await renderCompanyProfile();
+
+    // Four `.sg-section` cards, in order, each a labelled region.
+    const sections = container.querySelectorAll('.sg-section');
+    expect(sections).toHaveLength(4);
+
+    // Identity carries the grey section footer (`.sg-section-foot`) holding the
+    // Cancel + Save actions — not a page-level Save button.
+    const identity = screen.getByRole('region', { name: /identity/i });
+    const foot = identity.querySelector('.sg-section-foot');
+    expect(foot).not.toBeNull();
+    expect(within(foot as HTMLElement).getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    expect(within(foot as HTMLElement).getByRole('button', { name: /save changes/i })).toBeInTheDocument();
+    // The other sections have no footer.
+    expect(screen.getByRole('region', { name: /registered address/i }).querySelector('.sg-section-foot')).toBeNull();
+
+    // Two-column rows (label LEFT / field RIGHT) with separator lines come from
+    // `.sg-row` — every field is a row, none are stacked label-above-input.
+    expect(container.querySelectorAll('.sg-row').length).toBeGreaterThanOrEqual(15);
+
+    // Restored prototype hints (org-screens.jsx:23,26,29,38,82), rendered as
+    // `.sg-hint` under the label.
+    expect(within(identity).getByText('Short name used in the UI.')).toHaveClass('sg-hint');
+    expect(within(identity).getByText('Full registered name for documents.')).toHaveClass('sg-hint');
+    expect(within(identity).getByText('Appears on labels, invoices, and the login page.')).toHaveClass('sg-hint');
+    expect(within(identity).getByText('Tax identification number.')).toHaveClass('sg-hint');
+    const locale = screen.getByRole('region', { name: /locale/i });
+    expect(within(locale).getByText('Used for costing and reports.')).toHaveClass('sg-hint');
+
+    // All five dropdowns use the shared SelectField (shadcn Select), never native.
+    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(5);
+    expect(container.querySelectorAll('select')).toHaveLength(0);
   });
 
   it('renders loading, empty, error, and permission-denied states loudly', async () => {

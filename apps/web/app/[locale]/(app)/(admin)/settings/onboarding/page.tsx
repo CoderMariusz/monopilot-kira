@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
 import { loadOnboardingContext } from '../../../../../../actions/onboarding/load';
+import { getOnboardingState } from '../../../../../../lib/onboarding/get-onboarding-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ type PageProps = {
   params: Promise<{ locale: string }>;
 };
 
-const TOTAL_STEPS = 5; // org_profile → first_warehouse → first_location → first_product → first_wo
+const TOTAL_STEPS = 6; // org_profile → warehouse → location → product → workorder → completion
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
@@ -39,7 +40,8 @@ export default async function OnboardingSettingsPage({ params }: PageProps) {
   if (ctx.ok) {
     completedAt = ctx.organization.onboardingCompletedAt;
     startedAt = ctx.organization.onboardingStartedAt;
-    completedCount = ctx.onboardingState.completedSteps.filter((step) => step !== 'completion').length;
+    const onboardingState = await getOnboardingState(ctx.organization.id);
+    completedCount = onboardingState.completedCount;
     statusLabel = completedAt
       ? safeT('statusComplete', 'Onboarding complete')
       : safeT('statusInProgress', 'Onboarding in progress');

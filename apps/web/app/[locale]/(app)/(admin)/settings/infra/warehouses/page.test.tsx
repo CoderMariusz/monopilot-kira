@@ -262,7 +262,9 @@ describe('UI-SET-001 warehouse prototype parity', () => {
   it('matches the prototype page head, primary CTA, table columns, usage presentation, and storage rules regions', async () => {
     await renderWarehousesPage({ warehouses: prototypeParityWarehouses as Warehouse[] });
 
-    expect(screen.getByRole('heading', { name: /^warehouses$/i })).toBeInTheDocument();
+    // Prototype PageHead renders the title in .sg-title (not an <h1>); assert that DS structure.
+    const pageTitle = document.querySelector('.sg-head .sg-title');
+    expect(pageTitle).toHaveTextContent(/^warehouses$/i);
     expect(screen.getByText(/zones, bin locations, and storage rules/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^\+ add warehouse$/i })).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: /add warehouse/i })).not.toBeInTheDocument();
@@ -276,7 +278,8 @@ describe('UI-SET-001 warehouse prototype parity', () => {
     expect(within(row).getByText('68%')).toBeInTheDocument();
     expect(within(row).getByTestId('warehouse-usage-bar')).toHaveAttribute('aria-valuenow', '68');
 
-    expect(screen.getByRole('heading', { name: /^storage rules$/i })).toBeInTheDocument();
+    // Storage rules now sits in a shared Section: a labelled region (role=region + aria-labelledby -> .sg-section-title).
+    expect(screen.getByRole('region', { name: /^storage rules$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/bin assignment strategy/i)).toBeInTheDocument();
     expect(screen.getByText(/mixed lot bins/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/expiry warning threshold/i)).toBeInTheDocument();
@@ -346,7 +349,7 @@ describe('SET-012 warehouse list behavior', () => {
     await renderWarehousesPage();
 
     expect(screen.getByTestId('settings-warehouse-screen')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /^warehouses$/i })).toBeInTheDocument();
+    expect(document.querySelector('.sg-head .sg-title')).toHaveTextContent(/^warehouses$/i);
     expect(warehouseRows()).toHaveLength(25);
     expectNoRawSettingsKeys();
 

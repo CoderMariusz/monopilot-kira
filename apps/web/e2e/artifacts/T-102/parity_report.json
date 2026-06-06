@@ -8,7 +8,7 @@
   "schema_driven": "Fields are rendered from the `columns` prop sourced server-side from Reference.DeptColumns (dept_code=Procurement) via T-014 buildDeptZod runtime / dept-column metadata. NO hardcoded field list. Supplier options come from the Reference Suppliers table (NO hardcoded supplier list).",
   "data_source": "REAL public.product row (composite PK org_id + product_code), org-scoped via withOrgContext/RLS; write path = updateFaCell (T-009). NO mocks.",
   "price_gate": "V-NPD-PROC-001: priceBlocked = closed_core !== Yes || closed_production !== Yes. When blocked the price control is disabled with a gray (#D0D0D0) background, an amber alert is shown, and the price column is NEVER submitted. Server (updateFaCell) re-enforces the gate independently.",
-  "generated_at": "2026-06-06T00:20:25.390Z",
+  "generated_at": "2026-06-06T11:54:24.099Z",
   "states": {
     "loading": {
       "tab": true,

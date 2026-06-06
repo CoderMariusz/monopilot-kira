@@ -5,8 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
-import Input from '@monopilot/ui/Input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
+
+import {
+  PageHead,
+  Section,
+  SelectField,
+  SettingField,
+  SRow,
+} from '../_components';
 
 export type CompanyProfile = {
   id: string;
@@ -75,6 +81,11 @@ export type CompanyProfileScreenLabels = {
     region: string;
   };
   hints: {
+    tradingName: string;
+    legalName: string;
+    logo: string;
+    vat: string;
+    defaultCurrency: string;
     upload: string;
     region: string;
   };
@@ -158,6 +169,10 @@ function uniqueOptions(current: string, defaults: string[]) {
   return Array.from(new Set([current, ...defaults].filter(Boolean)));
 }
 
+function toSelectOptions(values: string[]) {
+  return values.map((value) => ({ value, label: value }));
+}
+
 function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyProfileScreenLabels {
   return {
     title: t('title'),
@@ -196,6 +211,11 @@ function labelsFromTranslations(t: ReturnType<typeof useTranslations>): CompanyP
       region: t('field_region'),
     },
     hints: {
+      tradingName: t('hint_trading_name'),
+      legalName: t('hint_legal_name'),
+      logo: t('hint_logo'),
+      vat: t('hint_vat'),
+      defaultCurrency: t('hint_default_currency'),
       upload: t('hint_upload'),
       region: t('region_tooltip'),
     },
@@ -233,153 +253,6 @@ function sameEditableFields(a: CompanyProfile, b: CompanyProfile) {
   return (Object.keys(aFields) as Array<keyof SaveCompanyProfileInput>).every((key) => aFields[key] === bFields[key]);
 }
 
-type TextFieldProps = {
-  id: string;
-  label: string;
-  value: string;
-  type?: React.InputHTMLAttributes<HTMLInputElement>['type'];
-  disabled?: boolean;
-  readOnly?: boolean;
-  describedBy?: string;
-  onChange?: (value: string) => void;
-};
-
-function TextField({ id, label, value, type = 'text', disabled, readOnly, describedBy, onChange }: TextFieldProps) {
-  return (
-    <div className="ff">
-      <label htmlFor={id}>{label}</label>
-      <Input
-        aria-describedby={describedBy}
-        aria-label={label}
-        className="form-input"
-        disabled={disabled}
-        id={id}
-        name={label}
-        readOnly={readOnly}
-        type={type}
-        value={value}
-        onChange={(event) => onChange?.(event.currentTarget.value)}
-      />
-    </div>
-  );
-}
-
-type SelectFieldProps = {
-  id: string;
-  label: string;
-  options: string[];
-  value: string;
-  disabled?: boolean;
-  onChange?: (value: string) => void;
-};
-
-function SelectField({ id, label, options, value, disabled, onChange }: SelectFieldProps) {
-  const optionObjects = options.map((option) => ({ value: option, label: option }));
-  const trigger = React.createElement(
-    SelectTrigger as any,
-    { id, name: label, value, 'aria-label': label, className: 'min-w-48' },
-    React.createElement(SelectValue as any, { placeholder: label }),
-  );
-  const content = React.createElement(
-    SelectContent as any,
-    null,
-    options.map((option) => React.createElement(SelectItem as any, { key: option, value: option, disabled }, option)),
-  );
-
-  return (
-    <div className="ff">
-      <label htmlFor={id}>{label}</label>
-      {React.createElement(
-        Select as any,
-        { value, onValueChange: onChange, options: optionObjects, disabled, id, name: label },
-        trigger,
-        content,
-      )}
-    </div>
-  );
-}
-
-function Section({ title, children, foot }: { title: string; children: React.ReactNode; foot?: React.ReactNode }) {
-  const id = `company-profile-${title.toLowerCase().replace(/\s+/g, '-')}`;
-  return (
-    <section
-      aria-labelledby={id}
-      className="card"
-      data-testid="company-profile-section"
-      role="region"
-    >
-      <h2 className="card-title mb-4" id={id}>
-        {title}
-      </h2>
-      <div className="grid gap-3">{children}</div>
-      {foot ? (
-        <div
-          className="mt-4 flex justify-end gap-2 pt-4"
-          style={{ borderTop: '1px solid var(--border)' }}
-        >
-          {foot}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function CityZipField({
-  labels,
-  city,
-  zip,
-  disabled,
-  onCityChange,
-  onZipChange,
-}: {
-  labels: CompanyProfileScreenLabels;
-  city: string;
-  zip: string;
-  disabled?: boolean;
-  onCityChange: (value: string) => void;
-  onZipChange: (value: string) => void;
-}) {
-  return (
-    <div className="ff">
-      <span
-        style={{
-          display: 'block',
-          fontSize: 11,
-          color: 'var(--muted)',
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.04em',
-          marginBottom: 5,
-        }}
-      >
-        {labels.fields.cityZip}
-      </span>
-      <div className="flex max-w-[420px] gap-2">
-        <Input
-          aria-label={labels.fields.city}
-          className="form-input flex-[2]"
-          disabled={disabled}
-          id="company-city"
-          name={labels.fields.city}
-          type="text"
-          value={city}
-          onChange={(event) => onCityChange(event.currentTarget.value)}
-        />
-        <Input
-          aria-label={labels.fields.zip}
-          className="form-input flex-1"
-          disabled={disabled}
-          id="company-zip"
-          name={labels.fields.zip}
-          type="text"
-          value={zip}
-          onChange={(event) => onZipChange(event.currentTarget.value)}
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps = {}) {
   const router = useRouter();
   const translatedLabels = labelsFromTranslations(useTranslations('settings.company_profile'));
@@ -405,12 +278,16 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   if (state === 'loading') {
     return (
-      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
-        <h1 className="page-title" id="company-profile-heading">
-          {labels.title}
-        </h1>
-        <div className="card" data-testid="company-profile-loading" role="status">
-          <span className="muted">{labels.loading}</span>
+      <main
+        aria-label={labels.title}
+        className="mx-auto grid max-w-5xl gap-3 p-6"
+        data-prototype-source="prototypes/design/Monopilot Design System/settings/org-screens.jsx:3-100"
+      >
+        <PageHead title={labels.title} sub={labels.subtitle} />
+        <div className="sg-section" data-testid="company-profile-loading" role="status">
+          <div className="sg-section-body">
+            <span className="muted">{labels.loading}</span>
+          </div>
         </div>
       </main>
     );
@@ -418,10 +295,12 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   if (state === 'empty' || !draft.id) {
     return (
-      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
-        <h1 className="page-title" id="company-profile-heading">
-          {labels.title}
-        </h1>
+      <main
+        aria-label={labels.title}
+        className="mx-auto grid max-w-5xl gap-3 p-6"
+        data-prototype-source="prototypes/design/Monopilot Design System/settings/org-screens.jsx:3-100"
+      >
+        <PageHead title={labels.title} sub={labels.subtitle} />
         <div className="empty-state card" role="status">
           <div className="empty-state-icon">◆</div>
           <div className="empty-state-body">{labels.empty}</div>
@@ -432,10 +311,12 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   if (state === 'error') {
     return (
-      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
-        <h1 className="page-title" id="company-profile-heading">
-          {labels.title}
-        </h1>
+      <main
+        aria-label={labels.title}
+        className="mx-auto grid max-w-5xl gap-3 p-6"
+        data-prototype-source="prototypes/design/Monopilot Design System/settings/org-screens.jsx:3-100"
+      >
+        <PageHead title={labels.title} sub={labels.subtitle} />
         <div className="alert alert-red" role="alert">
           {labels.loadError}
         </div>
@@ -445,10 +326,11 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   const isDirty = !sameEditableFields(draft, saved);
   const controlsDisabled = !canEdit || isSaving;
-  const industryOptions = uniqueOptions(draft.industry, defaultIndustries);
-  const countryOptions = uniqueOptions(draft.country, defaultCountries);
-  const currencyOptions = uniqueOptions(draft.currency, defaultCurrencies);
-  const timezoneOptions = uniqueOptions(draft.timezone, defaultTimezones);
+  const industryOptions = toSelectOptions(uniqueOptions(draft.industry, defaultIndustries));
+  const countryOptions = toSelectOptions(uniqueOptions(draft.country, defaultCountries));
+  const currencyOptions = toSelectOptions(uniqueOptions(draft.currency, defaultCurrencies));
+  const timezoneOptions = toSelectOptions(uniqueOptions(draft.timezone, defaultTimezones));
+  const dateFormatOptions = toSelectOptions(dateFormats);
 
   function updateField<K extends keyof CompanyProfile>(key: K, value: CompanyProfile[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -483,13 +365,12 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
   }
 
   return (
-    <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
-      <header className="grid gap-1" data-region="page-head">
-        <h1 className="page-title" id="company-profile-heading">
-          {labels.title}
-        </h1>
-        <p className="muted text-sm">{labels.subtitle}</p>
-      </header>
+    <main
+      aria-label={labels.title}
+      className="mx-auto grid max-w-5xl gap-3 p-6"
+      data-prototype-source="prototypes/design/Monopilot Design System/settings/org-screens.jsx:3-100"
+    >
+      <PageHead title={labels.title} sub={labels.subtitle} />
 
       {!canEdit ? (
         <div aria-label={labels.readOnlyLabel} className="alert alert-amber" role="note">
@@ -524,26 +405,27 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
           ) : null
         }
       >
-        <TextField
+        <SettingField
           id="company-trading-name"
           label={labels.fields.tradingName}
+          hint={labels.hints.tradingName}
           value={draft.tradingName}
           disabled={controlsDisabled}
           onChange={(value) => updateField('tradingName', value)}
         />
-        <TextField
+        <SettingField
           id="company-legal-name"
           label={labels.fields.legalName}
+          hint={labels.hints.legalName}
           value={draft.legalName}
           disabled={controlsDisabled}
           onChange={(value) => updateField('legalName', value)}
         />
-        <div className="ff">
-          <label>{labels.fields.logo}</label>
+        <SRow label={labels.fields.logo} hint={labels.hints.logo}>
           <div className="flex items-center gap-3">
             <div
-              className="flex h-[72px] w-[72px] items-center justify-center text-lg font-bold text-white"
-              style={{ background: 'var(--text)', borderRadius: 'var(--radius)' }}
+              className="flex h-[72px] w-[72px] items-center justify-center font-bold text-white"
+              style={{ background: 'var(--text)', borderRadius: 'var(--radius)', fontSize: 18 }}
             >
               {draft.logoInitials}
             </div>
@@ -551,18 +433,21 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
               <Button className="btn-secondary btn-sm" disabled={controlsDisabled} type="button" onClick={() => void uploadLogo?.()}>
                 {labels.actions.uploadNew}
               </Button>
-              <div className="ff-help mt-1">{labels.hints.upload}</div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                {labels.hints.upload}
+              </div>
             </div>
           </div>
-        </div>
-        <TextField
+        </SRow>
+        <SettingField
           id="company-vat"
           label={labels.fields.vat}
+          hint={labels.hints.vat}
           value={draft.vat}
           disabled={controlsDisabled}
           onChange={(value) => updateField('vat', value)}
         />
-        <TextField
+        <SettingField
           id="company-regon"
           label={labels.fields.regon}
           value={draft.regon}
@@ -580,21 +465,37 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
       </Section>
 
       <Section title={labels.sections.registeredAddress}>
-        <TextField
+        <SettingField
           id="company-street"
           label={labels.fields.street}
           value={draft.street}
           disabled={controlsDisabled}
           onChange={(value) => updateField('street', value)}
         />
-        <CityZipField
-          labels={labels}
-          city={draft.city}
-          zip={draft.zip}
-          disabled={controlsDisabled}
-          onCityChange={(value) => updateField('city', value)}
-          onZipChange={(value) => updateField('zip', value)}
-        />
+        <SRow label={labels.fields.cityZip}>
+          <div className="flex gap-2" style={{ maxWidth: 420 }}>
+            <input
+              aria-label={labels.fields.city}
+              className="flex-[2]"
+              disabled={controlsDisabled}
+              id="company-city"
+              name={labels.fields.city}
+              type="text"
+              value={draft.city}
+              onChange={(event) => updateField('city', event.currentTarget.value)}
+            />
+            <input
+              aria-label={labels.fields.zip}
+              className="flex-1"
+              disabled={controlsDisabled}
+              id="company-zip"
+              name={labels.fields.zip}
+              type="text"
+              value={draft.zip}
+              onChange={(event) => updateField('zip', event.currentTarget.value)}
+            />
+          </div>
+        </SRow>
         <SelectField
           id="company-country"
           label={labels.fields.country}
@@ -606,7 +507,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
       </Section>
 
       <Section title={labels.sections.contact}>
-        <TextField
+        <SettingField
           id="company-email"
           label={labels.fields.email}
           type="email"
@@ -614,14 +515,14 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
           disabled={controlsDisabled}
           onChange={(value) => updateField('email', value)}
         />
-        <TextField
+        <SettingField
           id="company-phone"
           label={labels.fields.phone}
           value={draft.phone}
           disabled={controlsDisabled}
           onChange={(value) => updateField('phone', value)}
         />
-        <TextField
+        <SettingField
           id="company-website"
           label={labels.fields.website}
           value={draft.website}
@@ -634,6 +535,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-currency"
           label={labels.fields.defaultCurrency}
+          hint={labels.hints.defaultCurrency}
           options={currencyOptions}
           value={draft.currency}
           disabled={controlsDisabled}
@@ -650,22 +552,26 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
         <SelectField
           id="company-date-format"
           label={labels.fields.dateFormat}
-          options={dateFormats}
+          options={dateFormatOptions}
           value={draft.dateFormat}
           disabled={controlsDisabled}
           onChange={(value) => updateField('dateFormat', value)}
         />
-        <TextField
-          id="company-region"
-          label={labels.fields.region}
-          value={draft.region}
-          disabled
-          readOnly
-          describedBy="region-support-ticket"
-        />
-        <div id="region-support-ticket" role="tooltip" className="ff-help">
-          {labels.hints.region}
-        </div>
+        <SRow label={labels.fields.region} htmlFor="company-region">
+          <input
+            aria-describedby="region-support-ticket"
+            aria-label={labels.fields.region}
+            disabled
+            id="company-region"
+            name={labels.fields.region}
+            readOnly
+            type="text"
+            value={draft.region}
+          />
+          <div id="region-support-ticket" role="tooltip" className="sg-hint" style={{ marginTop: 6 }}>
+            {labels.hints.region}
+          </div>
+        </SRow>
       </Section>
     </main>
   );

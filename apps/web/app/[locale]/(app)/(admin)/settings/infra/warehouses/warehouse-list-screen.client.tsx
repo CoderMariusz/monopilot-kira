@@ -7,6 +7,11 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type SelectOption } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
+import { PageHead, Section, SelectField, SettingField, SRow, Toggle } from '../../_components';
+
+/** Literal prototype-parity anchor (UI-PROTOTYPE-PARITY-POLICY). */
+const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:191-252';
+
 export type Warehouse = {
   id: string;
   code: string;
@@ -142,6 +147,10 @@ export default function WarehouseListScreen({
   const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
+  const [binStrategy, setBinStrategy] = React.useState('FEFO');
+  const [mixedLotBins, setMixedLotBins] = React.useState(false);
+  const [expiryDays, setExpiryDays] = React.useState('7');
+  const [blockExpiredStock, setBlockExpiredStock] = React.useState(true);
 
   React.useEffect(() => {
     setRows([...initialWarehouses]);
@@ -287,17 +296,17 @@ export default function WarehouseListScreen({
   const statePanel = renderStatePanel(state, labels);
 
   return (
-    <main data-testid="settings-warehouse-screen" data-screen="settings-warehouse-list" className="min-h-screen bg-slate-50 text-slate-950">
-      <aside data-testid="app-sidebar" aria-label={labels.appSidebarLabel} className="border-b border-slate-200 bg-white px-6 py-3 text-sm text-slate-600">
-        {labels.sidebarCrumb}
-      </aside>
-      <header data-testid="app-topbar" data-region="page-head" className="border-b border-slate-200 bg-white px-6 py-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.eyebrow}</div>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">{labels.title}</h1>
-            <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
-          </div>
+    <main
+      data-testid="settings-warehouse-screen"
+      data-screen="settings-warehouse-list"
+      data-prototype-source={PROTOTYPE_SOURCE}
+      className="space-y-4"
+      aria-labelledby="warehouse-table-title"
+    >
+      <PageHead
+        title={labels.title}
+        sub={labels.subtitle}
+        actions={
           <div className="flex gap-2" aria-label={labels.actionsLabel}>
             <Button
               type="button"
@@ -318,87 +327,82 @@ export default function WarehouseListScreen({
               {pending ? labels.bulkDeactivatePending : labels.bulkDeactivate}
             </Button>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <section className="mx-auto max-w-6xl space-y-4 p-6" aria-labelledby="warehouse-table-title">
+      {createStatus ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</p> : null}
 
-        {createStatus ? <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-sm">{createStatus}</p> : null}
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 id="warehouse-table-title" className="text-base font-semibold">
-                {labels.sectionTitle} ({visibleRows.length})
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">{labels.sectionSubtitle}</p>
-              <p className="mt-1 text-xs text-slate-500">{labels.provenance}</p>
+      <Section
+        title={`${labels.sectionTitle} (${visibleRows.length})`}
+        sub={labels.sectionSubtitle}
+        action={
+          <div className="flex flex-wrap items-end gap-3" role="group" aria-label={labels.controlsLabel}>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="warehouse-filter">
+              {labels.textFilter}
+              <Input
+                id="warehouse-filter"
+                value={filterValue}
+                onChange={(event) => setFilterValue(event.currentTarget.value)}
+                placeholder={labels.textFilterPlaceholder}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
+              />
+            </label>
+            <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span id="warehouse-status-label">{labels.status}</span>
+              <Select value={statusFilter} options={statusOptions} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                <SelectTrigger aria-label={labels.status}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex flex-wrap items-end gap-3" role="group" aria-label={labels.controlsLabel}>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="warehouse-filter">
-                {labels.textFilter}
-                <Input
-                  id="warehouse-filter"
-                  value={filterValue}
-                  onChange={(event) => setFilterValue(event.currentTarget.value)}
-                  placeholder={labels.textFilterPlaceholder}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal normal-case tracking-normal text-slate-950"
-                />
-              </label>
-              <div className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <span id="warehouse-status-label">{labels.status}</span>
-                <Select value={statusFilter} options={statusOptions} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                  <SelectTrigger aria-label={labels.status}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="warehouse-sort">
-                {labels.sort}
-                <Select
-                  id="warehouse-sort"
-                  value={sortKey}
-                  options={[
-                    { value: 'name', label: labels.columnName },
-                    { value: 'code', label: labels.columnCode },
-                    { value: 'status', label: labels.columnStatus },
-                    { value: 'active_wo_count', label: labels.columnActiveWoCount },
-                  ]}
-                  onValueChange={(value) => setSortKey(value as SortKey)}
-                />
-              </label>
-            </div>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="warehouse-sort">
+              {labels.sort}
+              <Select
+                id="warehouse-sort"
+                value={sortKey}
+                options={[
+                  { value: 'name', label: labels.columnName },
+                  { value: 'code', label: labels.columnCode },
+                  { value: 'status', label: labels.columnStatus },
+                  { value: 'active_wo_count', label: labels.columnActiveWoCount },
+                ]}
+                onValueChange={(value) => setSortKey(value as SortKey)}
+              />
+            </label>
           </div>
-        </section>
+        }
+      >
+        <p id="warehouse-table-title" className="sg-hint">{labels.provenance}</p>
 
         {statePanel}
-        {error ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{error}</section> : null}
+        {error ? <section role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{error}</section> : null}
 
         {state === 'ready' ? (
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="mt-3">
             <Table aria-label={labels.title} className="w-full text-sm">
-              <TableHeader className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <TableHeader>
                 <TableRow>
-                  <TableHead scope="col" className="w-12 px-4 py-3">
+                  <TableHead scope="col" className="w-12">
                     <span className="sr-only">{labels.columnSelect}</span>
                   </TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnCode}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnName}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnSite}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnZones}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnBins}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3 text-right">{labels.columnCapacity}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnUsed}</TableHead>
-                  <TableHead scope="col" className="px-4 py-3">{labels.columnStatus}</TableHead>
+                  <TableHead scope="col">{labels.columnCode}</TableHead>
+                  <TableHead scope="col">{labels.columnName}</TableHead>
+                  <TableHead scope="col">{labels.columnSite}</TableHead>
+                  <TableHead scope="col" className="text-right">{labels.columnZones}</TableHead>
+                  <TableHead scope="col" className="text-right">{labels.columnBins}</TableHead>
+                  <TableHead scope="col" className="text-right">{labels.columnCapacity}</TableHead>
+                  <TableHead scope="col">{labels.columnUsed}</TableHead>
+                  <TableHead scope="col">{labels.columnStatus}</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-slate-100">
+              <TableBody>
                 {visibleRows.map((warehouse) => {
                   const usage = usagePercent(warehouse);
                   const site = warehouse.site || warehouse.address || labels.unavailable;
@@ -411,7 +415,7 @@ export default function WarehouseListScreen({
                       className="align-middle"
                       aria-label={`${warehouse.code} ${warehouse.name} ${site} ${displayCount(warehouse.zones)} ${displayCount(warehouse.bins)} ${capacity} ${usage}% ${status} ${warehouse.name} ${warehouse.code} ${status}`}
                     >
-                      <TableCell className="px-4 py-4">
+                      <TableCell>
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-slate-300"
@@ -421,17 +425,17 @@ export default function WarehouseListScreen({
                           aria-label={formatTemplate(labels.selectWarehouse, { name: warehouse.name })}
                         />
                       </TableCell>
-                      <TableCell className="px-4 py-4 font-mono text-xs text-slate-700">{warehouse.code}</TableCell>
-                      <TableCell className="px-4 py-4 font-medium text-slate-950">
+                      <TableCell className="font-mono text-xs text-slate-700">{warehouse.code}</TableCell>
+                      <TableCell className="font-medium text-slate-950">
                         <a href={`/${locale}/settings/infra/locations?warehouseId=${encodeURIComponent(warehouse.id)}`} className="text-blue-700 hover:underline" aria-label={formatTemplate(labels.openLocations, { name: warehouse.name })}>
                           {warehouse.name}
                         </a>
                       </TableCell>
-                      <TableCell className="px-4 py-4 text-slate-600">{site}</TableCell>
-                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.zones)}</TableCell>
-                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.bins)}</TableCell>
-                      <TableCell className="px-4 py-4 text-right font-mono text-xs tabular-nums text-slate-700">{capacity}</TableCell>
-                      <TableCell className="px-4 py-4">
+                      <TableCell className="text-slate-600">{site}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.zones)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{displayCount(warehouse.bins)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums text-slate-700">{capacity}</TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <div
                             data-testid="warehouse-usage-bar"
@@ -446,7 +450,7 @@ export default function WarehouseListScreen({
                           <span className="font-mono text-[11px] text-slate-600">{usage}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="px-4 py-4">
+                      <TableCell>
                         <Badge tone={warehouse.deactivated_at ? 'muted' : 'success'} aria-label={status}>
                           {status}
                         </Badge>
@@ -456,33 +460,33 @@ export default function WarehouseListScreen({
                 })}
               </TableBody>
             </Table>
-          </section>
+          </div>
         ) : null}
+      </Section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="storage-rules-title">
-          <div>
-            <h2 id="storage-rules-title" className="text-base font-semibold">{labels.storageRules}</h2>
-            <p className="mt-1 text-sm text-slate-600">{labels.storageRulesSubtitle}</p>
-          </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            <StorageRuleRow label={labels.binAssignmentStrategy}>
-              <Select id="bin-assignment-strategy" defaultValue="FEFO" options={binAssignmentOptions} aria-label={labels.binAssignmentStrategy} />
-            </StorageRuleRow>
-            <StorageRuleRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
-              <TogglePill on={false} />
-            </StorageRuleRow>
-            <StorageRuleRow label={labels.expiryWarningThreshold} hint={labels.expiryWarningThresholdHint}>
-              <div className="flex items-center gap-2">
-                <Input id="expiry-warning-threshold" aria-label={labels.expiryWarningThreshold} type="number" defaultValue="7" className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm" />
-                <span className="text-sm text-slate-500">{labels.days}</span>
-              </div>
-            </StorageRuleRow>
-            <StorageRuleRow label={labels.blockExpiredStock} hint={labels.blockExpiredStockHint}>
-              <TogglePill on />
-            </StorageRuleRow>
-          </div>
-        </section>
-      </section>
+      <Section title={labels.storageRules} sub={labels.storageRulesSubtitle}>
+        <SelectField
+          id="bin-assignment-strategy"
+          label={labels.binAssignmentStrategy}
+          options={binAssignmentOptions as { value: string; label: string }[]}
+          value={binStrategy}
+          onChange={setBinStrategy}
+        />
+        <SRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
+          <Toggle aria-label={labels.mixedLotBins} checked={mixedLotBins} onChange={setMixedLotBins} />
+        </SRow>
+        <SettingField
+          id="expiry-warning-threshold"
+          label={labels.expiryWarningThreshold}
+          hint={labels.expiryWarningThresholdHint}
+          type="number"
+          value={expiryDays}
+          onChange={setExpiryDays}
+        />
+        <SRow label={labels.blockExpiredStock} hint={labels.blockExpiredStockHint}>
+          <Toggle aria-label={labels.blockExpiredStock} checked={blockExpiredStock} onChange={setBlockExpiredStock} />
+        </SRow>
+      </Section>
 
       {createDialogOpen ? (
         <div role="dialog" aria-modal="true" aria-labelledby="add-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">
@@ -578,29 +582,6 @@ function renderStatePanel(state: WarehousePageState, labels: WarehouseLabels) {
   if (state === 'error') return <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{labels.error}</section>;
   if (state === 'permission_denied') return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm">{labels.forbidden}</section>;
   return null;
-}
-
-function StorageRuleRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-      <div>
-        <div className="text-sm font-medium text-slate-900">{label}</div>
-        {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
-      </div>
-      <div className="sm:justify-self-end">{children}</div>
-    </div>
-  );
-}
-
-function TogglePill({ on }: { on: boolean }) {
-  return (
-    <span
-      aria-label={on ? 'On' : 'Off'}
-      className={`inline-flex h-6 w-11 items-center rounded-full p-0.5 ${on ? 'bg-blue-600' : 'bg-slate-200'}`}
-    >
-      <span className={`h-5 w-5 rounded-full bg-white shadow ${on ? 'translate-x-5' : ''}`} />
-    </span>
-  );
 }
 
 function usagePercent(warehouse: Warehouse) {

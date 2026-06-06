@@ -4,9 +4,16 @@ import React, { useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@monopilot/ui/Button';
 import { Checkbox } from '@monopilot/ui/Checkbox';
-import Input from '@monopilot/ui/Input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
-import { Switch } from '@monopilot/ui/Switch';
+
+import {
+  PageHead,
+  Section,
+  SelectField,
+  SRow,
+  Toggle,
+} from '../_components';
+
+// data-prototype-source: prototypes/design/Monopilot Design System/settings/access-screens.jsx:160-245
 
 export type AuditLogRow = {
   id: string;
@@ -136,66 +143,32 @@ const securityAuditTables = new Set([
   'admin_ip_allowlist',
 ]);
 
-function Section({
+/**
+ * Wraps a shared `Section` with the screen's `data-region` marker so the
+ * existing region-ordering assertions keep working while the section chrome
+ * (head / grey foot / separators) comes from the design-system primitive.
+ */
+function RegionSection({
   region,
   title,
   sub,
   action,
+  foot,
   children,
 }: {
   region: string;
   title: string;
   sub?: string;
   action?: React.ReactNode;
+  foot?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section data-region={region} role="region" aria-label={title} className="card" style={{ margin: 0, padding: 0 }}>
-      <div className="card-head" style={{ margin: 0, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div>
-          <h2 className="card-title">{title}</h2>
-          {sub ? <p className="muted mt-1 text-sm">{sub}</p> : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
-      <div className="divide-y divide-slate-100">{children}</div>
-    </section>
-  );
-}
-
-function SRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div data-testid="security-setting-row" className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(220px,0.6fr)_1fr] md:items-center">
-      <div>
-        <div data-testid="security-setting-label" className="text-sm font-medium text-slate-900">
-          {label}
-        </div>
-        {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
-      </div>
-      <div className="min-w-0">{children}</div>
+    <div data-region={region}>
+      <Section title={title} sub={sub} action={action} foot={foot}>
+        {children}
+      </Section>
     </div>
-  );
-}
-
-function SwitchControl({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange?: (checked: boolean) => void;
-}) {
-  return (
-    <Switch
-      aria-label={label}
-      checked={checked}
-      disabled={disabled}
-      name={label}
-      onCheckedChange={(next) => onChange?.(next)}
-    />
   );
 }
 
@@ -218,40 +191,6 @@ function CheckboxControl({
   );
 }
 
-function SelectControl<T extends string>({
-  label,
-  value,
-  disabled,
-  options,
-}: {
-  label: string;
-  value: T;
-  disabled?: boolean;
-  options: Array<{ value: T; label: string }>;
-}) {
-  return (
-    <Select
-      aria-label={label}
-      defaultValue={value}
-      disabled={disabled}
-      name={label}
-      options={options}
-      className="w-full max-w-sm"
-    >
-      <SelectTrigger aria-label={label}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 function providerInitials(providerName: string) {
   return providerName
     .split(/\s+/)
@@ -259,19 +198,6 @@ function providerInitials(providerName: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('') || 'ID';
-}
-
-function FieldNumber({ label, value, disabled }: { label: string; value: number; disabled?: boolean }) {
-  return (
-    <Input
-      aria-label={label}
-      className="form-input w-20 disabled:bg-slate-100"
-      defaultValue={value}
-      disabled={disabled}
-      name={label}
-      type="number"
-    />
-  );
 }
 
 function StatusView({ kind, labels }: { kind: 'loading' | 'empty' | 'error' | 'permission-denied'; labels: SecurityScreenLabels }) {
@@ -376,19 +302,16 @@ export default function SecurityScreen({
 
   return (
     <main className="space-y-5 p-6">
-      <section data-region="page-head" className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">{labels.title}</h1>
-          <p className="text-sm text-slate-500">{labels.subtitle}</p>
-        </div>
-      </section>
+      <div data-region="page-head">
+        <PageHead title={labels.title} sub={labels.subtitle} />
+      </div>
 
-      <Section region="twofa" title={labels.twoFactorTitle} sub={labels.twoFactorSub}>
+      <RegionSection region="twofa" title={labels.twoFactorTitle} sub={labels.twoFactorSub}>
         <SRow label={labels.enforceAdmins} hint={labels.enforceAdminsHint}>
-          <SwitchControl label={labels.enforceAdmins} checked={screenData.twoFactor.enforceAdmins} disabled={isPending} />
+          <Toggle aria-label={labels.enforceAdmins} checked={screenData.twoFactor.enforceAdmins} disabled={isPending} />
         </SRow>
         <SRow label={labels.enforceAllUsers}>
-          <SwitchControl label={labels.enforceAllUsers} checked={screenData.twoFactor.enforceAllUsers} disabled={isPending} />
+          <Toggle aria-label={labels.enforceAllUsers} checked={screenData.twoFactor.enforceAllUsers} disabled={isPending} />
         </SRow>
         <SRow label={labels.allowedMethods}>
           <div className="flex flex-col gap-1.5">
@@ -402,72 +325,86 @@ export default function SecurityScreen({
             />
           </div>
         </SRow>
-      </Section>
+      </RegionSection>
 
-      <Section region="password-policy" title={labels.passwordPolicyTitle}>
-        <SRow label={labels.minimumLength}>
-          <FieldNumber label={labels.minimumLength} value={screenData.passwordPolicy.minimumLength} disabled={isPending} />
-        </SRow>
-        <SRow label={labels.complexity}>
-          <SelectControl
-            label={labels.complexity}
-            value={screenData.passwordPolicy.complexity}
+      <RegionSection region="password-policy" title={labels.passwordPolicyTitle}>
+        <SRow label={labels.minimumLength} htmlFor="security-minimum-length">
+          <input
+            id="security-minimum-length"
+            aria-label={labels.minimumLength}
+            name={labels.minimumLength}
+            type="number"
+            defaultValue={screenData.passwordPolicy.minimumLength}
             disabled={isPending}
-            options={[
-              { value: 'strong', label: labels.complexityStrong },
-              { value: 'medium', label: labels.complexityMedium },
-              { value: 'basic', label: labels.complexityBasic },
-            ]}
+            style={{ width: 80 }}
           />
         </SRow>
-        <SRow label={labels.passwordExpires} hint={labels.passwordExpiresHint}>
-          <SelectControl
-            label={labels.passwordExpires}
-            value={screenData.passwordPolicy.expires}
+        <SelectField
+          id="security-complexity"
+          label={labels.complexity}
+          value={screenData.passwordPolicy.complexity}
+          disabled={isPending}
+          options={[
+            { value: 'strong', label: labels.complexityStrong },
+            { value: 'medium', label: labels.complexityMedium },
+            { value: 'basic', label: labels.complexityBasic },
+          ]}
+        />
+        <SelectField
+          id="security-password-expires"
+          label={labels.passwordExpires}
+          hint={labels.passwordExpiresHint}
+          value={screenData.passwordPolicy.expires}
+          disabled={isPending}
+          options={[
+            { value: 'never', label: labels.expiresNever },
+            { value: '90', label: labels.expires90 },
+            { value: '180', label: labels.expires180 },
+          ]}
+        />
+        <SRow label={labels.blockReuse} htmlFor="security-block-reuse">
+          <input
+            id="security-block-reuse"
+            aria-label={labels.blockReuse}
+            name={labels.blockReuse}
+            type="number"
+            defaultValue={screenData.passwordPolicy.blockReuseCount}
             disabled={isPending}
-            options={[
-              { value: 'never', label: labels.expiresNever },
-              { value: '90', label: labels.expires90 },
-              { value: '180', label: labels.expires180 },
-            ]}
+            style={{ width: 80 }}
           />
         </SRow>
-        <SRow label={labels.blockReuse}>
-          <FieldNumber label={labels.blockReuse} value={screenData.passwordPolicy.blockReuseCount} disabled={isPending} />
-        </SRow>
-      </Section>
+      </RegionSection>
 
-      <Section region="sessions" title={labels.sessionTitle}>
-        <SRow label={labels.idleTimeout} hint={labels.idleTimeoutHint}>
-          <SelectControl
-            label={labels.idleTimeout}
-            value={screenData.sessionPolicy.idleTimeout}
-            disabled={isPending}
-            options={[
-              { value: '15', label: labels.minutes15 },
-              { value: '30', label: labels.minutes30 },
-              { value: '60', label: labels.minutes60 },
-              { value: '4h', label: labels.hours4 },
-              { value: 'never', label: labels.never },
-            ]}
-          />
-        </SRow>
-        <SRow label={labels.maximumSessionLength}>
-          <SelectControl
-            label={labels.maximumSessionLength}
-            value={screenData.sessionPolicy.maximumSessionLength}
-            disabled={isPending}
-            options={[
-              { value: '4h', label: labels.hours4 },
-              { value: '8h', label: labels.hours8 },
-              { value: '12h', label: labels.hours12 },
-              { value: '24h', label: labels.hours24 },
-            ]}
-          />
-        </SRow>
-      </Section>
+      <RegionSection region="sessions" title={labels.sessionTitle}>
+        <SelectField
+          id="security-idle-timeout"
+          label={labels.idleTimeout}
+          hint={labels.idleTimeoutHint}
+          value={screenData.sessionPolicy.idleTimeout}
+          disabled={isPending}
+          options={[
+            { value: '15', label: labels.minutes15 },
+            { value: '30', label: labels.minutes30 },
+            { value: '60', label: labels.minutes60 },
+            { value: '4h', label: labels.hours4 },
+            { value: 'never', label: labels.never },
+          ]}
+        />
+        <SelectField
+          id="security-max-session"
+          label={labels.maximumSessionLength}
+          value={screenData.sessionPolicy.maximumSessionLength}
+          disabled={isPending}
+          options={[
+            { value: '4h', label: labels.hours4 },
+            { value: '8h', label: labels.hours8 },
+            { value: '12h', label: labels.hours12 },
+            { value: '24h', label: labels.hours24 },
+          ]}
+        />
+      </RegionSection>
 
-      <Section
+      <RegionSection
         region="sso"
         title={labels.ssoTitle}
         action={screenData.sso.connected ? <span className="badge badge-green">● {labels.connected}</span> : null}
@@ -483,19 +420,19 @@ export default function SecurityScreen({
         </SRow>
         <SRow label={labels.enforceSso} hint={labels.enforceSsoHint}>
           <div className="space-y-2">
-            <SwitchControl label={labels.enforceSso} checked={enforceSso} disabled={isPending} onChange={setEnforceSso} />
+            <Toggle aria-label={labels.enforceSso} checked={enforceSso} disabled={isPending} onChange={setEnforceSso} />
             {fieldError ? <div role="alert" className="text-xs font-medium text-red-700">{fieldError}</div> : null}
           </div>
         </SRow>
-      </Section>
+      </RegionSection>
 
-      <Section region="scim" title={labels.scimTitle}>
+      <RegionSection region="scim" title={labels.scimTitle}>
         <SRow label={labels.scimProvisioning}>
-          <SwitchControl label={labels.scimProvisioning} checked={screenData.scim.enabled} disabled={isPending} />
+          <Toggle aria-label={labels.scimProvisioning} checked={screenData.scim.enabled} disabled={isPending} />
         </SRow>
-      </Section>
+      </RegionSection>
 
-      <Section region="ip-allowlist" title={labels.ipAllowlistTitle}>
+      <RegionSection region="ip-allowlist" title={labels.ipAllowlistTitle}>
         <SRow label={labels.ipAllowlistTitle} hint={labels.ipAllowlistHint}>
           <div className="font-mono text-xs text-slate-500">
             {screenData.ipAllowlist.length > 0 ? screenData.ipAllowlist.join(', ') : labels.notConfigured}{' '}
@@ -512,10 +449,14 @@ export default function SecurityScreen({
             </Button>
           </div>
         </SRow>
-      </Section>
+      </RegionSection>
 
-      <Section region="audit-preview" title={labels.auditLogTitle} action={<Button type="button" className="btn-ghost btn-sm">{labels.viewFullLog}</Button>}>
-        <div className="overflow-x-auto px-5 py-4">
+      <RegionSection
+        region="audit-preview"
+        title={labels.auditLogTitle}
+        action={<Button type="button" className="btn-ghost btn-sm">{labels.viewFullLog}</Button>}
+      >
+        <div className="overflow-x-auto">
           <table aria-label={labels.auditTableLabel} className="w-full border-collapse text-sm">
             <thead>
               <tr style={{ background: 'var(--gray-050)' }}>
@@ -537,12 +478,16 @@ export default function SecurityScreen({
             </tbody>
           </table>
         </div>
-      </Section>
+      </RegionSection>
 
-      <div className="flex justify-end">
-        <Button type="button" className="btn-primary" disabled={isPending} onClick={handleSave}>
-          {isPending ? labels.saving : labels.save}
-        </Button>
+      {/* Page-level save committed via the grey design-system foot bar
+          (.sg-section-foot), matching the prototype's action placement. */}
+      <div className="sg-section">
+        <div className="sg-section-foot">
+          <Button type="button" className="btn-primary" disabled={isPending} onClick={handleSave}>
+            {isPending ? labels.saving : labels.save}
+          </Button>
+        </div>
       </div>
 
       <AddIpRangeDialog open={ipDialogOpen} onClose={() => setIpDialogOpen(false)} labels={labels} />

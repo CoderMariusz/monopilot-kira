@@ -2,7 +2,14 @@
 
 import React from "react";
 import { Button } from "@monopilot/ui/Button";
-import Input from "@monopilot/ui/Input";
+
+import {
+  PageHead,
+  Section,
+  SelectField,
+  SettingField,
+  SRow,
+} from "../../../[locale]/(app)/(admin)/settings/_components";
 
 type MyProfileUser = {
   id: string;
@@ -77,7 +84,11 @@ const languageOptions: Array<{ value: UserPreferences["language"]; label: string
   { value: "de", label: "Deutsch" },
 ];
 
-const timezoneOptions: UserPreferences["timezone"][] = ["Europe/Warsaw", "Europe/Berlin", "Europe/London"];
+const timezoneOptions: Array<{ value: UserPreferences["timezone"]; label: string }> = [
+  { value: "Europe/Warsaw", label: "Europe/Warsaw" },
+  { value: "Europe/Berlin", label: "Europe/Berlin" },
+  { value: "Europe/London", label: "Europe/London" },
+];
 
 function profileToDraft(user: MyProfileUser, preferences: UserPreferences): SaveProfileInput {
   return {
@@ -96,161 +107,6 @@ function sameDraft(a: SaveProfileInput, b: SaveProfileInput) {
     a.phone === b.phone &&
     a.language === b.language &&
     a.timezone === b.timezone
-  );
-}
-
-function sectionId(title: string) {
-  return `my-profile-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
-}
-
-function Section({
-  title,
-  children,
-  footer,
-  action,
-}: {
-  title: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  const id = sectionId(title);
-
-  return (
-    <section
-      aria-labelledby={id}
-      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-      data-testid="my-profile-section"
-      role="region"
-    >
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold text-slate-950" id={id}>
-          {title}
-        </h2>
-        {action}
-      </div>
-      <div className="grid gap-4">{children}</div>
-      {footer ? <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">{footer}</div> : null}
-    </section>
-  );
-}
-
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-[180px_1fr] sm:items-center">
-      <div className="text-sm font-medium text-slate-800">
-        {label}
-        {hint ? <div className="mt-1 text-xs font-normal text-slate-500">{hint}</div> : null}
-      </div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function TextField({
-  id,
-  label,
-  value,
-  type = "text",
-  placeholder,
-  disabled,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  type?: React.InputHTMLAttributes<HTMLInputElement>["type"];
-  placeholder?: string;
-  disabled?: boolean;
-  onChange?: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="sr-only">{label}</span>
-      <Input
-        aria-label={label}
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500"
-        disabled={disabled}
-        id={id}
-        name={label}
-        placeholder={placeholder}
-        type={type}
-        value={value}
-        onChange={(event) => onChange?.(event.currentTarget.value)}
-      />
-    </label>
-  );
-}
-
-function PasswordField({
-  id,
-  label,
-  value,
-  placeholder,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  placeholder?: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="sr-only">{label}</span>
-      <Input
-        aria-label={label}
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-        id={id}
-        name={label}
-        placeholder={placeholder}
-        type="password"
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
-    </label>
-  );
-}
-
-function SelectField<T extends string>({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  id: string;
-  label: string;
-  value: T;
-  options: Array<T | { value: T; label: string }>;
-  onChange?: (value: T) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="sr-only">{label}</span>
-      <select
-        aria-label={label}
-        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-        data-slot="select"
-        disabled={disabled}
-        id={id}
-        name={label}
-        value={value}
-        onChange={(event) => onChange?.(event.currentTarget.value as T)}
-      >
-        {options.map((option) => {
-          const optionValue = typeof option === "string" ? option : option.value;
-          const optionLabel = typeof option === "string" ? option : option.label;
-          return (
-            <option key={optionValue} value={optionValue}>
-              {optionLabel}
-            </option>
-          );
-        })}
-      </select>
-    </label>
   );
 }
 
@@ -377,9 +233,9 @@ export default function MyProfilePage({
 
   if (state === "loading") {
     return (
-      <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
-        <div data-testid="my-profile-loading" role="status" className="rounded-xl border border-slate-200 p-5">
-          Loading my profile…
+      <main aria-labelledby="my-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6" data-prototype-source="prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75">
+        <div data-testid="my-profile-loading" role="status" className="sg-section">
+          <div className="sg-section-body">Loading my profile…</div>
         </div>
       </main>
     );
@@ -387,8 +243,8 @@ export default function MyProfilePage({
 
   if (state === "empty" || !normalizedUser.id) {
     return (
-      <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
-        <h1 id="my-profile-heading">My profile</h1>
+      <main aria-labelledby="my-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6" data-prototype-source="prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75">
+        <PageHead title="My profile" sub="Your personal info — only visible to admins and you." />
         <p role="status">No profile data is available for the current user.</p>
       </main>
     );
@@ -396,8 +252,8 @@ export default function MyProfilePage({
 
   if (state === "error") {
     return (
-      <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
-        <h1 id="my-profile-heading">My profile</h1>
+      <main aria-labelledby="my-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6" data-prototype-source="prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75">
+        <PageHead title="My profile" sub="Your personal info — only visible to admins and you." />
         <p role="alert">My profile could not be loaded.</p>
       </main>
     );
@@ -405,8 +261,8 @@ export default function MyProfilePage({
 
   if (state === "permission-denied" || !canEditProfile) {
     return (
-      <main aria-labelledby="my-profile-heading" className="grid gap-4 p-6">
-        <h1 id="my-profile-heading">My profile</h1>
+      <main aria-labelledby="my-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6" data-prototype-source="prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75">
+        <PageHead title="My profile" sub="Your personal info — only visible to admins and you." />
         <p role="alert">Permission denied. You cannot edit this profile.</p>
       </main>
     );
@@ -495,140 +351,182 @@ export default function MyProfilePage({
   }
 
   return (
-    <main aria-labelledby="my-profile-heading" className="mx-auto grid max-w-5xl gap-6 p-6">
-      <header className="grid gap-1">
-        <h1 id="my-profile-heading" className="text-2xl font-semibold text-slate-950">
-          My profile
-        </h1>
-        <p className="text-sm text-slate-600">Your personal info — only visible to admins and you.</p>
-      </header>
+    <main
+      aria-labelledby="my-profile-heading"
+      className="mx-auto grid max-w-5xl gap-3 p-6"
+      data-prototype-source="prototypes/design/Monopilot Design System/settings/account-screens.jsx:3-75"
+    >
+      <PageHead title="My profile" sub="Your personal info — only visible to admins and you." />
 
-      {message ? <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{message}</p> : null}
-      {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{error}</p> : null}
+      {message ? (
+        <div className="alert alert-green" role="status">
+          {message}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="alert alert-red" role="alert">
+          {error}
+        </div>
+      ) : null}
 
       <Section
         title="Profile"
-        footer={
+        foot={
           <>
-            <Button type="button" onClick={() => setDraft(saved)} disabled={!isDirty || controlsDisabled}>
+            <Button className="btn-ghost" type="button" onClick={() => setDraft(saved)} disabled={!isDirty || controlsDisabled}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void handleSave()} disabled={!isDirty || controlsDisabled}>
+            <Button className="btn-primary" type="button" onClick={() => void handleSave()} disabled={!isDirty || controlsDisabled}>
               Save changes
             </Button>
           </>
         }
       >
-        <Row label="Avatar">
+        <SRow label="Avatar">
           <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-xl font-semibold text-white">
+            <div
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-xl font-semibold text-white"
+            >
               {normalizedUser.initials}
             </div>
             <div>
-              <Button type="button">Upload</Button>
-              <div className="mt-1 text-[11px] text-slate-500">PNG or JPG · 200×200px</div>
+              <Button className="btn-secondary btn-sm" type="button">
+                Upload
+              </Button>
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                PNG or JPG · 200×200px
+              </div>
             </div>
           </div>
-        </Row>
-        <Row label="Full name">
-          <TextField id="my-profile-full-name" label="Full name" value={draft.fullName} disabled={controlsDisabled} onChange={(value) => updateDraft("fullName", value)} />
-        </Row>
-        <Row label="Display name" hint="Shown in the UI.">
-          <TextField id="my-profile-display-name" label="Display name" value={draft.displayName} disabled={controlsDisabled} onChange={(value) => updateDraft("displayName", value)} />
-        </Row>
-        <Row label="Email">
-          <TextField id="my-profile-email" label="Email" type="email" value={normalizedUser.email} disabled />
-        </Row>
-        <Row label="Phone">
-          <TextField id="my-profile-phone" label="Phone" value={draft.phone} disabled={controlsDisabled} onChange={(value) => updateDraft("phone", value)} />
-        </Row>
-        <Row label="Language">
-          <SelectField id="my-profile-language" label="Language" value={draft.language} options={languageOptions} disabled={controlsDisabled} onChange={(value) => updateDraft("language", value)} />
-        </Row>
-        <Row label="Timezone">
-          <SelectField id="my-profile-timezone" label="Timezone" value={draft.timezone} options={timezoneOptions} disabled={controlsDisabled} onChange={(value) => updateDraft("timezone", value)} />
-        </Row>
+        </SRow>
+        <SettingField
+          id="my-profile-full-name"
+          label="Full name"
+          value={draft.fullName}
+          disabled={controlsDisabled}
+          onChange={(value) => updateDraft("fullName", value)}
+        />
+        <SettingField
+          id="my-profile-display-name"
+          label="Display name"
+          hint="Shown in the UI."
+          value={draft.displayName}
+          disabled={controlsDisabled}
+          onChange={(value) => updateDraft("displayName", value)}
+        />
+        <SettingField id="my-profile-email" label="Email" type="email" value={normalizedUser.email} disabled />
+        <SettingField
+          id="my-profile-phone"
+          label="Phone"
+          value={draft.phone}
+          disabled={controlsDisabled}
+          onChange={(value) => updateDraft("phone", value)}
+        />
+        <SelectField
+          id="my-profile-language"
+          label="Language"
+          options={languageOptions}
+          value={draft.language}
+          disabled={controlsDisabled}
+          onChange={(value) => updateDraft("language", value as UserPreferences["language"])}
+        />
+        <SelectField
+          id="my-profile-timezone"
+          label="Timezone"
+          options={timezoneOptions}
+          value={draft.timezone}
+          disabled={controlsDisabled}
+          onChange={(value) => updateDraft("timezone", value as UserPreferences["timezone"])}
+        />
       </Section>
 
       <Section
         title="Password"
-        footer={
-          <Button type="button" onClick={() => void handlePasswordUpdate()}>
+        foot={
+          <Button className="btn-primary" type="button" onClick={() => void handlePasswordUpdate()}>
             Update password
           </Button>
         }
       >
-        <Row label="Current password">
-          <PasswordField
-            id="my-profile-current-password"
-            label="Current password"
-            placeholder="••••••••"
-            value={passwordDraft.currentPassword}
-            onChange={(value) => setPasswordDraft((current) => ({ ...current, currentPassword: value }))}
-          />
-        </Row>
-        <Row label="New password">
-          <PasswordField
-            id="my-profile-new-password"
-            label="New password"
-            placeholder="Min. 12 characters"
-            value={passwordDraft.newPassword}
-            onChange={(value) => setPasswordDraft((current) => ({ ...current, newPassword: value }))}
-          />
-        </Row>
-        <Row label="Confirm new">
-          <PasswordField
-            id="my-profile-confirm-new"
-            label="Confirm new"
-            value={passwordDraft.confirmNew}
-            onChange={(value) => setPasswordDraft((current) => ({ ...current, confirmNew: value }))}
-          />
-        </Row>
+        <SettingField
+          id="my-profile-current-password"
+          label="Current password"
+          type="password"
+          placeholder="••••••••"
+          value={passwordDraft.currentPassword}
+          onChange={(value) => setPasswordDraft((current) => ({ ...current, currentPassword: value }))}
+        />
+        <SettingField
+          id="my-profile-new-password"
+          label="New password"
+          type="password"
+          placeholder="Min. 12 characters"
+          value={passwordDraft.newPassword}
+          onChange={(value) => setPasswordDraft((current) => ({ ...current, newPassword: value }))}
+        />
+        <SettingField
+          id="my-profile-confirm-new"
+          label="Confirm new"
+          type="password"
+          value={passwordDraft.confirmNew}
+          onChange={(value) => setPasswordDraft((current) => ({ ...current, confirmNew: value }))}
+        />
       </Section>
 
-      <Section title="Two-factor authentication" action={<span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">● {mfa.enabled ? "Enabled" : "Disabled"}</span>}>
-        <Row label="Authenticator app" hint={`${mfa.deviceLabel}. Added ${mfa.addedAt}.`}>
-          <Button type="button" data-modal-id="SM-MFA-ENROLL" onClick={() => setOpenModalId("SM-MFA-ENROLL")}>
+      <Section
+        title="Two-factor authentication"
+        action={<span className="badge badge-green">● {mfa.enabled ? "Enabled" : "Disabled"}</span>}
+      >
+        <SRow label="Authenticator app" hint={`${mfa.deviceLabel}. Added ${mfa.addedAt}.`}>
+          <Button className="btn-secondary btn-sm" type="button" data-modal-id="SM-MFA-ENROLL" onClick={() => setOpenModalId("SM-MFA-ENROLL")}>
             Reconfigure
           </Button>
-        </Row>
-        <Row label="Backup codes" hint="Use these if you lose access to your authenticator.">
-          <Button type="button" data-modal-id="SM-BACKUP-CODES" onClick={() => setOpenModalId("SM-BACKUP-CODES")}>
+        </SRow>
+        <SRow label="Backup codes" hint="Use these if you lose access to your authenticator.">
+          <Button className="btn-ghost btn-sm" type="button" data-modal-id="SM-BACKUP-CODES" onClick={() => setOpenModalId("SM-BACKUP-CODES")}>
             Show codes
           </Button>
-        </Row>
+        </SRow>
       </Section>
 
       <Section title="Active sessions">
-        <table aria-label="Active sessions" className="w-full border-collapse text-sm">
+        <table aria-label="Active sessions">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="w-8 py-2" scope="col"></th>
-              <th className="py-2" scope="col">Device</th>
-              <th className="py-2" scope="col">Location</th>
-              <th className="py-2" scope="col">Last active</th>
-              <th className="py-2" scope="col"></th>
+            <tr>
+              <th scope="col" style={{ width: 30 }}></th>
+              <th scope="col">Device</th>
+              <th scope="col">Location</th>
+              <th scope="col">Last active</th>
+              <th scope="col"></th>
             </tr>
           </thead>
           <tbody>
             {visibleSessions.map((session) => (
-              <tr key={session.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-3">{session.deviceIcon === "desktop" ? "💻" : "📱"}</td>
-                <td className="py-3">
-                  <div className="font-medium text-slate-950">{session.device}</div>
-                  <div className="font-mono text-[11px] text-slate-500">{session.fingerprint}</div>
+              <tr key={session.id}>
+                <td>{session.deviceIcon === "desktop" ? "💻" : "📱"}</td>
+                <td>
+                  <div style={{ fontWeight: 500 }}>{session.device}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>
+                    {session.fingerprint}
+                  </div>
                 </td>
-                <td className="py-3 text-slate-700">{session.location}</td>
-                <td className="py-3">
+                <td>{session.location}</td>
+                <td>
                   {session.current ? (
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">{session.lastActive}</span>
+                    <span className="badge badge-green">{session.lastActive}</span>
                   ) : (
-                    <span className="font-mono text-slate-700">{session.lastActive}</span>
+                    <span className="mono">{session.lastActive}</span>
                   )}
                 </td>
-                <td className="py-3 text-right">
+                <td style={{ textAlign: "right" }}>
                   {session.current ? null : (
-                    <Button type="button" data-session-id={session.id} onClick={() => void handleRevoke(session.id)}>
+                    <Button
+                      className="btn-ghost btn-sm"
+                      type="button"
+                      data-session-id={session.id}
+                      style={{ color: "var(--red)" }}
+                      onClick={() => void handleRevoke(session.id)}
+                    >
                       Revoke {session.device}
                     </Button>
                   )}
@@ -640,11 +538,11 @@ export default function MyProfilePage({
       </Section>
 
       <Section title="Danger zone">
-        <Row label="Log out of all devices">
-          <Button type="button" onClick={() => void logoutEverywhere?.()}>
+        <SRow label="Log out of all devices">
+          <Button className="btn-danger btn-sm" type="button" onClick={() => void logoutEverywhere?.()}>
             Log out everywhere
           </Button>
-        </Row>
+        </SRow>
       </Section>
 
       {openModalId ? <MfaDialog modalId={openModalId} onClose={() => setOpenModalId(null)} /> : null}

@@ -237,9 +237,11 @@ function regions() {
 }
 
 function labelTextInOrder() {
-  return screen.getAllByTestId('security-setting-row').map((row) => {
-    const label = within(row).getByTestId('security-setting-label');
-    return label.textContent;
+  // After the A5 migration the rows render via the shared `.sg-row` primitive
+  // (label in `.sg-label`) instead of the old custom `data-testid` grid.
+  return Array.from(document.querySelectorAll<HTMLElement>('.sg-row')).map((row) => {
+    const label = row.querySelector('.sg-label');
+    return label?.textContent ?? null;
   });
 }
 
@@ -262,8 +264,13 @@ describe('SET-012 security screen prototype parity', () => {
     const user = userEvent.setup();
     const { container } = await renderSecurity();
 
-    expect(screen.getByRole('heading', { name: /security/i })).toBeInTheDocument();
-    expect(screen.getByText(/authentication, session, and password policy/i)).toBeInTheDocument();
+    // The header now renders via the shared `PageHead` primitive (`.sg-title` /
+    // `.sg-sub`) instead of a bare <h1>.
+    const pageTitle = container.querySelector('.sg-head .sg-title');
+    expect(pageTitle).toHaveTextContent('Security');
+    expect(container.querySelector('.sg-head .sg-sub')).toHaveTextContent(
+      /authentication, session, and password policy/i,
+    );
 
     expect(regions()).toEqual([
       'page-head',
@@ -293,8 +300,10 @@ describe('SET-012 security screen prototype parity', () => {
     ]);
 
     const twoFactor = screen.getByRole('region', { name: /two-factor authentication/i });
-    expect(within(twoFactor).getByRole('switch', { name: /enforce 2fa for admins/i })).toBeChecked();
-    expect(within(twoFactor).getByRole('switch', { name: /enforce 2fa for all users/i })).not.toBeChecked();
+    // Toggles are the design-system `.sg-toggle` slider (native checkbox input),
+    // not the shadcn `Switch` — so they expose role="checkbox".
+    expect(within(twoFactor).getByRole('checkbox', { name: /enforce 2fa for admins/i })).toBeChecked();
+    expect(within(twoFactor).getByRole('checkbox', { name: /enforce 2fa for all users/i })).not.toBeChecked();
     expect(within(twoFactor).getByRole('checkbox', { name: /authenticator app \(totp\)/i })).toBeChecked();
     expect(within(twoFactor).getByRole('checkbox', { name: /sms/i })).toBeChecked();
     const webAuthn = within(twoFactor).getByRole('checkbox', { name: /hardware key \(webauthn\)/i });
@@ -316,10 +325,10 @@ describe('SET-012 security screen prototype parity', () => {
     expect(within(sso).getByText(/connected/i)).toBeInTheDocument();
     expect(within(sso).getByText('Microsoft Entra ID')).toBeInTheDocument();
     expect(within(sso).getByText('apex.onmicrosoft.com')).toBeInTheDocument();
-    expect(within(sso).getByRole('switch', { name: /enforce sso/i })).not.toBeChecked();
+    expect(within(sso).getByRole('checkbox', { name: /enforce sso/i })).not.toBeChecked();
 
     const scim = screen.getByRole('region', { name: /scim/i });
-    expect(within(scim).getByRole('switch', { name: /scim provisioning/i })).toBeChecked();
+    expect(within(scim).getByRole('checkbox', { name: /scim provisioning/i })).toBeChecked();
 
     const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
     expect(within(ipAllowlist).getByText(/not configured/i)).toBeInTheDocument();
@@ -330,14 +339,35 @@ describe('SET-012 security screen prototype parity', () => {
     });
     expect(screen.getByRole('dialog', { name: /add ip range/i })).toHaveAttribute('data-modal-id', 'SM-IP-ALLOWLIST');
 
-    const switchControls = screen.getAllByRole('switch');
-    expect(switchControls).toHaveLength(4);
-    expect(switchControls.every((control) => control.matches('button[data-slot="switch"]'))).toBe(true);
-    expect(container.querySelectorAll('input[role="switch"], input[type="checkbox"]').length).toBe(0);
+    // The four boolean toggles now use the `.sg-toggle` slider (native checkbox
+    // input inside `label.sg-toggle`), NOT the shadcn `Switch`. The three 2FA
+    // "allowed methods" are still shadcn `Checkbox` buttons. So checkbox-role =
+    // 4 toggles + 3 method checkboxes.
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(container.querySelectorAll('button[data-slot="switch"]').length).toBe(0);
+
+    const toggleInputs = Array.from(
+      container.querySelectorAll<HTMLInputElement>('label.sg-toggle > input[type="checkbox"]'),
+    );
+    expect(toggleInputs).toHaveLength(4);
+    expect(
+      toggleInputs.map((input) => input.getAttribute('aria-label')),
+    ).toEqual([
+      'Enforce 2FA for Admins',
+      'Enforce 2FA for all users',
+      'Enforce SSO',
+      'SCIM provisioning',
+    ]);
+    // Each `.sg-toggle` carries the slider span the ported CSS drives.
+    expect(container.querySelectorAll('label.sg-toggle > span.slider').length).toBe(4);
 
     const checkboxControls = screen.getAllByRole('checkbox');
-    expect(checkboxControls).toHaveLength(3);
-    expect(checkboxControls.every((control) => control.matches('button[data-slot="checkbox"]'))).toBe(true);
+    // 4 toggle inputs + 3 shadcn method checkboxes.
+    expect(checkboxControls).toHaveLength(7);
+    const methodCheckboxes = checkboxControls.filter((control) =>
+      control.matches('button[data-slot="checkbox"]'),
+    );
+    expect(methodCheckboxes).toHaveLength(3);
 
     const selectControls = screen.getAllByRole('combobox');
     expect(selectControls).toHaveLength(4);
@@ -345,13 +375,19 @@ describe('SET-012 security screen prototype parity', () => {
     expect(container.querySelectorAll('[data-slot="select"]').length).toBe(4);
     expect(container.querySelectorAll('select').length).toBe(0);
 
-    expect(container.querySelectorAll('[data-slot="input"]').length).toBeGreaterThanOrEqual(2);
+    // Number fields are native inputs (the `.sg-field` CSS caps width); no shadcn Input slot.
+    expect(container.querySelectorAll('input[type="number"]').length).toBe(2);
     expect(container.querySelectorAll('button[data-slot="button"]').length).toBeGreaterThanOrEqual(2);
 
+    // Rows render via the shared design-system primitives.
+    expect(container.querySelectorAll('.sg-section').length).toBeGreaterThanOrEqual(7);
+    expect(container.querySelectorAll('.sg-section-foot').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('.sg-row').length).toBe(13);
+
     await user.tab();
-    expect(screen.getByRole('switch', { name: /enforce 2fa for admins/i })).toHaveFocus();
+    expect(toggleInputs[0]).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('switch', { name: /enforce 2fa for all users/i })).toHaveFocus();
+    expect(toggleInputs[1]).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('checkbox', { name: /authenticator app \(totp\)/i })).toHaveFocus();
 
@@ -360,11 +396,11 @@ describe('SET-012 security screen prototype parity', () => {
         "controls": [
           "Enforce 2FA for Admins",
           "Enforce 2FA for all users",
-          "Enforce SSO",
-          "SCIM provisioning",
           "Authenticator app (TOTP)",
           "SMS",
           "Hardware key (WebAuthn)",
+          "Enforce SSO",
+          "SCIM provisioning",
           "Minimum length",
           "Block reuse of last N passwords",
           "Complexity",
@@ -411,13 +447,14 @@ describe('SET-012 security screen prototype parity', () => {
     })) as TestSaveSecuritySettings;
     await renderSecurity({ saveSecuritySettings });
 
-    const ssoSwitch = screen.getByRole('switch', { name: /enforce sso/i });
-    expect(ssoSwitch).not.toBeChecked();
+    // Enforce SSO is now a `.sg-toggle` slider (native checkbox), not a Switch.
+    const ssoToggle = screen.getByRole('checkbox', { name: /enforce sso/i });
+    expect(ssoToggle).not.toBeChecked();
 
     await act(async () => {
-      await user.click(ssoSwitch);
+      await user.click(ssoToggle);
     });
-    expect(ssoSwitch).toBeChecked();
+    expect(ssoToggle).toBeChecked();
     await act(async () => {
       await user.click(screen.getByRole('button', { name: /save security settings/i }));
     });
@@ -428,7 +465,7 @@ describe('SET-012 security screen prototype parity', () => {
       }),
     );
     expect(await screen.findByText('METADATA_REQUIRED')).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: /enforce sso/i })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /enforce sso/i })).not.toBeChecked();
   });
 
   it('renders exactly the last 5 security-scoped audit_log rows in descending order', async () => {

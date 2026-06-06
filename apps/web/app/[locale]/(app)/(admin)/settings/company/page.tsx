@@ -50,6 +50,11 @@ async function buildLabels(locale: string): Promise<CompanyProfileScreenLabels> 
       region: t('field_region'),
     },
     hints: {
+      tradingName: t('hint_trading_name'),
+      legalName: t('hint_legal_name'),
+      logo: t('hint_logo'),
+      vat: t('hint_vat'),
+      defaultCurrency: t('hint_default_currency'),
       upload: t('hint_upload'),
       region: t('region_tooltip'),
     },
