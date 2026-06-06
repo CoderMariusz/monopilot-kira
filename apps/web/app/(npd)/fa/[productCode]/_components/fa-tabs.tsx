@@ -79,10 +79,11 @@ export function FaTabs({ productCode }: FaTabsProps) {
               <button
                 aria-controls={tab.panelId}
                 aria-selected={selected}
-                className={
+                className="rounded-md px-3 py-2 text-sm font-medium"
+                style={
                   selected
-                    ? 'rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white'
-                    : 'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                    ? { background: 'var(--blue)', color: '#fff', fontWeight: 600 }
+                    : { border: '1px solid var(--border)', background: '#fff', color: 'var(--muted)' }
                 }
                 data-slot="tabs-trigger"
                 data-state={selected ? 'active' : 'inactive'}

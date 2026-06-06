@@ -3733,7 +3733,8 @@
         "Alert": "Тривога",
         "Complete": "Завершено",
         "Built": "Зібрано"
-      }
+      },
+      "deleteFa": "Видалити продукт"
     },
     "faDetailModals": {
       "deptCloseTitle": "Закрити відділ",

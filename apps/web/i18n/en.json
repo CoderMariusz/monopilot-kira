@@ -2077,7 +2077,8 @@
         "Alert": "Alert",
         "Complete": "Complete",
         "Built": "Built"
-      }
+      },
+      "deleteFa": "Delete FG"
     },
     "faDetailModals": {
       "deptCloseTitle": "Close department",

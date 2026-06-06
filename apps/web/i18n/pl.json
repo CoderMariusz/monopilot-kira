@@ -3733,7 +3733,8 @@
         "Alert": "Alert",
         "Complete": "Ukończony",
         "Built": "Zbudowany"
-      }
+      },
+      "deleteFa": "Usuń wyrób"
     },
     "faDetailModals": {
       "deptCloseTitle": "Zamknij dział",

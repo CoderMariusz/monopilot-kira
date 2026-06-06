@@ -3733,7 +3733,8 @@
         "Alert": "Alertă",
         "Complete": "Finalizat",
         "Built": "Construit"
-      }
+      },
+      "deleteFa": "Șterge produsul"
     },
     "faDetailModals": {
       "deptCloseTitle": "Închide departamentul",
