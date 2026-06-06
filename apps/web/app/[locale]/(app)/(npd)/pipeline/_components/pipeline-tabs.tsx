@@ -41,11 +41,18 @@ import { KanbanView } from './kanban-view';
 import { TableView, type BulkActions, type TableLabels, type TableProject } from './table-view';
 import { SplitView } from './split-view';
 import type { SplitLabels } from './split-labels';
-import type {
-  AdvanceAction,
-  KanbanLabels,
-  KanbanProject,
-  PageState,
+import {
+  ProjectCreateModal,
+  type CreateProjectAction,
+  type ProjectCreateLabels,
+} from './project-create-modal';
+import {
+  normalizeStage,
+  type AdvanceAction,
+  type KanbanLabels,
+  type KanbanProject,
+  type PageState,
+  type ProjectStage,
 } from './kanban-types';
 
 export type PipelineView = 'kanban' | 'table' | 'split';
@@ -65,13 +72,22 @@ export type PipelineKpiLabels = {
   launchedHint: string;
   atRiskLabel: string;
   atRiskHint: string;
-  totalLabel: string;
-  totalHint: string;
+  avgTimeLabel: string;
+  avgTimeHint: string;
+  avgTimeUnit: string;
+  empty: string;
 };
 
-export type FilterKey = 'all' | 'mine' | 'G0' | 'G1' | 'G2' | 'G3' | 'G4';
+/**
+ * Filter chips — All / Mine / Brief / Recipe / Trial / Approval (pipeline.jsx:188-194).
+ * Stage chips map to `current_stage`; "mine" is owner-scoped server-side (?filter=mine);
+ * the stage chips filter the already-loaded, org-scoped list client-side.
+ */
+export type FilterKey = 'all' | 'mine' | 'brief' | 'recipe' | 'trial' | 'approval';
 
-const FILTERS: FilterKey[] = ['all', 'mine', 'G0', 'G1', 'G2', 'G3', 'G4'];
+const FILTERS: FilterKey[] = ['all', 'mine', 'brief', 'recipe', 'trial', 'approval'];
+
+const STAGE_FILTER_KEYS: ProjectStage[] = ['brief', 'recipe', 'trial', 'approval'];
 
 /** Switcher-specific copy — keyed under the NEW npd.pipelineSwitcher namespace. */
 export type PipelineTabsLabels = {
@@ -82,15 +98,19 @@ export type PipelineTabsLabels = {
   filtersLabel: string;
   filterAll: string;
   filterMine: string;
-  filterG0: string;
-  filterG1: string;
-  filterG2: string;
-  filterG3: string;
-  filterG4: string;
+  filterBrief: string;
+  filterRecipe: string;
+  filterTrial: string;
+  filterApproval: string;
   searchLabel: string;
   searchPlaceholder: string;
   newProject: string;
   importRecipe: string;
+  importRecipeDisabledHint: string;
+  pageTitle: string;
+  pageSubtitle: string;
+  breadcrumbRoot: string;
+  breadcrumbCurrent: string;
 };
 
 function parseView(raw: string | null): PipelineView {
@@ -116,16 +136,14 @@ function filterLabel(filter: FilterKey, labels: PipelineTabsLabels): string {
   switch (filter) {
     case 'mine':
       return labels.filterMine;
-    case 'G0':
-      return labels.filterG0;
-    case 'G1':
-      return labels.filterG1;
-    case 'G2':
-      return labels.filterG2;
-    case 'G3':
-      return labels.filterG3;
-    case 'G4':
-      return labels.filterG4;
+    case 'brief':
+      return labels.filterBrief;
+    case 'recipe':
+      return labels.filterRecipe;
+    case 'trial':
+      return labels.filterTrial;
+    case 'approval':
+      return labels.filterApproval;
     default:
       return labels.filterAll;
   }
@@ -146,6 +164,16 @@ export type PipelineTabsProps = {
   advanceAction: AdvanceAction;
   /** Bulk table Server Actions, resolved by the RSC page. */
   bulkActions?: BulkActions;
+  /** Server-resolved RBAC gate for creating projects (never client-trusted). */
+  canCreate?: boolean;
+  /**
+   * Merged createProject Server Action (T-057), injected by page.tsx ONLY when
+   * `canCreate` is true. Undefined disables the create form (no client bypass).
+   */
+  createAction?: CreateProjectAction;
+  projectCreateLabels?: ProjectCreateLabels;
+  /** Test seam: open the create modal on mount. */
+  initialCreateOpen?: boolean;
 };
 
 export function PipelineTabs({
@@ -159,6 +187,10 @@ export function PipelineTabs({
   state = 'ready',
   advanceAction,
   bulkActions,
+  canCreate = false,
+  createAction,
+  projectCreateLabels,
+  initialCreateOpen = false,
 }: PipelineTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -166,6 +198,21 @@ export function PipelineTabs({
   const activeView = parseView(searchParams.get('view'));
   const activeFilter = parseFilter(searchParams.get('filter'));
   const searchValue = searchParams.get('search') ?? '';
+
+  const [createOpen, setCreateOpen] = React.useState(initialCreateOpen);
+
+  const onProjectCreated = React.useCallback(
+    (projectId: string) => {
+      setCreateOpen(false);
+      // Resolve the locale from the first path segment (e.g. /en/pipeline).
+      const segments = (typeof window !== 'undefined' ? window.location.pathname : '/en/pipeline')
+        .split('/')
+        .filter(Boolean);
+      const locale = segments[0] ?? 'en';
+      router.push(`/${locale}/pipeline/${projectId}`);
+    },
+    [router],
+  );
 
   /** Mutate one URL param while preserving every other shared param (?sort/?dir/?selected/…). */
   const setParam = React.useCallback(
@@ -205,58 +252,134 @@ export function PipelineTabs({
     [activeView, selectView],
   );
 
+  // Stage filter (Brief/Recipe/Trial/Approval) applied client-side over the already
+  // org-scoped, RLS-enforced list ("mine" is owner-scoped server-side via ?filter=mine).
+  const visibleProjects = React.useMemo(() => {
+    if ((STAGE_FILTER_KEYS as string[]).includes(activeFilter)) {
+      return projects.filter((p) => normalizeStage(p.currentStage) === (activeFilter as ProjectStage));
+    }
+    return projects;
+  }, [projects, activeFilter]);
+
   // TableProject and KanbanProject are structurally identical projections of the
   // merged ProjectSummary — the same shared list feeds every view (AC2).
-  const tableProjects = projects as unknown as TableProject[];
+  const tableProjects = visibleProjects as unknown as TableProject[];
 
-  // KPI counters derived from the REAL, org-scoped project list (no hard-coded numbers).
-  const kpiActive = projects.filter((p) => p.currentGate !== 'Launched').length;
+  // ── KPI counters (real, org-scoped data — no hard-coded numbers) ──
+  // KPIs reflect the WHOLE org pipeline, not the current stage filter.
+  const currentYear = new Date().getUTCFullYear();
+  const isLaunched = (p: KanbanProject) => p.currentGate === 'Launched';
+  // Active = in gates G0..G4 (not Launched).
+  const kpiActive = projects.filter((p) => !isLaunched(p)).length;
+  // Awaiting approval = at gate G3 or G4.
   const kpiAwaiting = projects.filter((p) => p.currentGate === 'G3' || p.currentGate === 'G4').length;
-  const kpiLaunched = projects.filter((p) => p.currentGate === 'Launched').length;
-  const kpiAtRisk = projects.filter((p) => p.prio === 'high' && p.progressPercent < 50).length;
-  const kpiTotal = projects.length;
+  // Launched YTD = Launched AND created (proxy for launched) this calendar year.
+  const kpiLaunched = projects.filter((p) => {
+    if (!isLaunched(p)) return false;
+    const created = p.createdAt ? new Date(p.createdAt) : null;
+    return created != null && !Number.isNaN(created.getTime()) && created.getUTCFullYear() === currentYear;
+  }).length;
+  // At risk = high priority AND behind (low progress OR past its target launch date).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const kpiAtRisk = projects.filter((p) => {
+    if (p.prio !== 'high' || isLaunched(p)) return false;
+    const behindProgress = p.progressPercent < 50;
+    const pastTarget = p.targetLaunch != null && p.targetLaunch < todayIso;
+    return behindProgress || pastTarget;
+  }).length;
+  // Avg time to launch = avg(created → today) over launched projects, in days ("—" if none).
+  const launchedWithDates = projects.filter((p) => isLaunched(p) && p.createdAt);
+  const avgDays =
+    launchedWithDates.length > 0
+      ? Math.round(
+          launchedWithDates.reduce((sum, p) => {
+            const created = new Date(p.createdAt as string).getTime();
+            return sum + Math.max(0, (Date.now() - created) / 86_400_000);
+          }, 0) / launchedWithDates.length,
+        )
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 p-6" data-testid="pipeline-tabs">
-      {/* Page head — title + the New project / Import recipe CTAs (pipeline.jsx:152-163). */}
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      {/* Page head — breadcrumb + title + subtitle + the Import recipe / New project
+          CTAs (pipeline.jsx:144-156). */}
+      <header className="flex flex-wrap items-start justify-between gap-4" data-region="page-head">
+        <div>
+          <nav aria-label="breadcrumb" className="breadcrumb">
+            {switcherLabels.breadcrumbRoot} / {switcherLabels.breadcrumbCurrent}
+          </nav>
+          <h1 className="page-title" style={{ marginTop: 2 }}>
+            {switcherLabels.pageTitle}
+          </h1>
+          <p className="muted" style={{ marginTop: 2, fontSize: 12 }}>
+            {switcherLabels.pageSubtitle}
+          </p>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn btn-secondary" data-testid="pipeline-import-recipe">
+          {/* Import recipe has no backend yet — disabled no-op with an explanatory
+              tooltip (we never fake an action). */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="pipeline-import-recipe"
+            disabled
+            aria-disabled="true"
+            title={switcherLabels.importRecipeDisabledHint}
+          >
             {switcherLabels.importRecipe}
           </button>
-          <button type="button" className="btn btn-primary" data-testid="pipeline-new-project">
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-testid="pipeline-new-project"
+            disabled={!canCreate}
+            aria-disabled={!canCreate || undefined}
+            onClick={() => setCreateOpen(true)}
+          >
             + {switcherLabels.newProject}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* KPI strip — 5 accent cards reflecting the live, filtered pipeline (pipeline.jsx:165-191). */}
+      {/* KPI strip — 5 accent cards reflecting the live org pipeline (pipeline.jsx:158-184). */}
       {kpiLabels ? (
         <div className="kpi-row" data-testid="pipeline-kpi-row">
           <div className="kpi">
             <div className="kpi-label">{kpiLabels.activeLabel}</div>
-            <div className="kpi-value">{kpiActive}</div>
+            <div className="kpi-value" data-testid="kpi-active">{kpiActive}</div>
             <div className="kpi-change muted">{kpiLabels.activeHint}</div>
           </div>
           <div className="kpi amber">
             <div className="kpi-label">{kpiLabels.awaitingLabel}</div>
-            <div className="kpi-value">{kpiAwaiting}</div>
+            <div className="kpi-value" data-testid="kpi-awaiting">{kpiAwaiting}</div>
             <div className="kpi-change muted">{kpiLabels.awaitingHint}</div>
           </div>
           <div className="kpi green">
             <div className="kpi-label">{kpiLabels.launchedLabel}</div>
-            <div className="kpi-value">{kpiLaunched}</div>
+            <div className="kpi-value" data-testid="kpi-launched">{kpiLaunched}</div>
             <div className="kpi-change muted">{kpiLabels.launchedHint}</div>
           </div>
           <div className="kpi red">
             <div className="kpi-label">{kpiLabels.atRiskLabel}</div>
-            <div className="kpi-value">{kpiAtRisk}</div>
+            <div className="kpi-value" data-testid="kpi-at-risk">{kpiAtRisk}</div>
             <div className="kpi-change muted">{kpiLabels.atRiskHint}</div>
           </div>
           <div className="kpi">
-            <div className="kpi-label">{kpiLabels.totalLabel}</div>
-            <div className="kpi-value">{kpiTotal}</div>
-            <div className="kpi-change muted">{kpiLabels.totalHint}</div>
+            <div className="kpi-label">{kpiLabels.avgTimeLabel}</div>
+            <div className="kpi-value" data-testid="kpi-avg-time">
+              {avgDays === null ? (
+                kpiLabels.empty
+              ) : (
+                <>
+                  {avgDays}
+                  <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--muted)' }}>
+                    {' '}
+                    {kpiLabels.avgTimeUnit}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="kpi-change muted">{kpiLabels.avgTimeHint}</div>
           </div>
         </div>
       ) : null}
@@ -337,7 +460,7 @@ export function PipelineTabs({
       >
         {activeView === 'kanban' ? (
           <KanbanView
-            projects={projects}
+            projects={visibleProjects}
             labels={kanbanLabels}
             canAdvance={canAdvance}
             state={state}
@@ -350,9 +473,22 @@ export function PipelineTabs({
         ) : null}
 
         {activeView === 'split' ? (
-          <SplitView projects={projects} labels={splitLabels} state={state} />
+          <SplitView projects={visibleProjects} labels={splitLabels} state={state} />
         ) : null}
       </div>
+
+      {/* Create-project modal — mounted INLINE in the same client island as the
+          "+ New project" trigger (robust on first paint; the FA-create NF fix).
+          RBAC: the Server Action is injected only when canCreate is true. */}
+      {projectCreateLabels ? (
+        <ProjectCreateModal
+          open={createOpen}
+          labels={projectCreateLabels}
+          createAction={canCreate ? createAction : undefined}
+          onCreated={onProjectCreated}
+          onClose={() => setCreateOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -11,12 +11,12 @@
     "listProjects (T-057, merged)",
     "advanceProjectGate (T-058, merged)"
   ],
-  "generated_at": "2026-06-06T00:20:24.586Z",
+  "generated_at": "2026-06-06T13:47:49.334Z",
   "states": {
     "loading": {
       "pageRoot": true,
       "columns": 0,
-      "gateOrder": [],
+      "stageOrder": [],
       "cards": 0,
       "shadcnCards": 0,
       "badges": 0,
@@ -29,7 +29,7 @@
     "empty": {
       "pageRoot": true,
       "columns": 0,
-      "gateOrder": [],
+      "stageOrder": [],
       "cards": 0,
       "shadcnCards": 0,
       "badges": 0,
@@ -42,7 +42,7 @@
     "error": {
       "pageRoot": true,
       "columns": 0,
-      "gateOrder": [],
+      "stageOrder": [],
       "cards": 0,
       "shadcnCards": 0,
       "badges": 0,
@@ -55,7 +55,7 @@
     "permission_denied": {
       "pageRoot": true,
       "columns": 0,
-      "gateOrder": [],
+      "stageOrder": [],
       "cards": 0,
       "shadcnCards": 0,
       "badges": 0,
@@ -67,14 +67,16 @@
     },
     "ready": {
       "pageRoot": true,
-      "columns": 6,
-      "gateOrder": [
-        "G0",
-        "G1",
-        "G2",
-        "G3",
-        "G4",
-        "Launched"
+      "columns": 8,
+      "stageOrder": [
+        "brief",
+        "recipe",
+        "packaging",
+        "trial",
+        "sensory",
+        "pilot",
+        "approval",
+        "handoff"
       ],
       "cards": 4,
       "shadcnCards": 4,
@@ -85,12 +87,12 @@
       "alerts": 0,
       "statuses": 0
     },
-    "optimistic_advance": {
-      "movedToTarget": true
+    "advance": {
+      "actionCalled": true,
+      "stillInStageColumn": true
     },
-    "optimistic_revert_422": {
-      "backInSource": true,
-      "notInTarget": true,
+    "advance_revert_422": {
+      "stillInStageColumn": true,
       "alertShown": true
     }
   }

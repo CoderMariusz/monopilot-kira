@@ -73,14 +73,6 @@ const INLINE_MESSAGES: Record<string, Record<string, unknown>> = {
       statusLabels: { done: 'Done', inprog: 'In progress', blocked: 'Blocked', pending: 'Pending' },
       pendingCaption: 'Departments populate once the FG is created at Gate 3.',
     },
-    quickLinks: {
-      title: 'Workspaces',
-      gate: 'Stage-Gate',
-      formulation: 'Formulation',
-      costing: 'Costing',
-      nutrition: 'Nutrition',
-      approval: 'Approval',
-    },
     empty: 'Project not found',
     emptyBody: 'No project matches this id in your organisation.',
     forbidden: 'You do not have permission to view this project.',
@@ -301,13 +293,12 @@ describe('NPD project-detail page (project.jsx:4-43)', () => {
     expect(screen.getByTestId('project-header-duplicate')).toBeDisabled();
   });
 
-  it('renders quick links to all five existing child routes', async () => {
+  it('no longer renders the redundant Workspaces quick-links (superseded by the shared ProjectStepper in the layout)', async () => {
     await renderPage(readyLoaded());
-    expect(screen.getByTestId('project-detail-link-gate')).toHaveAttribute('href', '/pipeline/p1/gate');
-    expect(screen.getByTestId('project-detail-link-formulation')).toHaveAttribute('href', '/pipeline/p1/formulation');
-    expect(screen.getByTestId('project-detail-link-costing')).toHaveAttribute('href', '/pipeline/p1/costing');
-    expect(screen.getByTestId('project-detail-link-nutrition')).toHaveAttribute('href', '/pipeline/p1/nutrition');
-    expect(screen.getByTestId('project-detail-link-approval')).toHaveAttribute('href', '/pipeline/p1/approval');
+    expect(screen.queryByTestId('project-detail-quick-links')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('project-detail-link-gate')).not.toBeInTheDocument();
+    // The StageRail (G0-Launched gate status) is KEPT.
+    expect(screen.getByTestId('project-stage-rail')).toBeInTheDocument();
   });
 
   it('UI state — not-found (bad projectId) renders the empty panel', async () => {

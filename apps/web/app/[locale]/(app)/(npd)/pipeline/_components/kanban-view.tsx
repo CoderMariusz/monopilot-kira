@@ -26,20 +26,22 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
-  GATE_ORDER,
-  gateLabel,
+  STAGE_ORDER,
   nextGateOf,
+  normalizeStage,
+  stageLabel,
   type AdvanceAction,
   type KanbanLabels,
   type KanbanProject,
   type PageState,
-  type ProjectGate,
+  type ProjectStage,
 } from './kanban-types';
 import { KanbanCard } from './kanban-card';
 
-export type { KanbanLabels, KanbanProject, PageState, ProjectGate } from './kanban-types';
+export type { KanbanLabels, KanbanProject, PageState, ProjectGate, ProjectStage } from './kanban-types';
 export type { AdvanceAction, AdvanceResult, AdvanceInput } from './kanban-types';
 
 function StateNotice({ state, labels }: { state: PageState; labels: KanbanLabels }) {
@@ -84,26 +86,19 @@ export function KanbanView({
   state = 'ready',
   advanceAction,
 }: KanbanViewProps) {
-  // Optimistic gate overrides keyed by project id; the source gate is kept so a
-  // failed advance can snap the card back to where it started.
-  const [overrides, setOverrides] = React.useState<Record<string, ProjectGate>>({});
+  const router = useRouter();
   const [pending, setPending] = React.useState<Record<string, boolean>>({});
   const [advanceError, setAdvanceError] = React.useState<string | null>(null);
 
-  const gateOf = React.useCallback(
-    (project: KanbanProject): ProjectGate => overrides[project.id] ?? project.currentGate,
-    [overrides],
-  );
-
+  // Advance moves the project to the adjacent GATE (G0..Launched, gate-helpers).
+  // The Kanban columns are STAGE-based (decoupled from the gate), so a successful
+  // advance refreshes the RSC instead of optimistically reshuffling a column.
   const handleAdvance = React.useCallback(
     async (project: KanbanProject) => {
-      const sourceGate = gateOf(project);
-      const targetGate = nextGateOf(sourceGate);
+      const targetGate = nextGateOf(project.currentGate);
       if (!targetGate) return;
 
       setAdvanceError(null);
-      // optimistic: move the card to the adjacent column immediately.
-      setOverrides((prev) => ({ ...prev, [project.id]: targetGate }));
       setPending((prev) => ({ ...prev, [project.id]: true }));
 
       let result: Awaited<ReturnType<AdvanceAction>>;
@@ -120,22 +115,20 @@ export function KanbanView({
       });
 
       if (result.ok) {
-        // reconcile to the server-confirmed gate.
-        setOverrides((prev) => ({ ...prev, [project.id]: result.data.currentGate }));
+        // reconcile from the server (gate/stage may have advanced).
+        try {
+          router.refresh();
+        } catch {
+          // router.refresh is unavailable outside a Next request (vitest stub).
+        }
         return;
       }
 
-      // revert: snap the card back to its source column + surface the error.
-      setOverrides((prev) => {
-        const next = { ...prev };
-        delete next[project.id];
-        return next;
-      });
       setAdvanceError(
         result.error === 'ADJACENCY_VIOLATION' ? labels.adjacencyError : labels.advanceError,
       );
     },
-    [advanceAction, gateOf, labels.adjacencyError, labels.advanceError],
+    [advanceAction, router, labels.adjacencyError, labels.advanceError],
   );
 
   if (state !== 'ready' && state !== 'empty') {
@@ -174,9 +167,9 @@ export function KanbanView({
     );
   }
 
-  const columns = GATE_ORDER.map((gate) => ({
-    gate,
-    items: projects.filter((project) => gateOf(project) === gate),
+  const columns = STAGE_ORDER.map((stage) => ({
+    stage,
+    items: projects.filter((project) => normalizeStage(project.currentStage) === stage),
   }));
 
   return (
@@ -196,13 +189,13 @@ export function KanbanView({
 
       <section
         aria-label={labels.title}
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
       >
-        {columns.map(({ gate, items }) => (
+        {columns.map(({ stage, items }) => (
           <div
-            key={gate}
-            data-testid={`kanban-col-${gate}`}
-            data-gate={gate}
+            key={stage}
+            data-testid={`kanban-col-${stage}`}
+            data-stage={stage}
             className="flex min-w-0 flex-col gap-2 rounded-[10px] p-2"
             style={{ background: 'var(--gray-050)', border: '1px solid var(--border)' }}
           >
@@ -216,10 +209,10 @@ export function KanbanView({
                 color: 'var(--muted)',
               }}
             >
-              <span>{gateLabel(gate, labels)}</span>
+              <span>{stageLabel(stage, labels)}</span>
               <span
-                data-testid={`kanban-count-${gate}`}
-                aria-label={`${gateLabel(gate, labels)}: ${items.length}`}
+                data-testid={`kanban-count-${stage}`}
+                aria-label={`${stageLabel(stage, labels)}: ${items.length}`}
                 className="mono"
                 style={{
                   fontSize: 11,
@@ -243,11 +236,11 @@ export function KanbanView({
               items.map((project) => (
                 <KanbanCard
                   key={project.id}
-                  project={{ ...project, currentGate: gate }}
+                  project={project}
                   labels={labels}
                   canAdvance={canAdvance}
                   advancing={pending[project.id] ?? false}
-                  nextGate={nextGateOf(gate)}
+                  nextGate={nextGateOf(project.currentGate)}
                   onAdvance={handleAdvance}
                 />
               ))

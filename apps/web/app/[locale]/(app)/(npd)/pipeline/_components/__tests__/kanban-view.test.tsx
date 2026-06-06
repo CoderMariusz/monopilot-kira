@@ -55,6 +55,7 @@ const PROJECTS: KanbanProject[] = [
     name: 'Strawberry Yogurt 150g',
     type: 'single',
     currentGate: 'G0',
+    currentStage: 'brief',
     prio: 'high',
     owner: 'Ana Owner',
     targetLaunch: '2026-09-01',
@@ -66,6 +67,7 @@ const PROJECTS: KanbanProject[] = [
     name: 'Vanilla Custard 500g',
     type: 'multi',
     currentGate: 'G2',
+    currentStage: 'recipe',
     prio: 'normal',
     owner: 'Bo Owner',
     targetLaunch: '2026-10-15',
@@ -77,6 +79,7 @@ const PROJECTS: KanbanProject[] = [
     name: 'Lemon Tart 90g',
     type: 'single',
     currentGate: 'Launched',
+    currentStage: 'handoff',
     prio: 'low',
     owner: null,
     targetLaunch: null,
@@ -89,6 +92,14 @@ const PROJECTS: KanbanProject[] = [
 const LABELS: KanbanLabels = {
   title: 'lbl.title',
   subtitle: 'lbl.subtitle',
+  stageBrief: 'lbl.stageBrief',
+  stageRecipe: 'lbl.stageRecipe',
+  stagePackaging: 'lbl.stagePackaging',
+  stageTrial: 'lbl.stageTrial',
+  stageSensory: 'lbl.stageSensory',
+  stagePilot: 'lbl.stagePilot',
+  stageApproval: 'lbl.stageApproval',
+  stageHandoff: 'lbl.stageHandoff',
   gateG0: 'lbl.gateG0',
   gateG1: 'lbl.gateG1',
   gateG2: 'lbl.gateG2',
@@ -132,25 +143,34 @@ function renderView(overrides: Partial<React.ComponentProps<typeof KanbanView>> 
   };
 }
 
-describe('KanbanView — prototype parity (pipeline.jsx:19-52)', () => {
-  it('renders 6 gate columns in order G0 → G1 → G2 → G3 → G4 → Launched', () => {
+describe('KanbanView — prototype parity (pipeline.jsx:36-52, stage board)', () => {
+  it('renders 8 stage columns in order brief → recipe → packaging → trial → sensory → pilot → approval → handoff', () => {
     renderView();
     const cols = screen.getAllByTestId(/^kanban-col-/);
-    expect(cols).toHaveLength(6);
-    const order = cols.map((c) => c.getAttribute('data-gate'));
-    expect(order).toEqual(['G0', 'G1', 'G2', 'G3', 'G4', 'Launched']);
+    expect(cols).toHaveLength(8);
+    const order = cols.map((c) => c.getAttribute('data-stage'));
+    expect(order).toEqual([
+      'brief',
+      'recipe',
+      'packaging',
+      'trial',
+      'sensory',
+      'pilot',
+      'approval',
+      'handoff',
+    ]);
   });
 
   it('renders each column header label + a per-column count', () => {
     renderView();
-    const g0 = screen.getByTestId('kanban-col-G0');
-    expect(within(g0).getByText(LABELS.gateG0)).toBeInTheDocument();
-    // G0 has exactly one project (DEV-052)
-    expect(within(g0).getByTestId('kanban-count-G0')).toHaveTextContent('1');
-    // G1 is empty → count 0 + placeholder
-    const g1 = screen.getByTestId('kanban-col-G1');
-    expect(within(g1).getByTestId('kanban-count-G1')).toHaveTextContent('0');
-    expect(within(g1).getByText(LABELS.columnEmpty)).toBeInTheDocument();
+    const brief = screen.getByTestId('kanban-col-brief');
+    expect(within(brief).getByText(LABELS.stageBrief)).toBeInTheDocument();
+    // brief has exactly one project (DEV-052)
+    expect(within(brief).getByTestId('kanban-count-brief')).toHaveTextContent('1');
+    // packaging has no persisted rows → count 0 + placeholder (honest empty column)
+    const packaging = screen.getByTestId('kanban-col-packaging');
+    expect(within(packaging).getByTestId('kanban-count-packaging')).toHaveTextContent('0');
+    expect(within(packaging).getByText(LABELS.columnEmpty)).toBeInTheDocument();
   });
 
   it('renders a KanbanCard per project with code + name + prio badge + owner + target', () => {
@@ -182,30 +202,31 @@ describe('KanbanView — prototype parity (pipeline.jsx:19-52)', () => {
 });
 
 describe('KanbanView — advance affordance (advanceProjectGate / §17.12)', () => {
-  it('invokes advanceProjectGate with the adjacent target gate and optimistically moves the card', async () => {
+  it('invokes advanceProjectGate with the adjacent target gate', async () => {
     const advanceAction = vi.fn(async () => ({
       ok: true as const,
       data: { currentGate: 'G3' as const },
     }));
     renderView({ advanceAction });
 
-    const card = screen.getByTestId('kanban-card-DEV-061'); // currently G2
+    const card = screen.getByTestId('kanban-card-DEV-061'); // currently G2 / recipe stage
     await act(async () => {
       fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
     });
 
+    // advance targets the adjacent GATE (G2 → G3); columns are stage-based, so the
+    // card stays in its 'recipe' stage column until the RSC refresh reconciles.
     expect(advanceAction).toHaveBeenCalledWith({
       projectId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
       targetGate: 'G3',
     });
-    // optimistic: the card now lives in the G3 column
     await waitFor(() => {
-      const g3 = screen.getByTestId('kanban-col-G3');
-      expect(within(g3).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
+      const recipe = screen.getByTestId('kanban-col-recipe');
+      expect(within(recipe).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
     });
   });
 
-  it('snaps the card back to its source column and shows an alert when the action returns 422 ADJACENCY_VIOLATION', async () => {
+  it('shows an accessible alert when the action returns 422 ADJACENCY_VIOLATION', async () => {
     const advanceAction = vi.fn(async () => ({
       ok: false as const,
       error: 'ADJACENCY_VIOLATION',
@@ -213,19 +234,17 @@ describe('KanbanView — advance affordance (advanceProjectGate / §17.12)', () 
     }));
     renderView({ advanceAction });
 
-    const card = screen.getByTestId('kanban-card-DEV-061'); // G2
+    const card = screen.getByTestId('kanban-card-DEV-061'); // recipe stage
     await act(async () => {
       fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
     });
 
-    // revert: card is back in the G2 column, NOT in G3
+    // the card remains in its stage column …
     await waitFor(() => {
-      const g2 = screen.getByTestId('kanban-col-G2');
-      expect(within(g2).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
+      const recipe = screen.getByTestId('kanban-col-recipe');
+      expect(within(recipe).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
     });
-    const g3 = screen.getByTestId('kanban-col-G3');
-    expect(within(g3).queryByTestId('kanban-card-DEV-061')).toBeNull();
-    // an accessible alert surfaces the adjacency error
+    // … and an accessible alert surfaces the adjacency error
     expect(screen.getByRole('alert')).toHaveTextContent(LABELS.adjacencyError);
   });
 

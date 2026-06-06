@@ -4,10 +4,10 @@
   "anchor_status": "@deprecated BL-NPD-02 (legacy R&D stage board, read-only) — translated to the production Stage-Gate model",
   "mapping": [
     {
-      "prototype": "KanbanView columns from window.NPD_STAGES (5 legacy stages)",
-      "production": "6 gate columns G0..Launched from GATE_ORDER (gate-helpers parity)",
+      "prototype": "KanbanView columns from window.NPD_STAGES",
+      "production": "8 stage columns brief→recipe→packaging→trial→sensory→pilot→approval→handoff from STAGE_ORDER",
       "lines": "36-52",
-      "deviation": "legacy stage model → Stage-Gate (G0-G4 + Launched)"
+      "deviation": "PACKAGING/SENSORY/PILOT are rendered for parity but never hold a real card — npd_projects.current_stage CHECK (mig 085) only persists brief/recipe/trial/approval/handoff; columns show \"—\""
     },
     {
       "prototype": "kanban-col-head label + .count",
@@ -16,7 +16,7 @@
     },
     {
       "prototype": "projects.filter(p => p.stage === s.key)",
-      "production": "projects bucketed by currentGate (REAL listProjects rows)",
+      "production": "projects bucketed by currentStage (REAL listProjects rows)",
       "lines": "39"
     },
     {

@@ -29,7 +29,6 @@
  * Server Action is injected as a Server Action (not a raw function).
  */
 
-import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 
 import {
@@ -115,14 +114,6 @@ type ProjectDetailLabels = {
     /** Pre-G3 caption when no FG is linked yet. */
     pendingCaption: string;
   };
-  quickLinks: {
-    title: string;
-    gate: string;
-    formulation: string;
-    costing: string;
-    nutrition: string;
-    approval: string;
-  };
   empty: string;
   emptyBody: string;
   forbidden: string;
@@ -194,14 +185,6 @@ const DEFAULTS: ProjectDetailLabels = {
     },
     statusLabels: { done: 'Done', inprog: 'In progress', blocked: 'Blocked', pending: 'Pending' },
     pendingCaption: 'Departments populate once the FG is created at Gate 3.',
-  },
-  quickLinks: {
-    title: 'Workspaces',
-    gate: 'Stage-Gate',
-    formulation: 'Formulation',
-    costing: 'Costing',
-    nutrition: 'Nutrition',
-    approval: 'Approval',
   },
   empty: 'Project not found',
   emptyBody: 'No project matches this id in your organisation.',
@@ -303,14 +286,6 @@ async function buildLabels(locale: string): Promise<ProjectDetailLabels> {
         pending: p('deptStrip.statusLabels.pending', d.deptStrip.statusLabels.pending),
       },
       pendingCaption: p('deptStrip.pendingCaption', d.deptStrip.pendingCaption),
-    },
-    quickLinks: {
-      title: p('quickLinks.title', d.quickLinks.title),
-      gate: p('quickLinks.gate', d.quickLinks.gate),
-      formulation: p('quickLinks.formulation', d.quickLinks.formulation),
-      costing: p('quickLinks.costing', d.quickLinks.costing),
-      nutrition: p('quickLinks.nutrition', d.quickLinks.nutrition),
-      approval: p('quickLinks.approval', d.quickLinks.approval),
     },
     empty: p('empty', d.empty),
     emptyBody: p('emptyBody', d.emptyBody),
@@ -607,14 +582,6 @@ export default async function ProjectDetailPage(propsInput: unknown = {}) {
     index: i + 1,
   }));
 
-  const childLinks: { key: string; href: string; label: string }[] = [
-    { key: 'gate', href: `/pipeline/${project.id}/gate`, label: labels.quickLinks.gate },
-    { key: 'formulation', href: `/pipeline/${project.id}/formulation`, label: labels.quickLinks.formulation },
-    { key: 'costing', href: `/pipeline/${project.id}/costing`, label: labels.quickLinks.costing },
-    { key: 'nutrition', href: `/pipeline/${project.id}/nutrition`, label: labels.quickLinks.nutrition },
-    { key: 'approval', href: `/pipeline/${project.id}/approval`, label: labels.quickLinks.approval },
-  ];
-
   return (
     <main className="flex w-full flex-col gap-3">
       {/* ProjectHeader (prototype project.jsx:22-43) */}
@@ -648,27 +615,6 @@ export default async function ProjectDetailPage(propsInput: unknown = {}) {
           {labels.deptStrip.pendingCaption}
         </p>
       ) : null}
-
-      {/* Quick links to the existing child routes */}
-      <section aria-label={labels.quickLinks.title} data-testid="project-detail-quick-links">
-        <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
-          {labels.quickLinks.title}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {childLinks.map((link) => (
-            <Link
-              key={link.key}
-              href={link.href}
-              prefetch
-              data-slot="button"
-              data-testid={`project-detail-link-${link.key}`}
-              className="btn btn-secondary"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </section>
     </main>
   );
 }

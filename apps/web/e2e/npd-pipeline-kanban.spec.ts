@@ -22,13 +22,23 @@ const route = '/en/pipeline';
 test.describe('NPD Pipeline Kanban parity (pipeline.jsx:19-52)', () => {
   test.skip(!baseURL, 'PLAYWRIGHT_BASE_URL unset — live RBAC-authenticated server required; RTL DOM fallback evidence used.');
 
-  test('renders 6 gate columns + project cards, advances a card, and is axe-clean', async ({ page }) => {
+  test('renders 8 stage columns + project cards, advances a card, and is axe-clean', async ({ page }) => {
     await page.goto(`${baseURL}${route}`);
 
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    // 6 gate columns G0..Launched.
-    for (const gate of ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched']) {
-      await expect(page.getByTestId(`kanban-col-${gate}`)).toBeVisible();
+    // 8 stage columns (BRIEF … HANDOFF). PACKAGING/SENSORY/PILOT render but stay
+    // empty until npd_projects.current_stage persists them (migration 085 CHECK).
+    for (const stage of ['brief', 'recipe', 'packaging', 'trial', 'sensory', 'pilot', 'approval', 'handoff']) {
+      await expect(page.getByTestId(`kanban-col-${stage}`)).toBeVisible();
+    }
+
+    // The dead-button fix: "+ New project" opens the create modal.
+    const newProject = page.getByTestId('pipeline-new-project');
+    if (await newProject.isEnabled()) {
+      await newProject.click();
+      await expect(page.getByTestId('project-create-form')).toBeVisible();
+      await page.screenshot({ path: path.join(evidenceDir, 'T-059-create-modal.png'), fullPage: true });
+      await page.keyboard.press('Escape');
     }
 
     // Happy-path: capture the ready state.

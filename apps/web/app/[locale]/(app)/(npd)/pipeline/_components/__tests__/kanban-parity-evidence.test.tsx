@@ -40,7 +40,15 @@ const evidenceDir = resolve(THIS_DIR, '../../../../../../../e2e/artifacts/T-059'
 
 const LABELS: KanbanLabels = {
   title: 'Pipeline',
-  subtitle: 'Stage-Gate pipeline — projects by gate',
+  subtitle: 'Stage-Gate pipeline — projects by stage',
+  stageBrief: 'Brief',
+  stageRecipe: 'Recipe',
+  stagePackaging: 'Packaging',
+  stageTrial: 'Trial',
+  stageSensory: 'Sensory',
+  stagePilot: 'Pilot',
+  stageApproval: 'Approval',
+  stageHandoff: 'Handoff',
   gateG0: 'G0 · Concept',
   gateG1: 'G1 · Brief',
   gateG2: 'G2 · Recipe',
@@ -66,10 +74,10 @@ const LABELS: KanbanLabels = {
 };
 
 const PROJECTS: KanbanProject[] = [
-  { id: 'a1', code: 'DEV-052', name: 'Strawberry Yogurt 150g', type: 'single', currentGate: 'G0', prio: 'high', owner: 'Ana Owner', targetLaunch: '2026-09-01', progressPercent: 20 },
-  { id: 'b2', code: 'DEV-061', name: 'Vanilla Custard 500g', type: 'multi', currentGate: 'G2', prio: 'normal', owner: 'Bo Owner', targetLaunch: '2026-10-15', progressPercent: 60 },
-  { id: 'c3', code: 'DEV-070', name: 'Lemon Tart 90g', type: 'single', currentGate: 'G4', prio: 'low', owner: null, targetLaunch: null, progressPercent: 95 },
-  { id: 'd4', code: 'DEV-080', name: 'Mango Sorbet 1L', type: 'single', currentGate: 'Launched', prio: 'normal', owner: 'Cy Owner', targetLaunch: '2026-03-01', progressPercent: 100 },
+  { id: 'a1', code: 'DEV-052', name: 'Strawberry Yogurt 150g', type: 'single', currentGate: 'G0', currentStage: 'brief', prio: 'high', owner: 'Ana Owner', targetLaunch: '2026-09-01', progressPercent: 20 },
+  { id: 'b2', code: 'DEV-061', name: 'Vanilla Custard 500g', type: 'multi', currentGate: 'G2', currentStage: 'recipe', prio: 'normal', owner: 'Bo Owner', targetLaunch: '2026-10-15', progressPercent: 60 },
+  { id: 'c3', code: 'DEV-070', name: 'Lemon Tart 90g', type: 'single', currentGate: 'G4', currentStage: 'approval', prio: 'low', owner: null, targetLaunch: null, progressPercent: 95 },
+  { id: 'd4', code: 'DEV-080', name: 'Mango Sorbet 1L', type: 'single', currentGate: 'Launched', currentStage: 'handoff', prio: 'normal', owner: 'Cy Owner', targetLaunch: '2026-03-01', progressPercent: 100 },
 ];
 
 const okAction = vi.fn(async () => ({ ok: true as const, data: { currentGate: 'G3' as const } }));
@@ -78,7 +86,7 @@ function regionSummary(root: HTMLElement) {
   return {
     pageRoot: Boolean(root.querySelector('[data-prototype-anchor="npd/pipeline.jsx:19-52"]')),
     columns: root.querySelectorAll('[data-testid^="kanban-col-"]').length,
-    gateOrder: Array.from(root.querySelectorAll('[data-testid^="kanban-col-"]')).map((c) => c.getAttribute('data-gate')),
+    stageOrder: Array.from(root.querySelectorAll('[data-testid^="kanban-col-"]')).map((c) => c.getAttribute('data-stage')),
     cards: root.querySelectorAll('[data-testid^="kanban-card-"]').length,
     shadcnCards: root.querySelectorAll('[data-slot="card"]').length,
     badges: root.querySelectorAll('[data-slot="badge"]').length,
@@ -120,7 +128,8 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
       unmount();
     }
 
-    // Optimistic advance (G2 → G3) confirmed by the action.
+    // Advance (gate G2 → G3) confirmed by the action. Columns are stage-based, so
+    // the card remains in its 'recipe' stage column; the RSC refresh reconciles.
     {
       const { container, unmount } = render(
         <KanbanView labels={LABELS} canAdvance projects={PROJECTS} state="ready" advanceAction={okAction} />,
@@ -129,16 +138,17 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
         fireEvent.click(within(screen.getByTestId('kanban-card-DEV-061')).getByRole('button', { name: LABELS.advance }));
       });
       await waitFor(() => {
-        expect(within(screen.getByTestId('kanban-col-G3')).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
+        expect(okAction).toHaveBeenCalledWith({ projectId: 'b2', targetGate: 'G3' });
       });
-      writeFileSync(resolve(evidenceDir, 'optimistic-advance.html'), container.innerHTML, 'utf8');
-      (report.states as Record<string, unknown>)['optimistic_advance'] = {
-        movedToTarget: Boolean(container.querySelector('[data-testid="kanban-col-G3"] [data-testid="kanban-card-DEV-061"]')),
+      writeFileSync(resolve(evidenceDir, 'advance.html'), container.innerHTML, 'utf8');
+      (report.states as Record<string, unknown>)['advance'] = {
+        actionCalled: okAction.mock.calls.length > 0,
+        stillInStageColumn: Boolean(container.querySelector('[data-testid="kanban-col-recipe"] [data-testid="kanban-card-DEV-061"]')),
       };
       unmount();
     }
 
-    // 422 ADJACENCY_VIOLATION revert (card snaps back to source + alert).
+    // 422 ADJACENCY_VIOLATION → accessible alert (card stays in its stage column).
     {
       const failAction = vi.fn(async () => ({ ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 }));
       const { container, unmount } = render(
@@ -148,12 +158,11 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
         fireEvent.click(within(screen.getByTestId('kanban-card-DEV-061')).getByRole('button', { name: LABELS.advance }));
       });
       await waitFor(() => {
-        expect(within(screen.getByTestId('kanban-col-G2')).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
+        expect(within(screen.getByTestId('kanban-col-recipe')).getByTestId('kanban-card-DEV-061')).toBeInTheDocument();
       });
-      writeFileSync(resolve(evidenceDir, 'optimistic-revert-422.html'), container.innerHTML, 'utf8');
-      (report.states as Record<string, unknown>)['optimistic_revert_422'] = {
-        backInSource: Boolean(container.querySelector('[data-testid="kanban-col-G2"] [data-testid="kanban-card-DEV-061"]')),
-        notInTarget: !container.querySelector('[data-testid="kanban-col-G3"] [data-testid="kanban-card-DEV-061"]'),
+      writeFileSync(resolve(evidenceDir, 'advance-revert-422.html'), container.innerHTML, 'utf8');
+      (report.states as Record<string, unknown>)['advance_revert_422'] = {
+        stillInStageColumn: Boolean(container.querySelector('[data-testid="kanban-col-recipe"] [data-testid="kanban-card-DEV-061"]')),
         alertShown: Boolean(container.querySelector('[role="alert"]')),
       };
       unmount();
@@ -190,9 +199,9 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
       anchor: 'prototypes/design/Monopilot Design System/npd/pipeline.jsx:19-52',
       anchor_status: '@deprecated BL-NPD-02 (legacy R&D stage board, read-only) — translated to the production Stage-Gate model',
       mapping: [
-        { prototype: 'KanbanView columns from window.NPD_STAGES (5 legacy stages)', production: '6 gate columns G0..Launched from GATE_ORDER (gate-helpers parity)', lines: '36-52', deviation: 'legacy stage model → Stage-Gate (G0-G4 + Launched)' },
+        { prototype: 'KanbanView columns from window.NPD_STAGES', production: '8 stage columns brief→recipe→packaging→trial→sensory→pilot→approval→handoff from STAGE_ORDER', lines: '36-52', deviation: 'PACKAGING/SENSORY/PILOT are rendered for parity but never hold a real card — npd_projects.current_stage CHECK (mig 085) only persists brief/recipe/trial/approval/handoff; columns show "—"' },
         { prototype: 'kanban-col-head label + .count', production: 'data-testid=kanban-col-* header + kanban-count-* badge', lines: '42-45' },
-        { prototype: 'projects.filter(p => p.stage === s.key)', production: 'projects bucketed by currentGate (REAL listProjects rows)', lines: '39' },
+        { prototype: 'projects.filter(p => p.stage === s.key)', production: 'projects bucketed by currentStage (REAL listProjects rows)', lines: '39' },
         { prototype: 'empty column "—"', production: 'labelled per-column placeholder (labels.columnEmpty)', lines: '47' },
         { prototype: 'KanbanCard div.kanban-card onClick(open)', production: 'shadcn Card + CardContent; name → next/link /pipeline/[id]', lines: '19-21' },
         { prototype: 'p.code · p.type (muted)', production: 'font-mono code · type line', lines: '22' },
@@ -215,18 +224,27 @@ describe('T-059 parity evidence — write per-state DOM artifacts', () => {
     // Sanity gates so the evidence run is also a real assertion.
     const readyState = (report.states as Record<string, ReturnType<typeof regionSummary>>).ready;
     expect(readyState.pageRoot).toBe(true);
-    expect(readyState.columns).toBe(6);
-    expect(readyState.gateOrder).toEqual(['G0', 'G1', 'G2', 'G3', 'G4', 'Launched']);
+    expect(readyState.columns).toBe(8);
+    expect(readyState.stageOrder).toEqual([
+      'brief',
+      'recipe',
+      'packaging',
+      'trial',
+      'sensory',
+      'pilot',
+      'approval',
+      'handoff',
+    ]);
     expect(readyState.cards).toBe(PROJECTS.length);
     expect(readyState.rawSelects).toBe(0);
     expect(a11y.progressBarsHaveAria).toBe(true);
     expect(a11y.prioBadgesHaveText).toBe(true);
     expect(a11y.noRawSelect).toBe(true);
-    const adv = (report.states as Record<string, { movedToTarget: boolean }>).optimistic_advance;
-    expect(adv.movedToTarget).toBe(true);
-    const rev = (report.states as Record<string, { backInSource: boolean; notInTarget: boolean; alertShown: boolean }>).optimistic_revert_422;
-    expect(rev.backInSource).toBe(true);
-    expect(rev.notInTarget).toBe(true);
+    const adv = (report.states as Record<string, { actionCalled: boolean; stillInStageColumn: boolean }>).advance;
+    expect(adv.actionCalled).toBe(true);
+    expect(adv.stillInStageColumn).toBe(true);
+    const rev = (report.states as Record<string, { stillInStageColumn: boolean; alertShown: boolean }>).advance_revert_422;
+    expect(rev.stillInStageColumn).toBe(true);
     expect(rev.alertShown).toBe(true);
   });
 });
