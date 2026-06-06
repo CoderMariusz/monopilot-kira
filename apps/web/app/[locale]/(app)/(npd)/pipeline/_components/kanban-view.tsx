@@ -189,7 +189,11 @@ export function KanbanView({
 
       <section
         aria-label={labels.title}
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+        className="grid gap-3"
+        // Each stage column is at least 300px wide so the project cards stay readable;
+        // columns that don't fit wrap to the next row (instead of cramming all 8 onto
+        // one line). auto-fill keeps empty trailing tracks so the row stays aligned.
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
       >
         {columns.map(({ stage, items }) => (
           <div

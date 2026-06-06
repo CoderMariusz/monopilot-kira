@@ -55,26 +55,11 @@ import React from 'react';
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 
-/** EU FIC 1169/2011 — 14 mandatory allergens. Codes match the Reference EU14 seed
- * (identical order/codes to T-040 AllergenCascadeWidget for cross-component parity). */
-export const EU14_ALLERGEN_CODES = [
-  'gluten',
-  'crustaceans',
-  'eggs',
-  'fish',
-  'peanuts',
-  'soybeans',
-  'milk',
-  'nuts',
-  'celery',
-  'mustard',
-  'sesame',
-  'sulphites',
-  'lupin',
-  'molluscs',
-] as const;
-
-export type EU14Code = (typeof EU14_ALLERGEN_CODES)[number];
+// EU14 codes live in a PLAIN sibling module so the Server-Component formulation page
+// can import the real array (a 'use client' export becomes a client-reference proxy in
+// the RSC bundle → crashed the page). Re-exported here for existing client/test consumers.
+export { EU14_ALLERGEN_CODES, type EU14Code } from './eu14-allergen-codes';
+import { type EU14Code } from './eu14-allergen-codes';
 
 export type AllergenPresence = 'absent' | 'trace' | 'present';
 

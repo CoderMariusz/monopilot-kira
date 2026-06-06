@@ -35,7 +35,10 @@ import type { CostPanelLabels } from './_components/cost-panel';
 import type { NutritionPanelLabels, NutritionTargets } from './_components/nutrition-panel';
 import type { AllergenPanelLabels } from './_components/allergen-panel';
 import type { CompositionBarLabels } from './_components/composition-bar';
-import { EU14_ALLERGEN_CODES } from './_components/allergen-panel';
+// Import from the PLAIN module (NOT allergen-panel, which is 'use client' — importing
+// a const array from a client module into this RSC makes it a client-reference proxy in
+// the production bundle, so iterating it threw and crashed the page render).
+import { EU14_ALLERGEN_CODES } from './_components/eu14-allergen-codes';
 import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/get-formulation';
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
