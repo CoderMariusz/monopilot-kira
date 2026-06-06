@@ -157,9 +157,7 @@ export default function D365DlqScreen({
   if (state === 'forbidden') {
     return renderShell(
       labels,
-      <Card className="border-red-200 bg-red-50">
-        <CardContent role="alert" className="p-4 text-sm text-red-900">{labels.forbidden}</CardContent>
-      </Card>,
+      <div role="alert" className="alert alert-red">{labels.forbidden}</div>,
     );
   }
   if (state === 'loading') {
@@ -196,17 +194,13 @@ export default function D365DlqScreen({
     labels,
     <>
       {overThreshold ? (
-        <div
-          role="alert"
-          data-testid="d365-dlq-threshold-banner"
-          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-        >
+        <div role="alert" data-testid="d365-dlq-threshold-banner" className="alert alert-amber">
           {fill(labels.thresholdBanner, { depth: unresolvedDepth, threshold: thresholdDepth })}
         </div>
       ) : null}
 
       {actionError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {actionError}
         </div>
       ) : null}
@@ -299,68 +293,74 @@ export default function D365DlqScreen({
       </section>
 
       {selected ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-d365-dlq-payload-title"
-          data-testid="d365-dlq-payload-modal"
-          className="modal modal--md"
-        >
-          <header data-testid="modal-header" className="flex items-center justify-between gap-4">
-            <h2 id="settings-d365-dlq-payload-title">
-              {fill(labels.payloadTitle, { id: selected.id })}
-            </h2>
-          </header>
-          <div data-testid="modal-body" className="space-y-3">
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-slate-500">{labels.errorDetail}</h3>
-              <pre
-                data-testid="d365-dlq-error-detail-json"
-                aria-readonly="true"
-                className="max-h-48 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-white"
-              >{JSON.stringify(selected.error_detail, null, 2)}</pre>
+        <div className="modal-overlay" role="presentation" onClick={() => setSelected(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-d365-dlq-payload-title"
+            data-testid="d365-dlq-payload-modal"
+            className="modal-box modal modal--md"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header data-testid="modal-header" className="modal-head">
+              <h2 id="settings-d365-dlq-payload-title" className="modal-title">
+                {fill(labels.payloadTitle, { id: selected.id })}
+              </h2>
+            </header>
+            <div data-testid="modal-body" className="modal-body space-y-3">
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">{labels.errorDetail}</h3>
+                <pre
+                  data-testid="d365-dlq-error-detail-json"
+                  aria-readonly="true"
+                  className="max-h-48 overflow-auto rounded-md bg-[var(--text)] p-3 text-xs text-white"
+                >{JSON.stringify(selected.error_detail, null, 2)}</pre>
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">{labels.failedPayload}</h3>
+                <pre
+                  data-testid="d365-dlq-payload-json"
+                  aria-readonly="true"
+                  className="max-h-48 overflow-auto rounded-md bg-[var(--text)] p-3 text-xs text-white"
+                >{JSON.stringify(selected.failed_payload, null, 2)}</pre>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xs font-semibold uppercase text-slate-500">{labels.failedPayload}</h3>
-              <pre
-                data-testid="d365-dlq-payload-json"
-                aria-readonly="true"
-                className="max-h-48 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-white"
-              >{JSON.stringify(selected.failed_payload, null, 2)}</pre>
-            </div>
+            <footer data-testid="modal-footer" className="modal-foot">
+              <Button type="button" className="btn-secondary" onClick={() => setSelected(null)}>{labels.close}</Button>
+            </footer>
           </div>
-          <footer data-testid="modal-footer" className="flex justify-end gap-2">
-            <Button type="button" onClick={() => setSelected(null)}>{labels.close}</Button>
-          </footer>
         </div>
       ) : null}
 
       {confirm ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-d365-dlq-confirm-title"
-          data-testid="d365-dlq-confirm-modal"
-          className="modal modal--sm"
-        >
-          <header data-testid="modal-header">
-            <h2 id="settings-d365-dlq-confirm-title">{labels.confirmTitle}</h2>
-          </header>
-          <div data-testid="modal-body" className="text-sm text-slate-700">
-            {confirm.kind === 'retry' ? labels.confirmRetry : confirm.kind === 'resolve' ? labels.confirmResolve : labels.confirmSkip}
+        <div className="modal-overlay" role="presentation" onClick={() => setConfirm(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-d365-dlq-confirm-title"
+            data-testid="d365-dlq-confirm-modal"
+            className="modal-box modal modal--sm"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header data-testid="modal-header" className="modal-head">
+              <h2 id="settings-d365-dlq-confirm-title" className="modal-title">{labels.confirmTitle}</h2>
+            </header>
+            <div data-testid="modal-body" className="modal-body text-sm">
+              {confirm.kind === 'retry' ? labels.confirmRetry : confirm.kind === 'resolve' ? labels.confirmResolve : labels.confirmSkip}
+            </div>
+            <footer data-testid="modal-footer" className="modal-foot">
+              <Button type="button" className="btn-secondary" onClick={() => setConfirm(null)}>{labels.cancel}</Button>
+              <Button
+                type="button"
+                className={confirm.kind === 'skip' ? 'btn-danger' : 'btn-primary'}
+                aria-label={`${labels.confirm} ${confirm.kind}`}
+                disabled={pendingId === confirm.entry.id}
+                onClick={() => runAction(confirm.kind, confirm.entry)}
+              >
+                {labels.confirm}
+              </Button>
+            </footer>
           </div>
-          <footer data-testid="modal-footer" className="flex justify-end gap-2">
-            <Button type="button" className="btn-secondary" onClick={() => setConfirm(null)}>{labels.cancel}</Button>
-            <Button
-              type="button"
-              className={confirm.kind === 'skip' ? 'btn-danger' : 'btn-primary'}
-              aria-label={`${labels.confirm} ${confirm.kind}`}
-              disabled={pendingId === confirm.entry.id}
-              onClick={() => runAction(confirm.kind, confirm.entry)}
-            >
-              {labels.confirm}
-            </Button>
-          </footer>
         </div>
       ) : null}
     </>,

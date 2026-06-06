@@ -10,23 +10,27 @@ export async function SettingsRouteStub({ stubKey }: SettingsRouteStubProps) {
   const locale = await getLocale();
 
   return (
-    <main className="min-h-full bg-slate-50 px-6 py-8 text-slate-900" data-testid={`settings-route-stub-${stubKey}`}>
-      <section className="mx-auto flex max-w-4xl flex-col gap-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">{common('eyebrow')}</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{t('title')}</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{t('description')}</p>
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-            {common('body')}
+    <main className="mx-auto grid max-w-4xl gap-3 p-6" data-testid={`settings-route-stub-${stubKey}`}>
+      <header className="grid gap-1" data-region="page-head">
+        <h1 className="page-title">{t('title')}</h1>
+        <p className="muted text-sm">{t('description')}</p>
+      </header>
+
+      <div className="alert alert-blue" role="note">
+        {common('eyebrow')}
+      </div>
+
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-state-icon">⧗</div>
+          <div className="empty-state-body">{common('body')}</div>
+          <div className="empty-state-action">
+            <a className="btn btn-secondary" href={`/${locale}/settings`}>
+              {common('backToSettings')}
+            </a>
           </div>
-          <a
-            className="mt-6 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            href={`/${locale}/settings`}
-          >
-            {common('backToSettings')}
-          </a>
         </div>
-      </section>
+      </div>
     </main>
   );
 }

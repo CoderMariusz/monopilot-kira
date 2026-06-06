@@ -295,8 +295,8 @@ export function ReferenceDataScreen({
     <main data-testid="settings-reference-data-screen" aria-labelledby="reference-data-heading" className="settings-reference-data-screen space-y-4">
       <header className="flex items-start justify-between gap-4" data-region="page-head">
         <div>
-          <h1 id="reference-data-heading">{labels.title}</h1>
-          <p>{labels.subtitle}</p>
+          <h1 id="reference-data-heading" className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
+          <p className="muted">{labels.subtitle}</p>
         </div>
         <div data-testid="reference-data-actions" className="flex items-center gap-2">
           <a className="btn btn-secondary" href={`/settings/reference/${activeTableCode}/import`}>
@@ -319,13 +319,13 @@ export function ReferenceDataScreen({
       </header>
 
       {!canEditReferenceData ? (
-        <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div role="status" className="alert alert-amber" style={{ fontSize: 12 }}>
           {labels.permissionDenied ?? 'You do not have permission to edit reference data.'}
         </div>
       ) : null}
 
       {actionError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+        <div role="alert" className="alert alert-red" style={{ fontSize: 12 }}>
           {actionError}
         </div>
       ) : null}
@@ -355,16 +355,19 @@ export function ReferenceDataScreen({
       </div>
 
       {selectedTable ? (
-        <section role="region" aria-labelledby="reference-table-heading" className="rounded-lg border bg-white p-4">
-          <h2 id="reference-table-heading">{selectedTable.name}</h2>
-          <p>{selectedTable.desc}</p>
+        <section role="region" aria-labelledby="reference-table-heading" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 id="reference-table-heading" className="text-lg font-semibold text-slate-950">{selectedTable.name}</h2>
+          <p className="muted" style={{ marginBottom: 8 }}>{selectedTable.desc}</p>
 
           {tableState === 'loading' ? (
-            <div role="status">{labels.loading}</div>
+            <div role="status" className="empty-state">{labels.loading}</div>
           ) : tableState === 'error' ? (
-            <div role="alert">{labels.error}</div>
+            <div role="alert" className="alert alert-red" style={{ fontSize: 12 }}>{labels.error}</div>
           ) : tableState === 'empty' ? (
-            <div role="status">{labels.empty}</div>
+            <div role="status" className="empty-state">
+              <div className="empty-state-icon" aria-hidden="true">📋</div>
+              <div className="empty-state-body">{labels.empty}</div>
+            </div>
           ) : (
             <Table aria-label={selectedTable.name}>
               <TableHeader>
@@ -378,12 +381,19 @@ export function ReferenceDataScreen({
               <TableBody>
                 {selectedRows.map((row) => (
                   <TableRow key={row.rowId}>
-                    {selectedTable.columns.map((column) => (
-                      <TableCell key={column.key}>{renderCell(row.values[column.key], column, labels)}</TableCell>
+                    {selectedTable.columns.map((column, columnIndex) => (
+                      <TableCell
+                        key={column.key}
+                        className={columnIndex === 0 && column.type === 'text' ? 'mono' : undefined}
+                        style={columnIndex === 0 && column.type === 'text' ? { fontWeight: 600 } : undefined}
+                      >
+                        {renderCell(row.values[column.key], column, labels)}
+                      </TableCell>
                     ))}
                     <TableCell>
                       <Button
                         type="button"
+                        className="btn-secondary btn-sm"
                         disabled={!canEditReferenceData}
                         aria-label={`${labels.edit} ${rowLabel(row)}`}
                         onClick={() => {
@@ -395,6 +405,7 @@ export function ReferenceDataScreen({
                       </Button>{' '}
                       <Button
                         type="button"
+                        className="btn-secondary btn-sm"
                         disabled={!canEditReferenceData}
                         aria-label={`${labels.delete} ${rowLabel(row)}`}
                         onClick={() => {

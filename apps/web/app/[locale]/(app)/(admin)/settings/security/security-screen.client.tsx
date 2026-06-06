@@ -150,11 +150,11 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section data-region={region} role="region" aria-label={title} className="rounded-xl border bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+    <section data-region={region} role="region" aria-label={title} className="card" style={{ margin: 0, padding: 0 }}>
+      <div className="card-head" style={{ margin: 0, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
         <div>
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          {sub ? <p className="mt-1 text-sm text-slate-500">{sub}</p> : null}
+          <h2 className="card-title">{title}</h2>
+          {sub ? <p className="muted mt-1 text-sm">{sub}</p> : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
@@ -265,7 +265,7 @@ function FieldNumber({ label, value, disabled }: { label: string; value: number;
   return (
     <Input
       aria-label={label}
-      className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+      className="form-input w-20 disabled:bg-slate-100"
       defaultValue={value}
       disabled={disabled}
       name={label}
@@ -298,23 +298,29 @@ function AddIpRangeDialog({ open, onClose, labels }: { open: boolean; onClose: (
   if (!open) return null;
 
   return (
-    <div
-      aria-labelledby="sm-ip-allowlist-title"
-      aria-modal="true"
-      className="rounded-xl border bg-white p-4 shadow-lg"
-      data-focus-trap="radix-dialog"
-      data-modal-id="SM-IP-ALLOWLIST"
-      role="dialog"
-    >
-      <div className="flex items-center justify-between gap-4">
-        <h2 id="sm-ip-allowlist-title" className="text-base font-semibold">
-          {labels.addIpRangeTitle}
-        </h2>
-        <Button aria-label={labels.close} type="button" onClick={onClose}>
-          ×
-        </Button>
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div
+        aria-labelledby="sm-ip-allowlist-title"
+        aria-modal="true"
+        className="modal-box"
+        style={{ width: 440 }}
+        data-focus-trap="radix-dialog"
+        data-modal-id="SM-IP-ALLOWLIST"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-head">
+          <h2 id="sm-ip-allowlist-title" className="modal-title">
+            {labels.addIpRangeTitle}
+          </h2>
+          <Button aria-label={labels.close} className="btn-ghost btn-sm" type="button" onClick={onClose}>
+            ×
+          </Button>
+        </div>
+        <div className="modal-body">
+          <p className="muted text-sm">{labels.addIpRangeHelp}</p>
+        </div>
       </div>
-      <p className="mt-2 text-sm text-slate-500">{labels.addIpRangeHelp}</p>
     </div>
   );
 }
@@ -464,7 +470,7 @@ export default function SecurityScreen({
       <Section
         region="sso"
         title={labels.ssoTitle}
-        action={screenData.sso.connected ? <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">● {labels.connected}</span> : null}
+        action={screenData.sso.connected ? <span className="badge badge-green">● {labels.connected}</span> : null}
       >
         <SRow label={labels.provider} hint={labels.providerHint}>
           <div className="flex items-center gap-2.5">
@@ -512,7 +518,7 @@ export default function SecurityScreen({
         <div className="overflow-x-auto px-5 py-4">
           <table aria-label={labels.auditTableLabel} className="w-full border-collapse text-sm">
             <thead>
-              <tr>
+              <tr style={{ background: 'var(--gray-050)' }}>
                 <th scope="col" className="p-2 text-left">{labels.auditWhen}</th>
                 <th scope="col" className="p-2 text-left">{labels.auditWho}</th>
                 <th scope="col" className="p-2 text-left">{labels.auditAction}</th>
@@ -521,7 +527,7 @@ export default function SecurityScreen({
             </thead>
             <tbody>
               {auditRows.map((row) => (
-                <tr key={row.id} className="border-t" data-table-name={row.tableName}>
+                <tr key={row.id} className="border-t" style={{ borderColor: 'var(--border)' }} data-table-name={row.tableName}>
                   <td className="p-2 font-mono">{row.occurredAt}</td>
                   <td className="p-2">{row.actorName}</td>
                   <td className="p-2">{row.action}</td>

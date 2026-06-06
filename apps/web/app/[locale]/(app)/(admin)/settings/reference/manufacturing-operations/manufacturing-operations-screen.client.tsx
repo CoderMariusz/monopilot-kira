@@ -189,51 +189,55 @@ export default function ManufacturingOperationsScreen({
   };
 
   return (
-    <main aria-labelledby="manufacturing-operations-heading" className="settings-reference-page">
-      <nav aria-label={labels.breadcrumbSettings}>
-        <ol>
+    <main aria-labelledby="manufacturing-operations-heading" className="settings-reference-page" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <nav aria-label={labels.breadcrumbSettings} className="muted" style={{ fontSize: 11, display: 'flex', gap: 6 }}>
+        <ol style={{ display: 'flex', gap: 6, listStyle: 'none', margin: 0, padding: 0 }}>
           <li>{labels.breadcrumbSettings}</li>
+          <li aria-hidden="true">/</li>
           <li>{labels.breadcrumbReferenceTables}</li>
+          <li aria-hidden="true">/</li>
           <li>{labels.breadcrumbManufacturingOperations}</li>
         </ol>
       </nav>
 
       <header data-region="page-head">
-        <p>{labels.setReference}</p>
+        <p className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{labels.setReference}</p>
         <h1 id="manufacturing-operations-heading">{labels.title}</h1>
-        <p>{labels.subtitle}</p>
+        <p className="muted">{labels.subtitle}</p>
       </header>
 
-      <section aria-label={labels.title}>
-        <p>{labels.notice}</p>
-      </section>
+      <div className="alert alert-blue" aria-label={labels.title} style={{ fontSize: 12 }}>
+        {labels.notice}
+      </div>
 
-      {isLoading ? <section aria-label={labels.loading}>{labels.loading}</section> : null}
+      {isLoading ? (
+        <div role="status" aria-label={labels.loading} className="empty-state">{labels.loading}</div>
+      ) : null}
 
       {error ? (
-        <section role="alert" aria-label={labels.error}>
+        <div role="alert" aria-label={labels.error} className="alert alert-red" style={{ fontSize: 12 }}>
           {error}
-        </section>
+        </div>
       ) : null}
 
       {!canManage ? (
-        <section role="note" aria-label={labels.permissionDenied}>
+        <div role="note" aria-label={labels.permissionDenied} className="alert alert-amber" style={{ fontSize: 12 }}>
           {labels.permissionDenied}
-        </section>
+        </div>
       ) : null}
 
-      <section aria-label={labels.columnActions}>
-        <Button type="button" onClick={() => onAddOperation?.()} disabled={!canAddOperation}>
+      <section aria-label={labels.columnActions} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <Button type="button" className="btn-primary btn-sm" onClick={() => onAddOperation?.()} disabled={!canAddOperation}>
           {labels.addNewOperation}
         </Button>
-        <Button type="button" onClick={() => setResetDialogOpen(true)} disabled={!canManage || !resetToSeed}>
+        <Button type="button" className="btn-secondary btn-sm" onClick={() => setResetDialogOpen(true)} disabled={!canManage || !resetToSeed}>
           {labels.resetToSeedData}
         </Button>
-        <Button type="button" disabled>
+        <Button type="button" className="btn-secondary btn-sm" disabled>
           {labels.deleteInactiveRows}
         </Button>
 
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <span id="manufacturing-operations-industry-label">{labels.industryLabel}</span>
           <Select
             aria-labelledby="manufacturing-operations-industry-label"
@@ -254,7 +258,7 @@ export default function ManufacturingOperationsScreen({
           </Select>
         </div>
 
-        <label htmlFor="manufacturing-operations-show-inactive">
+        <label htmlFor="manufacturing-operations-show-inactive" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
           <Switch
             aria-label={labels.showInactive}
             checked={includeInactive}
@@ -265,7 +269,7 @@ export default function ManufacturingOperationsScreen({
         </label>
       </section>
 
-      <table aria-label={labels.title}>
+      <table className="table" aria-label={labels.title}>
         <thead>
           <tr>
             <th scope="col">{labels.columnOperationName}</th>
@@ -300,18 +304,23 @@ export default function ManufacturingOperationsScreen({
                   }
                 }}
               >
-                <td>{operation.operation_name}</td>
-                <td>{operation.process_suffix}</td>
-                <td>{operation.operation_seq}</td>
-                <td>{operation.industry_code}</td>
+                <td style={{ fontWeight: 500 }}>{operation.operation_name}</td>
+                <td className="mono">{operation.process_suffix}</td>
+                <td className="mono num">{operation.operation_seq}</td>
+                <td className="mono muted">{operation.industry_code}</td>
                 <td>
-                  <span aria-label={status}>{status}</span>
+                  <span
+                    className={operation.is_active ? 'badge badge-green' : 'badge badge-gray'}
+                    aria-label={status}
+                  >
+                    {status}
+                  </span>
                 </td>
                 <td>
-                  <Button type="button" onClick={() => onEditOperation?.(operation)} disabled={!canEditOperation}>
+                  <Button type="button" className="btn-secondary btn-sm" onClick={() => onEditOperation?.(operation)} disabled={!canEditOperation}>
                     {labels.editOperation.replace('{operation}', operation.operation_name)}
-                  </Button>
-                  <Button type="button" onClick={() => onDeactivateOperation?.(operation)} disabled={!canDeactivateOperation}>
+                  </Button>{' '}
+                  <Button type="button" className="btn-secondary btn-sm" onClick={() => onDeactivateOperation?.(operation)} disabled={!canDeactivateOperation}>
                     {labels.deleteOperation.replace('{operation}', operation.operation_name)}
                   </Button>
                 </td>
@@ -320,7 +329,12 @@ export default function ManufacturingOperationsScreen({
           })}
           {visibleOperations.length === 0 && !isLoading ? (
             <tr>
-              <td colSpan={6}>{labels.empty}</td>
+              <td colSpan={6}>
+                <div className="empty-state">
+                  <div className="empty-state-icon" aria-hidden="true">⚙️</div>
+                  <div className="empty-state-body">{labels.empty}</div>
+                </div>
+              </td>
             </tr>
           ) : null}
         </tbody>
@@ -332,10 +346,10 @@ export default function ManufacturingOperationsScreen({
           <p>{labels.resetDialogBody}</p>
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" onClick={() => setResetDialogOpen(false)}>
+          <Button type="button" className="btn-secondary btn-sm" onClick={() => setResetDialogOpen(false)}>
             {labels.cancel}
           </Button>
-          <Button type="button" onClick={confirmResetToSeed}>
+          <Button type="button" className="btn-danger btn-sm" onClick={confirmResetToSeed}>
             {labels.reset}
           </Button>
         </Modal.Footer>

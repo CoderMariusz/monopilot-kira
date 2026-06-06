@@ -469,9 +469,21 @@ export default async function SchemaColumnWizardPage(propsInput: unknown) {
           </ol>
         </nav>
 
-        <section className="sg-section schema-column-wizard__card" aria-busy={viewState === 'loading' ? 'true' : undefined}>
-          <div className="schema-column-wizard__progress" aria-hidden="true">
-            {STEPS.map((key, index) => <span key={key} className={step === index + 1 ? 'is-current' : ''}>{index + 1}</span>)}
+        <section className="sg-section schema-column-wizard__card card" aria-busy={viewState === 'loading' ? 'true' : undefined}>
+          <div className="wiz-stepper schema-column-wizard__progress" aria-hidden="true">
+            {STEPS.map((key, index) => {
+              const position = index + 1;
+              const status = step === position ? 'current' : step > position ? 'done' : '';
+              return (
+                <React.Fragment key={key}>
+                  {index > 0 ? <span className={`wiz-step-line ${step > index ? 'done' : ''}`} /> : null}
+                  <span className={`wiz-step ${status}`}>
+                    <span className="wiz-step-num">{step > position ? '✓' : position}</span>
+                    {labels[key]}
+                  </span>
+                </React.Fragment>
+              );
+            })}
           </div>
           {viewState === 'loading' ? <LoadingStepCard /> : <WizardStep locale={locale} labels={labels} stepLabels={stepLabels} deptState={deptState} step={step} wizard={wizard} />}
           <WizardFooter locale={locale} labels={labels} deptState={deptState} step={step} wizard={wizard} />
@@ -561,8 +573,14 @@ function WizardStep({ locale, labels, stepLabels, deptState, step, wizard }: { l
       return (
         <StepForm locale={locale} wizard={wizard} nextStep={8} omit={['presentationSection', 'presentationOrder']}>
           <WizardRegion title={labels.step7} question={labels.presentationQuestion}>
-            <label>Section label in form <input name="presentationSection" defaultValue={wizard.presentationSection} /></label>
-            <label>Order within section <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} /></label>
+            <div className="ff">
+              <label>Section label in form</label>
+              <input name="presentationSection" defaultValue={wizard.presentationSection} className="form-input" />
+            </div>
+            <div className="ff">
+              <label>Order within section</label>
+              <input name="presentationOrder" type="number" defaultValue={wizard.presentationOrder} className="form-input" />
+            </div>
           </WizardRegion>
         </StepForm>
       );
@@ -578,11 +596,13 @@ function TableStep({ locale, labels, wizard }: { locale: string; labels: WizardL
     <form id="schema-column-wizard-step-form" method="get" action={`/${locale}/settings/schema/new`}>
       <WizardRegion title={labels.step1} question={labels.tableQuestion}>
         <HiddenWizardFields locale={locale} wizard={wizard} step={2} omit={['table']} />
-        <label htmlFor="schema-column-table" className="field-label">{labels.tableQuestion}</label>
-        <select id="schema-column-table" name="table" defaultValue={wizard.table} required>
-          <option value="">Select table…</option>
-          {TABLE_OPTIONS.map((table) => <option key={table} value={table}>{table}</option>)}
-        </select>
+        <div className="ff">
+          <label htmlFor="schema-column-table">{labels.tableQuestion}</label>
+          <select id="schema-column-table" name="table" defaultValue={wizard.table} required className="form-input">
+            <option value="">Select table…</option>
+            {TABLE_OPTIONS.map((table) => <option key={table} value={table}>{table}</option>)}
+          </select>
+        </div>
       </WizardRegion>
     </form>
   );
@@ -633,7 +653,13 @@ function WizardFooter({ locale, labels, deptState, step, wizard }: { locale: str
       {step < 8 ? (
         <button type="submit" form="schema-column-wizard-step-form" className="btn btn-primary">{labels.next}</button>
       ) : wizard.scope === 'universal' ? (
-        <button type="button" className="btn btn-amber">{labels.requestL1Promotion}</button>
+        <button
+          type="button"
+          className="btn btn-amber"
+          style={{ background: 'var(--amber)', borderColor: 'var(--amber)', color: '#fff' }}
+        >
+          {labels.requestL1Promotion}
+        </button>
       ) : (
         <form action={publishColumnAction}>
           <HiddenWizardFields locale={locale} wizard={wizard} step={8} />
@@ -649,15 +675,23 @@ function ConflictDialog({ labels, locale, wizard, conflict }: { labels: WizardLa
   const titleId = 'schema-column-conflict-title';
   const diff = conflict.diff ?? {};
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="schema-column-wizard__dialog">
-      <h2 id={titleId}>{labels.concurrentEditTitle}</h2>
-      <p>{conflict.body}</p>
-      <dl>
-        <dt>Field</dt><dd>{String(diff.field ?? 'schema')}</dd>
-        <dt>Yours</dt><dd>{String(diff.before ?? 'draft')}</dd>
-        <dt>Latest published</dt><dd>{String(diff.after ?? 'latest')}</dd>
-      </dl>
-      <a className="btn btn-primary" href={urlForStep(locale, 8, wizard)}>{labels.reloadLatest}</a>
+    <div className="modal-overlay schema-column-wizard__dialog-overlay">
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="modal-box schema-column-wizard__dialog">
+        <div className="modal-head">
+          <h2 id={titleId} className="modal-title">{labels.concurrentEditTitle}</h2>
+        </div>
+        <div className="modal-body">
+          <p>{conflict.body}</p>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dt className="muted">Field</dt><dd className="mono">{String(diff.field ?? 'schema')}</dd>
+            <dt className="muted">Yours</dt><dd className="mono">{String(diff.before ?? 'draft')}</dd>
+            <dt className="muted">Latest published</dt><dd className="mono">{String(diff.after ?? 'latest')}</dd>
+          </dl>
+        </div>
+        <div className="modal-foot">
+          <a className="btn btn-primary" href={urlForStep(locale, 8, wizard)}>{labels.reloadLatest}</a>
+        </div>
+      </div>
     </div>
   );
 }

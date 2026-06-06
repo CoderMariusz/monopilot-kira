@@ -155,15 +155,15 @@ function Field({
   error?: string | null;
 }) {
   return (
-    <div data-field={field} className="grid gap-2 border-t border-slate-100 py-4 md:grid-cols-[210px_minmax(0,1fr)]">
+    <div data-field={field} className="grid gap-2 border-t border-border py-4 md:grid-cols-[210px_minmax(0,1fr)]">
       <div>
-        <div className="text-sm font-medium text-slate-950">{fieldLabel}</div>
-        {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+        <div className="text-sm font-medium">{fieldLabel}</div>
+        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
       </div>
       <div>
         {children}
         {error ? (
-          <div role="alert" className="mt-1 text-xs font-medium text-red-600">
+          <div role="alert" className="ff-error mt-1">
             {error}
           </div>
         ) : null}
@@ -243,21 +243,21 @@ export function D365SyncConfigForm({
       <header data-region="page-head" className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{labels.title}</h1>
-          <p className="text-sm text-slate-600">{labels.subtitle}</p>
+          <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
         <Button type="submit" form="d365-sync-config-form" disabled={!canSubmit} className="btn-primary">
           {pending ? 'Saving…' : labels.save}
         </Button>
       </header>
 
-      <div data-testid="d365-sync-applied-strip" className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+      <div data-testid="d365-sync-applied-strip" className="alert alert-blue">
         <strong>Last applied</strong>{' '}
         <span className="font-mono">{formatAppliedAt(config.last_applied_at, locale)}</span>
         {' · '}
         <span>Applied by {config.applied_by_user ?? 'not recorded'}</span>
       </div>
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      <div className="alert alert-amber" role="note">
         <strong>LEGACY-D365.</strong> Sync is retained for transition operations; no credentials are stored on this SET-082 screen.
       </div>
 
@@ -275,13 +275,13 @@ export function D365SyncConfigForm({
             <Input
               id="d365-pull-cron"
               aria-label={labels.fields.pullCron}
-              className="font-mono"
+              className="form-input font-mono"
               value={pullCron}
               onChange={(event) => setPullCron(event.currentTarget.value)}
               onBlur={() => setPullCron((value) => value.trim().replace(/\s+/g, ' '))}
               style={{ width: 220 }}
             />
-            <p className="mt-2 text-xs text-slate-600" aria-live="polite">
+            <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
               {nextRunPreview(pullCron, locale)}
             </p>
           </Field>
@@ -294,6 +294,7 @@ export function D365SyncConfigForm({
               max={1000}
               value={batchSize}
               onChange={(event) => setBatchSize(event.currentTarget.value)}
+              className="form-input"
               style={{ width: 120 }}
             />
           </Field>
@@ -315,6 +316,7 @@ export function D365SyncConfigForm({
               max={20}
               value={maxAttempts}
               onChange={(event) => setMaxAttempts(event.currentTarget.value)}
+              className="form-input"
               style={{ width: 120 }}
             />
           </Field>
@@ -327,15 +329,16 @@ export function D365SyncConfigForm({
               max={1440}
               value={retryBackoff}
               onChange={(event) => setRetryBackoff(event.currentTarget.value)}
+              className="form-input"
               style={{ width: 120 }}
             />
           </Field>
         </Section>
 
         <Section title={labels.sections.dlq}>
-          <div className="py-4 text-sm text-slate-700">
+          <div className="py-4 text-sm text-muted-foreground">
             Items that exceed the retry policy are visible in the worker-owned DLQ tooling.{' '}
-            <a className="font-medium text-blue-700 underline" href={config.dlq_href}>
+            <a className="font-medium text-[var(--blue-700)] underline" href={config.dlq_href}>
               Dead-letter queue
             </a>
           </div>
@@ -343,12 +346,12 @@ export function D365SyncConfigForm({
       </form>
 
       {status ? (
-        <p role="status" aria-live="polite" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+        <p role="status" aria-live="polite" className="alert alert-green">
           {status}
         </p>
       ) : null}
       {actionError ? (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+        <p role="alert" className="alert alert-red">
           {actionError}
         </p>
       ) : null}

@@ -68,14 +68,14 @@ function resolvedPolicySummary(permission: RolePermission) {
 
 function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'amber' | 'red' | 'blue' }) {
   const toneClass = {
-    slate: 'border-slate-200 bg-slate-50 text-slate-700',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-200 bg-amber-50 text-amber-800',
-    red: 'border-red-200 bg-red-50 text-red-700',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    slate: 'badge-gray',
+    green: 'badge-green',
+    amber: 'badge-amber',
+    red: 'badge-red',
+    blue: 'badge-blue',
   }[tone];
 
-  return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${toneClass}`}>{children}</span>;
+  return <span className={`badge ${toneClass}`}>{children}</span>;
 }
 
 function DialogShell({
@@ -94,25 +94,25 @@ function DialogShell({
   const titleId = useId();
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40" onMouseDown={onClose}>
+    <div className="modal-overlay" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         data-modal-id={modalId}
-        className="w-full max-w-3xl rounded-xl bg-white shadow-2xl"
+        className="modal-box wide"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 id={titleId} className="text-lg font-semibold">
+        <div className="modal-head">
+          <h2 id={titleId} className="modal-title">
             {title}
           </h2>
-          <button type="button" className="rounded border px-2 py-1 text-sm" aria-label={`Close ${title}`} onClick={onClose}>
+          <button type="button" className="modal-close" aria-label={`Close ${title}`} onClick={onClose}>
             ✕
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-auto px-5 py-4">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">{footer}</div> : null}
+        <div className="modal-body">{children}</div>
+        {footer ? <div className="modal-foot">{footer}</div> : null}
       </div>
     </div>
   );
@@ -131,36 +131,34 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
     <DialogShell title={`Permissions — ${role.name}`} onClose={onClose}>
       <div className="space-y-4">
         {permissions.some((permission) => permission.status === 'disabled_by_org_policy') ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="alert alert-amber">
             Disabled by org authorization policy
           </p>
         ) : null}
-        <div>
-          <label htmlFor={searchId} className="text-sm font-medium">
-            Search permissions
-          </label>
+        <div className="ff">
+          <label htmlFor={searchId}>Search permissions</label>
           <input
             id={searchId}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            className="form-input"
             placeholder="Filter by module or flat permission string"
           />
         </div>
         {permissionGroups.map((group) => {
           const groupPermissions = filtered.filter((permission) => permission.group === group);
           return (
-            <section key={group} role="region" aria-label={group} className="rounded-xl border bg-white p-4">
-              <h3 className="text-sm font-semibold">{group}</h3>
+            <section key={group} role="region" aria-label={group} className="card" style={{ margin: 0 }}>
+              <h3 className="card-title">{group}</h3>
               {groupPermissions.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-500">No flat permissions match this filter.</p>
+                <p className="muted mt-2 text-sm">No flat permissions match this filter.</p>
               ) : (
                 <ul className="mt-3 space-y-3">
                   {groupPermissions.map((permission) => (
-                    <li key={permission.name} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    <li key={permission.name} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--gray-050)' }}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <code className="rounded bg-white px-2 py-1 text-xs font-semibold text-slate-900">{permission.name}</code>
+                        <code className="mono rounded bg-white px-2 py-1 font-semibold" style={{ border: '1px solid var(--border)' }}>{permission.name}</code>
                         <Badge tone={permission.directlyGrantedBySeed ? 'green' : 'slate'}>
                           {permission.directlyGrantedBySeed ? 'Direct grant by role seed' : 'Not directly granted by role seed'}
                         </Badge>
@@ -168,7 +166,7 @@ function PermissionsDialog({ role, permissions, onClose }: { role: SystemRole; p
                           {statusLabel(permission.status)}
                         </Badge>
                       </div>
-                      {resolvedPolicySummary(permission) ? <p className="mt-2 text-sm text-slate-600">{resolvedPolicySummary(permission)}</p> : null}
+                      {resolvedPolicySummary(permission) ? <p className="muted mt-2 text-sm">{resolvedPolicySummary(permission)}</p> : null}
                     </li>
                   ))}
                 </ul>
@@ -209,12 +207,12 @@ function AssignRoleDialog({
       onClose={onClose}
       footer={
         <>
-          <button type="button" className="rounded border px-3 py-2 text-sm" onClick={onClose}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
             Cancel
           </button>
           <button
             type="button"
-            className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="btn btn-primary btn-sm"
             disabled={!valid}
             onClick={async () => {
               if (!selectedUser || !roleCode) return;
@@ -228,23 +226,21 @@ function AssignRoleDialog({
       }
     >
       <div className="space-y-4">
-        <div>
-          <label htmlFor={searchId} className="text-sm font-medium">
-            Search user
-          </label>
+        <div className="ff">
+          <label htmlFor={searchId}>Search user</label>
           <input
             id={searchId}
             type="text"
             value={query}
             autoFocus
             onChange={(event) => setQuery(event.target.value)}
-            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            className="form-input"
             placeholder="Name or email…"
           />
         </div>
-        <div role="listbox" aria-label="Assignable users" className="max-h-56 overflow-auto rounded-md border">
+        <div role="listbox" aria-label="Assignable users" className="max-h-56 overflow-auto rounded-md border" style={{ borderColor: 'var(--border)' }}>
           {filteredUsers.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-500">No matching org members.</p>
+            <p className="muted px-3 py-2 text-sm">No matching org members.</p>
           ) : (
             filteredUsers.slice(0, 8).map((user) => (
               <button
@@ -253,6 +249,7 @@ function AssignRoleDialog({
                 role="option"
                 aria-selected={selectedUser?.id === user.id}
                 className="flex w-full items-center justify-between border-t px-3 py-2 text-left first:border-t-0 aria-selected:bg-blue-50"
+                style={{ borderColor: 'var(--border)' }}
                 onClick={() => {
                   setSelectedUser(user);
                   setRoleCode('');
@@ -260,7 +257,7 @@ function AssignRoleDialog({
               >
                 <span>
                   <span className="block text-sm font-medium">{user.name}</span>
-                  <span className="block text-xs text-slate-500">
+                  <span className="muted block text-xs">
                     {user.email} · current: {user.currentRoleCode}
                   </span>
                 </span>
@@ -268,15 +265,15 @@ function AssignRoleDialog({
             ))
           )}
         </div>
-        <div>
-          <label htmlFor={roleId} className="text-sm font-medium">
-            New role
+        <div className="ff">
+          <label htmlFor={roleId}>
+            New role <span className="req">*</span>
           </label>
           <select
             id={roleId}
             value={roleCode}
             onChange={(event) => setRoleCode(event.target.value as RoleCode)}
-            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            className="form-input"
           >
             <option value="">— pick role —</option>
             {roles.map((role) => (
@@ -286,19 +283,18 @@ function AssignRoleDialog({
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor={reasonId} className="text-sm font-medium">
-            Reason
-          </label>
+        <div className="ff">
+          <label htmlFor={reasonId}>Reason</label>
           <textarea
             id={reasonId}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="mt-1 min-h-20 w-full rounded-md border px-3 py-2 text-sm"
+            className="form-input"
+            style={{ minHeight: 80 }}
           />
         </div>
         {selectedUser && roleCode ? (
-          <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+          <p className="alert alert-blue">
             Assigning <strong>{roleCode}</strong> to <strong>{selectedUser.name}</strong>. Previous role{' '}
             <strong>{selectedUser.currentRoleCode}</strong> will be replaced.
           </p>
@@ -328,17 +324,13 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
 
   if (rolesUnavailable) {
     return (
-      <main className="space-y-6 p-6">
+      <main className="space-y-5 p-6">
         <header>
-          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
+          <p className="muted text-xs font-semibold uppercase tracking-wide">SET-011</p>
+          <h1 className="page-title">Roles &amp; Permissions</h1>
         </header>
-        <div
-          role="alert"
-          data-testid="settings-roles-unavailable"
-          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-        >
-          <strong>Roles &amp; permissions are not available.</strong>
+        <div role="alert" data-testid="settings-roles-unavailable" className="alert alert-amber">
+          <strong className="alert-title">Roles &amp; permissions are not available.</strong>
           <p>The roles server loader has not been wired in this environment. No seed data is shown.</p>
         </div>
       </main>
@@ -346,80 +338,80 @@ export default function RolesScreen(props: RolesScreenProps = {}) {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-5 p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">SET-011</p>
-          <h1 className="text-3xl font-bold tracking-tight">Roles &amp; Permissions</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="muted text-xs font-semibold uppercase tracking-wide">SET-011</p>
+          <h1 className="page-title">Roles &amp; Permissions</h1>
+          <p className="muted mt-1 text-sm">
             Review seeded system roles, flat Settings/Auth-owned permissions, and org authorization policy state.
           </p>
         </div>
         {canManageRoles ? (
-          <button type="button" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white" onClick={() => setAssignOpen(true)}>
+          <button type="button" className="btn btn-primary" onClick={() => setAssignOpen(true)}>
             Assign Role to User
           </button>
         ) : (
-          <div className="max-w-sm rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <div className="alert alert-amber max-w-sm">
             Role assignment controls are hidden for this Read-only operator. Required permission: settings.roles.assign or settings.roles.manage.
           </div>
         )}
       </header>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">System roles</div>
-          <div className="mt-1 text-2xl font-bold">{roles.length}</div>
+        <div className="kpi">
+          <div className="kpi-label">System roles</div>
+          <div className="kpi-value">{roles.length}</div>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Assigned users</div>
-          <div className="mt-1 text-2xl font-bold">{totalUsers}</div>
+        <div className="kpi green">
+          <div className="kpi-label">Assigned users</div>
+          <div className="kpi-value">{totalUsers}</div>
         </div>
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-500">Permission depth</div>
+        <div className="kpi amber">
+          <div className="kpi-label">Permission depth</div>
           <div className="mt-1 text-sm font-semibold">Flat groups, no role × module matrix</div>
         </div>
       </div>
 
-      <section className="rounded-xl border bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b px-4 py-3">
+      <section className="card" style={{ margin: 0, padding: 0 }}>
+        <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
           <div role="tablist" aria-label="Role type">
-            <button role="tab" aria-selected="true" type="button" className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white">
+            <button role="tab" aria-selected="true" type="button" className="btn btn-primary btn-sm">
               System Roles
             </button>
-            <button role="tab" aria-selected="false" type="button" className="ml-2 rounded-md border px-3 py-1.5 text-sm" disabled>
+            <button role="tab" aria-selected="false" type="button" className="btn btn-secondary btn-sm ml-2" disabled>
               Custom Roles
             </button>
           </div>
-          <span className="text-xs text-slate-500">Custom Roles are enterprise Phase 3 — soon.</span>
+          <span className="muted text-xs">Custom Roles are enterprise Phase 3 — soon.</span>
         </div>
         <div className="overflow-x-auto">
           <table aria-label="System Roles" className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b bg-slate-50 text-left">
-                <th scope="col" className="px-4 py-3 font-semibold">Role name</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Code</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Users assigned</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Scope</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Actions</th>
+              <tr className="border-b text-left" style={{ background: 'var(--gray-050)', borderColor: 'var(--border)' }}>
+                <th scope="col" className="px-4 py-2 font-semibold">Role name</th>
+                <th scope="col" className="px-4 py-2 font-semibold">Code</th>
+                <th scope="col" className="px-4 py-2 font-semibold">Users assigned</th>
+                <th scope="col" className="px-4 py-2 font-semibold">Scope</th>
+                <th scope="col" className="px-4 py-2 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {roles.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                  <td className="muted px-4 py-6 text-sm" colSpan={5}>
                     No system roles are configured yet.
                   </td>
                 </tr>
               ) : (
                 roles.map((role) => (
-                  <tr key={role.code} className="border-b last:border-b-0">
-                    <td className="px-4 py-3 font-medium">{role.name}</td>
-                    <td className="px-4 py-3"><code>{role.code}</code></td>
-                    <td className="px-4 py-3">{role.usersAssigned}</td>
-                    <td className="px-4 py-3">{!canManageRoles && role.scope === 'Read-only' ? 'Read only' : role.scope}</td>
-                    <td className="px-4 py-3">
-                      <button type="button" className="rounded-md border px-3 py-1.5 text-sm" onClick={() => setPermissionRole(role)}>
+                  <tr key={role.code} className="border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                    <td className="px-4 py-2 font-medium">{role.name}</td>
+                    <td className="px-4 py-2"><code className="mono">{role.code}</code></td>
+                    <td className="px-4 py-2">{role.usersAssigned}</td>
+                    <td className="px-4 py-2">{!canManageRoles && role.scope === 'Read-only' ? 'Read only' : role.scope}</td>
+                    <td className="px-4 py-2">
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPermissionRole(role)}>
                         View Permissions
                       </button>
                     </td>

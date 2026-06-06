@@ -316,8 +316,8 @@ function Toolbar({
     <Card style={{ marginBottom: 12 }}>
       <CardContent style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 14px' }}>
         <form method="get" style={{ alignItems: 'center', display: 'contents' }}>
-          <input name="operation_name" aria-label={labels.searchLabel} placeholder={labels.searchPlaceholder} style={{ fontSize: 12, width: 240 }} />
-          <select name="user" aria-label={labels.userLabel} defaultValue="all" style={{ fontSize: 12 }}>
+          <input className="form-input" name="operation_name" aria-label={labels.searchLabel} placeholder={labels.searchPlaceholder} style={{ fontSize: 12, width: 240 }} />
+          <select className="form-input" name="user" aria-label={labels.userLabel} defaultValue="all" style={{ fontSize: 12, width: 'auto' }}>
             <option value="all">{labels.allUsers}</option>
             {users.map((user) => (
               <option key={user} value={user}>{user}</option>
@@ -326,22 +326,22 @@ function Toolbar({
           <span style={{ color: 'var(--muted)', fontSize: 11 }}>{labels.date}</span>
           <label style={{ color: 'var(--muted)', fontSize: 11 }}>
             {labels.from}
-            <input name="from" type="date" style={{ fontSize: 12, marginLeft: 4 }} />
+            <input className="form-input" name="from" type="date" style={{ fontSize: 12, marginLeft: 4, width: 'auto' }} />
           </label>
           <label style={{ color: 'var(--muted)', fontSize: 11 }}>
             {labels.to}
-            <input name="to" type="date" style={{ fontSize: 12, marginLeft: 4 }} />
+            <input className="form-input" name="to" type="date" style={{ fontSize: 12, marginLeft: 4, width: 'auto' }} />
           </label>
           <input type="hidden" name="datePreset" value="custom" />
-          <Button type="submit">{labels.date}</Button>
+          <Button className="btn-primary btn-sm" type="submit">{labels.date}</Button>
         </form>
         <form method="get" style={{ display: 'inline-flex' }}>
-          <Button type="submit" name="datePreset" value="7d" aria-label={labels.lastSevenDays}>
+          <Button className="btn-secondary btn-sm" type="submit" name="datePreset" value="7d" aria-label={labels.lastSevenDays}>
             {labels.lastSevenDays}
           </Button>
         </form>
         <form method="get" style={{ display: 'inline-flex' }}>
-          <Button type="submit">{labels.reset}</Button>
+          <Button className="btn-secondary btn-sm" type="submit">{labels.reset}</Button>
         </form>
         <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>
           {formatLabel(labels.entriesCount, { count, total })}

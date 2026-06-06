@@ -76,12 +76,9 @@ function statusLabel(status: InvitationStatus) {
 }
 
 function Badge({ children, tone }: { children: React.ReactNode; tone: string }) {
+  const toneClass = tone === 'amber' ? 'badge-amber' : tone === 'red' ? 'badge-red' : 'badge-green';
   return (
-    <span
-      data-slot="badge"
-      data-tone={tone}
-      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-    >
+    <span data-slot="badge" data-tone={tone} className={`badge ${toneClass}`}>
       {children}
     </span>
   );
@@ -90,8 +87,8 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: string }) 
 function LoadingState() {
   return (
     <main data-testid="settings-invitations-loading" aria-busy="true" className="space-y-4 p-6">
-      <div className="h-8 w-64 rounded bg-slate-200" />
-      <div className="rounded-xl border p-4">
+      <div className="h-8 w-64 rounded" style={{ background: 'var(--gray-100)' }} />
+      <div className="card" style={{ margin: 0 }}>
         {[0, 1, 2, 3].map((row) => (
           <div
             key={row}
@@ -150,32 +147,33 @@ function RevokeDialog({
   const titleId = useId();
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40" onMouseDown={onCancel}>
+    <div className="modal-overlay" onMouseDown={onCancel}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-xl bg-white shadow-2xl"
+        className="modal-box"
+        style={{ width: 440 }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="border-b px-5 py-4">
-          <h2 id={titleId} className="text-base font-semibold">
+        <div className="modal-head">
+          <h2 id={titleId} className="modal-title">
             Revoke invitation
           </h2>
         </div>
-        <div className="space-y-3 px-5 py-4 text-sm">
-          <p>
+        <div className="modal-body space-y-3 text-sm">
+          <div className="alert alert-red" style={{ marginBottom: 0 }}>
             Revoke invitation for <strong>{invitation.email}</strong>?
-          </p>
-          <p className="text-muted-foreground">
+          </div>
+          <p className="muted">
             This pending invitation expires at {invitation.expiresAt}. Revoking it records a T-124 audit result and prevents the magic link from being used.
           </p>
         </div>
-        <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
-          <Button type="button" onClick={onCancel}>
+        <div className="modal-foot">
+          <Button type="button" className="btn-secondary btn-sm" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="button" onClick={onConfirm}>
+          <Button type="button" className="btn-danger btn-sm" onClick={onConfirm}>
             Confirm revoke
           </Button>
         </div>
@@ -285,7 +283,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
   if (!canView) {
     return (
       <main className="p-6">
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="alert alert-amber">
           Permission denied: {VIEW_PERMISSION} or {INVITE_PERMISSION} is required to view pending invitations.
         </div>
       </main>
@@ -295,7 +293,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
   if (state === 'error') {
     return (
       <main className="p-6">
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {errorMessage ?? 'Invitations could not be loaded.'}
         </div>
       </main>
@@ -306,58 +304,53 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     <main className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Pending Invitations</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="page-title">Pending Invitations</h1>
+          <p className="muted text-sm">
             View and manage outstanding user invitations for this organisation.
           </p>
         </div>
         {canWrite && effectiveState !== 'empty' ? (
-          <Button type="button" onClick={() => void inviteUser?.({})}>
+          <Button type="button" className="btn-primary" onClick={() => void inviteUser?.({})}>
             Invite User
           </Button>
         ) : null}
       </div>
 
       {!canWrite ? (
-        <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div role="note" className="alert alert-amber">
           Read-only mode: {INVITE_PERMISSION} and {ROLE_ASSIGN_PERMISSION} are required for Invite, Resend, or Revoke controls.
         </div>
       ) : null}
 
       {feedback ? (
-        <div
-          role={feedback.kind}
-          className={`rounded-lg border p-3 text-sm ${
-            feedback.kind === 'alert' ? 'border-red-200 bg-red-50 text-red-900' : 'border-green-200 bg-green-50 text-green-900'
-          }`}
-        >
+        <div role={feedback.kind} className={`alert ${feedback.kind === 'alert' ? 'alert-red' : 'alert-green'}`}>
           {feedback.message}
         </div>
       ) : null}
 
       {effectiveState === 'empty' ? (
-        <div role="status" className="rounded-lg border border-dashed p-8 text-center">
-          <div className="text-2xl" aria-hidden="true">
+        <div role="status" className="empty-state card" style={{ margin: 0 }}>
+          <div className="empty-state-icon" aria-hidden="true">
             &#9993;
           </div>
-          <p className="mt-2 font-medium">No pending invitations.</p>
-          <p className="mt-1 text-sm text-muted-foreground">Invite a team member to get started.</p>
+          <p className="empty-state-title">No pending invitations.</p>
+          <p className="empty-state-body">Invite a team member to get started.</p>
           {canWrite ? (
-            <Button type="button" className="mt-4" onClick={() => void inviteUser?.({})}>
+            <Button type="button" className="btn-primary empty-state-action" onClick={() => void inviteUser?.({})}>
               Invite User
             </Button>
           ) : null}
         </div>
       ) : (
-        <section aria-label="Pending invitations panel" className="rounded-xl border">
-          <div className="border-b p-4">
-            <h2 className="text-lg font-semibold">Invitation lifecycle</h2>
-            <p className="text-sm text-muted-foreground">Pending can be resent or revoked; expired can be resent; accepted invitations are immutable.</p>
+        <section aria-label="Pending invitations panel" className="card" style={{ margin: 0, padding: 0 }}>
+          <div className="border-b p-4" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="card-title">Invitation lifecycle</h2>
+            <p className="muted text-sm">Pending can be resent or revoked; expired can be resent; accepted invitations are immutable.</p>
           </div>
           <div className="overflow-x-auto p-4">
             <table aria-label="Pending Invitations" className="w-full border-collapse text-sm">
               <thead>
-                <tr>
+                <tr style={{ background: 'var(--gray-050)' }}>
                   <th scope="col" className="p-2 text-left">Email</th>
                   <th scope="col" className="p-2 text-left">Role</th>
                   <th scope="col" className="p-2 text-left">Invited By</th>
@@ -369,39 +362,39 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
               </thead>
               <tbody>
                 {invitations.map((invitation) => (
-                  <tr key={invitation.id} className="border-t">
+                  <tr key={invitation.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                     <td className="p-2 font-medium">{invitation.email}</td>
                     <td className="p-2">{invitation.role}</td>
                     <td className="p-2">{invitation.invitedBy}</td>
-                    <td className="p-2 text-muted-foreground">{invitation.invitedAt}</td>
-                    <td className="p-2 text-muted-foreground">{invitation.expiresAt}</td>
+                    <td className="muted mono p-2">{invitation.invitedAt}</td>
+                    <td className="muted mono p-2">{invitation.expiresAt}</td>
                     <td className="p-2">
                       <Badge tone={statusTone(invitation.status)}>{statusLabel(invitation.status)}</Badge>
                     </td>
                     <td className="p-2">
                       {canWrite && invitation.status === 'pending' && invitation.inviteToken ? (
                         <div className="flex gap-2">
-                          <Button type="button" onClick={() => void handleResend(invitation)}>
+                          <Button type="button" className="btn-secondary btn-sm" onClick={() => void handleResend(invitation)}>
                             Resend
                           </Button>
-                          <Button type="button" onClick={() => setRevokeTarget(invitation)}>
+                          <Button type="button" className="btn-danger btn-sm" onClick={() => setRevokeTarget(invitation)}>
                             Revoke
                           </Button>
                         </div>
                       ) : null}
                       {canWrite && invitation.status === 'expired' && invitation.inviteToken ? (
-                        <Button type="button" onClick={() => void handleResend(invitation)}>
+                        <Button type="button" className="btn-secondary btn-sm" onClick={() => void handleResend(invitation)}>
                           Resend
                         </Button>
                       ) : null}
                       {invitation.status === 'accepted' ? (
-                        <span className="text-xs text-muted-foreground">Accepted user is immutable.</span>
+                        <span className="muted text-xs">Accepted user is immutable.</span>
                       ) : null}
                       {!canWrite && invitation.status !== 'accepted' ? (
-                        <span className="text-xs text-muted-foreground">No actions</span>
+                        <span className="muted text-xs">No actions</span>
                       ) : null}
                       {canWrite && invitation.status !== 'accepted' && !invitation.inviteToken ? (
-                        <span className="text-xs text-muted-foreground">Lifecycle action unavailable</span>
+                        <span className="muted text-xs">Lifecycle action unavailable</span>
                       ) : null}
                     </td>
                   </tr>

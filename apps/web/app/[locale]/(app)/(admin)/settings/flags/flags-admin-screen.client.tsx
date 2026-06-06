@@ -210,7 +210,7 @@ export default function FlagsAdminScreen({
   if (state === 'loading') {
     return (
       <main data-testid="settings-flags-admin-screen" className="space-y-4 p-6" aria-busy="true">
-        <section data-testid="settings-flags-loading-state" className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        <section data-testid="settings-flags-loading-state" className="card text-sm text-muted-foreground">
           {labels.loading}
         </section>
       </main>
@@ -220,11 +220,7 @@ export default function FlagsAdminScreen({
   if (state === 'permission_denied') {
     return (
       <main data-testid="settings-flags-admin-screen" className="space-y-4 p-6">
-        <div
-          data-testid="settings-flags-permission-denied-state"
-          role="alert"
-          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-        >
+        <div data-testid="settings-flags-permission-denied-state" role="alert" className="alert alert-amber">
           {labels.permissionDenied}
         </div>
       </main>
@@ -234,7 +230,7 @@ export default function FlagsAdminScreen({
   if (state === 'error') {
     return (
       <main data-testid="settings-flags-admin-screen" className="space-y-4 p-6">
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {labels.error}
         </div>
       </main>
@@ -245,13 +241,10 @@ export default function FlagsAdminScreen({
     <main data-testid="settings-flags-admin-screen" className="space-y-4 p-6">
       <header data-region="page-head" className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
-        <a
-          href={posthogUrl}
-          className="btn btn-secondary inline-flex rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-800"
-        >
+        <a href={posthogUrl} className="btn btn-secondary inline-flex">
           {labels.openPostHog}
         </a>
       </header>
@@ -259,14 +252,11 @@ export default function FlagsAdminScreen({
       <div
         data-region="preflight-notice"
         role="alert"
-        className={[
-          'rounded-lg border p-3 text-xs',
-          preflightBlocked ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-blue-200 bg-blue-50 text-blue-900',
-        ].join(' ')}
+        className={['alert text-xs', preflightBlocked ? 'alert-amber' : 'alert-blue'].join(' ')}
       >
         {preflightBlocked ? (
           <div className="space-y-2">
-            <p className="font-semibold">{labels.vSet43Title}</p>
+            <p className="alert-title">{labels.vSet43Title}</p>
             <p>{labels.vSet43Body}</p>
             <a href={authorizationPreflight.configureHref} className="font-medium underline underline-offset-2">
               {labels.configureAuthorization}
@@ -293,19 +283,22 @@ export default function FlagsAdminScreen({
           placeholder={labels.searchPlaceholder}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="w-80 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="form-input w-80"
         />
       </div>
 
-      <section data-region="flags-table" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold text-slate-950">{sectionTitle}</h2>
+      <section data-region="flags-table" className="card">
+        <h2 className="mb-3 text-lg font-semibold">{sectionTitle}</h2>
         {actionError ? (
-          <div role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <div role="alert" className="alert alert-red mb-3">
             {actionError}
           </div>
         ) : null}
         {state === 'empty' || filteredFlags.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600">{labels.empty}</p>
+          <div className="empty-state">
+            <div className="empty-state-icon" aria-hidden="true">🚩</div>
+            <div className="empty-state-title">{labels.empty}</div>
+          </div>
         ) : (
           <Table aria-label={sectionTitle}>
             <TableHeader>
@@ -326,7 +319,7 @@ export default function FlagsAdminScreen({
                 return (
                   <TableRow key={flag.code}>
                     <TableCell className="font-mono text-[11px] font-semibold">{flag.code}</TableCell>
-                    <TableCell className="max-w-xs text-xs text-slate-600">{flagDescription(flag)}</TableCell>
+                    <TableCell className="max-w-xs text-xs text-muted-foreground">{flagDescription(flag)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge variant={isEnabled ? 'success' : 'muted'} className="text-[10px]">
@@ -341,14 +334,14 @@ export default function FlagsAdminScreen({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <div className="h-1 w-12 overflow-hidden rounded-sm bg-slate-100" aria-hidden="true">
-                          <div className="h-full bg-blue-600" style={{ width: `${rollout}%` }} />
+                        <div className="h-1 w-12 overflow-hidden rounded-sm bg-[var(--gray-100)]" aria-hidden="true">
+                          <div className="h-full bg-[var(--blue)]" style={{ width: `${rollout}%` }} />
                         </div>
                         <span className="font-mono text-[11px]">{rollout}%</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-[11px] text-slate-500">{flagUpdated(flag)}</TableCell>
-                    <TableCell className="text-[11px] text-slate-500">{flag.consumers?.join(', ') || labels.noConsumers}</TableCell>
+                    <TableCell className="font-mono text-[11px] text-muted-foreground">{flagUpdated(flag)}</TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground">{flag.consumers?.join(', ') || labels.noConsumers}</TableCell>
                     <TableCell>
                       <Button type="button" className="btn-secondary btn-sm" onClick={() => handleEdit(flag)}>
                         {labels.edit}

@@ -72,7 +72,7 @@ function PageHead({
     <header data-region="page-head" className="mb-4 flex items-start justify-between gap-4">
       <div>
         <h1 className="text-2xl font-semibold">{labels.title}</h1>
-        <p className="text-sm text-slate-600">{labels.subtitle}</p>
+        <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
       <div className="flex items-center gap-2">
         <Button type="button" className="btn-secondary" onClick={onExport} disabled={exportDisabled}>
@@ -90,23 +90,27 @@ function StateView({ labels, state, dir }: { labels: D365MappingLabels; state: '
   return (
     <Shell dir={dir} busy={state === 'loading'}>
       <PageHead labels={labels} exportDisabled />
-      <Card className={state === 'error' ? 'border-red-200 bg-red-50' : 'bg-white'}>
-        <CardContent className="p-4">
-          {state === 'error' ? (
-            <p role="alert" className="text-sm font-medium text-red-900">
-              {labels.error}
-            </p>
-          ) : state === 'loading' ? (
-            <p data-testid="settings-d365-mapping-loading" role="status" className="text-sm text-slate-700">
+      {state === 'error' ? (
+        <div role="alert" className="alert alert-red">
+          {labels.error}
+        </div>
+      ) : state === 'loading' ? (
+        <Card className="bg-white">
+          <CardContent className="p-4">
+            <p data-testid="settings-d365-mapping-loading" role="status" className="text-sm text-muted-foreground">
               {labels.loading}
             </p>
-          ) : (
-            <p role="status" className="text-sm text-slate-700">
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-white">
+          <CardContent className="p-4">
+            <p role="status" className="text-sm text-muted-foreground">
               {labels.empty}
             </p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </Shell>
   );
 }
@@ -213,9 +217,7 @@ export default function D365MappingScreen({
   }
 
   const hasUnmappedAllergens = rows.some((row) => row.unmapped);
-  const guidanceClassName = hasUnmappedAllergens
-    ? 'alert alert-red rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-950'
-    : 'alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-950';
+  const guidanceClassName = hasUnmappedAllergens ? 'alert alert-red text-xs' : 'alert alert-blue text-xs';
 
   return (
     <Shell dir={dir}>
@@ -226,7 +228,7 @@ export default function D365MappingScreen({
       </div>
       <DirectionFilters labels={labels} rows={rows} dir={dir} locale={locale} />
       {exportStatus ? (
-        <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+        <div role="status" className="alert alert-green">
           {exportStatus}
         </div>
       ) : null}

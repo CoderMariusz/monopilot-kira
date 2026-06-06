@@ -161,7 +161,7 @@ export function ValidationRules({
           {regexOn ? (
             <div className="mt-2.5 grid gap-2">
               <input
-                className="mono text-xs"
+                className="form-input mono text-xs"
                 name="regexPattern"
                 aria-label={labels.valRegex}
                 placeholder="^[A-Z]{3}-\d{4}$"
@@ -170,7 +170,7 @@ export function ValidationRules({
               />
               <div className="flex items-center gap-2">
                 <input
-                  className="flex-1 text-xs"
+                  className="form-input flex-1 text-xs"
                   aria-label={labels.valRegexPlaceholder}
                   placeholder={labels.valRegexPlaceholder}
                   value={regexTest}
@@ -207,9 +207,9 @@ export function ValidationRules({
           </div>
           {rangeOn && showRange ? (
             <div className="mt-2.5 flex items-center gap-2">
-              <input name="rangeMin" placeholder={labels.valRangeMin} aria-label={labels.valRangeMin} className="text-xs" style={{ width: 140 }} />
+              <input name="rangeMin" placeholder={labels.valRangeMin} aria-label={labels.valRangeMin} className="form-input text-xs" style={{ width: 140 }} />
               <span className="muted text-xs">{labels.valRangeTo}</span>
-              <input name="rangeMax" placeholder={labels.valRangeMax} aria-label={labels.valRangeMax} className="text-xs" style={{ width: 140 }} />
+              <input name="rangeMax" placeholder={labels.valRangeMax} aria-label={labels.valRangeMax} className="form-input text-xs" style={{ width: 140 }} />
             </div>
           ) : null}
         </div>

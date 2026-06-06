@@ -282,8 +282,8 @@ export function AuditLogViewerScreen({
     >
       <header data-region="page-head" className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {labels.summary}
           </p>
         </div>
@@ -292,7 +292,7 @@ export function AuditLogViewerScreen({
         </Button>
       </header>
 
-      <section role="alert" className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+      <section role="alert" className="alert alert-blue text-xs">
         {labels.orgNoticePrefix} <strong>{callerAccess.orgName}</strong> {orgNoticeBeforePermission}
         <code className="font-mono">impersonate.tenant</code>{orgNoticeAfterPermission}
       </section>
@@ -315,7 +315,7 @@ export function AuditLogViewerScreen({
               <>
                 <Input
                   aria-label={labels.fromDate}
-                  className="text-xs"
+                  className="form-input text-xs"
                   type="date"
                   value={dateRange.from}
                   onChange={(event) => {
@@ -324,10 +324,10 @@ export function AuditLogViewerScreen({
                     setPage(1);
                   }}
                 />
-                <span className="text-xs text-slate-500">{labels.to}</span>
+                <span className="text-xs text-muted-foreground">{labels.to}</span>
                 <Input
                   aria-label={labels.toDate}
-                  className="text-xs"
+                  className="form-input text-xs"
                   type="date"
                   value={dateRange.to}
                   onChange={(event) => {
@@ -383,7 +383,7 @@ export function AuditLogViewerScreen({
             </Select>
             <Input
               aria-label={labels.tableContains}
-              className="font-mono text-xs"
+              className="form-input font-mono text-xs"
               placeholder={`${labels.tableContains}…`}
               value={tableFilter}
               onChange={(event) => {
@@ -393,7 +393,7 @@ export function AuditLogViewerScreen({
             />
             <Input
               aria-label={labels.searchFieldValues}
-              className="min-w-44 flex-1 text-xs"
+              className="form-input min-w-44 flex-1 text-xs"
               placeholder={`${labels.searchFieldValues}…`}
               value={search}
               onChange={(event) => {
@@ -408,20 +408,20 @@ export function AuditLogViewerScreen({
       </Card>
 
       {explainText ? (
-        <section className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+        <section className="alert alert-green text-xs">
           {labels.explainVerified}
           <span className="sr-only"> {explainText}</span>
         </section>
       ) : null}
 
       {showWarn ? (
-        <section role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+        <section role="alert" className="alert alert-amber text-xs">
           <strong>{labels.largeDateRange}</strong> {formatLabel(labels.largeDateRangeBody, { days: spanDays(dateRange), partitions: partitionCount })}
         </section>
       ) : null}
 
       {isError ? (
-        <section role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <section role="alert" className="alert alert-red">
           {labels.loadError}
         </section>
       ) : null}
@@ -430,11 +430,14 @@ export function AuditLogViewerScreen({
         <h2 className="mb-2 text-base font-semibold">{formatLabel(labels.activity, { count: pageRows.length })}</h2>
         <Card className="overflow-hidden border border-slate-200 bg-white">
           {isLoading ? (
-            <div className="p-12 text-center text-sm text-slate-600">{labels.loading}</div>
+            <div className="p-12 text-center text-sm text-muted-foreground">{labels.loading}</div>
           ) : isEmpty ? (
-            <div className="p-12 text-center">
-              <div className="mb-2 text-sm text-slate-600">{labels.empty}</div>
-              <Button type="button" className="btn-secondary btn-sm" onClick={resetFilters}>{labels.resetFilters}</Button>
+            <div className="empty-state">
+              <div className="empty-state-icon" aria-hidden="true">📜</div>
+              <div className="empty-state-title">{labels.empty}</div>
+              <div className="empty-state-action">
+                <Button type="button" className="btn-secondary btn-sm" onClick={resetFilters}>{labels.resetFilters}</Button>
+              </div>
             </div>
           ) : (
             <>

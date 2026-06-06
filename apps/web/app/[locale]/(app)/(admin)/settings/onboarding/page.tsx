@@ -47,63 +47,54 @@ export default async function OnboardingSettingsPage({ params }: PageProps) {
 
   const wizardHref = `/${locale}/onboarding/profile`;
 
+  const complete = Boolean(completedAt);
+
   return (
-    <main
-      className="min-h-full bg-slate-50 px-6 py-8 text-slate-900"
-      data-testid="settings-onboarding-panel"
-    >
-      <section className="mx-auto flex max-w-4xl flex-col gap-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">
-            {safeT('eyebrow', 'Guided setup')}
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-            {safeT('title', 'Onboarding wizard')}
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            {safeT('panelDescription', 'Launch or resume the guided setup wizard. Progress below reflects your organization’s real onboarding state.')}
-          </p>
+    <main className="mx-auto grid max-w-4xl gap-3 p-6" data-testid="settings-onboarding-panel">
+      <header className="grid gap-1" data-region="page-head">
+        <h1 className="page-title">{safeT('title', 'Onboarding wizard')}</h1>
+        <p className="muted text-sm">
+          {safeT(
+            'panelDescription',
+            'Launch or resume the guided setup wizard. Progress below reflects your organization’s real onboarding state.',
+          )}
+        </p>
+      </header>
 
-          <dl className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" data-testid="onboarding-status">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {safeT('statusLabel', 'Status')}
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">{statusLabel}</dd>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" data-testid="onboarding-progress">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {safeT('progressLabel', 'Steps completed')}
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">
-                {completedCount === null ? '—' : `${completedCount} / ${TOTAL_STEPS}`}
-              </dd>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {safeT('startedLabel', 'Started')}
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">{formatDate(startedAt)}</dd>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {safeT('completedLabel', 'Completed')}
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">{formatDate(completedAt)}</dd>
-            </div>
-          </dl>
+      <div className="alert alert-blue" role="note">
+        {safeT('eyebrow', 'Guided setup')}
+      </div>
 
-          <a
-            className="mt-6 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            href={wizardHref}
-            data-testid="onboarding-launch"
-          >
-            {completedAt
-              ? safeT('reviewCta', 'Review onboarding')
-              : safeT('launchCta', 'Open onboarding wizard')}
-          </a>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}
+      >
+        <div className={`kpi ${complete ? 'green' : 'amber'}`} data-testid="onboarding-status">
+          <div className="kpi-label">{safeT('statusLabel', 'Status')}</div>
+          <div className="kpi-value" style={{ fontSize: 16 }}>{statusLabel}</div>
         </div>
-      </section>
+        <div className="kpi" data-testid="onboarding-progress">
+          <div className="kpi-label">{safeT('progressLabel', 'Steps completed')}</div>
+          <div className="kpi-value">
+            {completedCount === null ? '—' : `${completedCount} / ${TOTAL_STEPS}`}
+          </div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">{safeT('startedLabel', 'Started')}</div>
+          <div className="kpi-value mono" style={{ fontSize: 15 }}>{formatDate(startedAt)}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">{safeT('completedLabel', 'Completed')}</div>
+          <div className="kpi-value mono" style={{ fontSize: 15 }}>{formatDate(completedAt)}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <a className="btn btn-primary" href={wizardHref} data-testid="onboarding-launch">
+          {complete
+            ? safeT('reviewCta', 'Review onboarding')
+            : safeT('launchCta', 'Open onboarding wizard')}
+        </a>
+      </div>
     </main>
   );
 }

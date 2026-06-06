@@ -218,7 +218,7 @@ function GridHead({ connected, total, labels }: { connected: number; total: numb
         <div className="text-sm font-semibold">{labels.connectedAvailable(connected, total)}</div>
         <label className="w-[220px] text-xs text-muted-foreground">
           <span className="sr-only">{labels.search}</span>
-          <Input aria-label={labels.search} placeholder={`${labels.search}…`} type="text" />
+          <Input aria-label={labels.search} placeholder={`${labels.search}…`} type="text" className="form-input" />
         </label>
       </div>
     </header>

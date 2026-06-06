@@ -311,6 +311,9 @@ a {
 .btn--danger:hover:not(:disabled) { background: #b91c1c; }
 .btn--success { background: var(--green); color: #fff; border-color: var(--green); }
 .btn--success:hover:not(:disabled) { background: #15803d; }
+/* Amber CTA (e.g. L1 feature-flag promotion) — single + double dash. */
+.btn-amber, .btn--amber { background: var(--amber); color: #fff; border-color: var(--amber); }
+.btn-amber:hover:not(:disabled), .btn--amber:hover:not(:disabled) { background: var(--amber-700); }
 
 /* ---- Card ---- */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }

@@ -212,6 +212,7 @@ export function DeleteReferenceDataModal({
   return (
     <>
       {open ? (
+        <div className="modal-overlay">
         <div
           ref={dialogRef}
           role="dialog"
@@ -221,8 +222,9 @@ export function DeleteReferenceDataModal({
           data-modal-id="SM-10"
           data-size="sm"
           data-testid="delete-reference-data-modal"
+          className="modal-box"
           onKeyDown={handleDialogKeyDown}
-          style={{ maxWidth: 'var(--modal-size-sm-width)' }}
+          style={{ width: 420 }}
         >
           <form
             aria-label={title}
@@ -231,13 +233,13 @@ export function DeleteReferenceDataModal({
               void handleDelete();
             }}
           >
-            <div data-testid="modal-header">
-              <h2 id={titleId} style={{ margin: 0 }}>
+            <div className="modal-head" data-testid="modal-header">
+              <h2 className="modal-title" id={titleId} style={{ margin: 0 }}>
                 {title}
               </h2>
             </div>
 
-            <div data-testid="modal-body">
+            <div className="modal-body" data-testid="modal-body">
               <div role={submitError ? undefined : 'alert'} className="alert alert-red" style={{ fontSize: 12, marginBottom: 10 }}>
                 {formatLabel(labels.warning, { code: row.code, name: displayName, table })}{' '}
                 {formatLabel(labels.affectedRows, { count: affectedCount })}
@@ -249,12 +251,8 @@ export function DeleteReferenceDataModal({
                 </div>
               ) : null}
 
-              <div style={{ marginBottom: 12 }}>
-                <label
-                  id={confirmLabelId}
-                  htmlFor={confirmInputId}
-                  style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}
-                >
+              <div className="ff">
+                <label id={confirmLabelId} htmlFor={confirmInputId}>
                   {labels.confirmLabel}
                 </label>
                 <Input
@@ -263,6 +261,7 @@ export function DeleteReferenceDataModal({
                   value={typed}
                   placeholder="DELETE"
                   autoFocus
+                  className="form-input mono"
                   aria-labelledby={confirmLabelId}
                   onChange={(event) => {
                     setTyped(event.target.value);
@@ -292,15 +291,16 @@ export function DeleteReferenceDataModal({
               ) : null}
             </div>
 
-            <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <Button type="button" className="btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
+            <div className="modal-foot" data-testid="modal-footer">
+              <Button type="button" className="btn btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
                 {labels.cancel}
               </Button>
-              <Button type="submit" className="btn-danger btn-sm" disabled={!canDelete}>
+              <Button type="submit" className="btn btn-danger btn-sm" disabled={!canDelete}>
                 {submitting ? labels.deleting : labels.confirmButton}
               </Button>
             </div>
           </form>
+        </div>
         </div>
       ) : null}
 

@@ -66,7 +66,7 @@ function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-24"
+      className="modal-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -78,18 +78,19 @@ function Dialog({
         aria-labelledby={titleId}
         data-modal-id={modalId}
         tabIndex={-1}
-        className="w-full max-w-md rounded-xl border bg-white p-5 text-sm shadow-lg outline-none"
+        className="modal-box"
+        style={{ width: 480, outline: 'none' }}
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+        <div className="modal-head">
+          <h2 id={titleId} className="modal-title" style={{ margin: 0 }}>
             {title}
           </h2>
-          <button type="button" aria-label="Close" className="text-muted-foreground" onClick={onClose}>
+          <button type="button" aria-label="Close" className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
-        {children}
-        <div className="mt-4 flex justify-end gap-2">{footer}</div>
+        <div className="modal-body">{children}</div>
+        <div className="modal-foot">{footer}</div>
       </div>
     </div>
   );
@@ -215,34 +216,34 @@ function AddUnitDialog({ labels }: { labels: UnitsManagerLabels }) {
           </>
         }
       >
-        <form id="settings-units-add-unit-form" className="space-y-3" onSubmit={onSubmit}>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.category}
+        <form id="settings-units-add-unit-form" onSubmit={onSubmit}>
+          <div className="ff">
+            <label htmlFor="settings-units-add-category">{labels.category}</label>
             <Select
               value={category}
               onValueChange={(v) => setCategory(v as (typeof CATEGORY_VALUES)[number])}
               options={categoryOptions}
               aria-label={labels.category}
             />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.code}
-            <Input name="code" required maxLength={32} className="font-mono" />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.name}
-            <Input name="name" required maxLength={120} />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.factorToBase}
-            <Input name="factorToBase" required inputMode="decimal" defaultValue="1" />
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-add-code">{labels.code}</label>
+            <Input id="settings-units-add-code" name="code" required maxLength={32} className="form-input mono" />
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-add-name">{labels.name}</label>
+            <Input id="settings-units-add-name" name="name" required maxLength={120} className="form-input" />
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-add-factor">{labels.factorToBase}</label>
+            <Input id="settings-units-add-factor" name="factorToBase" required inputMode="decimal" defaultValue="1" className="form-input mono" />
+          </div>
+          <label className="ff-inline-check" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
             <input type="checkbox" checked={isBase} onChange={(event) => setIsBase(event.currentTarget.checked)} />
             {labels.baseQuestion}
           </label>
           {error ? (
-            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p role="alert" className="alert alert-red" style={{ fontSize: 12, marginTop: 8 }}>
               {error}
             </p>
           ) : null}
@@ -316,25 +317,25 @@ function AddConversionDialog({ labels, unitCodes }: { labels: UnitsManagerLabels
           </>
         }
       >
-        <form id="settings-units-add-conversion-form" className="space-y-3" onSubmit={onSubmit}>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.label}
-            <Input name="label" required maxLength={120} />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.fromUnit}
+        <form id="settings-units-add-conversion-form" onSubmit={onSubmit}>
+          <div className="ff">
+            <label htmlFor="settings-units-conv-label">{labels.label}</label>
+            <Input id="settings-units-conv-label" name="label" required maxLength={120} className="form-input" />
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-conv-from">{labels.fromUnit}</label>
             <Select value={fromUnit} onValueChange={setFromUnit} options={unitOptions} aria-label={labels.fromUnit} />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.toUnit}
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-conv-to">{labels.toUnit}</label>
             <Select value={toUnit} onValueChange={setToUnit} options={unitOptions} aria-label={labels.toUnit} />
-          </label>
-          <label className="block text-sm font-medium text-slate-700">
-            {labels.factorToBase}
-            <Input name="factor" required inputMode="decimal" />
-          </label>
+          </div>
+          <div className="ff">
+            <label htmlFor="settings-units-conv-factor">{labels.factorToBase}</label>
+            <Input id="settings-units-conv-factor" name="factor" required inputMode="decimal" className="form-input mono" />
+          </div>
           {error ? (
-            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p role="alert" className="alert alert-red" style={{ fontSize: 12, marginTop: 8 }}>
               {error}
             </p>
           ) : null}

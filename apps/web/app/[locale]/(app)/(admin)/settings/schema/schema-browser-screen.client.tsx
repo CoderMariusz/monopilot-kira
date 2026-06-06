@@ -193,7 +193,7 @@ export default function SchemaBrowserScreen({
 
       {state === 'ready' ? (
         <>
-          <div data-region="promotion-notice" role="alert" className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          <div data-region="promotion-notice" role="alert" className="alert alert-blue text-xs">
             {labels.promotionNotice}
           </div>
 

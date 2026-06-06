@@ -136,7 +136,7 @@ function PageHeader({
     <header data-region="page-head" className="mb-4 flex items-start justify-between gap-4">
       <div>
         <h1 className="text-2xl font-semibold">{labels.title}</h1>
-        <p className="text-sm text-slate-600">{labels.subtitle}</p>
+        <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
       <div className="flex items-center gap-2">
         <Button
@@ -161,17 +161,17 @@ function StateCard({ labels, state }: { labels: D365Labels; state: 'loading' | '
   return (
     <Root busy={state === 'loading'}>
       <PageHeader labels={labels} canSave={false} />
-      <Card className={state === 'error' ? 'border-red-200 bg-red-50' : 'bg-white'}>
-        <CardContent className="p-4">
-          {state === 'error' ? (
-            <p role="alert" className="text-sm font-medium text-red-900">
-              {message}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-700">{message}</p>
-          )}
-        </CardContent>
-      </Card>
+      {state === 'error' ? (
+        <div role="alert" className="alert alert-red">
+          {message}
+        </div>
+      ) : (
+        <Card className="bg-white">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">{message}</p>
+          </CardContent>
+        </Card>
+      )}
     </Root>
   );
 }
@@ -203,17 +203,17 @@ function Field({
   error?: string | null;
 }) {
   return (
-    <div data-field={field} className="grid gap-2 border-t border-slate-100 py-4 md:grid-cols-[210px_minmax(0,1fr)]">
+    <div data-field={field} className="grid gap-2 border-t border-border py-4 md:grid-cols-[210px_minmax(0,1fr)]">
       <div>
-        <label htmlFor={htmlFor} className="text-sm font-medium text-slate-950">
+        <label htmlFor={htmlFor} className="text-sm font-medium">
           {fieldLabel}
         </label>
-        {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
       </div>
       <div>
         {children}
         {error ? (
-          <div role="alert" className="mt-1 text-xs font-medium text-red-600">
+          <div role="alert" className="ff-error mt-1">
             {error}
           </div>
         ) : null}
@@ -319,7 +319,7 @@ function ReadyD365ConnectionForm({
   return (
     <Root>
       <PageHeader labels={labels} canSave={allValid} onTestConnection={() => setDialogOpen(true)} />
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      <div className="alert alert-amber" role="note">
         <strong>LEGACY-D365.</strong> This integration will be retired when Monopilot replaces D365. Referenced by{' '}
         <span className="font-mono">integration.d365.so_trigger.enabled</span> (gates Planning SCREEN-13 + D365 Queue).
       </div>
@@ -332,6 +332,7 @@ function ReadyD365ConnectionForm({
               type="url"
               aria-label={labels.fields?.baseUrl ?? 'Base URL'}
               data-slot="input"
+              className="form-input"
               value={baseUrl}
               onChange={(event) => setBaseUrl(event.currentTarget.value)}
               style={{ width: '100%', maxWidth: 420 }}
@@ -353,7 +354,7 @@ function ReadyD365ConnectionForm({
               data-slot="input"
               value={tenantId}
               onChange={(event) => setTenantId(event.currentTarget.value)}
-              className="font-mono"
+              className="form-input font-mono"
               style={{ width: 360 }}
             />
           </Field>
@@ -363,7 +364,7 @@ function ReadyD365ConnectionForm({
               data-slot="input"
               value={clientId}
               onChange={(event) => setClientId(event.currentTarget.value)}
-              className="font-mono"
+              className="form-input font-mono"
               style={{ width: 360 }}
             />
           </Field>
@@ -376,6 +377,7 @@ function ReadyD365ConnectionForm({
                 readOnly
                 value={secretPlaceholder}
                 onChange={() => undefined}
+                className="form-input font-mono"
                 style={{ width: 200 }}
               />
               <Button type="button" className="btn-secondary btn-sm" onClick={onRotateSecret}>
@@ -390,6 +392,7 @@ function ReadyD365ConnectionForm({
               data-slot="input"
               value={serviceAccountEmail}
               onChange={(event) => setServiceAccountEmail(event.currentTarget.value)}
+              className="form-input"
               style={{ width: 320 }}
             />
           </Field>
@@ -402,7 +405,7 @@ function ReadyD365ConnectionForm({
               data-slot="input"
               value={pollCron}
               onChange={(event) => setPollCron(event.currentTarget.value)}
-              className="font-mono"
+              className="form-input font-mono"
               style={{ width: 200 }}
             />
           </Field>
@@ -430,13 +433,13 @@ function ReadyD365ConnectionForm({
 
         <Section title="Last test">
           {config.lastTest.ok ? (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <div className="alert alert-green">
               ✓ Connected at <span className="font-mono">{config.lastTest.at}</span> · Latency{' '}
               <span className="font-mono">{config.lastTest.latencyMs}ms</span> · Env{' '}
               <span className="font-mono">{config.lastTest.environment}</span>
             </div>
           ) : (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <div className="alert alert-red">
               ✗ Failed — run 'Test connection' to retry.
             </div>
           )}
@@ -451,7 +454,7 @@ function ReadyD365ConnectionForm({
         labels={labels}
       />
       {toast ? (
-        <p role="status" aria-live="polite" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+        <p role="status" aria-live="polite" className="alert alert-green">
           {toast}
         </p>
       ) : null}

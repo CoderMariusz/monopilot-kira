@@ -128,10 +128,7 @@ export default function SettingsModulesScreen({
   if (state === 'loading') {
     return (
       <main data-testid="settings-modules-screen" className="space-y-4 p-6" aria-busy="true">
-        <section
-          data-testid="settings-modules-loading-state"
-          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"
-        >
+        <section data-testid="settings-modules-loading-state" className="card text-sm text-muted-foreground">
           {labels.loading}
         </section>
       </main>
@@ -141,7 +138,7 @@ export default function SettingsModulesScreen({
   if (state === 'error') {
     return (
       <main data-testid="settings-modules-screen" className="space-y-4 p-6">
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {labels.error}
         </div>
       </main>
@@ -152,27 +149,26 @@ export default function SettingsModulesScreen({
     <main data-testid="settings-modules-screen" className="space-y-4 p-6">
       <header data-region="page-head" className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{labels.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
-        <Button variant="dry-run" type="button" title={labels.dryRunTitle} onClick={() => setDryRunOpen(true)}>
+        <Button variant="dry-run" type="button" className="btn-secondary" title={labels.dryRunTitle} onClick={() => setDryRunOpen(true)}>
           {labels.dryRunActivation}
         </Button>
       </header>
 
-      <div
-        data-region="plan-notice"
-        role="alert"
-        className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"
-      >
+      <div data-region="plan-notice" role="alert" className="alert alert-blue">
         {formatTemplate(labels.planNotice, { planName })}
       </div>
 
       <ModuleSection title={labels.modulesTitle} region="modules-section">
         {state === 'empty' || modules.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600">{labels.empty}</p>
+          <div className="empty-state">
+            <div className="empty-state-icon" aria-hidden="true">🧩</div>
+            <div className="empty-state-title">{labels.empty}</div>
+          </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {modules.map((module) => {
               const dependentsCount = module.enabledDependents?.length ?? 0;
               const checked = Boolean(enabledByKey[module.key]);
@@ -184,7 +180,7 @@ export default function SettingsModulesScreen({
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <div data-testid="settings-module-label" className="text-sm font-medium text-slate-950">
+                      <div data-testid="settings-module-label" className="text-sm font-medium">
                         {module.label}
                       </div>
                       {module.premium ? (
@@ -203,7 +199,7 @@ export default function SettingsModulesScreen({
                         </Badge>
                       ) : null}
                     </div>
-                    <div data-testid="settings-module-description" className="mt-1 text-xs text-slate-500">
+                    <div data-testid="settings-module-description" className="mt-1 text-xs text-muted-foreground">
                       {module.desc}
                     </div>
                   </div>
@@ -222,39 +218,40 @@ export default function SettingsModulesScreen({
       </ModuleSection>
 
       <ModuleSection title={labels.earlyAccessTitle} region="early-access-section">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           {labels.earlyAccessCopy}{' '}
-          <a href="#early-access-preview-program" className="font-medium text-blue-600 underline-offset-2 hover:underline">
+          <a href="#early-access-preview-program" className="font-medium text-[var(--blue)] underline-offset-2 hover:underline">
             {labels.joinPreviewProgram}
           </a>
         </p>
       </ModuleSection>
 
       {dryRunOpen ? (
-        <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40">
+        <div role="presentation" className="modal-overlay" onClick={() => setDryRunOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-modules-dry-run-title"
-            className="w-[520px] rounded-lg bg-white shadow-2xl"
+            className="modal-box"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 id="settings-modules-dry-run-title" className="text-base font-semibold text-slate-950">
+            <div className="modal-head">
+              <h2 id="settings-modules-dry-run-title" className="modal-title">
                 {labels.dryRunDialogTitle}
               </h2>
             </div>
-            <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
+            <div className="modal-body space-y-3 text-sm">
               <p>
                 {formatTemplate(labels.dryRunAffects, {
                   modules: affectedModules.length,
                   sessions: activeSessionCount,
                 })}
               </p>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <div className="alert alert-amber text-xs">
                 <strong>{formatTemplate(labels.dryRunFlagsOn, { enabled: enabledCount, total: modules.length })}</strong>{' '}
                 {labels.dryRunApplyOnLoad}
               </div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{labels.affectedModulesLabel}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{labels.affectedModulesLabel}</div>
               <div className="flex flex-wrap gap-2">
                 {affectedModules.map((module) => (
                   <Badge key={module} data-testid="settings-dry-run-module-badge" variant="info">
@@ -263,7 +260,7 @@ export default function SettingsModulesScreen({
                 ))}
               </div>
             </div>
-            <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
+            <div className="modal-foot">
               <Button type="button" className="btn-secondary" onClick={() => setDryRunOpen(false)}>
                 {labels.close}
               </Button>
@@ -276,24 +273,25 @@ export default function SettingsModulesScreen({
       ) : null}
 
       {confirmModule ? (
-        <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40">
+        <div role="presentation" className="modal-overlay" onClick={() => setConfirmModule(null)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-modules-confirm-title"
-            className="w-[440px] rounded-lg bg-white shadow-2xl"
+            className="modal-box"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 id="settings-modules-confirm-title" className="text-base font-semibold text-slate-950">
+            <div className="modal-head">
+              <h2 id="settings-modules-confirm-title" className="modal-title">
                 {labels.confirmDisableTitle}
               </h2>
             </div>
-            <div className="px-5 py-4 text-sm text-slate-700">{labels.confirmDisableBody}</div>
-            <div className="flex justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4">
+            <div className="modal-body text-sm">{labels.confirmDisableBody}</div>
+            <div className="modal-foot">
               <Button type="button" className="btn-secondary" onClick={() => setConfirmModule(null)}>
                 {labels.cancel}
               </Button>
-              <Button type="button" className="btn-primary" onClick={confirmDisable}>
+              <Button type="button" className="btn-danger" onClick={confirmDisable}>
                 {labels.confirm}
               </Button>
             </div>
@@ -306,12 +304,8 @@ export default function SettingsModulesScreen({
 
 function ModuleSection({ title, region, children }: { title: string; region: string; children: React.ReactNode }) {
   return (
-    <section
-      data-testid="settings-module-section"
-      data-region={region}
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-    >
-      <h2 className="mb-3 text-lg font-semibold text-slate-950">{title}</h2>
+    <section data-testid="settings-module-section" data-region={region} className="card">
+      <h2 className="mb-3 text-lg font-semibold">{title}</h2>
       {children}
     </section>
   );

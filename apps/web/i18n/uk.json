@@ -406,6 +406,7 @@
       "empty": "Для поточної організації профіль організації недоступний.",
       "load_error": "Не вдалося завантажити профіль компанії.",
       "save_error": "Не вдалося зберегти профіль компанії.",
+      "save_success": "Company profile saved.",
       "read_only_label": "Лише читання",
       "read_only_notice": "Для збереження змін профілю компанії потрібен дозвіл settings.org.update.",
       "section_identity": "Ідентифікація",
@@ -567,7 +568,9 @@
       "common": {
         "eyebrow": "Цільову навігацію підключено",
         "body": "Ця сторінка навмисно уникає фіктивних бізнес-даних. Підтверджує, що посилання на бічній панелі вирішується в локалізованому AppShell; повний бізнес-екран з'явиться у хвилі відповідного модуля.",
-        "backToSettings": "Назад до налаштувань"
+        "backToSettings": "Назад до налаштувань",
+        "title": "Coming soon",
+        "description": "This settings area is not yet available."
       },
       "shifts": {
         "title": "Зміни та календар",
@@ -599,7 +602,18 @@
       },
       "onboarding": {
         "title": "Майстер налаштування",
-        "description": "Маршрут налаштування підключено; екрани потоку налаштування залишаються доступними під час підключення повного майстра адміністрування."
+        "description": "Маршрут налаштування підключено; екрани потоку налаштування залишаються доступними під час підключення повного майстра адміністрування.",
+        "eyebrow": "Guided setup",
+        "panelDescription": "Launch or resume the guided setup wizard. Progress below reflects your organization's real onboarding state.",
+        "statusLabel": "Status",
+        "statusComplete": "Onboarding complete",
+        "statusInProgress": "Onboarding in progress",
+        "statusUnknown": "Onboarding status unavailable",
+        "progressLabel": "Steps completed",
+        "startedLabel": "Started",
+        "completedLabel": "Completed",
+        "launchCta": "Open onboarding wizard",
+        "reviewCta": "Review onboarding"
       },
       "d365_dlq": {
         "title": "D365 DLQ",
@@ -636,6 +650,121 @@
       "reset_seed": "Скинути до базових даних",
       "delete_inactive": "Видалити неактивні рядки"
     },
+    "processes": {
+      "title": "Process steps",
+      "subtitle": "Schema-driven manufacturing process-step reference data.",
+      "importCsv": "Import CSV",
+      "exportCsv": "Export CSV",
+      "addRow": "+ Add process",
+      "edit": "Edit",
+      "delete": "Delete",
+      "rowsSuffix": "rows",
+      "updatedPrefix": "Updated",
+      "loading": "Loading process steps…",
+      "empty": "No process steps configured yet.",
+      "error": "Unable to load process steps.",
+      "permissionDenied": "You do not have permission to edit process steps.",
+      "actions": "Actions",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "yes": "Yes",
+      "no": "No",
+      "rowKey": "Key",
+      "rowKeyHelp": "Uppercase, min 2 chars. Unique in table.",
+      "category": {
+        "options": {
+          "preparation": "Preparation",
+          "processing": "Processing",
+          "packaging": "Packaging",
+          "quality": "Quality",
+          "logistics": "Logistics"
+        }
+      },
+      "modal": {
+        "edit": {
+          "title": "Add process step",
+          "editTitle": "Edit process step — {rowKey}",
+          "referenceTable": "Reference table · {tableCode}",
+          "cancel": "Cancel",
+          "save": "Save",
+          "saving": "Saving…",
+          "loading": "⟳ Loading row…",
+          "loadingLabel": "Loading process step row",
+          "noSchema": "No schema fields available for {tableCode}",
+          "rowKeyInvalid": "Must be uppercase alnum / underscore / dash, ≥ 2 chars",
+          "rowKeyRequired": "Row key is required",
+          "minChars": "Min 2 chars",
+          "selectPlaceholder": "Select…",
+          "saveFailed": "Unable to save process step."
+        },
+        "delete": {
+          "title": "Delete {code}?",
+          "cancel": "Cancel",
+          "confirmLabel": "Type DELETE to confirm",
+          "confirmButton": "Delete permanently",
+          "deleting": "Deleting…",
+          "confirmCheckbox": "Confirm",
+          "warning": "This action cannot be undone. {code} — {name} will be permanently removed from {table}.",
+          "affectedRows": "{count} rows referencing this code will be orphaned.",
+          "precheckError": "Unable to check referencing rows",
+          "submitFailed": "Unable to delete process step.",
+          "success": "Process step deleted"
+        }
+      }
+    },
+    "partners": {
+      "title": "Suppliers & customers",
+      "subtitle": "Schema-driven business-partner reference data (suppliers, customers).",
+      "addRow": "+ Add partner",
+      "empty": "No business partners configured yet.",
+      "importCsv": "Import CSV",
+      "exportCsv": "Export CSV",
+      "edit": "Edit",
+      "delete": "Delete",
+      "rowsSuffix": "rows",
+      "updatedPrefix": "Updated",
+      "loading": "Loading business partners…",
+      "error": "Unable to load business partners.",
+      "permissionDenied": "You do not have permission to edit business partners.",
+      "actions": "Actions",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "yes": "Yes",
+      "no": "No",
+      "rowKey": "Key",
+      "rowKeyHelp": "Uppercase, min 2 chars. Unique in table.",
+      "modal": {
+        "edit": {
+          "title": "Add partner",
+          "editTitle": "Edit partner — {rowKey}",
+          "referenceTable": "Reference table · {tableCode}",
+          "cancel": "Cancel",
+          "save": "Save",
+          "saving": "Saving…",
+          "loading": "⟳ Loading row…",
+          "loadingLabel": "Loading partner row",
+          "noSchema": "No schema fields available for {tableCode}",
+          "rowKeyInvalid": "Must be uppercase alnum / underscore / dash, ≥ 2 chars",
+          "rowKeyRequired": "Row key is required",
+          "minChars": "Min 2 chars",
+          "selectPlaceholder": "Select…",
+          "saveFailed": "Unable to save partner."
+        },
+        "delete": {
+          "title": "Delete {code}?",
+          "cancel": "Cancel",
+          "confirmLabel": "Type DELETE to confirm",
+          "confirmButton": "Delete permanently",
+          "deleting": "Deleting…",
+          "confirmCheckbox": "Confirm",
+          "warning": "This action cannot be undone. {code} — {name} will be permanently removed from {table}.",
+          "affectedRows": "{count} rows referencing this code will be orphaned.",
+          "precheckError": "Unable to check referencing rows",
+          "submitFailed": "Unable to delete partner.",
+          "success": "Partner deleted"
+        }
+      }
+    },
     "d365": {
       "sync": {
         "title": "D365 sync configuration",
@@ -654,6 +783,25 @@
           "pushQueue": "Push queue",
           "maxAttempts": "Max attempts",
           "retryBackoff": "Retry backoff"
+        }
+      }
+    },
+    "integrations": {
+      "d365": {
+        "connection": {
+          "title": "D365 connection",
+          "subtitle": "Dynamics 365 Finance & Operations — endpoint, auth, polling schedule.",
+          "testConnection": "Test connection",
+          "save": "Save configuration",
+          "rotateSecret": "Rotate secret",
+          "secretRotated": "D365 client secret rotated",
+          "urlInvalid": "Invalid URL",
+          "loading": "Loading D365 connection…",
+          "empty": "D365 connection is not configured.",
+          "error": "Unable to load D365 connection.",
+          "missingPrerequisites": "D365 connection prerequisites are missing. Configure the endpoint, Azure AD tenant, client ID, and secret reference before saving or enabling sync.",
+          "preflightIncomplete": "D365 cannot be enabled until all five reference constants are configured.",
+          "preflightMissing": "Missing D365 constants:"
         }
       }
     }

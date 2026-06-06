@@ -167,9 +167,7 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
   if (state === 'forbidden') {
     return renderShell(
       labels,
-      <Card className="border-red-200 bg-red-50">
-        <CardContent role="alert" className="p-4 text-sm text-red-900">{labels.forbidden}</CardContent>
-      </Card>,
+      <div role="alert" className="alert alert-red">{labels.forbidden}</div>,
     );
   }
   if (state === 'loading') {
@@ -251,7 +249,7 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
     labels,
     <>
       {actionError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {actionError}
         </div>
       ) : null}
@@ -325,7 +323,7 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
                     <TableCell className="mono text-xs">{event.item_code}</TableCell>
                     <TableCell className="num mono text-xs">{event.mp_value}</TableCell>
                     <TableCell className="num mono text-xs">{event.d365_value}</TableCell>
-                    <TableCell className="mono text-xs text-slate-500">{formatDateTime(event.occurred_at, labels.notAvailable)}</TableCell>
+                    <TableCell className="mono text-xs text-muted-foreground">{formatDateTime(event.occurred_at, labels.notAvailable)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         <Button
@@ -349,82 +347,83 @@ export default function D365DriftScreen({ events, canTrigger, labels, state, act
       </section>
 
       {target ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-d365-drift-modal-title"
-          data-testid="d365-drift-resolve-modal"
-          className="modal modal--md"
-        >
-          <header data-testid="modal-header">
-            <h2 id="settings-d365-drift-modal-title">{labels.modalTitle}</h2>
-          </header>
-          <div data-testid="modal-body" className="space-y-3">
-            {!isReject ? (
-              <>
-                <div
-                  role="alert"
-                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900"
-                >
-                  {labels.destructive}
-                </div>
-                <fieldset className="grid gap-2" aria-label={labels.modalTitle}>
-                  <label className="flex items-start gap-2 rounded border border-slate-200 px-3 py-2">
-                    <input
-                      type="radio"
-                      name="drift-direction"
-                      value="mp_wins"
-                      checked={direction === 'mp_wins'}
-                      onChange={() => setDirection('mp_wins')}
-                    />
-                    <span>
-                      <b>{labels.directionMpWins}</b>
-                      <span className="block text-xs text-slate-500">{labels.directionMpWinsHint}</span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 rounded border border-slate-200 px-3 py-2">
-                    <input
-                      type="radio"
-                      name="drift-direction"
-                      value="d365_wins"
-                      checked={direction === 'd365_wins'}
-                      onChange={() => setDirection('d365_wins')}
-                    />
-                    <span>
-                      <b>{labels.directionD365Wins}</b>
-                      <span className="block text-xs text-slate-500">{labels.directionD365WinsHint}</span>
-                    </span>
-                  </label>
-                </fieldset>
-              </>
-            ) : null}
-            <div className="grid gap-1">
-              <label htmlFor="d365-drift-reason" className="text-sm font-medium">{labels.reasonLabel}</label>
-              <Textarea
-                id="d365-drift-reason"
-                aria-label={labels.reasonLabel}
-                placeholder={labels.reasonPlaceholder}
-                value={reason}
-                onChange={(event) => setReason(event.currentTarget.value)}
-              />
-              <span className="text-xs text-slate-500" data-testid="d365-drift-reason-counter">
-                {reason.trim().length}/{MIN_REASON}+ · {labels.reasonHint}
-              </span>
+        <div className="modal-overlay" role="presentation" onClick={() => setTarget(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-d365-drift-modal-title"
+            data-testid="d365-drift-resolve-modal"
+            className="modal-box modal modal--md"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header data-testid="modal-header" className="modal-head">
+              <h2 id="settings-d365-drift-modal-title" className="modal-title">{labels.modalTitle}</h2>
+            </header>
+            <div data-testid="modal-body" className="modal-body space-y-3">
+              {!isReject ? (
+                <>
+                  <div role="alert" className="alert alert-red text-xs">
+                    {labels.destructive}
+                  </div>
+                  <fieldset className="grid gap-2" aria-label={labels.modalTitle}>
+                    <label className="flex items-start gap-2 rounded border border-border px-3 py-2">
+                      <input
+                        type="radio"
+                        name="drift-direction"
+                        value="mp_wins"
+                        checked={direction === 'mp_wins'}
+                        onChange={() => setDirection('mp_wins')}
+                      />
+                      <span>
+                        <b>{labels.directionMpWins}</b>
+                        <span className="block text-xs text-muted-foreground">{labels.directionMpWinsHint}</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 rounded border border-border px-3 py-2">
+                      <input
+                        type="radio"
+                        name="drift-direction"
+                        value="d365_wins"
+                        checked={direction === 'd365_wins'}
+                        onChange={() => setDirection('d365_wins')}
+                      />
+                      <span>
+                        <b>{labels.directionD365Wins}</b>
+                        <span className="block text-xs text-muted-foreground">{labels.directionD365WinsHint}</span>
+                      </span>
+                    </label>
+                  </fieldset>
+                </>
+              ) : null}
+              <div className="ff grid gap-1">
+                <label htmlFor="d365-drift-reason">{labels.reasonLabel}</label>
+                <Textarea
+                  id="d365-drift-reason"
+                  aria-label={labels.reasonLabel}
+                  placeholder={labels.reasonPlaceholder}
+                  value={reason}
+                  onChange={(event) => setReason(event.currentTarget.value)}
+                  className="form-input"
+                />
+                <span className="text-xs text-muted-foreground" data-testid="d365-drift-reason-counter">
+                  {reason.trim().length}/{MIN_REASON}+ · {labels.reasonHint}
+                </span>
+              </div>
             </div>
+            <footer data-testid="modal-footer" className="modal-foot">
+              <Button type="button" className="btn-secondary" onClick={() => setTarget(null)}>{labels.cancel}</Button>
+              <Button
+                type="button"
+                className="btn-danger"
+                aria-label={labels.apply}
+                aria-disabled={!reasonValid || pending ? 'true' : undefined}
+                disabled={!reasonValid || pending}
+                onClick={submit}
+              >
+                {pending ? labels.pending : labels.apply}
+              </Button>
+            </footer>
           </div>
-          <footer data-testid="modal-footer" className="flex justify-end gap-2">
-            <Button type="button" className="btn-secondary" onClick={() => setTarget(null)}>{labels.cancel}</Button>
-            <Button
-              type="button"
-              className="btn-danger"
-              aria-label={labels.apply}
-              aria-disabled={!reasonValid || pending ? 'true' : undefined}
-              disabled={!reasonValid || pending}
-              onClick={submit}
-            >
-              {pending ? labels.pending : labels.apply}
-            </Button>
-          </footer>
         </div>
       ) : null}
     </>,

@@ -231,7 +231,7 @@ export default function D365AuditScreen({
     labels,
     <>
       {triggerState === 'error' && triggerError ? (
-        <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+        <div role="alert" className="alert alert-red">
           {triggerError}
         </div>
       ) : null}
@@ -278,14 +278,14 @@ export default function D365AuditScreen({
         <Input
           type="date"
           aria-label={labels.startDate}
-          className="min-w-36"
+          className="form-input min-w-36"
           value={startDate}
           onChange={(event) => setStartDate(event.currentTarget.value)}
         />
         <Input
           type="date"
           aria-label={labels.endDate}
-          className="min-w-36"
+          className="form-input min-w-36"
           value={endDate}
           onChange={(event) => setEndDate(event.currentTarget.value)}
         />

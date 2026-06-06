@@ -9,7 +9,6 @@ import {
 } from '../../../../../../actions/authorization/preflight';
 import { Badge } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import Input from '@monopilot/ui/Input';
 
 export type PolicyStatus = 'Enabled' | 'Disabled' | 'Misconfigured';
@@ -200,17 +199,15 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section data-region={region} role="region" aria-label={title}>
-      <Card className="rounded-xl border bg-white shadow-sm">
-        <CardHeader className="flex items-start justify-between gap-4 border-b px-5 py-4 md:flex-row">
-          <div>
-            <CardTitle className="text-base font-semibold text-slate-950">{title}</CardTitle>
-            {description ? <CardDescription className="mt-1 text-sm text-slate-500">{description}</CardDescription> : null}
-          </div>
-          {status ? <Badge tone={badgeTone(status)}>{statusLabel(status, copy)}</Badge> : null}
-        </CardHeader>
-        <div className="divide-y divide-slate-100 p-0">{children}</div>
-      </Card>
+    <section data-region={region} role="region" aria-label={title} className="card" style={{ margin: 0, padding: 0 }}>
+      <div className="card-head" style={{ margin: 0, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <h2 className="card-title">{title}</h2>
+          {description ? <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{description}</div> : null}
+        </div>
+        {status ? <Badge tone={badgeTone(status)}>{statusLabel(status, copy)}</Badge> : null}
+      </div>
+      <div className="divide-y divide-slate-100">{children}</div>
     </section>
   );
 }
@@ -258,8 +255,8 @@ function blockerMessage(blocker: Blocker, copy: Copy) {
 function BlockerList({ blockers, copy }: { blockers: Blocker[]; copy: Copy }) {
   if (blockers.length === 0) return null;
   return (
-    <div role="alert" className="m-5 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-      <div className="font-semibold">{copy('blockersTitle')}</div>
+    <div role="alert" className="alert alert-amber m-4 space-y-2">
+      <div className="alert-title">{copy('blockersTitle')}</div>
       <ul className="list-disc space-y-1 pl-5">
         {blockers.map((blocker) => (
           <li key={`${blocker.policyCode}-${blocker.code}`}>
@@ -280,7 +277,7 @@ function LoadingState({ copy }: { copy: Copy }) {
       </section>
       <div role="status" aria-label={copy('loadingLabel')} aria-busy="true" className="grid gap-4 lg:grid-cols-2">
         {[0, 1].map((item) => (
-          <Card key={item} data-testid="authorization-policy-card-skeleton" className="h-64 animate-pulse rounded-xl border bg-slate-100" />
+          <div key={item} data-testid="authorization-policy-card-skeleton" className="card h-64 animate-pulse" style={{ margin: 0, background: 'var(--gray-100)' }} />
         ))}
       </div>
     </main>
@@ -291,8 +288,8 @@ function MissingSeedState({ auditLogHref, copy }: { auditLogHref: string; copy: 
   return (
     <main className="space-y-5 p-6">
       <PageHead auditLogHref={auditLogHref} copy={copy} />
-      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-950">
-        <h2 className="text-base font-semibold">{copy('missingSeedTitle')}</h2>
+      <div role="alert" className="alert alert-red">
+        <h2 className="alert-title text-base">{copy('missingSeedTitle')}</h2>
         <p className="mt-1">{copy('missingSeedBody')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <CodePill>{NPD_POST_RELEASE_EDIT_POLICY}</CodePill>
@@ -307,8 +304,8 @@ function ErrorState({ auditLogHref, copy }: { auditLogHref: string; copy: Copy }
   return (
     <main className="space-y-5 p-6">
       <PageHead auditLogHref={auditLogHref} copy={copy} />
-      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-950">
-        <h2 className="text-base font-semibold">{copy('errorTitle')}</h2>
+      <div role="alert" className="alert alert-red">
+        <h2 className="alert-title text-base">{copy('errorTitle')}</h2>
         <p className="mt-1">{copy('errorBody')}</p>
       </div>
     </main>
@@ -389,17 +386,17 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
       <PageHead auditLogHref={auditLogHref} copy={copy} />
 
       {!mayEdit ? (
-        <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <div role="note" className="alert alert-amber">
           {copy('readOnlyNotice')}
         </div>
       ) : null}
 
-      <div data-region="invariant-banner" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+      <div data-region="invariant-banner" className="alert alert-blue">
         {copy('invariantBanner')}
       </div>
 
       {fieldAlert ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-950">
+        <div role="alert" className="alert alert-red font-medium">
           {fieldAlert}
           {serverBlockers.length > 0 ? (
             <ul className="mt-2 list-disc space-y-1 pl-5 font-normal">
@@ -438,7 +435,7 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
           <SRow label={copy('minimumAuthorizers')} hint={copy('minimumAuthorizersHint')}>
             <Input
               aria-label={copy('minimumAuthorizers')}
-              className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="form-input w-20"
               min={1}
               type="number"
               value={npdMinApprovers}
@@ -510,14 +507,14 @@ export default function AuthorizationPoliciesScreen(pageProps: AuthorizationPage
       </div>
 
       {mayEdit ? (
-        <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label={copy('saveSectionLabel')}>
+        <section className="card" style={{ margin: 0, padding: 16 }} aria-label={copy('saveSectionLabel')}>
           <label className="block text-sm font-medium text-slate-900" htmlFor="authorization-audit-reason">
             {copy('auditReason')}
           </label>
           <Input
             id="authorization-audit-reason"
             aria-label={copy('auditReason')}
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="form-input mt-2 w-full"
             value={auditReason}
             onChange={(event) => setAuditReason(event.currentTarget.value)}
             placeholder={copy('auditReasonPlaceholder')}

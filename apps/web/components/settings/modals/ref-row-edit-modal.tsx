@@ -190,9 +190,9 @@ function ModalField({
   const isReadOnly = Boolean(row && column.readOnlyWhenEditing);
 
   return (
-    <div data-testid={`ref-row-field-${column.columnCode}`} style={{ marginBottom: 12 }}>
-      <label id={`${fieldId}-label`} htmlFor={fieldId} style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-        {column.label} {column.required ? <span aria-hidden="true">*</span> : null}
+    <div className="ff" data-testid={`ref-row-field-${column.columnCode}`}>
+      <label id={`${fieldId}-label`} htmlFor={fieldId}>
+        {column.label} {column.required ? <span className="req" aria-hidden="true">*</span> : null}
       </label>
 
       {column.type === 'boolean' ? (
@@ -236,17 +236,17 @@ function ModalField({
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={describedBy}
           autoFocus={column.columnCode === 'row_key'}
-          className={column.columnCode === 'row_key' ? 'mono' : undefined}
+          className={column.columnCode === 'row_key' ? 'form-input mono' : 'form-input'}
           style={isReadOnly ? { background: 'var(--gray-100)' } : undefined}
         />
       )}
 
       {error ? (
-        <div id={errorId} role="alert" style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>
+        <div id={errorId} role="alert" className="ff-error">
           {error}
         </div>
       ) : column.help ? (
-        <div id={helpId} style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>
+        <div id={helpId} className="ff-help">
           {column.help}
         </div>
       ) : null}
@@ -374,6 +374,7 @@ export function RefRowEditModal({
 
   return (
     open ? (
+      <div className="modal-overlay">
       <div
         ref={dialogRef}
         role="dialog"
@@ -384,30 +385,32 @@ export function RefRowEditModal({
         data-modal-id="SM-11"
         data-size="default"
         data-testid="ref-row-edit-modal"
+        className="modal-box"
         onKeyDown={handleDialogKeyDown}
-        style={{ maxWidth: 'var(--modal-size-default-width)' }}
       >
       <form onSubmit={handleSave} noValidate>
-        <div data-testid="modal-header">
-          <h2 id={titleId} style={{ margin: 0 }}>
-            {title}
-          </h2>
-          <p id={subtitleId} style={{ color: 'var(--muted)', fontSize: 12, margin: '4px 0 12px' }}>
-            {subtitle}
-          </p>
+        <div className="modal-head" data-testid="modal-header">
+          <div>
+            <h2 className="modal-title" id={titleId} style={{ margin: 0 }}>
+              {title}
+            </h2>
+            <div className="muted" id={subtitleId} style={{ fontSize: 11, marginTop: 2 }}>
+              {subtitle}
+            </div>
+          </div>
         </div>
 
-        <div data-testid="modal-body">
+        <div className="modal-body" data-testid="modal-body">
           {loading ? (
-            <div role="status" aria-label={labels.loadingLabel} style={{ padding: 20, textAlign: 'center' }}>
+            <div role="status" aria-label={labels.loadingLabel} className="empty-state" style={{ padding: 20 }}>
               {labels.loading}
             </div>
           ) : error ? (
-            <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>
+            <div role="alert" className="alert alert-red" style={{ fontSize: 12, marginBottom: 10 }}>
               {error}
             </div>
           ) : columns.length === 0 ? (
-            <div role="alert" style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>
+            <div role="alert" className="alert alert-amber" style={{ fontSize: 12, marginBottom: 10 }}>
               {formatLabel(labels.noSchema, { tableCode })}
             </div>
           ) : (
@@ -427,21 +430,22 @@ export function RefRowEditModal({
           )}
 
           {submitError ? (
-            <div role="alert" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>
+            <div role="alert" className="alert alert-red" style={{ fontSize: 12, marginTop: 10 }}>
               {submitError}
             </div>
           ) : null}
         </div>
 
-        <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-          <Button type="button" className="btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
+        <div className="modal-foot" data-testid="modal-footer">
+          <Button type="button" className="btn btn-secondary btn-sm" disabled={submitting} onClick={() => onOpenChange(false)}>
             {labels.cancel}
           </Button>
-          <Button type="submit" className="btn-primary btn-sm" disabled={!canSave}>
+          <Button type="submit" className="btn btn-primary btn-sm" disabled={!canSave}>
             {submitting ? labels.saving : labels.save}
           </Button>
         </div>
       </form>
+      </div>
       </div>
     ) : null
   );

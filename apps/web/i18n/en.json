@@ -587,7 +587,9 @@
       "common": {
         "eyebrow": "Navigation target connected",
         "body": "This page intentionally avoids mock business data. It proves the sidebar link resolves under the localized AppShell; the full business screen lands in its owning module wave.",
-        "backToSettings": "Back to settings"
+        "backToSettings": "Back to settings",
+        "title": "Coming soon",
+        "description": "This settings area is not yet available."
       },
       "shifts": {
         "title": "Shifts & calendar",

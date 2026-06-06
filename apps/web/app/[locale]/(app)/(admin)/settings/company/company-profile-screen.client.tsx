@@ -246,11 +246,12 @@ type TextFieldProps = {
 
 function TextField({ id, label, value, type = 'text', disabled, readOnly, describedBy, onChange }: TextFieldProps) {
   return (
-    <label className="grid gap-1 text-sm font-medium text-slate-800" htmlFor={id}>
-      {label}
+    <div className="ff">
+      <label htmlFor={id}>{label}</label>
       <Input
         aria-describedby={describedBy}
         aria-label={label}
+        className="form-input"
         disabled={disabled}
         id={id}
         name={label}
@@ -259,7 +260,7 @@ function TextField({ id, label, value, type = 'text', disabled, readOnly, descri
         value={value}
         onChange={(event) => onChange?.(event.currentTarget.value)}
       />
-    </label>
+    </div>
   );
 }
 
@@ -286,15 +287,15 @@ function SelectField({ id, label, options, value, disabled, onChange }: SelectFi
   );
 
   return (
-    <label className="grid gap-1 text-sm font-medium text-slate-800" htmlFor={id}>
-      {label}
+    <div className="ff">
+      <label htmlFor={id}>{label}</label>
       {React.createElement(
         Select as any,
         { value, onValueChange: onChange, options: optionObjects, disabled, id, name: label },
         trigger,
         content,
       )}
-    </label>
+    </div>
   );
 }
 
@@ -303,15 +304,22 @@ function Section({ title, children, foot }: { title: string; children: React.Rea
   return (
     <section
       aria-labelledby={id}
-      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="card"
       data-testid="company-profile-section"
       role="region"
     >
-      <h2 className="mb-4 text-lg font-semibold" id={id}>
+      <h2 className="card-title mb-4" id={id}>
         {title}
       </h2>
-      <div className="grid gap-4">{children}</div>
-      {foot ? <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">{foot}</div> : null}
+      <div className="grid gap-3">{children}</div>
+      {foot ? (
+        <div
+          className="mt-4 flex justify-end gap-2 pt-4"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          {foot}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -332,12 +340,24 @@ function CityZipField({
   onZipChange: (value: string) => void;
 }) {
   return (
-    <div className="grid gap-1 text-sm font-medium text-slate-800">
-      <span>{labels.fields.cityZip}</span>
+    <div className="ff">
+      <span
+        style={{
+          display: 'block',
+          fontSize: 11,
+          color: 'var(--muted)',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          marginBottom: 5,
+        }}
+      >
+        {labels.fields.cityZip}
+      </span>
       <div className="flex max-w-[420px] gap-2">
         <Input
           aria-label={labels.fields.city}
-          className="flex-[2]"
+          className="form-input flex-[2]"
           disabled={disabled}
           id="company-city"
           name={labels.fields.city}
@@ -347,7 +367,7 @@ function CityZipField({
         />
         <Input
           aria-label={labels.fields.zip}
-          className="flex-1"
+          className="form-input flex-1"
           disabled={disabled}
           id="company-zip"
           name={labels.fields.zip}
@@ -385,9 +405,12 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   if (state === 'loading') {
     return (
-      <main aria-labelledby="company-profile-heading" className="grid gap-4">
-        <div data-testid="company-profile-loading" role="status">
-          {labels.loading}
+      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
+        <h1 className="page-title" id="company-profile-heading">
+          {labels.title}
+        </h1>
+        <div className="card" data-testid="company-profile-loading" role="status">
+          <span className="muted">{labels.loading}</span>
         </div>
       </main>
     );
@@ -395,18 +418,27 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
 
   if (state === 'empty' || !draft.id) {
     return (
-      <main aria-labelledby="company-profile-heading" className="grid gap-4">
-        <h1 id="company-profile-heading">{labels.title}</h1>
-        <p role="status">{labels.empty}</p>
+      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
+        <h1 className="page-title" id="company-profile-heading">
+          {labels.title}
+        </h1>
+        <div className="empty-state card" role="status">
+          <div className="empty-state-icon">◆</div>
+          <div className="empty-state-body">{labels.empty}</div>
+        </div>
       </main>
     );
   }
 
   if (state === 'error') {
     return (
-      <main aria-labelledby="company-profile-heading" className="grid gap-4">
-        <h1 id="company-profile-heading">{labels.title}</h1>
-        <p role="alert">{labels.loadError}</p>
+      <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
+        <h1 className="page-title" id="company-profile-heading">
+          {labels.title}
+        </h1>
+        <div className="alert alert-red" role="alert">
+          {labels.loadError}
+        </div>
       </main>
     );
   }
@@ -451,23 +483,31 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
   }
 
   return (
-    <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-6 p-6">
+    <main aria-labelledby="company-profile-heading" className="mx-auto grid max-w-5xl gap-3 p-6">
       <header className="grid gap-1" data-region="page-head">
-        <h1 className="text-2xl font-semibold" id="company-profile-heading">
+        <h1 className="page-title" id="company-profile-heading">
           {labels.title}
         </h1>
-        <p className="text-sm text-slate-600">{labels.subtitle}</p>
+        <p className="muted text-sm">{labels.subtitle}</p>
       </header>
 
       {!canEdit ? (
-        <section aria-label={labels.readOnlyLabel} className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-          <strong>{labels.readOnlyLabel}</strong>
-          <p>{labels.readOnlyNotice}</p>
-        </section>
+        <div aria-label={labels.readOnlyLabel} className="alert alert-amber" role="note">
+          <div className="alert-title">{labels.readOnlyLabel}</div>
+          {labels.readOnlyNotice}
+        </div>
       ) : null}
 
-      {message ? <p role="status">{message}</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {message ? (
+        <div className="alert alert-green" role="status">
+          {message}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="alert alert-red" role="alert">
+          {error}
+        </div>
+      ) : null}
 
       <Section
         title={labels.sections.identity}
@@ -498,17 +538,20 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
           disabled={controlsDisabled}
           onChange={(value) => updateField('legalName', value)}
         />
-        <div className="grid gap-1 text-sm font-medium text-slate-800">
-          <span>{labels.fields.logo}</span>
+        <div className="ff">
+          <label>{labels.fields.logo}</label>
           <div className="flex items-center gap-3">
-            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-md bg-slate-950 text-lg font-bold text-white">
+            <div
+              className="flex h-[72px] w-[72px] items-center justify-center text-lg font-bold text-white"
+              style={{ background: 'var(--text)', borderRadius: 'var(--radius)' }}
+            >
               {draft.logoInitials}
             </div>
             <div>
-              <Button className="btn-secondary" disabled={controlsDisabled} type="button" onClick={() => void uploadLogo?.()}>
+              <Button className="btn-secondary btn-sm" disabled={controlsDisabled} type="button" onClick={() => void uploadLogo?.()}>
                 {labels.actions.uploadNew}
               </Button>
-              <div className="mt-1 text-[11px] text-slate-500">{labels.hints.upload}</div>
+              <div className="ff-help mt-1">{labels.hints.upload}</div>
             </div>
           </div>
         </div>
@@ -620,7 +663,7 @@ export default function CompanyProfileScreen(rawProps: CompanyProfileScreenProps
           readOnly
           describedBy="region-support-ticket"
         />
-        <div id="region-support-ticket" role="tooltip" className="text-xs text-slate-500">
+        <div id="region-support-ticket" role="tooltip" className="ff-help">
           {labels.hints.region}
         </div>
       </Section>
