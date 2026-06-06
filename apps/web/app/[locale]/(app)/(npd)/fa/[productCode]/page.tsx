@@ -1231,10 +1231,16 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
   return (
     <main className="flex w-full flex-col gap-3">
       {/* sticky-form-header — FG detail is very long (prototype lines 354-387) */}
+      {/* NOTE: this header is intentionally NOT sticky. The shared
+          `.sticky-form-header` class pins at top:var(--topbar-h) with z-10; because
+          the header is tall (~133px) it pinned over the 7-dept strip + tab bar on
+          scroll, hiding them (live Gate-5 finding). `position:static` keeps every
+          row in normal flow so nothing is covered. Horizontal padding (16px, matching
+          `.card`) stops header content sticking to the content-column edge. */}
       <section
         aria-label={labels.eyebrow}
         className="sticky-form-header"
-        style={{ padding: '10px 0', marginBottom: 4 }}
+        style={{ padding: '10px 16px', marginBottom: 4, position: 'static' }}
       >
         <nav aria-label="breadcrumb" className="breadcrumb">
           NPD / <span>{labels.eyebrow}</span>
