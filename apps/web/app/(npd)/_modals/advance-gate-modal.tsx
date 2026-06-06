@@ -236,18 +236,14 @@ export function AdvanceGateModal({
         {effectiveState !== 'ready' ? (
           <StateNotice state={effectiveState} labels={labels} />
         ) : success ? (
-          <div
-            role="status"
-            data-testid="advance-gate-success"
-            className="rounded-md border border-emerald-200 bg-emerald-50 p-6 text-center text-sm text-emerald-800"
-          >
+          <div role="status" data-testid="advance-gate-success" className="alert alert-green p-6 text-center text-sm">
             <div aria-hidden="true" className="mb-2 text-3xl">
               ✓
             </div>
             <div className="font-semibold">
               {fmt(labels.successTitle, { gate: gateInfo.next, nextLabel: gateInfo.nextLabel })}
             </div>
-            <div className="mt-1 text-xs text-emerald-700">{labels.successBody}</div>
+            <div className="muted mt-1 text-xs">{labels.successBody}</div>
           </div>
         ) : (
           <form id="advance-gate-form" onSubmit={onSubmit} noValidate className="grid gap-4">
@@ -293,11 +289,7 @@ export function AdvanceGateModal({
                 </div>
               </div>
               {gateInfo.requiresApproval && (
-                <div
-                  role="note"
-                  data-testid="advance-gate-approval-note"
-                  className="mt-2.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800"
-                >
+                <div role="note" data-testid="advance-gate-approval-note" className="alert alert-blue mt-2.5 text-xs">
                   <span aria-hidden="true">🛡</span> {labels.approvalRequired}
                 </div>
               )}
@@ -364,12 +356,8 @@ export function AdvanceGateModal({
 
             {/* ——— Blockers / ready ——— */}
             {isBlocked ? (
-              <div
-                role="alert"
-                data-testid="advance-gate-blockers"
-                className="rounded-md border border-red-300 bg-red-50 px-3.5 py-2.5"
-              >
-                <p className="mb-1.5 font-semibold text-red-800">
+              <div role="alert" data-testid="advance-gate-blockers" className="alert alert-red">
+                <p className="alert-title text-red-800">
                   <span aria-hidden="true">⚠</span>{' '}
                   {fmt(labels.blockersTitle, { count: blockers.length })}
                 </p>
@@ -382,11 +370,7 @@ export function AdvanceGateModal({
                 </ul>
               </div>
             ) : (
-              <div
-                role="status"
-                data-testid="advance-gate-ready"
-                className="rounded-md border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800"
-              >
+              <div role="status" data-testid="advance-gate-ready" className="alert alert-green text-xs">
                 <span aria-hidden="true">✓</span> {labels.readyAlert}
               </div>
             )}
@@ -411,11 +395,7 @@ export function AdvanceGateModal({
             </div>
 
             {serverError ? (
-              <div
-                role="alert"
-                data-testid="advance-gate-error"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              >
+              <div role="alert" data-testid="advance-gate-error" className="alert alert-red text-sm">
                 {serverError}
               </div>
             ) : null}
@@ -425,13 +405,13 @@ export function AdvanceGateModal({
 
       {effectiveState === 'ready' && !success && (
         <Modal.Footer>
-          <Button type="button" className="btn--secondary text-sm" onClick={onClose} disabled={submitting}>
+          <Button type="button" className="btn--secondary btn-sm text-sm" onClick={onClose} disabled={submitting}>
             {labels.cancel}
           </Button>
           <Button
             type="submit"
             form="advance-gate-form"
-            className="text-sm"
+            className="btn--primary btn-sm text-sm"
             disabled={!canAdvance || submitting || !advanceProjectGate}
           >
             {submitting ? labels.advancing : advanceLabel}

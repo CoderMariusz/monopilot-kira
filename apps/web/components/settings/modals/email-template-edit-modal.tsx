@@ -78,17 +78,17 @@ function Field({
   const errorId = `${id}-error`;
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <label htmlFor={id} style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-        {label} {required ? <span aria-hidden="true">*</span> : null}
+    <div className="ff">
+      <label htmlFor={id}>
+        {label} {required ? <span className="req" aria-hidden="true">*</span> : null}
       </label>
       {children}
       {error ? (
-        <div id={errorId} role="alert" style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>
+        <div id={errorId} role="alert" className="ff-error">
           {error}
         </div>
       ) : help ? (
-        <div id={helpId} style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>
+        <div id={helpId} className="ff-help">
           {help}
         </div>
       ) : null}
@@ -127,27 +127,25 @@ function normalizeMustacheLiteral(value: string) {
 
 function Stepper({ current, completed }: { current: WizardStep; completed: Set<WizardStep> }) {
   return (
-    <nav aria-label="Wizard steps" style={{ display: 'flex', gap: 8 }}>
-      {STEPS.map((step) => {
+    <nav aria-label="Wizard steps" className="wiz-stepper" style={{ gap: 8 }}>
+      {STEPS.map((step, index) => {
         const active = step.key === current;
         const done = completed.has(step.key);
 
         return (
-          <div
-            key={step.key}
-            aria-current={active ? 'step' : undefined}
-            data-complete={done ? 'true' : undefined}
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 999,
-              color: active ? 'var(--blue)' : 'var(--muted)',
-              fontSize: 12,
-              fontWeight: active ? 600 : 500,
-              padding: '4px 10px',
-            }}
-          >
-            {step.label}
-          </div>
+          <React.Fragment key={step.key}>
+            {index > 0 ? <span className={`wiz-step-line${done ? ' done' : ''}`} aria-hidden="true" /> : null}
+            <div
+              className={`wiz-step${active ? ' current' : ''}${done ? ' done' : ''}`}
+              aria-current={active ? 'step' : undefined}
+              data-complete={done ? 'true' : undefined}
+            >
+              <span className="wiz-step-num" aria-hidden="true">
+                {done ? '✓' : index + 1}
+              </span>
+              {step.label}
+            </div>
+          </React.Fragment>
         );
       })}
     </nav>
@@ -333,23 +331,25 @@ export function EmailTemplateEditModal({
   const title = tpl.code ? `Edit template — ${tpl.code}` : 'New email template';
 
   return (
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="sm-04-email-template-title"
-      data-focus-trap="radix-dialog"
-      data-modal-id="SM-04"
-      data-size="wide"
-      onKeyDown={handleDialogKeyDown}
-      style={{ maxWidth: 'var(--modal-size-wide-width)' }}
-    >
-      <div data-testid="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2 id="sm-04-email-template-title" style={{ margin: 0 }}>
-          {title}
-        </h2>
-      </div>
-      <div data-testid="modal-body">
+    <div className="modal-overlay">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sm-04-email-template-title"
+        data-focus-trap="radix-dialog"
+        data-modal-id="SM-04"
+        data-size="wide"
+        onKeyDown={handleDialogKeyDown}
+        className="modal-box wide"
+        style={{ maxWidth: 'var(--modal-size-wide-width)' }}
+      >
+        <div data-testid="modal-header" className="modal-head">
+          <h2 id="sm-04-email-template-title" className="modal-title" style={{ margin: 0 }}>
+            {title}
+          </h2>
+        </div>
+        <div data-testid="modal-body" className="modal-body">
         <div data-testid="email-template-edit-modal">
           <Stepper current={step} completed={completed} />
 
@@ -554,7 +554,7 @@ export function EmailTemplateEditModal({
           ) : null}
         </div>
       </div>
-      <div data-testid="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+        <div data-testid="modal-footer" className="modal-foot">
         {step === 'meta' ? (
           <>
             <Button type="button" className="btn-secondary btn-sm" onClick={() => onOpenChange(false)}>
@@ -591,6 +591,7 @@ export function EmailTemplateEditModal({
             </Button>
           </>
         )}
+        </div>
       </div>
     </div>
   );

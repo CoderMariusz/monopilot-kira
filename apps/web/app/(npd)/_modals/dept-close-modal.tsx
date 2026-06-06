@@ -121,7 +121,7 @@ export function DeptCloseModal({
             {t('forbidden')}
           </p>
         ) : status === 'error' ? (
-          <div role="alert" className="my-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div role="alert" className="alert alert-red my-2 text-sm">
             {t('error')}
           </div>
         ) : (
@@ -218,17 +218,11 @@ function DeptCloseBody({
 
       {fields.length > 0 &&
         (allPass ? (
-          <div
-            role="status"
-            className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700"
-          >
+          <div role="status" className="alert alert-green mb-3 text-sm">
             {t('allPassBanner')}
           </div>
         ) : (
-          <div
-            role="alert"
-            className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
-          >
+          <div role="alert" className="alert alert-amber mb-3 text-sm">
             {t('cannotCloseBanner')}
           </div>
         ))}

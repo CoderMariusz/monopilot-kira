@@ -139,10 +139,12 @@ function toType(row: TenantMigrationRow) {
 }
 
 function statusTone(status: TenantMigrationStatus) {
-  if (status === 'completed') return 'bg-emerald-50 text-emerald-700 ring-emerald-200';
-  if (status === 'rolled_back') return 'bg-rose-50 text-rose-700 ring-rose-200';
-  if (status === 'canary' || status === 'progressive') return 'bg-amber-50 text-amber-700 ring-amber-200';
-  return 'bg-slate-100 text-slate-700 ring-slate-200';
+  // Map to the 5 semantic design-system badge tones (MON-design-system rule 8):
+  // done→green, failed/rolled_back→red, in-progress (canary/progressive)→amber, default→gray.
+  if (status === 'completed') return 'badge-green';
+  if (status === 'rolled_back') return 'badge-red';
+  if (status === 'canary' || status === 'progressive') return 'badge-amber';
+  return 'badge-gray';
 }
 
 function filterRows(rows: TenantMigrationRow[], status: 'all' | TenantMigrationStatus, dateRange: 'all' | 'last_7_days' | 'last_30_days' | 'last_90_days', nowIso: string) {
@@ -285,8 +287,8 @@ function callerCanReadAudit(callerAccess: CallerAccess | undefined) {
 function Forbidden({ labels }: { labels: Labels }) {
   return (
     <main className="settings-page settings-tenant-migration-history space-y-4" aria-labelledby="settings-tenant-migration-history-forbidden-title">
-      <section role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-900">
-        <h1 id="settings-tenant-migration-history-forbidden-title" className="text-2xl font-semibold">
+      <section role="alert" className="alert alert-red">
+        <h1 id="settings-tenant-migration-history-forbidden-title" className="alert-title text-base">
           {labels.forbiddenTitle}
         </h1>
         <p>{labels.forbiddenBody}</p>
@@ -296,15 +298,15 @@ function Forbidden({ labels }: { labels: Labels }) {
 }
 
 function StateNotice({ state, labels }: { state: TenantMigrationHistoryProps['state']; labels: Labels }) {
-  if (state === 'loading') return <section role="status" aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-6">{labels.loading}</section>;
-  if (state === 'error') return <section role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-900">{labels.error}</section>;
-  if (state === 'empty') return <section role="status" className="rounded-xl border border-slate-200 bg-white p-6">{labels.empty}</section>;
+  if (state === 'loading') return <section role="status" aria-live="polite" className="card text-sm text-muted-foreground">{labels.loading}</section>;
+  if (state === 'error') return <section role="alert" className="alert alert-red">{labels.error}</section>;
+  if (state === 'empty') return <section role="status" className="card text-sm text-muted-foreground">{labels.empty}</section>;
   return null;
 }
 
 function StatusBadge({ status }: { status: TenantMigrationStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ring-1 ${statusTone(status)}`} data-status={status}>
+    <span className={`badge ${statusTone(status)}`} data-status={status}>
       {status}
     </span>
   );
@@ -317,22 +319,22 @@ function SnapshotDialog({ row, labels }: { row: TenantMigrationRow; labels: Labe
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="card mt-4"
       data-testid={`snapshot-dialog-${row.id}`}
     >
-      <h2 id={titleId} className="text-lg font-semibold">
+      <h2 id={titleId} className="card-title">
         {labels.snapshotTitle}: {row.id}
       </h2>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <details role="region" aria-label={labels.beforeSnapshot} data-collapsible="true" open className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <details role="region" aria-label={labels.beforeSnapshot} data-collapsible="true" open className="rounded-md border border-[var(--border)] bg-[var(--gray-050)] p-3">
           <summary className="cursor-pointer text-sm font-semibold">{labels.beforeSnapshot}</summary>
-          <pre className="mt-2 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-50">
+          <pre className="mt-2 overflow-auto rounded-md bg-[var(--gray-700)] p-3 font-mono text-xs text-[var(--gray-050)]">
             <code data-testid="snapshot-json-before">{prettyJson(row.snapshotBefore)}</code>
           </pre>
         </details>
-        <details role="region" aria-label={labels.afterSnapshot} data-collapsible="true" open className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <details role="region" aria-label={labels.afterSnapshot} data-collapsible="true" open className="rounded-md border border-[var(--border)] bg-[var(--gray-050)] p-3">
           <summary className="cursor-pointer text-sm font-semibold">{labels.afterSnapshot}</summary>
-          <pre className="mt-2 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-50">
+          <pre className="mt-2 overflow-auto rounded-md bg-[var(--gray-700)] p-3 font-mono text-xs text-[var(--gray-050)]">
             <code data-testid="snapshot-json-after">{prettyJson(row.snapshotAfter)}</code>
           </pre>
         </details>
@@ -343,33 +345,33 @@ function SnapshotDialog({ row, labels }: { row: TenantMigrationRow; labels: Labe
 
 function MigrationTable({ rows, labels }: { rows: TenantMigrationRow[]; labels: Labels }) {
   if (rows.length === 0) {
-    return <section role="status" className="rounded-xl border border-slate-200 bg-white p-6">{labels.empty}</section>;
+    return <section role="status" className="card text-sm text-muted-foreground">{labels.empty}</section>;
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm" data-region="tenant-migration-history-list">
+    <section className="card !p-0 overflow-hidden" data-region="tenant-migration-history-list">
       <div className="overflow-x-auto">
-        <table aria-label={labels.historyTableLabel} className="w-full border-collapse text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <table aria-label={labels.historyTableLabel}>
+          <thead>
             <tr>
-              <th scope="col" className="px-4 py-3">{labels.startedAt}</th>
-              <th scope="col" className="px-4 py-3">{labels.status}</th>
-              <th scope="col" className="px-4 py-3">{labels.type}</th>
-              <th scope="col" className="px-4 py-3">{labels.initiatedByUser}</th>
-              <th scope="col" className="px-4 py-3">{labels.actions}</th>
+              <th scope="col">{labels.startedAt}</th>
+              <th scope="col">{labels.status}</th>
+              <th scope="col">{labels.type}</th>
+              <th scope="col">{labels.initiatedByUser}</th>
+              <th scope="col">{labels.actions}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="align-top hover:bg-slate-50" data-testid="tenant-migration-row">
-                <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.startedAt}</td>
-                <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-700">{toType(row)}</td>
-                <td className="px-4 py-3 text-slate-900">{row.initiatedByUser}</td>
-                <td className="px-4 py-3">
+              <tr key={row.id} className="align-top" data-testid="tenant-migration-row">
+                <td className="mono text-xs text-muted-foreground">{row.startedAt}</td>
+                <td><StatusBadge status={row.status} /></td>
+                <td className="mono text-xs text-muted-foreground">{toType(row)}</td>
+                <td>{row.initiatedByUser}</td>
+                <td>
                   <span className="sr-only">{row.id}</span>
                   <details className="settings-tenant-migration-history__snapshot-details">
-                    <summary role="button" className="btn btn-ghost btn-sm inline-flex cursor-pointer rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    <summary role="button" className="btn btn-secondary btn-sm inline-flex cursor-pointer">
                       {labels.viewSnapshot}<span className="sr-only"> for {row.id}</span>
                     </summary>
                     <SnapshotDialog row={row} labels={labels} />
@@ -423,8 +425,8 @@ export default async function TenantMigrationHistoryPage(propsInput: unknown) {
     >
       <header data-region="page-head" className="settings-page__head flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 id="settings-tenant-migration-history-title" className="text-2xl font-semibold text-slate-950">{labels.title}</h1>
-          <p className="text-sm text-slate-600">{labels.subtitle}</p>
+          <h1 id="settings-tenant-migration-history-title" className="page-title">{labels.title}</h1>
+          <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
         <a
           href={`/${locale}/settings/tenant/migrations/export?status=${encodeURIComponent(selectedStatus)}&date_range=${encodeURIComponent(selectedDateRange)}`}
@@ -436,34 +438,34 @@ export default async function TenantMigrationHistoryPage(propsInput: unknown) {
         </a>
       </header>
 
-      <div className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900" role="note">
+      <div className="alert alert-blue" role="note">
         {labels.orgNotice}
       </div>
 
-      <section aria-label="Migration filters" data-region="tenant-migration-filters" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section aria-label="Migration filters" data-region="tenant-migration-filters" className="card">
         <form className="flex flex-wrap items-end gap-3" action={`/${locale}/settings/tenant/migrations`}>
-          <label className="grid gap-1 text-sm font-medium text-slate-700" htmlFor="tenant-migration-status-filter">
+          <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="tenant-migration-status-filter">
             {labels.statusFilter}
-            <select id="tenant-migration-status-filter" name="status" aria-label={labels.statusFilter} defaultValue={selectedStatus} className="select__trigger min-w-44 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+            <select id="tenant-migration-status-filter" name="status" aria-label={labels.statusFilter} defaultValue={selectedStatus} className="form-input min-w-44">
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700" htmlFor="tenant-migration-date-range-filter">
+          <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="tenant-migration-date-range-filter">
             {labels.dateRangeFilter}
-            <select id="tenant-migration-date-range-filter" name="date_range" aria-label={labels.dateRangeFilter} defaultValue={selectedDateRange} className="select__trigger min-w-44 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+            <select id="tenant-migration-date-range-filter" name="date_range" aria-label={labels.dateRangeFilter} defaultValue={selectedDateRange} className="form-input min-w-44">
               {DATE_RANGE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </label>
-          <button type="submit" className="btn btn-secondary btn-sm rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold">{labels.applyFilters}</button>
-          <span className="text-xs text-slate-500" aria-live="polite">{filteredRows.length} of {allRows.length} {labels.rowCount}</span>
+          <button type="submit" className="btn btn-secondary btn-sm">{labels.applyFilters}</button>
+          <span className="text-xs text-muted-foreground" aria-live="polite">{filteredRows.length} of {allRows.length} {labels.rowCount}</span>
         </form>
       </section>
 
-      <div className="text-xs text-slate-500" data-testid="tenant-migration-history-provenance">{labels.provenance}</div>
+      <div className="text-xs text-muted-foreground" data-testid="tenant-migration-history-provenance">{labels.provenance}</div>
 
       <StateNotice state={state} labels={labels} />
 

@@ -229,13 +229,13 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
               {t('forbidden')}
             </p>
           ) : (
-            <div role="alert" className="my-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div role="alert" className="alert alert-red my-2 text-sm">
               {t('errorGeneric')}
             </div>
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button type="button" className="btn-secondary btn-sm" onClick={onClose}>
+          <Button type="button" className="btn--secondary btn-sm" onClick={onClose}>
             {t('cancel')}
           </Button>
         </Modal.Footer>
@@ -255,13 +255,16 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
             role="status"
             data-testid="gate-approval-done"
             data-decision={decision}
-            className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-6 text-center text-emerald-800"
+            className={[
+              'alert px-4 py-6 text-center',
+              decision === 'approve' ? 'alert-green' : 'alert-red',
+            ].join(' ')}
           >
             <div aria-hidden="true" className="mb-2 text-3xl">
               {decision === 'approve' ? '✓' : '✗'}
             </div>
             <div className="font-semibold">{decision === 'approve' ? t('doneApproved') : t('doneRejected')}</div>
-            <div className="mt-1 text-xs text-emerald-700">{t('doneDetail')}</div>
+            <div className="muted mt-1 text-xs">{t('doneDetail')}</div>
           </div>
         )}
 
@@ -269,17 +272,16 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
         {step === 'esign' && (
           <div
             data-testid="gate-approval-esign"
-            className="rounded-lg border-2 border-blue-500 bg-blue-50 p-5"
+            className="rounded-lg border-2 p-5"
+            style={{ borderColor: 'var(--blue)', background: 'var(--info-050a, #eff6ff)' }}
           >
             <div className="mb-1 flex items-center gap-2 text-sm font-bold text-blue-900">
               <span aria-hidden="true">🔐</span> {t('esignTitle')}
             </div>
-            <p className="mb-4 text-xs text-slate-600">{t('esignSubtitle')}</p>
+            <p className="muted mb-4 text-xs">{t('esignSubtitle')}</p>
 
-            <div className="mb-3">
-              <label htmlFor="gate-approval-password" className="mb-1 block text-xs font-medium text-slate-700">
-                {t('passwordLabel')}
-              </label>
+            <div className="ff mb-3">
+              <label htmlFor="gate-approval-password">{t('passwordLabel')}</label>
               <Input
                 id="gate-approval-password"
                 type="password"
@@ -289,6 +291,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
                 placeholder={t('passwordPlaceholder')}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-label={t('passwordLabel')}
+                className="form-input"
               />
             </div>
 
@@ -307,7 +310,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
             </label>
 
             {errorCode && (
-              <div role="alert" data-testid="gate-approval-error" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <div role="alert" data-testid="gate-approval-error" className="alert alert-red mt-3 text-xs">
                 {t(errorKey(errorCode))}
               </div>
             )}
@@ -315,7 +318,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
             <div className="mt-4 flex gap-2">
               <Button
                 type="button"
-                className="btn-secondary btn-sm"
+                className="btn--secondary btn-sm"
                 onClick={() => {
                   setStep('decision');
                   setErrorCode(null);
@@ -325,7 +328,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
               </Button>
               <Button
                 type="button"
-                className="btn-primary btn-sm"
+                className="btn--primary btn-sm"
                 disabled={!canSign}
                 aria-disabled={!canSign}
                 onClick={() => void handleSign()}
@@ -448,10 +451,10 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
             </fieldset>
 
             {/* Notes */}
-            <div>
-              <label htmlFor="gate-approval-notes" className="mb-1 block text-xs font-medium text-slate-700">
+            <div className="ff">
+              <label htmlFor="gate-approval-notes">
                 {decision === 'approve' ? t('approvalNotes') : t('rejectionReason')}{' '}
-                <span aria-hidden="true" className="text-red-600">
+                <span aria-hidden="true" className="req">
                   *
                 </span>
               </label>
@@ -462,14 +465,15 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
                 aria-invalid={notes.length > 0 && !notesValid ? 'true' : undefined}
                 aria-describedby={notes.length > 0 && !notesValid ? 'gate-approval-notes-error' : 'gate-approval-notes-help'}
                 placeholder={decision === 'approve' ? t('approvalNotesPlaceholder') : t('rejectionReasonPlaceholder')}
+                className="form-input"
                 {...register('notes')}
               />
               {notes.length > 0 && !notesValid ? (
-                <span id="gate-approval-notes-error" role="alert" className="mt-1 block text-[11px] text-red-600">
+                <span id="gate-approval-notes-error" role="alert" className="ff-error block">
                   {t('notesTooShort')}
                 </span>
               ) : (
-                <span id="gate-approval-notes-help" className="mt-1 block text-[11px] text-slate-500">
+                <span id="gate-approval-notes-help" className="ff-help block">
                   {t('notesHelp')}
                 </span>
               )}
@@ -478,7 +482,7 @@ export function GateApprovalModal({ open, project, status = 'ready', onApprove, 
             </div>
 
             {errorCode && (
-              <div role="alert" data-testid="gate-approval-error" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              <div role="alert" data-testid="gate-approval-error" className="alert alert-red mt-3 text-xs">
                 {t(errorKey(errorCode))}
               </div>
             )}

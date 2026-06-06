@@ -195,7 +195,8 @@ export default function SettingsNotificationsScreen({
         <PageHead labels={labels} />
         <section
           data-testid="settings-notifications-loading"
-          className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm"
+          role="status"
+          className="card helper"
         >
           {labels.loading}
         </section>
@@ -213,7 +214,7 @@ export default function SettingsNotificationsScreen({
         className="mx-auto max-w-5xl space-y-6 p-6"
       >
         <PageHead labels={labels} />
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+        <div role="alert" className="alert alert-red">
           {labels.error}
         </div>
       </main>
@@ -244,11 +245,11 @@ export default function SettingsNotificationsScreen({
                 onCheckedChange={(enabled) => void toggleChannel(channel, enabled)}
               />
               {channel.verified ? <Badge variant="success">{labels.verified}</Badge> : null}
-              {channel.usageText ? <span className="text-xs text-slate-500">{channel.usageText}</span> : null}
+              {channel.usageText ? <span className="muted text-xs">{channel.usageText}</span> : null}
               {channel.id === 'slack' ? (
                 <a
                   href="/settings/integrations?highlight=slack"
-                  className="text-xs font-medium text-blue-600 underline-offset-2 hover:underline"
+                  className="text-xs font-medium text-[var(--blue)] underline-offset-2 hover:underline"
                   onClick={(event) => {
                     event.preventDefault();
                     router.push('/settings/integrations?highlight=slack');
@@ -273,9 +274,10 @@ export default function SettingsNotificationsScreen({
         }
       >
         {rulesAreEmpty ? (
-          <p role="status" className="px-5 py-4 text-sm text-slate-500">
-            {labels.empty}
-          </p>
+          <div role="status" className="empty-state">
+            <div aria-hidden="true" className="empty-state-icon">🔔</div>
+            <p className="empty-state-body">{labels.empty}</p>
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -301,7 +303,7 @@ export default function SettingsNotificationsScreen({
                   <TableCell className="font-medium" data-testid="settings-notification-rule-trigger">
                     {rule.trigger}
                   </TableCell>
-                  <TableCell className="text-slate-500">{rule.audience}</TableCell>
+                  <TableCell className="muted">{rule.audience}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {rule.channel.map((channel) => (
@@ -311,7 +313,7 @@ export default function SettingsNotificationsScreen({
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right text-slate-400">⋮</TableCell>
+                  <TableCell className="muted text-right">⋮</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -337,11 +339,11 @@ export default function SettingsNotificationsScreen({
 
 function PageHead({ labels }: { labels: NotificationsLabels }) {
   return (
-    <header data-region="page-head" className="space-y-1" aria-labelledby="settings-notifications-title">
-      <h1 id="settings-notifications-title" className="text-2xl font-semibold tracking-tight text-slate-950">
+    <header data-region="page-head" className="sg-head space-y-1" aria-labelledby="settings-notifications-title">
+      <h1 id="settings-notifications-title" className="page-title">
         {labels.title}
       </h1>
-      <p className="text-sm text-slate-600">{labels.subtitle}</p>
+      <p className="helper">{labels.subtitle}</p>
     </header>
   );
 }
@@ -365,16 +367,16 @@ function Section({
       data-region={region}
       role="region"
       aria-label={title}
-      className="rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="card !p-0"
     >
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+      <div className="card-head flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-          {sub ? <p className="mt-1 text-sm text-slate-500">{sub}</p> : null}
+          <h2 className="card-title">{title}</h2>
+          {sub ? <p className="helper mt-1">{sub}</p> : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className="divide-y divide-slate-100">{children}</div>
+      <div className="divide-y divide-[var(--border)]">{children}</div>
     </section>
   );
 }
@@ -393,10 +395,10 @@ function SettingRow({
   return (
     <div data-testid={testId} className="flex items-center justify-between gap-4 px-5 py-3 first:pt-4 last:pb-4">
       <div className="min-w-0">
-        <p data-testid="settings-notification-row-label" className="text-sm font-medium text-slate-900">
+        <p data-testid="settings-notification-row-label" className="label">
           {label}
         </p>
-        <p className="mt-1 text-xs text-slate-500">{hint}</p>
+        <p className="helper mt-1">{hint}</p>
       </div>
       <div className="shrink-0">{children}</div>
     </div>

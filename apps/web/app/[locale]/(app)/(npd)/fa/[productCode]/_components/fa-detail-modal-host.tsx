@@ -19,15 +19,26 @@
  */
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import React from 'react';
 
 import Modal from '@monopilot/ui/Modal';
 import { Button } from '@monopilot/ui/Button';
+import { deleteFa } from '../_actions/delete-fa';
 
 export type FaDetailModalHostLabels = {
   deptCloseTitle: string;
   deptCloseDeferred: string;
   d365BuildTitle: string;
   d365BuildDeferred: string;
+  deleteTitle: string;
+  deleteIntro: string;
+  deleteBlockedBuilt: string;
+  deleteTypeToConfirm: string;
+  deleteReason: string;
+  deleteReasonPlaceholder: string;
+  deleteConfirm: string;
+  deletePending: string;
+  deleteError: string;
   close: string;
 };
 
@@ -37,7 +48,7 @@ export type FaDetailModalHostProps = {
   labels: FaDetailModalHostLabels;
 };
 
-const OPEN_KEYS = ['deptClose', 'd365Build'] as const;
+const OPEN_KEYS = ['deptClose', 'd365Build', 'faDelete'] as const;
 type OpenKey = (typeof OPEN_KEYS)[number];
 
 function isOpenKey(value: string | null): value is OpenKey {
@@ -48,9 +59,13 @@ export function FaDetailModalHost({ productCode, productName, labels }: FaDetail
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [typed, setTyped] = React.useState('');
+  const [reason, setReason] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
+  const [isPending, startTransition] = React.useTransition();
 
-  const modal = searchParams?.get('modal') ?? null;
-  const open = isOpenKey(modal);
+  const rawModal = searchParams?.get('modal') ?? null;
+  const modal = isOpenKey(rawModal) ? rawModal : null;
 
   function closeModal() {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -65,6 +80,20 @@ export function FaDetailModalHost({ productCode, productName, labels }: FaDetail
   }
 
   const subtitle = `${productCode}${productName ? ` · ${productName}` : ''}`;
+  const deleteValid = typed.trim().toUpperCase() === productCode.toUpperCase() && reason.trim().length >= 10;
+
+  function confirmDelete() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteFa({ productCode, reason });
+        closeModal();
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : labels.deleteError);
+      }
+    });
+  }
 
   return (
     <div data-testid="fa-modal-host">
@@ -108,6 +137,62 @@ export function FaDetailModalHost({ productCode, productName, labels }: FaDetail
         <Modal.Footer>
           <Button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
             {labels.close}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        open={modal === 'faDelete'}
+        onOpenChange={handleOpenChange}
+        size="md"
+        modalId="npd-fa-delete"
+      >
+        <Modal.Header title={labels.deleteTitle.replace('{productCode}', productCode)} />
+        <p data-slot="dialog-subtitle" className="mt-1 text-xs text-slate-500">
+          {subtitle}
+        </p>
+        <Modal.Body>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-700">{labels.deleteIntro}</p>
+            <div className="alert alert-amber text-sm">{labels.deleteBlockedBuilt}</div>
+            <label className="grid gap-1 text-sm">
+              <span>{labels.deleteTypeToConfirm.replace('{productCode}', productCode)}</span>
+              <input
+                className="form-input font-mono"
+                value={typed}
+                onChange={(event) => setTyped(event.currentTarget.value.toUpperCase())}
+                placeholder={productCode}
+                autoComplete="off"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span>{labels.deleteReason}</span>
+              <textarea
+                className="form-input min-h-20"
+                value={reason}
+                onChange={(event) => setReason(event.currentTarget.value)}
+                placeholder={labels.deleteReasonPlaceholder}
+              />
+            </label>
+            {error ? (
+              <div role="alert" className="alert alert-red text-sm">
+                {error}
+              </div>
+            ) : null}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" className="btn-secondary btn-sm" onClick={closeModal} disabled={isPending}>
+            {labels.close}
+          </Button>
+          <Button
+            type="button"
+            className="btn-danger btn-sm"
+            onClick={confirmDelete}
+            disabled={!deleteValid || isPending}
+            aria-disabled={!deleteValid || isPending}
+          >
+            {isPending ? labels.deletePending : labels.deleteConfirm}
           </Button>
         </Modal.Footer>
       </Modal>

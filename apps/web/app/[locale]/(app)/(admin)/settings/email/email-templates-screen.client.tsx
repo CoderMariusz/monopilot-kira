@@ -193,10 +193,10 @@ export default function EmailTemplatesScreen({
       className="space-y-3 p-6"
       aria-busy={state === 'loading'}
     >
-      <header data-region="page-head" className="flex items-start justify-between gap-4">
+      <header data-region="page-head" className="sg-head flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-          <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+          <h1 className="page-title">{labels.title}</h1>
+          <p className="helper mt-1">{labels.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -222,17 +222,17 @@ export default function EmailTemplatesScreen({
       </header>
 
       {state === 'error' ? (
-        <section role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+        <section role="alert" className="alert alert-red">
           {labels.error}
         </section>
       ) : state === 'permission_denied' ? (
-        <section role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <section role="alert" className="alert alert-amber">
           {labels.permissionDenied}
         </section>
       ) : (
         <>
           {!hasReviewedTestSend ? (
-            <section role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <section role="alert" className="alert alert-amber">
               {testSendUnavailableText}
             </section>
           ) : null}
@@ -257,7 +257,7 @@ export default function EmailTemplatesScreen({
                   value=""
                   readOnly
                   autoComplete="off"
-                  className="w-[200px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="form-input w-[200px]"
                 />
                 <Button type="button" className="btn-secondary btn-sm">
                   {labels.rotate}
@@ -270,7 +270,7 @@ export default function EmailTemplatesScreen({
                 type="email"
                 value={fromEmail}
                 onChange={(event) => setFromEmail(event.currentTarget.value)}
-                className="w-[300px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="form-input w-[300px]"
               />
             </ProviderRow>
             <ProviderRow label={labels.fromName} htmlFor="settings-email-from-name">
@@ -278,7 +278,7 @@ export default function EmailTemplatesScreen({
                 id="settings-email-from-name"
                 value={fromName}
                 onChange={(event) => setFromName(event.currentTarget.value)}
-                className="w-[300px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="form-input w-[300px]"
               />
             </ProviderRow>
           </SettingsSection>
@@ -288,7 +288,7 @@ export default function EmailTemplatesScreen({
               <section
                 role="status"
                 aria-label={labels.loading}
-                className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700"
+                className="card helper"
               >
                 {labels.loading}
               </section>
@@ -307,7 +307,7 @@ export default function EmailTemplatesScreen({
           <div
             data-region="variables-reference"
             role="note"
-            className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950"
+            className="alert alert-blue"
           >
             <VariablesReference labels={labels} href={variablesHref} />
           </div>
@@ -360,12 +360,12 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <Card data-testid="settings-email-section" data-region={region} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <CardHeader className="border-b border-slate-200 p-4">
-        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-        {subtitle ? <CardDescription className="mt-1 text-xs text-slate-500">{subtitle}</CardDescription> : null}
+    <Card data-testid="settings-email-section" data-region={region} className="card">
+      <CardHeader className="card-head mb-3 block border-b border-[var(--border)] pb-3">
+        <h2 className="card-title">{title}</h2>
+        {subtitle ? <CardDescription className="helper mt-1">{subtitle}</CardDescription> : null}
       </CardHeader>
-      <CardContentBox className="space-y-3 p-4">{children as React.ReactElement | React.ReactElement[]}</CardContentBox>
+      <CardContentBox className="space-y-3">{children as React.ReactElement | React.ReactElement[]}</CardContentBox>
     </Card>
   );
 }
@@ -373,7 +373,7 @@ function SettingsSection({
 function ProviderRow({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div data-testid="settings-email-provider-row" data-label={label} className="grid grid-cols-[160px_1fr] items-center gap-3">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-700">
+      <label htmlFor={htmlFor} className="label">
         {label}
       </label>
       <div>{children}</div>
@@ -383,15 +383,17 @@ function ProviderRow({ label, htmlFor, children }: { label: string; htmlFor: str
 
 function EmptyTemplates({ labels, canCreate, onNewTemplate }: { labels: Labels; canCreate: boolean; onNewTemplate: () => void }) {
   return (
-    <section role="status" className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-      <div aria-hidden="true" className="text-2xl">
+    <section role="status" className="empty-state">
+      <div aria-hidden="true" className="empty-state-icon">
         ✉️
       </div>
-      <h2 className="mt-2 text-base font-semibold text-slate-950">{labels.emptyTitle}</h2>
-      <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">{labels.emptyBody}</p>
-      <Button type="button" className="btn-primary mt-4" onClick={onNewTemplate} disabled={!canCreate}>
-        {labels.newTemplate}
-      </Button>
+      <h2 className="empty-state-title">{labels.emptyTitle}</h2>
+      <p className="empty-state-body">{labels.emptyBody}</p>
+      <div className="empty-state-action">
+        <Button type="button" className="btn-primary" onClick={onNewTemplate} disabled={!canCreate}>
+          {labels.newTemplate}
+        </Button>
+      </div>
     </section>
   );
 }

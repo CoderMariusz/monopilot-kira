@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { AuthError, ValidationError } from './errors';
 
-const FA_DELETE_PERMISSION = 'fa.delete';
+const FA_DELETE_PERMISSION = 'npd.core.write';
 const FA_DELETED_EVENT = 'fa.deleted';
 const APP_VERSION = 'delete-fa-v1';
 
@@ -28,17 +28,24 @@ export type DeleteFaResult = {
 
 const deleteFaInputSchema = z.object({
   productCode: z.string().trim().min(1),
-  reason: z.string().trim().min(10),
+  reason: z.string().trim().min(10).default('Deleted from FA detail'),
 });
 
-export async function deleteFa(productCode: string, reason: string): Promise<DeleteFaResult> {
+export async function deleteFa(
+  inputOrProductCode: { productCode: string; reason?: string } | string,
+  legacyReason?: string,
+): Promise<DeleteFaResult> {
   return withOrgContext<DeleteFaResult>(async (ctx) => {
     const context = ctx as OrgContextLike;
     if (!(await hasPermission(context, FA_DELETE_PERMISSION))) {
-      throw new AuthError('FORBIDDEN', 'fa.delete is required to delete an FA product');
+      throw new AuthError('FORBIDDEN', 'npd.core.write is required to delete an FA product');
     }
 
-    const parsed = deleteFaInputSchema.safeParse({ productCode, reason });
+    const parsed = deleteFaInputSchema.safeParse(
+      typeof inputOrProductCode === 'string'
+        ? { productCode: inputOrProductCode, reason: legacyReason }
+        : inputOrProductCode,
+    );
     if (!parsed.success) {
       const reasonIssue = parsed.error.issues.find((issue) => issue.path[0] === 'reason');
       if (reasonIssue) {
@@ -52,6 +59,12 @@ export async function deleteFa(productCode: string, reason: string): Promise<Del
     const before = await fetchActiveProduct(context, normalizedProductCode);
     if (!before) {
       throw new ValidationError('PRODUCT_NOT_FOUND', 'FA product is not visible in the current organization');
+    }
+    if (before.built === true) {
+      throw new ValidationError('PRODUCT_BUILT', 'Built FA products cannot be deleted');
+    }
+    if (isReleasedStatus(before.status_overall) || (await hasFactoryRelease(context, normalizedProductCode))) {
+      throw new ValidationError('PRODUCT_RELEASED', 'Released FA products cannot be deleted');
     }
 
     const deleted = await softDeleteProduct(context, normalizedProductCode);
@@ -68,7 +81,10 @@ export async function deleteFa(productCode: string, reason: string): Promise<Del
     });
     await writeOutbox(context, normalizedProductCode, normalizedReason);
 
+    safeRevalidatePath('/fa');
+    safeRevalidatePath(`/fa/${normalizedProductCode}`);
     safeRevalidatePath('/npd/fa');
+    safeRevalidatePath(`/npd/fa/${normalizedProductCode}`);
     return { productCode: normalizedProductCode, deleted: true };
   });
 }
@@ -96,7 +112,7 @@ async function fetchActiveProduct(
   productCode: string,
 ): Promise<Record<string, unknown> | null> {
   const { rows } = await ctx.client.query<Record<string, unknown>>(
-    `select product_code, product_name, department_number, status_overall, created_by_user, deleted_at
+    `select product_code, product_name, department_number, status_overall, built, created_by_user, deleted_at
        from public.product
       where org_id = app.current_org_id()
         and product_code = $1
@@ -105,6 +121,24 @@ async function fetchActiveProduct(
     [productCode],
   );
   return rows[0] ?? null;
+}
+
+async function hasFactoryRelease(ctx: OrgContextLike, productCode: string): Promise<boolean> {
+  const { rows } = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.factory_release_status
+      where org_id = app.current_org_id()
+        and product_code = $1
+        and release_status in ('approved_for_factory', 'released_to_factory')
+      limit 1`,
+    [productCode],
+  );
+  return rows.length > 0;
+}
+
+function isReleasedStatus(status: unknown): boolean {
+  if (typeof status !== 'string') return false;
+  return ['built', 'released', 'released_to_factory', 'launched'].includes(status.trim().toLowerCase());
 }
 
 async function softDeleteProduct(ctx: OrgContextLike, productCode: string): Promise<boolean> {

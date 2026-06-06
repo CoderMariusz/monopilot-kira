@@ -104,13 +104,15 @@ function renderStateShell(labels: RequireGrnQcToggleLabels, state: 'loading' | '
   }[state];
   const role = state === 'error' || state === 'permission_denied' ? 'alert' : 'status';
 
+  const alertTone = state === 'error' ? 'alert-red' : state === 'permission_denied' ? 'alert-amber' : 'alert-blue';
+
   return (
-    <main data-testid="settings-quality-screen" data-screen="settings-quality" className="space-y-4 p-6" aria-busy={state === 'loading'}>
+    <main data-testid="settings-quality-screen" data-screen="settings-quality" className="space-y-3 p-6" aria-busy={state === 'loading'}>
       <header data-region="page-head">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-        <p className="mt-1 text-sm text-slate-600">{labels.description}</p>
+        <h1 className="page-title">{labels.title}</h1>
+        <p className="muted mt-1 text-[13px]">{labels.description}</p>
       </header>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm" role={role}>
+      <section className={`alert ${alertTone}`} role={role}>
         {body}
       </section>
     </main>
@@ -124,10 +126,10 @@ export default async function SettingsQualityPage({ params }: PageProps = {}) {
   if (loaded.state === 'error') return renderStateShell(labels, 'error');
 
   return (
-    <main data-testid="settings-quality-screen" data-screen="settings-quality" className="space-y-4 p-6">
+    <main data-testid="settings-quality-screen" data-screen="settings-quality" className="space-y-3 p-6">
       <header data-region="page-head" className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-        <p className="text-sm text-slate-600">{labels.description}</p>
+        <h1 className="page-title">{labels.title}</h1>
+        <p className="muted text-[13px]">{labels.description}</p>
       </header>
       <RequireGrnQcToggle
         initialEnabled={loaded.enabled}

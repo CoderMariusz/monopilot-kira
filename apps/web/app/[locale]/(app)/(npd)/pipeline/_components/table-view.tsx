@@ -118,6 +118,16 @@ export type TableLabels = {
   forbidden: string;
 };
 
+export type BulkActionResult =
+  | { ok: true; data: { updated: number; projectIds: string[]; failed?: Array<{ projectId: string; error: string; status: number }> } }
+  | { ok: false; error: string; status: number };
+
+export type BulkActions = {
+  assignOwner: (input: { projectIds: string[]; owner: string | null }) => Promise<BulkActionResult>;
+  setPriority: (input: { projectIds: string[]; priority: ProjectPriority }) => Promise<BulkActionResult>;
+  moveGate: (input: { projectIds: string[]; targetGate: ProjectGate }) => Promise<BulkActionResult>;
+};
+
 const GATE_ORDER: ProjectGate[] = ['G0', 'G1', 'G2', 'G3', 'G4', 'Launched'];
 const PRIO_ORDER: Record<ProjectPriority, number> = { high: 0, normal: 1, low: 2 };
 
@@ -276,16 +286,19 @@ export type TableViewProps = {
   projects: TableProject[];
   labels: TableLabels;
   state?: PageState;
+  bulkActions?: BulkActions;
   /** Row activation — parent (SplitView/T-129) tracks selection; no parent mutation here. */
   onSelect?: (id: string) => void;
 };
 
-export function TableView({ projects, labels, state = 'ready', onSelect }: TableViewProps) {
+export function TableView({ projects, labels, state = 'ready', bulkActions, onSelect }: TableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { sort, dir } = parseSort(searchParams);
 
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [bulkError, setBulkError] = React.useState<string | null>(null);
+  const [isBulkPending, startBulkTransition] = React.useTransition();
 
   const toggleSort = React.useCallback(
     (column: SortColumn) => {
@@ -327,6 +340,50 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
       return next;
     });
   }, []);
+
+  const clearSelectionAndRefresh = React.useCallback(() => {
+    setSelected({});
+    router.refresh();
+  }, [router]);
+
+  const runBulkAction = React.useCallback(
+    (action: () => Promise<BulkActionResult>) => {
+      setBulkError(null);
+      startBulkTransition(async () => {
+        const result = await action();
+        if (!result.ok) {
+          setBulkError(result.error);
+          return;
+        }
+        if (result.data.failed && result.data.failed.length > 0) {
+          setBulkError(result.data.failed.map((failure) => `${failure.projectId}: ${failure.error}`).join('; '));
+        }
+        clearSelectionAndRefresh();
+      });
+    },
+    [clearSelectionAndRefresh],
+  );
+
+  const promptAssignOwner = React.useCallback(() => {
+    if (!bulkActions) return;
+    const owner = window.prompt(labels.bulkAssignOwner);
+    if (owner === null) return;
+    runBulkAction(() => bulkActions.assignOwner({ projectIds: selectedIds, owner: owner.trim() || null }));
+  }, [bulkActions, labels.bulkAssignOwner, runBulkAction, selectedIds]);
+
+  const promptSetPriority = React.useCallback(() => {
+    if (!bulkActions) return;
+    const priority = window.prompt(`${labels.bulkSetPriority}: high, normal, low`, 'normal');
+    if (priority !== 'high' && priority !== 'normal' && priority !== 'low') return;
+    runBulkAction(() => bulkActions.setPriority({ projectIds: selectedIds, priority }));
+  }, [bulkActions, labels.bulkSetPriority, runBulkAction, selectedIds]);
+
+  const promptMoveGate = React.useCallback(() => {
+    if (!bulkActions) return;
+    const gate = window.prompt(`${labels.bulkMoveGate}: G0, G1, G2, G3, G4, Launched`);
+    if (!gate || !(GATE_ORDER as string[]).includes(gate)) return;
+    runBulkAction(() => bulkActions.moveGate({ projectIds: selectedIds, targetGate: gate as ProjectGate }));
+  }, [bulkActions, labels.bulkMoveGate, runBulkAction, selectedIds]);
 
   if (state !== 'ready' && state !== 'empty') {
     return (
@@ -377,30 +434,55 @@ export function TableView({ projects, labels, state = 'ready', onSelect }: Table
       className="space-y-2"
     >
       {selectedCount > 0 ? (
-        <div
-          role="toolbar"
-          aria-label={labels.selectedCount.replace('{count}', String(selectedCount))}
-          className="flex flex-wrap items-center gap-2"
-          style={{
-            background: 'var(--gray-050)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: 8,
-          }}
-        >
-          <span data-testid="pipeline-bulk-count" className="px-1" style={{ fontSize: 13, fontWeight: 500 }}>
-            {labels.selectedCount.replace('{count}', String(selectedCount))}
-          </span>
-          <Button type="button" className="btn-secondary btn-sm" data-testid="bulk-assign-owner">
-            {labels.bulkAssignOwner}
-          </Button>
-          <Button type="button" className="btn-secondary btn-sm" data-testid="bulk-set-priority">
-            {labels.bulkSetPriority}
-          </Button>
-          <Button type="button" className="btn-primary btn-sm" data-testid="bulk-move-gate">
-            {labels.bulkMoveGate}
-          </Button>
-        </div>
+        <>
+          <div
+            role="toolbar"
+            aria-label={labels.selectedCount.replace('{count}', String(selectedCount))}
+            className="flex flex-wrap items-center gap-2"
+            style={{
+              background: 'var(--gray-050)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: 8,
+            }}
+          >
+            <span data-testid="pipeline-bulk-count" className="px-1" style={{ fontSize: 13, fontWeight: 500 }}>
+              {labels.selectedCount.replace('{count}', String(selectedCount))}
+            </span>
+            <Button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="bulk-assign-owner"
+              disabled={!bulkActions || isBulkPending}
+              onClick={promptAssignOwner}
+            >
+              {labels.bulkAssignOwner}
+            </Button>
+            <Button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="bulk-set-priority"
+              disabled={!bulkActions || isBulkPending}
+              onClick={promptSetPriority}
+            >
+              {labels.bulkSetPriority}
+            </Button>
+            <Button
+              type="button"
+              className="btn-primary btn-sm"
+              data-testid="bulk-move-gate"
+              disabled={!bulkActions || isBulkPending}
+              onClick={promptMoveGate}
+            >
+              {labels.bulkMoveGate}
+            </Button>
+          </div>
+          {bulkError ? (
+            <div role="alert" className="alert alert-red text-sm">
+              {bulkError}
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

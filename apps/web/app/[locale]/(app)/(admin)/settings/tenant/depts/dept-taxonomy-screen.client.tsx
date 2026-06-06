@@ -178,19 +178,19 @@ export default function DeptTaxonomyScreen({
     <main data-screen="dept-taxonomy" className="space-y-6">
       <header data-region="page-head" className="space-y-2">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{labels.settingsBreadcrumb}</div>
-        <h1 className="text-2xl font-bold tracking-tight">{labels.title}</h1>
+        <h1 className="page-title">{labels.title}</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">{labels.subtitle}</p>
       </header>
 
-      <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div role="alert" className="alert alert-amber">
         {labels.warning}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(280px,40%)_1fr]">
-        <section aria-labelledby="dept-list-heading" className="rounded-lg border bg-card p-4 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-3">
+        <section aria-labelledby="dept-list-heading" className="card">
+          <div className="card-head">
             <div>
-              <h2 id="dept-list-heading" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <h2 id="dept-list-heading" className="card-title">
                 {labels.currentDeptList}
               </h2>
               <p className="text-xs text-muted-foreground">{labels.deptListProvenance}</p>
@@ -205,7 +205,7 @@ export default function DeptTaxonomyScreen({
               <div
                 key={dept.code}
                 data-testid="dept-row"
-                className="flex items-center gap-3 rounded-md border bg-white px-3 py-2 text-sm"
+                className="flex items-center gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
               >
                 <span aria-hidden="true" className="text-muted-foreground">⋮⋮</span>
                 <Badge variant={dept.provenance === 'baseline' ? 'secondary' : 'success'} className="font-mono text-[11px]">
@@ -221,8 +221,8 @@ export default function DeptTaxonomyScreen({
           </div>
         </section>
 
-        <section aria-labelledby="operations-heading" className="rounded-lg border bg-card p-4 shadow-sm">
-          <h2 id="operations-heading" className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <section aria-labelledby="operations-heading" className="card">
+          <h2 id="operations-heading" className="card-title mb-4">
             {labels.operations}
           </h2>
 
@@ -260,7 +260,7 @@ export default function DeptTaxonomyScreen({
             {operation === 'add' ? <AddFields labels={labels} /> : null}
 
             {validationError ? (
-              <div role="alert" className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
+              <div role="alert" className="alert alert-red font-medium">
                 {validationError}
               </div>
             ) : null}
@@ -278,8 +278,8 @@ export default function DeptTaxonomyScreen({
       </div>
 
       {confirmation ? (
-        <div role="dialog" aria-modal="true" aria-label={labels.confirmationTitle} className="rounded-lg border bg-white p-4 shadow-lg">
-          <h2 className="text-lg font-semibold">{labels.confirmationTitle}</h2>
+        <div role="dialog" aria-modal="true" aria-label={labels.confirmationTitle} className="card border-[var(--green)]" style={{ borderLeftWidth: 3 }}>
+          <h2 className="card-title">{labels.confirmationTitle}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{labels.confirmationBody}</p>
           <p className="mt-2 font-mono text-xs">{confirmation}</p>
         </div>
@@ -317,7 +317,7 @@ function SplitFields({
           name="sourceDept"
           value={selectedDeptCode}
           onChange={(event) => onSourceChange(event.currentTarget.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="form-input"
         >
           {departments.map((dept) => (
             <option key={dept.code} value={dept.code}>
@@ -340,7 +340,7 @@ function SplitFields({
               aria-label={column.label}
               name={`columnMapping:${column.code}`}
               defaultValue=""
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="form-input"
             >
               <option value="">{labels.chooseTargetDept}</option>
               <option value={targetOneCode}>{targetOneCode}</option>
@@ -358,7 +358,7 @@ function MergeFields({ labels, departments }: { labels: DeptTaxonomyLabels; depa
     <div className="grid gap-4 md:grid-cols-2">
       <label className="space-y-1 text-sm font-medium">
         <span>{labels.sourceDepts}</span>
-        <select name="mergeSources" multiple className="min-h-24 w-full rounded-md border px-3 py-2 text-sm">
+        <select name="mergeSources" multiple className="form-input min-h-24">
           {departments.map((dept) => (
             <option key={dept.code} value={dept.code}>
               {dept.code}
@@ -380,7 +380,7 @@ function AddFields({ labels }: { labels: DeptTaxonomyLabels }) {
       <TextField label={labels.nameEn} name="nameEn" defaultValue="Regulatory Affairs" />
       <label className="space-y-1 text-sm font-medium">
         <span>{labels.displayOrder}</span>
-        <input name="displayOrder" type="number" defaultValue={80} className="w-full rounded-md border px-3 py-2 text-sm" />
+        <input name="displayOrder" type="number" defaultValue={80} className="form-input" />
       </label>
     </div>
   );
@@ -407,7 +407,7 @@ function TextField({
         defaultValue={value === undefined ? defaultValue : undefined}
         value={value}
         onChange={onChange ? (event) => onChange(event.currentTarget.value) : undefined}
-        className="w-full rounded-md border px-3 py-2 text-sm"
+        className="form-input"
       />
     </label>
   );

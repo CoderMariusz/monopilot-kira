@@ -38,7 +38,7 @@ import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { KanbanView } from './kanban-view';
-import { TableView, type TableLabels, type TableProject } from './table-view';
+import { TableView, type BulkActions, type TableLabels, type TableProject } from './table-view';
 import { SplitView } from './split-view';
 import type { SplitLabels } from './split-labels';
 import type {
@@ -144,6 +144,8 @@ export type PipelineTabsProps = {
   state?: PageState;
   /** Merged advanceProjectGate Server Action (page.tsx) or a test stub. */
   advanceAction: AdvanceAction;
+  /** Bulk table Server Actions, resolved by the RSC page. */
+  bulkActions?: BulkActions;
 };
 
 export function PipelineTabs({
@@ -156,6 +158,7 @@ export function PipelineTabs({
   canAdvance,
   state = 'ready',
   advanceAction,
+  bulkActions,
 }: PipelineTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -343,7 +346,7 @@ export function PipelineTabs({
         ) : null}
 
         {activeView === 'table' ? (
-          <TableView projects={tableProjects} labels={tableLabels} state={state} />
+          <TableView projects={tableProjects} labels={tableLabels} state={state} bulkActions={bulkActions} />
         ) : null}
 
         {activeView === 'split' ? (

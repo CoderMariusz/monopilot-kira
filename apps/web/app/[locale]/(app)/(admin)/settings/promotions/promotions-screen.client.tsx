@@ -70,9 +70,9 @@ export default function PromotionsScreen({ labels, promotionStages, promotions, 
 
   if (!callerAccess.roleCodes.includes('Admin')) {
     return h('main', { 'data-testid': 'settings-promotions-screen', 'data-route': '/settings/promotions', 'data-screen': 'promotions_screen', className: 'space-y-3 p-6' },
-      h('section', { role: 'alert', className: 'rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950' },
-        h('h1', { className: 'text-2xl font-semibold' }, '403'),
-        h('p', { className: 'mt-2 text-sm' }, labels.forbidden),
+      h('section', { role: 'alert', className: 'alert alert-amber' },
+        h('h1', { className: 'alert-title page-title' }, '403'),
+        h('p', { className: 'mt-1 text-[13px]' }, labels.forbidden),
       ),
     );
   }
@@ -90,14 +90,14 @@ export default function PromotionsScreen({ labels, promotionStages, promotions, 
   },
     h('header', { 'data-region': 'page-head', className: 'flex items-start justify-between gap-4' },
       h('div', null,
-        h('h1', { className: 'text-2xl font-semibold tracking-tight text-slate-950' }, labels.title),
-        h('p', { className: 'mt-1 text-sm text-slate-600' }, labels.subtitle),
+        h('h1', { className: 'page-title' }, labels.title),
+        h('p', { className: 'muted mt-1 text-[13px]' }, labels.subtitle),
       ),
-      h(Button, { type: 'button', className: 'btn-primary', disabled, onClick: () => setDialog({ kind: 'create' }) }, labels.startPromotion),
+      h(Button, { type: 'button', className: 'btn btn-primary', disabled, onClick: () => setDialog({ kind: 'create' }) }, labels.startPromotion),
     ),
-    h('nav', { 'data-region': 'promotion-tabs', role: 'tablist', 'aria-label': 'Promotions', className: 'flex gap-2 border-b border-slate-200' },
-      h('button', { type: 'button', role: 'tab', 'aria-selected': activeTab === 'active', className: 'px-3 py-2 text-sm font-medium', onClick: () => setActiveTab('active') }, labels.activeTab),
-      h('button', { type: 'button', role: 'tab', 'aria-selected': activeTab === 'history', className: 'px-3 py-2 text-sm font-medium', onClick: () => setActiveTab('history') }, labels.historyTab),
+    h('nav', { 'data-region': 'promotion-tabs', role: 'tablist', 'aria-label': 'Promotions', className: 'tabs' },
+      h('button', { type: 'button', role: 'tab', 'aria-selected': activeTab === 'active', className: `tab ${activeTab === 'active' ? 'active' : ''}`, onClick: () => setActiveTab('active') }, labels.activeTab),
+      h('button', { type: 'button', role: 'tab', 'aria-selected': activeTab === 'history', className: `tab ${activeTab === 'history' ? 'active' : ''}`, onClick: () => setActiveTab('history') }, labels.historyTab),
     ),
     activeTab === 'active'
       ? h(React.Fragment, null,
@@ -111,16 +111,16 @@ export default function PromotionsScreen({ labels, promotionStages, promotions, 
 
 function StageOverview({ labels, promotionStages }: { labels: Labels; promotionStages: PromotionStage[] }) {
   return h('section', { 'data-region': 'promotion-stage-overview', 'aria-labelledby': 'promotion-stage-overview-title' },
-    h('h2', { id: 'promotion-stage-overview-title', className: 'mb-2 text-base font-semibold text-slate-950' }, labels.stageOverview),
+    h('h2', { id: 'promotion-stage-overview-title', className: 'card-title mb-2' }, labels.stageOverview),
     h('div', { className: 'grid gap-3 md:grid-cols-3' },
-      ...promotionStages.map((stage) => (h as any)(Card, { key: stage.id, 'data-testid': 'promotion-stage-card', className: 'rounded-xl border border-slate-200 bg-white shadow-sm' },
-        h(CardHeader, { className: 'p-4' },
+      ...promotionStages.map((stage) => (h as any)(Card, { key: stage.id, 'data-testid': 'promotion-stage-card', className: 'kpi !mb-0' },
+        h(CardHeader, { className: '!p-0' },
           h('div', { className: 'flex items-start justify-between gap-3' },
             h('div', null,
-              h('h3', { 'data-testid': 'promotion-stage-label', className: 'text-sm font-semibold text-slate-950' }, stage.label),
-              h(CardDescription, { className: 'mt-1 text-xs text-slate-500' }, stage.description),
+              h('h3', { 'data-testid': 'promotion-stage-label', className: 'kpi-label' }, stage.label),
+              h(CardDescription, { className: 'muted mt-1 text-[11px]' }, stage.description),
             ),
-            h('span', { 'data-testid': 'promotion-stage-count', className: 'text-2xl font-semibold text-slate-950' }, String(stage.count)),
+            h('span', { 'data-testid': 'promotion-stage-count', className: 'kpi-value' }, String(stage.count)),
           ),
         ),
       )),
@@ -130,31 +130,34 @@ function StageOverview({ labels, promotionStages }: { labels: Labels; promotionS
 
 function ActivePromotions({ labels, promotions, state, onDiff }: { labels: Labels; promotions: PromotionRecord[]; state: PageState; onDiff: (promotion: PromotionRecord) => void }) {
   let content: React.ReactNode;
-  if (state === 'error') content = h('div', { role: 'alert', className: 'rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900' }, labels.error);
-  else if (state === 'loading') content = h('div', { role: 'status', className: 'rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700' }, labels.loading);
-  else if (state === 'empty' || promotions.length === 0) content = h('div', { role: 'status', className: 'rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-700' }, labels.empty);
-  else content = h('div', { className: 'space-y-2' }, ...promotions.map((promotion) => (h as any)(Card, { key: promotion.id, 'data-testid': 'promotion-row', className: 'rounded-xl border border-slate-200 bg-white shadow-sm' },
-    h(CardContent, { className: 'grid grid-cols-[1fr_auto] items-center gap-3 p-4' },
+  if (state === 'error') content = h('div', { role: 'alert', className: 'alert alert-red' }, labels.error);
+  else if (state === 'loading') content = h('div', { role: 'status', className: 'card empty-state' }, labels.loading);
+  else if (state === 'empty' || promotions.length === 0) content = h('div', { role: 'status', className: 'card empty-state' },
+    h('div', { className: 'empty-state-icon', 'aria-hidden': 'true' }, '🚀'),
+    h('div', { className: 'empty-state-body' }, labels.empty),
+  );
+  else content = h('div', { className: 'space-y-2' }, ...promotions.map((promotion) => (h as any)(Card, { key: promotion.id, 'data-testid': 'promotion-row', className: 'card !mb-0' },
+    h(CardContent, { className: 'grid grid-cols-[1fr_auto] items-center gap-3 !p-0' },
       h('div', null,
-        h('div', { 'data-testid': 'promotion-artefact', className: 'mono text-sm font-semibold text-slate-950' }, promotion.artefact),
-        h('p', { className: 'mt-1 text-xs text-slate-500' }, `${promotion.from} → ${promotion.to} · ${promotion.requester} · ${promotion.affects}`),
+        h('div', { 'data-testid': 'promotion-artefact', className: 'mono text-[13px] font-semibold text-[var(--text)]' }, promotion.artefact),
+        h('p', { className: 'muted mt-1 text-[11px]' }, `${promotion.from} → ${promotion.to} · ${promotion.requester} · ${promotion.affects}`),
       ),
       h('div', { className: 'flex items-center gap-2' },
         (h as any)(Badge, { 'data-testid': 'promotion-status', variant: promotion.status === 'pending' ? 'warning' : 'info' }, promotion.status),
-        h(Button, { type: 'button', className: 'btn-secondary btn-sm', onClick: () => onDiff(promotion) }, 'View diff'),
+        h(Button, { type: 'button', className: 'btn btn-secondary btn-sm', onClick: () => onDiff(promotion) }, 'View diff'),
       ),
     ),
   )));
   return h('section', { 'data-region': 'active-promotions', 'aria-labelledby': 'active-promotions-title' },
-    h('h2', { id: 'active-promotions-title', className: 'mb-2 text-base font-semibold text-slate-950' }, labels.activePromotions),
+    h('h2', { id: 'active-promotions-title', className: 'card-title mb-2' }, labels.activePromotions),
     content,
   );
 }
 
 function HistoryTable({ labels, rows }: { labels: Labels; rows: TenantMigrationRow[] }) {
   return h('section', { 'data-region': 'promotion-history', 'aria-labelledby': 'promotion-history-title' },
-    h('h2', { id: 'promotion-history-title', className: 'mb-2 text-base font-semibold text-slate-950' }, labels.historyTitle),
-    h(Table, { 'aria-label': labels.historyTitle, className: 'w-full text-sm' },
+    h('h2', { id: 'promotion-history-title', className: 'card-title mb-2' }, labels.historyTitle),
+    h(Table, { 'aria-label': labels.historyTitle, className: 'table w-full' },
       h(TableHeader, null, h(TableRow, null,
         h(TableHead, { scope: 'col' }, 'Migration'), h(TableHead, { scope: 'col' }, 'Component'), h(TableHead, { scope: 'col' }, 'Version'), h(TableHead, { scope: 'col' }, 'Status'), h(TableHead, { scope: 'col' }, 'Last run'), h(TableHead, { scope: 'col' }, 'Scheduled by'),
       )),
@@ -239,45 +242,47 @@ function PromoteDialog({ dialog, labels, onClose, submitAction, previewAction }:
   const title = promotion ? `Promotion ${promotion.id}` : 'Start L1→L2→L3 promotion';
 
   return h(Modal as any, { open: true, onOpenChange: (open: boolean) => !open && onClose(), size: 'xl', modalId: 'SM-05' },
-    h('div', { className: 'border-b border-slate-200 px-5 py-4' },
-      h('h2', { id: titleId, className: 'text-base font-semibold text-slate-950' }, title),
-      h('p', { className: 'mt-1 text-xs text-slate-500' }, promotion?.diff ?? 'Promote a rule, flag, schema column or email template to a wider environment.'),
+    h('div', { className: 'modal-head' },
+      h('div', null,
+        h('h2', { id: titleId, className: 'modal-title' }, title),
+        h('p', { className: 'muted mt-0.5 text-[11px]' }, promotion?.diff ?? 'Promote a rule, flag, schema column or email template to a wider environment.'),
+      ),
     ),
     h((Modal as any).Body, null,
-      h('div', { className: 'px-5 py-4 text-sm text-slate-700' },
+      h('div', { className: 'modal-body' },
         h(PromotionStepper, { current: step, done }),
         step === 'select' ? h(SelectStep, { artefact, setArtefact, target, setTarget: (value: string) => setTarget(value as TargetStage) }) : null,
         step === 'diff' ? h(DiffStep, { target, before: preview?.before ?? null, after: preview?.after ?? null, affects: preview?.affects ?? promotion?.affects ?? '—' }) : null,
         step === 'review' ? h(ReviewStep, { artefact, from, target, affects: preview?.affects ?? promotion?.affects ?? '—', reason, setReason }) : null,
-        submitError ? h('div', { role: 'alert', className: 'mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-900' }, `${labels.error} (${submitError})`) : null,
-        submitted ? h('div', { role: 'status', className: 'mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900' }, 'Promotion submitted.') : null,
+        submitError ? h('div', { role: 'alert', className: 'alert alert-red mt-3' }, `${labels.error} (${submitError})`) : null,
+        submitted ? h('div', { role: 'status', className: 'alert alert-green mt-3' }, 'Promotion submitted.') : null,
       ),
     ),
     h((Modal as any).Footer, null,
-      h('div', { className: 'flex w-full items-center justify-end gap-2 rounded-b-lg border-t border-slate-200 bg-slate-50 p-4' },
-        step !== 'select' ? h(Button, { type: 'button', className: 'btn-ghost btn-sm mr-auto', onClick: back }, '← Back') : null,
-        h(Button, { type: 'button', className: 'btn-secondary btn-sm', onClick: onClose }, 'Cancel'),
+      h('div', { className: 'modal-foot' },
+        step !== 'select' ? h(Button, { type: 'button', className: 'btn btn-ghost btn-sm mr-auto', onClick: back }, '← Back') : null,
+        h(Button, { type: 'button', className: 'btn btn-secondary btn-sm', onClick: onClose }, 'Cancel'),
         step === 'select'
-          ? h(Button, { type: 'button', className: 'btn-primary btn-sm', disabled: artefact.length < 3, onClick: next }, 'Next: preview →')
+          ? h(Button, { type: 'button', className: 'btn btn-primary btn-sm', disabled: artefact.length < 3, onClick: next }, 'Next: preview →')
           : step === 'diff'
-            ? h(Button, { type: 'button', className: 'btn-primary btn-sm', onClick: next }, 'Next: confirm →')
-            : h(Button, { type: 'button', className: 'btn-primary btn-sm', disabled: reason.length < 10 || submitting, onClick: onSubmit }, submitting ? 'Submitting…' : 'Submit promotion'),
+            ? h(Button, { type: 'button', className: 'btn btn-primary btn-sm', onClick: next }, 'Next: confirm →')
+            : h(Button, { type: 'button', className: 'btn btn-primary btn-sm', disabled: reason.length < 10 || submitting, onClick: onSubmit }, submitting ? 'Submitting…' : 'Submit promotion'),
       ),
     ),
   );
 }
 
 function SelectStep({ artefact, setArtefact, target, setTarget }: { artefact: string; setArtefact: (value: string) => void; target: string; setTarget: (value: string) => void }) {
-  return h('div', { className: 'mt-4 space-y-3' },
+  return h('div', { className: 'mt-3.5' },
     h(LabeledControl, { label: 'Artefact to promote', htmlFor: 'promotion-artefact', required: true, help: 'Rule / flag / schema / email template. Format: category.code.' },
-      h(Input, { id: 'promotion-artefact', 'aria-label': 'Artefact to promote', value: artefact, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setArtefact(event.currentTarget.value), className: 'mono w-full rounded-md border border-slate-300 px-3 py-2 text-sm', placeholder: 'rules.cycle_count_variance_v1' }),
+      h(Input, { id: 'promotion-artefact', 'aria-label': 'Artefact to promote', value: artefact, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setArtefact(event.currentTarget.value), className: 'form-input mono', placeholder: 'rules.cycle_count_variance_v1' }),
     ),
     h(LabeledControl, { label: 'Target stage', htmlFor: 'promotion-target', required: true },
       h(Select, { value: target, onValueChange: setTarget, options: TARGET_OPTIONS },
         h(SelectTrigger, { 'aria-label': 'Target stage', className: 'min-w-[220px]' }, h(SelectValue, null)),
       ),
     ),
-    h('div', { className: 'rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950' }, 'L1 promotions are reviewed by Monopilot SRE. Turnaround: 3–5 business days.'),
+    h('div', { className: 'alert alert-blue mt-2.5 text-[12px]' }, 'L1 promotions are reviewed by Monopilot SRE. Turnaround: 3–5 business days.'),
   );
 }
 
@@ -288,39 +293,54 @@ function DiffStep({ target, before, after, affects }: { target: string; before: 
   const pending = before === null || after === null;
   const beforeText = before ?? 'Loading current value…';
   const afterText = after ?? 'Loading target value…';
-  return h('div', { className: 'mt-4 space-y-3' },
-    pending ? h('div', { role: 'status', className: 'text-[11px] text-slate-500' }, 'Computing live diff…') : null,
-    h('div', { className: 'grid grid-cols-2 gap-4' },
-      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, 'Current (before)'), h('pre', { 'data-testid': 'promotion-diff-before', className: 'mono min-h-[180px] rounded-md bg-slate-100 p-3 text-[11px]' }, beforeText)),
-      h('div', null, h('div', { className: 'mb-1 text-[11px] uppercase text-slate-500' }, `Target (${target})`), h('pre', { 'data-testid': 'promotion-diff-after', className: 'mono min-h-[180px] rounded-md bg-lime-100 p-3 text-[11px]' }, afterText)),
+  return h('div', { className: 'mt-3.5 space-y-2.5' },
+    pending ? h('div', { role: 'status', className: 'muted text-[11px]' }, 'Computing live diff…') : null,
+    h('div', { className: 'grid grid-cols-2 gap-3.5' },
+      h('div', null, h('div', { className: 'muted mb-1 text-[11px] uppercase' }, 'Current (before)'), h('pre', { 'data-testid': 'promotion-diff-before', className: 'mono m-0 min-h-[180px] rounded-md bg-[var(--gray-100)] p-2.5 text-[11px]' }, beforeText)),
+      h('div', null, h('div', { className: 'muted mb-1 text-[11px] uppercase' }, `Target (${target})`), h('pre', { 'data-testid': 'promotion-diff-after', className: 'mono m-0 min-h-[180px] rounded-md bg-[#ecfccb] p-2.5 text-[11px]' }, afterText)),
     ),
-    h('div', { className: 'rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950' }, h('b', null, 'Impact:'), ' This migration affects ', h('b', null, affects), '. Existing L3 overrides will be preserved.'),
+    h('div', { className: 'alert alert-amber text-[12px]' }, h('b', null, 'Impact:'), ' This migration affects ', h('b', null, affects), '. Existing L3 overrides will be preserved.'),
   );
 }
 
 function ReviewStep({ artefact, from, target, affects, reason, setReason }: { artefact: string; from: string; target: string; affects: string; reason: string; setReason: (value: string) => void }) {
-  return h('div', { className: 'mt-4 space-y-3' },
-    h('dl', { className: 'grid grid-cols-[160px_1fr] gap-2 rounded-md border border-slate-200 p-3 text-sm' },
-      h('dt', { className: 'text-slate-500' }, 'Artefact'), h('dd', { className: 'mono font-semibold' }, artefact),
-      h('dt', { className: 'text-slate-500' }, 'From → To'), h('dd', { className: 'font-semibold' }, `${from} → ${target}`),
-      h('dt', { className: 'text-slate-500' }, 'Affects'), h('dd', null, affects),
+  return h('div', { className: 'mt-3.5 space-y-2.5' },
+    h('dl', { className: 'grid grid-cols-[160px_1fr] gap-2 rounded-md border border-[var(--border)] p-3 text-[13px]' },
+      h('dt', { className: 'muted' }, 'Artefact'), h('dd', { className: 'mono font-semibold' }, artefact),
+      h('dt', { className: 'muted' }, 'From → To'), h('dd', { className: 'font-semibold' }, `${from} → ${target}`),
+      h('dt', { className: 'muted' }, 'Affects'), h('dd', null, affects),
     ),
     h(LabeledControl, { label: 'Justification (audit-logged)', htmlFor: 'promotion-justification', required: true },
-      h(Textarea, { id: 'promotion-justification', 'aria-label': 'Justification', value: reason, onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setReason(event.currentTarget.value), className: 'min-h-[96px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm', placeholder: 'Why should this be promoted now?' }),
+      h(Textarea, { id: 'promotion-justification', 'aria-label': 'Justification', value: reason, onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setReason(event.currentTarget.value), className: 'form-input min-h-[96px]', placeholder: 'Why should this be promoted now?' }),
     ),
   );
 }
 
 function PromotionStepper({ current, done }: { current: WizardStep; done: Set<WizardStep> }) {
-  return h('ol', { className: 'flex gap-2', 'aria-label': 'Promotion steps' },
-    ...WIZARD_STEPS.map((step) => h('li', { key: step.key, 'aria-current': current === step.key ? 'step' : undefined, 'data-complete': done.has(step.key) || undefined, className: 'rounded-full border border-slate-200 px-3 py-1 text-xs font-medium' }, step.label)),
+  return h('ol', { className: 'wiz-stepper', 'aria-label': 'Promotion steps' },
+    ...WIZARD_STEPS.flatMap((step, index) => {
+      const isDone = done.has(step.key);
+      const isCurrent = current === step.key;
+      const stepNode = h('li', {
+        key: step.key,
+        'data-complete': isDone || undefined,
+        className: `wiz-step ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}`,
+      },
+        h('span', { className: 'wiz-step-num', 'aria-hidden': 'true' }, isDone ? '✓' : String(index + 1)),
+        h('span', { className: 'wiz-step-label', 'aria-current': isCurrent ? 'step' : undefined }, step.label),
+      );
+      const line = index < WIZARD_STEPS.length - 1
+        ? h('li', { key: `${step.key}-line`, 'aria-hidden': 'true', className: `wiz-step-line ${isDone ? 'done' : ''}` })
+        : null;
+      return line ? [stepNode, line] : [stepNode];
+    }),
   );
 }
 
 function LabeledControl({ label, htmlFor, required, help, children }: { label: string; htmlFor: string; required?: boolean; help?: string; children?: React.ReactNode }) {
-  return h('div', { className: 'space-y-1' },
-    h('label', { htmlFor, className: 'block text-sm font-medium text-slate-700' }, label, required ? h('span', { 'aria-hidden': 'true' }, ' *') : null),
+  return h('div', { className: 'ff' },
+    h('label', { htmlFor }, label, required ? h('span', { className: 'req', 'aria-hidden': 'true' }, ' *') : null),
     children,
-    help ? h('p', { className: 'text-xs text-slate-500' }, help) : null,
+    help ? h('p', { className: 'ff-help' }, help) : null,
   );
 }

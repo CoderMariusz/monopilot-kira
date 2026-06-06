@@ -173,10 +173,10 @@ export function RuleVariantSelectorClient({
                           ))}
                         </div>
                         {row.availableVariants.some((variant) => variant.requiresNewVersion) ? (
-                          <div className="mt-1 text-xs text-slate-600">requires_new_version</div>
+                          <div className="mt-1 text-xs text-muted-foreground">requires_new_version</div>
                         ) : null}
                         {row.availableVariants.some((variant) => variant.technicalApprovalRequired) ? (
-                          <div className="mt-1 text-xs text-slate-600">technical approval required</div>
+                          <div className="mt-1 text-xs text-muted-foreground">technical approval required</div>
                         ) : null}
                       </TableCell>
                       <TableCell className="align-top">
@@ -197,7 +197,7 @@ export function RuleVariantSelectorClient({
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="mono text-xs text-slate-600 align-top">{formatDate(row.lastChangedAt, labels)}</TableCell>
+                      <TableCell className="mono text-xs text-muted-foreground align-top">{formatDate(row.lastChangedAt, labels)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -207,7 +207,7 @@ export function RuleVariantSelectorClient({
         </Card>
 
         <div className="flex items-center justify-between gap-3">
-          <p id="rule-variant-selector-status" role="status" className="text-sm text-slate-600" aria-live="polite">
+          <p id="rule-variant-selector-status" role="status" className="text-sm text-muted-foreground" aria-live="polite">
             {statusMessage}
           </p>
           <Button type="submit" className="btn-primary" disabled={isPending}>

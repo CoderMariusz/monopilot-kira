@@ -24,6 +24,11 @@
 import { getTranslations } from 'next-intl/server';
 
 import { advanceProjectGate } from '../../../../(npd)/pipeline/_actions/advance-project-gate';
+import {
+  bulkAssignOwner,
+  bulkMoveGate,
+  bulkSetPriority,
+} from '../../../../(npd)/pipeline/_actions/bulk-update-projects';
 import { listProjects, type ListProjectsInput } from '../../../../(npd)/pipeline/_actions/list-projects';
 import { GATE_ADVANCE_PERMISSION } from '../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
@@ -35,7 +40,7 @@ import {
 } from '../../../../(npd)/pipeline/_actions/shared';
 import { withOrgContext } from '../../../../../lib/auth/with-org-context';
 import { PipelineTabs, type PipelineTabsLabels, type PipelineKpiLabels } from './_components/pipeline-tabs';
-import type { TableLabels } from './_components/table-view';
+import type { BulkActions, TableLabels } from './_components/table-view';
 import type { SplitLabels } from './_components/split-labels';
 import type {
   AdvanceInput,
@@ -336,6 +341,27 @@ async function advanceActionAdapter(input: AdvanceInput): Promise<AdvanceResult>
   return { ok: false, error: result.error, status: result.status };
 }
 
+async function bulkAssignOwnerAdapter(input: Parameters<BulkActions['assignOwner']>[0]) {
+  'use server';
+  return bulkAssignOwner(input);
+}
+
+async function bulkSetPriorityAdapter(input: Parameters<BulkActions['setPriority']>[0]) {
+  'use server';
+  return bulkSetPriority(input);
+}
+
+async function bulkMoveGateAdapter(input: Parameters<BulkActions['moveGate']>[0]) {
+  'use server';
+  return bulkMoveGate(input);
+}
+
+const bulkActionsAdapter: BulkActions = {
+  assignOwner: bulkAssignOwnerAdapter,
+  setPriority: bulkSetPriorityAdapter,
+  moveGate: bulkMoveGateAdapter,
+};
+
 export default async function PipelinePage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as PipelinePageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
@@ -372,6 +398,7 @@ export default async function PipelinePage(propsInput: unknown = {}) {
       canAdvance={props.canAdvance ?? loaded.canAdvance}
       state={props.state ?? loaded.state}
       advanceAction={advanceActionAdapter}
+      bulkActions={bulkActionsAdapter}
     />
   );
 }

@@ -292,7 +292,7 @@ function ChecklistItemRow({
       {!item.done && canWrite && (
         <Button
           type="button"
-          className="shrink-0 text-xs"
+          className="btn--secondary btn-sm shrink-0 text-xs"
           data-testid="gate-item-attach"
           onClick={(e) => e.stopPropagation()}
         >
@@ -567,11 +567,7 @@ export function GateChecklistPanel({
       {currentGate && (
         <Card className="mt-1" data-testid="gate-checklist-footer">
           {currentBlockers.length > 0 ? (
-            <div
-              role="alert"
-              data-testid="gate-blocker-alert"
-              className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
-            >
+            <div role="alert" data-testid="gate-blocker-alert" className="alert alert-amber mb-3">
               <span aria-hidden="true">⚠</span>{' '}
               {labels.blockerAlert
                 .replace('{count}', String(currentBlockers.length))
@@ -586,11 +582,7 @@ export function GateChecklistPanel({
               </ul>
             </div>
           ) : currentGate.next ? (
-            <div
-              role="status"
-              data-testid="gate-ready-alert"
-              className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
-            >
+            <div role="status" data-testid="gate-ready-alert" className="alert alert-green mb-3">
               <span aria-hidden="true">✓</span>{' '}
               {labels.readyAlert.replace('{gate}', currentGate.key).replace('{nextLabel}', currentGate.nextLabel ?? '')}
             </div>
@@ -601,6 +593,7 @@ export function GateChecklistPanel({
               <Button
                 type="button"
                 data-testid="gate-advance-button"
+                className={currentBlockers.length > 0 ? 'btn--secondary' : 'btn--primary'}
                 disabled={currentBlockers.length > 0}
                 onClick={() =>
                   openModal?.(currentGate.requiresApproval ? 'gateApproval' : 'advanceGate', { project })
@@ -614,7 +607,7 @@ export function GateChecklistPanel({
               </Button>
             )}
             {!currentGate.next && currentBlockers.length === 0 && (
-              <Button type="button" data-testid="gate-mark-launched">
+              <Button type="button" className="btn--primary" data-testid="gate-mark-launched">
                 {labels.markLaunched}
               </Button>
             )}

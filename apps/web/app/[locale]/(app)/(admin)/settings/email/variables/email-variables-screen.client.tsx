@@ -49,9 +49,9 @@ function interpolate(label: string, values: Record<string, string | number>) {
 
 function PageHead({ labels }: { labels: EmailVariablesScreenLabels }) {
   return (
-    <header data-region="page-head" className="mb-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-      <p className="mt-1 text-sm text-slate-600">{labels.subtitle}</p>
+    <header data-region="page-head" className="sg-head mb-4">
+      <h1 className="page-title">{labels.title}</h1>
+      <p className="helper mt-1">{labels.subtitle}</p>
     </header>
   );
 }
@@ -84,16 +84,16 @@ export default function EmailVariablesScreen({ labels, groups, state }: EmailVar
       <PageHead labels={labels} />
 
       {state === 'error' ? (
-        <section role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+        <section role="alert" className="alert alert-red">
           {labels.error}
         </section>
       ) : state === 'permission_denied' ? (
-        <section role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <section role="alert" className="alert alert-amber">
           {labels.permissionDenied}
         </section>
       ) : (
         <>
-          <section data-region="copy-guidance" role="alert" className="alert alert-blue rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+          <section data-region="copy-guidance" role="alert" className="alert alert-blue">
             {labels.guidance}
           </section>
 
@@ -107,24 +107,25 @@ export default function EmailVariablesScreen({ labels, groups, state }: EmailVar
                 placeholder={labels.searchPlaceholder}
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
-                className="w-[300px] rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="form-input w-[300px]"
               />
             </label>
           </section>
 
           {state === 'loading' ? (
-            <section data-testid="settings-email-variables-loading" role="status" className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
+            <section data-testid="settings-email-variables-loading" role="status" className="card helper">
               {labels.loading}
             </section>
           ) : state === 'empty' || groups.length === 0 ? (
-            <section role="status" className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
-              {labels.empty}
+            <section role="status" className="empty-state">
+              <div aria-hidden="true" className="empty-state-icon">✉️</div>
+              <p className="empty-state-body">{labels.empty}</p>
             </section>
           ) : (
             <section data-region="variables-grid" className="space-y-3">
               {visibleGroups.length === 0 ? (
-                <Card className="rounded-xl border border-slate-200 bg-white">
-                  <CardContent className="p-6 text-sm text-slate-700">{labels.empty}</CardContent>
+                <Card className="empty-state">
+                  <CardContent className="empty-state-body">{labels.empty}</CardContent>
                 </Card>
               ) : (
                 visibleGroups.map((group) => (
@@ -155,11 +156,11 @@ function VariableGroupCard({
   onCopy: (name: string) => Promise<void>;
 }) {
   return (
-    <Card data-testid="settings-email-variable-group" className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-slate-200 p-4">
+    <Card data-testid="settings-email-variable-group" className="card">
+      <CardHeader className="card-head mb-3 flex flex-row items-start justify-between gap-4 border-b border-[var(--border)] pb-3">
         <div>
-          <h2 className="card__title text-base font-semibold text-slate-950">{group.group}</h2>
-          <CardDescription data-testid="settings-email-variable-count" className="mt-1 text-xs text-slate-500">
+          <h2 className="card-title card__title">{group.group}</h2>
+          <CardDescription data-testid="settings-email-variable-count" className="helper mt-1">
             {interpolate(labels.variablesCount, { count: group.vars.length })}
           </CardDescription>
         </div>
@@ -180,13 +181,13 @@ function VariableGroupCard({
                 <TableCell>
                   <code
                     data-testid="settings-email-variable-name"
-                    className="mono rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-900"
+                    className="mono rounded bg-[var(--gray-100)] px-2 py-0.5 text-[11px]"
                   >
                     {variable.name}
                   </code>
                 </TableCell>
-                <TableCell className="text-xs text-slate-700">{variable.desc}</TableCell>
-                <TableCell className="mono text-[11px] text-slate-500">{variable.example}</TableCell>
+                <TableCell className="text-xs">{variable.desc}</TableCell>
+                <TableCell className="mono muted text-[11px]">{variable.example}</TableCell>
                 <TableCell className="text-right">
                   <Button type="button" className="btn-secondary btn-sm" onClick={() => void onCopy(variable.name)}>
                     {labels.copy}

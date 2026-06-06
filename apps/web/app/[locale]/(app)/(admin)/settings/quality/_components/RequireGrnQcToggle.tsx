@@ -2,7 +2,6 @@
 
 import React from 'react';
 
-import { Badge } from '@monopilot/ui/Badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import { Switch } from '@monopilot/ui/Switch';
 
@@ -84,28 +83,28 @@ export function RequireGrnQcToggle({
   const stateLabel = enabled ? labels.onLabel : labels.offLabel;
 
   return (
-    <section data-testid="require-grn-qc-card" data-region="flag-toggle-card" className="space-y-4">
-      <div data-region="quality-coming-banner" role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+    <section data-testid="require-grn-qc-card" data-region="flag-toggle-card" className="space-y-3">
+      <div data-region="quality-coming-banner" role="status" className="alert alert-blue">
         {labels.comingBanner}
       </div>
 
-      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <CardHeader className="space-y-2">
+      <Card className="card">
+        <CardHeader className="card-head !mb-0 !p-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="text-lg font-semibold text-slate-950">{labels.title}</CardTitle>
-              <CardDescription className="mt-1 max-w-2xl text-sm text-slate-600">{labels.description}</CardDescription>
+              <CardTitle className="card-title">{labels.title}</CardTitle>
+              <CardDescription className="muted mt-1 max-w-2xl text-[13px]">{labels.description}</CardDescription>
             </div>
-            <Badge variant={enabled ? 'success' : 'muted'} className="text-[10px]">
+            <span className={`badge ${enabled ? 'badge-green' : 'badge-gray'}`}>
               {enabled ? '● ON' : '○ OFF'}
-            </Badge>
+            </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4">
+        <CardContent className="!p-0">
+          <div className="mt-3 flex items-center justify-between gap-4 rounded-md border border-[var(--border)] bg-[var(--gray-050)] p-3">
             <div className="min-w-0">
-              <p className="font-mono text-[11px] font-semibold text-slate-900">{REQUIRE_GRN_QC_FLAG_KEY}</p>
-              <p id={statusId} className="mt-1 text-sm text-slate-700" aria-live="polite">
+              <p className="mono text-[11px] font-semibold text-[var(--text)]">{REQUIRE_GRN_QC_FLAG_KEY}</p>
+              <p id={statusId} className="muted mt-1 text-[13px]" aria-live="polite">
                 {stateLabel}
               </p>
             </div>
@@ -121,7 +120,7 @@ export function RequireGrnQcToggle({
             />
           </div>
 
-          <div data-region="flag-rbac-note" className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+          <div data-region="flag-rbac-note" className="muted mt-3 flex flex-wrap items-center justify-between gap-3 text-[11px]">
             <span>{canEdit ? permission : labels.readOnly}</span>
             {pending ? (
               <span role="status" aria-live="polite">
@@ -131,12 +130,12 @@ export function RequireGrnQcToggle({
           </div>
 
           {message ? (
-            <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <p role="status" className="alert alert-green mt-3">
               {message}
             </p>
           ) : null}
           {error ? (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+            <div role="alert" className="alert alert-red mt-3">
               {error}
             </div>
           ) : null}

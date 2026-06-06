@@ -61,6 +61,7 @@ type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 const READ_PERMISSION = 'npd.fa.read';
 const CLOSE_PERMISSION = 'npd.fa.close';
 const BUILD_PERMISSION = 'npd.fa.build';
+const DELETE_PERMISSION = 'npd.core.write';
 
 type FaCore = {
   productCode: string;
@@ -74,6 +75,7 @@ type LayoutData = {
   canRead: boolean;
   canClose: boolean;
   canBuild: boolean;
+  canDelete: boolean;
   fa: FaCore | null;
 };
 
@@ -125,18 +127,19 @@ async function loadLayout(productCode: string): Promise<LayoutData> {
       const ctx = rawCtx as OrgContextLike;
       const canRead = await hasPermission(ctx, READ_PERMISSION);
       if (!canRead) {
-        return { canRead: false, canClose: false, canBuild: false, fa: null };
+        return { canRead: false, canClose: false, canBuild: false, canDelete: false, fa: null };
       }
-      const [canClose, canBuild, fa] = await Promise.all([
+      const [canClose, canBuild, canDelete, fa] = await Promise.all([
         hasPermission(ctx, CLOSE_PERMISSION),
         hasPermission(ctx, BUILD_PERMISSION),
+        hasPermission(ctx, DELETE_PERMISSION),
         readFaCore(ctx, productCode),
       ]);
-      return { canRead, canClose, canBuild, fa };
+      return { canRead, canClose, canBuild, canDelete, fa };
     });
   } catch (error) {
     console.error('[fa-detail-layout] org-scoped read failed:', error);
-    return { canRead: false, canClose: false, canBuild: false, fa: null };
+    return { canRead: false, canClose: false, canBuild: false, canDelete: false, fa: null };
   }
 }
 
@@ -150,8 +153,10 @@ const DEFAULT_ACTION_LABELS: FaRightPanelActionsLabels = {
   actions: 'Quick actions',
   deptClose: 'Dept Close',
   d365Build: 'D365 Build',
+  deleteFa: 'Delete FG',
   deptCloseDisabledHint: 'You do not have permission to close departments.',
   d365DisabledHint: 'FA must be Complete first (all 7 departments closed).',
+  deleteDisabledHint: 'You do not have permission to delete finished goods.',
 };
 
 const DEFAULT_MODAL_LABELS: FaDetailModalHostLabels = {
@@ -159,6 +164,15 @@ const DEFAULT_MODAL_LABELS: FaDetailModalHostLabels = {
   deptCloseDeferred: 'The department-close workflow opens here.',
   d365BuildTitle: 'Build D365 output',
   d365BuildDeferred: 'The D365 build workflow opens here.',
+  deleteTitle: 'Delete FG {productCode}?',
+  deleteIntro: 'This soft-deletes the FG from active NPD views. The audit trail is retained.',
+  deleteBlockedBuilt: 'Built or released FGs are refused by the server action.',
+  deleteTypeToConfirm: 'Type {productCode} to confirm',
+  deleteReason: 'Reason',
+  deleteReasonPlaceholder: 'Explain why this FG should be deleted',
+  deleteConfirm: 'Delete FG',
+  deletePending: 'Deleting...',
+  deleteError: 'Unable to delete FG.',
   close: 'Cancel',
 };
 
@@ -178,8 +192,10 @@ async function buildActionLabels(locale: string): Promise<FaRightPanelActionsLab
       actions: pick('actions', d.actions),
       deptClose: pick('deptClose', d.deptClose),
       d365Build: pick('d365Build', d.d365Build),
+      deleteFa: pick('deleteFa', d.deleteFa),
       deptCloseDisabledHint: pick('deptCloseDisabledHint', d.deptCloseDisabledHint),
       d365DisabledHint: pick('d365DisabledHint', d.d365DisabledHint),
+      deleteDisabledHint: pick('deleteDisabledHint', d.deleteDisabledHint),
     };
   } catch {
     return DEFAULT_ACTION_LABELS;
@@ -203,6 +219,15 @@ async function buildModalLabels(locale: string): Promise<FaDetailModalHostLabels
       deptCloseDeferred: pick('deptCloseDeferred', d.deptCloseDeferred),
       d365BuildTitle: pick('d365BuildTitle', d.d365BuildTitle),
       d365BuildDeferred: pick('d365BuildDeferred', d.d365BuildDeferred),
+      deleteTitle: pick('deleteTitle', d.deleteTitle),
+      deleteIntro: pick('deleteIntro', d.deleteIntro),
+      deleteBlockedBuilt: pick('deleteBlockedBuilt', d.deleteBlockedBuilt),
+      deleteTypeToConfirm: pick('deleteTypeToConfirm', d.deleteTypeToConfirm),
+      deleteReason: pick('deleteReason', d.deleteReason),
+      deleteReasonPlaceholder: pick('deleteReasonPlaceholder', d.deleteReasonPlaceholder),
+      deleteConfirm: pick('deleteConfirm', d.deleteConfirm),
+      deletePending: pick('deletePending', d.deletePending),
+      deleteError: pick('deleteError', d.deleteError),
       close: pick('close', d.close),
     };
   } catch {
@@ -236,6 +261,7 @@ export default async function FaDetailLayout(propsInput: unknown = {}) {
     <FaRightPanelActions
       canDeptClose={data.canRead && data.canClose}
       canBuild={data.canRead && data.canBuild}
+      canDelete={data.canRead && data.canDelete}
       faComplete={faComplete}
       labels={actionLabels}
     />

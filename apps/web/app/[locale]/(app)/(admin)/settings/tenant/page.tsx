@@ -11,7 +11,6 @@ import {
 } from '../../../../../../actions/authorization/preflight';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import { Badge } from '@monopilot/ui/Badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 export const dynamic = 'force-dynamic';
@@ -328,7 +327,7 @@ function TenantVariationsDashboardScreen({
       <header data-region="page-head" className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Settings / Tenant</div>
-          <h1 className="text-2xl font-bold tracking-tight">{labels.title}</h1>
+          <h1 className="page-title">{labels.title}</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">{labels.subtitle}</p>
         </div>
         <a className="btn btn-secondary btn-sm" href="/settings/tenant/history">
@@ -370,8 +369,16 @@ function TenantVariationsDashboardScreen({
       >
         <div className="grid gap-3 md:grid-cols-2">
           {authorizationPolicies.map((policy) => (
-            <Card key={policy.code} className={policy.status === 'Misconfigured' ? 'border-amber-300 bg-amber-50' : undefined}>
-              <CardContent className="space-y-3 p-4">
+            <div
+              key={policy.code}
+              className="rounded-[var(--radius)] border p-4"
+              style={
+                policy.status === 'Misconfigured'
+                  ? { borderColor: 'var(--amber)', background: 'var(--amber-050a)' }
+                  : { borderColor: 'var(--border)', background: '#fff' }
+              }
+            >
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="font-mono text-xs text-muted-foreground">{policy.code}</div>
@@ -380,9 +387,9 @@ function TenantVariationsDashboardScreen({
                   </div>
                   <PolicyStatusBadge status={policy.status} />
                 </div>
-                <div className="text-xs text-muted-foreground">Updated {formatDate(policy.updatedAt, labels.never)}</div>
-              </CardContent>
-            </Card>
+                <div className="font-mono text-xs text-muted-foreground">Updated {formatDate(policy.updatedAt, labels.never)}</div>
+              </div>
+            </div>
           ))}
         </div>
       </DashboardSection>
@@ -392,12 +399,12 @@ function TenantVariationsDashboardScreen({
           {featureFlags.length === 0 ? (
             <p className="text-sm text-muted-foreground">No tenant-local feature flags configured.</p>
           ) : featureFlags.map((flag) => (
-            <div key={flag.code} className="flex items-center justify-between gap-3 rounded-md border bg-white px-3 py-2 text-sm">
+            <div key={flag.code} className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm">
               <div>
                 <div className="font-mono text-xs font-semibold">{flag.code}</div>
                 <p className="text-xs text-muted-foreground">{flag.description}</p>
               </div>
-              <Badge variant={flag.enabled ? 'success' : 'muted'}>{flag.enabled ? 'Enabled' : 'Disabled'}</Badge>
+              <span className={`badge ${flag.enabled ? 'badge-green' : 'badge-gray'}`}>{flag.enabled ? 'Enabled' : 'Disabled'}</span>
             </div>
           ))}
         </div>
@@ -407,16 +414,15 @@ function TenantVariationsDashboardScreen({
 }
 
 function KpiCard({ label, value, sub, accent }: { label: string; value: React.ReactNode; sub: string; accent: 'info' | 'warning' | 'secondary' | 'muted' }) {
+  // Design-system KPI tile: 1px border + 6px radius + 3px coloured bottom accent,
+  // value Inter 26/700 (.kpi-value), never mono. info→blue(default), warning→amber.
+  const accentClass = accent === 'warning' ? ' amber' : '';
   return (
-    <Card data-testid="settings-tenant-kpi">
-      <CardHeader className="space-y-1 p-4 pb-2">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="text-2xl font-semibold leading-none" data-accent={accent}>{value}</div>
-        <p className="mt-2 text-xs text-muted-foreground">{sub}</p>
-      </CardContent>
-    </Card>
+    <div className={`kpi${accentClass}`} data-testid="settings-tenant-kpi" data-accent={accent}>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      <p className="kpi-change muted">{sub}</p>
+    </div>
   );
 }
 
@@ -435,10 +441,10 @@ function DashboardSection({
 }) {
   const heading = count === undefined ? title : `${title} (${count})`;
   return (
-    <section role="region" aria-label={heading} className="rounded-lg border bg-card p-4 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <section role="region" aria-label={heading} className="card">
+      <div className="card-head">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{heading}</h2>
+          <h2 className="card-title">{heading}</h2>
           {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         {action}

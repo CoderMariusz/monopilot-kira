@@ -29,9 +29,11 @@ export type FaRightPanelActionsLabels = {
   actions: string;
   deptClose: string;
   d365Build: string;
+  deleteFa: string;
   /** Hint shown when an action is disabled (no permission / not Complete). */
   deptCloseDisabledHint: string;
   d365DisabledHint: string;
+  deleteDisabledHint: string;
 };
 
 export type FaRightPanelActionsProps = {
@@ -39,17 +41,20 @@ export type FaRightPanelActionsProps = {
   canDeptClose: boolean;
   /** RBAC npd.fa.build (or read fallback), resolved server-side. */
   canBuild: boolean;
+  /** RBAC fallback for FA delete: npd.core.write, resolved server-side. */
+  canDelete: boolean;
   /** D365 Build requires the FA to be Complete (prototype line 347). */
   faComplete: boolean;
   labels: FaRightPanelActionsLabels;
 };
 
 /** Modal keys consumed by the FA modal host (URL `?modal=`). */
-export type FaModalKey = 'deptClose' | 'd365Build';
+export type FaModalKey = 'deptClose' | 'd365Build' | 'faDelete';
 
 export function FaRightPanelActions({
   canDeptClose,
   canBuild,
+  canDelete,
   faComplete,
   labels,
 }: FaRightPanelActionsProps) {
@@ -65,6 +70,7 @@ export function FaRightPanelActions({
 
   const deptCloseDisabled = !canDeptClose;
   const d365Disabled = !canBuild || !faComplete;
+  const deleteDisabled = !canDelete;
 
   return (
     <div className="grid gap-2" data-slot="fa-right-panel-actions">
@@ -89,6 +95,17 @@ export function FaRightPanelActions({
         onClick={() => openModal('d365Build')}
       >
         {labels.d365Build}
+      </Button>
+      <Button
+        type="button"
+        className="btn-danger btn-sm justify-center"
+        disabled={deleteDisabled}
+        aria-disabled={deleteDisabled}
+        data-testid="fa-right-panel-action-faDelete"
+        title={deleteDisabled ? labels.deleteDisabledHint : labels.deleteFa}
+        onClick={() => openModal('faDelete')}
+      >
+        {labels.deleteFa}
       </Button>
     </div>
   );

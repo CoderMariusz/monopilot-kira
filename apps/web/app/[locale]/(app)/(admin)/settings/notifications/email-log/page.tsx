@@ -247,8 +247,8 @@ function PermissionDenied({ labels }: { labels: Labels }) {
       data-prototype-source={PROTOTYPE_SOURCE}
       className="mx-auto max-w-5xl space-y-6 p-6"
     >
-      <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-900">
-        <h1 className="text-2xl font-semibold">{labels.permissionDeniedTitle}</h1>
+      <section role="alert" className="alert alert-red">
+        <h1 className="alert-title page-title">{labels.permissionDeniedTitle}</h1>
         <p className="mt-2 text-sm">{labels.permissionDeniedBody}</p>
       </section>
     </main>
@@ -258,8 +258,8 @@ function PermissionDenied({ labels }: { labels: Labels }) {
 function StateMessage({ labels, state }: { labels: Labels; state: PageState }) {
   const message = state === 'loading' ? labels.loading : state === 'error' ? labels.error : labels.empty;
   return (
-    <Card role="status" className="rounded-xl border bg-white shadow-sm">
-      <CardContent className="p-6 text-sm text-slate-600">{message}</CardContent>
+    <Card role="status" className="card">
+      <CardContent className="empty-state-body">{message}</CardContent>
     </Card>
   );
 }
@@ -273,7 +273,7 @@ function StaticSelectTrigger({ label, value, className }: { label: string; value
         aria-label={label}
         aria-expanded="false"
         data-slot="select-trigger"
-        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm"
+        className="form-input bg-white text-left"
       >
         <span>{value}</span>
       </button>
@@ -311,31 +311,31 @@ function EmailDeliveryLogScreen({
       data-prototype-source={PROTOTYPE_SOURCE}
       className="mx-auto max-w-7xl space-y-6 p-6"
     >
-      <header data-region="page-head" className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-4">
+      <header data-region="page-head" className="sg-head flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{labels.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{labels.subtitle}</p>
+          <h1 className="page-title">{labels.title}</h1>
+          <p className="helper mt-1">{labels.subtitle}</p>
         </div>
-        <p className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+        <span className="badge badge-gray">
           {formatMessage(labels.rowsCount, { count: filteredLogs.length })}
-        </p>
+        </span>
       </header>
 
-      <section className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+      <section role="note" className="alert alert-blue">
         {labels.readOnlyNotice}
       </section>
 
       <section aria-label={labels.filters} className="flex flex-wrap items-end gap-3">
-        <div className="grid gap-1 text-xs font-medium text-slate-600">
-          <span>{labels.status}</span>
+        <div className="grid gap-1">
+          <span className="label">{labels.status}</span>
           <StaticSelectTrigger
             label={labels.status}
             value={statusFilter === 'all' ? labels.allStatuses : `${labels.status}: ${statusFilter}`}
             className="min-w-[180px]"
           />
         </div>
-        <div className="grid gap-1 text-xs font-medium text-slate-600">
-          <span>{labels.triggerCode}</span>
+        <div className="grid gap-1">
+          <span className="label">{labels.triggerCode}</span>
           <StaticSelectTrigger
             label={labels.triggerCode}
             value={triggerFilter === 'all' ? labels.allTriggers : `${labels.triggerCode}: ${triggerFilter}`}
@@ -347,9 +347,9 @@ function EmailDeliveryLogScreen({
       {state !== 'ready' || sortedLogs.length === 0 ? (
         <StateMessage labels={labels} state={state === 'ready' ? 'empty' : state} />
       ) : (
-        <Card role="region" aria-label={labels.lastRuns} className="overflow-hidden rounded-xl border bg-white shadow-sm">
-          <CardHeader className="border-b px-6 py-4">
-            <h2 className="text-lg font-semibold">{labels.deliveryRuns}</h2>
+        <Card role="region" aria-label={labels.lastRuns} className="card overflow-hidden !p-0">
+          <CardHeader className="border-b border-[var(--border)] px-6 py-4">
+            <h2 className="card-title">{labels.deliveryRuns}</h2>
           </CardHeader>
           <CardContent className="p-0">
             <Table aria-label={labels.lastRuns}>
@@ -394,22 +394,29 @@ function EmailDeliveryLogScreen({
       )}
 
       {openPayload ? (
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-email-delivery-payload-title"
-          data-focus-trap="radix-dialog"
-          data-modal-id="settings-email-delivery-payload"
-          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-        >
-          <h2 id="settings-email-delivery-payload-title" className="text-lg font-semibold text-slate-950">
-            {labels.payload} — {openPayload.trigger_code}
-          </h2>
-          <p className="mt-3 font-mono text-sm">{openPayload.recipient_email}</p>
-          <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
-            {JSON.stringify(openPayload.payload, null, 2)}
-          </pre>
-        </section>
+        <div className="modal-overlay">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-email-delivery-payload-title"
+            data-focus-trap="radix-dialog"
+            data-modal-id="settings-email-delivery-payload"
+            data-size="wide"
+            className="modal-box wide"
+          >
+            <div className="modal-head">
+              <h2 id="settings-email-delivery-payload-title" className="modal-title">
+                {labels.payload} — <span className="mono">{openPayload.trigger_code}</span>
+              </h2>
+            </div>
+            <div className="modal-body">
+              <p className="mono text-sm">{openPayload.recipient_email}</p>
+              <pre className="mono mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-50">
+                {JSON.stringify(openPayload.payload, null, 2)}
+              </pre>
+            </div>
+          </section>
+        </div>
       ) : null}
     </main>
   );
