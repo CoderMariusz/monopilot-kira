@@ -22,11 +22,11 @@
 import type { ReactNode } from 'react';
 import { getTranslations } from 'next-intl/server';
 
-import {
-  ProjectStepper,
-  PROJECT_STAGES,
-  type ProjectStageKey,
-} from './_components/project-stepper';
+import { ProjectStepper } from './_components/project-stepper';
+// Import the plain data array DIRECTLY from the non-'use client' module — importing
+// it via the client component yields a client-reference (undefined at runtime in the
+// RSC production bundle → 500 TypeError). See project-stages.ts header.
+import { PROJECT_STAGES, type ProjectStageKey } from './_components/project-stages';
 
 type ProjectLayoutProps = {
   children: ReactNode;

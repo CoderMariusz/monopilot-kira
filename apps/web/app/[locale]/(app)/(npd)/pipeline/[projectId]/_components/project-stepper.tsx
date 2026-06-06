@@ -43,19 +43,12 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-/** The fixed 8 workflow stages, in order, with their route segment + i18n key. */
-export const PROJECT_STAGES = [
-  { key: 'brief', segment: 'brief', i18nKey: 'brief' },
-  { key: 'recipe', segment: 'formulation', i18nKey: 'recipe' },
-  { key: 'packaging', segment: 'packaging', i18nKey: 'packaging' },
-  { key: 'trial', segment: 'trial', i18nKey: 'trial' },
-  { key: 'sensory', segment: 'sensory', i18nKey: 'sensory' },
-  { key: 'pilot', segment: 'pilot', i18nKey: 'pilot' },
-  { key: 'approval', segment: 'approval', i18nKey: 'approval' },
-  { key: 'handoff', segment: 'handoff', i18nKey: 'handoff' },
-] as const;
+// PROJECT_STAGES lives in a non-'use client' sibling so the server layout can
+// import the real array (see project-stages.ts header — Next 16 RSC bug guard).
+import { PROJECT_STAGES, type ProjectStageKey } from './project-stages';
 
-export type ProjectStageKey = (typeof PROJECT_STAGES)[number]['key'];
+export { PROJECT_STAGES };
+export type { ProjectStageKey };
 
 export type ProjectStepperProps = {
   /** Project id used to build the per-stage hrefs. */
