@@ -16,7 +16,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
-import { organizations } from './baseline';
+import { organizations, users } from './baseline';
 
 export const warehouses = pgTable(
   'warehouses',
@@ -35,6 +35,35 @@ export const warehouses = pgTable(
   (table) => ({
     orgCodeUnique: unique('warehouses_org_code_unique').on(table.orgId, table.code),
     orgIdx: index('warehouses_org_idx').on(table.orgId),
+  }),
+);
+
+// Migration 245: per-warehouse storage rules. One row per (org_id, warehouse_id).
+export const warehouseStorageSettings = pgTable(
+  'warehouse_storage_settings',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    warehouseId: uuid('warehouse_id')
+      .notNull()
+      .references(() => warehouses.id, { onDelete: 'cascade' }),
+    binAssignmentStrategy: text('bin_assignment_strategy').notNull().default('FEFO'),
+    mixedLotBins: boolean('mixed_lot_bins').notNull().default(false),
+    expiryWarningDays: integer('expiry_warning_days').notNull().default(7),
+    blockExpiredStock: boolean('block_expired_stock').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by').references(() => users.id),
+    updatedBy: uuid('updated_by').references(() => users.id),
+  },
+  (table) => ({
+    orgWarehouseUnique: unique('warehouse_storage_settings_org_warehouse_unique').on(
+      table.orgId,
+      table.warehouseId,
+    ),
+    orgWarehouseIdx: index('warehouse_storage_settings_org_warehouse_idx').on(table.orgId, table.warehouseId),
   }),
 );
 

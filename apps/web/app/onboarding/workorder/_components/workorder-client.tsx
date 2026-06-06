@@ -213,7 +213,7 @@ function FirstWorkOrderCard({ disabled }: { disabled: boolean }) {
 
   function openPlanning() {
     router.push(
-      '/planning/work-orders/new?returnTo=%2Fonboarding%2Fworkorder&onboardingStep=first_wo&callback=markFirstWoCreated',
+      '/planning/work-orders/new?returnTo=%2Fonboarding%2Fwo&onboardingStep=first_wo&callback=markFirstWoCreated',
     );
   }
 

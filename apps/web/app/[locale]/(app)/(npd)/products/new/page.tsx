@@ -30,16 +30,16 @@ const CREATE_PERMISSION = 'fa.create';
 
 const DEFAULT_LABELS: FaCreateLabels = {
   title: 'Create Finished Good',
-  subtitle: 'V01 · FG Code format validated on blur. V02 · Product Name required.',
+  subtitle: 'V01 · FG Code required. V02 · Product Name required.',
   fieldProductCode: 'FG Code',
-  fieldProductCodeHint: "Must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
+  fieldProductCodeHint: 'Enter the product code (uppercase letters/digits, e.g. FA5609). The prefix is configurable in product settings.',
   fieldProductName: 'Product Name',
   fieldProductNameHint: 'Max 200 chars',
-  rangeHint: 'Ranges: FA5600+ is reserved for the 2026 NPD pipeline.',
+  rangeHint: 'The product-code prefix is configurable in product settings.',
   cancel: 'Cancel',
   create: 'Create FG',
   creating: 'Creating…',
-  errorV01: "FG Code must start with 'FA' followed by uppercase letters/digits (e.g. FA5609).",
+  errorV01: 'FG Code is required.',
   errorV02: 'Product Name is required (max 200 chars).',
   errorDuplicate: 'FG Code already exists. Choose a different code.',
   errorGeneric: 'Could not create the Finished Good. Try again.',
@@ -47,7 +47,21 @@ const DEFAULT_LABELS: FaCreateLabels = {
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof FaCreateLabels>;
 
+// The product-code prefix is no longer hardcoded to 'FA' here (it will become
+// configurable in product settings). The shared `npd.faCreateModal` i18n
+// namespace is also consumed by the strict FA-list create modal, whose copy
+// must keep describing the 'FA' rule — so for this onboarding wizard we always
+// use the relaxed in-file copy for the prefix-related keys instead of the
+// shared translations, across every locale.
+const PREFIX_AGNOSTIC_KEYS: ReadonlySet<keyof FaCreateLabels> = new Set([
+  'subtitle',
+  'fieldProductCodeHint',
+  'rangeHint',
+  'errorV01',
+]);
+
 function translateLabel(t: (key: string) => string, key: keyof FaCreateLabels): string {
+  if (PREFIX_AGNOSTIC_KEYS.has(key)) return DEFAULT_LABELS[key];
   try {
     const value = t(key);
     return value === key ? DEFAULT_LABELS[key] : value;

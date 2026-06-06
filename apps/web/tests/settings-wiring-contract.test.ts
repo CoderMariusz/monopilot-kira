@@ -1064,6 +1064,7 @@ describe('settings shifts/devices wiring contract', () => {
       }),
     );
     const duplicated = await withFakeOrg(client, () => mod.duplicateLabelTemplate(LABEL_TEMPLATE_ID));
+    const deleted = await withFakeOrg(client, () => mod.deleteLabelTemplate(LABEL_TEMPLATE_ID));
 
     expect(rows).toEqual([
       {
@@ -1078,11 +1079,13 @@ describe('settings shifts/devices wiring contract', () => {
     expect(created).toMatchObject({ ok: true, template: { id: LABEL_TEMPLATE_ID, org_id: ORG_ID, name: 'Case label' } });
     expect(updated).toMatchObject({ ok: true, template: { id: LABEL_TEMPLATE_ID, org_id: ORG_ID } });
     expect(duplicated).toMatchObject({ ok: true, template: { id: LABEL_TEMPLATE_ID, org_id: ORG_ID, status: 'draft' } });
+    expect(deleted).toEqual({ ok: true, id: LABEL_TEMPLATE_ID });
 
     const sql = client.calls.map((call) => call.sql.replace(/\s+/g, ' ').trim()).join('\n');
     expect(sql).toContain('from public.label_templates');
     expect(sql).toContain('insert into public.label_templates');
     expect(sql).toContain('update public.label_templates');
+    expect(sql).toContain('delete from public.label_templates');
     expect(sql).toContain('app.current_org_id()');
     expect(sql).toContain('from public.user_roles');
     expect(client.calls.every((call) => call.params.includes(ORG_ID))).toBe(true);
@@ -1122,6 +1125,7 @@ describe('settings shifts/devices wiring contract', () => {
     expect(labelActions).toContain('createLabelTemplate');
     expect(labelActions).toContain('updateLabelTemplate');
     expect(labelActions).toContain('duplicateLabelTemplate');
+    expect(labelActions).toContain('deleteLabelTemplate');
     expect(labelActions).toContain('FLAG(settings-label-templates-schema)');
     expect(existingClient).toContain('SettingsImportExportScreen');
   });

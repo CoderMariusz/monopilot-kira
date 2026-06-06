@@ -5,9 +5,11 @@ import LabelsScreen, { type LabelsScreenLabels } from './labels-screen.client';
 import { loadLabelTemplatesData } from './_actions/load-labels';
 import {
   createLabelTemplate,
+  deleteLabelTemplate,
   duplicateLabelTemplate,
   updateLabelTemplate,
   type LabelTemplate,
+  type LabelTemplateDeleteResult,
   type LabelTemplateMutationResult,
   type LabelTemplateRow,
 } from './_actions/label-templates';
@@ -96,6 +98,13 @@ async function buildLabels(locale: string): Promise<LabelsScreenLabels> {
       usedOn: t('editor.used_on'),
       inspectorEmptyHint: t('editor.inspector_empty_hint'),
       lastSaved: t('editor.last_saved'),
+      deleteTemplate: t('editor.delete_template'),
+      deleting: t('editor.deleting'),
+      deleteError: t('editor.delete_error'),
+      deleteConfirmTitle: t('editor.delete_confirm_title'),
+      deleteConfirmBody: t('editor.delete_confirm_body'),
+      deleteConfirmCancel: t('editor.delete_confirm_cancel'),
+      deleteConfirmConfirm: t('editor.delete_confirm_confirm'),
     },
   };
 }
@@ -157,6 +166,11 @@ async function duplicateTemplateAction(id: string): Promise<LabelTemplateMutatio
   return duplicateLabelTemplate(id);
 }
 
+async function deleteTemplateAction(id: string): Promise<LabelTemplateDeleteResult> {
+  'use server';
+  return deleteLabelTemplate(id);
+}
+
 async function updateTemplateAction(
   id: string,
   input: { elements: LabelTemplateElementsBlob },
@@ -195,6 +209,7 @@ export default async function LabelsSettingsPage(propsInput: LabelsPageProps = {
       createTemplate={loaded.canEdit ? createTemplateAction : undefined}
       duplicateTemplate={loaded.canEdit ? duplicateTemplateAction : undefined}
       updateTemplate={loaded.canEdit ? updateTemplateAction : undefined}
+      deleteTemplate={loaded.canEdit ? deleteTemplateAction : undefined}
       getTemplate={getTemplateById}
     />
   );

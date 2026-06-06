@@ -131,6 +131,18 @@ export type UsersScreenLabels = {
   passwordResetSuccess?: string;
   passwordResetFailed?: string;
   exportStatus: string;
+  setPasswordToggle?: string;
+  setPasswordToggleHint?: string;
+  password?: string;
+  passwordPlaceholder?: string;
+  confirmPassword?: string;
+  confirmPasswordPlaceholder?: string;
+  passwordStrengthHint?: string;
+  passwordMismatch?: string;
+  createUserButton?: string;
+  createUserHelp?: string;
+  userCreated?: string;
+  userCreationFailed?: string;
 };
 
 export type InviteUserAction = (input: {
@@ -151,6 +163,17 @@ export type AssignRoleAction = (input: { targetUserId: string; roleId: string })
   | { ok: false; error: string }
 >;
 
+export type CreateUserWithPasswordAction = (input: {
+  email: string;
+  password: string;
+  name?: string;
+  roleId: string;
+  language?: string;
+}) => Promise<
+  | { ok: true; data: { email: string; userId: string } }
+  | { ok: false; error: string }
+>;
+
 export type ResetPasswordAction = (input: { userId: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
 
 export type SettingsUsersScreenProps = {
@@ -161,6 +184,7 @@ export type SettingsUsersScreenProps = {
   inviteUserAction?: InviteUserAction;
   assignRoleAction?: AssignRoleAction;
   resetPasswordAction?: ResetPasswordAction;
+  createUserWithPasswordAction?: CreateUserWithPasswordAction;
 };
 
 const roleFilters: RoleFilter[] = ['all', 'admin', 'manager', 'operator', 'viewer'];
@@ -248,6 +272,7 @@ function InviteDialog({
   data,
   locale,
   inviteUserAction,
+  createUserWithPasswordAction,
   onFeedback,
 }: {
   open: boolean;
@@ -256,6 +281,7 @@ function InviteDialog({
   data: UsersScreenData;
   locale: string;
   inviteUserAction?: InviteUserAction;
+  createUserWithPasswordAction?: CreateUserWithPasswordAction;
   onFeedback: (feedback: { kind: 'status' | 'alert'; message: string } | null) => void;
 }) {
   const defaultRoleId = data.roles.find((role) => role.category === 'Manager')?.id ?? data.roles[0]?.id ?? '';
@@ -265,10 +291,63 @@ function InviteDialog({
   const [roleId, setRoleId] = useState(defaultRoleId);
   const [site, setSite] = useState(sites[0] ?? labels.allSites);
   const [personalMessage, setPersonalMessage] = useState('');
+  // Admin-only alternative path: set a password directly instead of emailing
+  // a magic-link invite. Only offered when the create-with-password action is
+  // wired (which itself is gated on the same admin permission server-side).
+  const [setPasswordMode, setSetPasswordMode] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isPending, startTransition] = useTransition();
+
+  const canSetPassword = Boolean(createUserWithPasswordAction);
+
+  function resetForm() {
+    setEmail('');
+    setName('');
+    setSite(sites[0] ?? labels.allSites);
+    setPersonalMessage('');
+    setPassword('');
+    setConfirmPassword('');
+  }
 
   function submitInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (setPasswordMode) {
+      if (!createUserWithPasswordAction || !email.trim() || !roleId || !password) {
+        onFeedback({ kind: 'alert', message: labels.invalidInvite });
+        return;
+      }
+      if (password !== confirmPassword) {
+        onFeedback({ kind: 'alert', message: labels.passwordMismatch ?? 'Passwords do not match.' });
+        return;
+      }
+
+      startTransition(async () => {
+        const result = await createUserWithPasswordAction({
+          email: email.trim(),
+          password,
+          name: name.trim() || undefined,
+          roleId,
+          language: locale,
+        });
+        if (result.ok) {
+          onFeedback({
+            kind: 'status',
+            message: interpolate(labels.userCreated ?? 'User {email} created.', { email: result.data.email }),
+          });
+          resetForm();
+          onOpenChange(false);
+          return;
+        }
+        onFeedback({
+          kind: 'alert',
+          message: interpolate(labels.userCreationFailed ?? 'User creation failed: {error}', { error: result.error }),
+        });
+      });
+      return;
+    }
+
     if (!inviteUserAction || !email.trim() || !roleId) {
       onFeedback({ kind: 'alert', message: labels.invalidInvite });
       return;
@@ -285,10 +364,7 @@ function InviteDialog({
       });
       if (result.ok) {
         onFeedback({ kind: 'status', message: interpolate(labels.invitationSent, { email: result.data.email }) });
-        setEmail('');
-        setName('');
-        setSite(sites[0] ?? labels.allSites);
-        setPersonalMessage('');
+        resetForm();
         onOpenChange(false);
         return;
       }
@@ -296,12 +372,31 @@ function InviteDialog({
     });
   }
 
+  const submitDisabled = isPending || (setPasswordMode ? !createUserWithPasswordAction : !inviteUserAction);
+
   return (
     <Modal open={open} onOpenChange={onOpenChange} size="md" modalId="SM-06">
       <Modal.Header title={labels.inviteDialogTitle} />
       <form onSubmit={submitInvite}>
         <Modal.Body>
           <div className="space-y-4 px-5 py-4">
+            {canSetPassword ? (
+              <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={setPasswordMode}
+                  onChange={(event) => setSetPasswordMode(event.currentTarget.checked)}
+                  aria-label={labels.setPasswordToggle ?? 'Set password instead of sending invite'}
+                />
+                <span>
+                  <span className="font-medium">{labels.setPasswordToggle ?? 'Set password instead of sending invite'}</span>
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {labels.setPasswordToggleHint ?? 'Admin only — creates an active account immediately, no email sent.'}
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <label className="block space-y-1 text-sm font-medium">
               <span>{labels.emailAddress}</span>
               <Input type="email" value={email} onChange={(event) => setEmail(event.currentTarget.value)} placeholder={labels.emailPlaceholder} autoFocus required />
@@ -326,22 +421,58 @@ function InviteDialog({
                   ))}
                 </select>
               </label>
-              <label className="block space-y-1 text-sm font-medium">
-                <span>{labels.site}</span>
-                <select className="w-full rounded-md border px-3 py-2 text-sm" value={site} onChange={(event) => setSite(event.currentTarget.value)}>
-                  {(sites.length > 0 ? sites : [labels.allSites]).map((siteOption) => (
-                    <option key={siteOption} value={siteOption}>{siteOption}</option>
-                  ))}
-                </select>
-              </label>
+              {!setPasswordMode ? (
+                <label className="block space-y-1 text-sm font-medium">
+                  <span>{labels.site}</span>
+                  <select className="w-full rounded-md border px-3 py-2 text-sm" value={site} onChange={(event) => setSite(event.currentTarget.value)}>
+                    {(sites.length > 0 ? sites : [labels.allSites]).map((siteOption) => (
+                      <option key={siteOption} value={siteOption}>{siteOption}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
-            <label className="block space-y-1 text-sm font-medium">
-              <span>{labels.personalMessage}</span>
-              <Textarea rows={2} placeholder={labels.personalMessagePlaceholder} value={personalMessage} onChange={(event) => setPersonalMessage(event.currentTarget.value)} />
-            </label>
-            <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              {labels.inviteHelp}
-            </p>
+            {setPasswordMode ? (
+              <>
+                <label className="block space-y-1 text-sm font-medium">
+                  <span>{labels.password ?? 'Password'}</span>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.currentTarget.value)}
+                    placeholder={labels.passwordPlaceholder ?? 'Set a strong password'}
+                    required
+                  />
+                </label>
+                <label className="block space-y-1 text-sm font-medium">
+                  <span>{labels.confirmPassword ?? 'Confirm password'}</span>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+                    placeholder={labels.confirmPasswordPlaceholder ?? 'Re-enter the password'}
+                    required
+                  />
+                </label>
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  {labels.createUserHelp ?? 'The account is created active with this password. No email is sent.'}
+                  {' '}
+                  {labels.passwordStrengthHint ?? 'Use at least 12 characters with mixed letters, numbers, and symbols.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <label className="block space-y-1 text-sm font-medium">
+                  <span>{labels.personalMessage}</span>
+                  <Textarea rows={2} placeholder={labels.personalMessagePlaceholder} value={personalMessage} onChange={(event) => setPersonalMessage(event.currentTarget.value)} />
+                </label>
+                <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                  {labels.inviteHelp}
+                </p>
+              </>
+            )}
           </div>
         </Modal.Body>
         <Modal.Footer>
@@ -349,8 +480,8 @@ function InviteDialog({
             <Button type="button" className="btn-secondary" onClick={() => onOpenChange(false)}>
               {labels.cancel}
             </Button>
-            <Button type="submit" className="btn-primary" disabled={isPending || !inviteUserAction}>
-              {labels.sendInvitation}
+            <Button type="submit" className="btn-primary" disabled={submitDisabled}>
+              {setPasswordMode ? (labels.createUserButton ?? 'Create user') : labels.sendInvitation}
             </Button>
           </div>
         </Modal.Footer>
@@ -489,6 +620,7 @@ export default function SettingsUsersScreen({
   inviteUserAction,
   assignRoleAction,
   resetPasswordAction,
+  createUserWithPasswordAction,
 }: SettingsUsersScreenProps) {
   const [selectedRole, setSelectedRole] = useState<RoleFilter>(normalizeRoleFilter(searchParams?.role));
   const [view, setView] = useState<UsersView>(normalizeView(searchParams?.view));
@@ -805,6 +937,7 @@ export default function SettingsUsersScreen({
         data={data}
         locale={locale}
         inviteUserAction={inviteUserAction}
+        createUserWithPasswordAction={createUserWithPasswordAction}
         onFeedback={setFeedback}
       />
       <RoleAssignDialog

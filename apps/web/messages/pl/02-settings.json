@@ -283,7 +283,19 @@
     "reset_password_unavailable": "Reset hasła niedostępny",
     "password_reset_success": "Wysłano e-mail resetujący hasło",
     "password_reset_failed": "Reset hasła nie powiódł się: {error}",
-    "export_status": "Eksport przygotowany"
+    "export_status": "Eksport przygotowany",
+    "set_password_toggle": "Ustaw hasło zamiast wysyłać zaproszenie",
+    "set_password_toggle_hint": "Tylko administrator — tworzy aktywne konto od razu, bez wysyłania e-maila.",
+    "password": "Hasło",
+    "password_placeholder": "Ustaw silne hasło",
+    "confirm_password": "Potwierdź hasło",
+    "confirm_password_placeholder": "Wpisz hasło ponownie",
+    "password_strength_hint": "Użyj co najmniej 12 znaków: litery, cyfry i symbole.",
+    "password_mismatch": "Hasła nie są takie same.",
+    "create_user_button": "Utwórz użytkownika",
+    "create_user_help": "Konto zostanie utworzone jako aktywne z tym hasłem. E-mail nie zostanie wysłany.",
+    "user_created": "Utworzono użytkownika {email}.",
+    "user_creation_failed": "Tworzenie użytkownika nie powiodło się: {error}"
   },
   "roles": {
     "screen_title": "Role i uprawnienia",
@@ -2073,7 +2085,14 @@
       "target_printer": "Drukarka docelowa",
       "used_on": "Używane w",
       "inspector_empty_hint": "Kliknij element na obszarze roboczym, aby edytować jego właściwości. Użyj palety po lewej, aby dodać nowe elementy.",
-      "last_saved": "Ostatni zapis"
+      "last_saved": "Ostatni zapis",
+      "delete_template": "Usuń szablon",
+      "deleting": "Usuwanie…",
+      "delete_error": "Nie można usunąć szablonu.",
+      "delete_confirm_title": "Usunąć szablon etykiety?",
+      "delete_confirm_body": "Spowoduje to trwałe usunięcie szablonu etykiety „{name}”. Tej operacji nie można cofnąć.",
+      "delete_confirm_cancel": "Anuluj",
+      "delete_confirm_confirm": "Usuń szablon"
     }
   }
 }

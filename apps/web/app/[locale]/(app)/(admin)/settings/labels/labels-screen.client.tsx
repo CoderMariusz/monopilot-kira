@@ -3,7 +3,11 @@
 import React from 'react';
 
 import { PageHead, Section } from '../_components';
-import LabelEditor, { type LabelEditorLabels, type UpdateLabelTemplateAction } from './label-editor.client';
+import LabelEditor, {
+  type DeleteLabelTemplateAction,
+  type LabelEditorLabels,
+  type UpdateLabelTemplateAction,
+} from './label-editor.client';
 import type {
   LabelTemplate,
   LabelTemplateMutationResult,
@@ -68,6 +72,8 @@ export type CreateLabelTemplateAction = (input: {
 
 export type DuplicateLabelTemplateAction = (id: string) => Promise<LabelTemplateMutationResult>;
 
+export type { DeleteLabelTemplateAction };
+
 export type GetLabelTemplateAction = (id: string) => Promise<LabelTemplate | null>;
 
 export type LabelsScreenProps = {
@@ -79,6 +85,7 @@ export type LabelsScreenProps = {
   createTemplate?: CreateLabelTemplateAction;
   duplicateTemplate?: DuplicateLabelTemplateAction;
   updateTemplate?: UpdateLabelTemplateAction;
+  deleteTemplate?: DeleteLabelTemplateAction;
   /** Loads the full template (incl. elements jsonb) when opening the editor. */
   getTemplate?: GetLabelTemplateAction;
   onImportZpl?: () => void;
@@ -102,6 +109,7 @@ export default function LabelsScreen({
   createTemplate,
   duplicateTemplate,
   updateTemplate,
+  deleteTemplate,
   getTemplate,
   onImportZpl,
 }: LabelsScreenProps) {
@@ -172,6 +180,11 @@ export default function LabelsScreen({
     setEditing(template);
   }
 
+  function handleDeleted(id: string) {
+    setVisibleRows((current) => current.filter((row) => row.id !== id));
+    setEditing(null);
+  }
+
   if (editing) {
     return (
       <LabelEditor
@@ -181,6 +194,8 @@ export default function LabelsScreen({
         onBack={() => setEditing(null)}
         onSave={updateTemplate}
         onSaved={handleSaved}
+        onDelete={canEdit ? deleteTemplate : undefined}
+        onDeleted={handleDeleted}
       />
     );
   }

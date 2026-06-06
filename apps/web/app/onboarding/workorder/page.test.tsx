@@ -261,7 +261,7 @@ describe('SET-005 onboarding first work order redirect-card prototype parity', (
     const href = lastPushedHref();
     expect(href).toMatch(/^\/planning\/work-orders\/new\b/);
     const params = new URL(`http://monopilot.local${href}`).searchParams;
-    expect(params.get('returnTo')).toBe('/onboarding/workorder');
+    expect(params.get('returnTo')).toBe('/onboarding/wo');
     expect(params.get('onboardingStep')).toBe('first_wo');
     expect(params.get('callback')).toBe('markFirstWoCreated');
     expect(routerPush).not.toHaveBeenCalledWith('/planning');

@@ -60,14 +60,18 @@ export type FaCreateLabels = {
   errorGeneric: string;
 };
 
-function makeSchema(labels: FaCreateLabels) {
+function makeSchema(labels: FaCreateLabels, requireFaPrefix: boolean) {
+  // V01: by default mirror the strict server rule (^FA[A-Z0-9]+$). Callers that
+  // make the product-code prefix configurable (e.g. the onboarding "first
+  // product" wizard) opt out of the hardcoded 'FA' prefix and accept any
+  // non-empty, uppercase-normalized code. V02 (Product Name required) is
+  // unchanged in both modes.
+  const productCode = requireFaPrefix
+    ? z.string().trim().min(1, labels.errorV01).regex(V01_PRODUCT_CODE_PATTERN, labels.errorV01)
+    : z.string().trim().min(1, labels.errorV01);
+
   return z.object({
-    // V01 mirror: ^FA[A-Z0-9]+$ — codes are uppercased on input.
-    productCode: z
-      .string()
-      .trim()
-      .min(1, labels.errorV01)
-      .regex(V01_PRODUCT_CODE_PATTERN, labels.errorV01),
+    productCode,
     // V02 mirror: required, max 200.
     productName: z
       .string()
@@ -91,6 +95,7 @@ export function FaCreateModal({
   createFaAction,
   onCreated,
   onClose,
+  requireFaPrefix = true,
 }: {
   open: boolean;
   labels: FaCreateLabels;
@@ -98,12 +103,19 @@ export function FaCreateModal({
   /** Called with the new product_code on success; the page maps this to router.push('/npd/fa/<code>'). */
   onCreated: (productCode: string) => void;
   onClose: () => void;
+  /**
+   * When true (default — the FA list/dashboard create flow) the product code
+   * must match the strict V01 'FA' prefix rule. Callers where the prefix is
+   * configurable (onboarding first-product wizard) pass false to accept any
+   * non-empty code. V02 (Product Name required) is unaffected.
+   */
+  requireFaPrefix?: boolean;
 }) {
-  const schema = React.useMemo(() => makeSchema(labels), [labels]);
+  const schema = React.useMemo(() => makeSchema(labels, requireFaPrefix), [labels, requireFaPrefix]);
   const methods = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: 'onChange',
-    defaultValues: { productCode: 'FA', productName: '' },
+    defaultValues: { productCode: requireFaPrefix ? 'FA' : '', productName: '' },
   });
 
   const {

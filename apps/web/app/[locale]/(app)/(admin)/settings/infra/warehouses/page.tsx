@@ -1,15 +1,23 @@
 import { getTranslations } from 'next-intl/server';
 
-import { createWarehouse as t029CreateWarehouse, deactivateWarehouse as t029DeactivateWarehouse } from '../../../../../../../actions/infra/warehouse';
+import {
+  createWarehouse as t029CreateWarehouse,
+  deactivateWarehouse as t029DeactivateWarehouse,
+  updateWarehouseStorageRules as t029UpdateWarehouseStorageRules,
+} from '../../../../../../../actions/infra/warehouse';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import WarehouseListScreen, {
+  type BinAssignmentStrategy,
   type CreateWarehouseInput,
   type CreateWarehouseResult,
   type DeactivateWarehouseInput,
   type DeactivateWarehouseResult,
+  type UpdateStorageRulesInput,
+  type UpdateStorageRulesResult,
   type Warehouse,
   type WarehouseLabels,
   type WarehousePageState,
+  type WarehouseStorageRules,
 } from './warehouse-list-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -35,9 +43,46 @@ type WarehouseRow = {
   used_percent: number | string | null;
   deactivated_at: string | null;
   active_wo_count: number | string | null;
+  storage_bin_assignment_strategy: string | null;
+  storage_mixed_lot_bins: boolean | null;
+  storage_expiry_warning_days: number | string | null;
+  storage_block_expired_stock: boolean | null;
 };
 
 type CapabilityRow = { ok: boolean | string | number | null };
+
+const STORAGE_RULE_STRATEGIES: readonly BinAssignmentStrategy[] = ['FEFO', 'FIFO', 'LIFO', 'Manual'];
+
+const DEFAULT_STORAGE_RULES: WarehouseStorageRules = {
+  binAssignmentStrategy: 'FEFO',
+  mixedLotBins: false,
+  expiryWarningDays: 7,
+  blockExpiredStock: true,
+};
+
+function toStrategy(value: string | null): BinAssignmentStrategy {
+  return value && (STORAGE_RULE_STRATEGIES as readonly string[]).includes(value)
+    ? (value as BinAssignmentStrategy)
+    : DEFAULT_STORAGE_RULES.binAssignmentStrategy;
+}
+
+function toStorageRules(row: WarehouseRow): WarehouseStorageRules {
+  if (
+    row.storage_bin_assignment_strategy === null &&
+    row.storage_mixed_lot_bins === null &&
+    row.storage_expiry_warning_days === null &&
+    row.storage_block_expired_stock === null
+  ) {
+    return { ...DEFAULT_STORAGE_RULES };
+  }
+  const days = Number(row.storage_expiry_warning_days ?? DEFAULT_STORAGE_RULES.expiryWarningDays);
+  return {
+    binAssignmentStrategy: toStrategy(row.storage_bin_assignment_strategy),
+    mixedLotBins: row.storage_mixed_lot_bins === true,
+    expiryWarningDays: Number.isFinite(days) && days >= 0 ? days : DEFAULT_STORAGE_RULES.expiryWarningDays,
+    blockExpiredStock: row.storage_block_expired_stock !== false,
+  };
+}
 
 type PageProps = {
   params?: Promise<{ locale: string }>;
@@ -45,6 +90,7 @@ type PageProps = {
   canUpdateInfra?: boolean;
   createWarehouse?: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state?: WarehousePageState;
 };
 
@@ -116,6 +162,15 @@ const DEFAULT_LABELS: WarehouseLabels = {
   days: 'days',
   blockExpiredStock: 'Block expired stock',
   blockExpiredStockHint: 'Prevent movements of expired lots automatically.',
+  storageRulesWarehousePicker: 'Warehouse',
+  storageRulesWarehousePickerHint: 'Select a warehouse to view and edit its storage rules.',
+  storageRulesNoWarehouse: 'Add a warehouse to configure its storage rules.',
+  storageRulesSelectedHint: 'Storage rules for {name}. These apply to this warehouse only.',
+  saveStorageRules: 'Save storage rules',
+  saveStorageRulesPending: 'Saving…',
+  storageRulesSaved: 'Storage rules saved.',
+  storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
+  editStorageRules: 'Edit storage rules for {name}',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof WarehouseLabels>;
@@ -192,11 +247,44 @@ function toWarehouse(row: WarehouseRow): Warehouse {
     usedPercent: Number(row.used_percent ?? 0) || 0,
     deactivated_at: row.deactivated_at,
     active_wo_count: Number(row.active_wo_count ?? 0) || 0,
+    storageRules: toStorageRules(row),
   };
 }
 
+async function canReadStorageRules(client: QueryClient): Promise<boolean> {
+  const { rows } = await client.query<CapabilityRow>(
+    `select (to_regclass('public.warehouse_storage_settings') is not null) as ok`,
+  );
+  return rows[0]?.ok === true || rows[0]?.ok === 'true' || rows[0]?.ok === 1;
+}
+
 async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
-  const includeActiveWoCount = await canReadActiveWorkOrders(client);
+  const [includeActiveWoCount, includeStorageRules] = await Promise.all([
+    canReadActiveWorkOrders(client),
+    canReadStorageRules(client),
+  ]);
+
+  // Per-warehouse storage rules live in public.warehouse_storage_settings (migration 245),
+  // joined 1:1 on (org_id, warehouse_id). When the table is not yet present the columns
+  // resolve to null so the screen falls back to defaults.
+  const storageColumns = includeStorageRules
+    ? `wss.bin_assignment_strategy as storage_bin_assignment_strategy,
+              wss.mixed_lot_bins as storage_mixed_lot_bins,
+              wss.expiry_warning_days as storage_expiry_warning_days,
+              wss.block_expired_stock as storage_block_expired_stock`
+    : `null::text as storage_bin_assignment_strategy,
+              null::boolean as storage_mixed_lot_bins,
+              null::integer as storage_expiry_warning_days,
+              null::boolean as storage_block_expired_stock`;
+  const storageJoin = includeStorageRules
+    ? `left join public.warehouse_storage_settings wss
+           on wss.org_id = app.current_org_id()
+          and wss.warehouse_id = w.id`
+    : '';
+  const storageGroupBy = includeStorageRules
+    ? ', wss.bin_assignment_strategy, wss.mixed_lot_bins, wss.expiry_warning_days, wss.block_expired_stock'
+    : '';
+
   const sql = includeActiveWoCount
     ? `select w.id,
               w.code,
@@ -208,7 +296,8 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
               nullif(coalesce(w.address->>'usedPercent', w.address->>'used_percent'), '') as used_percent,
               w.address->>'deactivated_at' as deactivated_at,
-              coalesce(count(distinct wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count
+              coalesce(count(distinct wo.warehouse_id) filter (where wo.status::text = any($1::text[])), 0)::integer as active_wo_count,
+              ${storageColumns}
          from public.warehouses w
          left join public.locations l
            on l.org_id = app.current_org_id()
@@ -216,8 +305,9 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
          left join public.work_orders wo
            on wo.org_id = app.current_org_id()
           and wo.warehouse_id = w.id
+         ${storageJoin}
         where w.org_id = app.current_org_id()
-        group by w.id, w.code, w.name, w.address
+        group by w.id, w.code, w.name, w.address${storageGroupBy}
         order by lower(w.name), lower(w.code)`
     : `select w.id,
               w.code,
@@ -229,13 +319,15 @@ async function queryWarehouses(client: QueryClient): Promise<WarehouseRow[]> {
               nullif(coalesce(w.address->>'capacity_label', w.address->>'capacity'), '') as capacity_label,
               nullif(coalesce(w.address->>'usedPercent', w.address->>'used_percent'), '') as used_percent,
               w.address->>'deactivated_at' as deactivated_at,
-              0::integer as active_wo_count
+              0::integer as active_wo_count,
+              ${storageColumns}
          from public.warehouses w
          left join public.locations l
            on l.org_id = app.current_org_id()
           and l.warehouse_id = w.id
+         ${storageJoin}
         where w.org_id = app.current_org_id()
-        group by w.id, w.code, w.name, w.address
+        group by w.id, w.code, w.name, w.address${storageGroupBy}
         order by lower(w.name), lower(w.code)`;
   const { rows } = await client.query<WarehouseRow>(sql, includeActiveWoCount ? [[...ACTIVE_WORK_ORDER_STATUSES]] : []);
   return rows;
@@ -270,6 +362,11 @@ async function runDeactivateWarehouse(input: DeactivateWarehouseInput): Promise<
   return t029DeactivateWarehouse(input) as Promise<DeactivateWarehouseResult>;
 }
 
+async function runUpdateStorageRules(input: UpdateStorageRulesInput): Promise<UpdateStorageRulesResult> {
+  'use server';
+  return t029UpdateWarehouseStorageRules(input) as Promise<UpdateStorageRulesResult>;
+}
+
 export default async function WarehousesPage(propsInput: unknown = {}) {
   const props = propsInput as PageProps;
   const { locale } = props.params ? await props.params : { locale: 'en' };
@@ -291,6 +388,7 @@ export default async function WarehousesPage(propsInput: unknown = {}) {
       canUpdateInfra={props.canUpdateInfra ?? runtime.canUpdateInfra}
       createWarehouse={props.createWarehouse ?? runCreateWarehouse}
       deactivateWarehouse={props.deactivateWarehouse ?? runDeactivateWarehouse}
+      updateStorageRules={props.updateStorageRules ?? runUpdateStorageRules}
       state={props.state ?? runtime.state}
     />
   );

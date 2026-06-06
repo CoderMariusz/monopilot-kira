@@ -283,7 +283,19 @@
     "reset_password_unavailable": "Скидання пароля недоступне",
     "password_reset_success": "Лист для скидання пароля надіслано",
     "password_reset_failed": "Не вдалося скинути пароль: {error}",
-    "export_status": "Експорт підготовлено"
+    "export_status": "Експорт підготовлено",
+    "set_password_toggle": "Встановити пароль замість надсилання запрошення",
+    "set_password_toggle_hint": "Лише адміністратор — одразу створює активний обліковий запис без листа.",
+    "password": "Пароль",
+    "password_placeholder": "Встановіть надійний пароль",
+    "confirm_password": "Підтвердьте пароль",
+    "confirm_password_placeholder": "Введіть пароль ще раз",
+    "password_strength_hint": "Використовуйте щонайменше 12 символів: літери, цифри та символи.",
+    "password_mismatch": "Паролі не збігаються.",
+    "create_user_button": "Створити користувача",
+    "create_user_help": "Обліковий запис створюється активним із цим паролем. Лист не надсилається.",
+    "user_created": "Користувача {email} створено.",
+    "user_creation_failed": "Не вдалося створити користувача: {error}"
   },
   "roles": {
     "screen_title": "Ролі та дозволи",
@@ -2073,7 +2085,14 @@
       "target_printer": "Цільовий принтер",
       "used_on": "Використано на",
       "inspector_empty_hint": "Клацніть елемент на полотні, щоб редагувати його властивості. Використовуйте палітру ліворуч, щоб додати нові елементи.",
-      "last_saved": "Останнє збереження"
+      "last_saved": "Останнє збереження",
+      "delete_template": "Видалити шаблон",
+      "deleting": "Видалення…",
+      "delete_error": "Не вдалося видалити шаблон.",
+      "delete_confirm_title": "Видалити шаблон етикетки?",
+      "delete_confirm_body": "Це назавжди видалить шаблон етикетки «{name}». Цю дію неможливо скасувати.",
+      "delete_confirm_cancel": "Скасувати",
+      "delete_confirm_confirm": "Видалити шаблон"
     }
   }
 }

@@ -2,6 +2,9 @@
 
 import React from 'react';
 
+import Modal from '@monopilot/ui/Modal';
+import { Button } from '@monopilot/ui/Button';
+
 import {
   createElement,
   parseElementsBlob,
@@ -10,7 +13,11 @@ import {
   type LabelElementType,
   type LabelTemplateElementsBlob,
 } from './_actions/label-elements';
-import type { LabelTemplate, LabelTemplateMutationResult } from './_actions/label-templates';
+import type {
+  LabelTemplate,
+  LabelTemplateDeleteResult,
+  LabelTemplateMutationResult,
+} from './_actions/label-templates';
 
 /**
  * Visual Label Editor — 3-column layout (element palette LEFT / mm-scaled
@@ -81,12 +88,21 @@ export type LabelEditorLabels = {
   usedOn: string;
   inspectorEmptyHint: string;
   lastSaved: string;
+  deleteTemplate: string;
+  deleting: string;
+  deleteError: string;
+  deleteConfirmTitle: string;
+  deleteConfirmBody: string;
+  deleteConfirmCancel: string;
+  deleteConfirmConfirm: string;
 };
 
 export type UpdateLabelTemplateAction = (
   id: string,
   input: { elements: LabelTemplateElementsBlob },
 ) => Promise<LabelTemplateMutationResult>;
+
+export type DeleteLabelTemplateAction = (id: string) => Promise<LabelTemplateDeleteResult>;
 
 export type LabelEditorProps = {
   template: LabelTemplate;
@@ -95,6 +111,8 @@ export type LabelEditorProps = {
   onBack: () => void;
   onSave?: UpdateLabelTemplateAction;
   onSaved?: (template: LabelTemplate) => void;
+  onDelete?: DeleteLabelTemplateAction;
+  onDeleted?: (id: string) => void;
   onPreview?: () => void;
   onTestPrint?: () => void;
 };
@@ -129,6 +147,8 @@ export default function LabelEditor({
   onBack,
   onSave,
   onSaved,
+  onDelete,
+  onDeleted,
   onPreview,
   onTestPrint,
 }: LabelEditorProps) {
@@ -136,7 +156,10 @@ export default function LabelEditor({
   const [canvas, setCanvas] = React.useState<LabelTemplateElementsBlob>(initial);
   const [selId, setSelId] = React.useState<string | null>(initial.elements[0]?.id ?? null);
   const [saveState, setSaveState] = React.useState<SaveState>({ kind: 'idle' });
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
   const [isPending, startTransition] = React.useTransition();
+  const [isDeleting, startDeleteTransition] = React.useTransition();
 
   React.useEffect(() => {
     setCanvas(initial);
@@ -183,6 +206,20 @@ export default function LabelEditor({
     });
   }
 
+  function handleDelete() {
+    if (!onDelete || !canEdit) return;
+    setDeleteError(null);
+    startDeleteTransition(async () => {
+      const result = await onDelete(template.id);
+      if (result.ok) {
+        setConfirmDelete(false);
+        onDeleted?.(template.id);
+      } else {
+        setDeleteError(result.error === 'forbidden' ? labels.permissionDenied : labels.deleteError);
+      }
+    });
+  }
+
   function elementTitle(element: LabelElement): string {
     if (element.type === 'text') return labels.elementText;
     if (element.type === 'barcode') return labels.elementBarcode;
@@ -222,6 +259,18 @@ export default function LabelEditor({
           <button type="button" className="btn btn-secondary" onClick={onBack}>
             {labels.back}
           </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => {
+              setDeleteError(null);
+              setConfirmDelete(true);
+            }}
+            disabled={!canEdit || !onDelete || isDeleting}
+            data-testid="label-editor-delete"
+          >
+            {isDeleting ? labels.deleting : labels.deleteTemplate}
+          </button>
           <button type="button" className="btn btn-secondary" onClick={() => onPreview?.()} disabled={!onPreview}>
             {labels.preview}
           </button>
@@ -250,6 +299,48 @@ export default function LabelEditor({
           {saveState.message}
         </div>
       ) : null}
+
+      <Modal
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          if (!isDeleting) setConfirmDelete(open);
+        }}
+        size="sm"
+        dismissible={!isDeleting}
+        modalId="delete_label_template_modal"
+      >
+        <Modal.Header title={labels.deleteConfirmTitle} />
+        <Modal.Body>
+          <p className="muted" style={{ fontSize: 13 }} data-testid="label-editor-delete-confirm-body">
+            {labels.deleteConfirmBody.replace('{name}', template.name)}
+          </p>
+          {deleteError ? (
+            <div className="alert alert-red" role="alert" data-testid="label-editor-delete-error" style={{ marginTop: 12 }}>
+              {deleteError}
+            </div>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            type="button"
+            className="btn-secondary btn-sm"
+            disabled={isDeleting}
+            onClick={() => setConfirmDelete(false)}
+            data-testid="label-editor-delete-cancel"
+          >
+            {labels.deleteConfirmCancel}
+          </Button>
+          <Button
+            type="button"
+            className="btn-danger btn-sm"
+            disabled={!canEdit || !onDelete || isDeleting}
+            onClick={handleDelete}
+            data-testid="label-editor-delete-confirm"
+          >
+            {isDeleting ? labels.deleting : labels.deleteConfirmConfirm}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <div className="le-wrap">
         {/* LEFT: element palette */}

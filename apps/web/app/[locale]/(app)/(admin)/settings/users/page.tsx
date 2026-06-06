@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 
 import { assignRole } from '../../../../../../actions/users/assign-role';
+import { createUserWithPassword } from '../../../../../../actions/users/create-user-with-password';
 import { inviteUser } from '../../../../../../actions/users/invite';
 import { resetPassword } from '../../../../../../actions/users/reset-password';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
@@ -423,6 +424,18 @@ async function buildLabels(locale: string): Promise<UsersScreenLabels> {
     passwordResetSuccess: t('password_reset_success'),
     passwordResetFailed: t('password_reset_failed'),
     exportStatus: t('export_status'),
+    setPasswordToggle: t('set_password_toggle'),
+    setPasswordToggleHint: t('set_password_toggle_hint'),
+    password: t('password'),
+    passwordPlaceholder: t('password_placeholder'),
+    confirmPassword: t('confirm_password'),
+    confirmPasswordPlaceholder: t('confirm_password_placeholder'),
+    passwordStrengthHint: t('password_strength_hint'),
+    passwordMismatch: t('password_mismatch'),
+    createUserButton: t('create_user_button'),
+    createUserHelp: t('create_user_help'),
+    userCreated: t('user_created'),
+    userCreationFailed: t('user_creation_failed'),
   };
 }
 
@@ -435,6 +448,23 @@ async function resetPasswordAction(input: { userId: string }): Promise<{ ok: tru
   'use server';
   const result = await resetPassword({ targetUserId: input.userId });
   if (result.ok) return { ok: true };
+  return { ok: false, error: result.error };
+}
+
+// Module-scope `'use server'` adapter for the admin-only create-with-password
+// path (same RSC-serialization constraint as resetPasswordAction). The
+// underlying action self-gates on settings.users.invite and scopes the new
+// user to the caller's org — the page never passes an org_id.
+async function createUserWithPasswordAction(input: {
+  email: string;
+  password: string;
+  name?: string;
+  roleId: string;
+  language?: string;
+}): Promise<{ ok: true; data: { email: string; userId: string } } | { ok: false; error: string }> {
+  'use server';
+  const result = await createUserWithPassword(input);
+  if (result.ok) return { ok: true, data: result.data };
   return { ok: false, error: result.error };
 }
 
@@ -478,6 +508,7 @@ export default async function SettingsUsersPage({ params, searchParams }: PagePr
       inviteUserAction={inviteUser}
       assignRoleAction={assignRole}
       resetPasswordAction={resetPasswordAction}
+      createUserWithPasswordAction={result.data.canInviteUsers ? createUserWithPasswordAction : undefined}
     />
   );
 }

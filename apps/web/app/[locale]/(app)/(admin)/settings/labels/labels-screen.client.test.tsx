@@ -90,6 +90,13 @@ function buildLabels(): LabelsScreenLabels {
       usedOn: e.used_on,
       inspectorEmptyHint: e.inspector_empty_hint,
       lastSaved: e.last_saved,
+      deleteTemplate: e.delete_template,
+      deleting: e.deleting,
+      deleteError: e.delete_error,
+      deleteConfirmTitle: e.delete_confirm_title,
+      deleteConfirmBody: e.delete_confirm_body,
+      deleteConfirmCancel: e.delete_confirm_cancel,
+      deleteConfirmConfirm: e.delete_confirm_confirm,
     },
   };
 }
@@ -208,11 +215,15 @@ describe('Label templates list (LabelTemplatesScreen parity)', () => {
 });
 
 describe('Visual Label Editor (LabelEditor parity)', () => {
-  function renderEditor(overrides: { updateTemplate?: ReturnType<typeof vi.fn> } = {}) {
+  function renderEditor(
+    overrides: { updateTemplate?: ReturnType<typeof vi.fn>; deleteTemplate?: ReturnType<typeof vi.fn> } = {},
+  ) {
     const getTemplate = vi.fn(async () => FULL_TEMPLATE);
     const updateTemplate =
       overrides.updateTemplate ??
       vi.fn(async (_id: string, _input: unknown) => ({ ok: true as const, template: FULL_TEMPLATE }));
+    const deleteTemplate =
+      overrides.deleteTemplate ?? vi.fn(async (id: string) => ({ ok: true as const, id }));
     const utils = render(
       <LabelsScreen
         rows={ROWS}
@@ -221,9 +232,10 @@ describe('Visual Label Editor (LabelEditor parity)', () => {
         labels={labels}
         getTemplate={getTemplate}
         updateTemplate={updateTemplate}
+        deleteTemplate={deleteTemplate}
       />,
     );
-    return { ...utils, getTemplate, updateTemplate };
+    return { ...utils, getTemplate, updateTemplate, deleteTemplate };
   }
 
   async function openEditor(user: ReturnType<typeof userEvent.setup>) {
@@ -301,5 +313,59 @@ describe('Visual Label Editor (LabelEditor parity)', () => {
     const sentElements = (payload as { elements: { elements: Array<{ value?: string }> } }).elements.elements;
     expect(sentElements.some((el) => el.value === 'Edited value')).toBe(true);
     expect(await screen.findByTestId('label-editor-saved')).toBeInTheDocument();
+  });
+
+  it('shows a Delete button in the edit view', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    await openEditor(user);
+
+    const deleteButton = screen.getByTestId('label-editor-delete');
+    expect(deleteButton).toBeInTheDocument();
+    expect(deleteButton).toHaveTextContent('Delete template');
+    expect(deleteButton).toHaveClass('btn-danger');
+    expect(deleteButton).toBeEnabled();
+  });
+
+  it('deletes through confirm → deleteLabelTemplate → returns to the list', async () => {
+    const user = userEvent.setup();
+    const deleteTemplate = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderEditor({ deleteTemplate });
+    await openEditor(user);
+
+    // Delete is guarded by a confirm step — the action is not called on first click.
+    await user.click(screen.getByTestId('label-editor-delete'));
+    expect(deleteTemplate).not.toHaveBeenCalled();
+
+    // Confirm dialog is shown for the open template.
+    expect(await screen.findByTestId('label-editor-delete-confirm-body')).toHaveTextContent(
+      FULL_TEMPLATE.name,
+    );
+
+    await user.click(screen.getByTestId('label-editor-delete-confirm'));
+
+    await waitFor(() => expect(deleteTemplate).toHaveBeenCalledTimes(1));
+    expect(deleteTemplate).toHaveBeenCalledWith(FULL_TEMPLATE.id);
+
+    // Returns to the list and the deleted row is gone.
+    expect(await screen.findByTestId('label-templates-table')).toBeInTheDocument();
+    expect(screen.queryByTestId('label-editor-screen')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('label-templates-row')).toHaveLength(1);
+    expect(screen.queryByText(FULL_TEMPLATE.name)).not.toBeInTheDocument();
+  });
+
+  it('can cancel the delete confirm without calling the action', async () => {
+    const user = userEvent.setup();
+    const deleteTemplate = vi.fn(async (id: string) => ({ ok: true as const, id }));
+    renderEditor({ deleteTemplate });
+    await openEditor(user);
+
+    await user.click(screen.getByTestId('label-editor-delete'));
+    await screen.findByTestId('label-editor-delete-confirm-body');
+    await user.click(screen.getByTestId('label-editor-delete-cancel'));
+
+    expect(deleteTemplate).not.toHaveBeenCalled();
+    // Still in the editor.
+    expect(screen.getByTestId('label-editor-screen')).toBeInTheDocument();
   });
 });

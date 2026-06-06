@@ -283,7 +283,19 @@
     "reset_password_unavailable": "Password reset unavailable",
     "password_reset_success": "Password reset email sent",
     "password_reset_failed": "Password reset failed: {error}",
-    "export_status": "Export prepared"
+    "export_status": "Export prepared",
+    "set_password_toggle": "Set password instead of sending invite",
+    "set_password_toggle_hint": "Admin only — creates an active account immediately, no email sent.",
+    "password": "Password",
+    "password_placeholder": "Set a strong password",
+    "confirm_password": "Confirm password",
+    "confirm_password_placeholder": "Re-enter the password",
+    "password_strength_hint": "Use at least 12 characters with mixed letters, numbers, and symbols.",
+    "password_mismatch": "Passwords do not match.",
+    "create_user_button": "Create user",
+    "create_user_help": "The account is created active with this password. No email is sent.",
+    "user_created": "User {email} created.",
+    "user_creation_failed": "User creation failed: {error}"
   },
   "roles": {
     "screen_title": "Roles and permissions",
@@ -2073,7 +2085,14 @@
       "target_printer": "Target printer",
       "used_on": "Used on",
       "inspector_empty_hint": "Click an element on the canvas to edit its properties. Use the palette on the left to add new elements.",
-      "last_saved": "Last saved"
+      "last_saved": "Last saved",
+      "delete_template": "Delete template",
+      "deleting": "Deleting…",
+      "delete_error": "Unable to delete the template.",
+      "delete_confirm_title": "Delete label template?",
+      "delete_confirm_body": "This permanently deletes the label template “{name}”. This action cannot be undone.",
+      "delete_confirm_cancel": "Cancel",
+      "delete_confirm_confirm": "Delete template"
     }
   }
 }

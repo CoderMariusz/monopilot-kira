@@ -12,6 +12,15 @@ import { PageHead, Section, SelectField, SettingField, SRow, Toggle } from '../.
 /** Literal prototype-parity anchor (UI-PROTOTYPE-PARITY-POLICY). */
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:191-252';
 
+export type BinAssignmentStrategy = 'FEFO' | 'FIFO' | 'LIFO' | 'Manual';
+
+export type WarehouseStorageRules = {
+  binAssignmentStrategy: BinAssignmentStrategy;
+  mixedLotBins: boolean;
+  expiryWarningDays: number;
+  blockExpiredStock: boolean;
+};
+
 export type Warehouse = {
   id: string;
   code: string;
@@ -24,6 +33,19 @@ export type Warehouse = {
   usedPercent?: number | string | null;
   deactivated_at: string | null;
   active_wo_count?: number;
+  storageRules?: WarehouseStorageRules | null;
+};
+
+export type UpdateStorageRulesInput = { warehouseId: string } & Partial<WarehouseStorageRules>;
+export type UpdateStorageRulesResult =
+  | { ok: true; data: { warehouseId: string } & WarehouseStorageRules }
+  | { ok: false; error?: string };
+
+export const DEFAULT_STORAGE_RULES: WarehouseStorageRules = {
+  binAssignmentStrategy: 'FEFO',
+  mixedLotBins: false,
+  expiryWarningDays: 7,
+  blockExpiredStock: true,
 };
 
 export type CreateWarehouseInput = { code: string; name: string; address?: string | null };
@@ -115,6 +137,15 @@ export type WarehouseLabels = {
   days: string;
   blockExpiredStock: string;
   blockExpiredStockHint: string;
+  storageRulesWarehousePicker: string;
+  storageRulesWarehousePickerHint: string;
+  storageRulesNoWarehouse: string;
+  storageRulesSelectedHint: string;
+  saveStorageRules: string;
+  saveStorageRulesPending: string;
+  storageRulesSaved: string;
+  storageRulesSaveFailed: string;
+  editStorageRules: string;
 };
 
 export default function WarehouseListScreen({
@@ -124,6 +155,7 @@ export default function WarehouseListScreen({
   canUpdateInfra,
   createWarehouse,
   deactivateWarehouse,
+  updateStorageRules,
   state,
 }: {
   labels: WarehouseLabels;
@@ -132,6 +164,7 @@ export default function WarehouseListScreen({
   canUpdateInfra: boolean;
   createWarehouse: (input: CreateWarehouseInput) => Promise<CreateWarehouseResult>;
   deactivateWarehouse: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
   state: WarehousePageState;
 }) {
   const [rows, setRows] = React.useState<Warehouse[]>(() => [...initialWarehouses]);
@@ -147,15 +180,84 @@ export default function WarehouseListScreen({
   const [newWarehouse, setNewWarehouse] = React.useState({ code: '', name: '', address: '' });
   const [error, setError] = React.useState<string | null>(state === 'error' ? labels.error : null);
   const [warning, setWarning] = React.useState<WarningState | null>(null);
-  const [binStrategy, setBinStrategy] = React.useState('FEFO');
-  const [mixedLotBins, setMixedLotBins] = React.useState(false);
-  const [expiryDays, setExpiryDays] = React.useState('7');
-  const [blockExpiredStock, setBlockExpiredStock] = React.useState(true);
+  const [storageWarehouseId, setStorageWarehouseId] = React.useState<string>(() => initialWarehouses[0]?.id ?? '');
+  const [binStrategy, setBinStrategy] = React.useState<BinAssignmentStrategy>(DEFAULT_STORAGE_RULES.binAssignmentStrategy);
+  const [mixedLotBins, setMixedLotBins] = React.useState(DEFAULT_STORAGE_RULES.mixedLotBins);
+  const [expiryDays, setExpiryDays] = React.useState(String(DEFAULT_STORAGE_RULES.expiryWarningDays));
+  const [blockExpiredStock, setBlockExpiredStock] = React.useState(DEFAULT_STORAGE_RULES.blockExpiredStock);
+  const [storagePending, setStoragePending] = React.useState(false);
+  const [storageStatus, setStorageStatus] = React.useState<string | null>(null);
+  const [storageError, setStorageError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setRows([...initialWarehouses]);
     setSelected(new Set());
+    setStorageWarehouseId((current) =>
+      current && initialWarehouses.some((row) => row.id === current) ? current : initialWarehouses[0]?.id ?? '',
+    );
   }, [initialWarehouses]);
+
+  const selectedStorageWarehouse = React.useMemo(
+    () => rows.find((row) => row.id === storageWarehouseId) ?? null,
+    [rows, storageWarehouseId],
+  );
+
+  const selectedRules = selectedStorageWarehouse?.storageRules ?? DEFAULT_STORAGE_RULES;
+
+  // Hydrate the editable form from the selected warehouse's persisted rules. Keyed on the
+  // warehouse id + the persisted rule values (not the object) so a post-save rows update that
+  // does not actually change the rules will not re-clobber local edits or wipe the banner.
+  React.useEffect(() => {
+    setBinStrategy(selectedRules.binAssignmentStrategy);
+    setMixedLotBins(selectedRules.mixedLotBins);
+    setExpiryDays(String(selectedRules.expiryWarningDays));
+    setBlockExpiredStock(selectedRules.blockExpiredStock);
+  }, [
+    storageWarehouseId,
+    selectedRules.binAssignmentStrategy,
+    selectedRules.mixedLotBins,
+    selectedRules.expiryWarningDays,
+    selectedRules.blockExpiredStock,
+  ]);
+
+  // Clear any transient save status/error only when switching to a different warehouse.
+  React.useEffect(() => {
+    setStorageStatus(null);
+    setStorageError(null);
+  }, [storageWarehouseId]);
+
+  async function submitStorageRules() {
+    if (!canUpdateInfra || storagePending || !selectedStorageWarehouse || !updateStorageRules) return;
+    const expiryWarningDays = Number.parseInt(expiryDays, 10);
+    setStoragePending(true);
+    setStorageStatus(null);
+    setStorageError(null);
+    const nextRules: WarehouseStorageRules = {
+      binAssignmentStrategy: binStrategy,
+      mixedLotBins,
+      expiryWarningDays: Number.isFinite(expiryWarningDays) && expiryWarningDays >= 0 ? expiryWarningDays : 0,
+      blockExpiredStock,
+    };
+    try {
+      const result = await updateStorageRules({ warehouseId: selectedStorageWarehouse.id, ...nextRules });
+      if (!result.ok) {
+        setStorageError(labels.storageRulesSaveFailed);
+        return;
+      }
+      const saved: WarehouseStorageRules = {
+        binAssignmentStrategy: result.data.binAssignmentStrategy,
+        mixedLotBins: result.data.mixedLotBins,
+        expiryWarningDays: result.data.expiryWarningDays,
+        blockExpiredStock: result.data.blockExpiredStock,
+      };
+      setRows((current) => current.map((row) => (row.id === result.data.warehouseId ? { ...row, storageRules: saved } : row)));
+      setStorageStatus(labels.storageRulesSaved);
+    } catch {
+      setStorageError(labels.storageRulesSaveFailed);
+    } finally {
+      setStoragePending(false);
+    }
+  }
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedFilter(filterValue.trim().toLowerCase()), 200);
@@ -169,6 +271,10 @@ export default function WarehouseListScreen({
       { value: 'deactivated', label: labels.statusDeactivated },
     ],
     [labels.statusActive, labels.statusAll, labels.statusDeactivated],
+  );
+  const storageWarehouseOptions = React.useMemo<SelectOption[]>(
+    () => rows.map((row) => ({ value: row.id, label: `${row.code} — ${row.name}` })),
+    [rows],
   );
   const binAssignmentOptions = React.useMemo<SelectOption[]>(
     () => [
@@ -400,6 +506,9 @@ export default function WarehouseListScreen({
                   <TableHead scope="col" className="text-right">{labels.columnCapacity}</TableHead>
                   <TableHead scope="col">{labels.columnUsed}</TableHead>
                   <TableHead scope="col">{labels.columnStatus}</TableHead>
+                  <TableHead scope="col" className="text-right">
+                    <span className="sr-only">{labels.storageRules}</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -455,6 +564,24 @@ export default function WarehouseListScreen({
                           {status}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="dry-run"
+                          data-testid="edit-storage-rules"
+                          aria-label={formatTemplate(labels.editStorageRules, { name: warehouse.name })}
+                          aria-pressed={storageWarehouseId === warehouse.id}
+                          onClick={() => {
+                            setStorageWarehouseId(warehouse.id);
+                            if (typeof document !== 'undefined') {
+                              const panel = document.getElementById('warehouse-storage-rules');
+                              panel?.scrollIntoView?.({ block: 'nearest' });
+                            }
+                          }}
+                        >
+                          {labels.storageRules}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -464,29 +591,83 @@ export default function WarehouseListScreen({
         ) : null}
       </Section>
 
-      <Section title={labels.storageRules} sub={labels.storageRulesSubtitle}>
-        <SelectField
-          id="bin-assignment-strategy"
-          label={labels.binAssignmentStrategy}
-          options={binAssignmentOptions as { value: string; label: string }[]}
-          value={binStrategy}
-          onChange={setBinStrategy}
-        />
-        <SRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
-          <Toggle aria-label={labels.mixedLotBins} checked={mixedLotBins} onChange={setMixedLotBins} />
-        </SRow>
-        <SettingField
-          id="expiry-warning-threshold"
-          label={labels.expiryWarningThreshold}
-          hint={labels.expiryWarningThresholdHint}
-          type="number"
-          value={expiryDays}
-          onChange={setExpiryDays}
-        />
-        <SRow label={labels.blockExpiredStock} hint={labels.blockExpiredStockHint}>
-          <Toggle aria-label={labels.blockExpiredStock} checked={blockExpiredStock} onChange={setBlockExpiredStock} />
-        </SRow>
-      </Section>
+      <div id="warehouse-storage-rules">
+        <Section
+          title={
+            selectedStorageWarehouse
+              ? `${labels.storageRules} — ${selectedStorageWarehouse.code}`
+              : labels.storageRules
+          }
+          sub={
+            selectedStorageWarehouse
+              ? formatTemplate(labels.storageRulesSelectedHint, { name: selectedStorageWarehouse.name })
+              : labels.storageRulesSubtitle
+          }
+          foot={
+            selectedStorageWarehouse ? (
+              <div className="flex items-center justify-end gap-3">
+                {storageStatus ? (
+                  <span role="status" className="text-sm text-emerald-700">{storageStatus}</span>
+                ) : null}
+                <Button
+                  type="button"
+                  className="btn-primary"
+                  data-testid="save-storage-rules"
+                  onClick={() => void submitStorageRules()}
+                  disabled={!canUpdateInfra || storagePending}
+                  aria-label={canUpdateInfra ? labels.saveStorageRules : `${labels.saveStorageRules} — ${labels.insufficientPermission}`}
+                >
+                  {storagePending ? labels.saveStorageRulesPending : labels.saveStorageRules}
+                </Button>
+              </div>
+            ) : null
+          }
+        >
+          {storageWarehouseOptions.length > 0 ? (
+            <SelectField
+              id="storage-rules-warehouse"
+              label={labels.storageRulesWarehousePicker}
+              hint={labels.storageRulesWarehousePickerHint}
+              options={storageWarehouseOptions as { value: string; label: string }[]}
+              value={storageWarehouseId}
+              onChange={setStorageWarehouseId}
+            />
+          ) : null}
+
+          {selectedStorageWarehouse ? (
+            <>
+              <SelectField
+                id="bin-assignment-strategy"
+                label={labels.binAssignmentStrategy}
+                options={binAssignmentOptions as { value: string; label: string }[]}
+                value={binStrategy}
+                disabled={!canUpdateInfra || storagePending}
+                onChange={(value) => setBinStrategy(value as BinAssignmentStrategy)}
+              />
+              <SRow label={labels.mixedLotBins} hint={labels.mixedLotBinsHint}>
+                <Toggle aria-label={labels.mixedLotBins} checked={mixedLotBins} disabled={!canUpdateInfra || storagePending} onChange={setMixedLotBins} />
+              </SRow>
+              <SettingField
+                id="expiry-warning-threshold"
+                label={labels.expiryWarningThreshold}
+                hint={labels.expiryWarningThresholdHint}
+                type="number"
+                value={expiryDays}
+                disabled={!canUpdateInfra || storagePending}
+                onChange={setExpiryDays}
+              />
+              <SRow label={labels.blockExpiredStock} hint={labels.blockExpiredStockHint}>
+                <Toggle aria-label={labels.blockExpiredStock} checked={blockExpiredStock} disabled={!canUpdateInfra || storagePending} onChange={setBlockExpiredStock} />
+              </SRow>
+              {storageError ? (
+                <p role="alert" className="sg-hint text-red-700">{storageError}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="sg-hint">{labels.storageRulesNoWarehouse}</p>
+          )}
+        </Section>
+      </div>
 
       {createDialogOpen ? (
         <div role="dialog" aria-modal="true" aria-labelledby="add-warehouse-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 p-4">

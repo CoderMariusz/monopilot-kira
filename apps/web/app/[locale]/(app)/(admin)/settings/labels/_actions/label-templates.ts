@@ -241,6 +241,37 @@ export async function updateLabelTemplate(
   }
 }
 
+export type LabelTemplateDeleteResult =
+  | { ok: true; id: string }
+  | { ok: false; error: 'invalid' | 'forbidden' | 'not_found' | 'persistence_failed' };
+
+export async function deleteLabelTemplate(id: string): Promise<LabelTemplateDeleteResult> {
+  const idParsed = z.string().uuid().safeParse(id);
+  if (!idParsed.success) return { ok: false, error: 'invalid' };
+
+  try {
+    return await withOrgContext<LabelTemplateDeleteResult>(async (ctx): Promise<LabelTemplateDeleteResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<{ id: string }>(
+        `delete from public.label_templates
+          where org_id = app.current_org_id()
+            and org_id = $1::uuid
+            and id = $2::uuid
+         returning id::text`,
+        [context.orgId, idParsed.data],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      revalidateLabelsRoute();
+      return { ok: true, id: row.id };
+    });
+  } catch {
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
 export async function duplicateLabelTemplate(id: string): Promise<LabelTemplateMutationResult> {
   const idParsed = z.string().uuid().safeParse(id);
   if (!idParsed.success) return { ok: false, error: 'invalid' };

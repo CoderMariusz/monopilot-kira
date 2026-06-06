@@ -337,4 +337,83 @@ describe('SettingsUsersScreen invite and role assignment parity', () => {
     expect(screen.queryByRole('alert', { name: /unable to load users/i })).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/settings\.users_screen|settings\.[a-z0-9_.-]+/i);
   });
+
+  it('does NOT offer the set-password toggle when the create-with-password action is not wired', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    expect(within(dialog).queryByRole('checkbox', { name: /set password instead of sending invite/i })).not.toBeInTheDocument();
+    // Default path still shows the email-invite submit button.
+    expect(within(dialog).getByRole('button', { name: /send invitation/i })).toBeVisible();
+  });
+
+  it('creates a user with a set password (no email) through the admin action when the toggle is enabled', async () => {
+    const user = userEvent.setup();
+    const createUserWithPasswordAction = vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: { email: 'direct@example.com', userId: 'user-new' } });
+    renderScreen({
+      labels: {
+        ...labels,
+        setPasswordToggle: 'Set password instead of sending invite',
+        password: 'Password',
+        confirmPassword: 'Confirm password',
+        createUserButton: 'Create user',
+        userCreated: 'User {email} created.',
+        passwordMismatch: 'Passwords do not match.',
+      },
+      createUserWithPasswordAction,
+    } as Partial<SettingsUsersScreenProps>);
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+
+    // The invite path must NOT be weakened — send-invitation is the default.
+    expect(within(dialog).getByRole('button', { name: /send invitation/i })).toBeVisible();
+
+    await user.click(within(dialog).getByRole('checkbox', { name: /set password instead of sending invite/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /email address/i }), 'direct@example.com');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^role$/i }), 'role-operator');
+    await user.type(within(dialog).getByLabelText('Password'), 'Sup3r-Str0ng-Pass!');
+    await user.type(within(dialog).getByLabelText('Confirm password'), 'Sup3r-Str0ng-Pass!');
+    await user.click(within(dialog).getByRole('button', { name: /create user/i }));
+
+    expect(createUserWithPasswordAction).toHaveBeenCalledWith({
+      email: 'direct@example.com',
+      password: 'Sup3r-Str0ng-Pass!',
+      name: undefined,
+      roleId: 'role-operator',
+      language: 'en',
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(/created/i);
+  });
+
+  it('blocks submission and shows a mismatch alert when the two passwords differ', async () => {
+    const user = userEvent.setup();
+    const createUserWithPasswordAction = vi.fn();
+    renderScreen({
+      labels: {
+        ...labels,
+        setPasswordToggle: 'Set password instead of sending invite',
+        password: 'Password',
+        confirmPassword: 'Confirm password',
+        createUserButton: 'Create user',
+        passwordMismatch: 'Passwords do not match.',
+      },
+      createUserWithPasswordAction,
+    } as Partial<SettingsUsersScreenProps>);
+
+    await user.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    await user.click(within(dialog).getByRole('checkbox', { name: /set password instead of sending invite/i }));
+    await user.type(within(dialog).getByRole('textbox', { name: /email address/i }), 'direct@example.com');
+    await user.type(within(dialog).getByLabelText('Password'), 'Sup3r-Str0ng-Pass!');
+    await user.type(within(dialog).getByLabelText('Confirm password'), 'Different-Pass-99!');
+    await user.click(within(dialog).getByRole('button', { name: /create user/i }));
+
+    expect(createUserWithPasswordAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/do not match/i);
+  });
 });

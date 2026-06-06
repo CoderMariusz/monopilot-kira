@@ -15,11 +15,21 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 
-const { withOrgContextMock, deactivateWarehouseActionMock } = vi.hoisted(() => ({
+const { withOrgContextMock, deactivateWarehouseActionMock, updateStorageRulesActionMock } = vi.hoisted(() => ({
   withOrgContextMock: vi.fn(),
   deactivateWarehouseActionMock: vi.fn(async (input: DeactivateWarehouseInput) => ({
     ok: true as const,
     data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
+  })),
+  updateStorageRulesActionMock: vi.fn(async (input: UpdateStorageRulesInput) => ({
+    ok: true as const,
+    data: {
+      warehouseId: input.warehouseId,
+      binAssignmentStrategy: input.binAssignmentStrategy ?? 'FEFO',
+      mixedLotBins: input.mixedLotBins ?? false,
+      expiryWarningDays: input.expiryWarningDays ?? 7,
+      blockExpiredStock: input.blockExpiredStock ?? true,
+    },
   })),
 }));
 
@@ -29,6 +39,7 @@ vi.mock('../../../../../../../lib/auth/with-org-context', () => ({
 
 vi.mock('../../../../../../../actions/infra/warehouse', () => ({
   deactivateWarehouse: deactivateWarehouseActionMock,
+  updateWarehouseStorageRules: updateStorageRulesActionMock,
 }));
 
 const labels: Record<string, string> = {
@@ -48,6 +59,28 @@ const labels: Record<string, string> = {
   cancel: 'Cancel',
   confirmDeactivate: 'Confirm deactivation',
   insufficientPermission: 'Insufficient permissions: settings.infra.update is required to deactivate warehouses.',
+  storageRules: 'Storage rules',
+  storageRulesSubtitle: 'How the system assigns bins and manages expiry.',
+  binAssignmentStrategy: 'Bin assignment strategy',
+  binAssignmentFefo: 'FEFO (First expired, first out)',
+  binAssignmentFifo: 'FIFO (First in, first out)',
+  binAssignmentLifo: 'LIFO',
+  binAssignmentManual: 'Manual',
+  mixedLotBins: 'Mixed lot bins',
+  mixedLotBinsHint: 'Allow different lots in the same bin.',
+  expiryWarningThreshold: 'Expiry warning threshold',
+  expiryWarningThresholdHint: 'Alert when stock is within this many days of expiry.',
+  blockExpiredStock: 'Block expired stock',
+  blockExpiredStockHint: 'Prevent movements of expired lots automatically.',
+  storageRulesWarehousePicker: 'Warehouse',
+  storageRulesWarehousePickerHint: 'Select a warehouse to view and edit its storage rules.',
+  storageRulesNoWarehouse: 'Add a warehouse to configure its storage rules.',
+  storageRulesSelectedHint: 'Storage rules for {name}. These apply to this warehouse only.',
+  saveStorageRules: 'Save storage rules',
+  saveStorageRulesPending: 'Saving…',
+  storageRulesSaved: 'Storage rules saved.',
+  storageRulesSaveFailed: 'Storage rules could not be saved. Try again or contact an administrator.',
+  editStorageRules: 'Edit storage rules for {name}',
 };
 
 vi.mock('next-intl/server', () => ({
@@ -59,18 +92,33 @@ vi.mock('next/navigation', () => ({
   notFound: vi.fn(),
 }));
 
+type BinAssignmentStrategy = 'FEFO' | 'FIFO' | 'LIFO' | 'Manual';
+
+type WarehouseStorageRules = {
+  binAssignmentStrategy: BinAssignmentStrategy;
+  mixedLotBins: boolean;
+  expiryWarningDays: number;
+  blockExpiredStock: boolean;
+};
+
 type Warehouse = {
   id: string;
   code: string;
   name: string;
   deactivated_at: string | null;
   active_wo_count: number;
+  storageRules?: WarehouseStorageRules | null;
 };
 
 type DeactivateWarehouseInput = {
   warehouseId: string;
   force?: boolean;
 };
+
+type UpdateStorageRulesInput = { warehouseId: string } & Partial<WarehouseStorageRules>;
+type UpdateStorageRulesResult =
+  | { ok: true; data: { warehouseId: string } & WarehouseStorageRules }
+  | { ok: false; error?: string };
 
 type DeactivateWarehouseResult =
   | { ok: true; data: { warehouseId: string; deactivated_at: string } }
@@ -85,6 +133,7 @@ type WarehousePageProps = {
   warehouses?: Warehouse[];
   canUpdateInfra?: boolean;
   deactivateWarehouse?: (input: DeactivateWarehouseInput) => Promise<DeactivateWarehouseResult>;
+  updateStorageRules?: (input: UpdateStorageRulesInput) => Promise<UpdateStorageRulesResult>;
 };
 
 type WarehousesPage = (props: WarehousePageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -124,12 +173,18 @@ const warehouses: Warehouse[] = Array.from({ length: 25 }, (_, index) => {
     4: 'Apex WO Hold',
     21: 'Closed Spare Warehouse',
   };
+  // Distinct per-warehouse storage rules so the editor can be asserted to scope per row.
+  const storageRules: Record<number, WarehouseStorageRules> = {
+    1: { binAssignmentStrategy: 'FEFO', mixedLotBins: false, expiryWarningDays: 7, blockExpiredStock: true },
+    2: { binAssignmentStrategy: 'LIFO', mixedLotBins: true, expiryWarningDays: 30, blockExpiredStock: false },
+  };
   return {
     id: `00000000-0000-4000-8000-${String(rowNumber).padStart(12, '0')}`,
     code: `WH-${String(rowNumber).padStart(2, '0')}`,
     name: knownNames[rowNumber] ?? `Warehouse ${String(rowNumber).padStart(2, '0')}`,
     deactivated_at: active ? null : `2026-05-${String(rowNumber - 18).padStart(2, '0')}T08:00:00.000Z`,
     active_wo_count: rowNumber === 4 ? 2 : 0,
+    storageRules: storageRules[rowNumber] ?? null,
   };
 });
 
@@ -151,6 +206,16 @@ async function renderWarehousesPage(overrides: Partial<WarehousePageProps> = {})
     deactivateWarehouse: vi.fn(async (input: DeactivateWarehouseInput) => ({
       ok: true as const,
       data: { warehouseId: input.warehouseId, deactivated_at: '2026-05-24T10:00:00.000Z' },
+    })),
+    updateStorageRules: vi.fn(async (input: UpdateStorageRulesInput) => ({
+      ok: true as const,
+      data: {
+        warehouseId: input.warehouseId,
+        binAssignmentStrategy: input.binAssignmentStrategy ?? 'FEFO',
+        mixedLotBins: input.mixedLotBins ?? false,
+        expiryWarningDays: input.expiryWarningDays ?? 7,
+        blockExpiredStock: input.blockExpiredStock ?? true,
+      },
     })),
     ...overrides,
   };
@@ -278,12 +343,15 @@ describe('UI-SET-001 warehouse prototype parity', () => {
     expect(within(row).getByText('68%')).toBeInTheDocument();
     expect(within(row).getByTestId('warehouse-usage-bar')).toHaveAttribute('aria-valuenow', '68');
 
-    // Storage rules now sits in a shared Section: a labelled region (role=region + aria-labelledby -> .sg-section-title).
-    expect(screen.getByRole('region', { name: /^storage rules$/i })).toBeInTheDocument();
+    // Storage rules now sits in a shared Section scoped to the selected warehouse: a labelled
+    // region (role=region + aria-labelledby -> .sg-section-title) titled "Storage rules — <code>".
+    expect(screen.getByRole('region', { name: /^storage rules — WH-LIVE-01$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^warehouse$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/bin assignment strategy/i)).toBeInTheDocument();
     expect(screen.getByText(/mixed lot bins/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/expiry warning threshold/i)).toBeInTheDocument();
     expect(screen.getByText(/block expired stock/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save storage rules$/i })).toBeInTheDocument();
     expectNoRawSettingsKeys();
   });
 
@@ -436,5 +504,88 @@ describe('SET-012 warehouse list behavior', () => {
     const button = screen.getByRole('button', { name: /bulk deactivate/i });
     expect(button).toBeDisabled();
     expect(button).toHaveAccessibleName(/insufficient permissions.*settings\.infra\.update/i);
+  });
+});
+
+describe('SET-012 per-warehouse storage rules', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  function storageRegion() {
+    return screen.getByRole('region', { name: /^storage rules/i });
+  }
+
+  it('hydrates the storage-rules editor from the first warehouses persisted per-warehouse rules', async () => {
+    await renderWarehousesPage();
+
+    // WH-01 carries FEFO / no mixed lots / 7 days / block expired.
+    expect(storageRegion()).toHaveAccessibleName(/storage rules — WH-01/i);
+    const region = storageRegion();
+    expect(within(region).getByLabelText(/bin assignment strategy/i)).toHaveAttribute('data-value', 'FEFO');
+    expect((within(region).getByLabelText(/expiry warning threshold/i) as HTMLInputElement).value).toBe('7');
+    expect((within(region).getByLabelText(/^mixed lot bins$/i) as HTMLInputElement).checked).toBe(false);
+    expect((within(region).getByLabelText(/^block expired stock$/i) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('re-scopes the editor to a different warehouses own rules via the per-row edit affordance', async () => {
+    const user = userEvent.setup();
+    await renderWarehousesPage();
+
+    // Use the per-row "Storage rules" button on WH-02 (LIFO / mixed lots / 30 days / not blocked).
+    const row = rowFor(/apex ambient wh-02 active/i);
+    await user.click(within(row).getByTestId('edit-storage-rules'));
+
+    const region = storageRegion();
+    expect(region).toHaveAccessibleName(/storage rules — WH-02/i);
+    expect(within(region).getByLabelText(/bin assignment strategy/i)).toHaveAttribute('data-value', 'LIFO');
+    expect((within(region).getByLabelText(/expiry warning threshold/i) as HTMLInputElement).value).toBe('30');
+    expect((within(region).getByLabelText(/^mixed lot bins$/i) as HTMLInputElement).checked).toBe(true);
+    expect((within(region).getByLabelText(/^block expired stock$/i) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('persists edited rules for the selected warehouse only through the per-warehouse update action', async () => {
+    const user = userEvent.setup();
+    const updateStorageRules = vi.fn(async (input: UpdateStorageRulesInput) => ({
+      ok: true as const,
+      data: {
+        warehouseId: input.warehouseId,
+        binAssignmentStrategy: input.binAssignmentStrategy ?? 'FEFO',
+        mixedLotBins: input.mixedLotBins ?? false,
+        expiryWarningDays: input.expiryWarningDays ?? 7,
+        blockExpiredStock: input.blockExpiredStock ?? true,
+      },
+    }));
+    await renderWarehousesPage({ updateStorageRules });
+
+    const region = storageRegion();
+    const expiry = within(region).getByLabelText(/expiry warning threshold/i) as HTMLInputElement;
+    await user.clear(expiry);
+    await user.type(expiry, '14');
+    await user.click(within(region).getByLabelText(/^mixed lot bins$/i));
+    await user.click(within(region).getByRole('button', { name: /^save storage rules$/i }));
+
+    await waitFor(() => expect(updateStorageRules).toHaveBeenCalledTimes(1));
+    expect(updateStorageRules).toHaveBeenCalledWith(
+      expect.objectContaining({
+        warehouseId: warehouses[0].id,
+        binAssignmentStrategy: 'FEFO',
+        mixedLotBins: true,
+        expiryWarningDays: 14,
+        blockExpiredStock: true,
+      }),
+    );
+    expect(await screen.findByText(/storage rules saved/i)).toBeInTheDocument();
+  });
+
+  it('disables the storage-rules editor and Save when update permission is missing', async () => {
+    await renderWarehousesPage({ canUpdateInfra: false, state: 'ready' });
+
+    const region = storageRegion();
+    expect(within(region).getByLabelText(/expiry warning threshold/i)).toBeDisabled();
+    const save = within(region).getByRole('button', { name: /save storage rules/i });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleName(/settings\.infra\.update/i);
   });
 });

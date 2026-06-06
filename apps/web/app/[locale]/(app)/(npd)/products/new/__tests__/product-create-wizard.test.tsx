@@ -134,4 +134,38 @@ describe('ProductCreateWizard — onboarding returnTo flow', () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/fa/FA5609'));
   });
+
+  it('accepts a non-FA product code (prefix is no longer hardcoded to FA)', async () => {
+    const user = userEvent.setup();
+    // The prefix becomes configurable in product settings, so a code without the
+    // legacy 'FA' prefix must validate and submit. V02 (Product Name) still applies.
+    const action = vi.fn(async () => ({ productCode: 'WIDGET1' }));
+    render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" returnTo="%2Fonboarding%2Fwo" />);
+
+    const code = screen.getByLabelText(new RegExp(LABELS.fieldProductCode));
+    await user.clear(code);
+    await user.type(code, 'WIDGET1');
+    await user.type(screen.getByLabelText(new RegExp(LABELS.fieldProductName)), 'Generic Widget');
+
+    const createBtn = screen.getByRole('button', { name: LABELS.create });
+    await waitFor(() => expect(createBtn).toBeEnabled());
+    await user.click(createBtn);
+
+    await waitFor(() =>
+      expect(action).toHaveBeenCalledWith({ productCode: 'WIDGET1', productName: 'Generic Widget' }),
+    );
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/onboarding/wo'));
+  });
+
+  it('still rejects an empty product code (V01 minimal: code required)', async () => {
+    const user = userEvent.setup();
+    const action = vi.fn(async () => ({ productCode: 'WIDGET1' }));
+    render(<ProductCreateWizard labels={LABELS} createFaAction={action} locale="en" />);
+
+    // Only fill the name; leave the (now empty by default) code blank.
+    await user.type(screen.getByLabelText(new RegExp(LABELS.fieldProductName)), 'Generic Widget');
+
+    expect(screen.getByRole('button', { name: LABELS.create })).toBeDisabled();
+    expect(action).not.toHaveBeenCalled();
+  });
 });

@@ -283,7 +283,19 @@
     "reset_password_unavailable": "Resetarea parolei indisponibilă",
     "password_reset_success": "E-mail de resetare a parolei trimis",
     "password_reset_failed": "Resetarea parolei a eșuat: {error}",
-    "export_status": "Export pregătit"
+    "export_status": "Export pregătit",
+    "set_password_toggle": "Setați o parolă în loc să trimiteți invitație",
+    "set_password_toggle_hint": "Doar administrator — creează imediat un cont activ, fără e-mail.",
+    "password": "Parolă",
+    "password_placeholder": "Setați o parolă puternică",
+    "confirm_password": "Confirmați parola",
+    "confirm_password_placeholder": "Reintroduceți parola",
+    "password_strength_hint": "Folosiți cel puțin 12 caractere cu litere, cifre și simboluri.",
+    "password_mismatch": "Parolele nu coincid.",
+    "create_user_button": "Creați utilizator",
+    "create_user_help": "Contul este creat activ cu această parolă. Nu se trimite niciun e-mail.",
+    "user_created": "Utilizatorul {email} a fost creat.",
+    "user_creation_failed": "Crearea utilizatorului a eșuat: {error}"
   },
   "roles": {
     "screen_title": "Roluri și permisiuni",
@@ -2073,7 +2085,14 @@
       "target_printer": "Imprimantă țintă",
       "used_on": "Utilizat pe",
       "inspector_empty_hint": "Faceți clic pe un element din pânză pentru a-i edita proprietățile. Utilizați paleta din stânga pentru a adăuga elemente noi.",
-      "last_saved": "Ultima salvare"
+      "last_saved": "Ultima salvare",
+      "delete_template": "Șterge șablonul",
+      "deleting": "Se șterge…",
+      "delete_error": "Nu se poate șterge șablonul.",
+      "delete_confirm_title": "Ștergeți șablonul de etichetă?",
+      "delete_confirm_body": "Aceasta șterge definitiv șablonul de etichetă „{name}”. Această acțiune nu poate fi anulată.",
+      "delete_confirm_cancel": "Anulează",
+      "delete_confirm_confirm": "Șterge șablonul"
     }
   }
 }

@@ -6,7 +6,7 @@ const STEP_ROUTE: Record<OnboardingStepKey, string> = {
   first_warehouse: 'warehouse',
   first_location: 'location',
   first_product: 'product',
-  first_wo: 'workorder',
+  first_wo: 'wo',
   completion: 'complete',
 };
 
