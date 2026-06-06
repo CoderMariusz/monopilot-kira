@@ -1,9 +1,21 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
+
+import Modal from '@monopilot/ui/Modal';
 
 import { PageHead, Section, SRow, Toggle } from '../_components';
-import type { LineRow, SiteRow } from './_actions/sites';
+import type {
+  CreateLineInput,
+  CreateSiteInput,
+  CreateSiteResult,
+  LineMutationResult,
+  LineRow,
+  SiteMutationError,
+  SiteRow,
+  UpdateLineInput,
+} from './_actions/sites';
 
 /**
  * Sites & production lines settings screen.
@@ -57,16 +69,76 @@ export type SitesScreenLabels = {
   haccpExpires: string; // accepts a {date} placeholder
 };
 
+/**
+ * Labels for the create/edit modals. Defaulted in-component (English) so the
+ * server boundary does not need new i18n keys; a caller MAY override them.
+ */
+export type SitesModalLabels = {
+  addSiteTitle: string;
+  addLineTitle: string;
+  editLineTitle: string;
+  fieldSiteCode: string;
+  fieldName: string;
+  fieldTimezone: string;
+  fieldCountry: string;
+  fieldLegalEntity: string;
+  fieldPrimary: string;
+  fieldLineCode: string;
+  fieldStatus: string;
+  statusActive: string;
+  statusMaintenance: string;
+  statusInactive: string;
+  required: string;
+  cancel: string;
+  save: string;
+  saving: string;
+  errorRequired: string;
+  errorDuplicate: string;
+  errorGeneric: string;
+};
+
+export const DEFAULT_SITES_MODAL_LABELS: SitesModalLabels = {
+  addSiteTitle: 'Add site',
+  addLineTitle: 'Add production line',
+  editLineTitle: 'Edit production line',
+  fieldSiteCode: 'Site code',
+  fieldName: 'Name',
+  fieldTimezone: 'Timezone',
+  fieldCountry: 'Country',
+  fieldLegalEntity: 'Legal entity',
+  fieldPrimary: 'Primary site',
+  fieldLineCode: 'Line code',
+  fieldStatus: 'Status',
+  statusActive: 'Active',
+  statusMaintenance: 'Maintenance',
+  statusInactive: 'Inactive',
+  required: 'required',
+  cancel: 'Cancel',
+  save: 'Save',
+  saving: 'Saving…',
+  errorRequired: 'This field is required.',
+  errorDuplicate: 'That code is already in use. Choose a different one.',
+  errorGeneric: 'Something went wrong. Please try again.',
+};
+
+export type CreateSiteAction = (input: CreateSiteInput) => Promise<CreateSiteResult>;
+export type CreateLineAction = (input: CreateLineInput) => Promise<LineMutationResult>;
+export type UpdateLineAction = (input: UpdateLineInput) => Promise<LineMutationResult>;
+
 export type SitesScreenProps = {
   sites: SiteRow[];
   initialSelectedSiteId: string | null;
   initialLines: LineRow[];
   canEdit?: boolean;
   labels: SitesScreenLabels;
+  modalLabels?: SitesModalLabels;
   /** Lazily loads the lines for a selected site (real Supabase query). */
   loadLines?: (siteId: string) => Promise<LineRow[]>;
   onImportLines?: () => void;
-  onAddSite?: () => void;
+  /** Server actions (injected by the page). */
+  createSiteAction?: CreateSiteAction;
+  createLineAction?: CreateLineAction;
+  updateLineAction?: UpdateLineAction;
 };
 
 const PROTOTYPE_SOURCE = 'prototypes/design/Monopilot Design System/settings/org-screens.jsx:103-189';
@@ -87,16 +159,27 @@ const MAP_BACKDROP: React.CSSProperties = {
   opacity: 0.3,
 };
 
+type ActiveModal =
+  | { kind: 'addSite' }
+  | { kind: 'addLine'; siteId: string }
+  | { kind: 'editLine'; siteId: string; line: LineRow }
+  | null;
+
 export default function SitesScreen({
   sites,
   initialSelectedSiteId,
   initialLines,
   canEdit = false,
   labels,
+  modalLabels = DEFAULT_SITES_MODAL_LABELS,
   loadLines,
   onImportLines,
-  onAddSite,
+  createSiteAction,
+  createLineAction,
+  updateLineAction,
 }: SitesScreenProps) {
+  const router = useRouter();
+  const [activeModal, setActiveModal] = React.useState<ActiveModal>(null);
   const [selectedSiteId, setSelectedSiteId] = React.useState<string | null>(
     initialSelectedSiteId ?? sites[0]?.id ?? null,
   );
@@ -131,6 +214,24 @@ export default function SitesScreen({
 
   const selectedLines = selectedSiteId ? (linesBySite[selectedSiteId] ?? []) : [];
 
+  // On a successful mutation: drop the affected site's cached lines so the next
+  // selection re-fetches, refresh the RSC tree (server re-queries Supabase), and
+  // close the modal.
+  const handleMutated = React.useCallback(
+    (siteId: string | null) => {
+      if (siteId) {
+        setLinesBySite((current) => {
+          const next = { ...current };
+          delete next[siteId];
+          return next;
+        });
+      }
+      router.refresh();
+      setActiveModal(null);
+    },
+    [router],
+  );
+
   return (
     <main
       aria-label={labels.title}
@@ -154,7 +255,7 @@ export default function SitesScreen({
               className="btn btn-primary"
               type="button"
               disabled={!canEdit}
-              onClick={() => onAddSite?.()}
+              onClick={() => setActiveModal({ kind: 'addSite' })}
             >
               {labels.addSite}
             </button>
@@ -278,10 +379,13 @@ export default function SitesScreen({
                     ) : null}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm" type="button" disabled={!canEdit}>
-                      {labels.edit}
-                    </button>
-                    <button className="btn btn-secondary btn-sm" type="button" disabled={!canEdit}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      type="button"
+                      disabled={!canEdit}
+                      data-testid="sites-add-line"
+                      onClick={() => setActiveModal({ kind: 'addLine', siteId: selectedSite.id })}
+                    >
                       {labels.addLine}
                     </button>
                   </div>
@@ -320,8 +424,19 @@ export default function SitesScreen({
                                 <span className="badge badge-amber">⚒ {labels.statusMaintenance}</span>
                               )}
                             </td>
-                            <td style={{ width: 30 }} className="muted" aria-hidden="true">
-                              ⋮
+                            <td style={{ width: 60 }}>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                type="button"
+                                disabled={!canEdit}
+                                data-testid="sites-edit-line"
+                                aria-label={`${labels.edit} ${line.name}`}
+                                onClick={() =>
+                                  setActiveModal({ kind: 'editLine', siteId: selectedSite.id, line })
+                                }
+                              >
+                                {labels.edit}
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -361,6 +476,374 @@ export default function SitesScreen({
           ) : null}
         </div>
       )}
+
+      {activeModal?.kind === 'addSite' ? (
+        <AddSiteModal
+          labels={modalLabels}
+          action={createSiteAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => handleMutated(selectedSiteId)}
+        />
+      ) : null}
+
+      {activeModal?.kind === 'addLine' ? (
+        <AddLineModal
+          labels={modalLabels}
+          siteId={activeModal.siteId}
+          action={createLineAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => handleMutated(activeModal.siteId)}
+        />
+      ) : null}
+
+      {activeModal?.kind === 'editLine' ? (
+        <EditLineModal
+          labels={modalLabels}
+          siteId={activeModal.siteId}
+          line={activeModal.line}
+          action={updateLineAction}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => handleMutated(activeModal.siteId)}
+        />
+      ) : null}
     </main>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Modals — built on the shared @monopilot/ui/Modal (Radix dialog) + the
+// design-system `.ff` / `.form-input` form chrome (mirrors fa-create-modal).
+// Each validates required fields client-side, submits to the injected server
+// action, shows pending/error, and calls onSuccess (router.refresh + close).
+// ────────────────────────────────────────────────────────────────────────────
+
+function mapError(error: SiteMutationError, labels: SitesModalLabels): string {
+  if (error === 'duplicate_code') return labels.errorDuplicate;
+  if (error === 'invalid_input') return labels.errorRequired;
+  return labels.errorGeneric;
+}
+
+function Field({
+  id,
+  label,
+  required,
+  children,
+  requiredLabel,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  requiredLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="ff">
+      <label htmlFor={id}>
+        {label}{' '}
+        {required ? (
+          <span className="req" aria-label={requiredLabel}>
+            *
+          </span>
+        ) : null}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const STATUS_OPTIONS = (labels: SitesModalLabels) => [
+  { value: 'active', label: labels.statusActive },
+  { value: 'maintenance', label: labels.statusMaintenance },
+  { value: 'inactive', label: labels.statusInactive },
+];
+
+function AddSiteModal({
+  labels,
+  action,
+  onClose,
+  onSuccess,
+}: {
+  labels: SitesModalLabels;
+  action?: CreateSiteAction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [code, setCode] = React.useState('');
+  const [name, setName] = React.useState('');
+  const [timezone, setTimezone] = React.useState('UTC');
+  const [country, setCountry] = React.useState('');
+  const [legalEntity, setLegalEntity] = React.useState('');
+  const [isPrimary, setIsPrimary] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const valid = code.trim().length > 0 && name.trim().length > 0;
+
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!valid || !action) return;
+    setError(null);
+    setPending(true);
+    try {
+      const result = await action({
+        site_code: code.trim(),
+        name: name.trim(),
+        timezone: timezone.trim() || 'UTC',
+        country: country.trim() || null,
+        legal_entity: legalEntity.trim() || null,
+        is_default: isPrimary,
+      });
+      if (result.ok) {
+        onSuccess();
+      } else {
+        setError(mapError(result.error, labels));
+      }
+    } catch {
+      setError(labels.errorGeneric);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Modal open onOpenChange={(next) => (next ? undefined : onClose())} size="md" modalId="sitesAddSite">
+      <Modal.Header title={labels.addSiteTitle} />
+      <form onSubmit={onSubmit} noValidate data-testid="sites-add-site-form">
+        <Modal.Body>
+          <Field id="site-code" label={labels.fieldSiteCode} required requiredLabel={labels.required}>
+            <input
+              id="site-code"
+              className="form-input mono"
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-name" label={labels.fieldName} required requiredLabel={labels.required}>
+            <input
+              id="site-name"
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-timezone" label={labels.fieldTimezone} requiredLabel={labels.required}>
+            <input
+              id="site-timezone"
+              className="form-input"
+              value={timezone}
+              onChange={(e) => setTimezone(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-country" label={labels.fieldCountry} requiredLabel={labels.required}>
+            <input
+              id="site-country"
+              className="form-input"
+              value={country}
+              onChange={(e) => setCountry(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="site-legal-entity" label={labels.fieldLegalEntity} requiredLabel={labels.required}>
+            <input
+              id="site-legal-entity"
+              className="form-input"
+              value={legalEntity}
+              onChange={(e) => setLegalEntity(e.currentTarget.value)}
+            />
+          </Field>
+          <div className="ff">
+            <label htmlFor="site-primary" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                id="site-primary"
+                type="checkbox"
+                checked={isPrimary}
+                onChange={(e) => setIsPrimary(e.currentTarget.checked)}
+              />
+              {labels.fieldPrimary}
+            </label>
+          </div>
+          {error ? (
+            <div role="alert" className="alert alert-red" data-testid="sites-modal-error">
+              {error}
+            </div>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={pending}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!valid || pending || !action}>
+            {pending ? labels.saving : labels.save}
+          </button>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
+}
+
+function LineFormModal({
+  title,
+  labels,
+  modalId,
+  testId,
+  initial,
+  onClose,
+  onSuccess,
+  submit,
+}: {
+  title: string;
+  labels: SitesModalLabels;
+  modalId: string;
+  testId: string;
+  initial: { code: string; name: string; status: string };
+  onClose: () => void;
+  onSuccess: () => void;
+  submit: (values: { code: string; name: string; status: string }) => Promise<LineMutationResult>;
+}) {
+  const [code, setCode] = React.useState(initial.code);
+  const [name, setName] = React.useState(initial.name);
+  const [status, setStatus] = React.useState(initial.status);
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const valid = code.trim().length > 0 && name.trim().length > 0;
+
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!valid) return;
+    setError(null);
+    setPending(true);
+    try {
+      const result = await submit({ code: code.trim(), name: name.trim(), status });
+      if (result.ok) {
+        onSuccess();
+      } else {
+        setError(mapError(result.error, labels));
+      }
+    } catch {
+      setError(labels.errorGeneric);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Modal open onOpenChange={(next) => (next ? undefined : onClose())} size="md" modalId={modalId}>
+      <Modal.Header title={title} />
+      <form onSubmit={onSubmit} noValidate data-testid={testId}>
+        <Modal.Body>
+          <Field id="line-code" label={labels.fieldLineCode} required requiredLabel={labels.required}>
+            <input
+              id="line-code"
+              className="form-input mono"
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="line-name" label={labels.fieldName} required requiredLabel={labels.required}>
+            <input
+              id="line-name"
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+            />
+          </Field>
+          <Field id="line-status" label={labels.fieldStatus} requiredLabel={labels.required}>
+            <select
+              id="line-status"
+              className="form-input"
+              value={status}
+              onChange={(e) => setStatus(e.currentTarget.value)}
+            >
+              {STATUS_OPTIONS(labels).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {error ? (
+            <div role="alert" className="alert alert-red" data-testid="sites-modal-error">
+              {error}
+            </div>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={pending}>
+            {labels.cancel}
+          </button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!valid || pending}>
+            {pending ? labels.saving : labels.save}
+          </button>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
+}
+
+function AddLineModal({
+  labels,
+  siteId,
+  action,
+  onClose,
+  onSuccess,
+}: {
+  labels: SitesModalLabels;
+  siteId: string;
+  action?: CreateLineAction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  return (
+    <LineFormModal
+      title={labels.addLineTitle}
+      labels={labels}
+      modalId="sitesAddLine"
+      testId="sites-add-line-form"
+      initial={{ code: '', name: '', status: 'active' }}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      submit={async (values) => {
+        if (!action) return { ok: false, error: 'persistence_failed' };
+        return action({ site_id: siteId, code: values.code, name: values.name, status: values.status });
+      }}
+    />
+  );
+}
+
+function EditLineModal({
+  labels,
+  siteId,
+  line,
+  action,
+  onClose,
+  onSuccess,
+}: {
+  labels: SitesModalLabels;
+  siteId: string;
+  line: LineRow;
+  action?: UpdateLineAction;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  return (
+    <LineFormModal
+      title={labels.editLineTitle}
+      labels={labels}
+      modalId="sitesEditLine"
+      testId="sites-edit-line-form"
+      initial={{ code: line.code, name: line.name, status: line.status }}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      submit={async (values) => {
+        if (!action) return { ok: false, error: 'persistence_failed' };
+        return action({
+          id: line.id,
+          site_id: siteId,
+          code: values.code,
+          name: values.name,
+          status: values.status,
+        });
+      }}
+    />
   );
 }

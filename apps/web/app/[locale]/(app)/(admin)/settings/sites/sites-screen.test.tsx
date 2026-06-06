@@ -14,7 +14,16 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// next/navigation: capture router.refresh for the post-mutation revalidation assertion.
+const refreshMock = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/en/settings/sites',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 import type { LineRow, SiteRow } from './_actions/sites';
 import SitesScreen, { type SitesScreenLabels } from './sites-screen.client';
@@ -257,5 +266,93 @@ describe('SitesScreen', () => {
     cleanup();
     renderScreen({ canEdit: true });
     expect(screen.getByRole('button', { name: '+ Add site' })).toBeEnabled();
+  });
+});
+
+describe('SitesScreen — create/edit flows', () => {
+  afterEach(() => {
+    cleanup();
+    refreshMock.mockReset();
+  });
+
+  it('opens the Add Site modal, submits to the action, then closes + refreshes on success', async () => {
+    const user = userEvent.setup();
+    const createSiteAction = vi.fn(async () => ({ ok: true as const, data: { id: 'new', code: 'POZ', name: 'Poznań' } }));
+    renderScreen({ canEdit: true, createSiteAction });
+
+    await user.click(screen.getByRole('button', { name: '+ Add site' }));
+    const form = await screen.findByTestId('sites-add-site-form');
+
+    await user.type(within(form).getByLabelText(/Site code/i), 'POZ');
+    await user.type(within(form).getByLabelText(/^Name/i), 'Poznań');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createSiteAction).toHaveBeenCalledTimes(1));
+    expect(createSiteAction).toHaveBeenCalledWith(
+      expect.objectContaining({ site_code: 'POZ', name: 'Poznań', timezone: 'UTC' }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('sites-add-site-form')).not.toBeInTheDocument());
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('surfaces the duplicate_code error from the Add Site action and keeps the modal open', async () => {
+    const user = userEvent.setup();
+    const createSiteAction = vi.fn(async () => ({ ok: false as const, error: 'duplicate_code' as const }));
+    renderScreen({ canEdit: true, createSiteAction });
+
+    await user.click(screen.getByRole('button', { name: '+ Add site' }));
+    const form = await screen.findByTestId('sites-add-site-form');
+    await user.type(within(form).getByLabelText(/Site code/i), 'KRK');
+    await user.type(within(form).getByLabelText(/^Name/i), 'Dup');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(screen.getByTestId('sites-modal-error')).toBeInTheDocument());
+    expect(screen.getByTestId('sites-add-site-form')).toBeInTheDocument();
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it('opens the Add Line modal for the selected site and submits with the site association', async () => {
+    const user = userEvent.setup();
+    const createLineAction = vi.fn(async () => ({ ok: true as const, data: { id: 'l', code: 'L3', name: 'New line', status: 'active' } }));
+    renderScreen({ canEdit: true, createLineAction });
+
+    await user.click(screen.getByTestId('sites-add-line'));
+    const form = await screen.findByTestId('sites-add-line-form');
+    await user.type(within(form).getByLabelText(/Line code/i), 'L3');
+    await user.type(within(form).getByLabelText(/^Name/i), 'New line');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(createLineAction).toHaveBeenCalledTimes(1));
+    expect(createLineAction).toHaveBeenCalledWith(
+      expect.objectContaining({ site_id: sites[0].id, code: 'L3', name: 'New line', status: 'active' }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('sites-add-line-form')).not.toBeInTheDocument());
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('opens the Edit Line modal pre-filled and submits the updated values', async () => {
+    const user = userEvent.setup();
+    const updateLineAction = vi.fn(async () => ({ ok: true as const, data: { id: krakowLines[0].id, code: 'L1', name: 'Bottling line v2', status: 'maintenance' } }));
+    renderScreen({ canEdit: true, updateLineAction });
+
+    const editButtons = screen.getAllByTestId('sites-edit-line');
+    await user.click(editButtons[0]);
+    const form = await screen.findByTestId('sites-edit-line-form');
+
+    // Pre-filled with the row's current values.
+    expect((within(form).getByLabelText(/Line code/i) as HTMLInputElement).value).toBe('L1');
+    const nameInput = within(form).getByLabelText(/^Name/i) as HTMLInputElement;
+    expect(nameInput.value).toBe('Bottling line');
+
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Bottling line v2');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(updateLineAction).toHaveBeenCalledTimes(1));
+    expect(updateLineAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: krakowLines[0].id, site_id: sites[0].id, code: 'L1', name: 'Bottling line v2' }),
+    );
+    await waitFor(() => expect(screen.queryByTestId('sites-edit-line-form')).not.toBeInTheDocument());
+    expect(refreshMock).toHaveBeenCalled();
   });
 });

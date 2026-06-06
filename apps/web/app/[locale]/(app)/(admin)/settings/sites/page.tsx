@@ -1,6 +1,16 @@
 import { getTranslations } from 'next-intl/server';
 
-import { getLinesForSite, readSitesSettingsData, type LineRow } from './_actions/sites';
+import {
+  createLine,
+  createSite,
+  getLinesForSite,
+  readSitesSettingsData,
+  updateLine,
+  type CreateLineInput,
+  type CreateSiteInput,
+  type LineRow,
+  type UpdateLineInput,
+} from './_actions/sites';
 import SitesScreen, { type SitesScreenLabels } from './sites-screen.client';
 
 export const dynamic = 'force-dynamic';
@@ -65,6 +75,24 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
     return getLinesForSite(data.org_id, siteId);
   }
 
+  // Inline server actions wrapping the canonical `_actions/sites.ts` mutations.
+  // Each is `'use server'` and passed by reference so Next.js can serialize it
+  // across the RSC boundary; the action re-verifies org + permission internally.
+  async function createSiteAction(input: CreateSiteInput) {
+    'use server';
+    return createSite(input);
+  }
+
+  async function createLineAction(input: CreateLineInput) {
+    'use server';
+    return createLine(input);
+  }
+
+  async function updateLineAction(input: UpdateLineInput) {
+    'use server';
+    return updateLine(input);
+  }
+
   return (
     <SitesScreen
       sites={data.sites}
@@ -73,6 +101,9 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
       canEdit={data.can_edit}
       labels={labels}
       loadLines={loadLinesForSelectedSite}
+      createSiteAction={createSiteAction}
+      createLineAction={createLineAction}
+      updateLineAction={updateLineAction}
     />
   );
 }

@@ -57,6 +57,49 @@ export type SiteSettingsMutationResult =
   | { ok: true; data: SiteRow }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'not_found' | 'persistence_failed' };
 
+/** Friendly error union shared by the create/update mutations. */
+export type SiteMutationError =
+  | 'invalid_input'
+  | 'forbidden'
+  | 'not_found'
+  | 'duplicate_code'
+  | 'persistence_failed';
+
+export type CreateSiteResult =
+  | { ok: true; data: { id: string; code: string; name: string } }
+  | { ok: false; error: SiteMutationError };
+
+export type LineMutationResult =
+  | { ok: true; data: { id: string; code: string; name: string; status: string } }
+  | { ok: false; error: SiteMutationError };
+
+/** Input for {@link createSite}. */
+export type CreateSiteInput = {
+  site_code: string;
+  name: string;
+  timezone?: string;
+  country?: string | null;
+  legal_entity?: string | null;
+  is_default?: boolean;
+};
+
+/** Input for {@link createLine}. A line is associated to a site (see below). */
+export type CreateLineInput = {
+  site_id: string;
+  code: string;
+  name: string;
+  status?: string;
+};
+
+/** Input for {@link updateLine}. */
+export type UpdateLineInput = {
+  id: string;
+  site_id: string;
+  code: string;
+  name: string;
+  status?: string;
+};
+
 export type SitesSettingsData = {
   org_id: string;
   sites: SiteRow[];
@@ -112,6 +155,55 @@ const SiteSettingsInput = z
     haccp_valid_until: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
   .strict();
+
+const LINE_STATUSES = ['active', 'maintenance', 'inactive'] as const;
+
+const CodeInput = z.string().trim().min(1).max(64);
+const NameInput = z.string().trim().min(1).max(200);
+
+const CreateSiteSchema = z
+  .object({
+    site_code: CodeInput,
+    name: NameInput,
+    timezone: z.string().trim().min(1).max(64).optional(),
+    country: z.string().trim().min(1).max(120).nullable().optional(),
+    legal_entity: z.string().trim().min(1).max(200).nullable().optional(),
+    is_default: z.boolean().optional(),
+  })
+  .strict();
+
+const CreateLineSchema = z
+  .object({
+    site_id: UuidInput,
+    code: CodeInput,
+    name: NameInput,
+    status: z.enum(LINE_STATUSES).optional(),
+  })
+  .strict();
+
+const UpdateLineSchema = z
+  .object({
+    id: UuidInput,
+    site_id: UuidInput,
+    code: CodeInput,
+    name: NameInput,
+    status: z.enum(LINE_STATUSES).optional(),
+  })
+  .strict();
+
+/**
+ * Postgres unique-violation SQLSTATE. We map it to the friendly
+ * `'duplicate_code'` error so the UI can surface a field-level message rather
+ * than a generic failure (the unique constraints are
+ * `sites_org_code_uq` / `production_lines_org_id_code_key`).
+ */
+const PG_UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === PG_UNIQUE_VIOLATION;
+}
+
+const SETTINGS_LINE_EVENT = 'settings.line.upserted';
 
 function revalidateSitesRoute() {
   try {
@@ -369,6 +461,202 @@ export async function updateSiteSettings(
     });
   } catch (error) {
     console.error('[settings/sites] update_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Create a new site for the caller's org.
+ *
+ * Mirrors {@link updateSiteSettings}: zod-validated, org-context wrapped,
+ * gated on the live `settings.org.update` permission, org-scoped INSERT under
+ * RLS. A duplicate `site_code` (unique `sites_org_code_uq`) is surfaced as the
+ * friendly `'duplicate_code'`. When `is_default` is requested we first clear
+ * the existing default in the org so the partial unique index `idx_sites_default`
+ * (one default per org) cannot conflict.
+ *
+ * No outbox event is emitted: `outbox_events_event_type_check` has no allowed
+ * `settings.site.*` event_type, and inventing one would violate the CHECK.
+ */
+export async function createSite(input: unknown): Promise<CreateSiteResult> {
+  const parsed = CreateSiteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  const data = parsed.data;
+
+  try {
+    return await withOrgContext<CreateSiteResult>(async (ctx): Promise<CreateSiteResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      if (data.is_default === true) {
+        await context.client.query(
+          `update public.sites
+              set is_default = false,
+                  updated_by = $1::uuid,
+                  updated_at = now()
+            where org_id = app.current_org_id()
+              and is_default = true`,
+          [context.userId],
+        );
+      }
+
+      const { rows } = await context.client.query<{ id: string; site_code: string; name: string }>(
+        `insert into public.sites (org_id, site_code, name, timezone, country, legal_entity, is_default, created_by, updated_by)
+         values (app.current_org_id(), $1, $2, coalesce($3, 'UTC'), $4, $5, coalesce($6::boolean, false), $7::uuid, $7::uuid)
+         returning id::text, site_code, name`,
+        [
+          data.site_code,
+          data.name,
+          data.timezone ?? null,
+          data.country ?? null,
+          data.legal_entity ?? null,
+          data.is_default ?? false,
+          context.userId,
+        ],
+      );
+
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'persistence_failed' };
+      revalidateSitesRoute();
+      return { ok: true, data: { id: row.id, code: row.site_code, name: row.name } };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
+    console.error('[settings/sites] create_site_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Ensure the line `lineId` is associated to `siteId` for the caller's org.
+ *
+ * LINE↔SITE ASSOCIATION (the only one the schema supports):
+ *   `public.production_lines` has NO `site_id` and `public.locations` has NO
+ *   `site_id` either (locations hang off a warehouse). The ONLY column that ties
+ *   a line to a site is `public.shift_patterns.site_id` — and indeed
+ *   `getLinesForSite` lists a site's lines via `INNER JOIN public.shift_patterns
+ *   sp ON (sp.line_id = pl.id::text OR sp.line_id = pl.code) AND sp.site_id = $site
+ *   AND sp.is_active`. So a created/edited line only shows up under a site once an
+ *   active `shift_patterns` row links them.
+ *
+ *   `shift_patterns.shift_id` is NOT NULL with a composite FK to
+ *   `shift_configs(org_id, shift_id)`, so we first upsert a minimal default
+ *   `'general'` shift_config (site-scoped) and then upsert the linking pattern.
+ *   This keeps the line visible under the chosen site using the existing read
+ *   query, without inventing a new association table.
+ */
+async function associateLineWithSite(context: OrgContextLike, lineId: string, siteId: string): Promise<void> {
+  const shiftId = 'general';
+  await context.client.query(
+    `insert into public.shift_configs (org_id, site_id, shift_id, shift_label, start_time, end_time, created_by, updated_by)
+     values (app.current_org_id(), $1::uuid, $2, 'General', '00:00', '23:59', $3::uuid, $3::uuid)
+     on conflict (org_id, shift_id) do update
+        set site_id = excluded.site_id,
+            is_active = true,
+            updated_by = excluded.updated_by,
+            updated_at = now()`,
+    [siteId, shiftId, context.userId],
+  );
+
+  await context.client.query(
+    `insert into public.shift_patterns (org_id, site_id, line_id, shift_id, is_active, created_by, updated_by)
+     values (app.current_org_id(), $1::uuid, $2, $3, true, $4::uuid, $4::uuid)
+     on conflict (org_id, line_id, shift_id) do update
+        set site_id = excluded.site_id,
+            is_active = true,
+            updated_by = excluded.updated_by,
+            updated_at = now()`,
+    [siteId, lineId, shiftId, context.userId],
+  );
+}
+
+function emitLineUpserted(context: OrgContextLike, lineId: string, action: 'created' | 'updated'): Promise<unknown> {
+  // `settings.line.upserted` is an allowed event_type in
+  // outbox_events_event_type_check — safe to emit (do NOT invent new ones).
+  return context.client.query(
+    `insert into public.outbox_events (org_id, event_type, aggregate_type, aggregate_id, payload, app_version)
+     values (app.current_org_id(), $1, 'production_line', $2, $3::jsonb, coalesce(current_setting('app.app_version', true), 'dev'))`,
+    [SETTINGS_LINE_EVENT, lineId, JSON.stringify({ line_id: lineId, action })],
+  );
+}
+
+/**
+ * Create a production line and associate it to a site. See
+ * {@link associateLineWithSite} for the (shift_patterns) association rationale.
+ * Org-context wrapped, admin-gated, RLS-scoped, duplicate `code`
+ * (`production_lines_org_id_code_key`) → `'duplicate_code'`.
+ */
+export async function createLine(input: unknown): Promise<LineMutationResult> {
+  const parsed = CreateLineSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  const data = parsed.data;
+
+  try {
+    return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
+        `insert into public.production_lines (org_id, code, name, status)
+         values (app.current_org_id(), $1, $2, coalesce($3, 'active'))
+         returning id::text, code, name, status`,
+        [data.code, data.name, data.status ?? null],
+      );
+
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'persistence_failed' };
+
+      await associateLineWithSite(context, row.id, data.site_id);
+      await emitLineUpserted(context, row.id, 'created');
+
+      revalidateSitesRoute();
+      return { ok: true, data: row };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
+    console.error('[settings/sites] create_line_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+/**
+ * Update an existing production line (code/name/status) and re-affirm its site
+ * association. Org-context wrapped, admin-gated, RLS-scoped, duplicate `code`
+ * → `'duplicate_code'`, missing row → `'not_found'`.
+ */
+export async function updateLine(input: unknown): Promise<LineMutationResult> {
+  const parsed = UpdateLineSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'invalid_input' };
+  const data = parsed.data;
+
+  try {
+    return await withOrgContext<LineMutationResult>(async (ctx): Promise<LineMutationResult> => {
+      const context = ctx as OrgContextLike;
+      if (!(await hasSettingsUpdatePermission(context))) return { ok: false, error: 'forbidden' };
+
+      const { rows } = await context.client.query<{ id: string; code: string; name: string; status: string }>(
+        `update public.production_lines
+            set code = $2,
+                name = $3,
+                status = coalesce($4, status)
+          where org_id = app.current_org_id()
+            and id = $1::uuid
+          returning id::text, code, name, status`,
+        [data.id, data.code, data.name, data.status ?? null],
+      );
+
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+
+      await associateLineWithSite(context, row.id, data.site_id);
+      await emitLineUpserted(context, row.id, 'updated');
+
+      revalidateSitesRoute();
+      return { ok: true, data: row };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: 'duplicate_code' };
+    console.error('[settings/sites] update_line_failed', error instanceof Error ? { message: error.message } : { message: String(error) });
     return { ok: false, error: 'persistence_failed' };
   }
 }
