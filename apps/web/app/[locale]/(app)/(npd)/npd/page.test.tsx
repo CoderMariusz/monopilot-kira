@@ -35,6 +35,14 @@ vi.mock('next/link', () => ({
     React.createElement('a', { href, ...props }, children),
 }));
 
+// DashboardScreen now mounts the inline FaCreateModal (which uses next/navigation
+// for the post-create redirect), so the navigation hooks must be stubbed in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/en/npd',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 // Resolve labels through the REAL locale JSON so this asserts the production
 // next-intl key path (npd.dashboard.*), not a fixture.
 vi.mock('next-intl/server', () => ({

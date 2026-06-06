@@ -53,7 +53,7 @@ const EXPECTED_NAV_GROUPS = [
     label: "Premium",
     items: [
       { label: "Technical", module_id: "technical", route: "/technical" },
-      { label: "NPD", module_id: "npd", route: "/npd" },
+      { label: "NPD", module_id: "npd", route: "/pipeline" },
       { label: "Finance", module_id: "finance", route: "/finance" },
       { label: "OEE", module_id: "oee", route: "/oee" },
       { label: "Maintenance", module_id: "maintenance", route: "/maintenance" },

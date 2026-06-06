@@ -451,6 +451,11 @@
       "field_date_format": "Date format",
       "field_region": "Region",
       "hint_upload": "PNG or SVG · max 2MB · 400×400px recommended",
+      "hint_trading_name": "Short name used in the UI.",
+      "hint_legal_name": "Full registered name for documents.",
+      "hint_logo": "Appears on labels, invoices, and the login page.",
+      "hint_vat": "Tax identification number.",
+      "hint_default_currency": "Used for costing and reports.",
       "region_tooltip": "Region change requires support ticket",
       "action_upload_new": "Upload new",
       "action_cancel": "Cancel",
@@ -823,6 +828,33 @@
           "preflightMissing": "Missing D365 constants:"
         }
       }
+    },
+    "shifts": {
+      "title": "Shifts & calendar",
+      "subtitle": "Work patterns, non-production days, and shift assignments.",
+      "new_shift": "+ New shift",
+      "patterns_title": "Shift patterns",
+      "patterns_subtitle": "Recurring work patterns used to schedule production.",
+      "empty_patterns": "No shift patterns are configured yet.",
+      "calendar_title": "Calendar",
+      "calendar_subtitle": "Days on which production is paused.",
+      "legend_working": "Working day",
+      "legend_weekend": "Weekend",
+      "legend_holiday": "Public holiday",
+      "column_name": "Name",
+      "column_time": "Time",
+      "column_days": "Days",
+      "column_site": "Site",
+      "column_line": "Line",
+      "column_status": "Status",
+      "status_active": "Active",
+      "weekday_mon": "Mon",
+      "weekday_tue": "Tue",
+      "weekday_wed": "Wed",
+      "weekday_thu": "Thu",
+      "weekday_fri": "Fri",
+      "weekday_sat": "Sat",
+      "weekday_sun": "Sun"
     }
   },
   "navigation": {
@@ -989,6 +1021,19 @@
         "my_profile": "My profile",
         "my_notifications": "Notifications",
         "d365_cost_import": "D365 cost import"
+      }
+    },
+    "npd": {
+      "tabs": {
+        "projects": "Projects",
+        "formulations": "Formulations",
+        "allergenCascade": "Allergen cascade",
+        "fgDashboard": "FG Dashboard",
+        "finishedGoods": "Finished Goods",
+        "briefs": "Briefs"
+      },
+      "groups": {
+        "apex": "Apex"
       }
     }
   },
@@ -1458,6 +1503,35 @@
         "procurement": "Procurement",
         "history": "History",
         "locked": "Locked"
+      },
+      "deptStrip": {
+        "ariaLabel": "Department gate progress",
+        "labels": {
+          "core": "Core",
+          "planning": "Planning",
+          "commercial": "Commercial",
+          "production": "Production",
+          "technical": "Technical",
+          "mrp": "MRP",
+          "procurement": "Procurement"
+        },
+        "statusLabels": {
+          "done": "Done",
+          "inprog": "In progress",
+          "blocked": "Blocked",
+          "pending": "Pending"
+        }
+      },
+      "actions": {
+        "deleteFa": "Delete FA",
+        "d365Build": "Build D365 →",
+        "deleteDisabledHint": "You do not have permission to delete finished goods.",
+        "d365DisabledHint": "FA must be Complete first (all 7 departments closed)."
+      },
+      "workflow": {
+        "line": "Workflow template: {template} — {type} · {count} departments",
+        "fallbackTemplate": "Standard NPD",
+        "fallbackType": "Single component"
       }
     },
     "dashboard": {
@@ -2078,7 +2152,24 @@
         "Complete": "Complete",
         "Built": "Built"
       },
-      "deleteFa": "Delete FG"
+      "deleteFa": "Delete FG",
+      "validationTitle": "Validation status",
+      "validationRules": {
+        "V01": "FA Code format",
+        "V02": "Product Name required",
+        "V03": "Pack Size in reference",
+        "V04": "D365 material codes",
+        "V05": "Dept required fields",
+        "V06": "PR Code suffix",
+        "V07": "Allergen declaration",
+        "V08": "Brief mapping"
+      },
+      "validationStatusLabels": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "warn": "Warning",
+        "info": "Info"
+      }
     },
     "faDetailModals": {
       "deptCloseTitle": "Close department",
@@ -2261,6 +2352,107 @@
       "atRiskHint": "High priority, behind schedule",
       "totalLabel": "Total in view",
       "totalHint": "Matching the current filter"
+    },
+    "formulations": {
+      "title": "Formulations",
+      "subtitle": "Cross-FG view of all formulation versions",
+      "searchPlaceholder": "Search FG code, name or version…",
+      "filterFg": "Finished Good",
+      "filterStatus": "Status",
+      "clearFilters": "Clear filters",
+      "fgAll": "All Finished Goods",
+      "statusAll": "All statuses",
+      "statusDraft": "Draft",
+      "statusSubmitted": "Submitted for trial",
+      "statusLocked": "Locked",
+      "colFg": "Finished Good",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colEffectiveFrom": "Effective from",
+      "colEffectiveTo": "Effective to",
+      "colItems": "Items",
+      "colAllergens": "Allergens",
+      "colActions": "Actions",
+      "open": "Open",
+      "current": "current",
+      "none": "—",
+      "loading": "Loading formulations…",
+      "empty": "No formulations match your filters",
+      "emptyBody": "Formulation versions are created from the recipe editor inside an NPD project. Create one or clear filters.",
+      "error": "Unable to load formulations. Try again after the backend is available.",
+      "forbidden": "You do not have permission to view formulations."
+    },
+    "allergenCascade": {
+      "title": "Allergen cascade preview",
+      "subtitle": "Visual trace RM → process → FG · EU FIC 1169/2011 · 14 mandatory allergens. Auto-derived badges are read-only.",
+      "breadcrumb": "NPD / Allergen cascade",
+      "selectorLabel": "Finished Good",
+      "selectorPlaceholder": "Select a Finished Good…",
+      "emptyTitle": "No Finished Goods yet",
+      "emptyBody": "The allergen cascade is derived per Finished Good. Create an FG (from a converted Brief) to see its allergen declaration here.",
+      "error": "Unable to load Finished Goods. Try again after the backend is available.",
+      "loading": "Loading allergen cascade…"
+    },
+    "projectDetail": {
+      "header": {
+        "breadcrumbNpd": "NPD",
+        "breadcrumbPipeline": "Pipeline",
+        "ownerLabel": "Owner",
+        "targetLabel": "Target launch",
+        "noOwner": "Unassigned",
+        "noTarget": "Not set",
+        "watch": "Watch",
+        "watchDisabledHint": "Watching projects is not available yet.",
+        "duplicate": "Duplicate",
+        "duplicateDisabledHint": "Duplicating projects is not available yet.",
+        "advanceStage": "Advance stage →",
+        "advanceDisabledHint": "You do not have permission to advance this gate."
+      },
+      "prio": {
+        "high": "High priority",
+        "normal": "Normal priority",
+        "low": "Low priority"
+      },
+      "gate": {
+        "G0": "Idea",
+        "G1": "Feasibility",
+        "G2": "Business Case",
+        "G3": "Development",
+        "G4": "Testing",
+        "Launched": "Launched"
+      },
+      "stageRailAriaLabel": "Stage-Gate progress",
+      "deptStrip": {
+        "ariaLabel": "Department gate progress",
+        "labels": {
+          "core": "Core",
+          "planning": "Planning",
+          "commercial": "Commercial",
+          "production": "Production",
+          "technical": "Technical",
+          "mrp": "MRP",
+          "procurement": "Procurement"
+        },
+        "statusLabels": {
+          "done": "Done",
+          "inprog": "In progress",
+          "blocked": "Blocked",
+          "pending": "Pending"
+        },
+        "pendingCaption": "Departments populate once the FG is created at Gate 3."
+      },
+      "quickLinks": {
+        "title": "Workspaces",
+        "gate": "Stage-Gate",
+        "formulation": "Formulation",
+        "costing": "Costing",
+        "nutrition": "Nutrition",
+        "approval": "Approval"
+      },
+      "empty": "Project not found",
+      "emptyBody": "No project matches this id in your organisation.",
+      "forbidden": "You do not have permission to view this project.",
+      "error": "Unable to load this project."
     }
   },
   "technical": {

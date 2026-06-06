@@ -31,6 +31,14 @@ vi.mock('next/link', () => ({
     React.createElement('a', { href, ...props }, children),
 }));
 
+// DashboardScreen now mounts the inline FaCreateModal (uses next/navigation for
+// the post-create redirect), so the navigation hooks must be stubbed in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/en/npd',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const LABELS: DashboardScreenLabels = {
   breadcrumbRoot: 'NPD',
   breadcrumbCurrent: 'Dashboard',

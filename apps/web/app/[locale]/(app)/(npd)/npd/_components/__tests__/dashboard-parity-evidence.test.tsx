@@ -21,7 +21,15 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// DashboardScreen now mounts the inline FaCreateModal (uses next/navigation for
+// the post-create redirect), so the navigation hooks must be stubbed in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/en/npd',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 import {
   DashboardScreen,

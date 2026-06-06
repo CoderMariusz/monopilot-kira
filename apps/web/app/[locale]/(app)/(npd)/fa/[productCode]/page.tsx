@@ -68,6 +68,18 @@ import {
   loadAllergenCascade,
   type AllergenLoad,
 } from './_lib/allergen-cascade';
+import { FaHeaderActions, type FaHeaderActionsLabels } from './_components/fa-header-actions';
+import {
+  DeptStatusStrip,
+  type DeptStatusItem,
+  type DeptStatus,
+} from '../../../../../../components/npd/dept-status-strip';
+import {
+  DEPT_KEYS,
+  deriveDeptStatuses,
+  type DeptKey,
+  type GenericDeptColumn,
+} from '../../../../../../lib/npd/derive-dept-statuses';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -102,10 +114,21 @@ type FaCoreRow = {
 };
 
 type FaDetailLoad =
-  | { state: 'ready'; fa: FaCoreRow; history: HistoryLoad; dept: DeptData }
+  | {
+      state: 'ready';
+      fa: FaCoreRow;
+      history: HistoryLoad;
+      dept: DeptData;
+      deptStatuses: Record<DeptKey, DeptStatus>;
+      canDelete: boolean;
+      canBuild: boolean;
+    }
   | { state: 'empty' }
   | { state: 'permission_denied' }
   | { state: 'error' };
+
+const DELETE_PERMISSION = 'npd.core.write';
+const BUILD_PERMISSION = 'npd.fa.build';
 
 type HistoryLoad = { state: FaHistoryPageState; rows: FaHistoryRow[] };
 
@@ -129,20 +152,6 @@ const AUTO_DERIVED_KEYS = new Set<string>([
 const READONLY_ID_KEYS = new Set<string>(['product_code']);
 /** Monospace-rendered Commercial columns (GS1 / bar codes). */
 const MONO_KEYS = new Set<string>(['bar_codes']);
-
-type GenericDeptColumn = {
-  key: string;
-  dataType: 'text' | 'number' | 'date' | 'boolean' | 'dropdown' | 'formula';
-  required: boolean;
-  readOnly: boolean;
-  auto?: boolean;
-  dropdownSource?: string;
-  displayOrder: number;
-  /** Procurement V-NPD-PROC-001 price gate. */
-  priceGated?: boolean;
-  /** Commercial monospace rendering. */
-  mono?: boolean;
-};
 
 type DeptColumnRow = {
   column_key: string;
@@ -412,6 +421,9 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         procurement,
         prodRows,
         canWriteProduction,
+        mrp,
+        canDelete,
+        canBuild,
       ] = await Promise.all([
         readProductValues(ctx, productCode),
         readDeptColumns(ctx, 'Core'),
@@ -422,6 +434,9 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         readDeptColumns(ctx, 'Procurement'),
         readProdDetailRows(ctx, productCode),
         hasPermission(ctx, 'npd.production.write'),
+        readDeptColumns(ctx, 'MRP'),
+        hasPermission(ctx, DELETE_PERMISSION),
+        hasPermission(ctx, BUILD_PERMISSION),
       ]);
 
       const coreDone = String(values.closed_core ?? '').toLowerCase() === 'yes';
@@ -455,6 +470,18 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         canWriteProduction,
       };
 
+      // Dept-status strip — derived SERVER-SIDE from the real product row +
+      // the live DeptColumns required-field metadata (NO hardcoded array).
+      const deptStatuses = deriveDeptStatuses(values, {
+        core,
+        planning,
+        commercial,
+        production,
+        technical,
+        mrp,
+        procurement,
+      });
+
       // History inside the SAME org-context transaction (no second round-trip).
       let history: HistoryLoad;
       try {
@@ -466,7 +493,7 @@ async function loadFaDetail(productCode: string): Promise<FaDetailLoad> {
         history = { state: 'error', rows: [] };
       }
 
-      return { state: 'ready', fa, history, dept };
+      return { state: 'ready', fa, history, dept, deptStatuses, canDelete, canBuild };
     });
   } catch (error) {
     console.error('[fa-detail] org-scoped read failed:', error);
@@ -488,6 +515,21 @@ type FaDetailLabels = {
   error: string;
   status: Record<StatusKey, string>;
   tabs: FaTabsLabels;
+  /** Dept-status strip (prototype fa-screens.jsx:365-385). */
+  deptStrip: {
+    ariaLabel: string;
+    labels: Record<DeptKey, string>;
+    statusLabels: Record<DeptStatus, string>;
+  };
+  /** Header actions bar (prototype fa-screens.jsx:344-362). */
+  actions: FaHeaderActionsLabels;
+  /** Workflow template line (product-owner approved addition). */
+  workflow: {
+    /** "Workflow template: {template} — {type} · {count} departments". */
+    line: string;
+    fallbackTemplate: string;
+    fallbackType: string;
+  };
 };
 
 const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
@@ -520,6 +562,35 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
     deferred: 'Tab content deferred',
     deferredBody: 'This department workspace is delivered in a later slice.',
     locked: 'Locked',
+  },
+  deptStrip: {
+    ariaLabel: 'Department gate progress',
+    labels: {
+      core: 'Core',
+      planning: 'Planning',
+      commercial: 'Commercial',
+      production: 'Production',
+      technical: 'Technical',
+      mrp: 'MRP',
+      procurement: 'Procurement',
+    },
+    statusLabels: {
+      done: 'Done',
+      inprog: 'In progress',
+      blocked: 'Blocked',
+      pending: 'Pending',
+    },
+  },
+  actions: {
+    deleteFa: 'Delete FA',
+    d365Build: 'Build D365 →',
+    deleteDisabledHint: 'You do not have permission to delete finished goods.',
+    d365DisabledHint: 'FA must be Complete first (all 7 departments closed).',
+  },
+  workflow: {
+    line: 'Workflow template: {template} — {type} · {count} departments',
+    fallbackTemplate: 'Standard NPD',
+    fallbackType: 'Single component',
   },
 };
 
@@ -565,6 +636,35 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
         deferred: pick('deferred', d.tabs.deferred),
         deferredBody: pick('deferredBody', d.tabs.deferredBody),
         locked: pick('tabs.locked', d.tabs.locked ?? 'Locked'),
+      },
+      deptStrip: {
+        ariaLabel: pick('deptStrip.ariaLabel', d.deptStrip.ariaLabel),
+        labels: {
+          core: pick('deptStrip.labels.core', d.deptStrip.labels.core),
+          planning: pick('deptStrip.labels.planning', d.deptStrip.labels.planning),
+          commercial: pick('deptStrip.labels.commercial', d.deptStrip.labels.commercial),
+          production: pick('deptStrip.labels.production', d.deptStrip.labels.production),
+          technical: pick('deptStrip.labels.technical', d.deptStrip.labels.technical),
+          mrp: pick('deptStrip.labels.mrp', d.deptStrip.labels.mrp),
+          procurement: pick('deptStrip.labels.procurement', d.deptStrip.labels.procurement),
+        },
+        statusLabels: {
+          done: pick('deptStrip.statusLabels.done', d.deptStrip.statusLabels.done),
+          inprog: pick('deptStrip.statusLabels.inprog', d.deptStrip.statusLabels.inprog),
+          blocked: pick('deptStrip.statusLabels.blocked', d.deptStrip.statusLabels.blocked),
+          pending: pick('deptStrip.statusLabels.pending', d.deptStrip.statusLabels.pending),
+        },
+      },
+      actions: {
+        deleteFa: pick('actions.deleteFa', d.actions.deleteFa),
+        d365Build: pick('actions.d365Build', d.actions.d365Build),
+        deleteDisabledHint: pick('actions.deleteDisabledHint', d.actions.deleteDisabledHint),
+        d365DisabledHint: pick('actions.d365DisabledHint', d.actions.d365DisabledHint),
+      },
+      workflow: {
+        line: pick('workflow.line', d.workflow.line),
+        fallbackTemplate: pick('workflow.fallbackTemplate', d.workflow.fallbackTemplate),
+        fallbackType: pick('workflow.fallbackType', d.workflow.fallbackType),
       },
     };
   } catch {
@@ -941,6 +1041,16 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     canWriteProduction: false,
   };
 
+  const emptyDeptStatuses: Record<DeptKey, DeptStatus> = {
+    core: 'pending',
+    planning: 'pending',
+    commercial: 'pending',
+    production: 'pending',
+    technical: 'pending',
+    mrp: 'pending',
+    procurement: 'pending',
+  };
+
   const load: FaDetailLoad = injected
     ? {
         state: 'ready',
@@ -952,6 +1062,9 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
           rows: props.historyRows ?? [],
         },
         dept: emptyDept,
+        deptStatuses: emptyDeptStatuses,
+        canDelete: false,
+        canBuild: false,
       }
     : await loadFaDetail(productCode);
 
@@ -965,7 +1078,34 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     return <StatePanel testId="fa-detail-empty" title={labels.empty} body={labels.emptyBody} />;
   }
 
-  const { fa, history, dept } = load;
+  const { fa, history, dept, deptStatuses, canDelete, canBuild } = load;
+
+  // Dept-status strip items: localized labels merged with server-derived statuses
+  // (status derivation is in loadFaDetail → deriveDeptStatuses; NO hardcode here).
+  const deptStripItems: DeptStatusItem[] = DEPT_KEYS.map((deptKey, i) => ({
+    dept: deptKey,
+    label: labels.deptStrip.labels[deptKey],
+    status: deptStatuses[deptKey],
+    index: i + 1,
+  }));
+
+  const faComplete = fa.statusOverall === 'Complete' || fa.statusOverall === 'Built';
+
+  // Workflow template line (product-owner approved addition). Source the template
+  // / type from the real product row when present; otherwise fall back to a
+  // sensible label. The "· 7 departments" suffix is ALWAYS shown.
+  const templateValue = String(dept.values.template ?? '').trim();
+  const workflowTemplate = templateValue !== '' ? templateValue : labels.workflow.fallbackTemplate;
+  const recipeComponents = String(dept.values.recipe_components ?? '').trim();
+  const componentCount = recipeComponents
+    ? recipeComponents.split(',').filter((s) => s.trim() !== '').length
+    : 0;
+  const workflowType =
+    componentCount > 1 ? 'Multi component' : componentCount === 1 ? 'Single component' : labels.workflow.fallbackType;
+  const workflowLine = labels.workflow.line
+    .replace('{template}', workflowTemplate)
+    .replace('{type}', workflowType)
+    .replace('{count}', '7');
 
   // Dept tab labels (English fallback via next-intl pick) + earliest launch date
   // (V08) computed server-side from the product's brief handoff.
@@ -1114,9 +1254,32 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
               ) : null}
             </div>
             <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>{labels.subtitle}</p>
+            {/* Workflow template line (product-owner approved; not in prototype) */}
+            <p
+              className="muted"
+              style={{ fontSize: 12, marginTop: 2 }}
+              data-testid="fa-detail-workflow-line"
+            >
+              {workflowLine}
+            </p>
           </div>
+
+          {/* ACTIONS BAR (prototype fa-screens.jsx:344-362) */}
+          <FaHeaderActions
+            canDelete={canDelete}
+            canBuild={canBuild}
+            faComplete={faComplete}
+            labels={labels.actions}
+          />
         </div>
       </section>
+
+      {/* 7-DEPT STATUS STRIP (prototype fa-screens.jsx:365-385) */}
+      <DeptStatusStrip
+        items={deptStripItems}
+        ariaLabel={labels.deptStrip.ariaLabel}
+        statusLabels={labels.deptStrip.statusLabels}
+      />
 
       <FaTabs
         productCode={fa.productCode}

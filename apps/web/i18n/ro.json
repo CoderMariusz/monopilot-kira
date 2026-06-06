@@ -432,6 +432,11 @@
       "field_date_format": "Format dată",
       "field_region": "Regiune",
       "hint_upload": "PNG sau SVG · max 2MB · 400×400px recomandat",
+      "hint_trading_name": "Nume scurt folosit în interfață.",
+      "hint_legal_name": "Denumirea înregistrată completă pentru documente.",
+      "hint_logo": "Apare pe etichete, facturi și pagina de autentificare.",
+      "hint_vat": "Numărul de identificare fiscală.",
+      "hint_default_currency": "Folosită pentru calcularea costurilor și rapoarte.",
       "region_tooltip": "Schimbarea regiunii necesită tichet de suport",
       "action_upload_new": "Încarcă nou",
       "action_cancel": "Anulează",
@@ -804,6 +809,33 @@
           "preflightMissing": "Missing D365 constants:"
         }
       }
+    },
+    "shifts": {
+      "title": "Schimburi și calendar",
+      "subtitle": "Tipare de lucru, zile nelucrătoare și alocări de schimburi.",
+      "new_shift": "+ Schimb nou",
+      "patterns_title": "Tipare de schimb",
+      "patterns_subtitle": "Tipare de lucru recurente folosite pentru planificarea producției.",
+      "empty_patterns": "Niciun tipar de schimb nu este configurat încă.",
+      "calendar_title": "Calendar",
+      "calendar_subtitle": "Zile în care producția este suspendată.",
+      "legend_working": "Zi lucrătoare",
+      "legend_weekend": "Weekend",
+      "legend_holiday": "Sărbătoare legală",
+      "column_name": "Nume",
+      "column_time": "Oră",
+      "column_days": "Zile",
+      "column_site": "Sit",
+      "column_line": "Linie",
+      "column_status": "Stare",
+      "status_active": "Activ",
+      "weekday_mon": "Lun",
+      "weekday_tue": "Mar",
+      "weekday_wed": "Mie",
+      "weekday_thu": "Joi",
+      "weekday_fri": "Vin",
+      "weekday_sat": "Sâm",
+      "weekday_sun": "Dum"
     }
   },
   "navigation": {
@@ -970,6 +1002,19 @@
         "my_profile": "Profilul meu",
         "my_notifications": "Notificări",
         "d365_cost_import": "Import costuri D365"
+      }
+    },
+    "npd": {
+      "tabs": {
+        "projects": "Proiecte",
+        "formulations": "Formulări",
+        "allergenCascade": "Cascadă alergeni",
+        "fgDashboard": "Tablou PF",
+        "finishedGoods": "Produse finite",
+        "briefs": "Briefuri"
+      },
+      "groups": {
+        "apex": "Apex"
       }
     }
   },
@@ -3132,6 +3177,35 @@
         "procurement": "Achiziții",
         "history": "Istoric",
         "locked": "Blocat"
+      },
+      "deptStrip": {
+        "ariaLabel": "Progres departamente",
+        "labels": {
+          "core": "Core",
+          "planning": "Planificare",
+          "commercial": "Comercial",
+          "production": "Producție",
+          "technical": "Tehnic",
+          "mrp": "MRP",
+          "procurement": "Achiziții"
+        },
+        "statusLabels": {
+          "done": "Finalizat",
+          "inprog": "În curs",
+          "blocked": "Blocat",
+          "pending": "În așteptare"
+        }
+      },
+      "actions": {
+        "deleteFa": "Șterge FA",
+        "d365Build": "Construiește D365 →",
+        "deleteDisabledHint": "Nu aveți permisiunea de a șterge produse finite.",
+        "d365DisabledHint": "FA trebuie să fie Complet mai întâi (toate cele 7 departamente închise)."
+      },
+      "workflow": {
+        "line": "Șablon flux: {template} — {type} · {count} departamente",
+        "fallbackTemplate": "NPD standard",
+        "fallbackType": "Componentă unică"
       }
     },
     "dashboard": {
@@ -3734,7 +3808,24 @@
         "Complete": "Finalizat",
         "Built": "Construit"
       },
-      "deleteFa": "Șterge produsul"
+      "deleteFa": "Șterge produsul",
+      "validationTitle": "Stare validare",
+      "validationRules": {
+        "V01": "Format cod FA",
+        "V02": "Nume produs obligatoriu",
+        "V03": "Mărime ambalaj în referință",
+        "V04": "Coduri materiale D365",
+        "V05": "Câmpuri obligatorii dept.",
+        "V06": "Sufix cod PR",
+        "V07": "Declarație alergeni",
+        "V08": "Mapare brief"
+      },
+      "validationStatusLabels": {
+        "pass": "Trecut",
+        "fail": "Eșuat",
+        "warn": "Avertisment",
+        "info": "Info"
+      }
     },
     "faDetailModals": {
       "deptCloseTitle": "Închide departamentul",
@@ -3905,6 +3996,107 @@
       "statusInProgress": "În curs",
       "statusBlocked": "Blocat",
       "statusDone": "Finalizat"
+    },
+    "formulations": {
+      "title": "Formulări",
+      "subtitle": "Vedere transversală a tuturor versiunilor de formulare",
+      "searchPlaceholder": "Caută cod FG, nume sau versiune…",
+      "filterFg": "Produs finit",
+      "filterStatus": "Stare",
+      "clearFilters": "Șterge filtrele",
+      "fgAll": "Toate produsele finite",
+      "statusAll": "Toate stările",
+      "statusDraft": "Schiță",
+      "statusSubmitted": "Trimis pentru testare",
+      "statusLocked": "Blocat",
+      "colFg": "Produs finit",
+      "colVersion": "Versiune",
+      "colStatus": "Stare",
+      "colEffectiveFrom": "Valabil de la",
+      "colEffectiveTo": "Valabil până la",
+      "colItems": "Articole",
+      "colAllergens": "Alergeni",
+      "colActions": "Acțiuni",
+      "open": "Deschide",
+      "current": "curentă",
+      "none": "—",
+      "loading": "Se încarcă formulările…",
+      "empty": "Nicio formulare nu corespunde filtrelor",
+      "emptyBody": "Versiunile de formulare se creează din editorul de rețete dintr-un proiect NPD. Creează una sau șterge filtrele.",
+      "error": "Nu se pot încărca formulările. Încearcă din nou când backend-ul este disponibil.",
+      "forbidden": "Nu ai permisiunea de a vizualiza formulările."
+    },
+    "allergenCascade": {
+      "title": "Previzualizare cascadă alergeni",
+      "subtitle": "Trasare vizuală MP → proces → PF · UE FIC 1169/2011 · 14 alergeni obligatorii. Etichetele derivate automat sunt doar pentru citire.",
+      "breadcrumb": "NPD / Cascadă alergeni",
+      "selectorLabel": "Produs finit",
+      "selectorPlaceholder": "Selectați un produs finit…",
+      "emptyTitle": "Niciun produs finit încă",
+      "emptyBody": "Cascada de alergeni este derivată pentru fiecare produs finit. Creați un produs finit (dintr-un brief convertit) pentru a vedea aici declarația de alergeni.",
+      "error": "Nu se pot încărca produsele finite. Încercați din nou când backendul este disponibil.",
+      "loading": "Se încarcă cascada de alergeni…"
+    },
+    "projectDetail": {
+      "header": {
+        "breadcrumbNpd": "NPD",
+        "breadcrumbPipeline": "Pipeline",
+        "ownerLabel": "Responsabil",
+        "targetLabel": "Lansare țintă",
+        "noOwner": "Nealocat",
+        "noTarget": "Nesetat",
+        "watch": "Urmărește",
+        "watchDisabledHint": "Urmărirea proiectelor nu este încă disponibilă.",
+        "duplicate": "Duplică",
+        "duplicateDisabledHint": "Duplicarea proiectelor nu este încă disponibilă.",
+        "advanceStage": "Avansează etapa →",
+        "advanceDisabledHint": "Nu aveți permisiunea de a avansa această poartă."
+      },
+      "prio": {
+        "high": "Prioritate ridicată",
+        "normal": "Prioritate normală",
+        "low": "Prioritate scăzută"
+      },
+      "gate": {
+        "G0": "Idee",
+        "G1": "Fezabilitate",
+        "G2": "Justificare de afaceri",
+        "G3": "Dezvoltare",
+        "G4": "Testare",
+        "Launched": "Lansat"
+      },
+      "stageRailAriaLabel": "Progresul Stage-Gate",
+      "deptStrip": {
+        "ariaLabel": "Progresul departamentelor",
+        "labels": {
+          "core": "Core",
+          "planning": "Planificare",
+          "commercial": "Comercial",
+          "production": "Producție",
+          "technical": "Tehnic",
+          "mrp": "MRP",
+          "procurement": "Achiziții"
+        },
+        "statusLabels": {
+          "done": "Finalizat",
+          "inprog": "În curs",
+          "blocked": "Blocat",
+          "pending": "În așteptare"
+        },
+        "pendingCaption": "Departamentele se completează după crearea PF la Poarta 3."
+      },
+      "quickLinks": {
+        "title": "Spații de lucru",
+        "gate": "Stage-Gate",
+        "formulation": "Formulare",
+        "costing": "Costuri",
+        "nutrition": "Nutriție",
+        "approval": "Aprobare"
+      },
+      "empty": "Proiectul nu a fost găsit",
+      "emptyBody": "Niciun proiect nu corespunde acestui id în organizația dvs.",
+      "forbidden": "Nu aveți permisiunea de a vedea acest proiect.",
+      "error": "Nu se poate încărca acest proiect."
     }
   }
 }

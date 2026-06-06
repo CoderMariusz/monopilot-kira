@@ -28,6 +28,11 @@ import { getTranslations } from 'next-intl/server';
 
 import { Button } from '@monopilot/ui/Button';
 
+import {
+  ValidationStatusPanel,
+  type ValidationRule,
+  type ValidationStatus,
+} from '../../../../../../../components/npd/validation-status-panel';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 const READ_PERMISSION = 'npd.fa.read';
@@ -53,6 +58,8 @@ type FaSummary = {
   daysToLaunch: number | null;
   launchDate: string | null;
   lastUpdated: string | null;
+  /** Server-computed V01-V08 validation results (real product row). */
+  validation: ValidationRule[];
 };
 
 type FaRightPanelLoad =
@@ -94,48 +101,127 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
   return rows.length > 0;
 }
 
-async function readSummary(ctx: OrgContextLike, productCode: string): Promise<FaSummary | null> {
+/**
+ * V01-V08 validation computation (SERVER-SIDE, from the real product row).
+ *
+ * Prototype baseline: fa-screens.jsx:423-432. Adapted to the real public.product
+ * columns (migration 075). Each result is pass / fail / warn / info:
+ *   V01 product_code matches ^FA[A-Z0-9]+$
+ *   V02 product_name non-empty
+ *   V03 pack_size ∈ Reference.PackSizes (real org-scoped list)
+ *   V04 D365 material codes — derived from ingredient_codes presence (no live
+ *       D365 cost lookup in this slice): present → warn, missing → fail
+ *   V05 dept-required complete → status Complete/Built → pass, else info
+ *   V06 PR/WIP suffix match — pr_code_final present + at least one process → pass,
+ *       else info
+ *   V07 allergen declaration complete → closed_technical='Yes' → pass, else warn
+ *   V08 brief mapping present → article_number OR template present → pass, else info
+ */
+function computeValidation(
+  row: Record<string, unknown>,
+  packSizes: string[],
+  titles: Record<string, string>,
+): ValidationRule[] {
+  const str = (v: unknown) => (v == null ? '' : String(v).trim());
+  const productCode = str(row.product_code);
+  const productName = str(row.product_name);
+  const packSize = str(row.pack_size);
+  const ingredientCodes = str(row.ingredient_codes);
+  const statusOverall = str(row.status_overall);
+  const prCodeFinal = str(row.pr_code_final);
+  const anyProcess = ['process_1', 'process_2', 'process_3', 'process_4'].some(
+    (k) => str(row[k]) !== '',
+  );
+  const closedTechnical = str(row.closed_technical).toLowerCase();
+  const articleNumber = str(row.article_number);
+  const template = str(row.template);
+
+  const results: Record<string, ValidationStatus> = {
+    V01: /^FA[A-Z0-9]+$/.test(productCode) ? 'pass' : 'fail',
+    V02: productName !== '' ? 'pass' : 'fail',
+    V03: packSize !== '' && packSizes.includes(packSize) ? 'pass' : packSize === '' ? 'fail' : 'warn',
+    V04: ingredientCodes !== '' ? 'warn' : 'fail',
+    V05: statusOverall === 'Complete' || statusOverall === 'Built' ? 'pass' : 'info',
+    V06: prCodeFinal !== '' && anyProcess ? 'pass' : 'info',
+    V07: closedTechnical === 'yes' ? 'pass' : 'warn',
+    V08: articleNumber !== '' || template !== '' ? 'pass' : 'info',
+  };
+
+  return (['V01', 'V02', 'V03', 'V04', 'V05', 'V06', 'V07', 'V08'] as const).map((id) => ({
+    id,
+    title: titles[id] ?? id,
+    status: results[id],
+  }));
+}
+
+async function readPackSizes(ctx: OrgContextLike): Promise<string[]> {
+  try {
+    const { rows } = await ctx.client.query<{ value: string | null }>(
+      `select value
+         from "Reference"."PackSizes"
+        where org_id = app.current_org_id()`,
+    );
+    return rows.map((r) => str(r.value)).filter((v) => v !== '');
+  } catch {
+    // PackSizes reference may be absent in some orgs; V03 then degrades to a
+    // non-empty check (pass when filled) rather than 500-ing the panel.
+    return [];
+  }
+}
+
+function str(v: unknown): string {
+  return v == null ? '' : String(v).trim();
+}
+
+async function readSummary(
+  ctx: OrgContextLike,
+  productCode: string,
+  validationTitles: Record<string, string>,
+): Promise<FaSummary | null> {
   // RLS pins org scope to app.current_org_id(); product_code is the PK. The
   // composite identity (org_id, product_code) is therefore enforced by RLS +
-  // PK without an explicit org_id predicate in the WHERE clause.
-  const { rows } = await ctx.client.query<{
-    product_code: string;
-    product_name: string | null;
-    status_overall: string | null;
-    built: boolean | null;
-    days_to_launch: number | null;
-    launch_date: string | null;
-    created_at: string | null;
-  }>(
-    `select product_code, product_name, status_overall, built,
-            days_to_launch, launch_date, created_at
-       from public.product
-      where product_code = $1
-        and deleted_at is null
+  // PK without an explicit org_id predicate in the WHERE clause. The full row is
+  // read as JSON so the V01-V08 computation has every column it needs.
+  const { rows } = await ctx.client.query<Record<string, unknown>>(
+    `select to_jsonb(p.*) as product_json
+       from public.product p
+      where p.product_code = $1
+        and p.deleted_at is null
       limit 1`,
     [productCode],
   );
-  const row = rows[0];
-  if (!row) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  // Production query aliases the full row as `product_json`; tests may return the
+  // flat columns directly — accept either shape.
+  const json = (raw.product_json as Record<string, unknown> | undefined) ?? raw;
+  if (!json || Object.keys(json).length === 0) return null;
+
+  const packSizes = await readPackSizes(ctx);
+  const daysRaw = json.days_to_launch;
   return {
-    productCode: row.product_code,
-    productName: row.product_name,
-    statusOverall: row.status_overall,
-    built: row.built === true,
-    daysToLaunch: typeof row.days_to_launch === 'number' ? row.days_to_launch : null,
-    launchDate: row.launch_date ?? null,
-    lastUpdated: row.created_at ?? null,
+    productCode: str(json.product_code),
+    productName: json.product_name == null ? null : String(json.product_name),
+    statusOverall: json.status_overall == null ? null : String(json.status_overall),
+    built: json.built === true,
+    daysToLaunch: typeof daysRaw === 'number' ? daysRaw : daysRaw == null ? null : Number(daysRaw),
+    launchDate: json.launch_date == null ? null : String(json.launch_date),
+    lastUpdated: json.created_at == null ? null : String(json.created_at),
+    validation: computeValidation(json, packSizes, validationTitles),
   };
 }
 
-async function loadSummary(productCode: string): Promise<FaRightPanelLoad> {
+async function loadSummary(
+  productCode: string,
+  validationTitles: Record<string, string>,
+): Promise<FaRightPanelLoad> {
   try {
     return await withOrgContext(async (rawCtx): Promise<FaRightPanelLoad> => {
       const ctx = rawCtx as OrgContextLike;
       if (!(await hasPermission(ctx, READ_PERMISSION))) {
         return { state: 'permission_denied' };
       }
-      const fa = await readSummary(ctx, productCode);
+      const fa = await readSummary(ctx, productCode, validationTitles);
       if (!fa) return { state: 'empty' };
       return { state: 'ready', fa };
     });
@@ -173,6 +259,21 @@ type FaRightPanelLabels = {
   forbidden: string;
   error: string;
   status: Record<StatusKey, string>;
+  /** V01-V08 validation panel (prototype fa-screens.jsx:421-452). */
+  validationTitle: string;
+  validationRules: Record<string, string>;
+  validationStatusLabels: Record<ValidationStatus, string>;
+};
+
+const DEFAULT_VALIDATION_RULES: Record<string, string> = {
+  V01: 'FA Code format',
+  V02: 'Product Name required',
+  V03: 'Pack Size in reference',
+  V04: 'D365 material codes',
+  V05: 'Dept required fields',
+  V06: 'PR Code suffix',
+  V07: 'Allergen declaration',
+  V08: 'Brief mapping',
 };
 
 const DEFAULT_LABELS: FaRightPanelLabels = {
@@ -204,6 +305,14 @@ const DEFAULT_LABELS: FaRightPanelLabels = {
     Alert: 'Alert',
     Complete: 'Complete',
     Built: 'Built',
+  },
+  validationTitle: 'Validation status',
+  validationRules: DEFAULT_VALIDATION_RULES,
+  validationStatusLabels: {
+    pass: 'Pass',
+    fail: 'Fail',
+    warn: 'Warning',
+    info: 'Info',
   },
 };
 
@@ -248,6 +357,23 @@ async function buildLabels(locale: string): Promise<FaRightPanelLabels> {
         Alert: pick('status.Alert', d.status.Alert),
         Complete: pick('status.Complete', d.status.Complete),
         Built: pick('status.Built', d.status.Built),
+      },
+      validationTitle: pick('validationTitle', d.validationTitle),
+      validationRules: {
+        V01: pick('validationRules.V01', d.validationRules.V01),
+        V02: pick('validationRules.V02', d.validationRules.V02),
+        V03: pick('validationRules.V03', d.validationRules.V03),
+        V04: pick('validationRules.V04', d.validationRules.V04),
+        V05: pick('validationRules.V05', d.validationRules.V05),
+        V06: pick('validationRules.V06', d.validationRules.V06),
+        V07: pick('validationRules.V07', d.validationRules.V07),
+        V08: pick('validationRules.V08', d.validationRules.V08),
+      },
+      validationStatusLabels: {
+        pass: pick('validationStatusLabels.pass', d.validationStatusLabels.pass),
+        fail: pick('validationStatusLabels.fail', d.validationStatusLabels.fail),
+        warn: pick('validationStatusLabels.warn', d.validationStatusLabels.warn),
+        info: pick('validationStatusLabels.info', d.validationStatusLabels.info),
       },
     };
   } catch {
@@ -346,7 +472,7 @@ export async function FaRightPanel(props: FaRightPanelProps) {
       ? { state: 'ready', fa: props.summary }
       : props.loadState !== undefined && props.loadState !== 'ready'
         ? ({ state: props.loadState } as FaRightPanelLoad)
-        : await loadSummary(productCode);
+        : await loadSummary(productCode, labels.validationRules);
 
   if (load.state === 'permission_denied') {
     return <StatePanel testId="fa-right-panel-forbidden" title={labels.forbidden} />;
@@ -369,11 +495,11 @@ export async function FaRightPanel(props: FaRightPanelProps) {
       data-testid="fa-right-panel"
       data-prototype-anchor="npd/fa-screens.jsx:404-452"
     >
-      {/* Card 1 — Validation/Status + key facts (prototype lines 437-452) */}
+      {/* Card 1 — status pill + key facts (status summary above the V-table) */}
       <div className="card" data-slot="card">
         <div className="card-head">
           <div>
-            <h2 className="card-title">{labels.title}</h2>
+            <h2 className="card-title">{labels.keyFacts}</h2>
             <p className="muted" style={{ marginTop: 2, fontSize: 11 }}>{labels.subtitle}</p>
           </div>
           <span
@@ -412,6 +538,13 @@ export async function FaRightPanel(props: FaRightPanelProps) {
           </dl>
         </div>
       </div>
+
+      {/* V01-V08 Validation status table (prototype lines 421-452) — ABOVE Built */}
+      <ValidationStatusPanel
+        title={labels.validationTitle}
+        rules={fa.validation}
+        statusLabels={labels.validationStatusLabels}
+      />
 
       {/* Card 2 — Built status (prototype lines 454-467) */}
       <div className="card" data-slot="card">

@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import {
@@ -30,6 +31,19 @@ import {
   TableHeader,
   TableRow,
 } from '@monopilot/ui/Table';
+
+import {
+  FaCreateModal,
+  type CreateFaAction,
+  type FaCreateLabels,
+} from '../../fa/_components/fa-create-modal';
+
+const LOCALES = ['en', 'pl', 'ro', 'uk'];
+
+function localePrefixFrom(pathname: string | null): string {
+  const segment = (pathname ?? '/').split('/')[1] ?? '';
+  return LOCALES.includes(segment) ? `/${segment}` : '';
+}
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -133,8 +147,26 @@ export type DashboardScreenProps = {
   alerts: LaunchAlert[];
   /** Test/storybook seam for the Refresh-D365 action. */
   onRefreshD365?: () => void;
-  /** Test/storybook seam for the Create-FA action. */
+  /**
+   * Test/storybook seam for the Create-FG action. When provided it is invoked in
+   * addition to opening the inline create modal (kept for back-compat with the
+   * legacy parity tests). Production wiring opens the modal via local state.
+   */
   onCreateFa?: () => void;
+  /**
+   * FaCreateModal labels, server-resolved (next-intl) by page.tsx. When present
+   * (with createFaAction) the "+ Create FG" modal is rendered inline in this
+   * client island — mirrors the working FA-LIST pattern (fa-list-table.tsx).
+   */
+  createModalLabels?: FaCreateLabels;
+  /**
+   * Real createFa Server Action (T-008), injected by page.tsx ONLY when the
+   * caller may create (RBAC resolved server-side). It is a serializable Server
+   * Action reference (NOT a raw client function), so it crosses the RSC boundary
+   * safely under Next.js 16. Absent ⇒ Create is disabled; RBAC is never decided
+   * or trusted on the client.
+   */
+  createFaAction?: CreateFaAction;
   /**
    * T-134 — composition slot for the T-133 Dashboard Pipeline preview region.
    * Rendered after the launch-alerts table in the ready layout. Optional so the
@@ -272,9 +304,36 @@ export function DashboardScreen({
   alerts,
   onRefreshD365,
   onCreateFa,
+  createModalLabels,
+  createFaAction,
   pipelinePreview,
 }: DashboardScreenProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [showBuilt, setShowBuilt] = React.useState(false);
+
+  // Robust open mechanism (mirrors fa-list-table.tsx): the modal open state lives
+  // HERE, in the same client island as the button. The button's onClick flips
+  // local state synchronously — it never depends on a router round-trip reaching
+  // a separate island, so it works on a fresh hard load.
+  const [createOpen, setCreateOpen] = React.useState(false);
+
+  function openCreate() {
+    onCreateFa?.();
+    setCreateOpen(true);
+  }
+
+  function closeCreate() {
+    setCreateOpen(false);
+  }
+
+  function onCreated(productCode: string) {
+    setCreateOpen(false);
+    // Canonical FA detail route: /[locale]/fa/[productCode].
+    const localePrefix = localePrefixFrom(pathname);
+    router.push(`${localePrefix}/fa/${productCode}`);
+  }
 
   const rows = React.useMemo(() => {
     const visible = showBuilt ? alerts : alerts.filter((a) => !a.built);
@@ -315,7 +374,13 @@ export function DashboardScreen({
             </button>
           ) : null}
           {canCreate ? (
-            <button type="button" data-slot="button" className="btn btn-primary" onClick={onCreateFa}>
+            <button
+              type="button"
+              data-slot="button"
+              className="btn btn-primary"
+              aria-label={labels.createFa}
+              onClick={openCreate}
+            >
               + {labels.createFa}
             </button>
           ) : null}
@@ -531,6 +596,25 @@ export function DashboardScreen({
 
       {/* T-134 composition slot — T-133 Dashboard Pipeline preview region. */}
       {pipelinePreview}
+
+      {/*
+        Robust create modal — rendered INLINE in this client island so the
+        "+ Create FG" button (above) opens it via local state on a fresh hard
+        load. RBAC: only present when the caller may create (canCreate) AND the
+        server-resolved labels are supplied; the real createFa Server Action is
+        injected by page.tsx only when permitted (absent ⇒ Create disabled). The
+        action is a serializable Server Action reference, so it is safe to pass
+        across the RSC boundary under Next.js 16. Never trusted from the client.
+      */}
+      {canCreate && createModalLabels ? (
+        <FaCreateModal
+          open={createOpen}
+          labels={createModalLabels}
+          createFaAction={createFaAction}
+          onCreated={onCreated}
+          onClose={closeCreate}
+        />
+      ) : null}
     </section>
   );
 }

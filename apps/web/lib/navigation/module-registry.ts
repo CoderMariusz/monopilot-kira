@@ -37,7 +37,9 @@ export const APP_MODULES = [
     id: "npd",
     label: "NPD",
     i18n_key: "Navigation.app.items.npd",
-    route: "/npd",
+    // Landing = Projects (pipeline), matching the prototype default route
+    // (prototypes/design/Monopilot Design System/npd/app.jsx:29-37).
+    route: "/pipeline",
     icon_token: "★",
     module_kind: "desktop",
     shell_kind: "app",

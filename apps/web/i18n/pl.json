@@ -432,6 +432,11 @@
       "field_date_format": "Date format",
       "field_region": "Region",
       "hint_upload": "PNG or SVG · max 2MB · 400×400px recommended",
+      "hint_trading_name": "Krótka nazwa używana w interfejsie.",
+      "hint_legal_name": "Pełna nazwa rejestrowa do dokumentów.",
+      "hint_logo": "Pojawia się na etykietach, fakturach i stronie logowania.",
+      "hint_vat": "Numer identyfikacji podatkowej.",
+      "hint_default_currency": "Używana do kosztorysowania i raportów.",
       "region_tooltip": "Region change requires support ticket",
       "action_upload_new": "Upload new",
       "action_cancel": "Cancel",
@@ -804,6 +809,33 @@
           "preflightMissing": "Missing D365 constants:"
         }
       }
+    },
+    "shifts": {
+      "title": "Zmiany i kalendarz",
+      "subtitle": "Wzorce pracy, dni nieprodukcyjne i przypisania zmian.",
+      "new_shift": "+ Nowa zmiana",
+      "patterns_title": "Wzorce zmian",
+      "patterns_subtitle": "Powtarzalne wzorce pracy używane do planowania produkcji.",
+      "empty_patterns": "Nie skonfigurowano jeszcze żadnych wzorców zmian.",
+      "calendar_title": "Kalendarz",
+      "calendar_subtitle": "Dni, w których produkcja jest wstrzymana.",
+      "legend_working": "Dzień roboczy",
+      "legend_weekend": "Weekend",
+      "legend_holiday": "Święto",
+      "column_name": "Nazwa",
+      "column_time": "Czas",
+      "column_days": "Dni",
+      "column_site": "Zakład",
+      "column_line": "Linia",
+      "column_status": "Status",
+      "status_active": "Aktywna",
+      "weekday_mon": "Pon",
+      "weekday_tue": "Wt",
+      "weekday_wed": "Śr",
+      "weekday_thu": "Czw",
+      "weekday_fri": "Pt",
+      "weekday_sat": "Sob",
+      "weekday_sun": "Nd"
     }
   },
   "navigation": {
@@ -970,6 +1002,19 @@
         "my_profile": "Mój profil",
         "my_notifications": "Powiadomienia",
         "d365_cost_import": "Import kosztów D365"
+      }
+    },
+    "npd": {
+      "tabs": {
+        "projects": "Projekty",
+        "formulations": "Receptury",
+        "allergenCascade": "Kaskada alergenów",
+        "fgDashboard": "Pulpit WG",
+        "finishedGoods": "Wyroby gotowe",
+        "briefs": "Briefy"
+      },
+      "groups": {
+        "apex": "Apex"
       }
     }
   },
@@ -3132,6 +3177,35 @@
         "procurement": "Zakupy",
         "history": "Historia",
         "locked": "Zablokowane"
+      },
+      "deptStrip": {
+        "ariaLabel": "Postęp działów",
+        "labels": {
+          "core": "Rdzeń",
+          "planning": "Planowanie",
+          "commercial": "Handlowy",
+          "production": "Produkcja",
+          "technical": "Techniczny",
+          "mrp": "MRP",
+          "procurement": "Zakupy"
+        },
+        "statusLabels": {
+          "done": "Gotowe",
+          "inprog": "W toku",
+          "blocked": "Zablokowane",
+          "pending": "Oczekuje"
+        }
+      },
+      "actions": {
+        "deleteFa": "Usuń wyrób",
+        "d365Build": "Buduj D365 →",
+        "deleteDisabledHint": "Nie masz uprawnień do usuwania wyrobów gotowych.",
+        "d365DisabledHint": "Wyrób musi być najpierw Ukończony (wszystkie 7 działów zamkniętych)."
+      },
+      "workflow": {
+        "line": "Szablon przepływu: {template} — {type} · {count} działów",
+        "fallbackTemplate": "Standardowy NPD",
+        "fallbackType": "Pojedynczy komponent"
       }
     },
     "dashboard": {
@@ -3734,7 +3808,24 @@
         "Complete": "Ukończony",
         "Built": "Zbudowany"
       },
-      "deleteFa": "Usuń wyrób"
+      "deleteFa": "Usuń wyrób",
+      "validationTitle": "Status walidacji",
+      "validationRules": {
+        "V01": "Format kodu FA",
+        "V02": "Wymagana nazwa produktu",
+        "V03": "Rozmiar opak. w słowniku",
+        "V04": "Kody materiałów D365",
+        "V05": "Pola wymagane działu",
+        "V06": "Sufiks kodu PR",
+        "V07": "Deklaracja alergenów",
+        "V08": "Mapowanie briefu"
+      },
+      "validationStatusLabels": {
+        "pass": "Zaliczone",
+        "fail": "Niezaliczone",
+        "warn": "Ostrzeżenie",
+        "info": "Informacja"
+      }
     },
     "faDetailModals": {
       "deptCloseTitle": "Zamknij dział",
@@ -3905,6 +3996,107 @@
       "statusInProgress": "W toku",
       "statusBlocked": "Zablokowane",
       "statusDone": "Gotowe"
+    },
+    "formulations": {
+      "title": "Receptury",
+      "subtitle": "Przekrojowy widok wszystkich wersji receptur",
+      "searchPlaceholder": "Szukaj kodu FG, nazwy lub wersji…",
+      "filterFg": "Wyrób gotowy",
+      "filterStatus": "Status",
+      "clearFilters": "Wyczyść filtry",
+      "fgAll": "Wszystkie wyroby gotowe",
+      "statusAll": "Wszystkie statusy",
+      "statusDraft": "Szkic",
+      "statusSubmitted": "Zgłoszono do prób",
+      "statusLocked": "Zablokowano",
+      "colFg": "Wyrób gotowy",
+      "colVersion": "Wersja",
+      "colStatus": "Status",
+      "colEffectiveFrom": "Obowiązuje od",
+      "colEffectiveTo": "Obowiązuje do",
+      "colItems": "Pozycje",
+      "colAllergens": "Alergeny",
+      "colActions": "Akcje",
+      "open": "Otwórz",
+      "current": "bieżąca",
+      "none": "—",
+      "loading": "Wczytywanie receptur…",
+      "empty": "Żadna receptura nie pasuje do filtrów",
+      "emptyBody": "Wersje receptur tworzy się w edytorze receptury w projekcie NPD. Utwórz nową lub wyczyść filtry.",
+      "error": "Nie można wczytać receptur. Spróbuj ponownie, gdy zaplecze będzie dostępne.",
+      "forbidden": "Nie masz uprawnień do przeglądania receptur."
+    },
+    "allergenCascade": {
+      "title": "Podgląd kaskady alergenów",
+      "subtitle": "Wizualne śledzenie surowiec → proces → wyrób gotowy · EU FIC 1169/2011 · 14 obowiązkowych alergenów. Znaczniki wyliczane automatycznie są tylko do odczytu.",
+      "breadcrumb": "NPD / Kaskada alergenów",
+      "selectorLabel": "Wyrób gotowy",
+      "selectorPlaceholder": "Wybierz wyrób gotowy…",
+      "emptyTitle": "Brak wyrobów gotowych",
+      "emptyBody": "Kaskada alergenów jest wyliczana dla każdego wyrobu gotowego. Utwórz wyrób gotowy (z przekonwertowanego briefu), aby zobaczyć tutaj jego deklarację alergenów.",
+      "error": "Nie można załadować wyrobów gotowych. Spróbuj ponownie, gdy zaplecze będzie dostępne.",
+      "loading": "Ładowanie kaskady alergenów…"
+    },
+    "projectDetail": {
+      "header": {
+        "breadcrumbNpd": "NPD",
+        "breadcrumbPipeline": "Potok",
+        "ownerLabel": "Właściciel",
+        "targetLabel": "Planowany start",
+        "noOwner": "Nieprzypisany",
+        "noTarget": "Nie ustawiono",
+        "watch": "Obserwuj",
+        "watchDisabledHint": "Obserwowanie projektów nie jest jeszcze dostępne.",
+        "duplicate": "Duplikuj",
+        "duplicateDisabledHint": "Duplikowanie projektów nie jest jeszcze dostępne.",
+        "advanceStage": "Następny etap →",
+        "advanceDisabledHint": "Nie masz uprawnień do przejścia tej bramki."
+      },
+      "prio": {
+        "high": "Wysoki priorytet",
+        "normal": "Normalny priorytet",
+        "low": "Niski priorytet"
+      },
+      "gate": {
+        "G0": "Pomysł",
+        "G1": "Wykonalność",
+        "G2": "Uzasadnienie biznesowe",
+        "G3": "Rozwój",
+        "G4": "Testowanie",
+        "Launched": "Wprowadzony"
+      },
+      "stageRailAriaLabel": "Postęp etapów (Stage-Gate)",
+      "deptStrip": {
+        "ariaLabel": "Postęp działów",
+        "labels": {
+          "core": "Podstawowe",
+          "planning": "Planowanie",
+          "commercial": "Handel",
+          "production": "Produkcja",
+          "technical": "Techniczne",
+          "mrp": "MRP",
+          "procurement": "Zaopatrzenie"
+        },
+        "statusLabels": {
+          "done": "Gotowe",
+          "inprog": "W toku",
+          "blocked": "Zablokowane",
+          "pending": "Oczekuje"
+        },
+        "pendingCaption": "Działy zostaną wypełnione po utworzeniu wyrobu gotowego w Bramce 3."
+      },
+      "quickLinks": {
+        "title": "Obszary robocze",
+        "gate": "Stage-Gate",
+        "formulation": "Receptura",
+        "costing": "Kalkulacja",
+        "nutrition": "Wartości odżywcze",
+        "approval": "Zatwierdzenie"
+      },
+      "empty": "Nie znaleziono projektu",
+      "emptyBody": "Żaden projekt nie pasuje do tego id w Twojej organizacji.",
+      "forbidden": "Nie masz uprawnień do wyświetlenia tego projektu.",
+      "error": "Nie można załadować tego projektu."
     }
   }
 }

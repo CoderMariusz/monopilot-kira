@@ -191,6 +191,55 @@ describe('T-136 FA detail page — states', () => {
   });
 });
 
+describe('FA detail page — dept strip + actions bar + workflow line (fa-screens.jsx:330-385)', () => {
+  it('renders the 7-dept status strip below the header (server-derived, no hardcode)', async () => {
+    await renderPage();
+    const strip = screen.getByTestId('fa-dept-status-strip');
+    expect(strip).toHaveAttribute('data-prototype-anchor', 'npd/fa-screens.jsx:365-385');
+    for (const dept of [
+      'core',
+      'planning',
+      'commercial',
+      'production',
+      'technical',
+      'mrp',
+      'procurement',
+    ]) {
+      expect(within(strip).getByTestId(`fa-dept-status-${dept}`)).toBeInTheDocument();
+    }
+    // Core was closed (coreDone default Yes) with no required cols loaded → done.
+    expect(within(strip).getByTestId('fa-dept-status-core')).toHaveAttribute('data-status', 'done');
+    // Planning was not closed and no fields → pending.
+    expect(within(strip).getByTestId('fa-dept-status-planning')).toHaveAttribute(
+      'data-status',
+      'pending',
+    );
+  });
+
+  it('renders the header ACTIONS BAR with Delete FA + Build D365 (D365 disabled unless Complete)', async () => {
+    await renderPage();
+    const bar = screen.getByTestId('fa-header-actions');
+    expect(bar).toHaveAttribute('data-prototype-anchor', 'npd/fa-screens.jsx:344-362');
+    // Delete enabled (canDelete resolved true in the mock RBAC probe).
+    expect(screen.getByTestId('fa-header-action-delete')).not.toBeDisabled();
+    // Build D365 disabled because status_overall is InProgress (not Complete).
+    expect(screen.getByTestId('fa-header-action-d365')).toBeDisabled();
+  });
+
+  it('enables Build D365 when the FA is Complete', async () => {
+    wireOrgContext({ faRow: { ...FA_ROW, status_overall: 'Complete' } });
+    await renderPage();
+    expect(screen.getByTestId('fa-header-action-d365')).not.toBeDisabled();
+  });
+
+  it('renders the workflow template line with the · 7 departments suffix', async () => {
+    await renderPage();
+    const line = screen.getByTestId('fa-detail-workflow-line');
+    expect(line).toHaveTextContent(/Workflow template:/i);
+    expect(line).toHaveTextContent(/7 departments/i);
+  });
+});
+
 describe('T-136 FA detail page — i18n (next-intl locale path)', () => {
   it('resolves the npd.faDetail eyebrow label in English', async () => {
     await renderPage('en');

@@ -229,6 +229,8 @@ describe('T-137 FA right panel — i18n (npd.faRightPanel namespace)', () => {
 
   it('resolves Polish labels through npd.faRightPanel (proves pl.json key)', async () => {
     await renderPanel('pl');
-    expect(screen.getByText('Status walidacji')).toBeInTheDocument();
+    // Card-1 heading is the key-facts label (the V01-V08 "Validation status" table
+    // now owns the prototype "Validation status" heading, lines 440 / 421-452).
+    expect(screen.getByText('Kluczowe dane')).toBeInTheDocument();
   });
 });

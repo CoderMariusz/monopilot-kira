@@ -39,6 +39,7 @@ import {
   type GateStatus,
   type RecentProject,
 } from '../_components/dashboard-pipeline-preview';
+import { buildFaCreateModalProps } from '../fa/_components/fa-create-host';
 import { getDashboardSummary } from '../../../../(npd)/dashboard/_actions/get-dashboard-summary';
 import { getLaunchAlerts } from '../../../../(npd)/dashboard/_actions/get-launch-alerts';
 import { listProjects } from '../../../../(npd)/pipeline/_actions/list-projects';
@@ -83,7 +84,8 @@ const DEFAULT_LABELS: DashboardScreenLabels = {
   title: 'NPD Dashboard',
   subtitle: 'Pipeline overview across 7 departments',
   refreshD365: 'Refresh D365 cache',
-  createFa: 'Create FA',
+  // FG-canonical label (the button JSX prepends "+ ", so this is "Create FG").
+  createFa: 'Create FG',
   kpiTotalActive: 'Total active FAs',
   kpiTotalActiveHint: 'Not yet built for D365',
   kpiComplete: 'Fully complete',
@@ -361,6 +363,13 @@ export default async function NpdDashboardPage(propsInput: unknown = {}) {
       }
     : await readDashboard();
 
+  // Resolve the create-modal labels + (RBAC-gated) Server Action on the server
+  // and hand them to DashboardScreen, which renders the FaCreateModal INLINE in
+  // the same client island as the "+ Create FG" button (mirrors fa/page.tsx).
+  // The real createFa action is provided only when permitted. The action is a
+  // serializable Server Action reference — safe across the RSC boundary (Next 16).
+  const createModal = await buildFaCreateModalProps(locale, data.canCreate);
+
   return (
     <DashboardScreen
       state={data.state}
@@ -370,6 +379,8 @@ export default async function NpdDashboardPage(propsInput: unknown = {}) {
       summary={data.summary}
       perDept={data.perDept}
       alerts={data.alerts}
+      createModalLabels={createModal.labels}
+      createFaAction={createModal.action}
       pipelinePreview={
         <DashboardPipelinePreview recentProjects={data.recentProjects} labels={pipelineLabels} />
       }
