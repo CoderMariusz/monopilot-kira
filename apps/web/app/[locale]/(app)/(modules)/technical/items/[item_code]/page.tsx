@@ -55,6 +55,7 @@ const STATUS_VARIANT: Record<ItemStatus, BadgeVariant> = {
 
 const TYPE_LABEL: Record<ItemType, string> = {
   rm: 'Raw material',
+  ingredient: 'Ingredient',
   intermediate: 'Intermediate',
   fg: 'Finished good',
   co_product: 'Co-product',

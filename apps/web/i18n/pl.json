@@ -2561,10 +2561,12 @@
       "tabs": {
         "all": "Wszystkie",
         "rm": "Surowce",
+        "ingredient": "Składniki",
         "intermediate": "Półprodukty"
       },
       "types": {
         "rm": "Surowiec",
+        "ingredient": "Składnik",
         "intermediate": "Półprodukt"
       },
       "statuses": {
@@ -3568,7 +3570,7 @@
       "packaging": "Opakowanie",
       "totalCost": "Koszt całkowity / kg",
       "perKgSuffix": "/ kg",
-      "targetPrice": "Cena docelowa (opak. 200g)",
+      "targetPrice": "Cena docelowa (za opak.)",
       "expectedYield": "Oczekiwany uzysk %",
       "revenuePerKg": "Przychód / kg (przy cenie docelowej)",
       "marginPerKg": "Marża / kg",

@@ -38,6 +38,7 @@ export type ProjectBriefLabels = {
   fieldTargetLaunch: string;
   fieldTargetPrice: string;
   fieldPackFormat: string;
+  fieldPackWeight: string;
   fieldSalesChannel: string;
   fieldExpectedVolume: string;
   fieldTargetAudience: string;
@@ -134,6 +135,7 @@ export function ProjectBriefScreen({ state, data, labels }: ProjectBriefScreenPr
             <ReadField label={labels.fieldTargetLaunch} value={data.targetLaunchDate} placeholder={ph} />
             <ReadField label={labels.fieldTargetPrice} value={data.targetRetailPriceEur} placeholder={ph} />
             <ReadField label={labels.fieldPackFormat} value={data.packFormat} placeholder={ph} />
+            <ReadField label={labels.fieldPackWeight} value={data.packWeightG} placeholder={ph} />
             <ReadField label={labels.fieldSalesChannel} value={data.salesChannel} placeholder={ph} />
             <ReadField label={labels.fieldExpectedVolume} value={data.expectedVolume} placeholder={ph} />
             <ReadField label={labels.fieldTargetAudience} value={data.targetAudience} placeholder={ph} />

@@ -24,8 +24,9 @@ type QueryClient = {
 };
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
-/** Item types valid as a production/recipe component (NOT fg/byproduct). */
-const COMPONENT_ITEM_TYPES = ['rm', 'intermediate', 'co_product'] as const;
+/** Item types valid as a production/recipe component (NOT fg/byproduct).
+ *  'ingredient' behaves like a raw material for production usage. */
+const COMPONENT_ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'co_product'] as const;
 
 export type ItemPickerOption = {
   id: string;

@@ -50,6 +50,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 
 const TYPE_LABEL: Record<ItemDetail['itemType'], string> = {
   rm: 'Raw material',
+  ingredient: 'Ingredient',
   intermediate: 'Intermediate',
   fg: 'Finished good',
   co_product: 'Co-product',

@@ -8,9 +8,9 @@
  *
  * Translation notes (prototype → production):
  *   - bare <input value={ing.name}> + code subtitle  → @monopilot/ui Input + mono code line
- *   - bare <input type="number" value={ing.pct}>      → @monopilot/ui Input (raw <select> is a red-line; numbers stay text)
+ *   - bare <input type="number" value={ing.qty}>      → @monopilot/ui Input (Costing v2: qty/pack in kg)
  *   - bare <input type="number" value={ing.costPerKg}>→ @monopilot/ui Input
- *   - (pct/100 × costPerKg).toFixed(3) € contribution → Dec (NUMERIC-exact, never a binary float)
+ *   - (qtyKg × costPerKg).toFixed(3) € contribution   → Dec (NUMERIC-exact, never a binary float)
  *   - amber allergen badge / "—"                      → @monopilot/ui Badge + i18n noAllergen text
  *   - "✕" delete affordance                           → @monopilot/ui Button with aria-label
  *
@@ -34,7 +34,7 @@ import {
 } from '../../../../_components/item-picker';
 import type { ItemPickerOption } from '../../../../../../../(npd)/fa/actions/search-items';
 
-export type IngredientField = 'rmCode' | 'name' | 'pct' | 'costPerKgEur' | 'itemId';
+export type IngredientField = 'rmCode' | 'name' | 'qtyKg' | 'pct' | 'costPerKgEur' | 'itemId';
 
 export type EditableIngredient = {
   /** Stable client key (DB id for persisted rows, generated id for new rows). */
@@ -44,7 +44,9 @@ export type EditableIngredient = {
   itemId: string | null;
   /** Display label (raw-material name); populated from the picked item. */
   name: string;
-  /** Decimal STRING percentage (% w/w). */
+  /** Costing v2: decimal STRING amount used in ONE pack, in kg. */
+  qtyKg: string;
+  /** Legacy decimal STRING percentage (% w/w); retained for composition/back-compat. */
   pct: string;
   /** Decimal STRING cost €/kg. */
   costPerKgEur: string;
@@ -55,11 +57,12 @@ export type EditableIngredient = {
 
 export type IngredientRowLabels = {
   colIngredient: string;
-  colPct: string;
+  /** Costing v2: "Qty / pack (kg)" column header. */
+  colQtyPerPack: string;
   colCostPerKg: string;
   deleteRow: string;
   noAllergen: string;
-  pctRangeError: string;
+  qtyRangeError: string;
   rmCodeRequired: string;
   /** "Choose item" affordance text shown when no item is picked yet. */
   chooseItem: string;
@@ -68,21 +71,21 @@ export type IngredientRowLabels = {
 };
 
 /**
- * NUMERIC-exact ingredient contribution = (pct / 100) × costPerKg, 3 dp.
- * Returns an empty string for inputs that aren't valid decimals (so a row being
- * typed into never throws / never shows NaN).
+ * Costing v2 — NUMERIC-exact ingredient contribution = qtyKg × costPerKg, 3 dp
+ * (the raw-material cost this ingredient adds to ONE pack). Returns an empty
+ * string for inputs that aren't valid decimals (so a row being typed into never
+ * throws / never shows NaN).
  */
-export function computeContribution(pct: string, costPerKgEur: string): string {
-  if (!isDecimalString(pct) || !isDecimalString(costPerKgEur)) return '';
-  const fraction = Dec.from(pct).div(Dec.from('100'));
-  return fraction.mul(Dec.from(costPerKgEur)).toFixed(3);
+export function computeContribution(qtyKg: string, costPerKgEur: string): string {
+  if (!isDecimalString(qtyKg) || !isDecimalString(costPerKgEur)) return '';
+  return Dec.from(qtyKg).mul(Dec.from(costPerKgEur)).toFixed(3);
 }
 
 export function isDecimalString(value: string): boolean {
   return /^\d+(?:\.\d+)?$/.test(value.trim());
 }
 
-export type RowError = { pct?: string; rmCode?: string };
+export type RowError = { qtyKg?: string; rmCode?: string };
 
 export function IngredientRow({
   ingredient,
@@ -109,8 +112,8 @@ export function IngredientRow({
   onCommit: (index: number) => void;
   onDelete: (index: number) => void;
 }) {
-  const contribution = computeContribution(ingredient.pct, ingredient.costPerKgEur);
-  const pctErrorId = `ing-${ingredient.id}-pct-error`;
+  const contribution = computeContribution(ingredient.qtyKg, ingredient.costPerKgEur);
+  const qtyErrorId = `ing-${ingredient.id}-qty-error`;
   const rmErrorId = `ing-${ingredient.id}-rm-error`;
 
   return (
@@ -135,7 +138,7 @@ export function IngredientRow({
           <ItemPicker
             labels={labels.picker}
             searchItemsAction={searchItemsAction}
-            itemTypes={['rm', 'intermediate', 'co_product']}
+            itemTypes={['rm', 'ingredient', 'intermediate', 'co_product']}
             disabled={disabled}
             triggerClassName="btn-ghost btn-sm"
             onSelect={(item) => onSelectItem(index, item)}
@@ -153,19 +156,19 @@ export function IngredientRow({
 
       <TableCell className="text-right">
         <Input
-          aria-label={labels.colPct}
+          aria-label={labels.colQtyPerPack}
           inputMode="decimal"
-          value={ingredient.pct}
+          value={ingredient.qtyKg}
           disabled={disabled}
-          aria-invalid={error?.pct ? true : undefined}
-          aria-describedby={error?.pct ? pctErrorId : undefined}
+          aria-invalid={error?.qtyKg ? true : undefined}
+          aria-describedby={error?.qtyKg ? qtyErrorId : undefined}
           className="form-input mono text-right"
-          onChange={(e) => onChange(index, 'pct', e.target.value)}
+          onChange={(e) => onChange(index, 'qtyKg', e.target.value)}
           onBlur={() => onCommit(index)}
         />
-        {error?.pct ? (
-          <p id={pctErrorId} role="alert" className="mt-0.5 text-xs text-red-600">
-            {error.pct}
+        {error?.qtyKg ? (
+          <p id={qtyErrorId} role="alert" className="mt-0.5 text-xs text-red-600">
+            {error.qtyKg}
           </p>
         ) : null}
       </TableCell>

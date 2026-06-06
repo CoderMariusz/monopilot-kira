@@ -55,15 +55,16 @@ const LABELS: FormulationLabels = {
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
-  colPct: '% w/w',
+  colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '€ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
   total: 'Total',
-  totalPctWarning: 'Ingredient total is {pct}%.',
+  qtyBalanceWarning: 'Ingredient total is {qty} kg vs a {pack} kg pack.',
+  packWeightUnsetHint: 'Set the pack weight on the Brief.',
   composition: 'Composition',
-  pctRangeError: 'Percentage must be between 0 and 100.',
+  qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
@@ -162,6 +163,7 @@ const DATA: FormulationEditorData = {
   state: 'draft',
   productCode: 'Sliced Ham 200g',
   batchSizeKg: '500',
+  packWeightG: '200',
   targetPriceEur: '3.98',
   targetYieldPct: '78',
   versions: [{ id: '22222222-2222-4222-8222-222222222222', versionNumber: 3 }],
@@ -170,6 +172,7 @@ const DATA: FormulationEditorData = {
       id: 'a1',
       rmCode: 'RM-1001',
       name: 'Pork shoulder',
+      qtyKg: '0.170',
       pct: '85',
       costPerKgEur: '4.20',
       allergen: null,
@@ -180,6 +183,7 @@ const DATA: FormulationEditorData = {
       id: 'a2',
       rmCode: 'RM-2002',
       name: 'Wheat starch',
+      qtyKg: '0.030',
       pct: '15',
       costPerKgEur: '1.10',
       allergen: 'gluten',
@@ -262,11 +266,11 @@ describe('T-117 parity evidence — wired live panels', () => {
       unmount();
     }
 
-    // Live edit: change a pct → cost/nutrition/composition values change in place.
+    // Live edit: change a qty → cost/nutrition/composition values change in place.
     const { container } = renderWired('ready', DATA);
     const rawBefore = screen.getByTestId('cost-raw').textContent;
     const rows = screen.getAllByTestId('ingredient-row');
-    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colPct), { target: { value: '50' } });
+    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colQtyPerPack), { target: { value: '0.100' } });
     const rawAfter = screen.getByTestId('cost-raw').textContent;
     write('live-edit.html', container.innerHTML);
     (report.states as Record<string, unknown>)['live_edit'] = {

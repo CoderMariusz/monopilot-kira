@@ -69,6 +69,8 @@ const LABELS: WizardLabels = {
   fieldTargetLaunch: 'lbl.fieldTargetLaunch',
   fieldPackFormat: 'lbl.fieldPackFormat',
   fieldPackFormatPlaceholder: 'lbl.fieldPackFormatPlaceholder',
+  fieldPackWeight: 'lbl.fieldPackWeight',
+  fieldPackWeightPlaceholder: 'lbl.fieldPackWeightPlaceholder',
   fieldSalesChannel: 'lbl.fieldSalesChannel',
   fieldVolume: 'lbl.fieldVolume',
   fieldVolumePlaceholder: 'lbl.fieldVolumePlaceholder',
@@ -174,6 +176,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
     fireEvent.change(screen.getByLabelText(/lbl\.fieldName/), { target: { value: 'Sliced Ham 200g' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldTargetLaunch/), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldPackFormat/), { target: { value: '200g sliced pack' } });
+    fireEvent.change(screen.getByLabelText(/lbl\.fieldPackWeight/), { target: { value: '200' } });
     fireEvent.change(screen.getByLabelText(/lbl\.fieldVolume/), { target: { value: '1,200 kg/week' } });
     fireEvent.click(screen.getByTestId('wizard-continue'));
 
@@ -201,6 +204,7 @@ describe('CreateProjectWizard — submit payload mapping + redirect', () => {
       type: 'Meat · Cold cut',
       targetLaunch: '2026-09-01',
       packFormat: '200g sliced pack',
+      packWeightG: 200,
       salesChannel: 'Retail',
       expectedVolume: '1,200 kg/week',
       targetRetailPriceEur: 19.9,

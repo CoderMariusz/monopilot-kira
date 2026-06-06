@@ -79,6 +79,8 @@ export type FormulationEditorData = {
   state: string;
   productCode: string | null;
   batchSizeKg: string | null;
+  /** Costing v2: pack net weight in grams (the recipe batch size), from the project. */
+  packWeightG: string | null;
   targetPriceEur: string | null;
   targetYieldPct: string | null;
   versions: Array<{ id: string; versionNumber: number }>;
@@ -88,6 +90,8 @@ export type FormulationEditorData = {
     /** Lane-B: FK to the real items master row (null for legacy free-text rows). */
     itemId?: string | null;
     name: string;
+    /** Costing v2: amount used in ONE pack, in kg. */
+    qtyKg: string | null;
     pct: string | null;
     costPerKgEur: string | null;
     allergen: string | null;
@@ -128,16 +132,19 @@ export type FormulationLabels = {
   ingredients: string;
   addIngredient: string;
   colIngredient: string;
-  colPct: string;
+  /** Costing v2: "Qty / pack (kg)" column header. */
+  colQtyPerPack: string;
   colCostPerKg: string;
   colContribution: string;
   colAllergen: string;
   deleteRow: string;
   total: string;
-  /** ICU-ish "Ingredient total is {pct}%…" — {pct} replaced client-side. */
-  totalPctWarning: string;
+  /** Costing v2 ICU-ish "Total is {qty} kg vs pack {pack} kg…" — replaced client-side. */
+  qtyBalanceWarning: string;
+  /** Shown when pack weight is unset so the balance gate can't be evaluated. */
+  packWeightUnsetHint: string;
   composition: string;
-  pctRangeError: string;
+  qtyRangeError: string;
   rmCodeRequired: string;
   livePanels: string;
   livePanelsHint: string;
@@ -180,13 +187,13 @@ export type RecomputeAction = (input: {
   versionId: string;
 }) => Promise<unknown>;
 
-/** Row-level Zod schema: pct ∈ [0,100], rm_code required (AC#3). */
+/** Row-level Zod schema (Costing v2): qtyKg ≥ 0, rm_code required (AC#3). */
 const RowSchema = z.object({
   rmCode: z.string().trim().min(1),
-  pct: z
+  qtyKg: z
     .string()
     .refine((v) => isDecimalString(v), { params: { kind: 'range' } })
-    .refine((v) => isDecimalString(v) && Number(v) >= 0 && Number(v) <= 100, { params: { kind: 'range' } }),
+    .refine((v) => isDecimalString(v) && Number(v) >= 0, { params: { kind: 'range' } }),
 });
 
 const COMPOSITION_COLORS = [
@@ -211,16 +218,35 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
  */
 const DEFAULT_OVERHEAD_PCT = '8';
 
-/** Map the editor's editable rows + per-RM nutrition into recomputeCalc inputs. */
+/**
+ * Map the editor's editable rows + per-RM nutrition into recomputeCalc inputs.
+ *
+ * Costing v2: qtyKg drives the cost roll-up. Nutrition is a per-100g mass-weighted
+ * sum, so we derive each row's effective `pct` from its qty share (qtyKg / ΣqtyKg)
+ * — that keeps nutrition live and consistent with the by-mass composition, even
+ * though pct is no longer authored directly.
+ */
 function toRecomputeIngredients(
   rows: EditableIngredient[],
   nutritionByRm: Map<string, Record<string, string>>,
 ): Parameters<typeof recomputeCalc>[0]['ingredients'] {
+  let totalQty = Dec.zero();
+  for (const r of rows) if (isDecimalString(r.qtyKg)) totalQty = totalQty.add(Dec.from(r.qtyKg));
+  const totalQtyNonZero = !totalQty.isZero();
   return rows.map((r) => {
     const nutrition = nutritionByRm.get(r.rmCode);
+    const qtyValid = isDecimalString(r.qtyKg);
+    // Mass-fraction pct for nutrition; fall back to the legacy pct field if no qty.
+    const pct =
+      qtyValid && totalQtyNonZero
+        ? Dec.from(r.qtyKg).div(totalQty).mul(Dec.from('100')).toFixed(6)
+        : isDecimalString(r.pct)
+          ? r.pct
+          : null;
     return {
       rmCode: r.rmCode,
-      pct: isDecimalString(r.pct) ? r.pct : null,
+      qtyKg: qtyValid ? r.qtyKg : null,
+      pct,
       costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
       allergensInherited: r.allergen ? [r.allergen] : [],
       ...(nutrition ? { nutritionPer100g: nutrition } : {}),
@@ -265,13 +291,17 @@ function toAllergenStatuses(detected: string[], names: Record<string, string>): 
   }));
 }
 
-/** Editable rows → CompositionBar segments (only valid-pct rows render). */
+/**
+ * Costing v2 — editable rows → CompositionBar segments. Segment widths are the
+ * qty share (qtyKg / Σ qtyKg); the bar normalises whatever value it gets in
+ * `pct` against the total, so we feed it qtyKg to get the by-mass composition.
+ */
 function toCompositionSegments(rows: EditableIngredient[]): CompositionSegment[] {
   return rows.map((r) => ({
     id: r.id,
     rmCode: r.rmCode,
     name: r.name,
-    pct: isDecimalString(r.pct) ? r.pct : '0',
+    pct: isDecimalString(r.qtyKg) ? r.qtyKg : '0',
   }));
 }
 
@@ -281,6 +311,7 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
     rmCode: ing.rmCode,
     itemId: ing.itemId ?? null,
     name: ing.name,
+    qtyKg: ing.qtyKg ?? '',
     pct: ing.pct ?? '',
     costPerKgEur: ing.costPerKgEur ?? '',
     allergen: ing.allergen,
@@ -288,8 +319,11 @@ function toEditable(data: FormulationEditorData): EditableIngredient[] {
   }));
 }
 
-function isHundred(pctStr: string): boolean {
-  return Dec.from(pctStr).cmp(Dec.from('100')) === 0;
+/** Pack weight (g, NUMERIC string) → kg (NUMERIC string), exact; null/0/invalid → null. */
+function packWeightKgFromG(grams: string | null): string | null {
+  if (!grams || !isDecimalString(grams)) return null;
+  const kg = Dec.from(grams).div(Dec.from('1000'));
+  return kg.isZero() ? null : kg.toFixed(6);
 }
 
 /** Yield % as a layout-only integer (default 0 when unset/invalid). */
@@ -407,7 +441,8 @@ export function FormulationEditor({
 
   const [rows, setRows] = React.useState<EditableIngredient[]>(data ? toEditable(data) : []);
   const [errors, setErrors] = React.useState<Record<string, RowError>>({});
-  const [batchKg, setBatchKg] = React.useState<string>(data?.batchSizeKg ?? '');
+  // Costing v2: batch size is READ-ONLY = pack weight (g→kg). No editable batch input.
+  const packWeightKg = packWeightKgFromG(data?.packWeightG ?? null);
   const [targetPrice, setTargetPrice] = React.useState<string>(data?.targetPriceEur ?? '');
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
@@ -433,11 +468,12 @@ export function FormulationEditor({
     () =>
       recomputeCalc({
         ingredients: toRecomputeIngredients(rows, nutritionByRm),
-        batchKg: isDecimalString(batchKg) ? batchKg : null,
         targetPriceEur: isDecimalString(targetPrice) ? targetPrice : null,
         yieldPct: String(yieldPct),
+        // Costing v2: pack weight from the project (g→kg); recipe stage adds NO packaging.
+        packWeightKg,
       }),
-    [rows, batchKg, targetPrice, yieldPct, nutritionByRm],
+    [rows, targetPrice, yieldPct, nutritionByRm, packWeightKg],
   );
 
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -455,18 +491,18 @@ export function FormulationEditor({
     (current: EditableIngredient[]): Record<string, RowError> => {
       const next: Record<string, RowError> = {};
       for (const r of current) {
-        const parsed = RowSchema.safeParse({ rmCode: r.rmCode, pct: r.pct });
+        const parsed = RowSchema.safeParse({ rmCode: r.rmCode, qtyKg: r.qtyKg });
         if (parsed.success) continue;
         const rowErr: RowError = {};
         for (const issue of parsed.error.issues) {
-          if (issue.path[0] === 'pct') rowErr.pct = labels.pctRangeError;
+          if (issue.path[0] === 'qtyKg') rowErr.qtyKg = labels.qtyRangeError;
           if (issue.path[0] === 'rmCode') rowErr.rmCode = labels.rmCodeRequired;
         }
         next[r.id] = rowErr;
       }
       return next;
     },
-    [labels.pctRangeError, labels.rmCodeRequired],
+    [labels.qtyRangeError, labels.rmCodeRequired],
   );
 
   const runSave = React.useCallback(() => {
@@ -485,8 +521,9 @@ export function FormulationEditor({
           ingredients: current.map((r, i) => ({
             rmCode: r.rmCode,
             itemId: r.itemId,
-            qtyKg: isDecimalString(r.pct) ? null : null,
-            pct: isDecimalString(r.pct) ? r.pct : null,
+            // Costing v2: persist the entered qty (kg/pack); pct is no longer authored.
+            qtyKg: isDecimalString(r.qtyKg) ? r.qtyKg : null,
+            pct: null,
             costPerKgEur: isDecimalString(r.costPerKgEur) ? r.costPerKgEur : null,
             allergensInherited: r.allergen ? [r.allergen] : [],
             sequence: i + 1,
@@ -542,6 +579,7 @@ export function FormulationEditor({
         rmCode: '',
         itemId: null,
         name: '',
+        qtyKg: '0',
         pct: '0',
         costPerKgEur: '0',
         allergen: null,
@@ -593,11 +631,17 @@ export function FormulationEditor({
     [editable, scheduleSave],
   );
 
-  // Total % and raw cost come from the same NUMERIC-exact roll-up that feeds the
-  // panels, so the table total and the CostPanel never disagree (single source).
-  const total = calc.totalPct;
-  const cost = calc.rawCost;
-  const balanced = isHundred(total);
+  // Costing v2 — the table total is now the qty roll-up (kg/pack); the raw cost is
+  // the per-pack RM cost. Both come from the same NUMERIC-exact roll-up that feeds
+  // the panels, so the table total and the CostPanel never disagree (single source).
+  const totalQtyKg = calc.totalQtyKg;
+  const cost = calc.rawCostPerPack;
+  // Balance gate: Σ qtyKg ≈ pack weight ±1 %. When pack weight is unset we don't
+  // hard-block (qtyBalanceValid is true), but we surface a hint instead.
+  const balanced = calc.qtyBalanceValid;
+  const packWeightUnset = calc.qtyBalanceUnset;
+  // Read-only batch size = pack weight in kg (6 dp trimmed to a friendly string).
+  const batchKgDisplay = packWeightKg ?? '';
 
   const versionOptions = data?.versions ?? [];
 
@@ -630,14 +674,15 @@ export function FormulationEditor({
             <label htmlFor="batch-size" className="block text-[10px] uppercase tracking-wide muted">
               {labels.batchSize}
             </label>
+            {/* Costing v2: batch size = pack weight (READ-ONLY, kg, from the project). */}
             <Input
               id="batch-size"
-              type="number"
-              step="0.01"
+              type="text"
+              readOnly
+              aria-readonly="true"
               className="form-input w-24"
-              value={batchKg}
-              disabled={!editable}
-              onChange={(e) => setBatchKg(e.target.value)}
+              value={batchKgDisplay}
+              data-testid="batch-size-readonly"
             />
           </div>
 
@@ -743,7 +788,7 @@ export function FormulationEditor({
                   <TableRow>
                     <TableHead scope="col">{labels.colIngredient}</TableHead>
                     <TableHead scope="col" className="text-right">
-                      {labels.colPct}
+                      {labels.colQtyPerPack}
                     </TableHead>
                     <TableHead scope="col" className="text-right">
                       {labels.colCostPerKg}
@@ -777,9 +822,9 @@ export function FormulationEditor({
                     <TableCell>{labels.total}</TableCell>
                     <TableCell
                       className={['text-right mono', balanced ? 'text-emerald-600' : 'text-red-600'].join(' ')}
-                      data-testid="total-pct"
+                      data-testid="total-qty"
                     >
-                      {`${total}%`}
+                      {`${totalQtyKg} kg`}
                     </TableCell>
                     <TableCell className="text-right muted">—</TableCell>
                     <TableCell className="text-right mono" data-testid="total-cost">
@@ -791,13 +836,25 @@ export function FormulationEditor({
                 </TableBody>
               </Table>
 
-              {!balanced ? (
+              {/* Costing v2: pack-weight unset → hint (no hard block); else the
+                  qty-balance warning when Σ qtyKg drifts from the pack weight. */}
+              {packWeightUnset ? (
+                <div
+                  role="status"
+                  data-testid="pack-weight-unset-hint"
+                  className="alert alert-blue m-2.5"
+                >
+                  {labels.packWeightUnsetHint}
+                </div>
+              ) : !balanced ? (
                 <div
                   role="alert"
-                  data-testid="total-pct-warning"
+                  data-testid="qty-balance-warning"
                   className="alert alert-amber m-2.5"
                 >
-                  {labels.totalPctWarning.replace('{pct}', total)}
+                  {labels.qtyBalanceWarning
+                    .replace('{qty}', totalQtyKg)
+                    .replace('{pack}', batchKgDisplay)}
                 </div>
               ) : null}
 
@@ -820,20 +877,20 @@ export function FormulationEditor({
                     aria-label={labels.composition}
                   >
                     {rows.map((ingredient, i) => {
-                      const w = compositionWidth(ingredient.pct, total);
+                      const w = compositionWidth(ingredient.qtyKg, totalQtyKg);
                       return (
                         <div
                           key={ingredient.id}
                           className={COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]}
                           style={{ width: `${w}%` }}
-                          title={`${ingredient.name || ingredient.rmCode}: ${ingredient.pct}%`}
+                          title={`${ingredient.name || ingredient.rmCode}: ${ingredient.qtyKg} kg`}
                         />
                       );
                     })}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     {rows
-                      .filter((r) => isDecimalString(r.pct) && Dec.from(r.pct).cmp(Dec.from('0.5')) > 0)
+                      .filter((r) => isDecimalString(r.qtyKg) && Dec.from(r.qtyKg).cmp(Dec.zero()) > 0)
                       .map((ingredient, i) => (
                         <span key={ingredient.id} className="inline-flex items-center gap-1">
                           <span
@@ -841,7 +898,7 @@ export function FormulationEditor({
                             className={['inline-block h-2 w-2 rounded-sm', COMPOSITION_COLORS[i % COMPOSITION_COLORS.length]].join(' ')}
                           />
                           <span>
-                            {ingredient.name || ingredient.rmCode} {ingredient.pct}%
+                            {ingredient.name || ingredient.rmCode} {ingredient.qtyKg} kg
                           </span>
                         </span>
                       ))}
@@ -874,6 +931,8 @@ export function FormulationEditor({
                   onYieldChange={setYieldPct}
                   labels={panelLabels.cost}
                   currency={currency}
+                  /* Costing v2: packaging is NOT part of the recipe stage. */
+                  includePackaging={false}
                 />
                 <AllergenPanel
                   allergens={toAllergenStatuses(calc.allergens, allergenNames ?? {})}

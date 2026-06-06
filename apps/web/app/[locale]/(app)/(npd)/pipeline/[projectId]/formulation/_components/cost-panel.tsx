@@ -223,6 +223,7 @@ export function CostPanel({
   onYieldChange,
   labels,
   currency = 'EUR',
+  includePackaging = true,
 }: {
   state?: CostPanelState;
   /** NUMERIC-exact cost roll-up; null while loading / empty / forbidden. */
@@ -236,6 +237,12 @@ export function CostPanel({
   labels: CostPanelLabels;
   /** ISO-4217 currency code; default EUR (never hardcode the symbol). */
   currency?: string;
+  /**
+   * Costing v2: packaging is NOT part of the recipe — at the recipe stage the
+   * caller passes `false` to hide the Packaging line entirely (it is added only
+   * after the packaging stage). Defaults to true for the full post-packaging view.
+   */
+  includePackaging?: boolean;
 }) {
   const titleId = React.useId();
 
@@ -283,11 +290,13 @@ export function CostPanel({
             value={`${formatMoney(calc.processing, currency)} ${labels.perKgSuffix}`}
             testId="cost-processing"
           />
-          <CostLine
-            label={labels.packaging}
-            value={`${formatMoney(calc.packaging, currency)} ${labels.perKgSuffix}`}
-            testId="cost-packaging"
-          />
+          {includePackaging ? (
+            <CostLine
+              label={labels.packaging}
+              value={`${formatMoney(calc.packaging, currency)} ${labels.perKgSuffix}`}
+              testId="cost-packaging"
+            />
+          ) : null}
           <CostLine
             label={labels.totalCost}
             value={formatMoney(calc.costPerKg, currency)}

@@ -39,7 +39,7 @@ const LABELS: CostPanelLabels = {
   packaging: 'Packaging',
   totalCost: 'Total cost / kg',
   perKgSuffix: '/ kg',
-  targetPrice: 'Target price (200g pack)',
+  targetPrice: 'Target price (per pack)',
   expectedYield: 'Expected yield %',
   revenuePerKg: 'Revenue / kg (at target price)',
   marginPerKg: 'Margin / kg',
@@ -101,6 +101,20 @@ describe('CostPanel — parity (recipe.jsx:67-101)', () => {
     expect(screen.getByText('Cost & margin')).toBeInTheDocument();
     expect(screen.queryByText(/costPanel\./)).not.toBeInTheDocument();
   });
+
+  it('shows the packaging line by default (full post-packaging view)', () => {
+    renderPanel();
+    expect(screen.getByTestId('cost-packaging')).toBeInTheDocument();
+  });
+
+  it('HIDES the packaging line at the recipe stage (includePackaging=false)', () => {
+    renderPanel({ includePackaging: false });
+    expect(screen.queryByTestId('cost-packaging')).toBeNull();
+    expect(screen.queryByText('Packaging')).toBeNull();
+    // The rest of the breakdown still renders.
+    expect(screen.getByText('Raw material')).toBeInTheDocument();
+    expect(screen.getByTestId('cost-total')).toBeInTheDocument();
+  });
 });
 
 describe('CostPanel — currency formatting (AC#4)', () => {
@@ -128,7 +142,7 @@ describe('CostPanel — controlled inputs (AC#2)', () => {
   it('routes target-price keystrokes to onTargetPriceChange', () => {
     const onTargetPriceChange = vi.fn();
     renderPanel({ onTargetPriceChange });
-    const input = screen.getByLabelText('Target price (200g pack)');
+    const input = screen.getByLabelText('Target price (per pack)');
     fireEvent.change(input, { target: { value: '2.49' } });
     expect(onTargetPriceChange).toHaveBeenCalledWith('2.49');
   });
@@ -143,7 +157,7 @@ describe('CostPanel — controlled inputs (AC#2)', () => {
 
   it('reflects the controlled values from props (does not own state)', () => {
     renderPanel({ targetPrice: '3.10', yieldPct: 75 });
-    expect(screen.getByLabelText('Target price (200g pack)')).toHaveValue('3.10');
+    expect(screen.getByLabelText('Target price (per pack)')).toHaveValue('3.10');
     expect(screen.getByLabelText('Expected yield %')).toHaveValue(75);
   });
 });
@@ -205,7 +219,7 @@ describe('CostPanel — required UI states', () => {
 describe('CostPanel — a11y', () => {
   it('associates labels with the two inputs', () => {
     renderPanel();
-    expect(screen.getByLabelText('Target price (200g pack)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Target price (per pack)')).toBeInTheDocument();
     expect(screen.getByLabelText('Expected yield %')).toBeInTheDocument();
   });
 

@@ -42,7 +42,7 @@ export type ItemPickerLabels = {
 
 export type ItemSearchFn = (input: {
   query?: string;
-  itemTypes?: Array<'rm' | 'intermediate' | 'co_product'>;
+  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product'>;
   limit?: number;
 }) => Promise<ItemPickerOption[]>;
 
@@ -72,7 +72,7 @@ export function ItemPicker({
   onSelect: (item: ItemPickerOption) => void;
   /** Server Action seam (defaults to the org-scoped searchItems action). */
   searchItemsAction: ItemSearchFn;
-  itemTypes?: Array<'rm' | 'intermediate' | 'co_product'>;
+  itemTypes?: Array<'rm' | 'ingredient' | 'intermediate' | 'co_product'>;
   disabled?: boolean;
   triggerClassName?: string;
 }) {

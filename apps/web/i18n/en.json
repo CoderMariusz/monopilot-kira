@@ -1848,15 +1848,16 @@
       "ingredients": "Ingredients",
       "addIngredient": "Add ingredient",
       "colIngredient": "Ingredient",
-      "colPct": "% w/w",
+      "colQtyPerPack": "Qty / pack (kg)",
       "colCostPerKg": "€ / kg",
       "colContribution": "Contrib.",
       "colAllergen": "Allergen",
       "deleteRow": "Delete ingredient",
       "total": "Total",
-      "totalPctWarning": "Ingredient total is {pct}%. Adjust to exactly 100% before submitting for trial.",
+      "qtyBalanceWarning": "Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.",
+      "packWeightUnsetHint": "Set the pack weight on the Brief to validate the recipe against the pack size.",
       "composition": "Composition",
-      "pctRangeError": "Percentage must be between 0 and 100.",
+      "qtyRangeError": "Quantity must be a non-negative number.",
       "rmCodeRequired": "Ingredient code is required.",
       "livePanels": "Live calculations",
       "livePanelsHint": "Cost, nutrition and allergen panels appear here.",
@@ -1881,7 +1882,7 @@
       "packaging": "Packaging",
       "totalCost": "Total cost / kg",
       "perKgSuffix": "/ kg",
-      "targetPrice": "Target price (200g pack)",
+      "targetPrice": "Target price (per pack)",
       "expectedYield": "Expected yield %",
       "revenuePerKg": "Revenue / kg (at target price)",
       "marginPerKg": "Margin / kg",
@@ -4318,10 +4319,12 @@
       "tabs": {
         "all": "All",
         "rm": "Raw materials",
+        "ingredient": "Ingredients",
         "intermediate": "Intermediate"
       },
       "types": {
         "rm": "Raw material",
+        "ingredient": "Ingredient",
         "intermediate": "Intermediate"
       },
       "statuses": {

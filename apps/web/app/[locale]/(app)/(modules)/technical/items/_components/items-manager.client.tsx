@@ -32,6 +32,7 @@ import {
 
 const ITEM_TYPE_LABELS: Record<ItemListItem['itemType'], string> = {
   rm: 'Raw material',
+  ingredient: 'Ingredient',
   intermediate: 'Intermediate',
   fg: 'Finished good',
   co_product: 'Co-product',

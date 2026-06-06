@@ -69,7 +69,7 @@ export async function saveDraft(input: {
                   `select id from public.items
                     where org_id = app.current_org_id()
                       and id = any($1::uuid[])
-                      and item_type in ('rm', 'intermediate', 'co_product')`,
+                      and item_type in ('rm', 'ingredient', 'intermediate', 'co_product')`,
                   [requestedItemIds],
                 )
               ).rows.map((item) => item.id),

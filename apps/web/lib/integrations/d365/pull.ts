@@ -33,7 +33,7 @@ export type D365IncomingItem = {
   d365_item_id: string;
   item_code: string;
   name: string;
-  item_type: 'rm' | 'intermediate' | 'fg' | 'co_product' | 'byproduct';
+  item_type: 'rm' | 'ingredient' | 'intermediate' | 'fg' | 'co_product' | 'byproduct';
   /** ISO timestamp of the D365-side modification. */
   modified_at: string;
 };

@@ -49,15 +49,17 @@ const LABELS: FormulationLabels = {
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
-  colPct: '% w/w',
+  colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '€ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
   total: 'Total',
-  totalPctWarning: 'Ingredient total is {pct}%. Adjust to exactly 100% before submitting for trial.',
+  qtyBalanceWarning:
+    'Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.',
+  packWeightUnsetHint: 'Set the pack weight on the Brief to validate the recipe against the pack size.',
   composition: 'Composition',
-  pctRangeError: 'Percentage must be between 0 and 100.',
+  qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
@@ -81,6 +83,8 @@ const DATA: FormulationEditorData = {
   state: 'draft',
   productCode: 'Sliced Ham 200g',
   batchSizeKg: '500',
+  // Costing v2: 200 g pack → qtyKg sums to 0.200 kg.
+  packWeightG: '200',
   targetPriceEur: '3.98',
   targetYieldPct: '78',
   versions: [
@@ -92,6 +96,7 @@ const DATA: FormulationEditorData = {
       id: 'a1',
       rmCode: 'RM-1001',
       name: 'Pork shoulder',
+      qtyKg: '0.170',
       pct: '85',
       costPerKgEur: '4.20',
       allergen: null,
@@ -101,6 +106,7 @@ const DATA: FormulationEditorData = {
       id: 'a2',
       rmCode: 'RM-2002',
       name: 'Water',
+      qtyKg: '0.020',
       pct: '10',
       costPerKgEur: '0.01',
       allergen: 'celery',
@@ -130,15 +136,15 @@ describe('FormulationEditor — parity (recipe.jsx:124-264)', () => {
   it('renders the editor shell with toolbar inputs and the ingredients table', () => {
     renderEditor();
     expect(screen.getByTestId('formulation-editor')).toBeInTheDocument();
-    // Toolbar: batch size input + version select + target price input.
-    expect(screen.getByLabelText(LABELS.batchSize)).toHaveValue(500);
+    // Toolbar: READ-ONLY batch size (= pack weight kg) + version select + target price.
+    expect(screen.getByTestId('batch-size-readonly')).toHaveValue('0.200000');
     expect(screen.getByLabelText(LABELS.targetPrice)).toBeInTheDocument();
     // shadcn Select (NOT a raw <select>) for version.
     expect(screen.getByRole('combobox', { name: LABELS.version })).toBeInTheDocument();
     expect(document.querySelector('select')).toBeNull();
     // Table columns.
     expect(screen.getByRole('columnheader', { name: LABELS.colIngredient })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: LABELS.colPct })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: LABELS.colQtyPerPack })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: LABELS.colCostPerKg })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: LABELS.colContribution })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: LABELS.colAllergen })).toBeInTheDocument();
@@ -152,21 +158,22 @@ describe('FormulationEditor — parity (recipe.jsx:124-264)', () => {
     // Lane-B: the ingredient code is now a real item reference (display, not a
     // free-text input) — the rmCode renders as text, chosen via the ItemPicker.
     expect(first.getByText('RM-1001')).toBeInTheDocument();
-    expect(first.getByDisplayValue('85')).toBeInTheDocument();
+    // Costing v2: qty/pack (kg) is the editable quantity.
+    expect(first.getByDisplayValue('0.170')).toBeInTheDocument();
     expect(first.getByDisplayValue('4.20')).toBeInTheDocument();
-    // contribution = (85/100 * 4.20) = 3.570 €, NUMERIC-exact string (no float).
-    expect(first.getByTestId('ingredient-contribution')).toHaveTextContent('3.570');
+    // contribution = qtyKg × costPerKg = 0.170 * 4.20 = 0.714 €, NUMERIC-exact.
+    expect(first.getByTestId('ingredient-contribution')).toHaveTextContent('0.714');
     // allergen badge present on the second row.
     const second = within(rows[1]);
     expect(second.getByText('celery')).toBeInTheDocument();
   });
 
-  it('shows a total row with the exact percent sum and a warning when ≠ 100', () => {
+  it('shows a total row with the exact qty sum and a balance warning when ≠ pack weight', () => {
     renderEditor();
     const total = screen.getByTestId('total-row');
-    // 85 + 10 = 95.000
-    expect(within(total).getByTestId('total-pct')).toHaveTextContent('95.000');
-    expect(screen.getByTestId('total-pct-warning')).toBeInTheDocument();
+    // 0.170 + 0.020 = 0.190 kg vs a 0.200 kg pack → 5% off → warns.
+    expect(within(total).getByTestId('total-qty')).toHaveTextContent('0.190 kg');
+    expect(screen.getByTestId('qty-balance-warning')).toBeInTheDocument();
   });
 });
 
@@ -189,11 +196,11 @@ describe('FormulationEditor — CRUD + debounce + validation', () => {
     vi.useFakeTimers();
     const { saveDraft } = renderEditor();
     const rows = screen.getAllByTestId('ingredient-row');
-    const pctInput = within(rows[0]).getByLabelText(LABELS.colPct);
+    const qtyInput = within(rows[0]).getByLabelText(LABELS.colQtyPerPack);
 
-    fireEvent.change(pctInput, { target: { value: '80' } });
-    fireEvent.change(pctInput, { target: { value: '82' } });
-    fireEvent.change(pctInput, { target: { value: '84' } });
+    fireEvent.change(qtyInput, { target: { value: '0.16' } });
+    fireEvent.change(qtyInput, { target: { value: '0.17' } });
+    fireEvent.change(qtyInput, { target: { value: '0.18' } });
 
     // Before debounce elapses: no save.
     act(() => vi.advanceTimersByTime(799));
@@ -205,16 +212,17 @@ describe('FormulationEditor — CRUD + debounce + validation', () => {
     vi.useRealTimers();
   });
 
-  it('shows an inline Zod error and does NOT save when pct is out of [0,100]', () => {
+  it('shows an inline Zod error and does NOT save when qty is negative/invalid', () => {
     vi.useFakeTimers();
     const { saveDraft } = renderEditor();
     const rows = screen.getAllByTestId('ingredient-row');
-    const pctInput = within(rows[0]).getByLabelText(LABELS.colPct);
+    const qtyInput = within(rows[0]).getByLabelText(LABELS.colQtyPerPack);
 
-    fireEvent.change(pctInput, { target: { value: '110' } });
-    fireEvent.blur(pctInput);
+    // Non-decimal (negative) → fails the qtyKg Zod refinement.
+    fireEvent.change(qtyInput, { target: { value: '-1' } });
+    fireEvent.blur(qtyInput);
 
-    expect(within(rows[0]).getByText(LABELS.pctRangeError)).toBeInTheDocument();
+    expect(within(rows[0]).getByText(LABELS.qtyRangeError)).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(1000));
     expect(saveDraft).not.toHaveBeenCalled();
@@ -258,7 +266,7 @@ describe('FormulationEditor — states + RBAC', () => {
     );
     expect(screen.getByRole('button', { name: LABELS.addIngredient })).toBeDisabled();
     const rows = screen.getAllByTestId('ingredient-row');
-    expect(within(rows[0]).getByLabelText(LABELS.colPct)).toBeDisabled();
+    expect(within(rows[0]).getByLabelText(LABELS.colQtyPerPack)).toBeDisabled();
     act(() => vi.advanceTimersByTime(1000));
     expect(saveDraft).not.toHaveBeenCalled();
     vi.useRealTimers();

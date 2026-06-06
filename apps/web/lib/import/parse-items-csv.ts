@@ -21,7 +21,7 @@ export const IMPORT_SCOPES: ImportScope[] = ['fg', 'wip', 'rm', 'rm_supplier_spe
 
 // Canonical item_type enum (mirrors items_item_type_check). `intermediate` is the
 // canonical WIP type; there is no `fa` / `pr` type.
-const ITEM_TYPES = ['rm', 'intermediate', 'fg', 'co_product', 'byproduct'] as const;
+const ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct'] as const;
 type ItemType = (typeof ITEM_TYPES)[number];
 
 export const REQUIRED_HEADERS = ['item_code', 'name', 'item_type', 'uom_base'] as const;

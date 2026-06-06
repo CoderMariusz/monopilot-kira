@@ -27,9 +27,16 @@
  */
 
 import { z } from 'zod';
-import { recomputeCalc, type RecomputeIngredient, type RecomputeResult } from '@monopilot/domain';
+import { Dec, recomputeCalc, type RecomputeIngredient, type RecomputeResult } from '@monopilot/domain';
 
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
+
+/** Pack weight grams (NUMERIC string) → kilograms (NUMERIC string), exact. Null/0 → null. */
+function packWeightKgFromGrams(grams: string | null): string | null {
+  if (grams === null || grams === '') return null;
+  const kg = Dec.from(grams).div(Dec.from('1000'));
+  return kg.isZero() ? null : kg.toFixed(6);
+}
 
 const InputSchema = z.object({
   projectId: z.string().min(1),
@@ -42,10 +49,14 @@ interface VersionMetaRow {
   batch_size_kg: string | null;
   target_price_eur: string | null;
   target_yield_pct: string | null;
+  /** Costing v2: pack net weight in grams (the recipe batch size), from npd_projects. */
+  pack_weight_g: string | null;
 }
 
 interface IngredientRow {
   rm_code: string;
+  /** Costing v2: amount used in ONE pack, kg. */
+  qty_kg: string | null;
   pct: string | null;
   cost_per_kg_eur: string | null;
   allergens_inherited: string[] | null;
@@ -117,9 +128,11 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
     // RLS-scoped; the join to formulations confirms the version is in the org's
     // project before we compute / cache anything.
     const metaRes = await client.query<VersionMetaRow>(
-      `select fv.batch_size_kg, fv.target_price_eur, fv.target_yield_pct
+      `select fv.batch_size_kg, fv.target_price_eur, fv.target_yield_pct,
+              p.pack_weight_g::text as pack_weight_g
          from formulation_versions fv
          join formulations f on f.id = fv.formulation_id
+         left join npd_projects p on p.id = f.project_id and p.org_id = app.current_org_id()
         where fv.id = $1::uuid
           and f.project_id = $2::uuid`,
       [input.versionId, input.projectId],
@@ -131,7 +144,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
 
     // ── ingredient rows ──────────────────────────────────────────────────────
     const ingRes = await client.query<IngredientRow>(
-      `select rm_code, pct, cost_per_kg_eur, allergens_inherited
+      `select rm_code, qty_kg::text as qty_kg, pct, cost_per_kg_eur, allergens_inherited
          from formulation_ingredients
         where version_id = $1::uuid
         order by sequence asc`,
@@ -148,6 +161,7 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
       const nutritionPer100g = nutritionByRm.get(r.rm_code);
       return {
         rmCode: r.rm_code,
+        qtyKg: r.qty_kg,
         pct: r.pct,
         costPerKgEur: r.cost_per_kg_eur,
         allergensInherited: r.allergens_inherited ?? [],
@@ -160,13 +174,19 @@ export async function recomputeAndCache(rawInput: RecomputeInput): Promise<Recom
       batchKg: meta.batch_size_kg,
       targetPriceEur: meta.target_price_eur,
       yieldPct: meta.target_yield_pct,
+      // Costing v2: pack weight (g) is the batch size; recipe stage adds no packaging.
+      packWeightKg: packWeightKgFromGrams(meta.pack_weight_g),
     });
 
     // ── upsert the cache row (single statement) ──────────────────────────────
     const costJson = {
       totalPct: result.totalPct,
       totalPctValid: result.totalPctValid,
+      totalQtyKg: result.totalQtyKg,
+      qtyBalanceValid: result.qtyBalanceValid,
+      qtyBalanceUnset: result.qtyBalanceUnset,
       allRmHaveCost: result.allRmHaveCost,
+      rawCostPerPack: result.rawCostPerPack,
       rawCost: result.rawCost,
       yieldedCost: result.yieldedCost,
       processing: result.processing,

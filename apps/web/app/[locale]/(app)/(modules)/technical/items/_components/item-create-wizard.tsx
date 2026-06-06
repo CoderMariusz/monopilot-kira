@@ -128,6 +128,7 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
 
 const ITEM_TYPE_LABELS: Record<(typeof ITEM_TYPES)[number], string> = {
   rm: 'Raw material',
+  ingredient: 'Ingredient',
   intermediate: 'Intermediate',
   fg: 'Finished good',
   co_product: 'Co-product',

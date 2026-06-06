@@ -496,7 +496,7 @@ export function FaProductionTab({
       <ItemPicker
         labels={labels.picker}
         searchItemsAction={searchAction}
-        itemTypes={['rm', 'intermediate', 'co_product']}
+        itemTypes={['rm', 'ingredient', 'intermediate', 'co_product']}
         disabled={mutating}
         onSelect={handleAddComponent}
       />

@@ -2561,10 +2561,12 @@
       "tabs": {
         "all": "Toate",
         "rm": "Materii prime",
+        "ingredient": "Ingrediente",
         "intermediate": "Intermediare"
       },
       "types": {
         "rm": "Materie primă",
+        "ingredient": "Ingredient",
         "intermediate": "Intermediar"
       },
       "statuses": {
@@ -3568,7 +3570,7 @@
       "packaging": "Ambalaj",
       "totalCost": "Cost total / kg",
       "perKgSuffix": "/ kg",
-      "targetPrice": "Preț țintă (pachet 200g)",
+      "targetPrice": "Preț țintă (pe pachet)",
       "expectedYield": "Randament estimat %",
       "revenuePerKg": "Venit / kg (la prețul țintă)",
       "marginPerKg": "Marjă / kg",

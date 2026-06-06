@@ -54,15 +54,16 @@ const LABELS: FormulationLabels = {
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
-  colPct: '% w/w',
+  colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '€ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
   total: 'Total',
-  totalPctWarning: 'Ingredient total is {pct}%. Adjust to exactly 100% before submitting for trial.',
+  qtyBalanceWarning: 'Ingredient total is {qty} kg vs a {pack} kg pack.',
+  packWeightUnsetHint: 'Set the pack weight on the Brief.',
   composition: 'Composition',
-  pctRangeError: 'Percentage must be between 0 and 100.',
+  qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
@@ -86,6 +87,7 @@ const DATA: FormulationEditorData = {
   state: 'draft',
   productCode: 'Sliced Ham 200g',
   batchSizeKg: '500',
+  packWeightG: '200',
   targetPriceEur: '3.98',
   targetYieldPct: '78',
   versions: [
@@ -93,9 +95,9 @@ const DATA: FormulationEditorData = {
     { id: '33333333-3333-4333-8333-333333333333', versionNumber: 2 },
   ],
   ingredients: [
-    { id: 'a1', rmCode: 'RM-1001', name: 'Pork shoulder', pct: '85', costPerKgEur: '4.20', allergen: null, sequence: 1 },
-    { id: 'a2', rmCode: 'RM-2002', name: 'Water', pct: '10', costPerKgEur: '0.01', allergen: 'celery', sequence: 2 },
-    { id: 'a3', rmCode: 'RM-3003', name: 'Salt', pct: '5', costPerKgEur: '0.30', allergen: null, sequence: 3 },
+    { id: 'a1', rmCode: 'RM-1001', name: 'Pork shoulder', qtyKg: '0.170', pct: '85', costPerKgEur: '4.20', allergen: null, sequence: 1 },
+    { id: 'a2', rmCode: 'RM-2002', name: 'Water', qtyKg: '0.020', pct: '10', costPerKgEur: '0.01', allergen: 'celery', sequence: 2 },
+    { id: 'a3', rmCode: 'RM-3003', name: 'Salt', qtyKg: '0.010', pct: '5', costPerKgEur: '0.30', allergen: null, sequence: 3 },
   ],
 };
 
@@ -171,9 +173,9 @@ describe('T-066 parity evidence — write per-state DOM artifacts + axe', () => 
       />,
     );
     const rows = screen.getAllByTestId('ingredient-row');
-    const pctInput = within(rows[0]).getByLabelText(LABELS.colPct);
-    fireEvent.change(pctInput, { target: { value: '90' } });
-    fireEvent.change(pctInput, { target: { value: '95' } });
+    const qtyInput = within(rows[0]).getByLabelText(LABELS.colQtyPerPack);
+    fireEvent.change(qtyInput, { target: { value: '0.180' } });
+    fireEvent.change(qtyInput, { target: { value: '0.190' } });
     await act(async () => {
       vi.advanceTimersByTime(800);
     });

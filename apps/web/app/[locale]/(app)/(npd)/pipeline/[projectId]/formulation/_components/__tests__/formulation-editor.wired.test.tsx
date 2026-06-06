@@ -51,15 +51,16 @@ const LABELS: FormulationLabels = {
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
-  colPct: '% w/w',
+  colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '€ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
   total: 'Total',
-  totalPctWarning: 'Ingredient total is {pct}%.',
+  qtyBalanceWarning: 'Ingredient total is {qty} kg vs a {pack} kg pack.',
+  packWeightUnsetHint: 'Set the pack weight on the Brief.',
   composition: 'Composition',
-  pctRangeError: 'Percentage must be between 0 and 100.',
+  qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
@@ -161,6 +162,8 @@ const DATA: FormulationEditorData = {
   state: 'draft',
   productCode: 'Sliced Ham 200g',
   batchSizeKg: '500',
+  // Costing v2: 200 g pack.
+  packWeightG: '200',
   targetPriceEur: '3.98',
   targetYieldPct: '78',
   versions: [{ id: '22222222-2222-4222-8222-222222222222', versionNumber: 3 }],
@@ -169,6 +172,7 @@ const DATA: FormulationEditorData = {
       id: 'a1',
       rmCode: 'RM-1001',
       name: 'Pork shoulder',
+      qtyKg: '0.170',
       pct: '85',
       costPerKgEur: '4.20',
       allergen: null,
@@ -179,6 +183,7 @@ const DATA: FormulationEditorData = {
       id: 'a2',
       rmCode: 'RM-2002',
       name: 'Wheat starch',
+      qtyKg: '0.030',
       pct: '15',
       costPerKgEur: '1.10',
       allergen: 'gluten',
@@ -244,7 +249,7 @@ describe('T-117 — editing an ingredient propagates to every panel live (AC#2)'
     renderWired();
     const before = screen.getByTestId('cost-raw').textContent;
     const rows = screen.getAllByTestId('ingredient-row');
-    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colPct), { target: { value: '50' } });
+    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colQtyPerPack), { target: { value: '0.100' } });
     const after = screen.getByTestId('cost-raw').textContent;
     expect(after).not.toEqual(before);
   });
@@ -256,7 +261,7 @@ describe('T-117 — editing an ingredient propagates to every panel live (AC#2)'
       .querySelectorAll<HTMLElement>('[data-testid="composition-segment"]');
     const firstBefore = widthsBefore[0]?.style.width;
     const rows = screen.getAllByTestId('ingredient-row');
-    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colPct), { target: { value: '50' } });
+    fireEvent.change(within(rows[0]).getByLabelText(LABELS.colQtyPerPack), { target: { value: '0.100' } });
     const widthsAfter = screen
       .getByTestId('composition-bar')
       .querySelectorAll<HTMLElement>('[data-testid="composition-segment"]');
@@ -269,7 +274,7 @@ describe('T-117 — editing an ingredient propagates to every panel live (AC#2)'
       screen.getByTestId('nutrition-panel').querySelector('[data-nutrient="protein_g"] [data-testid="nutrition-value"]');
     const before = proteinRow()?.textContent;
     const rows = screen.getAllByTestId('ingredient-row');
-    fireEvent.change(within(rows[1]).getByLabelText(LABELS.colPct), { target: { value: '0' } });
+    fireEvent.change(within(rows[1]).getByLabelText(LABELS.colQtyPerPack), { target: { value: '0' } });
     expect(proteinRow()?.textContent).not.toEqual(before);
   });
 

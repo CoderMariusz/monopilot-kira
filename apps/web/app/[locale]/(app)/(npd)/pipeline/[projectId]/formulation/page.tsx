@@ -78,15 +78,18 @@ const DEFAULT_LABELS: FormulationLabels = {
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
-  colPct: '% w/w',
+  colQtyPerPack: 'Qty / pack (kg)',
   colCostPerKg: '€ / kg',
   colContribution: 'Contrib.',
   colAllergen: 'Allergen',
   deleteRow: 'Delete ingredient',
   total: 'Total',
-  totalPctWarning: 'Ingredient total is {pct}%. Adjust to exactly 100% before submitting for trial.',
+  qtyBalanceWarning:
+    'Ingredient total is {qty} kg vs a {pack} kg pack. Adjust to match the pack weight (±1%) before submitting for trial.',
+  packWeightUnsetHint:
+    'Set the pack weight on the Brief to validate the recipe against the pack size.',
   composition: 'Composition',
-  pctRangeError: 'Percentage must be between 0 and 100.',
+  qtyRangeError: 'Quantity must be a non-negative number.',
   rmCodeRequired: 'Ingredient code is required.',
   livePanels: 'Live calculations',
   livePanelsHint: 'Cost, nutrition and allergen panels appear here.',
@@ -351,6 +354,25 @@ async function loadRmNutrition(
   return out;
 }
 
+/**
+ * Costing v2 — load the project's pack net weight in grams (the recipe batch
+ * size / per-kg divisor) from `public.npd_projects`, org-scoped via
+ * app.current_org_id(). Returns the NUMERIC value as a string (never a float);
+ * null when unset or the project row is not visible.
+ */
+async function loadPackWeightG(ctx: OrgContextLike, projectId: string): Promise<string | null> {
+  if (!projectId) return null;
+  const { rows } = await ctx.client.query<{ pack_weight_g: string | null }>(
+    `select pack_weight_g::text as pack_weight_g
+       from public.npd_projects
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  return rows[0]?.pack_weight_g ?? null;
+}
+
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -376,20 +398,24 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     result.ok && result.data.ingredients ? result.data.ingredients.map((i) => i.rm_code) : [];
 
   // One org-context round-trip: editability (RBAC, server-side) + per-RM
-  // nutrition (Reference.RawMaterials, the same source the recompute uses).
+  // nutrition (Reference.RawMaterials, the same source the recompute uses) +
+  // the project pack weight (Costing v2 batch size / per-kg divisor).
   let canEdit = false;
   let nutritionByRm = new Map<string, Record<string, string>>();
+  let packWeightG: string | null = null;
   try {
-    ({ canEdit, nutritionByRm } = await withOrgContext(async (rawCtx) => {
+    ({ canEdit, nutritionByRm, packWeightG } = await withOrgContext(async (rawCtx) => {
       const ctx = rawCtx as OrgContextLike;
       return {
         canEdit: await hasPermission(ctx, EDIT_PERMISSION),
         nutritionByRm: await loadRmNutrition(ctx, rmCodes),
+        packWeightG: await loadPackWeightG(ctx, projectId),
       };
     }));
   } catch {
     canEdit = false;
     nutritionByRm = new Map();
+    packWeightG = null;
   }
 
   if (!result.ok) {
@@ -410,6 +436,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     state: formulation.lockedAt ? 'locked' : currentVersion.state,
     productCode: formulation.productCode,
     batchSizeKg: currentVersion.batchSizeKg,
+    // Costing v2: pack weight (g) from the project — the read-only batch size.
+    packWeightG,
     targetPriceEur: currentVersion.targetPriceEur,
     targetYieldPct: currentVersion.targetYieldPct,
     versions: [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }],
@@ -421,6 +449,8 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         // Lane-B: item_id wires the real items-master row; name comes from the join.
         itemId: ing.item_id,
         name: ing.item_name ?? '',
+        // Costing v2: the entered qty/pack (kg) is the primary editable field.
+        qtyKg: ing.qty_kg,
         pct: ing.pct,
         costPerKgEur: ing.cost_per_kg_eur,
         allergen: ing.allergens_inherited?.[0] ?? null,

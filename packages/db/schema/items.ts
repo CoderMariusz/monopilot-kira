@@ -59,7 +59,7 @@ export const items = pgTable(
     extJsonbIdx: index('idx_items_ext_jsonb').using('gin', table.extJsonb),
     itemTypeCheck: check(
       'items_item_type_check',
-      sql`${table.itemType} in ('rm', 'intermediate', 'fg', 'co_product', 'byproduct')`,
+      sql`${table.itemType} in ('rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct')`,
     ),
     statusCheck: check(
       'items_status_check',

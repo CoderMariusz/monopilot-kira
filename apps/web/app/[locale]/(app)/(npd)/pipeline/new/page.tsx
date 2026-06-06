@@ -45,6 +45,8 @@ const DEFAULT_LABELS: WizardLabels = {
   fieldTargetLaunch: 'Target launch date',
   fieldPackFormat: 'Pack format',
   fieldPackFormatPlaceholder: 'e.g. 200g sliced pack',
+  fieldPackWeight: 'Pack weight (g)',
+  fieldPackWeightPlaceholder: 'e.g. 200',
   fieldSalesChannel: 'Sales channel',
   fieldVolume: 'Expected weekly volume',
   fieldVolumePlaceholder: 'e.g. 1,200 kg/week',

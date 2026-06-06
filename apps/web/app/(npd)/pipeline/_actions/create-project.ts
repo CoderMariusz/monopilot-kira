@@ -28,6 +28,8 @@ export type CreateProjectInput = {
   notes?: string | null;
   // Brief step (folded in — mig 242). All optional.
   packFormat?: string | null;
+  /** Costing v2: pack net weight in grams (the recipe batch size). */
+  packWeightG?: number | null;
   salesChannel?: string | null;
   expectedVolume?: string | null;
   targetRetailPriceEur?: number | null;
@@ -77,13 +79,13 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
         `insert into public.npd_projects
            (org_id, code, name, type, prio, owner, target_launch, notes,
             pack_format, sales_channel, expected_volume, target_retail_price_eur,
-            target_audience, marketing_claims, constraints,
+            target_audience, marketing_claims, constraints, pack_weight_g,
             current_gate, current_stage, start_from, clone_source, created_by_user, app_version)
          values
            ($1::uuid, $2, $3, $4, $5, $6, $7::date, $8,
             $9, $10, $11, $12::numeric,
-            $13, $14, $15,
-            'G0', 'brief', $16, $17, $18::uuid, 'npd-project-actions-v1')
+            $13, $14, $15, $16::numeric,
+            'G0', 'brief', $17, $18, $19::uuid, 'npd-project-actions-v1')
          returning id, code`,
         [
           context.orgId,
@@ -101,6 +103,7 @@ export async function createProject(rawInput: unknown): Promise<CreateProjectRes
           input.targetAudience ?? null,
           input.marketingClaims ?? null,
           input.constraints ?? null,
+          input.packWeightG ?? null,
           input.startFrom,
           input.cloneSource ?? null,
           context.userId,
@@ -155,6 +158,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   const marketingClaims = trimOptionalString(input.marketingClaims, 600);
   const constraints = trimOptionalString(input.constraints, 2000);
   const targetRetailPriceEur = parseOptionalNonNegNumber(input.targetRetailPriceEur);
+  const packWeightG = parseOptionalNonNegNumber(input.packWeightG);
   const startFrom = parseStartFrom(input.startFrom);
   const cloneSource = trimOptionalString(input.cloneSource, 120);
 
@@ -163,7 +167,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
     owner === undefined || targetLaunch === undefined || notes === undefined ||
     packFormat === undefined || salesChannel === undefined || expectedVolume === undefined ||
     targetAudience === undefined || marketingClaims === undefined || constraints === undefined ||
-    targetRetailPriceEur === undefined || cloneSource === undefined
+    targetRetailPriceEur === undefined || packWeightG === undefined || cloneSource === undefined
   ) {
     return null;
   }
@@ -171,7 +175,7 @@ function parseCreateProjectInput(rawInput: unknown): CreateProjectInput | null {
   return {
     name, type, prio, owner, targetLaunch, notes,
     packFormat, salesChannel, expectedVolume, targetRetailPriceEur,
-    targetAudience, marketingClaims, constraints,
+    targetAudience, marketingClaims, constraints, packWeightG,
     startFrom, cloneSource, templateId,
   };
 }

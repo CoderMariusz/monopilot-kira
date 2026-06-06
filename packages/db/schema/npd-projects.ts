@@ -24,6 +24,9 @@ export const npdProjects = pgTable(
     // Brief capture fields (folded in from the retired standalone brief flow, mig 242).
     // `type` above doubles as the category. name+type are required; these are optional.
     targetRetailPriceEur: numeric('target_retail_price_eur', { precision: 12, scale: 2 }),
+    // Costing v2 (mig 246): pack net weight in grams = the recipe's batch size.
+    // Cost per kg = (raw cost per pack) / (pack_weight_g / 1000).
+    packWeightG: numeric('pack_weight_g', { precision: 12, scale: 3 }),
     packFormat: text('pack_format'),
     salesChannel: text('sales_channel'),
     expectedVolume: text('expected_volume'),
@@ -62,6 +65,10 @@ export const npdProjects = pgTable(
     targetPriceNonneg: check(
       'npd_projects_target_price_nonneg',
       sql`${table.targetRetailPriceEur} is null or ${table.targetRetailPriceEur} >= 0`,
+    ),
+    packWeightNonneg: check(
+      'npd_projects_pack_weight_nonneg',
+      sql`${table.packWeightG} is null or ${table.packWeightG} >= 0`,
     ),
     prioCheck: check('npd_projects_prio_check', sql`${table.prio} in ('high', 'normal', 'low')`),
     startFromCheck: check(

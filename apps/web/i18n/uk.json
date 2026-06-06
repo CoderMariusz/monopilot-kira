@@ -2561,10 +2561,12 @@
       "tabs": {
         "all": "Усі",
         "rm": "Сировина",
+        "ingredient": "Інгредієнти",
         "intermediate": "Напівфабрикати"
       },
       "types": {
         "rm": "Сировина",
+        "ingredient": "Інгредієнт",
         "intermediate": "Напівфабрикат"
       },
       "statuses": {
@@ -3568,7 +3570,7 @@
       "packaging": "Пакування",
       "totalCost": "Загальна вартість / кг",
       "perKgSuffix": "/ кг",
-      "targetPrice": "Цільова ціна (упак. 200г)",
+      "targetPrice": "Цільова ціна (за упак.)",
       "expectedYield": "Очікуваний вихід %",
       "revenuePerKg": "Дохід / кг (за цільовою ціною)",
       "marginPerKg": "Маржа / кг",

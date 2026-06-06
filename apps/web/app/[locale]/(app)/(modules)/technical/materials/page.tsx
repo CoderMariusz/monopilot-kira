@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 
 // Material types in our item master (the prototype's "packaging" maps to none —
 // the canonical item_type domain is rm / intermediate / fg / co_product / byproduct).
-const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'intermediate'];
+const MATERIAL_TYPES: readonly ItemType[] = ['rm', 'ingredient', 'intermediate'];
 
 export default async function TechnicalMaterialsPage() {
   const t = await getTranslations('technical.materials');
@@ -35,6 +35,7 @@ export default async function TechnicalMaterialsPage() {
   const typeTabs: Array<{ key: 'all' | ItemType; label: string }> = [
     { key: 'all', label: t('tabs.all') },
     { key: 'rm', label: t('tabs.rm') },
+    { key: 'ingredient', label: t('tabs.ingredient') },
     { key: 'intermediate', label: t('tabs.intermediate') },
   ];
 
@@ -52,7 +53,7 @@ export default async function TechnicalMaterialsPage() {
     noMatchTitle: t('noMatchTitle'),
     noMatchBody: t('noMatchBody'),
     countSummary: t('countSummary'),
-    typeLabels: { rm: t('types.rm'), intermediate: t('types.intermediate') },
+    typeLabels: { rm: t('types.rm'), ingredient: t('types.ingredient'), intermediate: t('types.intermediate') },
     statusLabels: {
       draft: t('statuses.draft'),
       active: t('statuses.active'),

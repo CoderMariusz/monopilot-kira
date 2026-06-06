@@ -22,6 +22,7 @@ import { ItemRowActions, ITEM_TYPE_LABELS, STATUS_LABELS } from './items-manager
 const TYPE_TABS: Array<{ key: 'all' | ItemType; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'rm', label: 'Raw materials' },
+  { key: 'ingredient', label: 'Ingredients' },
   { key: 'intermediate', label: 'Intermediate' },
   { key: 'fg', label: 'Finished goods' },
   { key: 'co_product', label: 'Co-products' },
@@ -45,6 +46,7 @@ const STATUS_TONE: Record<ItemStatus, string> = {
 const STATUS_GLYPH: Record<ItemStatus, string> = { draft: '○', active: '●', deprecated: '⚠', blocked: '⚠' };
 const TYPE_TONE: Record<ItemType, string> = {
   rm: 'badge-blue',
+  ingredient: 'badge-blue',
   intermediate: 'badge-gray',
   fg: 'badge-green',
   co_product: 'badge-blue',
@@ -71,6 +73,7 @@ function formatUpdated(updatedAt: string): string {
 
 const TYPE_TAB_TONE: Record<ItemType, string> = {
   rm: 'tone-info',
+  ingredient: 'tone-info',
   intermediate: 'tone-neutral',
   fg: 'tone-ok',
   co_product: 'tone-info',

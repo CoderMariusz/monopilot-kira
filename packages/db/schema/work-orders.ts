@@ -118,7 +118,7 @@ export const workOrders = pgTable(
       .where(sql`${t.updatedBy} is not null`),
     itemTypeCheck: check(
       'work_orders_item_type_at_creation_check',
-      sql`${t.itemTypeAtCreation} in ('rm', 'intermediate', 'fg', 'co_product', 'byproduct')`,
+      sql`${t.itemTypeAtCreation} in ('rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct')`,
     ),
     statusCheck: check(
       'work_orders_status_check',

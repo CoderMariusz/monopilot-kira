@@ -68,7 +68,7 @@ type ItemDetailRow = {
   updated_at: string | Date;
 };
 
-const ITEM_TYPE_SET = new Set<ItemType>(['rm', 'intermediate', 'fg', 'co_product', 'byproduct']);
+const ITEM_TYPE_SET = new Set<ItemType>(['rm', 'ingredient', 'intermediate', 'fg', 'co_product', 'byproduct']);
 const ITEM_STATUS_SET = new Set<ItemStatus>(['draft', 'active', 'deprecated', 'blocked']);
 const WEIGHT_MODE_SET = new Set<WeightMode>(['fixed', 'catch']);
 

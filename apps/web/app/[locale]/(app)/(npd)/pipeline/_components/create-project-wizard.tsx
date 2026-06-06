@@ -39,6 +39,8 @@ export type WizardCreateAction = (input: {
   type: string;
   targetLaunch: string | null;
   packFormat: string | null;
+  /** Costing v2: pack net weight in grams (the recipe batch size). */
+  packWeightG: number | null;
   salesChannel: string | null;
   expectedVolume: string | null;
   targetRetailPriceEur: number | null;
@@ -67,6 +69,8 @@ export type WizardLabels = {
   fieldTargetLaunch: string;
   fieldPackFormat: string;
   fieldPackFormatPlaceholder: string;
+  fieldPackWeight: string;
+  fieldPackWeightPlaceholder: string;
   fieldSalesChannel: string;
   fieldVolume: string;
   fieldVolumePlaceholder: string;
@@ -131,6 +135,7 @@ type FormState = {
   type: string;
   targetLaunch: string;
   packFormat: string;
+  packWeightG: string;
   salesChannel: string;
   expectedVolume: string;
   targetRetailPriceEur: string;
@@ -146,6 +151,7 @@ const INITIAL_FORM: FormState = {
   type: CATEGORY_VALUES[0],
   targetLaunch: '',
   packFormat: '',
+  packWeightG: '',
   salesChannel: SALES_CHANNEL_VALUES[0],
   expectedVolume: '',
   targetRetailPriceEur: '',
@@ -223,6 +229,7 @@ export function CreateProjectWizard({
         type: form.type,
         targetLaunch: nullable(form.targetLaunch),
         packFormat: nullable(form.packFormat),
+        packWeightG: parseEur(form.packWeightG),
         salesChannel: form.salesChannel,
         expectedVolume: nullable(form.expectedVolume),
         targetRetailPriceEur: parseEur(form.targetRetailPriceEur),
@@ -369,6 +376,21 @@ export function CreateProjectWizard({
                 onChange={(e) => update('expectedVolume', e.target.value)}
               />
             </div>
+          </div>
+          {/* Costing v2: pack weight (g) = the recipe's batch size (the per-kg divisor). */}
+          <div className="ff-inline">
+            <div className="ff">
+              <label htmlFor="wiz-pack-weight">{labels.fieldPackWeight}</label>
+              <input
+                id="wiz-pack-weight"
+                type="text"
+                inputMode="decimal"
+                placeholder={labels.fieldPackWeightPlaceholder}
+                value={form.packWeightG}
+                onChange={(e) => update('packWeightG', e.target.value)}
+              />
+            </div>
+            <div className="ff" />
           </div>
         </div>
       )}

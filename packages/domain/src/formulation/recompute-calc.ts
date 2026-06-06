@@ -13,18 +13,24 @@
  * through {@link Dec} (scaled-bigint fixed-point). We NEVER `Number()` a money
  * value — binary float would drift cents (0.1 + 0.2 ≠ 0.3).
  *
- * The cost model mirrors the prototype `useLiveCalc`:
- *   rawCost      = Σ (pct/100 × costPerKg)
- *   yieldedCost  = yieldPct > 0 ? rawCost / (yieldPct/100) : rawCost
- *   processing   = yieldedCost × (processingOverheadPct/100)
- *   packaging    = packagingCostPerKg (constant per kg)
- *   costPerKg    = yieldedCost + processing + packaging
- *   revenuePerKg = packWeightKg > 0 ? targetPrice / packWeightKg : 0
- *   marginPct    = revenuePerKg > 0 ? (revenuePerKg − costPerKg)/revenuePerKg × 100 : 0
+ * COSTING v2 — quantity-per-pack model (replaces the broken %-based model):
+ *   rawCostPerPack = Σ (qtyKg × costPerKg)         — total RM cost for ONE pack
+ *   rawCost (/kg)  = packWeightKg > 0 ? rawCostPerPack / packWeightKg : 0
+ *   yieldedCost    = yieldPct > 0 ? rawCost / (yieldPct/100) : rawCost
+ *   processing     = yieldedCost × (processingOverheadPct/100)   — overhead on raw
+ *   packaging      = packagingCostPerKg (DEFAULT 0 — NOT part of the recipe; the
+ *                    caller passes packaging only AFTER the packaging stage)
+ *   costPerKg      = yieldedCost + processing + packaging
+ *   revenuePerKg   = packWeightKg > 0 ? targetPrice / packWeightKg : 0
+ *   marginPct      = revenuePerKg > 0 ? (revenuePerKg − costPerKg)/revenuePerKg × 100 : 0
  *
- * Overhead / packaging / pack-weight default to the prototype constants but are
- * caller-overridable (they live in `Reference.*` in production), keeping the
- * function pure and testable without a DB.
+ * Ingredient quantity is the AMOUNT used in ONE PACK in the ingredient's base unit
+ * (treated as kg for now). Pack weight (the recipe's batch size) comes from
+ * `npd_projects.pack_weight_g` and is threaded in as `packWeightKg`.
+ *
+ * Overhead / pack-weight default to neutral constants but are caller-overridable
+ * (they live in `Reference.*` in production), keeping the function pure and
+ * testable without a DB. Packaging defaults to 0 at the recipe stage.
  */
 
 import { Dec } from './decimal.js';
@@ -43,10 +49,17 @@ const COST_DP = 4; // per-kg costs e.g. "1.7868"
 const MARGIN_DP = 2; // marginPct e.g. "33.00"
 const NUTRITION_DP = 2; // per-100g nutrient e.g. "15.00"
 
-// ─── Default process constants (prototype recipe.jsx:8-12) ───────────────────
+// ─── Default process constants ───────────────────────────────────────────────
 const DEFAULT_PROCESSING_OVERHEAD_PCT = '8'; // 8 % of yielded cost
-const DEFAULT_PACKAGING_COST_PER_KG = '0.65';
-const DEFAULT_PACK_WEIGHT_KG = '0.2'; // pack is 200 g
+// Packaging is NOT part of the recipe — it is added only AFTER the packaging
+// stage (the caller passes a real value then). At the recipe stage it is 0.
+const DEFAULT_PACKAGING_COST_PER_KG = '0';
+// Pack weight has NO default — it must come from npd_projects.pack_weight_g. When
+// unset, per-kg figures (rawCost, costPerKg, revenue, margin) are 0 (we never
+// fabricate a 200 g pack).
+const DEFAULT_PACK_WEIGHT_KG = '0';
+// Quantity-balance gate tolerance: Σ qtyKg must be within ±1 % of pack weight.
+const QTY_BALANCE_TOLERANCE_PCT = '1';
 
 /**
  * A NUMERIC value as read from Postgres — a string, or null when unset.
@@ -58,8 +71,17 @@ export type Numericish = string | null | undefined;
 
 export interface RecomputeIngredient {
   rmCode: string;
-  /** Inclusion percentage (0–100), NUMERIC string. */
-  pct: Numericish;
+  /**
+   * Costing v2 — the AMOUNT of this ingredient used in ONE PACK, in the
+   * ingredient's base unit (kg for now). NUMERIC string. This is the primary
+   * cost driver: rawCostPerPack = Σ(qtyKg × costPerKg).
+   */
+  qtyKg?: Numericish;
+  /**
+   * Legacy inclusion percentage (0–100), NUMERIC string. Retained for the
+   * composition bar / back-compat; NOT used in the v2 cost roll-up. Optional.
+   */
+  pct?: Numericish;
   /** Cost per kg in EUR, NUMERIC string; null when the RM has no cost yet. */
   costPerKgEur: Numericish;
   /** EU-14 allergen codes inherited from the raw material. */
@@ -75,30 +97,51 @@ export interface RecomputeIngredient {
 
 export interface RecomputeInput {
   ingredients: RecomputeIngredient[];
-  /** Batch size in kg (carried for context; does not affect per-kg figures). */
+  /**
+   * Batch size in kg (carried for context). In Costing v2 the batch size IS the
+   * pack net weight; pass it via `packWeightKg`. Retained for back-compat.
+   */
   batchKg?: Numericish;
   /** Target sell price per pack in EUR. */
   targetPriceEur?: Numericish;
   /** Process yield percentage (0–100). */
   yieldPct?: Numericish;
-  /** Pack net weight in kg (default 0.2 = 200 g). */
+  /**
+   * Pack net weight in kg = npd_projects.pack_weight_g / 1000. No default —
+   * when unset (0/null) the per-kg figures are 0 (we never assume a 200 g pack).
+   */
   packWeightKg?: Numericish;
   /** Processing overhead as a % of yielded cost (default 8). */
   processingOverheadPct?: Numericish;
-  /** Flat packaging cost per kg in EUR (default 0.65). */
+  /**
+   * Flat packaging cost per kg in EUR. DEFAULT 0 — packaging is NOT part of the
+   * recipe; the caller passes a real value only AFTER the packaging stage.
+   */
   packagingCostPerKg?: Numericish;
   /** Allergens added by the process itself (e.g. line changeover). */
   processAddedAllergens?: string[];
 }
 
 export interface RecomputeResult {
-  /** Sum of ingredient pcts, fixed to 3 dp (e.g. "100.000"). */
+  /** Sum of ingredient pcts, fixed to 3 dp (e.g. "100.000"). Legacy / composition. */
   totalPct: string;
-  /** True iff totalPct ∈ [99.99, 100.01] (submit-for-trial gate). */
+  /** True iff totalPct ∈ [99.99, 100.01] (legacy %-balance — informational only). */
   totalPctValid: boolean;
+  /** Costing v2 — sum of ingredient qtyKg (the pack weight built so far), 3 dp string. */
+  totalQtyKg: string;
+  /**
+   * Costing v2 — true iff Σ qtyKg is within ±1 % of packWeightKg (the submit gate
+   * replacing the old "must equal 100 %" rule). When packWeightKg is unset (0),
+   * this is `true` (no hard block — see qtyBalanceUnset).
+   */
+  qtyBalanceValid: boolean;
+  /** True when packWeightKg is unset/0 so the balance gate cannot be evaluated. */
+  qtyBalanceUnset: boolean;
   /** True iff every ingredient has a non-null cost (submit-for-trial gate). */
   allRmHaveCost: boolean;
-  /** Raw material cost per kg = Σ(pct/100 × costPerKg), 4 dp string. */
+  /** Costing v2 — raw material cost for ONE PACK = Σ(qtyKg × costPerKg), 4 dp string. */
+  rawCostPerPack: string;
+  /** Raw material cost per kg = rawCostPerPack / packWeightKg, 4 dp string. */
   rawCost: string;
   /** Cost per kg after yield loss, 4 dp string. */
   yieldedCost: string;
@@ -127,25 +170,42 @@ const HUNDRED = Dec.from('100');
 export function recomputeCalc(input: RecomputeInput): RecomputeResult {
   const ingredients = input.ingredients ?? [];
 
-  // ── totalPct (exact sum) ───────────────────────────────────────────────────
+  // ── pack weight (kg) — the recipe batch size; no default ───────────────────
+  const packWeightDec = Dec.from(input.packWeightKg ?? DEFAULT_PACK_WEIGHT_KG);
+
+  // ── legacy totalPct (exact sum) — informational / composition only ─────────
   let totalPctDec = Dec.zero();
   for (const ing of ingredients) {
+    if (ing.pct === null || ing.pct === undefined || ing.pct === '') continue;
     totalPctDec = totalPctDec.add(Dec.from(ing.pct));
   }
   const totalPct = totalPctDec.toFixed(PCT_DP);
   const totalPctValid = withinGate(totalPctDec);
 
-  // ── rawCost = Σ (pct/100 × costPerKg) ──────────────────────────────────────
-  let rawCostDec = Dec.zero();
+  // ── rawCostPerPack = Σ (qtyKg × costPerKg) + Σ qtyKg ───────────────────────
+  let rawCostPerPackDec = Dec.zero();
+  let totalQtyDec = Dec.zero();
   let allRmHaveCost = true;
   for (const ing of ingredients) {
+    const qty = Dec.from(ing.qtyKg);
+    totalQtyDec = totalQtyDec.add(qty);
     if (ing.costPerKgEur === null || ing.costPerKgEur === undefined || ing.costPerKgEur === '') {
       allRmHaveCost = false;
       continue; // missing cost contributes 0 but trips the gate flag
     }
-    const fraction = Dec.from(ing.pct).div(HUNDRED);
-    rawCostDec = rawCostDec.add(fraction.mul(Dec.from(ing.costPerKgEur)));
+    rawCostPerPackDec = rawCostPerPackDec.add(qty.mul(Dec.from(ing.costPerKgEur)));
   }
+
+  // ── qty-balance gate: Σ qtyKg ≈ packWeightKg within ±1 % ────────────────────
+  const qtyBalanceUnset = packWeightDec.isZero();
+  const qtyBalanceValid = qtyBalanceUnset
+    ? true // pack weight unset → don't hard-block (gate is informational)
+    : withinTolerance(totalQtyDec, packWeightDec, Dec.from(QTY_BALANCE_TOLERANCE_PCT));
+
+  // ── rawCost per kg = rawCostPerPack / packWeightKg ─────────────────────────
+  const rawCostDec = packWeightDec.isZero()
+    ? Dec.zero()
+    : rawCostPerPackDec.div(packWeightDec);
 
   // ── yield / processing / packaging / total ─────────────────────────────────
   const yieldPctDec = Dec.from(input.yieldPct);
@@ -161,7 +221,6 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
   const costPerKgDec = yieldedCostDec.add(processingDec).add(packagingDec);
 
   // ── revenue & margin ───────────────────────────────────────────────────────
-  const packWeightDec = Dec.from(input.packWeightKg ?? DEFAULT_PACK_WEIGHT_KG);
   const targetPriceDec = Dec.from(input.targetPriceEur);
   const revenuePerKgDec = packWeightDec.isZero()
     ? Dec.zero()
@@ -180,7 +239,11 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
   return {
     totalPct,
     totalPctValid,
+    totalQtyKg: totalQtyDec.toFixed(PCT_DP),
+    qtyBalanceValid,
+    qtyBalanceUnset,
     allRmHaveCost,
+    rawCostPerPack: rawCostPerPackDec.toFixed(COST_DP),
     rawCost: rawCostDec.toFixed(COST_DP),
     yieldedCost: yieldedCostDec.toFixed(COST_DP),
     processing: processingDec.toFixed(COST_DP),
@@ -195,6 +258,18 @@ export function recomputeCalc(input: RecomputeInput): RecomputeResult {
 
 function withinGate(totalPct: Dec): boolean {
   return totalPct.cmp(Dec.from(TOTAL_PCT_MIN)) >= 0 && totalPct.cmp(Dec.from(TOTAL_PCT_MAX)) <= 0;
+}
+
+/**
+ * True iff `value` is within ±`tolerancePct`% of `target` (inclusive). Used for
+ * the Costing v2 qty-balance gate (Σ qtyKg ≈ packWeightKg). Exact `Dec` math, no
+ * float. Assumes `target > 0` (callers gate on packWeight unset separately).
+ */
+function withinTolerance(value: Dec, target: Dec, tolerancePct: Dec): boolean {
+  const allowance = target.mul(tolerancePct.div(HUNDRED));
+  const diff = value.sub(target);
+  const absDiff = diff.cmp(Dec.zero()) < 0 ? Dec.zero().sub(diff) : diff;
+  return absDiff.cmp(allowance) <= 0;
 }
 
 /**
