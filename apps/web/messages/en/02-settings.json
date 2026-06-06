@@ -498,7 +498,16 @@
       "expiryWarningThresholdHint": "Alert when stock is within this many days of expiry.",
       "days": "days",
       "blockExpiredStock": "Block expired stock",
-      "blockExpiredStockHint": "Prevent movements of expired lots automatically."
+      "blockExpiredStockHint": "Prevent movements of expired lots automatically.",
+      "storageRulesWarehousePicker": "Warehouse",
+      "storageRulesWarehousePickerHint": "Select a warehouse to view and edit its storage rules.",
+      "storageRulesNoWarehouse": "Add a warehouse to configure its storage rules.",
+      "storageRulesSelectedHint": "Storage rules for {name}. These apply to this warehouse only.",
+      "saveStorageRules": "Save storage rules",
+      "saveStorageRulesPending": "Saving…",
+      "storageRulesSaved": "Storage rules saved.",
+      "storageRulesSaveFailed": "Storage rules could not be saved. Try again or contact an administrator.",
+      "editStorageRules": "Edit storage rules for {name}"
     },
     "locations": {
       "title": "Locations hierarchy",

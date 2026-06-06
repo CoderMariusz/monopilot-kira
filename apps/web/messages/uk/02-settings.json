@@ -498,7 +498,16 @@
       "expiryWarningThresholdHint": "Сповіщати, коли до закінчення терміну придатності запасів залишається стільки днів.",
       "days": "днів",
       "blockExpiredStock": "Блокувати прострочені запаси",
-      "blockExpiredStockHint": "Автоматично запобігати переміщенню прострочених партій."
+      "blockExpiredStockHint": "Автоматично запобігати переміщенню прострочених партій.",
+      "storageRulesWarehousePicker": "Склад",
+      "storageRulesWarehousePickerHint": "Виберіть склад, щоб переглянути та відредагувати його правила зберігання.",
+      "storageRulesNoWarehouse": "Додайте склад, щоб налаштувати його правила зберігання.",
+      "storageRulesSelectedHint": "Правила зберігання для {name}. Застосовуються лише до цього складу.",
+      "saveStorageRules": "Зберегти правила зберігання",
+      "saveStorageRulesPending": "Збереження…",
+      "storageRulesSaved": "Правила зберігання збережено.",
+      "storageRulesSaveFailed": "Не вдалося зберегти правила зберігання. Спробуйте ще раз або зверніться до адміністратора.",
+      "editStorageRules": "Редагувати правила зберігання для {name}"
     },
     "locations": {
       "title": "Ієрархія локацій",

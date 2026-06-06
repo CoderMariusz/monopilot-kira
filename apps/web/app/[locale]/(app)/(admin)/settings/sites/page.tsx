@@ -70,6 +70,7 @@ export default async function SitesSettingsPage({ params }: PageProps = {}) {
       sites={data.sites}
       initialSelectedSiteId={data.selected_site_id}
       initialLines={data.lines}
+      canEdit={data.can_edit}
       labels={labels}
       loadLines={loadLinesForSelectedSite}
     />

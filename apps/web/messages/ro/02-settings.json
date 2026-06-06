@@ -498,7 +498,16 @@
       "expiryWarningThresholdHint": "Alertați când stocul se află la acest număr de zile de expirare.",
       "days": "zile",
       "blockExpiredStock": "Blocați stocul expirat",
-      "blockExpiredStockHint": "Împiedicați automat mișcările loturilor expirate."
+      "blockExpiredStockHint": "Împiedicați automat mișcările loturilor expirate.",
+      "storageRulesWarehousePicker": "Depozit",
+      "storageRulesWarehousePickerHint": "Selectați un depozit pentru a vizualiza și edita regulile sale de stocare.",
+      "storageRulesNoWarehouse": "Adăugați un depozit pentru a configura regulile sale de stocare.",
+      "storageRulesSelectedHint": "Reguli de stocare pentru {name}. Acestea se aplică doar acestui depozit.",
+      "saveStorageRules": "Salvează regulile de stocare",
+      "saveStorageRulesPending": "Se salvează…",
+      "storageRulesSaved": "Reguli de stocare salvate.",
+      "storageRulesSaveFailed": "Regulile de stocare nu au putut fi salvate. Încercați din nou sau contactați un administrator.",
+      "editStorageRules": "Editează regulile de stocare pentru {name}"
     },
     "locations": {
       "title": "Ierarhia locațiilor",

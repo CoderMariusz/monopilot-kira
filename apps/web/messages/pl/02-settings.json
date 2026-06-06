@@ -498,7 +498,16 @@
       "expiryWarningThresholdHint": "Alert when stock is within this many days of expiry.",
       "days": "days",
       "blockExpiredStock": "Block expired stock",
-      "blockExpiredStockHint": "Prevent movements of expired lots automatically."
+      "blockExpiredStockHint": "Prevent movements of expired lots automatically.",
+      "storageRulesWarehousePicker": "Magazyn",
+      "storageRulesWarehousePickerHint": "Wybierz magazyn, aby wyświetlić i edytować jego reguły składowania.",
+      "storageRulesNoWarehouse": "Dodaj magazyn, aby skonfigurować jego reguły składowania.",
+      "storageRulesSelectedHint": "Reguły składowania dla {name}. Dotyczą tylko tego magazynu.",
+      "saveStorageRules": "Zapisz reguły składowania",
+      "saveStorageRulesPending": "Zapisywanie…",
+      "storageRulesSaved": "Reguły składowania zapisane.",
+      "storageRulesSaveFailed": "Nie można zapisać reguł składowania. Spróbuj ponownie lub skontaktuj się z administratorem.",
+      "editStorageRules": "Edytuj reguły składowania dla {name}"
     },
     "locations": {
       "title": "Locations hierarchy",

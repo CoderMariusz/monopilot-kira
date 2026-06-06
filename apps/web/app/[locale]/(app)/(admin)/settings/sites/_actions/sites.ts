@@ -62,6 +62,13 @@ export type SitesSettingsData = {
   sites: SiteRow[];
   selected_site_id: string | null;
   lines: LineRow[];
+  /**
+   * Whether the current user may mutate sites (create/import/edit). Computed
+   * from the SAME live `settings.org.update` check the write action gates on
+   * (`hasSettingsUpdatePermission`), so the screen's affordances reflect the
+   * caller's real DB permission rather than a hardcoded default.
+   */
+  can_edit: boolean;
 };
 
 type SiteDbRow = {
@@ -271,10 +278,13 @@ export async function getLinesForSite(orgId: string, siteId: string): Promise<Li
 export async function readSitesSettingsData(): Promise<SitesSettingsData> {
   return withOrgContext<SitesSettingsData>(async (ctx): Promise<SitesSettingsData> => {
     const context = ctx as OrgContextLike;
-    const sites = await querySites(context, context.orgId);
+    const [sites, canEdit] = await Promise.all([
+      querySites(context, context.orgId),
+      hasSettingsUpdatePermission(context),
+    ]);
     const selectedSiteId = sites[0]?.id ?? null;
     const lines = selectedSiteId ? await queryLinesForSite(context, context.orgId, selectedSiteId) : [];
-    return { org_id: context.orgId, sites, selected_site_id: selectedSiteId, lines };
+    return { org_id: context.orgId, sites, selected_site_id: selectedSiteId, lines, can_edit: canEdit };
   });
 }
 

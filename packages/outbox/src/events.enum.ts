@@ -179,6 +179,7 @@ export enum EventType {
   SETTINGS_USER_INVITATION_RESENT = 'settings.user.invitation_resent',
   SETTINGS_USER_INVITED = 'settings.user.invited',
   SETTINGS_WAREHOUSE_DEACTIVATED = 'settings.warehouse.deactivated',
+  SETTINGS_WAREHOUSE_STORAGE_RULES_UPDATED = 'settings.warehouse.storage_rules_updated',
   SHIPMENT_CREATED = 'shipment.created',
   // 11-shipping outbound lifecycle events (PRD 11-SHIPPING §9.1/§12.1; producer prefix shipping.*).
   // 11-shipping is the sole emitter. shipment.created (legacy, 014-r13) is kept as the canonical
