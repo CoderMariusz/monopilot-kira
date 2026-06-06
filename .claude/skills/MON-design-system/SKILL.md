@@ -91,9 +91,15 @@ system.
 | alert | `.alert .alert-{red/amber/blue/green}` + `.alert-title` |
 | filter pills | `.pill` / `.pill.on` |
 | dialog | shadcn `<Dialog>` styled to `.modal-*` (overlay `rgba(15,23,42,.45)`, box 560/`.wide`760, head/body/foot) |
-| form field | `.form-*` (page) or `.ff*` (modal/detail, uppercase label) — **never raw `<select>`; use a client `<SelectField>`/shadcn `<Select>` styled to `.form-input`** |
+| text/number/date input, textarea, select trigger | `@monopilot/ui` `<Input>`/`<Textarea>`/`<Select>` — **already carry the bordered control box** (`.mp-field-control` in `packages/ui/src/field-control.css`, = the `components.html .form-input` spec: 1px `var(--border)`, radius 4px, pad 7px 10px, 13px, focus `var(--blue)` + `--shadow-focus`). Do NOT add `.form-input` on top — it's automatic. Settings `<SettingField>`/`<SelectField>` (`settings/_components`) compose these. |
+| bare `<input>`/`<select>`/`<textarea>` (no kira-ui primitive) | must get a border class — `.form-input` (page) or be inside `.sg-row .sg-field` (auto-styled). **Never ship a bare control: Tailwind v4 Preflight zeroes its border → invisible.** |
+| form field (label+control rows) | `.sg-*` two-col rows (`<SRow>`/`<SettingField>`) or `.ff*` (modal/detail, uppercase label). **never raw `<select>`; use `<SelectField>`/shadcn `<Select>`** |
 | trend/run history | `.run-strip` (8-cell sparkline) |
 | select in an RSC | extract a thin `'use client'` `<SelectField>` wrapper — the raw-`<select>` cluster came from avoiding client islands; the wrapper is the canonical fix |
+
+**Canonical visual spec:** `/Users/mariuszkrawczyk/Downloads/components.html` (and `03-COMPONENTS.md`) — the rendered reference for buttons/badges/inputs/tables/alerts/tabs/pills/KPIs.
+
+**Root-cause lesson (do not regress):** the `@monopilot/ui` form controls (`Input`/`Textarea`/`Select` trigger) once rendered as BARE elements with no class → under Tailwind v4 Preflight every input across the app was borderless/invisible. Fixed once, at the source, in `packages/ui` via the shared `.mp-field-control` class. Two related traps both bit production-only (passed dev + `tsc`, failed `next build`/runtime): (1) **never style a shared control with a `*.module.css`** — Turbopack hashes the class so literal `className` strings miss it (Select popover bug); use a plain `.css` emitting the verbatim class. (2) keep token `var(...)` with hard fallbacks so kira-ui controls render styled even without the app `:root` tokens.
 
 Keep shadcn/`@monopilot/ui` **prop shapes identical** to the prototype primitive so the port
 stays find-and-replace, not a rewrite.

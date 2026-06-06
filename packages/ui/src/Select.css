@@ -28,6 +28,41 @@
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
+  /* Match the input control box (components.html .form-input): the trigger is the
+     visible field, so it must read like an input — border/padding/bg/radius. */
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  border-radius: var(--radius-sm, 4px);
+  color: #0f172a;
+  color: var(--text, #0f172a);
+  background: #ffffff;
+  background: var(--surface-1, #ffffff);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.select__trigger:focus,
+.select__trigger:focus-visible {
+  outline: none;
+  border-color: #1976d2;
+  border-color: var(--blue, #1976d2);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
+  box-shadow: var(--shadow-focus, 0 0 0 2px rgba(25, 118, 210, 0.15));
+}
+
+.select__trigger:disabled,
+.select__trigger[aria-disabled='true'] {
+  background: #f1f5f9;
+  background: var(--gray-050, #f1f5f9);
+  color: #64748b;
+  color: var(--muted, #64748b);
+  cursor: not-allowed;
 }
 
 .select__arrow {

@@ -70,7 +70,38 @@
   .sg-row .sg-label { font-size: 13px; font-weight: 500; }
   .sg-row .sg-hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .sg-row .sg-field { }
-  .sg-row .sg-field input[type=text], .sg-row .sg-field input[type=email], .sg-row .sg-field input[type=number], .sg-row .sg-field select, .sg-row .sg-field textarea { max-width: 420px; }
+  /* Native sg-row controls (SettingField renders a bare <input>; prototype relied on a
+     global input rule). Give them the canonical .form-input box — border/padding/radius/
+     focus per components.html — so they are visible. Excludes checkbox/radio (toggles). */
+  .sg-row .sg-field input:not([type=checkbox]):not([type=radio]),
+  .sg-row .sg-field select,
+  .sg-row .sg-field textarea {
+    width: 100%;
+    max-width: 420px;
+    padding: 7px 10px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: var(--radius-sm, 4px);
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.4;
+    color: var(--text, #0f172a);
+    background: var(--surface-1, #ffffff);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .sg-row .sg-field input:not([type=checkbox]):not([type=radio]):focus,
+  .sg-row .sg-field select:focus,
+  .sg-row .sg-field textarea:focus {
+    outline: none;
+    border-color: var(--blue, #1976d2);
+    box-shadow: var(--shadow-focus, 0 0 0 2px rgba(25, 118, 210, 0.15));
+  }
+  .sg-row .sg-field input:disabled,
+  .sg-row .sg-field select:disabled,
+  .sg-row .sg-field textarea:disabled {
+    background: var(--gray-050, #f1f5f9);
+    color: var(--muted, #64748b);
+    cursor: not-allowed;
+  }
 
   /* ---- Toggle (Toggle — shell.jsx:98-103) — slider switch ----
    * settings.css:53-59 / settings-v4.css:63-69 */

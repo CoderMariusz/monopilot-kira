@@ -1,0 +1,65 @@
+/*
+ * field-control.css — the shared design-system styling for input-like controls
+ * (Input, Textarea, and the Select trigger), per the canonical spec in
+ * components.html `.form-input`:
+ *   border 1px var(--border), radius 4px, padding 7px 10px, 13px, focus blue + shadow.
+ *
+ * Why this exists: the @monopilot/ui controls used to render BARE <input>/<textarea>/
+ * trigger with no styling. Under Tailwind v4 Preflight (which zeroes borders) every
+ * control rendered borderless/invisible app-wide. This is the single source of truth.
+ *
+ * Plain CSS (NOT a *.module.css) emitting a verbatim class name — same lesson as
+ * Select.css: CSS-module hashing made literal class names miss their styles in the
+ * production (Turbopack) bundle. Token vars carry hard fallbacks so the control is
+ * styled even when the app's :root tokens are absent (e.g. kira-ui in isolation).
+ */
+
+.mp-field-control {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  color: #0f172a;
+  color: var(--text, #0f172a);
+  background: #ffffff;
+  background: var(--surface-1, #ffffff);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.mp-field-control:focus,
+.mp-field-control:focus-visible {
+  outline: none;
+  border-color: #1976d2;
+  border-color: var(--blue, #1976d2);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
+  box-shadow: var(--shadow-focus, 0 0 0 2px rgba(25, 118, 210, 0.15));
+}
+
+.mp-field-control:disabled,
+.mp-field-control[aria-disabled='true'] {
+  background: #f1f5f9;
+  background: var(--gray-050, #f1f5f9);
+  color: #64748b;
+  color: var(--muted, #64748b);
+  cursor: not-allowed;
+}
+
+.mp-field-control::placeholder {
+  color: #94a3b8;
+  color: var(--muted, #94a3b8);
+}
+
+/* The Select trigger is a <button>: align its inner content like an input row. */
+button.mp-field-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  cursor: pointer;
+}
