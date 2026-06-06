@@ -2218,7 +2218,13 @@
         "ingredient_codes": "Ingredient codes (auto)",
         "template": "Template",
         "closed_core": "Closed Core",
-        "comments": "Comments"
+        "comments": "Comments",
+        "volume": "Volume",
+        "dev_code": "Dev Code",
+        "weight": "Weights (g)",
+        "packs_per_case": "Packs per case",
+        "benchmark": "Benchmark",
+        "price_brief": "Price (Brief)"
       }
     },
     "faProcurementTab": {

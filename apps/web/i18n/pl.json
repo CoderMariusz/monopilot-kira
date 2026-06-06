@@ -3878,7 +3878,13 @@
         "ingredient_codes": "Kody składników (auto)",
         "template": "Szablon",
         "closed_core": "Zamknięcie Core",
-        "comments": "Uwagi"
+        "comments": "Uwagi",
+        "volume": "Wolumen",
+        "dev_code": "Kod dev",
+        "weight": "Waga (g)",
+        "packs_per_case": "Sztuk w kartonie",
+        "benchmark": "Benchmark",
+        "price_brief": "Cena (Brief)"
       }
     },
     "faProcurementTab": {

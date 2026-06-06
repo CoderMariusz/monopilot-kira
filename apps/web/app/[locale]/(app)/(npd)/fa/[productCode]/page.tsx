@@ -151,7 +151,7 @@ const AUTO_DERIVED_KEYS = new Set<string>([
 /** Physical columns that are read-only identifiers (PK), not auto-derived. */
 const READONLY_ID_KEYS = new Set<string>(['product_code']);
 /** Monospace-rendered Commercial columns (GS1 / bar codes). */
-const MONO_KEYS = new Set<string>(['bar_codes']);
+const MONO_KEYS = new Set<string>(['bar_codes', 'dev_code']);
 
 type DeptColumnRow = {
   column_key: string;

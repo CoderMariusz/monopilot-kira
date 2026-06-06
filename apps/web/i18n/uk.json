@@ -3878,7 +3878,13 @@
         "ingredient_codes": "Коди інгредієнтів (авто)",
         "template": "Шаблон",
         "closed_core": "Закриття Core",
-        "comments": "Коментарі"
+        "comments": "Коментарі",
+        "volume": "Обсяг",
+        "dev_code": "Код розробки",
+        "weight": "Вага (г)",
+        "packs_per_case": "Упаковок у коробці",
+        "benchmark": "Бенчмарк",
+        "price_brief": "Ціна (Бриф)"
       }
     },
     "faProcurementTab": {

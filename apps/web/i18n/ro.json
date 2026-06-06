@@ -3878,7 +3878,13 @@
         "ingredient_codes": "Coduri ingrediente (auto)",
         "template": "Șablon",
         "closed_core": "Închidere Core",
-        "comments": "Comentarii"
+        "comments": "Comentarii",
+        "volume": "Volum",
+        "dev_code": "Cod dev",
+        "weight": "Greutate (g)",
+        "packs_per_case": "Pachete pe cutie",
+        "benchmark": "Benchmark",
+        "price_brief": "Preț (Brief)"
       }
     },
     "faProcurementTab": {
