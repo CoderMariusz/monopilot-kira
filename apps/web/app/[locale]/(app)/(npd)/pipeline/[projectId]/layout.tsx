@@ -235,16 +235,25 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   let canAdvance = false;
   let canDelete = false;
   try {
-    ({ canAdvance, canDelete } = await withOrgContext(async (rawCtx) => {
-      const ctx = rawCtx as OrgContextLike;
-      const [canView, mayAdvance, mayDelete] = await Promise.all([
-        hasPermission(ctx, PROJECT_VIEW_PERMISSION),
-        hasPermission(ctx, GATE_ADVANCE_PERMISSION),
-        hasPermission(ctx, PROJECT_CREATE_PERMISSION),
-      ]);
-      return { canAdvance: canView && mayAdvance, canDelete: canView && mayDelete };
-    }));
-    result = await getProject({ projectId });
+    // Perf (#3): the permission check and getProject are independent — run them
+    // CONCURRENTLY instead of sequentially. With the per-request context cache
+    // (#1) the JWT/org resolution is shared, so this is two parallel DB round-trips
+    // rather than two serial full cycles.
+    const [perms, projResult] = await Promise.all([
+      withOrgContext(async (rawCtx) => {
+        const ctx = rawCtx as OrgContextLike;
+        const [canView, mayAdvance, mayDelete] = await Promise.all([
+          hasPermission(ctx, PROJECT_VIEW_PERMISSION),
+          hasPermission(ctx, GATE_ADVANCE_PERMISSION),
+          hasPermission(ctx, PROJECT_CREATE_PERMISSION),
+        ]);
+        return { canAdvance: canView && mayAdvance, canDelete: canView && mayDelete };
+      }),
+      getProject({ projectId }),
+    ]);
+    canAdvance = perms.canAdvance;
+    canDelete = perms.canDelete;
+    result = projResult;
   } catch (error) {
     console.error('[project-layout] header load failed:', error);
     result = { ok: false, error: 'PERSISTENCE_FAILED' };

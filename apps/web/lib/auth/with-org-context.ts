@@ -65,6 +65,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { cache } from 'react';
 import pg from 'pg';
 import { createServerSupabaseClient } from './supabase-server';
 
@@ -137,7 +138,19 @@ async function resolveContextFromTestStub(): Promise<{ userId: string; orgId: st
 
 // ─── Production resolver ──────────────────────────────────────────────────────
 
-async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: string }> {
+/**
+ * Resolve { userId, orgId } from the Supabase session, MEMOISED PER REQUEST.
+ *
+ * Wrapped in React `cache()` so the JWT/JWKS verification (`getUser()`) + the
+ * `public.users` org lookup run AT MOST ONCE per request, no matter how many
+ * `withOrgContext` calls a page/action makes. A project-detail page fans out to
+ * ~5-7 withOrgContext calls (layout getProject + canAdvance/canDelete + each
+ * stage loader); without this each one re-verified the JWT over the network and
+ * re-queried users — the dominant page-load latency + a connection-pool driver.
+ * The per-connection session registration + set_org_context still run per call
+ * (each app connection needs its own org binding) — only the resolution is shared.
+ */
+const resolveContextFromSupabase = cache(async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: string }> {
   const supabase = await createServerSupabaseClient();
 
   // getUser() verifies the JWT against Supabase JWKS. NEVER use getSession()
@@ -165,7 +178,7 @@ async function resolveContextFromSupabase(): Promise<{ userId: string; orgId: st
   }
 
   return { userId, orgId: res.rows[0].org_id };
-}
+});
 
 // ─── Public HOF ───────────────────────────────────────────────────────────────
 

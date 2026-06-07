@@ -391,31 +391,43 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
 type LoaderResult = { state: PageState; data: FormulationEditorData | null; canEdit: boolean };
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  const result = await getFormulation({ projectId });
+  // Perf (#1 + #3): editability (RBAC) + pack weight do NOT depend on the
+  // formulation, so resolve them CONCURRENTLY with getFormulation. Per-request
+  // context caching (#1) means the JWT/org resolution is shared across both.
+  const [result, basics] = await Promise.all([
+    getFormulation({ projectId }),
+    (async (): Promise<{ canEdit: boolean; packWeightG: string | null }> => {
+      try {
+        return await withOrgContext(async (rawCtx) => {
+          const ctx = rawCtx as OrgContextLike;
+          const [canEdit, packWeightG] = await Promise.all([
+            hasPermission(ctx, EDIT_PERMISSION),
+            loadPackWeightG(ctx, projectId),
+          ]);
+          return { canEdit, packWeightG };
+        });
+      } catch {
+        return { canEdit: false, packWeightG: null };
+      }
+    })(),
+  ]);
+  const canEdit = basics.canEdit;
+  const packWeightG = basics.packWeightG;
 
-  // RM codes needed for the per-100g nutrition load (only when we have rows).
+  // RM codes needed for the per-100g nutrition load (only when we have rows) —
+  // depends on the formulation result, so it runs after, and is SKIPPED entirely
+  // for an empty/new recipe (no extra round-trip).
   const rmCodes =
     result.ok && result.data.ingredients ? result.data.ingredients.map((i) => i.rm_code) : [];
-
-  // One org-context round-trip: editability (RBAC, server-side) + per-RM
-  // nutrition (Reference.RawMaterials, the same source the recompute uses) +
-  // the project pack weight (Costing v2 batch size / per-kg divisor).
-  let canEdit = false;
   let nutritionByRm = new Map<string, Record<string, string>>();
-  let packWeightG: string | null = null;
-  try {
-    ({ canEdit, nutritionByRm, packWeightG } = await withOrgContext(async (rawCtx) => {
-      const ctx = rawCtx as OrgContextLike;
-      return {
-        canEdit: await hasPermission(ctx, EDIT_PERMISSION),
-        nutritionByRm: await loadRmNutrition(ctx, rmCodes),
-        packWeightG: await loadPackWeightG(ctx, projectId),
-      };
-    }));
-  } catch {
-    canEdit = false;
-    nutritionByRm = new Map();
-    packWeightG = null;
+  if (rmCodes.length > 0) {
+    try {
+      nutritionByRm = await withOrgContext(async (rawCtx) =>
+        loadRmNutrition(rawCtx as OrgContextLike, rmCodes),
+      );
+    } catch {
+      nutritionByRm = new Map();
+    }
   }
 
   if (!result.ok) {
