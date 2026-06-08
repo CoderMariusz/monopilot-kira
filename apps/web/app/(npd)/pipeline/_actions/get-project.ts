@@ -48,6 +48,8 @@ export type GetProjectResult =
         approvalsTimeline: GateApprovalTimelineItem[];
         /** Header permissions, resolved in the same connection (perf: avoids a 2nd withOrgContext). */
         permissions: ProjectPermissions;
+        /** Ingredient count on the project's CURRENT formulation version (drives the recipe-stage advance requirement). */
+        recipeIngredientCount: number;
       };
     }
   | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' };
@@ -95,7 +97,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       ];
       const permissions: ProjectPermissions = { canAdvance: mayAdvance, canDelete: mayDelete };
 
-      const projectRows = await context.client.query<ProjectRow>(
+      const projectRows = await context.client.query<ProjectRow & { recipe_ingredient_count: number }>(
         `select p.id,
                 p.code,
                 p.name,
@@ -108,7 +110,13 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
                 p.notes,
                 p.created_at::text as created_at,
                 count(gci.id)::text as checklist_total,
-                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed
+                count(gci.id) filter (where gci.completed_at is not null)::text as checklist_completed,
+                (select count(fi.id)
+                   from public.formulations f
+                   join public.formulation_versions fv on fv.id = f.current_version_id
+                   join public.formulation_ingredients fi on fi.version_id = fv.id
+                  where f.org_id = app.current_org_id()
+                    and f.project_id = p.id)::int as recipe_ingredient_count
            from public.npd_projects p
            left join public.gate_checklist_items gci
              on gci.project_id = p.id
@@ -121,6 +129,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       );
       const project = projectRows.rows[0];
       if (!project) return { ok: false, error: 'NOT_FOUND' };
+      const recipeIngredientCount = Number(project.recipe_ingredient_count ?? 0);
 
       const [checklistRows, approvalsRows] = await Promise.all([
         context.client.query<ChecklistItemRow>(
@@ -162,6 +171,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
           checklistByGate: groupChecklist(checklistRows.rows),
           approvalsTimeline: approvalsRows.rows.map(mapApproval),
           permissions,
+          recipeIngredientCount,
         },
       };
     });

@@ -130,7 +130,11 @@ export type GateProjectRow = {
 };
 
 export type GateBlocker = {
-  code: 'CHECKLIST_REQUIRED' | 'FG_CANDIDATE_REQUIRED' | 'FG_ALREADY_LINKED';
+  code:
+    | 'CHECKLIST_REQUIRED'
+    | 'FG_CANDIDATE_REQUIRED'
+    | 'FG_ALREADY_LINKED'
+    | 'RECIPE_INGREDIENTS_REQUIRED';
   message: string;
   gateCode?: ProjectGate;
   itemId?: string;
@@ -251,9 +255,24 @@ export async function getBlockers(
   // 2026-06-06 pivot: the gate checklist is ADVISORY in the simplified R&D pipeline
   // (the user has no UI to tick the seeded ideation items, and stage/brief fields are
   // the real completeness signal). It NO LONGER hard-blocks a stage advance. The only
-  // hard gates are: (1) the FG-conflict guard below, and (2) the approval→handoff
-  // e-signature (enforced in advance-project-gate via assertG4ESignForHandoff).
+  // hard gates are: (1) the recipe-has-ingredients guard, (2) the FG-conflict guard,
+  // and (3) the approval→handoff e-signature (enforced in advance-project-gate via
+  // assertG4ESignForHandoff).
   const blockers: GateBlocker[] = [];
+
+  // Recipe guard: leaving the `recipe` stage requires the formulation's current
+  // version to have at least one ingredient. This is the ONLY real completeness
+  // signal for the recipe stage — the seeded G2 checklist (shelf-life / label / HACCP
+  // / business case) belongs to later stages and is advisory only.
+  if (project.current_stage === 'recipe') {
+    const count = await countCurrentVersionIngredients(ctx.client, project.id);
+    if (count === 0) {
+      blockers.push({
+        code: 'RECIPE_INGREDIENTS_REQUIRED',
+        message: 'Add at least one ingredient to the recipe before advancing.',
+      });
+    }
+  }
 
   // FG conflict guard: only relevant when about to create the FG candidate (entering
   // the `packaging` stage) and the project has no FG mapped yet.
@@ -441,6 +460,24 @@ export async function createFgCandidate(
   });
 
   return { productCode, created, mapped: true };
+}
+
+/**
+ * Count the ingredients on the project's CURRENT formulation version. Zero means
+ * the recipe is empty (no `formulations` row, no current version, or no ingredient
+ * rows) — the recipe stage cannot be left until at least one ingredient exists.
+ */
+async function countCurrentVersionIngredients(client: QueryClient, projectId: string): Promise<number> {
+  const { rows } = await client.query<{ n: string }>(
+    `select count(fi.id)::text as n
+       from public.formulations f
+       join public.formulation_versions fv on fv.id = f.current_version_id
+       join public.formulation_ingredients fi on fi.version_id = fv.id
+      where f.org_id = app.current_org_id()
+        and f.project_id = $1::uuid`,
+    [projectId],
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 async function findFgConflict(

@@ -1945,7 +1945,8 @@
       "loading": "Loading gate details…",
       "empty": "No checklist configured for this gate.",
       "error": "Could not advance the gate. Try again.",
-      "forbidden": "You do not have permission to advance this gate."
+      "forbidden": "You do not have permission to advance this gate.",
+      "recipeNeedsIngredient": "Recipe has at least one ingredient"
     },
     "briefModals": {
       "create": {

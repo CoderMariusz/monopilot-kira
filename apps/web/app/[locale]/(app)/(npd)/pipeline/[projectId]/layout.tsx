@@ -160,6 +160,7 @@ const ADVANCE_DEFAULTS = {
   empty: 'No checklist items to summarise.',
   error: 'Could not advance the gate. Try again.',
   forbidden: 'You do not have permission to advance this gate.',
+  recipeNeedsIngredient: 'Recipe has at least one ingredient',
 };
 
 async function pickerFor(locale: string, namespace: string) {
@@ -251,7 +252,7 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
     return <div className="page-pad flex w-full flex-col">{children}</div>;
   }
 
-  const { project, checklistByGate } = result.data;
+  const { project, checklistByGate, recipeIngredientCount } = result.data;
 
   const headerLabels: ProjectHeaderLabels = {
     breadcrumbNpd: p('header.breadcrumbNpd', HEADER_DEFAULTS.breadcrumbNpd),
@@ -296,13 +297,27 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   };
 
   // Advance-modal props (resolved from the real getProject checklist).
+  // Recipe stage exception: the only real completeness signal for leaving the recipe
+  // stage is "≥1 ingredient" (enforced as a hard blocker server-side). The seeded G2
+  // checklist (shelf-life / label / HACCP / business case) belongs to later stages, so
+  // on the recipe stage we show ONLY the derived ingredient requirement instead.
   const currentChecklist = isGateKey(currentGate) ? (checklistByGate?.[currentGate] ?? []) : [];
-  const advanceItems = currentChecklist.map((item) => ({
-    id: item.id,
-    text: item.itemText,
-    required: item.required,
-    done: item.completedAt !== null,
-  }));
+  const advanceItems =
+    project.currentStage === 'recipe'
+      ? [
+          {
+            id: 'recipe-has-ingredient',
+            text: a('recipeNeedsIngredient', ADVANCE_DEFAULTS.recipeNeedsIngredient),
+            required: true,
+            done: recipeIngredientCount > 0,
+          },
+        ]
+      : currentChecklist.map((item) => ({
+          id: item.id,
+          text: item.itemText,
+          required: item.required,
+          done: item.completedAt !== null,
+        }));
   const advanceModal = {
     labels: {
       title: a('title', ADVANCE_DEFAULTS.title),

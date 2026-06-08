@@ -3633,7 +3633,8 @@
       "loading": "Se încarcă detaliile porții…",
       "empty": "Nicio listă de verificare configurată pentru această poartă.",
       "error": "Nu s-a putut avansa poarta. Încercați din nou.",
-      "forbidden": "Nu aveți permisiunea de a avansa această poartă."
+      "forbidden": "Nu aveți permisiunea de a avansa această poartă.",
+      "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient"
     },
     "briefModals": {
       "create": {
