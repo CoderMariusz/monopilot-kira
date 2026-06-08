@@ -134,11 +134,13 @@ describe('compareVersions Server Action', () => {
 // ───────────────────────────────────────────────────────────────────────────
 describe('recomputeAndCache Server Action', () => {
   it('computes from version ingredients and upserts formulation_calc_cache', async () => {
+    // Costing v2: a 1 kg pack with 0.5 kg of each RM. rawCostPerPack =
+    // 0.5×2 + 0.5×4 = 3.00; rawCost/kg = 3.00 / 1 kg = 3.0000.
     const ingredients = [
-      { rm_code: 'RM-1', pct: '50.000', cost_per_kg_eur: '2.00', allergens_inherited: ['milk'] },
-      { rm_code: 'RM-2', pct: '50.000', cost_per_kg_eur: '4.00', allergens_inherited: ['soya'] },
+      { rm_code: 'RM-1', qty_kg: '0.500', pct: '50.000', cost_per_kg_eur: '2.00', allergens_inherited: ['milk'] },
+      { rm_code: 'RM-2', qty_kg: '0.500', pct: '50.000', cost_per_kg_eur: '4.00', allergens_inherited: ['soya'] },
     ];
-    const versionMeta = [{ batch_size_kg: '100', target_price_eur: '2.00', target_yield_pct: '95' }];
+    const versionMeta = [{ batch_size_kg: '100', pack_weight_g: '1000', target_price_eur: '2.00', target_yield_pct: '95' }];
     const nutrition = [
       { rm_code: 'RM-1', nutrition_per_100g: { protein_g: '20', energy_kj: '400' } },
       { rm_code: 'RM-2', nutrition_per_100g: { protein_g: '10', energy_kj: '200' } },
@@ -170,10 +172,12 @@ describe('recomputeAndCache Server Action', () => {
   });
 
   it('degrades to empty nutrition when Reference.RawMaterials is absent', async () => {
+    // Costing v2: a 1 kg pack of one RM at €2/kg → rawCostPerPack = 2.00;
+    // rawCost/kg = 2.00 / 1 kg = 2.0000.
     const ingredients = [
-      { rm_code: 'RM-1', pct: '100.000', cost_per_kg_eur: '2.00', allergens_inherited: [] },
+      { rm_code: 'RM-1', qty_kg: '1.000', pct: '100.000', cost_per_kg_eur: '2.00', allergens_inherited: [] },
     ];
-    const versionMeta = [{ batch_size_kg: '100', target_price_eur: '2.00', target_yield_pct: '95' }];
+    const versionMeta = [{ batch_size_kg: '100', pack_weight_g: '1000', target_price_eur: '2.00', target_yield_pct: '95' }];
     const undefinedTable = Object.assign(new Error('relation does not exist'), { code: '42P01' });
 
     queryMock
