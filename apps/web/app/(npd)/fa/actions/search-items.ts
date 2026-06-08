@@ -35,6 +35,8 @@ export type ItemPickerOption = {
   itemType: string;
   status: string;
   costPerKgEur: string | null;
+  /** Base unit of measure from the items master (e.g. 'kg'). */
+  uomBase: string;
 };
 
 const searchInputSchema = z.object({
@@ -53,6 +55,7 @@ type ItemRow = {
   item_type: string;
   status: string;
   cost_per_kg: string | null;
+  uom_base: string;
 };
 
 /**
@@ -79,7 +82,8 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
               i.name,
               i.item_type,
               i.status,
-              i.cost_per_kg
+              i.cost_per_kg,
+              i.uom_base
          from public.items i
         where i.org_id = app.current_org_id()
           and i.item_type = any($1::text[])
@@ -104,6 +108,7 @@ export async function searchItems(input: SearchItemsInput = {}): Promise<ItemPic
       itemType: r.item_type,
       status: r.status,
       costPerKgEur: r.cost_per_kg,
+      uomBase: r.uom_base,
     }));
   });
 }

@@ -248,6 +248,9 @@ export function ItemPicker({
                   <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-400">
                     {item.itemType}
                   </span>
+                  <span className="ml-2 text-[10px] tabular-nums text-slate-500">
+                    {item.costPerKgEur ? `€${item.costPerKgEur}/${item.uomBase}` : `—/${item.uomBase}`}
+                  </span>
                 </li>
               ))
             )}

@@ -406,7 +406,7 @@ describe('FaProductionTab — Lane-B add/remove component (real item picker)', (
   it('opens the item picker and adds the chosen real item as a component', async () => {
     const user = userEvent.setup();
     const onSearchItems = vi.fn(async () => [
-      { id: 'item-1', itemCode: 'PR8801', name: 'Prosciutto', itemType: 'intermediate', status: 'active', costPerKgEur: '28.00' },
+      { id: 'item-1', itemCode: 'PR8801', name: 'Prosciutto', itemType: 'intermediate', status: 'active', costPerKgEur: '28.00', uomBase: 'kg' },
     ]);
     const onAddComponent = vi.fn(async () => ({ id: 'pd-1', intermediateCode: 'PR8801', componentIndex: 2, itemId: 'item-1' }));
     const onMutated = vi.fn();
