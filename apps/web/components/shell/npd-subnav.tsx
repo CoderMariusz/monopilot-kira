@@ -69,6 +69,7 @@ export function NpdSubNav({ locale, pathnameOverride }: NpdSubNavProps): JSX.Ele
           <Link
             key={tab.key}
             href={localizedHref(activeLocale, tab.route)}
+            prefetch={false}
             aria-current={active ? "page" : undefined}
             data-testid={`npd-subnav-item-${tab.key}`}
             className={cx(TAB_BASE, active ? TAB_ACTIVE : TAB_INACTIVE)}
@@ -100,6 +101,7 @@ export function NpdSubNav({ locale, pathnameOverride }: NpdSubNavProps): JSX.Ele
               <Link
                 key={item.key}
                 href={localizedHref(activeLocale, item.route)}
+                prefetch={false}
                 aria-current={active ? "page" : undefined}
                 data-testid={`npd-subnav-item-${item.key}`}
                 className={cx(TAB_BASE, "pl-5 opacity-90", active ? TAB_ACTIVE : TAB_INACTIVE)}

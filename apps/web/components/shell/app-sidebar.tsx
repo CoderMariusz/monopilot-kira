@@ -95,6 +95,12 @@ export function AppSidebar({ locale, pathnameOverride }: AppSidebarProps): JSX.E
                   <Link
                     key={item.key}
                     href={localizedHref(locale, item.route)}
+                    // Perf: do NOT prefetch every module route. In production a prefetch
+                    // is a FULL server render of the target (each module page runs its own
+                    // withOrgContext/DB reads). With ~15 sidebar modules this fired ~15
+                    // background renders on EVERY page view — the dominant DB/connection
+                    // load + the pool pressure behind the vanishing headers. Navigate on click.
+                    prefetch={false}
                     aria-current={active ? "page" : undefined}
                     data-testid={`app-sidebar-item-${item.key}`}
                     className={cx(

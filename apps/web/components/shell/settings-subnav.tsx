@@ -95,6 +95,7 @@ export function SettingsSubNav({ locale, pathnameOverride }: SettingsSubNavProps
                   <Link
                     key={item.key}
                     href={localizedHref(activeLocale, item.route)}
+                    prefetch={false}
                     aria-current={active ? "page" : undefined}
                     data-testid={`settings-subnav-item-${item.key}`}
                     data-todo={RBAC_TODO_ID}

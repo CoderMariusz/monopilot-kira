@@ -57,6 +57,7 @@ export function TechnicalSubNav({ locale, pathnameOverride }: TechnicalSubNavPro
                   <Link
                     key={item.key}
                     href={localizedHref(activeLocale, item.route)}
+                    prefetch={false}
                     aria-current={active ? "page" : undefined}
                     data-testid={`technical-subnav-item-${item.key}`}
                     className={cx(

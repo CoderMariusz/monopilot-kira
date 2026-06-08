@@ -216,13 +216,9 @@ function annotateOrgContextError(phase: string, err: unknown): never {
 export async function withOrgContext<T>(
   action: (ctx: OrgContext) => Promise<T>,
 ): Promise<T> {
-  // TEMP perf instrumentation (short keys so the line survives log truncation):
-  // T=total r=resolve(getUser+org) g=owner-register c=app-connect s=set-ctx a=action.
-  const t0 = Date.now();
   const { userId, orgId } = isTestEnvWithStub()
     ? await resolveContextFromTestStub()
     : await resolveContextFromSupabase().catch((err) => annotateOrgContextError('resolve_context', err));
-  const tResolve = Date.now();
 
   // Fresh session_token per call — guarantees no collision in
   // app.active_org_contexts across concurrent requests on the same backend PID
@@ -236,23 +232,16 @@ export async function withOrgContext<T>(
       [sessionToken, orgId],
     )
     .catch((err) => annotateOrgContextError('owner_register_session', err));
-  const tRegister = Date.now();
 
   const app = getAppPool();
   const client = await app.connect().catch((err) => annotateOrgContextError('app_pool_connect', err));
-  const tConnect = Date.now();
   try {
     await client.query('begin').catch((err) => annotateOrgContextError('begin', err));
     await client
       .query(`select app.set_org_context($1::uuid, $2::uuid)`, [sessionToken, orgId])
       .catch((err) => annotateOrgContextError('set_org_context', err));
-    const tSetctx = Date.now();
     const result = await action({ userId, orgId, sessionToken, client });
-    const tAction = Date.now();
     await client.query('commit');
-    console.error(
-      `[perf-woc] T=${Date.now() - t0} r=${tResolve - t0} g=${tRegister - tResolve} c=${tConnect - tRegister} s=${tSetctx - tConnect} a=${tAction - tSetctx}`,
-    );
     return result;
   } catch (err) {
     try {

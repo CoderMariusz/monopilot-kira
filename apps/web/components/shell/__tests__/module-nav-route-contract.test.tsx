@@ -29,7 +29,7 @@ vi.mock('next-intl', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string | { pathname?: string }; children: React.ReactNode }) => {
+  default: ({ href, children, prefetch: _prefetch, ...props }: { href: string | { pathname?: string }; children: React.ReactNode; prefetch?: boolean }) => {
     const resolvedHref = typeof href === 'string' ? href : href.pathname ?? '';
     return React.createElement('a', { href: resolvedHref, 'data-next-link': 'true', ...props }, children);
   },

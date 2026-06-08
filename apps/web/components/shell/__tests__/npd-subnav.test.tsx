@@ -34,7 +34,8 @@ vi.mock('next-intl', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) =>
+  // Drop `prefetch` (a Link-only prop) so it is not forwarded to the DOM <a>.
+  default: ({ href, children, prefetch: _prefetch, ...props }: { href: string; children: React.ReactNode; prefetch?: boolean }) =>
     React.createElement('a', { href, 'data-next-link': 'true', ...props }, children),
 }));
 
@@ -65,7 +66,7 @@ describe('NpdSubNav', () => {
     // Apex children visible by default.
     expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toHaveAttribute('href', '/en/npd');
     expect(within(root).getByTestId('npd-subnav-item-finishedGoods')).toHaveAttribute('href', '/en/fa');
-    expect(within(root).getByTestId('npd-subnav-item-briefs')).toHaveAttribute('href', '/en/briefs');
+    // 'briefs' nav item was removed when the standalone /briefs flow was folded into the project.
 
     // FG-canonical labels (no "FA Dashboard"/"Factory Articles").
     expect(within(root).getByTestId('npd-subnav-item-fgDashboard')).toHaveTextContent('FG Dashboard');
@@ -120,7 +121,6 @@ describe('NpdSubNav', () => {
     expect(NPD_NAV_APEX_GROUP.items.map((t) => [t.key, t.route])).toEqual([
       ['fgDashboard', '/npd'],
       ['finishedGoods', '/fa'],
-      ['briefs', '/briefs'],
     ]);
   });
 });
