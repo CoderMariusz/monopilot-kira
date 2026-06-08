@@ -707,6 +707,10 @@ export function FormulationEditor({
               onValueChange={setVersionId}
               disabled={!editable}
               aria-label={labels.version}
+              // SelectValue resolves the trigger label from `options` (value→label);
+              // without this it falls back to the raw value (the version UUID). The
+              // SelectItem children below render the same labels for the dropdown.
+              options={versionOptions.map((v) => ({ value: v.id, label: `v${v.versionNumber}` }))}
             >
               <SelectTrigger aria-label={labels.version}>
                 <SelectValue placeholder={labels.version} />
