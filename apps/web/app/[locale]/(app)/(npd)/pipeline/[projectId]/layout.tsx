@@ -39,17 +39,12 @@ import { getTranslations } from 'next-intl/server';
 import { getProject } from '../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { deleteProject as deleteProjectAction } from '../../../../../(npd)/pipeline/_actions/delete-project';
-import { GATE_ADVANCE_PERMISSION, nextStage } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
+import { nextStage } from '../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
-  PROJECT_CREATE_PERMISSION,
-  PROJECT_VIEW_PERMISSION,
-  hasPermission,
-  type OrgContextLike,
   type ProjectGate,
   type ProjectPriority,
 } from '../../../../../(npd)/pipeline/_actions/shared';
 import type { TargetGate } from '../../../../../(npd)/_modals/advance-gate-modal';
-import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 
 import { ProjectStepper } from './_components/project-stepper';
 import {
@@ -231,29 +226,19 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
   const stepperAriaLabel = stepPick('ariaLabel', 'Project stages');
 
   // Load the project for the header + current_stage (real data, org-scoped).
+  // Perf (#2): a SINGLE withOrgContext for the whole header — getProject now also
+  // resolves the header permissions on the same connection, so the layout no longer
+  // opens a second org-context cycle (each cycle = a getUser auth verify + the
+  // owner-register/connect/set-context/commit round-trips).
   let result: Awaited<ReturnType<typeof getProject>>;
   let canAdvance = false;
   let canDelete = false;
   try {
-    // Perf (#3): the permission check and getProject are independent — run them
-    // CONCURRENTLY instead of sequentially. With the per-request context cache
-    // (#1) the JWT/org resolution is shared, so this is two parallel DB round-trips
-    // rather than two serial full cycles.
-    const [perms, projResult] = await Promise.all([
-      withOrgContext(async (rawCtx) => {
-        const ctx = rawCtx as OrgContextLike;
-        const [canView, mayAdvance, mayDelete] = await Promise.all([
-          hasPermission(ctx, PROJECT_VIEW_PERMISSION),
-          hasPermission(ctx, GATE_ADVANCE_PERMISSION),
-          hasPermission(ctx, PROJECT_CREATE_PERMISSION),
-        ]);
-        return { canAdvance: canView && mayAdvance, canDelete: canView && mayDelete };
-      }),
-      getProject({ projectId }),
-    ]);
-    canAdvance = perms.canAdvance;
-    canDelete = perms.canDelete;
-    result = projResult;
+    result = await getProject({ projectId });
+    if (result.ok) {
+      canAdvance = result.data.permissions.canAdvance;
+      canDelete = result.data.permissions.canDelete;
+    }
   } catch (error) {
     console.error('[project-layout] header load failed:', error);
     result = { ok: false, error: 'PERSISTENCE_FAILED' };

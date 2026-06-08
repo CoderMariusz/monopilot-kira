@@ -2,6 +2,7 @@
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import {
+  PROJECT_CREATE_PERMISSION,
   PROJECT_VIEW_PERMISSION,
   type ChecklistGate,
   type OrgContextLike,
@@ -10,6 +11,11 @@ import {
   hasPermission,
   mapProjectRow,
 } from './shared';
+
+const GATE_ADVANCE_PERMISSION = 'npd.gate.advance';
+
+/** Permissions the project-detail header needs — resolved in the SAME withOrgContext. */
+export type ProjectPermissions = { canAdvance: boolean; canDelete: boolean };
 
 export type ChecklistItem = {
   id: string;
@@ -40,6 +46,8 @@ export type GetProjectResult =
         project: ProjectSummary;
         checklistByGate: Record<ChecklistGate, ChecklistItem[]>;
         approvalsTimeline: GateApprovalTimelineItem[];
+        /** Header permissions, resolved in the same connection (perf: avoids a 2nd withOrgContext). */
+        permissions: ProjectPermissions;
       };
     }
   | { ok: false; error: 'INVALID_INPUT' | 'FORBIDDEN' | 'NOT_FOUND' | 'PERSISTENCE_FAILED' };
@@ -78,6 +86,14 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
       if (!(await hasPermission(context, PROJECT_VIEW_PERMISSION))) {
         return { ok: false, error: 'FORBIDDEN' };
       }
+
+      // Header permissions on the SAME connection (perf: the layout used to open a
+      // second withOrgContext just for these — that doubled the org-context cycle).
+      const [mayAdvance, mayDelete] = [
+        await hasPermission(context, GATE_ADVANCE_PERMISSION),
+        await hasPermission(context, PROJECT_CREATE_PERMISSION),
+      ];
+      const permissions: ProjectPermissions = { canAdvance: mayAdvance, canDelete: mayDelete };
 
       const projectRows = await context.client.query<ProjectRow>(
         `select p.id,
@@ -145,6 +161,7 @@ export async function getProject(input: { projectId: string }): Promise<GetProje
           project: mapProjectRow(project),
           checklistByGate: groupChecklist(checklistRows.rows),
           approvalsTimeline: approvalsRows.rows.map(mapApproval),
+          permissions,
         },
       };
     });

@@ -167,7 +167,13 @@ export function ProjectStepper({
             >
               <Link
                 href={href}
-                prefetch
+                // Perf: do NOT eagerly prefetch all 8 stage routes — each prefetch
+                // is a FULL server render of the target stage (layout getProject +
+                // perms = a getUser auth verify + the org-context connection cycle).
+                // Rendering all 8 in the background per page view multiplied DB load
+                // ~8x and drove the connection-pool pressure (withOrgContext phase_fail
+                // → vanishing headers / "Unable to load pipeline"). Navigate on click.
+                prefetch={false}
                 data-testid={`project-step-link-${stage.key}`}
                 aria-label={labels[stage.key]}
                 style={{

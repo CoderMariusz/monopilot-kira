@@ -103,7 +103,10 @@ export function KanbanCard({
               this Link, so clicking it advances the stage instead of opening. */}
           <Link
             href={`/pipeline/${project.id}`}
-            prefetch
+            // Perf: don't prefetch — opening a card redirects to the project's
+            // current stage, a full server render; prefetching every visible card
+            // multiplied DB/auth load and fed the connection-pool pressure.
+            prefetch={false}
             aria-label={project.name}
             className="block space-y-2"
             style={{ color: 'inherit', textDecoration: 'none' }}
