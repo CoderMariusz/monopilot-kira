@@ -30,6 +30,13 @@ export const metadata: Metadata = {
   title: 'Monopilot Kira'
 };
 
+// Perf: co-locate the (dynamic) server functions with the Supabase database, which
+// lives in eu-central-2. The Vercel default region was iad1 (US-east), so EVERY DB
+// round-trip crossed the Atlantic (~100ms each); with ~20+ round-trips per page that
+// was the dominant ~4s page-render cost. fra1 (Frankfurt) is next to eu-central-2,
+// cutting each round-trip to ~10-15ms. (Also set as the Vercel project Function Region.)
+export const preferredRegion = 'fra1';
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();

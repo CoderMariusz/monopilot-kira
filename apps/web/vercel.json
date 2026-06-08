@@ -2,6 +2,7 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter @monopilot/db migrate && cd apps/web && pnpm build",
   "framework": "nextjs",
+  "regions": ["fra1"],
   "crons": [
     {
       "path": "/api/internal/cron/drift",
