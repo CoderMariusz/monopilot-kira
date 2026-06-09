@@ -83,7 +83,8 @@ import {
   type FaProcurementTabLabels,
 } from './_components/fa-procurement-tab';
 import { FaBomTab, type FaBomTabLabels } from './_components/fa-bom-tab';
-import { getFaBom, type FaBomResult } from './_actions/get-fa-bom';
+import { getFaBom } from './_actions/get-fa-bom';
+import type { FaBomResult } from './_actions/fa-bom-types';
 import { bom_export_csv } from '../../../../../(npd)/fa/actions/bom-export-csv';
 import {
   AllergenCascadeSection,

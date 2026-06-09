@@ -11,14 +11,14 @@ type QueryClient = {
   ): Promise<{ rows: T[]; rowCount?: number | null }>;
 };
 
-export const TraceabilitySearchInput = z.object({
+const TraceabilitySearchInput = z.object({
   query: z.string().trim().min(1).max(128),
   direction: z.enum(['backward', 'forward', 'both']).optional().default('both'),
   limit: z.number().int().min(1).max(100).optional().default(50),
 });
-export type TraceabilitySearchInputType = z.input<typeof TraceabilitySearchInput>;
+type TraceabilitySearchInputType = z.input<typeof TraceabilitySearchInput>;
 
-export type TraceabilityNode = {
+type TraceabilityNode = {
   nodeType: 'license_plate' | 'wo_output' | 'wo_consumption' | 'work_order' | 'bom_line';
   id: string;
   label: string;
@@ -31,7 +31,7 @@ export type TraceabilityNode = {
   occurredAt: string | null;
 };
 
-export type TraceabilityEdge = {
+type TraceabilityEdge = {
   fromType: string;
   fromId: string;
   toType: string;
@@ -41,7 +41,7 @@ export type TraceabilityEdge = {
   uom: string | null;
 };
 
-export type TraceabilitySearchResult =
+type TraceabilitySearchResult =
   | { ok: true; data: { nodes: TraceabilityNode[]; edges: TraceabilityEdge[] } }
   | { ok: false; error: 'invalid_input' | 'persistence_failed'; message?: string };
 

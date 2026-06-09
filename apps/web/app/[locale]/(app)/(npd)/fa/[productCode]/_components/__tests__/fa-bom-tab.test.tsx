@@ -25,7 +25,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FaBomTab, type FaBomTabLabels } from '../fa-bom-tab';
-import type { FaBomLine, FaBomVersion } from '../../_actions/get-fa-bom';
+import type { FaBomLine, FaBomVersion } from '../../_actions/fa-bom-types';
 
 afterEach(() => cleanup());
 

@@ -13,15 +13,15 @@ type QueryClient = {
 
 const EntityTypes = ['item', 'bom', 'factory_spec', 'eco'] as const;
 
-export const ListTechnicalRevisionsInput = z.object({
+const ListTechnicalRevisionsInput = z.object({
   entityType: z.enum(EntityTypes).optional(),
   entityId: z.string().trim().min(1).max(128).optional(),
   search: z.string().trim().min(1).max(128).optional(),
   limit: z.number().int().min(1).max(200).optional().default(100),
 });
-export type ListTechnicalRevisionsInputType = z.input<typeof ListTechnicalRevisionsInput>;
+type ListTechnicalRevisionsInputType = z.input<typeof ListTechnicalRevisionsInput>;
 
-export type TechnicalRevisionRow = {
+type TechnicalRevisionRow = {
   entityType: string;
   entityId: string;
   entityCode: string | null;
@@ -35,7 +35,7 @@ export type TechnicalRevisionRow = {
   payload: unknown;
 };
 
-export type ListTechnicalRevisionsResult =
+type ListTechnicalRevisionsResult =
   | { ok: true; data: { revisions: TechnicalRevisionRow[] } }
   | { ok: false; error: 'invalid_input' | 'persistence_failed'; message?: string };
 

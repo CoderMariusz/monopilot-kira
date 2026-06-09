@@ -41,7 +41,7 @@ import React from 'react';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader } from '@monopilot/ui/Card';
 
-import type { FaBomLine, FaBomVersion } from '../_actions/get-fa-bom';
+import type { FaBomLine, FaBomVersion } from '../_actions/fa-bom-types';
 
 export type FaBomTabState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
