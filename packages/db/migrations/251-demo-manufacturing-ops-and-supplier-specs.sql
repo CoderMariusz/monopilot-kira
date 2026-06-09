@@ -32,12 +32,19 @@ from (values
   ('Labelling',       'LB', 'Product labelling / sleeve application',  9),
   ('Metal detection', 'MD', 'Metal detection / CCP release check',    10)
 ) as v(operation_name, process_suffix, description, operation_seq)
-on conflict on constraint mfg_ops_org_industry_suffix_unique do update
-  set operation_name = excluded.operation_name,
-      description    = excluded.description,
-      operation_seq  = excluded.operation_seq,
-      is_active      = true,
-      marker         = "ManufacturingOperations".marker;
+-- The table has TWO unique constraints (org+industry+suffix AND org+operation_name);
+-- ON CONFLICT can target only one, and the live org already holds a hand-inserted
+-- 'Mixing' row that collides by NAME with a different suffix — so idempotence is
+-- done via NOT EXISTS across both keys instead.
+where not exists (
+  select 1
+    from "Reference"."ManufacturingOperations" m
+   where m.org_id = '00000000-0000-0000-0000-000000000002'::uuid
+     and (
+       m.operation_name = v.operation_name
+       or (m.industry_code = 'fmcg' and m.process_suffix = v.process_suffix)
+     )
+);
 
 insert into public.supplier_specs
   (org_id, item_id, supplier_code, supplier_status, spec_version,
