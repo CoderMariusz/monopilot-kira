@@ -1326,7 +1326,9 @@
           "description": "Description",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tara",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
@@ -1463,7 +1465,9 @@
           "productGroup": "Product group",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tara",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
           "shelfLifeMode": "Shelf-life mode"
@@ -2755,6 +2759,60 @@
         "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
         "errGeneric": "Could not save the routing. Please try again."
       }
+    },
+    "revisions": {
+      "title": "Historia zmian",
+      "filter": {
+        "all": "Wszystkie",
+        "item": "Produkt",
+        "bom": "BOM",
+        "factorySpec": "Specyfikacja",
+        "eco": "Zlecenie zmiany"
+      },
+      "searchPlaceholder": "Szukaj kodu, nazwy lub akcji…",
+      "limitLabel": "Pokaż",
+      "apply": "Zastosuj",
+      "col": {
+        "when": "Kiedy",
+        "tag": "Typ",
+        "who": "Kto",
+        "what": "Co zmieniono"
+      },
+      "unknownActor": "System",
+      "empty": "Brak zmian",
+      "emptyBody": "Tu pojawią się zmiany produktów, BOM-ów, specyfikacji i zleceń zmian.",
+      "error": "Nie udało się wczytać historii zmian. Spróbuj ponownie.",
+      "denied": "Brak dostępu do historii zmian.",
+      "resultCount": "Liczba zmian: {count}"
+    },
+    "traceability": {
+      "title": "Wyszukiwanie identyfikowalności",
+      "search": "Szukaj",
+      "direction": {
+        "backward": "Wstecz",
+        "forward": "Wprzód",
+        "both": "Oba"
+      },
+      "prompt": "Wpisz LP, partię, lot lub zlecenie",
+      "promptBody": "Prześledź wstecz zużyte składniki i wprzód wyprodukowane wyroby.",
+      "noResults": "Nie znaleziono śladu",
+      "noResultsBody": "Żaden LP, partia, lot ani zlecenie nie pasują do zapytania.",
+      "error": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+      "denied": "Brak dostępu do wyszukiwania identyfikowalności.",
+      "resultCount": "Węzły: {count}",
+      "kind": {
+        "license_plate": "Tablica LP",
+        "wo_output": "Wynik zlecenia",
+        "wo_consumption": "Zużycie",
+        "work_order": "Zlecenie",
+        "bom_line": "Pozycja BOM"
+      },
+      "relation": {
+        "contains": "zawiera",
+        "consumed_by": "zużyte przez",
+        "produced": "wyprodukowane",
+        "requires_component": "wymaga komponentu"
+      }
     }
   },
   "Technical": {
@@ -2875,6 +2933,122 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      }
+    },
+    "eco": {
+      "title": "Kontrola zmian (ECO)",
+      "subtitle": "Zlecenia zmian inżynieryjnych — wszystkie zmiany receptur, procesów, opakowań i dostawców przechodzą tędy.",
+      "breadcrumb": "Kontrola zmian",
+      "create": {
+        "open": "+ Nowe ECO",
+        "title": "Otwórz ECO · Zlecenie zmiany inżynieryjnej",
+        "subtitle": "Po wysłaniu trafia do recenzentów. Zmiany przechodzą przez maszynę stanów zatwierdzania.",
+        "close": "Zamknij",
+        "cancel": "Anuluj",
+        "submit": "Wyślij ECO",
+        "saving": "Wysyłanie…",
+        "fields": {
+          "code": "Kod ECO",
+          "title": "Tytuł",
+          "changeType": "Zakres wpływu",
+          "priority": "Priorytet",
+          "description": "Opis"
+        },
+        "hints": {
+          "title": "Min. 5 znaków.",
+          "description": "Co i dlaczego się zmienia — min. 10 znaków."
+        },
+        "line": {
+          "legend": "Pozycja zmiany · pozycja docelowa + zmiana",
+          "action": "Akcja zmiany",
+          "searchLabel": "Znajdź pozycję",
+          "targetItem": "Pozycja docelowa",
+          "searchPlaceholder": "Szukaj kodu lub nazwy pozycji",
+          "noItems": "Brak pasujących pozycji",
+          "rationale": "Opis zmiany"
+        }
+      },
+      "error": "Nie udało się załadować zleceń zmian.",
+      "permissionDenied": "Nie masz uprawnień do przeglądania kontroli zmian.",
+      "empty": {
+        "title": "Brak zleceń zmian",
+        "body": "Otwórz ECO, aby śledzić zmianę receptury, procesu, opakowania lub dostawcy."
+      },
+      "open": "Otwórz",
+      "col": {
+        "code": "ECO",
+        "title": "Tytuł",
+        "changeType": "Wpływ",
+        "lines": "Pozycje",
+        "updated": "Zaktualizowano",
+        "priority": "Priorytet",
+        "status": "Status",
+        "actions": "Akcje"
+      },
+      "filter": {
+        "all": "Wszystkie",
+        "label": "Filtruj według statusu"
+      },
+      "status": {
+        "draft": "Szkic",
+        "approved": "Zatwierdzone",
+        "implementing": "Wdrażane",
+        "closed": "Zamknięte"
+      },
+      "priority": {
+        "low": "niski",
+        "normal": "normalny",
+        "high": "wysoki",
+        "critical": "krytyczny"
+      },
+      "changeType": {
+        "engineering": "Inżynieria",
+        "bom": "BOM",
+        "spec": "Specyfikacja",
+        "item": "Pozycja",
+        "process": "Proces",
+        "packaging": "Opakowanie",
+        "regulatory": "Regulacyjne"
+      },
+      "lineAction": {
+        "add": "Dodaj",
+        "change": "Zmień",
+        "remove": "Usuń",
+        "replace": "Zastąp",
+        "deprecate": "Wycofaj"
+      },
+      "targetType": {
+        "item": "Pozycja",
+        "bom_header": "BOM",
+        "bom_line": "Pozycja BOM",
+        "factory_spec": "Specyfikacja fabryczna",
+        "routing": "Marszruta",
+        "document": "Dokument",
+        "other": "Inne"
+      },
+      "detail": {
+        "loading": "Ładowanie…",
+        "error": "Nie udało się załadować zlecenia zmiany.",
+        "impact": "Wpływ",
+        "lines": "Pozycje zmiany",
+        "col": {
+          "action": "Akcja",
+          "targetType": "Cel",
+          "rationale": "Opis zmiany"
+        },
+        "close": "Zamknij",
+        "working": "Przetwarzanie…",
+        "approve": "Zatwierdź ECO",
+        "start": "Rozpocznij wdrożenie",
+        "close_eco": "Zamknij ECO"
+      },
+      "errors": {
+        "invalid_input": "Sprawdź pola zlecenia zmiany i spróbuj ponownie.",
+        "forbidden": "Nie masz uprawnień do tej akcji.",
+        "not_found": "Nie znaleziono zlecenia zmiany.",
+        "already_exists": "Zlecenie zmiany o tym kodzie już istnieje.",
+        "invalid_state": "Zlecenie zmiany nie jest już w oczekiwanym stanie — odświeżono.",
+        "persistence_failed": "Nie udało się wykonać akcji."
       }
     }
   },

@@ -1326,7 +1326,9 @@
           "description": "Description",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tara (greutate ambalaj)",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
@@ -1463,7 +1465,9 @@
           "productGroup": "Product group",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tara (greutate ambalaj)",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
           "shelfLifeMode": "Shelf-life mode"
@@ -2755,6 +2759,60 @@
         "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
         "errGeneric": "Could not save the routing. Please try again."
       }
+    },
+    "revisions": {
+      "title": "Istoric revizii",
+      "filter": {
+        "all": "Toate",
+        "item": "Articol",
+        "bom": "BOM",
+        "factorySpec": "Specificație",
+        "eco": "Ordin de modificare"
+      },
+      "searchPlaceholder": "Caută cod, titlu sau acțiune…",
+      "limitLabel": "Afişează",
+      "apply": "Aplică",
+      "col": {
+        "when": "Când",
+        "tag": "Tip",
+        "who": "Cine",
+        "what": "Ce s-a schimbat"
+      },
+      "unknownActor": "Sistem",
+      "empty": "Nicio revizie încă",
+      "emptyBody": "Modificările la produse, BOM-uri, specificații şi ordine de modificare vor apărea aici.",
+      "error": "Istoricul reviziilor nu a putut fi încărcat. Încearcă din nou.",
+      "denied": "Nu ai acces la istoricul reviziilor.",
+      "resultCount": "{count} revizii"
+    },
+    "traceability": {
+      "title": "Căutare trasabilitate",
+      "search": "Caută",
+      "direction": {
+        "backward": "Înapoi",
+        "forward": "Înainte",
+        "both": "Ambele"
+      },
+      "prompt": "Introdu un LP, lot, şarjă sau comandă",
+      "promptBody": "Urmăreşte înapoi componentele consumate şi înainte produsele rezultate.",
+      "noResults": "Nicio trasabilitate găsită",
+      "noResultsBody": "Niciun LP, lot, şarjă sau comandă nu corespunde căutării.",
+      "error": "Căutarea a eşuat. Încearcă din nou.",
+      "denied": "Nu ai acces la căutarea de trasabilitate.",
+      "resultCount": "{count} noduri",
+      "kind": {
+        "license_plate": "Plăcuță LP",
+        "wo_output": "Ieşire comandă",
+        "wo_consumption": "Consum",
+        "work_order": "Comandă de lucru",
+        "bom_line": "Linie BOM"
+      },
+      "relation": {
+        "contains": "conține",
+        "consumed_by": "consumat de",
+        "produced": "produs",
+        "requires_component": "necesită componentă"
+      }
     }
   },
   "Technical": {
@@ -2875,6 +2933,122 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      }
+    },
+    "eco": {
+      "title": "Controlul modificărilor (ECO)",
+      "subtitle": "Comenzi de modificare tehnică — toate modificările de rețetă, proces, ambalaj şi furnizor trec pe aici.",
+      "breadcrumb": "Controlul modificărilor",
+      "create": {
+        "open": "+ ECO nou",
+        "title": "Deschide ECO · Comandă de modificare tehnică",
+        "subtitle": "După trimitere ajunge la evaluatori. Modificările trec prin maşina de stări de aprobare.",
+        "close": "Închide",
+        "cancel": "Anulează",
+        "submit": "Trimite ECO",
+        "saving": "Se trimite…",
+        "fields": {
+          "code": "Cod ECO",
+          "title": "Titlu",
+          "changeType": "Domeniu de impact",
+          "priority": "Prioritate",
+          "description": "Descriere"
+        },
+        "hints": {
+          "title": "Minim 5 caractere.",
+          "description": "Ce se modifică şi de ce — minim 10 caractere."
+        },
+        "line": {
+          "legend": "Linie de modificare · articol țintă + modificare",
+          "action": "Acțiune de modificare",
+          "searchLabel": "Găseşte articol",
+          "targetItem": "Articol țintă",
+          "searchPlaceholder": "Caută cod sau nume articol",
+          "noItems": "Niciun articol potrivit",
+          "rationale": "Descrierea modificării"
+        }
+      },
+      "error": "Comenzile de modificare nu au putut fi încărcate.",
+      "permissionDenied": "Nu aveți permisiunea de a vizualiza controlul modificărilor.",
+      "empty": {
+        "title": "Nicio comandă de modificare",
+        "body": "Deschideți un ECO pentru a urmări o modificare de rețetă, proces, ambalaj sau furnizor."
+      },
+      "open": "Deschide",
+      "col": {
+        "code": "ECO",
+        "title": "Titlu",
+        "changeType": "Impact",
+        "lines": "Linii",
+        "updated": "Actualizat",
+        "priority": "Prioritate",
+        "status": "Stare",
+        "actions": "Acțiuni"
+      },
+      "filter": {
+        "all": "Toate",
+        "label": "Filtrează după stare"
+      },
+      "status": {
+        "draft": "Ciornă",
+        "approved": "Aprobat",
+        "implementing": "În implementare",
+        "closed": "Închis"
+      },
+      "priority": {
+        "low": "scăzut",
+        "normal": "normal",
+        "high": "ridicat",
+        "critical": "critic"
+      },
+      "changeType": {
+        "engineering": "Inginerie",
+        "bom": "BOM",
+        "spec": "Specificație",
+        "item": "Articol",
+        "process": "Proces",
+        "packaging": "Ambalaj",
+        "regulatory": "De reglementare"
+      },
+      "lineAction": {
+        "add": "Adaugă",
+        "change": "Modifică",
+        "remove": "Elimină",
+        "replace": "Înlocuieşte",
+        "deprecate": "Depreciază"
+      },
+      "targetType": {
+        "item": "Articol",
+        "bom_header": "BOM",
+        "bom_line": "Linie BOM",
+        "factory_spec": "Specificație fabrică",
+        "routing": "Rută",
+        "document": "Document",
+        "other": "Altul"
+      },
+      "detail": {
+        "loading": "Se încarcă…",
+        "error": "Comanda de modificare nu a putut fi încărcată.",
+        "impact": "Impact",
+        "lines": "Linii de modificare",
+        "col": {
+          "action": "Acțiune",
+          "targetType": "Țintă",
+          "rationale": "Descrierea modificării"
+        },
+        "close": "Închide",
+        "working": "Se procesează…",
+        "approve": "Aprobă ECO",
+        "start": "Începe implementarea",
+        "close_eco": "Închide ECO"
+      },
+      "errors": {
+        "invalid_input": "Verificați câmpurile comenzii şi încercați din nou.",
+        "forbidden": "Nu aveți permisiunea pentru această acțiune.",
+        "not_found": "Comanda de modificare nu a fost găsită.",
+        "already_exists": "O comandă cu acest cod există deja.",
+        "invalid_state": "Comanda nu mai este în starea aşteptată — a fost reîmprospătată.",
+        "persistence_failed": "Acțiunea nu a putut fi finalizată."
       }
     }
   },

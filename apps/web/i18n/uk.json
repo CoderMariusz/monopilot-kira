@@ -1326,7 +1326,9 @@
           "description": "Description",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Тара",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
@@ -1463,7 +1465,9 @@
           "productGroup": "Product group",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Тара",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
           "shelfLifeMode": "Shelf-life mode"
@@ -2755,6 +2759,60 @@
         "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
         "errGeneric": "Could not save the routing. Please try again."
       }
+    },
+    "revisions": {
+      "title": "Історія змін",
+      "filter": {
+        "all": "Усі",
+        "item": "Позиція",
+        "bom": "BOM",
+        "factorySpec": "Специфікація",
+        "eco": "Запит на зміну"
+      },
+      "searchPlaceholder": "Пошук коду, назви чи дії…",
+      "limitLabel": "Показати",
+      "apply": "Застосувати",
+      "col": {
+        "when": "Коли",
+        "tag": "Тип",
+        "who": "Хто",
+        "what": "Що змінено"
+      },
+      "unknownActor": "Система",
+      "empty": "Ще немає змін",
+      "emptyBody": "Тут зʼявлятимуться зміни продуктів, BOM, специфікацій та запитів на зміну.",
+      "error": "Не вдалося завантажити історію змін. Спробуйте ще раз.",
+      "denied": "У вас немає доступу до історії змін.",
+      "resultCount": "Змін: {count}"
+    },
+    "traceability": {
+      "title": "Пошук простежуваності",
+      "search": "Шукати",
+      "direction": {
+        "backward": "Назад",
+        "forward": "Вперед",
+        "both": "Обидва"
+      },
+      "prompt": "Введіть LP, партію, лот або наряд",
+      "promptBody": "Простежте назад спожиті компоненти та вперед вироблену продукцію.",
+      "noResults": "Слід не знайдено",
+      "noResultsBody": "Жоден LP, партія, лот чи наряд не відповідає запиту.",
+      "error": "Пошук не вдався. Спробуйте ще раз.",
+      "denied": "У вас немає доступу до пошуку простежуваності.",
+      "resultCount": "Вузлів: {count}",
+      "kind": {
+        "license_plate": "Номер LP",
+        "wo_output": "Випуск наряду",
+        "wo_consumption": "Споживання",
+        "work_order": "Наряд",
+        "bom_line": "Рядок BOM"
+      },
+      "relation": {
+        "contains": "містить",
+        "consumed_by": "спожито в",
+        "produced": "вироблено",
+        "requires_component": "потребує компонент"
+      }
     }
   },
   "Technical": {
@@ -2875,6 +2933,122 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      }
+    },
+    "eco": {
+      "title": "Контроль змін (ECO)",
+      "subtitle": "Інженерні замовлення на зміни — усі зміни рецептур, процесів, паковання та постачальників проходять тут.",
+      "breadcrumb": "Контроль змін",
+      "create": {
+        "open": "+ Нове ECO",
+        "title": "Відкрити ECO · Інженерне замовлення на зміну",
+        "subtitle": "Після надсилання надходить до рецензентів. Зміни проходять через машину станів затвердження.",
+        "close": "Закрити",
+        "cancel": "Скасувати",
+        "submit": "Надіслати ECO",
+        "saving": "Надсилання…",
+        "fields": {
+          "code": "Код ECO",
+          "title": "Назва",
+          "changeType": "Сфера впливу",
+          "priority": "Пріоритет",
+          "description": "Опис"
+        },
+        "hints": {
+          "title": "Мінімум 5 символів.",
+          "description": "Що змінюється і чому — мінімум 10 символів."
+        },
+        "line": {
+          "legend": "Рядок зміни · цільова позиція + зміна",
+          "action": "Дія зміни",
+          "searchLabel": "Знайти позицію",
+          "targetItem": "Цільова позиція",
+          "searchPlaceholder": "Пошук коду або назви позиції",
+          "noItems": "Немає відповідних позицій",
+          "rationale": "Опис зміни"
+        }
+      },
+      "error": "Не вдалося завантажити замовлення на зміни.",
+      "permissionDenied": "У вас немає дозволу переглядати контроль змін.",
+      "empty": {
+        "title": "Немає замовлень на зміни",
+        "body": "Відкрийте ECO, щоб відстежувати зміну рецептури, процесу, паковання чи постачальника."
+      },
+      "open": "Відкрити",
+      "col": {
+        "code": "ECO",
+        "title": "Назва",
+        "changeType": "Вплив",
+        "lines": "Рядки",
+        "updated": "Оновлено",
+        "priority": "Пріоритет",
+        "status": "Статус",
+        "actions": "Дії"
+      },
+      "filter": {
+        "all": "Усі",
+        "label": "Фільтр за статусом"
+      },
+      "status": {
+        "draft": "Чернетка",
+        "approved": "Затверджено",
+        "implementing": "Впровадження",
+        "closed": "Закрито"
+      },
+      "priority": {
+        "low": "низький",
+        "normal": "звичайний",
+        "high": "високий",
+        "critical": "критичний"
+      },
+      "changeType": {
+        "engineering": "Інженерія",
+        "bom": "BOM",
+        "spec": "Специфікація",
+        "item": "Позиція",
+        "process": "Процес",
+        "packaging": "Паковання",
+        "regulatory": "Регуляторні"
+      },
+      "lineAction": {
+        "add": "Додати",
+        "change": "Змінити",
+        "remove": "Видалити",
+        "replace": "Замінити",
+        "deprecate": "Вивести з обігу"
+      },
+      "targetType": {
+        "item": "Позиція",
+        "bom_header": "BOM",
+        "bom_line": "Рядок BOM",
+        "factory_spec": "Заводська специфікація",
+        "routing": "Маршрут",
+        "document": "Документ",
+        "other": "Інше"
+      },
+      "detail": {
+        "loading": "Завантаження…",
+        "error": "Не вдалося завантажити замовлення на зміну.",
+        "impact": "Вплив",
+        "lines": "Рядки змін",
+        "col": {
+          "action": "Дія",
+          "targetType": "Ціль",
+          "rationale": "Опис зміни"
+        },
+        "close": "Закрити",
+        "working": "Обробка…",
+        "approve": "Затвердити ECO",
+        "start": "Почати впровадження",
+        "close_eco": "Закрити ECO"
+      },
+      "errors": {
+        "invalid_input": "Перевірте поля замовлення на зміну та повторіть.",
+        "forbidden": "У вас немає дозволу на цю дію.",
+        "not_found": "Замовлення на зміну не знайдено.",
+        "already_exists": "Замовлення з цим кодом уже існує.",
+        "invalid_state": "Замовлення вже не в очікуваному стані — оновлено.",
+        "persistence_failed": "Не вдалося виконати дію."
       }
     }
   },

@@ -3193,7 +3193,9 @@
           "description": "Description",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tare weight",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance",
           "shelfLife": "Shelf life",
           "shelfLifeDays": "{days} d",
@@ -3330,7 +3332,9 @@
           "productGroup": "Product group",
           "weightMode": "Weight mode",
           "nominalWeight": "Nominal weight",
+          "tareWeight": "Tare weight",
           "grossWeightMax": "Gross weight max",
+          "gs1Gtin": "GS1 GTIN",
           "varianceTolerance": "Variance tolerance (%)",
           "shelfLifeDays": "Shelf life (days)",
           "shelfLifeMode": "Shelf-life mode"
@@ -4622,6 +4626,60 @@
         "errUnknownOperation": "An operation name is not in the manufacturing-operations reference (V-TEC-63).",
         "errGeneric": "Could not save the routing. Please try again."
       }
+    },
+    "revisions": {
+      "title": "Revision history",
+      "filter": {
+        "all": "All",
+        "item": "Item",
+        "bom": "BOM",
+        "factorySpec": "Factory spec",
+        "eco": "Change order"
+      },
+      "searchPlaceholder": "Search code, title or action…",
+      "limitLabel": "Show",
+      "apply": "Apply",
+      "col": {
+        "when": "When",
+        "tag": "Type",
+        "who": "Who",
+        "what": "What changed"
+      },
+      "unknownActor": "System",
+      "empty": "No revisions yet",
+      "emptyBody": "Changes to products, BOMs, factory specs and change orders will appear here.",
+      "error": "Could not load revision history. Please try again.",
+      "denied": "You do not have access to revision history.",
+      "resultCount": "{count} revisions"
+    },
+    "traceability": {
+      "title": "Traceability search",
+      "search": "Search",
+      "direction": {
+        "backward": "Backward",
+        "forward": "Forward",
+        "both": "Both"
+      },
+      "prompt": "Enter a license plate, batch, lot or work order",
+      "promptBody": "Trace backward components consumed and forward outputs produced.",
+      "noResults": "No trace found",
+      "noResultsBody": "No license plate, batch, lot or work order matched your query.",
+      "error": "Traceability search failed. Please try again.",
+      "denied": "You do not have access to traceability search.",
+      "resultCount": "{count} nodes",
+      "kind": {
+        "license_plate": "License plate",
+        "wo_output": "WO output",
+        "wo_consumption": "Consumption",
+        "work_order": "Work order",
+        "bom_line": "BOM line"
+      },
+      "relation": {
+        "contains": "contains",
+        "consumed_by": "consumed by",
+        "produced": "produced",
+        "requires_component": "requires component"
+      }
     }
   },
   "Technical": {
@@ -4742,6 +4800,122 @@
         "rbac": "Authorization",
         "release": "Release guard",
         "supplier": "Supplier spec"
+      }
+    },
+    "eco": {
+      "title": "Change control (ECO)",
+      "subtitle": "Engineering Change Orders — all recipe, process, packaging and supplier changes flow through here.",
+      "breadcrumb": "Change control",
+      "create": {
+        "open": "+ New ECO",
+        "title": "Open ECO · Engineering Change Order",
+        "subtitle": "Goes to reviewers after submission. Changes flow through the approval state machine.",
+        "close": "Close",
+        "cancel": "Cancel",
+        "submit": "Submit ECO",
+        "saving": "Submitting…",
+        "fields": {
+          "code": "ECO code",
+          "title": "Title",
+          "changeType": "Impact scope",
+          "priority": "Priority",
+          "description": "Description"
+        },
+        "hints": {
+          "title": "Min 5 characters.",
+          "description": "What is changing and why — min 10 characters."
+        },
+        "line": {
+          "legend": "Change line · target item + change",
+          "action": "Change action",
+          "searchLabel": "Find item",
+          "targetItem": "Target item",
+          "searchPlaceholder": "Search item code or name",
+          "noItems": "No matching items",
+          "rationale": "Change description"
+        }
+      },
+      "error": "The change orders could not be loaded.",
+      "permissionDenied": "You do not have permission to view change control.",
+      "empty": {
+        "title": "No change orders",
+        "body": "Open an ECO to track a recipe, process, packaging or supplier change."
+      },
+      "open": "Open",
+      "col": {
+        "code": "ECO",
+        "title": "Title",
+        "changeType": "Impact",
+        "lines": "Lines",
+        "updated": "Updated",
+        "priority": "Priority",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "filter": {
+        "all": "All",
+        "label": "Filter by status"
+      },
+      "status": {
+        "draft": "Draft",
+        "approved": "Approved",
+        "implementing": "Implementing",
+        "closed": "Closed"
+      },
+      "priority": {
+        "low": "low",
+        "normal": "normal",
+        "high": "high",
+        "critical": "critical"
+      },
+      "changeType": {
+        "engineering": "Engineering",
+        "bom": "BOM",
+        "spec": "Spec",
+        "item": "Item",
+        "process": "Process",
+        "packaging": "Packaging",
+        "regulatory": "Regulatory"
+      },
+      "lineAction": {
+        "add": "Add",
+        "change": "Change",
+        "remove": "Remove",
+        "replace": "Replace",
+        "deprecate": "Deprecate"
+      },
+      "targetType": {
+        "item": "Item",
+        "bom_header": "BOM",
+        "bom_line": "BOM line",
+        "factory_spec": "Factory spec",
+        "routing": "Routing",
+        "document": "Document",
+        "other": "Other"
+      },
+      "detail": {
+        "loading": "Loading…",
+        "error": "The change order could not be loaded.",
+        "impact": "Impact",
+        "lines": "Change lines",
+        "col": {
+          "action": "Action",
+          "targetType": "Target",
+          "rationale": "Change description"
+        },
+        "close": "Close",
+        "working": "Working…",
+        "approve": "Approve ECO",
+        "start": "Start implementation",
+        "close_eco": "Close ECO"
+      },
+      "errors": {
+        "invalid_input": "Check the change order fields and try again.",
+        "forbidden": "You do not have permission for this action.",
+        "not_found": "The change order was not found.",
+        "already_exists": "A change order with this code already exists.",
+        "invalid_state": "The change order is no longer in the expected state — it was refreshed.",
+        "persistence_failed": "The action could not be completed."
       }
     }
   },
