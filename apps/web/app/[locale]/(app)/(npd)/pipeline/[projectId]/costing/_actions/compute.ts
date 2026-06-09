@@ -67,15 +67,17 @@ const Input = z.object({
   params: ParamsSchema,
 });
 
-export type ComputeCostingInput = z.infer<typeof Input>;
+const InitialInput = z.object({
+  projectId: z.string().uuid(),
+});
 
-export type ComputeCostingError =
+type ComputeCostingError =
   | 'invalid_input'
   | 'margin_hard_fail'
   | 'not_found'
   | 'persistence_failed';
 
-export type ComputeCostingResult =
+type ComputeCostingResult =
   | {
       ok: true;
       data: {
@@ -93,6 +95,15 @@ export type ComputeCostingResult =
   | { ok: false; error: ComputeCostingError; message?: string };
 
 const MARGIN_WARN_THRESHOLD_KEY = 'costing_margin_warn_pct';
+
+type InitialBreakdownRow = {
+  product_code: string | null;
+  ingredient_count: string;
+  missing_cost_count: string;
+  raw_cost_eur: string | null;
+  yield_pct: string;
+  margin_pct: string;
+};
 
 export async function computeCosting(raw: unknown): Promise<ComputeCostingResult> {
   const parsed = Input.safeParse(raw);
@@ -200,6 +211,85 @@ export async function computeCosting(raw: unknown): Promise<ComputeCostingResult
     console.error('[computeCosting] persistence_failed', {
       productCode: input.productCode,
       scenario: input.scenario,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'persistence_failed' };
+  }
+}
+
+export async function computeAndSaveInitialBreakdown(raw: unknown): Promise<ComputeCostingResult> {
+  const parsed = InitialInput.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: 'invalid_input', message: parsed.error.message };
+  }
+
+  try {
+    const bootstrap = await withOrgContext(async ({ client }) => {
+      const result = await client.query<InitialBreakdownRow>(
+        `with current_recipe as (
+           select
+             f.product_code,
+             fv.id as version_id,
+             coalesce(nullif(fv.target_yield_pct, 0), 100)::numeric as yield_pct,
+             fv.target_price_eur
+           from public.formulations f
+           join public.formulation_versions fv on fv.id = f.current_version_id
+          where f.project_id = $1::uuid
+            and f.org_id = app.current_org_id()
+          limit 1
+         ),
+         ingredient_costs as (
+           select
+             cr.product_code,
+             cr.yield_pct,
+             cr.target_price_eur,
+             count(fi.version_id)::text as ingredient_count,
+             count(*) filter (where fi.cost_per_kg_eur is null or fi.pct is null)::text as missing_cost_count,
+             coalesce(sum((fi.pct::numeric / 100) * fi.cost_per_kg_eur::numeric), 0)::numeric as raw_cost_eur
+           from current_recipe cr
+           left join public.formulation_ingredients fi on fi.version_id = cr.version_id
+          group by cr.product_code, cr.yield_pct, cr.target_price_eur
+         )
+         select
+           product_code,
+           ingredient_count,
+           missing_cost_count,
+           raw_cost_eur::text,
+           yield_pct::text,
+           case
+             when target_price_eur is not null and target_price_eur > 0
+               then (100 * (1 - ((raw_cost_eur * 100 / yield_pct) / target_price_eur)))::text
+             else '20'
+           end as margin_pct
+         from ingredient_costs`,
+        [parsed.data.projectId],
+      );
+      return result.rows[0] ?? null;
+    });
+
+    if (!bootstrap?.product_code) return { ok: false, error: 'not_found' };
+    if (bootstrap.ingredient_count === '0' || bootstrap.missing_cost_count !== '0') {
+      return { ok: false, error: 'invalid_input', message: 'current formulation has no complete ingredient costs' };
+    }
+
+    return await computeCosting({
+      productCode: bootstrap.product_code,
+      scenario: 'target',
+      params: {
+        rawCostEur: bootstrap.raw_cost_eur ?? '0',
+        yieldPct: bootstrap.yield_pct,
+        processLabourEur: '0',
+        packagingEur: '0',
+        overheadEur: '0',
+        logisticsEur: '0',
+        marginPct: bootstrap.margin_pct,
+        distributorMarkupPct: '0',
+        retailMarkupPct: '0',
+      },
+    });
+  } catch (err) {
+    console.error('[computeAndSaveInitialBreakdown] persistence_failed', {
+      projectId: parsed.data.projectId,
       err: err instanceof Error ? err.message : String(err),
     });
     return { ok: false, error: 'persistence_failed' };

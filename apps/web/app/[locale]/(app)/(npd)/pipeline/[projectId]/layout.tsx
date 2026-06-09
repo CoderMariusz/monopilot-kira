@@ -161,6 +161,9 @@ const ADVANCE_DEFAULTS = {
   empty: 'No checklist items to summarise.',
   error: 'Could not advance the gate. Try again.',
   forbidden: 'You do not have permission to advance this gate.',
+  esignRequiredError:
+    'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
+  blockersPresentError: '{count} blocker(s) prevent advancement.',
   recipeNeedsIngredient: 'Recipe has at least one ingredient',
 };
 
@@ -198,7 +201,7 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
   }
   const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
   if (result.ok) return { ok: true as const, data: result.data };
-  return { ok: false as const, error: result.error, status: result.status };
+  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers };
 }
 
 // Delete-project Server Action adapter (RBAC enforced inside deleteProject + only
@@ -346,6 +349,8 @@ export default async function ProjectWorkbenchLayout({ children, params }: Proje
       empty: a('empty', ADVANCE_DEFAULTS.empty),
       error: a('error', ADVANCE_DEFAULTS.error),
       forbidden: a('forbidden', ADVANCE_DEFAULTS.forbidden),
+      esignRequiredError: a('esignRequiredError', ADVANCE_DEFAULTS.esignRequiredError),
+      blockersPresentError: a('blockersPresentError', ADVANCE_DEFAULTS.blockersPresentError),
     },
     project: { id: project.id, code: project.code, name: project.name, currentGate: currentKey },
     gateInfo: {

@@ -22,6 +22,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -121,6 +122,13 @@ export type CostingLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  /** Compute costing action (C3) — empty-state CTA + its error messages. */
+  computeCosting: string;
+  computing: string;
+  computeError: string;
+  computeErrorNotFound: string;
+  computeErrorNoCosts: string;
+  computeErrorHardFail: string;
 };
 
 export type SaveScenarioCall = {
@@ -130,6 +138,15 @@ export type SaveScenarioCall = {
 };
 
 export type SaveScenarioOutcome = { ok: boolean; error?: string };
+
+/**
+ * Compute-and-save-initial-breakdown Server Action (C3). Persists the `target`
+ * scenario via the existing waterfall from the project's current formulation.
+ * RBAC is resolved server-side in page.tsx (only injected when the user can
+ * write); errors are surfaced inline.
+ */
+export type ComputeCostingCall = { projectId: string };
+export type ComputeCostingOutcome = { ok: boolean; error?: string; message?: string };
 
 const CURRENCY = '€';
 
@@ -229,15 +246,75 @@ export function CostingScreen({
   data,
   labels,
   onSaveScenario,
+  projectId,
+  computeAction,
+  onRefresh,
 }: {
   state?: PageState;
   data: CostingScreenData | null;
   labels: CostingLabels;
   onSaveScenario?: (call: SaveScenarioCall) => Promise<SaveScenarioOutcome>;
+  /** Project id — needed to compute the initial breakdown from the empty state (C3). */
+  projectId?: string;
+  /** Compute-costing Server Action (injected only when the user can write). */
+  computeAction?: (call: ComputeCostingCall) => Promise<ComputeCostingOutcome>;
+  /** Server refresh after a successful compute. Test seam overrides router.refresh. */
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
+  const refresh = React.useCallback(() => {
+    if (onRefresh) onRefresh();
+    else router?.refresh?.();
+  }, [onRefresh, router]);
+
   const [unit, setUnit] = React.useState<CostingUnit>('kg');
   const [scenarioName, setScenarioName] = React.useState('');
   const [saveState, setSaveState] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // C3 — compute initial costing (empty state). Server-gated; errors inline.
+  type ComputeStatus = 'idle' | 'computing' | 'computed' | 'error';
+  const [computeStatus, setComputeStatus] = React.useState<ComputeStatus>('idle');
+  const [computeError, setComputeError] = React.useState<string>('');
+  const canCompute = !!computeAction && !!projectId;
+
+  const computeErrorMessage = React.useCallback(
+    (error: string, message?: string): string => {
+      switch (error) {
+        case 'not_found':
+          return labels.computeErrorNotFound;
+        case 'invalid_input':
+          // The action's message ("…has no complete ingredient costs") is the most
+          // useful signal here; fall back to a localized hint.
+          return message || labels.computeErrorNoCosts;
+        case 'margin_hard_fail':
+          return labels.computeErrorHardFail;
+        default:
+          return labels.computeError;
+      }
+    },
+    [labels],
+  );
+
+  const runCompute = React.useCallback(() => {
+    if (!computeAction || !projectId || computeStatus === 'computing') return;
+    setComputeStatus('computing');
+    setComputeError('');
+    void (async () => {
+      try {
+        const result = await computeAction({ projectId });
+        if (result.ok) {
+          setComputeStatus('computed');
+          refresh();
+        } else {
+          setComputeStatus('error');
+          setComputeError(computeErrorMessage(result.error ?? '', result.message));
+        }
+      } catch {
+        setComputeStatus('error');
+        setComputeError(labels.computeError);
+      }
+    })();
+  }, [computeAction, projectId, computeStatus, refresh, computeErrorMessage, labels.computeError]);
 
   // Live what-if params (sliders mutate these). Initialised from server data.
   const [params, setParams] = React.useState<CostingParams | null>(data?.currentParams ?? null);
@@ -257,7 +334,27 @@ export function CostingScreen({
             {labels.title}
           </h1>
         </header>
+        {computeStatus === 'error' && computeError ? (
+          <div role="alert" className="alert alert-red" data-testid="costing-compute-error">
+            {computeError}
+          </div>
+        ) : null}
         <StateNotice state={state} labels={labels} />
+        {/* C3 — Compute costing CTA in the empty state (write-gated server-side). */}
+        {state === 'empty' && canCompute ? (
+          <div style={{ textAlign: 'center' }}>
+            <Button
+              type="button"
+              className="btn-primary"
+              onClick={runCompute}
+              disabled={computeStatus === 'computing'}
+              data-status={computeStatus}
+              data-testid="costing-compute"
+            >
+              {computeStatus === 'computing' ? labels.computing : labels.computeCosting}
+            </Button>
+          </div>
+        ) : null}
       </main>
     );
   }

@@ -280,12 +280,28 @@ runIntegrationTest('formulation lifecycle Server Actions against real Postgres',
     ).rejects.toThrow(/locked formulation versions cannot mutate ingredient rows/i);
   });
 
-  it('rejects illegal lock of a draft and rejects submit when ingredient percentages do not total 100', async () => {
+  it('locks a draft version directly and rejects locking an already locked version', async () => {
     const draft = await seedDraftVersion(ownerPool);
+
+    await expect(lockVersion({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toMatchObject({
+      ok: true,
+      data: { versionId: draft.versionId, formulationId: draft.formulationId },
+    });
+
+    const state = await ownerPool.query<{ state: string }>(
+      `select state from public.formulation_versions where id = $1`,
+      [draft.versionId],
+    );
+    expect(state.rows[0]?.state).toBe('locked');
+
     await expect(lockVersion({ projectId: draft.projectId, versionId: draft.versionId })).resolves.toEqual({
       ok: false,
-      error: 'VERSION_NOT_SUBMITTED',
+      error: 'VERSION_LOCKED',
     });
+  });
+
+  it('rejects submit when ingredient percentages do not total 100', async () => {
+    const draft = await seedDraftVersion(ownerPool);
 
     await expect(
       saveDraft({

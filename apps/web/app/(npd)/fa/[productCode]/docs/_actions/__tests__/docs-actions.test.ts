@@ -8,6 +8,7 @@ vi.mock('next/cache', () => ({
 
 const storageUpload = vi.fn();
 const storageCreateSignedUrl = vi.fn();
+const storageCreateBucket = vi.fn();
 
 vi.mock('../../../../../../../lib/auth/supabase-server', () => ({
   createServerSupabaseClient: vi.fn(async () => ({
@@ -16,6 +17,14 @@ vi.mock('../../../../../../../lib/auth/supabase-server', () => ({
         upload: storageUpload,
         createSignedUrl: storageCreateSignedUrl,
       })),
+    },
+  })),
+}));
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    storage: {
+      createBucket: storageCreateBucket,
     },
   })),
 }));
@@ -135,8 +144,10 @@ run('T-084 compliance docs Server Actions — REAL DB integration', () => {
   beforeEach(async () => {
     storageUpload.mockReset();
     storageCreateSignedUrl.mockReset();
+    storageCreateBucket.mockReset();
     storageUpload.mockResolvedValue({ data: { path: 'ok' }, error: null });
     storageCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://storage.example.test/signed' }, error: null });
+    storageCreateBucket.mockResolvedValue({ data: { name: 'bucket' }, error: null });
     await owner.query(`delete from public.outbox_events where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
     await owner.query(`delete from public.audit_events where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]);
     await owner.query(`delete from public.compliance_docs where org_id in ($1::uuid, $2::uuid)`, [orgAId, orgBId]).catch(() => undefined);

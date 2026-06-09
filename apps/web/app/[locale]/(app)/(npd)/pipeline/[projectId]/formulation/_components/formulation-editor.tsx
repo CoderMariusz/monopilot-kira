@@ -141,6 +141,20 @@ export type FormulationLabels = {
   submitErrorLocked: string;
   submitErrorForbidden: string;
   compareVersions: string;
+  /** Lock-recipe toolbar action + confirm dialog (C1). */
+  lockRecipe: string;
+  locking: string;
+  lockConfirmTitle: string;
+  /** "{n}" replaced client-side with the current version number. */
+  lockConfirmBody: string;
+  lockConfirmConfirm: string;
+  lockConfirmCancel: string;
+  /** Generic + code-specific lock error messages (mapped from the action's error codes). */
+  lockError: string;
+  lockErrorForbidden: string;
+  lockErrorLocked: string;
+  lockErrorNotSubmitted: string;
+  lockErrorNotFound: string;
   /** Compare-versions modal labels. */
   compareTitle: string;
   compareVersionA: string;
@@ -243,6 +257,29 @@ export type CompareVersionsAction = (input: {
   versionAId: string;
   versionBId: string;
 }) => Promise<CompareResult>;
+
+/**
+ * Lock-version Server Action (legacy actions tree, `_actions/lock-version.ts`).
+ * Freezes the current version (draft | submitted_for_trial → locked). RBAC is
+ * enforced server-side (`npd.formulation.lock`); the editor only mirrors the
+ * `forbidden` code read-only and surfaces every other error code inline.
+ */
+export type LockVersionAction = (input: {
+  projectId: string;
+  versionId: string;
+}) => Promise<
+  | { ok: true; data: { versionId: string } }
+  | {
+      ok: false;
+      error:
+        | 'invalid_input'
+        | 'forbidden'
+        | 'not_found'
+        | 'VERSION_LOCKED'
+        | 'VERSION_NOT_SUBMITTED'
+        | 'persistence_failed';
+    }
+>;
 
 /** Row-level Zod schema (Costing v2): qtyKg ≥ 0, rm_code required (AC#3). */
 const RowSchema = z.object({
@@ -466,6 +503,7 @@ export function FormulationEditor({
   recomputeAction,
   submitForTrialAction,
   compareVersionsAction,
+  lockVersionAction,
   searchItemsAction,
   projectId,
   createDraftAction,
@@ -495,6 +533,8 @@ export function FormulationEditor({
   submitForTrialAction?: SubmitForTrialAction;
   /** Compare-versions Server Action (read-only diff for the Compare modal). */
   compareVersionsAction?: CompareVersionsAction;
+  /** Lock-version Server Action (C1) — freezes the current version. Gated server-side. */
+  lockVersionAction?: LockVersionAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
   searchItemsAction?: ItemSearchFn;
   /** Server-side refresh (router.refresh) — called after a successful submit. */
@@ -549,6 +589,12 @@ export function FormulationEditor({
   const [compareB, setCompareB] = React.useState<string>('');
   const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
   const [compareStatus, setCompareStatus] = React.useState<'idle' | 'loading' | 'error'>('idle');
+
+  // ── Lock recipe (C1) — confirm dialog + server-gated lock ────────────────────
+  type LockStatus = 'idle' | 'locking' | 'locked' | 'error';
+  const [lockConfirmOpen, setLockConfirmOpen] = React.useState(false);
+  const [lockStatus, setLockStatus] = React.useState<LockStatus>('idle');
+  const [lockError, setLockError] = React.useState<string>('');
 
   // Per-RM nutrition is reference data (stable across pct edits); derive once.
   const nutritionByRm = React.useMemo(() => {
@@ -821,6 +867,55 @@ export function FormulationEditor({
     }
   }, [compareOpen]);
 
+  /** Map a server lock-error code → the localized inline message. */
+  const lockErrorMessage = React.useCallback(
+    (error: string): string => {
+      switch (error) {
+        case 'forbidden':
+          return labels.lockErrorForbidden;
+        case 'VERSION_LOCKED':
+          return labels.lockErrorLocked;
+        case 'VERSION_NOT_SUBMITTED':
+          return labels.lockErrorNotSubmitted;
+        case 'not_found':
+          return labels.lockErrorNotFound;
+        default:
+          return labels.lockError;
+      }
+    },
+    [labels],
+  );
+
+  /**
+   * Lock recipe (C1). Server action enforces RBAC (`npd.formulation.lock`) + the
+   * state transition (draft | submitted_for_trial → locked); we only mirror the
+   * result. On success we refresh so the version's new `locked` state re-renders
+   * the editor read-only from Supabase.
+   */
+  const onConfirmLock = React.useCallback(() => {
+    if (!lockVersionAction || !data || lockStatus === 'locking') return;
+    setLockStatus('locking');
+    setLockError('');
+    void (async () => {
+      try {
+        const result = await lockVersionAction({ projectId: data.projectId, versionId });
+        if (result.ok) {
+          setLockStatus('locked');
+          setLockConfirmOpen(false);
+          refresh();
+        } else {
+          setLockStatus('error');
+          setLockConfirmOpen(false);
+          setLockError(lockErrorMessage(result.error));
+        }
+      } catch {
+        setLockStatus('error');
+        setLockConfirmOpen(false);
+        setLockError(labels.lockError);
+      }
+    })();
+  }, [lockVersionAction, data, versionId, lockStatus, refresh, lockErrorMessage, labels.lockError]);
+
   // Costing v2 — the table total is now the qty roll-up (kg/pack); the raw cost is
   // the per-pack RM cost. Both come from the same NUMERIC-exact roll-up that feeds
   // the panels, so the table total and the CostPanel never disagree (single source).
@@ -928,6 +1023,19 @@ export function FormulationEditor({
           </Button>
           <Button
             type="button"
+            className="btn-ghost"
+            disabled={!editable || !lockVersionAction || lockStatus === 'locking'}
+            data-status={lockStatus}
+            onClick={() => {
+              setLockError('');
+              setLockConfirmOpen(true);
+            }}
+            data-testid="lock-recipe-trigger"
+          >
+            {lockStatus === 'locking' ? labels.locking : labels.lockRecipe}
+          </Button>
+          <Button
+            type="button"
             className="btn-secondary"
             disabled={!editable}
             data-status={saveStatus}
@@ -955,6 +1063,63 @@ export function FormulationEditor({
       {submitStatus === 'error' && submitError ? (
         <div role="alert" className="alert alert-red" data-testid="submit-error">
           {submitError}
+        </div>
+      ) : null}
+
+      {lockStatus === 'error' && lockError ? (
+        <div role="alert" className="alert alert-red" data-testid="lock-error">
+          {lockError}
+        </div>
+      ) : null}
+
+      {lockConfirmOpen ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={labels.lockConfirmTitle}
+          data-testid="lock-confirm-modal"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLockConfirmOpen(false);
+          }}
+        >
+          <div className="modal-box">
+            <div className="modal-head">
+              <div className="modal-title">{labels.lockConfirmTitle}</div>
+              <button
+                type="button"
+                className="modal-close"
+                aria-label={labels.lockConfirmCancel}
+                onClick={() => setLockConfirmOpen(false)}
+                data-testid="lock-confirm-cancel"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="text-sm">
+                {labels.lockConfirmBody.replace('{n}', String(data?.versionNumber ?? ''))}
+              </p>
+            </div>
+            <div className="modal-foot">
+              <Button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setLockConfirmOpen(false)}
+              >
+                {labels.lockConfirmCancel}
+              </Button>
+              <Button
+                type="button"
+                className="btn-primary"
+                disabled={lockStatus === 'locking'}
+                onClick={onConfirmLock}
+                data-testid="lock-confirm"
+              >
+                {lockStatus === 'locking' ? labels.locking : labels.lockConfirmConfirm}
+              </Button>
+            </div>
+          </div>
         </div>
       ) : null}
 

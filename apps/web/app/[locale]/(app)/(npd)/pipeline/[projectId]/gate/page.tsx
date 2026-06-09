@@ -162,6 +162,9 @@ const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
   empty: 'No checklist items to summarise.',
   error: 'Could not advance the gate. Try again.',
   forbidden: 'You do not have permission to advance this gate.',
+  esignRequiredError:
+    'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
+  blockersPresentError: '{count} blocker(s) prevent advancement.',
 };
 
 const DEFAULT_HISTORY_LABELS: ApprovalHistoryLabels = {
@@ -189,7 +192,7 @@ const DEFAULT_HISTORY_LABELS: ApprovalHistoryLabels = {
   forbidden: 'You do not have permission to view this approval history.',
 };
 
-function labelLoader<T extends Record<string, string>>(defaults: T) {
+function labelLoader<T extends Record<string, string | undefined>>(defaults: T) {
   const keys = Object.keys(defaults) as Array<keyof T>;
   return async (locale: string, namespace: string): Promise<T> => {
     try {
@@ -429,7 +432,7 @@ async function advanceAdapter(input: { projectId: string; targetGate: TargetGate
   if (!next) return { ok: false as const, error: 'ADJACENCY_VIOLATION', status: 422 };
   const result = await advanceProjectGateAction({ projectId: input.projectId, targetStage: next });
   if (result.ok) return { ok: true as const, data: result.data };
-  return { ok: false as const, error: result.error, status: result.status };
+  return { ok: false as const, error: result.error, status: result.status, blockers: result.blockers };
 }
 
 async function approveAdapter(

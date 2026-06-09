@@ -20,6 +20,11 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
+
+
 import {
   CostingScreen,
   type CostingLabels,
@@ -109,6 +114,12 @@ const LABELS: CostingLabels = {
   emptyBody: 'Costing is computed once the formulation has ingredient costs.',
   error: 'Unable to load costing data.',
   forbidden: 'You do not have permission to view costing data.',
+  computeCosting: 'Compute costing',
+  computing: 'Computing…',
+  computeError: 'Could not compute the costing. Try again.',
+  computeErrorNotFound: 'No formulation is available to compute costing from yet.',
+  computeErrorNoCosts: 'Every ingredient needs a cost before costing can be computed.',
+  computeErrorHardFail: 'The target margin is negative, so the breakdown cannot be saved.',
 };
 
 const DATA: CostingScreenData = {

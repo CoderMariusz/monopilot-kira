@@ -17,6 +17,11 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
+
+
 import {
   NutritionScreen,
   type NutritionLabels,
@@ -65,6 +70,11 @@ const LABELS: NutritionLabels = {
   emptyBody: 'Nutrition values are computed once the formulation is complete.',
   error: 'Unable to load nutrition data.',
   forbidden: 'You do not have permission to view nutrition data.',
+  computeNutriScore: 'Compute NutriScore',
+  recomputeNutriScore: 'Recompute NutriScore',
+  computing: 'Computing…',
+  computeError: 'Could not compute the NutriScore. Try again.',
+  computeErrorNotFound: 'No formulation is available to compute from yet.',
 };
 
 const DATA: NutritionScreenData = {

@@ -65,16 +65,15 @@ const Input = z.object({
   params: ParamsSchema,
 });
 
-export type SaveScenarioInput = z.infer<typeof Input>;
-export type SaveScenarioParams = z.infer<typeof ParamsSchema>;
+type SaveScenarioParams = z.infer<typeof ParamsSchema>;
 
-export type SaveScenarioError =
+type SaveScenarioError =
   | 'invalid_input'
   | 'margin_hard_fail'
   | 'not_found'
   | 'persistence_failed';
 
-export type SaveScenarioResult =
+type SaveScenarioResult =
   | {
       ok: true;
       data: {

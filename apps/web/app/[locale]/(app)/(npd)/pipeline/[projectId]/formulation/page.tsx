@@ -49,6 +49,8 @@ import { createFormulationDraft } from '../../../../../../(npd)/pipeline/[projec
 // 'use server' shim — that breaks the production build.
 import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial';
 import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
+// C1 — lock recipe: import the legacy-tree action DIRECTLY (no re-export shim).
+import { lockVersion } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/lock-version';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +92,17 @@ const DEFAULT_LABELS: FormulationLabels = {
   submitErrorLocked: 'This version is locked and cannot be submitted.',
   submitErrorForbidden: 'You do not have permission to submit for trial.',
   compareVersions: 'Compare versions',
+  lockRecipe: 'Lock recipe',
+  locking: 'Locking…',
+  lockConfirmTitle: 'Lock recipe',
+  lockConfirmBody: 'Locking freezes v{n} — it can no longer be edited.',
+  lockConfirmConfirm: 'Lock recipe',
+  lockConfirmCancel: 'Cancel',
+  lockError: 'Could not lock the recipe. Try again.',
+  lockErrorForbidden: 'You do not have permission to lock this recipe.',
+  lockErrorLocked: 'This version is already locked.',
+  lockErrorNotSubmitted: 'Only a draft or trial version can be locked.',
+  lockErrorNotFound: 'This version could not be found.',
   compareTitle: 'Compare versions',
   compareVersionA: 'Version A',
   compareVersionB: 'Version B',
@@ -606,6 +619,10 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       recomputeAction={recomputeAndCache}
       submitForTrialAction={submitForTrial}
       compareVersionsAction={compareVersions}
+      // C1 — lock recipe: only thread the action when the user can write (same
+      // gate as save). The action ALSO enforces `npd.formulation.lock` server-side
+      // and surfaces `forbidden` inline if the user lacks the lock grant.
+      lockVersionAction={loaded.canEdit ? lockVersion : undefined}
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
     />

@@ -77,7 +77,15 @@ export type AdvanceProjectGateAction = (input: {
   projectId: string;
   targetGate: TargetGate;
   notes: string;
-}) => Promise<{ ok: true; data?: unknown } | { ok: false; error: string; status: number }>;
+}) => Promise<{
+  ok: true;
+  data?: unknown;
+} | {
+  ok: false;
+  error: string;
+  status: number;
+  blockers?: Array<{ id?: string; code?: string; text?: string; label?: string; message?: string }>;
+}>;
 
 export type AdvanceGateLabels = {
   title: string;
@@ -105,6 +113,8 @@ export type AdvanceGateLabels = {
   empty: string;
   error: string;
   forbidden: string;
+  esignRequiredError?: string;
+  blockersPresentError?: string; // "{count} blocker(s) prevent advancement."
 };
 
 function fmt(template: string, vars: Record<string, string | number>): string {
@@ -115,6 +125,28 @@ function fmt(template: string, vars: Record<string, string | number>): string {
 }
 
 type NotesForm = { notes: string };
+
+function resolveSubmitError(
+  result: Awaited<ReturnType<AdvanceProjectGateAction>>,
+  labels: AdvanceGateLabels,
+): string {
+  if (result.ok) return '';
+  if (result.error === 'ESIGN_REQUIRED') {
+    return labels.esignRequiredError ??
+      'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.';
+  }
+  if (result.error === 'BLOCKERS_PRESENT') {
+    const blockers = result.blockers ?? [];
+    const title = labels.blockersPresentError
+      ? fmt(labels.blockersPresentError, { count: blockers.length })
+      : fmt(labels.blockersTitle, { count: blockers.length || 1 });
+    const details = blockers
+      .map((blocker) => blocker.text ?? blocker.label ?? blocker.message ?? blocker.code ?? blocker.id)
+      .filter((value): value is string => Boolean(value));
+    return details.length > 0 ? `${title}\n${details.join('\n')}` : title;
+  }
+  return labels.error;
+}
 
 // ——— state notice (loading / empty / error / permission-denied) ———
 function StateNotice({ state, labels }: { state: AdvanceGateState; labels: AdvanceGateLabels }) {
@@ -217,7 +249,7 @@ export function AdvanceGateModal({
         setSuccess(true);
         onAdvanced?.();
       } else {
-        setServerError(labels.error);
+        setServerError(result ? resolveSubmitError(result, labels) : labels.error);
       }
     } catch {
       setServerError(labels.error);
@@ -398,7 +430,9 @@ export function AdvanceGateModal({
 
             {serverError ? (
               <div role="alert" data-testid="advance-gate-error" className="alert alert-red text-sm">
-                {serverError}
+                {serverError.split('\n').map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
               </div>
             ) : null}
           </form>

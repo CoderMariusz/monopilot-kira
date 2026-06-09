@@ -38,6 +38,8 @@ import {
   type ScenarioRow,
 } from './_components/costing-screen';
 import { saveCostingScenario } from './_actions/save-scenario';
+// C3 — compute initial breakdown (persists the `target` scenario via the waterfall).
+import { computeAndSaveInitialBreakdown } from './_actions/compute';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { COSTING_WATERFALL_STEP_NAMES } from '../../../../../../../lib/costing/compute-waterfall';
 
@@ -56,9 +58,12 @@ type QueryClient = {
 };
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
-type LoaderResult = { state: PageState; data: CostingScreenData | null };
+type LoaderResult = { state: PageState; data: CostingScreenData | null; canCompute: boolean };
 
 const READ_PERMISSION = 'npd.fa.read';
+// C3 — compute writes costing_breakdowns + waterfall steps; gate on the NPD
+// formulation write permission (the recipe whose ingredient costs it rolls up).
+const WRITE_PERMISSION = 'npd.formulation.create_draft';
 const MARGIN_WARN_THRESHOLD_KEY = 'costing_margin_warn_pct';
 const DEFAULT_WARN_PCT = '15';
 
@@ -101,6 +106,12 @@ const DEFAULT_LABELS: CostingLabels = {
   emptyBody: 'Costing is computed once the formulation has ingredient costs.',
   error: 'Unable to load costing data.',
   forbidden: 'You do not have permission to view costing data.',
+  computeCosting: 'Compute costing',
+  computing: 'Computing…',
+  computeError: 'Could not compute the costing. Try again.',
+  computeErrorNotFound: 'No formulation is available to compute costing from yet.',
+  computeErrorNoCosts: 'Every ingredient needs a cost before costing can be computed.',
+  computeErrorHardFail: 'The target margin is negative, so the breakdown cannot be saved.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof CostingLabels>;
@@ -211,8 +222,12 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const canRead = await hasPermission(ctx, READ_PERMISSION);
       if (!canRead) {
-        return { state: 'permission_denied', data: null };
+        return { state: 'permission_denied', data: null, canCompute: false };
       }
+
+      // C3 — write gate (resolved server-side; the empty-state Compute button is
+      // only enabled when this is true). RLS scopes to the org.
+      const canCompute = await hasPermission(ctx, WRITE_PERMISSION);
 
       // Resolve the FA candidate for this project. RLS scopes to the org.
       // product joins now carry (org_id, product_code) — the project row is
@@ -231,7 +246,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       );
       const productCode = project.rows[0]?.product_code;
       if (!productCode) {
-        return { state: 'empty', data: null };
+        return { state: 'empty', data: null, canCompute };
       }
       const productName = project.rows[0]?.product_name ?? productCode;
 
@@ -260,7 +275,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       );
 
       if (breakdowns.rows.length === 0) {
-        return { state: 'empty', data: null };
+        return { state: 'empty', data: null, canCompute };
       }
 
       const ids = breakdowns.rows.map((b) => b.id);
@@ -332,11 +347,12 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           scenarios: scenarioRows,
           currentParams,
         },
+        canCompute,
       };
     });
   } catch (error) {
     console.error('[costing] org-scoped read failed:', error);
-    return { state: 'error', data: null };
+    return { state: 'error', data: null, canCompute: false };
   }
 }
 
@@ -382,6 +398,19 @@ async function saveScenarioAction(call: SaveScenarioCall): Promise<SaveScenarioO
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+/**
+ * Compute-costing Server Action adapter (C3). Calls computeAndSaveInitialBreakdown
+ * (persists the `target` scenario via the waterfall) and normalises the result.
+ * RBAC is enforced in page.tsx (only injected when the user can write).
+ */
+async function computeCostingAction(call: {
+  projectId: string;
+}): Promise<{ ok: boolean; error?: string; message?: string }> {
+  'use server';
+  const result = await computeAndSaveInitialBreakdown(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error, message: result.message };
+}
+
 export default async function CostingPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as CostingPageProps;
   const { locale, projectId } = props.params
@@ -392,7 +421,7 @@ export default async function CostingPage(propsInput: unknown = {}) {
 
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
-    ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
+    ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null, canCompute: false }
     : await readPageData(projectId);
 
   return (
@@ -401,6 +430,9 @@ export default async function CostingPage(propsInput: unknown = {}) {
       data={loaded.data}
       labels={labels}
       onSaveScenario={saveScenarioAction}
+      projectId={projectId}
+      // C3 — only thread the compute action when the user can write (server-resolved).
+      computeAction={loaded.canCompute ? computeCostingAction : undefined}
     />
   );
 }

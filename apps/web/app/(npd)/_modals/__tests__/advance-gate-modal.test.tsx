@@ -274,15 +274,36 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
   });
 
-  it('error state: surfaces a role=alert error when the action returns ok:false (no DB submit on rejection)', async () => {
+  it('error state: maps BLOCKERS_PRESENT and lists returned blockers', async () => {
     const user = userEvent.setup();
-    const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'BLOCKERS_PRESENT', status: 409 });
+    const advance = vi.fn().mockResolvedValue({
+      ok: false as const,
+      error: 'BLOCKERS_PRESENT',
+      status: 409,
+      blockers: [{ id: 'costing', text: 'Target costing scenario is missing' }],
+    });
     renderModal({ advanceProjectGate: advance });
 
     await user.type(screen.getByLabelText(/Gate advancement notes/), 'All required evidence captured.');
     await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
 
-    const err = await screen.findByText('Could not advance the gate. Try again.');
+    const err = await screen.findByText('1 blocker(s)');
+    expect(err.closest('[role="alert"]')).not.toBeNull();
+    expect(screen.getByText('Target costing scenario is missing')).toBeInTheDocument();
+    expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
+  });
+
+  it('error state: maps ESIGN_REQUIRED to the approval-stage handoff message', async () => {
+    const user = userEvent.setup();
+    const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'ESIGN_REQUIRED', status: 403 });
+    renderModal({ advanceProjectGate: advance });
+
+    await user.type(screen.getByLabelText(/Gate advancement notes/), 'All required evidence captured.');
+    await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
+
+    const err = await screen.findByText(
+      'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
+    );
     expect(err.closest('[role="alert"]')).not.toBeNull();
     expect(screen.queryByTestId('advance-gate-success')).not.toBeInTheDocument();
   });

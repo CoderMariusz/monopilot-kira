@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -55,6 +56,17 @@ export type NutritionScreenData = {
   allergens: AllergenRow[];
 };
 
+/**
+ * Compute-NutriScore Server Action (legacy actions tree, `nutrition/_actions/compute.ts`
+ * → `computeNutrition`). Persists nutrition_profiles + nutri_score_results. RBAC is
+ * resolved server-side in page.tsx (the action is only threaded when the user can
+ * write); errors are surfaced inline (e.g. missing ingredient nutrition data).
+ */
+export type ComputeNutriScoreAction = (input: {
+  projectId: string;
+  formulationVersionId: string;
+}) => Promise<{ ok: true } | { ok: false; error: string; message?: string }>;
+
 export type NutritionLabels = {
   title: string;
   subtitle: string;
@@ -84,6 +96,13 @@ export type NutritionLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  /** Compute NutriScore action (C2) — empty-state CTA + recompute affordance. */
+  computeNutriScore: string;
+  recomputeNutriScore: string;
+  computing: string;
+  /** Generic + specific compute error messages (the action's code/message is surfaced). */
+  computeError: string;
+  computeErrorNotFound: string;
 };
 
 const GRADES: NutriGrade[] = ['A', 'B', 'C', 'D', 'E'];
@@ -207,11 +226,62 @@ export function NutritionScreen({
   state = 'ready',
   data,
   labels,
+  projectId,
+  formulationVersionId,
+  computeAction,
+  onRefresh,
 }: {
   state?: PageState;
   data: NutritionScreenData | null;
   labels: NutritionLabels;
+  /** Project + current formulation version — needed to compute the NutriScore (C2). */
+  projectId?: string;
+  formulationVersionId?: string | null;
+  /** Compute-NutriScore Server Action (injected only when the user can write). */
+  computeAction?: ComputeNutriScoreAction;
+  /** Server refresh after a successful compute. Test seam overrides router.refresh. */
+  onRefresh?: () => void;
 }) {
+  const router = useRouter();
+  const refresh = React.useCallback(() => {
+    if (onRefresh) onRefresh();
+    else router?.refresh?.();
+  }, [onRefresh, router]);
+
+  type ComputeStatus = 'idle' | 'computing' | 'computed' | 'error';
+  const [computeStatus, setComputeStatus] = React.useState<ComputeStatus>('idle');
+  const [computeError, setComputeError] = React.useState<string>('');
+
+  const canCompute = !!computeAction && !!projectId && !!formulationVersionId;
+
+  const runCompute = React.useCallback(() => {
+    if (!computeAction || !projectId || !formulationVersionId || computeStatus === 'computing') {
+      return;
+    }
+    setComputeStatus('computing');
+    setComputeError('');
+    void (async () => {
+      try {
+        const result = await computeAction({ projectId, formulationVersionId });
+        if (result.ok) {
+          setComputeStatus('computed');
+          refresh();
+        } else {
+          setComputeStatus('error');
+          // Surface the action's message when present (e.g. ingredient nutrition
+          // data missing), else a localized fallback by code.
+          setComputeError(
+            result.message ||
+              (result.error === 'not_found' ? labels.computeErrorNotFound : labels.computeError),
+          );
+        }
+      } catch {
+        setComputeStatus('error');
+        setComputeError(labels.computeError);
+      }
+    })();
+  }, [computeAction, projectId, formulationVersionId, computeStatus, refresh, labels.computeError, labels.computeErrorNotFound]);
+
   function handleExportCsv() {
     if (!data) return;
     const csv = buildNutritionCsv(data.rows, labels);
@@ -244,6 +314,20 @@ export function NutritionScreen({
           <p className="mt-1 text-sm muted">{labels.subtitle}</p>
         </div>
         <div className="flex gap-2">
+          {/* C2 — recompute affordance when data already exists (ready state). */}
+          {state === 'ready' && canCompute ? (
+            <Button
+              type="button"
+              onClick={runCompute}
+              disabled={computeStatus === 'computing'}
+              aria-label={labels.recomputeNutriScore}
+              className="btn-secondary btn-sm"
+              data-status={computeStatus}
+              data-testid="nutrition-recompute"
+            >
+              {computeStatus === 'computing' ? labels.computing : labels.recomputeNutriScore}
+            </Button>
+          ) : null}
           <Button
             type="button"
             onClick={handleExportCsv}
@@ -265,8 +349,31 @@ export function NutritionScreen({
         </div>
       </header>
 
+      {computeStatus === 'error' && computeError ? (
+        <div role="alert" className="alert alert-red" data-testid="nutrition-compute-error">
+          {computeError}
+        </div>
+      ) : null}
+
       {state !== 'ready' || !data ? (
-        <StateNotice state={state === 'ready' ? 'empty' : state} labels={labels} />
+        <div className="space-y-3">
+          <StateNotice state={state === 'ready' ? 'empty' : state} labels={labels} />
+          {/* C2 — Compute NutriScore CTA in the empty state (write-gated server-side). */}
+          {(state === 'empty' || state === 'ready') && canCompute ? (
+            <div style={{ textAlign: 'center' }}>
+              <Button
+                type="button"
+                className="btn-primary"
+                onClick={runCompute}
+                disabled={computeStatus === 'computing'}
+                data-status={computeStatus}
+                data-testid="nutrition-compute"
+              >
+                {computeStatus === 'computing' ? labels.computing : labels.computeNutriScore}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <>
           <Card>

@@ -11,6 +11,8 @@ export const COMPLIANCE_DOC_APP_VERSION = 'compliance-doc-actions-v1';
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
+  'image/png',
+  'image/jpeg',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
@@ -96,6 +98,7 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
       const bucket = complianceDocsBucket(orgId);
 
       const supabase = await createServerSupabaseClient();
+      await ensureComplianceDocsBucket(bucket);
       const bytes = await parsed.value.file.arrayBuffer();
       const { error: storageError } = await supabase.storage
         .from(bucket)
@@ -160,6 +163,37 @@ export async function uploadDoc(formData: FormData): Promise<UploadDocResult> {
       return { ok: false, code: 'PERSISTENCE_FAILED' };
     }
   });
+}
+
+async function ensureComplianceDocsBucket(bucket: string): Promise<void> {
+  const admin = await createSupabaseStorageAdmin();
+  const { error } = await admin.storage.createBucket(bucket, {
+    public: false,
+    fileSizeLimit: COMPLIANCE_DOC_MAX_BYTES,
+    allowedMimeTypes: Array.from(ALLOWED_MIME_TYPES),
+  });
+  if (error && !isBucketAlreadyExistsError(error)) throw error;
+}
+
+async function createSupabaseStorageAdmin() {
+  const { createClient } = await import('@supabase/supabase-js');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    },
+  );
+}
+
+function isBucketAlreadyExistsError(error: unknown): boolean {
+  const candidate = error as { statusCode?: string | number; status?: string | number; message?: string; name?: string };
+  const status = String(candidate.statusCode ?? candidate.status ?? '');
+  const message = String(candidate.message ?? candidate.name ?? '').toLowerCase();
+  return status === '409' || message.includes('already exists') || message.includes('duplicate');
 }
 
 async function deleteUploadedComplianceDoc(

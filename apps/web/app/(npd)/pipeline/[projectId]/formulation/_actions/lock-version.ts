@@ -12,7 +12,7 @@ type VersionRow = {
   product_code: string | null;
 };
 
-export type LockVersionResult =
+type LockVersionResult =
   | { ok: true; data: { versionId: string; formulationId: string; recipeComponents: string | null } }
   | {
       ok: false;
@@ -46,13 +46,15 @@ export async function lockVersion(input: { projectId?: unknown; versionId?: unkn
       const row = loaded.rows[0];
       if (!row) return { ok: false, error: 'not_found' };
       if (row.state === 'locked') return { ok: false, error: 'VERSION_LOCKED' };
-      if (row.state !== 'submitted_for_trial') return { ok: false, error: 'VERSION_NOT_SUBMITTED' };
+      if (row.state !== 'submitted_for_trial' && row.state !== 'draft') {
+        return { ok: false, error: 'VERSION_NOT_SUBMITTED' };
+      }
 
       await ctx.client.query(
         `update public.formulation_versions
             set state = 'locked'
           where id = $1::uuid
-            and state = 'submitted_for_trial'`,
+            and state in ('submitted_for_trial', 'draft')`,
         [versionId],
       );
       await ctx.client.query(

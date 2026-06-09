@@ -31,6 +31,8 @@ import {
   type PageState,
 } from './_components/nutrition-screen';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+// C2 — compute NutriScore: import the legacy-tree action DIRECTLY (no re-export shim).
+import { computeNutrition } from '../../../../../../(npd)/pipeline/[projectId]/nutrition/_actions/compute';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,9 +49,18 @@ type QueryClient = {
 };
 type OrgContextLike = { userId: string; orgId: string; client: QueryClient };
 
-type LoaderResult = { state: PageState; data: NutritionScreenData | null };
+type LoaderResult = {
+  state: PageState;
+  data: NutritionScreenData | null;
+  // C2 — write gate + the current formulation version to compute from.
+  canCompute: boolean;
+  formulationVersionId: string | null;
+};
 
 const READ_PERMISSION = 'npd.fa.read';
+// C2 — compute writes nutrition_profiles + nutri_score_results; gate on the NPD
+// formulation write permission (the same grant that authors the recipe it derives from).
+const WRITE_PERMISSION = 'npd.formulation.create_draft';
 
 const VALID_PRESENCE: AllergenPresence[] = ['contains', 'may_contain', 'free_from', 'unknown'];
 
@@ -81,6 +92,11 @@ const DEFAULT_LABELS: NutritionLabels = {
   emptyBody: 'Nutrition values are computed once the formulation is complete.',
   error: 'Unable to load nutrition data.',
   forbidden: 'You do not have permission to view nutrition data.',
+  computeNutriScore: 'Compute NutriScore',
+  recomputeNutriScore: 'Recompute NutriScore',
+  computing: 'Computing…',
+  computeError: 'Could not compute the NutriScore. Try again.',
+  computeErrorNotFound: 'No formulation is available to compute from yet.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof NutritionLabels>;
@@ -151,8 +167,24 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
 
       const canRead = await hasPermission(ctx, READ_PERMISSION);
       if (!canRead) {
-        return { state: 'permission_denied', data: null };
+        return { state: 'permission_denied', data: null, canCompute: false, formulationVersionId: null };
       }
+
+      // C2 — write gate + the project's current formulation version (the input the
+      // compute action needs). Both org-scoped via app.current_org_id() / RLS.
+      const [canWrite, versionRow] = await Promise.all([
+        hasPermission(ctx, WRITE_PERMISSION),
+        ctx.client.query<{ current_version_id: string | null }>(
+          `select f.current_version_id::text as current_version_id
+             from public.formulations f
+            where f.project_id = $1::uuid
+              and f.org_id = app.current_org_id()
+            limit 1`,
+          [projectId],
+        ),
+      ]);
+      const formulationVersionId = versionRow.rows[0]?.current_version_id ?? null;
+      const canCompute = canWrite && !!formulationVersionId;
 
       // Resolve the FA candidate for this project. RLS scopes to the org.
       const project = await ctx.client.query<{ product_code: string | null }>(
@@ -166,7 +198,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       const productCode = project.rows[0]?.product_code;
       if (!productCode) {
         // Project not found in this org, or no FG candidate mapped yet (pre-G3).
-        return { state: 'empty', data: null };
+        return { state: 'empty', data: null, canCompute, formulationVersionId };
       }
 
       // 7-row nutrient table, joined to Reference.Nutrients for label/unit and
@@ -186,7 +218,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       );
 
       if (profiles.rows.length === 0) {
-        return { state: 'empty', data: null };
+        return { state: 'empty', data: null, canCompute, formulationVersionId };
       }
 
       const score = await ctx.client.query<{ grade: string }>(
@@ -236,11 +268,13 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
           grade: toGrade(score.rows[0]?.grade),
           allergens: allergenRows,
         },
+        canCompute,
+        formulationVersionId,
       };
     });
   } catch (error) {
     console.error('[nutrition] org-scoped read failed:', error);
-    return { state: 'error', data: null };
+    return { state: 'error', data: null, canCompute: false, formulationVersionId: null };
   }
 }
 
@@ -254,8 +288,39 @@ export default async function NutritionPage(propsInput: unknown = {}) {
 
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
-    ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
+    ? {
+        state: props.state ?? (props.data ? 'ready' : 'empty'),
+        data: props.data ?? null,
+        canCompute: false,
+        formulationVersionId: null,
+      }
     : await readPageData(projectId);
 
-  return <NutritionScreen state={loaded.state} data={loaded.data} labels={labels} />;
+  return (
+    <NutritionScreen
+      state={loaded.state}
+      data={loaded.data}
+      labels={labels}
+      projectId={projectId}
+      formulationVersionId={loaded.formulationVersionId}
+      // C2 — only thread the compute action when the user can write (server-resolved).
+      computeAction={loaded.canCompute ? computeNutriScoreAction : undefined}
+    />
+  );
+}
+
+/**
+ * Compute-NutriScore Server Action adapter (C2). Calls the legacy-tree
+ * `computeNutrition` action and normalises its richer result to the minimal
+ * { ok } | { ok, error, message } the screen surfaces. RBAC is enforced in
+ * page.tsx (the action is only injected when the user can write).
+ */
+async function computeNutriScoreAction(input: {
+  projectId: string;
+  formulationVersionId: string;
+}): Promise<{ ok: true } | { ok: false; error: string; message?: string }> {
+  'use server';
+  const result = await computeNutrition(input);
+  if (result.ok) return { ok: true };
+  return { ok: false, error: result.error, message: result.message };
 }

@@ -103,6 +103,7 @@ const baseParams = {
 
 runIntegration('computeCosting (integration)', () => {
   let computeCosting: typeof import('../compute').computeCosting;
+  let computeAndSaveInitialBreakdown: typeof import('../compute').computeAndSaveInitialBreakdown;
   let saveCostingScenario: typeof import('../save-scenario').saveCostingScenario;
 
   beforeAll(async () => {
@@ -123,7 +124,7 @@ runIntegration('computeCosting (integration)', () => {
     await appClient.query('select app.set_org_context($1::uuid, $2::uuid)', [ctxHolder.sessionToken, orgA]);
     ctxHolder.client = appClient;
 
-    ({ computeCosting } = await import('../compute'));
+    ({ computeCosting, computeAndSaveInitialBreakdown } = await import('../compute'));
     ({ saveCostingScenario } = await import('../save-scenario'));
   });
 
@@ -337,6 +338,58 @@ runIntegration('computeCosting (integration)', () => {
     );
     expect(row.rows[0]!.params).toEqual(baseParams);
   });
+
+  it('computeAndSaveInitialBreakdown bootstraps the first target breakdown from the current formulation', async () => {
+    const projectId = randomUUID();
+    const formulationId = randomUUID();
+    const versionId = randomUUID();
+    await ownerPool.query(
+      `insert into public.npd_projects
+         (id, org_id, code, name, type, current_gate, current_stage, prio, product_code, created_by_user)
+       values
+         ($1::uuid, $2::uuid, $3, 'T073 Initial Costing', 'Recipe Standard', 'G2', 'costing', 'normal', $4, $5::uuid)`,
+      [projectId, orgA, `NPD-T073-${randomUUID().slice(0, 8)}`, productA, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulations (id, org_id, project_id, product_code, created_by_user)
+       values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid)`,
+      [formulationId, orgA, projectId, productA, orgAUser],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_versions
+         (id, formulation_id, version_number, state, batch_size_kg, target_yield_pct, target_price_eur, created_by_user)
+       values ($1::uuid, $2::uuid, 1, 'draft', 10.000, 90.000, 5.0000, $3::uuid)`,
+      [versionId, formulationId, orgAUser],
+    );
+    await ownerPool.query(
+      `update public.formulations set current_version_id = $2::uuid where id = $1::uuid`,
+      [formulationId, versionId],
+    );
+    await ownerPool.query(
+      `insert into public.formulation_ingredients
+         (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+       values
+         ($1::uuid, 'RM-T073-A', 6.000, 60.000, 2.5000, 1),
+         ($1::uuid, 'RM-T073-B', 4.000, 40.000, 3.7500, 2)`,
+      [versionId],
+    );
+
+    const res = await computeAndSaveInitialBreakdown({ projectId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.productCode).toBe(productA);
+    expect(res.data.scenario).toBe('target');
+    expect(res.data.rawCostEur).toBe('3.0000');
+    expect(res.data.targetPriceEur).toBe('5.0000');
+
+    const persisted = await appClient.query<{ breakdowns: string; steps: string }>(
+      `select
+         (select count(*)::text from public.costing_breakdowns where product_code = $1 and scenario = 'target') as breakdowns,
+         (select count(*)::text from public.costing_waterfall_steps where breakdown_id = $2::uuid) as steps`,
+      [productA, res.data.breakdownId],
+    );
+    expect(persisted.rows[0]).toEqual({ breakdowns: '1', steps: '9' });
+  });
 });
 
 // ── Pure validation path (always runs, no DB) ─────────────────────────────────
@@ -402,6 +455,13 @@ describe('computeCosting (input validation)', () => {
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.error).toBe('invalid_input');
+  });
+
+  it('computeAndSaveInitialBreakdown rejects invalid projectId before DB access', async () => {
+    const { computeAndSaveInitialBreakdown } = await import('../compute');
+    const res = await computeAndSaveInitialBreakdown({ projectId: 'not-a-uuid' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe('invalid_input');
   });
 
   it('saveCostingScenario also rejects out-of-bounds inputs with invalid_input', async () => {
