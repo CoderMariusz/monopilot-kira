@@ -91,7 +91,7 @@ export type AdvanceGateLabels = {
   optional: string;
   requiredComplete: string; // "{done} of {total} required items complete"
   blockersTitle: string; // "{count} blocker(s)"
-  requiredIncompleteWarning?: string; // "{n} required checklist items are not complete — you can still advance."
+  requiredIncompleteWarning: string; // "{count} required checklist items are not complete — you can still advance."
   readyAlert: string;
   notesLabel: string;
   notesPlaceholder: string;
@@ -361,11 +361,7 @@ export function AdvanceGateModal({
               <div role="note" data-testid="advance-gate-required-warning" className="alert alert-amber">
                 <p className="alert-title text-amber-800">
                   <span aria-hidden="true">ℹ</span>{' '}
-                  {fmt(
-                    labels.requiredIncompleteWarning ??
-                      '{n} required checklist items are not complete — you can still advance.',
-                    { n: incompleteRequired.length },
-                  )}
+                  {fmt(labels.requiredIncompleteWarning, { count: incompleteRequired.length })}
                 </p>
                 <ul data-testid="advance-gate-required-warning-list" className="list-none p-0">
                   {incompleteRequired.map((b) => (

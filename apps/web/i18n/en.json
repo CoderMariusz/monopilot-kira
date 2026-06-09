@@ -1979,7 +1979,7 @@
       "error": "Could not advance the gate. Try again.",
       "forbidden": "You do not have permission to advance this gate.",
       "recipeNeedsIngredient": "Recipe has at least one ingredient",
-      "requiredIncompleteWarning": "{n} required checklist items are not complete — you can still advance."
+      "requiredIncompleteWarning": "{count} required checklist items are not complete — you can still advance."
     },
     "briefModals": {
       "create": {

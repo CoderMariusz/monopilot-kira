@@ -91,7 +91,7 @@ const labels: AdvanceGateLabels = {
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
   blockersTitle: '{count} blocker(s)',
-  requiredIncompleteWarning: '{n} required checklist items are not complete — you can still advance.',
+  requiredIncompleteWarning: '{count} required checklist items are not complete — you can still advance.',
   readyAlert: 'No blockers — ready to advance!',
   notesLabel: 'Gate advancement notes',
   notesPlaceholder: 'Summarise completion, conditions, or observations for the audit trail…',

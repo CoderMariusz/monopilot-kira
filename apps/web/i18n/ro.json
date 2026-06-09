@@ -3698,7 +3698,7 @@
       "error": "Nu s-a putut avansa poarta. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a avansa această poartă.",
       "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient",
-      "requiredIncompleteWarning": "{n} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi."
+      "requiredIncompleteWarning": "{count} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi."
     },
     "briefModals": {
       "create": {

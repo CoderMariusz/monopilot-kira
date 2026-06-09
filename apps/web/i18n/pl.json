@@ -3698,7 +3698,7 @@
       "error": "Nie można przejść do następnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do przechodzenia tej bramki.",
       "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik",
-      "requiredIncompleteWarning": "{n} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować."
+      "requiredIncompleteWarning": "{count} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować."
     },
     "briefModals": {
       "create": {
