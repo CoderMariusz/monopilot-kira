@@ -1347,7 +1347,8 @@
             "loading": "Loading BOM versions…",
             "empty": "No BOM versions yet",
             "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
-            "error": "Unable to load BOM versions. Please try again."
+            "error": "Unable to load BOM versions. Please try again.",
+            "createCta": "+ New BOM"
           },
           "cost": {
             "current": "Current cost",
@@ -1867,7 +1868,16 @@
         "error": "Unable to load finished goods. Please try again.",
         "noFgs": "No finished goods found. Create an FG item first.",
         "cancel": "Cancel",
-        "confirm": "Continue"
+        "confirm": "Continue",
+        "emptyBody": "A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.",
+        "viewItems": "Go to items",
+        "blockedHint": "Only active finished goods can have a BOM authored against them.",
+        "status": {
+          "draft": "Draft",
+          "active": "Active",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        }
       },
       "actions": {
         "addComponent": "Add component",
@@ -1882,6 +1892,13 @@
         "deleteOnlyVersion": "Cannot delete the only version of a BOM.",
         "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
         "deleteError": "Unable to delete this BOM version. Please try again."
+      },
+      "firstAuthoring": {
+        "breadcrumbRoot": "BOM-y i receptury",
+        "emptyTitle": "Brak BOM-u",
+        "emptyBody": "Brak BOM-u dla {code} — dodaj pierwszy składnik, aby utworzyć wersję roboczą v1.",
+        "addFirstComponent": "+ Dodaj pierwszy składnik",
+        "draftBadge": "Nierozpoczęty"
       }
     },
     "bomList": {
@@ -3559,7 +3576,35 @@
       "error": "Nie można wczytać receptury.",
       "forbidden": "Nie masz uprawnień do edycji tej receptury.",
       "locked": "Ta wersja jest zablokowana i nie można jej edytować.",
-      "noAllergen": "—"
+      "noAllergen": "—",
+      "createDraft": "Create draft",
+      "chooseItem": "Choose item",
+      "submitting": "Submitting…",
+      "submittedForTrial": "Submitted for trial",
+      "submitError": "Could not submit for trial. Try again.",
+      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
+      "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
+      "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
+      "submitErrorLocked": "This version is locked and cannot be submitted.",
+      "submitErrorForbidden": "You do not have permission to submit for trial.",
+      "compareTitle": "Compare versions",
+      "compareVersionA": "Version A",
+      "compareVersionB": "Version B",
+      "compareClose": "Close",
+      "compareRun": "Compare",
+      "compareLoading": "Loading diff…",
+      "compareError": "Could not load the comparison.",
+      "compareColIngredient": "Ingredient",
+      "compareColVersionA": "Version A",
+      "compareColVersionB": "Version B",
+      "compareSamePick": "Pick two different versions to compare.",
+      "compareNoChanges": "No ingredient differences between these versions.",
+      "compareTruncated": "Showing the first 50 ingredient rows.",
+      "compareStatusAdded": "Added",
+      "compareStatusRemoved": "Removed",
+      "compareStatusChanged": "Changed",
+      "compareStatusUnchanged": "Unchanged"
     },
     "costPanel": {
       "title": "Koszt i marża",
@@ -3634,7 +3679,8 @@
       "empty": "Brak skonfigurowanej listy kontrolnej dla tej bramki.",
       "error": "Nie można przejść do następnej bramki. Spróbuj ponownie.",
       "forbidden": "Nie masz uprawnień do przechodzenia tej bramki.",
-      "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik"
+      "recipeNeedsIngredient": "Receptura zawiera co najmniej jeden składnik",
+      "requiredIncompleteWarning": "{n} wymaganych pozycji checklisty nieukończonych — możesz mimo to kontynuować."
     },
     "briefModals": {
       "create": {
@@ -4261,7 +4307,17 @@
       "empty": "Brak briefu powiązanego z tym projektem.",
       "emptyBody": "Ten projekt utworzono bez briefu lub brief nie jest dla Ciebie widoczny.",
       "error": "Nie można wczytać briefu.",
-      "forbidden": "Nie masz uprawnień do wyświetlenia tego briefu."
+      "forbidden": "Nie masz uprawnień do wyświetlenia tego briefu.",
+      "fieldPackWeight": "Pack weight (g)",
+      "editBrief": "Edytuj brief",
+      "editModalTitle": "Edytuj brief projektu",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "errInvalidInput": "Niektóre pola są nieprawidłowe. Sprawdź wartości i spróbuj ponownie.",
+      "errForbidden": "Nie masz uprawnień do edycji tego briefu.",
+      "errNotFound": "Nie znaleziono tego projektu.",
+      "errPersistence": "Nie udało się zapisać briefu. Spróbuj ponownie."
     },
     "sensory": {
       "title": "Panel sensoryczny",
@@ -4310,7 +4366,26 @@
       "emptyBody": "Przebieg pilotażu planuje się po ukończeniu receptury i prób.",
       "error": "Nie można załadować danych pilotażu.",
       "forbidden": "Nie masz uprawnień do wyświetlenia etapu pilotażu.",
-      "notSet": "—"
+      "notSet": "—",
+      "planPilotRun": "+ Plan pilot run",
+      "editPlan": "Edit plan",
+      "addMaterial": "+ Add material",
+      "editMaterial": "Edit material",
+      "editAction": "Edit",
+      "fieldPlannedDate": "Planned date",
+      "fieldLine": "Line",
+      "fieldBatchSize": "Batch size (kg)",
+      "fieldExpectedYield": "Expected yield (%)",
+      "fieldDuration": "Duration (hours)",
+      "fieldSupervisor": "Supervisor",
+      "fieldIngredient": "Ingredient",
+      "fieldRequired": "Required (kg)",
+      "fieldAvailable": "Available (kg)",
+      "fieldReserved": "Reserved (kg)",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saveError": "Could not save. Check the values and try again."
     },
     "trial": {
       "title": "Próby laboratoryjne i kuchenne",
@@ -4344,7 +4419,11 @@
       "empty": "Brak zarejestrowanych prób",
       "emptyBody": "Dodaj małą partię, aby zwalidować recepturę przed pilotem.",
       "error": "Nie można załadować danych prób.",
-      "forbidden": "Nie masz uprawnień do przeglądania prób."
+      "forbidden": "Nie masz uprawnień do przeglądania prób.",
+      "colActions": "Akcje",
+      "editTrial": "Edytuj",
+      "editModalTitle": "Edytuj próbę",
+      "saveEdit": "Zapisz zmiany"
     },
     "packaging": {
       "title": "Opakowania",
@@ -4388,7 +4467,8 @@
       "empty": "Brak elementów opakowań",
       "emptyBody": "Dodaj element opakowania podstawowego lub zbiorczego, aby rozpocząć.",
       "error": "Nie można załadować danych opakowań.",
-      "forbidden": "Nie masz uprawnień do wyświetlania danych opakowań."
+      "forbidden": "Nie masz uprawnień do wyświetlania danych opakowań.",
+      "artworkUnavailable": "Not available yet"
     },
     "stepper": {
       "brief": "Brief",
@@ -4558,7 +4638,9 @@
       "create": "Utwórz projekt i otwórz recepturę",
       "creating": "Tworzenie…",
       "errorGeneric": "Nie udało się utworzyć projektu. Spróbuj ponownie.",
-      "errorForbidden": "Nie masz uprawnień do tworzenia projektów."
+      "errorForbidden": "Nie masz uprawnień do tworzenia projektów.",
+      "fieldPackWeight": "Pack weight (g)",
+      "fieldPackWeightPlaceholder": "e.g. 200"
     }
   }
 }

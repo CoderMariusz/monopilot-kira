@@ -1347,7 +1347,8 @@
             "loading": "Loading BOM versions…",
             "empty": "No BOM versions yet",
             "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
-            "error": "Unable to load BOM versions. Please try again."
+            "error": "Unable to load BOM versions. Please try again.",
+            "createCta": "+ New BOM"
           },
           "cost": {
             "current": "Current cost",
@@ -1867,7 +1868,16 @@
         "error": "Unable to load finished goods. Please try again.",
         "noFgs": "No finished goods found. Create an FG item first.",
         "cancel": "Cancel",
-        "confirm": "Continue"
+        "confirm": "Continue",
+        "emptyBody": "A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.",
+        "viewItems": "Go to items",
+        "blockedHint": "Only active finished goods can have a BOM authored against them.",
+        "status": {
+          "draft": "Draft",
+          "active": "Active",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        }
       },
       "actions": {
         "addComponent": "Add component",
@@ -1882,6 +1892,13 @@
         "deleteOnlyVersion": "Cannot delete the only version of a BOM.",
         "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
         "deleteError": "Unable to delete this BOM version. Please try again."
+      },
+      "firstAuthoring": {
+        "breadcrumbRoot": "BOM-uri şi rețete",
+        "emptyTitle": "Niciun BOM încă",
+        "emptyBody": "Niciun BOM pentru {code} — adăugați prima componentă pentru a crea schița v1.",
+        "addFirstComponent": "+ Adaugă prima componentă",
+        "draftBadge": "Neînceput"
       }
     },
     "bomList": {
@@ -3559,7 +3576,35 @@
       "error": "Rețeta nu poate fi încărcată.",
       "forbidden": "Nu aveți permisiunea de a edita această rețetă.",
       "locked": "Această versiune este blocată și nu poate fi editată.",
-      "noAllergen": "—"
+      "noAllergen": "—",
+      "createDraft": "Create draft",
+      "chooseItem": "Choose item",
+      "submitting": "Submitting…",
+      "submittedForTrial": "Submitted for trial",
+      "submitError": "Could not submit for trial. Try again.",
+      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
+      "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
+      "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
+      "submitErrorLocked": "This version is locked and cannot be submitted.",
+      "submitErrorForbidden": "You do not have permission to submit for trial.",
+      "compareTitle": "Compare versions",
+      "compareVersionA": "Version A",
+      "compareVersionB": "Version B",
+      "compareClose": "Close",
+      "compareRun": "Compare",
+      "compareLoading": "Loading diff…",
+      "compareError": "Could not load the comparison.",
+      "compareColIngredient": "Ingredient",
+      "compareColVersionA": "Version A",
+      "compareColVersionB": "Version B",
+      "compareSamePick": "Pick two different versions to compare.",
+      "compareNoChanges": "No ingredient differences between these versions.",
+      "compareTruncated": "Showing the first 50 ingredient rows.",
+      "compareStatusAdded": "Added",
+      "compareStatusRemoved": "Removed",
+      "compareStatusChanged": "Changed",
+      "compareStatusUnchanged": "Unchanged"
     },
     "costPanel": {
       "title": "Cost și marjă",
@@ -3634,7 +3679,8 @@
       "empty": "Nicio listă de verificare configurată pentru această poartă.",
       "error": "Nu s-a putut avansa poarta. Încercați din nou.",
       "forbidden": "Nu aveți permisiunea de a avansa această poartă.",
-      "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient"
+      "recipeNeedsIngredient": "Rețeta are cel puțin un ingredient",
+      "requiredIncompleteWarning": "{n} elemente obligatorii din checklist nu sunt finalizate — poți continua totuşi."
     },
     "briefModals": {
       "create": {
@@ -4261,7 +4307,17 @@
       "empty": "Niciun brief asociat acestui proiect.",
       "emptyBody": "Acest proiect a fost creat fără brief sau briful nu vă este vizibil.",
       "error": "Briful nu a putut fi încărcat.",
-      "forbidden": "Nu aveți permisiunea de a vedea acest brief."
+      "forbidden": "Nu aveți permisiunea de a vedea acest brief.",
+      "fieldPackWeight": "Pack weight (g)",
+      "editBrief": "Editează brief-ul",
+      "editModalTitle": "Editează brief-ul proiectului",
+      "save": "Salvează",
+      "saving": "Se salvează…",
+      "cancel": "Anulează",
+      "errInvalidInput": "Unele câmpuri sunt invalide. Verifică valorile şi încearcă din nou.",
+      "errForbidden": "Nu ai permisiunea de a edita acest brief.",
+      "errNotFound": "Acest proiect nu a fost găsit.",
+      "errPersistence": "Brief-ul nu a putut fi salvat. Încearcă din nou."
     },
     "sensory": {
       "title": "Panel senzorial",
@@ -4310,7 +4366,26 @@
       "emptyBody": "Pilotul se programează după finalizarea formulei și a testelor.",
       "error": "Datele pilot nu pot fi încărcate.",
       "forbidden": "Nu aveți permisiunea de a vedea etapa pilot.",
-      "notSet": "—"
+      "notSet": "—",
+      "planPilotRun": "+ Plan pilot run",
+      "editPlan": "Edit plan",
+      "addMaterial": "+ Add material",
+      "editMaterial": "Edit material",
+      "editAction": "Edit",
+      "fieldPlannedDate": "Planned date",
+      "fieldLine": "Line",
+      "fieldBatchSize": "Batch size (kg)",
+      "fieldExpectedYield": "Expected yield (%)",
+      "fieldDuration": "Duration (hours)",
+      "fieldSupervisor": "Supervisor",
+      "fieldIngredient": "Ingredient",
+      "fieldRequired": "Required (kg)",
+      "fieldAvailable": "Available (kg)",
+      "fieldReserved": "Reserved (kg)",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saveError": "Could not save. Check the values and try again."
     },
     "trial": {
       "title": "Probe de laborator și bucătărie",
@@ -4344,7 +4419,11 @@
       "empty": "Nicio probă înregistrată",
       "emptyBody": "Înregistrează un lot mic pentru validarea rețetei înainte de pilot.",
       "error": "Datele probelor nu pot fi încărcate.",
-      "forbidden": "Nu ai permisiunea de a vedea probele."
+      "forbidden": "Nu ai permisiunea de a vedea probele.",
+      "colActions": "Acțiuni",
+      "editTrial": "Editează",
+      "editModalTitle": "Editează testul",
+      "saveEdit": "Salvează modificările"
     },
     "packaging": {
       "title": "Ambalaj",
@@ -4388,7 +4467,8 @@
       "empty": "Niciun component de ambalaj încă",
       "emptyBody": "Adaugă un component de ambalaj primar sau secundar pentru a începe.",
       "error": "Datele de ambalaj nu pot fi încărcate.",
-      "forbidden": "Nu ai permisiunea de a vizualiza datele de ambalaj."
+      "forbidden": "Nu ai permisiunea de a vizualiza datele de ambalaj.",
+      "artworkUnavailable": "Not available yet"
     },
     "stepper": {
       "brief": "Brief",
@@ -4558,7 +4638,9 @@
       "create": "Creează proiect și deschide rețeta",
       "creating": "Se creează…",
       "errorGeneric": "Nu s-a putut crea proiectul. Încearcă din nou.",
-      "errorForbidden": "Nu ai permisiunea de a crea proiecte."
+      "errorForbidden": "Nu ai permisiunea de a crea proiecte.",
+      "fieldPackWeight": "Pack weight (g)",
+      "fieldPackWeightPlaceholder": "e.g. 200"
     }
   }
 }

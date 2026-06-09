@@ -1871,7 +1871,35 @@
       "error": "Unable to load the formulation.",
       "forbidden": "You do not have permission to edit this formulation.",
       "locked": "This version is locked and cannot be edited.",
-      "noAllergen": "—"
+      "noAllergen": "—",
+      "createDraft": "Create draft",
+      "chooseItem": "Choose item",
+      "submitting": "Submitting…",
+      "submittedForTrial": "Submitted for trial",
+      "submitError": "Could not submit for trial. Try again.",
+      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
+      "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
+      "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
+      "submitErrorLocked": "This version is locked and cannot be submitted.",
+      "submitErrorForbidden": "You do not have permission to submit for trial.",
+      "compareTitle": "Compare versions",
+      "compareVersionA": "Version A",
+      "compareVersionB": "Version B",
+      "compareClose": "Close",
+      "compareRun": "Compare",
+      "compareLoading": "Loading diff…",
+      "compareError": "Could not load the comparison.",
+      "compareColIngredient": "Ingredient",
+      "compareColVersionA": "Version A",
+      "compareColVersionB": "Version B",
+      "compareSamePick": "Pick two different versions to compare.",
+      "compareNoChanges": "No ingredient differences between these versions.",
+      "compareTruncated": "Showing the first 50 ingredient rows.",
+      "compareStatusAdded": "Added",
+      "compareStatusRemoved": "Removed",
+      "compareStatusChanged": "Changed",
+      "compareStatusUnchanged": "Unchanged"
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -1946,7 +1974,8 @@
       "empty": "No checklist configured for this gate.",
       "error": "Could not advance the gate. Try again.",
       "forbidden": "You do not have permission to advance this gate.",
-      "recipeNeedsIngredient": "Recipe has at least one ingredient"
+      "recipeNeedsIngredient": "Recipe has at least one ingredient",
+      "requiredIncompleteWarning": "{n} required checklist items are not complete — you can still advance."
     },
     "briefModals": {
       "create": {
@@ -2616,7 +2645,17 @@
       "empty": "No brief linked to this project.",
       "emptyBody": "This project was created without a brief, or the brief is not visible to you.",
       "error": "Unable to load the brief.",
-      "forbidden": "You do not have permission to view this brief."
+      "forbidden": "You do not have permission to view this brief.",
+      "fieldPackWeight": "Pack weight (g)",
+      "editBrief": "Edit brief",
+      "editModalTitle": "Edit project brief",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "errInvalidInput": "Some fields are invalid. Check the values and try again.",
+      "errForbidden": "You do not have permission to edit this brief.",
+      "errNotFound": "This project could not be found.",
+      "errPersistence": "Could not save the brief. Please try again."
     },
     "sensory": {
       "title": "Sensory panel",
@@ -2665,7 +2704,26 @@
       "emptyBody": "A pilot run is scheduled once the formulation and trials are complete.",
       "error": "Unable to load pilot data.",
       "forbidden": "You do not have permission to view the pilot stage.",
-      "notSet": "—"
+      "notSet": "—",
+      "planPilotRun": "+ Plan pilot run",
+      "editPlan": "Edit plan",
+      "addMaterial": "+ Add material",
+      "editMaterial": "Edit material",
+      "editAction": "Edit",
+      "fieldPlannedDate": "Planned date",
+      "fieldLine": "Line",
+      "fieldBatchSize": "Batch size (kg)",
+      "fieldExpectedYield": "Expected yield (%)",
+      "fieldDuration": "Duration (hours)",
+      "fieldSupervisor": "Supervisor",
+      "fieldIngredient": "Ingredient",
+      "fieldRequired": "Required (kg)",
+      "fieldAvailable": "Available (kg)",
+      "fieldReserved": "Reserved (kg)",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saveError": "Could not save. Check the values and try again."
     },
     "trial": {
       "title": "Lab & kitchen trials",
@@ -2699,7 +2757,11 @@
       "empty": "No trials logged yet",
       "emptyBody": "Log a small-batch run to validate the recipe before pilot.",
       "error": "Unable to load trial data.",
-      "forbidden": "You do not have permission to view trials."
+      "forbidden": "You do not have permission to view trials.",
+      "colActions": "Actions",
+      "editTrial": "Edit",
+      "editModalTitle": "Edit trial",
+      "saveEdit": "Save changes"
     },
     "packaging": {
       "title": "Packaging",
@@ -2743,7 +2805,8 @@
       "empty": "No packaging components yet",
       "emptyBody": "Add a primary or secondary packaging component to get started.",
       "error": "Unable to load packaging data.",
-      "forbidden": "You do not have permission to view packaging data."
+      "forbidden": "You do not have permission to view packaging data.",
+      "artworkUnavailable": "Not available yet"
     },
     "stepper": {
       "brief": "Brief",
@@ -2913,7 +2976,9 @@
       "create": "Create project & open recipe",
       "creating": "Creating…",
       "errorGeneric": "Could not create the project. Try again.",
-      "errorForbidden": "You do not have permission to create projects."
+      "errorForbidden": "You do not have permission to create projects.",
+      "fieldPackWeight": "Pack weight (g)",
+      "fieldPackWeightPlaceholder": "e.g. 200"
     }
   },
   "technical": {
@@ -3106,7 +3171,8 @@
             "loading": "Loading BOM versions…",
             "empty": "No BOM versions yet",
             "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
-            "error": "Unable to load BOM versions. Please try again."
+            "error": "Unable to load BOM versions. Please try again.",
+            "createCta": "+ New BOM"
           },
           "cost": {
             "current": "Current cost",
@@ -3626,7 +3692,16 @@
         "error": "Unable to load finished goods. Please try again.",
         "noFgs": "No finished goods found. Create an FG item first.",
         "cancel": "Cancel",
-        "confirm": "Continue"
+        "confirm": "Continue",
+        "emptyBody": "A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.",
+        "viewItems": "Go to items",
+        "blockedHint": "Only active finished goods can have a BOM authored against them.",
+        "status": {
+          "draft": "Draft",
+          "active": "Active",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        }
       },
       "actions": {
         "addComponent": "Add component",
@@ -3641,6 +3716,13 @@
         "deleteOnlyVersion": "Cannot delete the only version of a BOM.",
         "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
         "deleteError": "Unable to delete this BOM version. Please try again."
+      },
+      "firstAuthoring": {
+        "breadcrumbRoot": "BOMs & recipes",
+        "emptyTitle": "No BOM yet",
+        "emptyBody": "No BOM yet for {code} — add the first component to create the v1 draft.",
+        "addFirstComponent": "+ Add first component",
+        "draftBadge": "Not started"
       }
     },
     "bomList": {

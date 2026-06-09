@@ -1347,7 +1347,8 @@
             "loading": "Loading BOM versions…",
             "empty": "No BOM versions yet",
             "emptyBody": "This item has no shared BOM version. NPD or Technical creates the first version.",
-            "error": "Unable to load BOM versions. Please try again."
+            "error": "Unable to load BOM versions. Please try again.",
+            "createCta": "+ New BOM"
           },
           "cost": {
             "current": "Current cost",
@@ -1867,7 +1868,16 @@
         "error": "Unable to load finished goods. Please try again.",
         "noFgs": "No finished goods found. Create an FG item first.",
         "cancel": "Cancel",
-        "confirm": "Continue"
+        "confirm": "Continue",
+        "emptyBody": "A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.",
+        "viewItems": "Go to items",
+        "blockedHint": "Only active finished goods can have a BOM authored against them.",
+        "status": {
+          "draft": "Draft",
+          "active": "Active",
+          "deprecated": "Deprecated",
+          "blocked": "Blocked"
+        }
       },
       "actions": {
         "addComponent": "Add component",
@@ -1882,6 +1892,13 @@
         "deleteOnlyVersion": "Cannot delete the only version of a BOM.",
         "deleteStatusBlocked": "Only draft versions can be deleted — approved or active versions are never removed.",
         "deleteError": "Unable to delete this BOM version. Please try again."
+      },
+      "firstAuthoring": {
+        "breadcrumbRoot": "Специфікації та рецептури",
+        "emptyTitle": "Ще немає специфікації",
+        "emptyBody": "Для {code} ще немає специфікації — додайте перший компонент, щоб створити чернетку v1.",
+        "addFirstComponent": "+ Додати перший компонент",
+        "draftBadge": "Не розпочато"
       }
     },
     "bomList": {
@@ -3559,7 +3576,35 @@
       "error": "Не вдалося завантажити рецептуру.",
       "forbidden": "У вас немає дозволу редагувати цю рецептуру.",
       "locked": "Цю версію заблоковано, і її не можна редагувати.",
-      "noAllergen": "—"
+      "noAllergen": "—",
+      "createDraft": "Create draft",
+      "chooseItem": "Choose item",
+      "submitting": "Submitting…",
+      "submittedForTrial": "Submitted for trial",
+      "submitError": "Could not submit for trial. Try again.",
+      "submitErrorTotalPct": "Ingredient total must equal 100% before submitting for trial.",
+      "submitErrorMissingCost": "Every ingredient needs a cost before submitting for trial.",
+      "submitErrorMissingNutritionTarget": "Compute nutrition before submitting for trial.",
+      "submitErrorNotDraft": "Only a draft version can be submitted for trial.",
+      "submitErrorLocked": "This version is locked and cannot be submitted.",
+      "submitErrorForbidden": "You do not have permission to submit for trial.",
+      "compareTitle": "Compare versions",
+      "compareVersionA": "Version A",
+      "compareVersionB": "Version B",
+      "compareClose": "Close",
+      "compareRun": "Compare",
+      "compareLoading": "Loading diff…",
+      "compareError": "Could not load the comparison.",
+      "compareColIngredient": "Ingredient",
+      "compareColVersionA": "Version A",
+      "compareColVersionB": "Version B",
+      "compareSamePick": "Pick two different versions to compare.",
+      "compareNoChanges": "No ingredient differences between these versions.",
+      "compareTruncated": "Showing the first 50 ingredient rows.",
+      "compareStatusAdded": "Added",
+      "compareStatusRemoved": "Removed",
+      "compareStatusChanged": "Changed",
+      "compareStatusUnchanged": "Unchanged"
     },
     "costPanel": {
       "title": "Вартість і маржа",
@@ -3634,7 +3679,8 @@
       "empty": "Контрольний список для цього етапу не налаштовано.",
       "error": "Не вдалося перейти до наступного етапу. Спробуйте ще раз.",
       "forbidden": "У вас немає дозволу переходити цей етап.",
-      "recipeNeedsIngredient": "Рецепт містить щонайменше один інгредієнт"
+      "recipeNeedsIngredient": "Рецепт містить щонайменше один інгредієнт",
+      "requiredIncompleteWarning": "{n} обовʼязкових пунктів чек-листа не виконано — ви все одно можете продовжити."
     },
     "briefModals": {
       "create": {
@@ -4261,7 +4307,17 @@
       "empty": "До цього проєкту не прив’язано бриф.",
       "emptyBody": "Цей проєкт створено без брифу, або бриф вам недоступний.",
       "error": "Не вдалося завантажити бриф.",
-      "forbidden": "У вас немає дозволу переглядати цей бриф."
+      "forbidden": "У вас немає дозволу переглядати цей бриф.",
+      "fieldPackWeight": "Pack weight (g)",
+      "editBrief": "Редагувати бриф",
+      "editModalTitle": "Редагувати бриф проєкту",
+      "save": "Зберегти",
+      "saving": "Збереження…",
+      "cancel": "Скасувати",
+      "errInvalidInput": "Деякі значення недійсні. Перевірте значення та спробуйте ще раз.",
+      "errForbidden": "У вас немає дозволу редагувати цей бриф.",
+      "errNotFound": "Цей проєкт не знайдено.",
+      "errPersistence": "Не вдалося зберегти бриф. Спробуйте ще раз."
     },
     "sensory": {
       "title": "Сенсорна панель",
@@ -4310,7 +4366,26 @@
       "emptyBody": "Пілот планується після завершення рецептури та випробувань.",
       "error": "Не вдалося завантажити дані пілота.",
       "forbidden": "У вас немає дозволу переглядати етап пілота.",
-      "notSet": "—"
+      "notSet": "—",
+      "planPilotRun": "+ Plan pilot run",
+      "editPlan": "Edit plan",
+      "addMaterial": "+ Add material",
+      "editMaterial": "Edit material",
+      "editAction": "Edit",
+      "fieldPlannedDate": "Planned date",
+      "fieldLine": "Line",
+      "fieldBatchSize": "Batch size (kg)",
+      "fieldExpectedYield": "Expected yield (%)",
+      "fieldDuration": "Duration (hours)",
+      "fieldSupervisor": "Supervisor",
+      "fieldIngredient": "Ingredient",
+      "fieldRequired": "Required (kg)",
+      "fieldAvailable": "Available (kg)",
+      "fieldReserved": "Reserved (kg)",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saveError": "Could not save. Check the values and try again."
     },
     "trial": {
       "title": "Лабораторні та кухонні випробування",
@@ -4344,7 +4419,11 @@
       "empty": "Випробувань ще немає",
       "emptyBody": "Додайте малу партію, щоб перевірити рецептуру перед пілотом.",
       "error": "Не вдалося завантажити дані випробувань.",
-      "forbidden": "У вас немає дозволу переглядати випробування."
+      "forbidden": "У вас немає дозволу переглядати випробування.",
+      "colActions": "Дії",
+      "editTrial": "Редагувати",
+      "editModalTitle": "Редагувати випробування",
+      "saveEdit": "Зберегти зміни"
     },
     "packaging": {
       "title": "Пакування",
@@ -4388,7 +4467,8 @@
       "empty": "Ще немає компонентів пакування",
       "emptyBody": "Додайте компонент первинного або вторинного пакування, щоб почати.",
       "error": "Не вдалося завантажити дані пакування.",
-      "forbidden": "У вас немає дозволу переглядати дані пакування."
+      "forbidden": "У вас немає дозволу переглядати дані пакування.",
+      "artworkUnavailable": "Not available yet"
     },
     "stepper": {
       "brief": "Бриф",
@@ -4558,7 +4638,9 @@
       "create": "Створити проєкт і відкрити рецептуру",
       "creating": "Створення…",
       "errorGeneric": "Не вдалося створити проєкт. Спробуйте ще раз.",
-      "errorForbidden": "У вас немає дозволу створювати проєкти."
+      "errorForbidden": "У вас немає дозволу створювати проєкти.",
+      "fieldPackWeight": "Pack weight (g)",
+      "fieldPackWeightPlaceholder": "e.g. 200"
     }
   }
 }

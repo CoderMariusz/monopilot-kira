@@ -5,7 +5,7 @@
     "prototype-index-npd.json#approval_history_timeline"
   ],
   "data_source": "REAL public.gate_approvals (project-scoped) via packages/queries listApprovalHistory(projectId) — org-scoped through app.current_org_id()/RLS; NO mocks",
-  "generated_at": "2026-06-06T00:20:26.738Z",
+  "generated_at": "2026-06-08T05:41:39.717Z",
   "states": {
     "loading": {
       "section": true,
