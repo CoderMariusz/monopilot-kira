@@ -1,9 +1,10 @@
-import { SettingsRouteStub } from '../_components/settings-route-stub';
-import { readShippingOverridesSettingsData } from './_actions/shipping-overrides';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
+type PageProps = {
+  params?: Promise<{ locale: string }>;
+};
 
-export default async function ShippingOverridesSettingsPage() {
-  await readShippingOverridesSettingsData();
-  return <SettingsRouteStub stubKey="ship_override_reasons" />;
+export default async function ShippingOverridesLegacyRedirectPage({ params }: PageProps) {
+  const locale = (await params)?.locale ?? 'en';
+  redirect(`/${locale}/settings/ship-override-reasons`);
 }

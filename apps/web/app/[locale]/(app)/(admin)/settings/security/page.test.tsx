@@ -14,7 +14,12 @@ import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import SecurityScreen, { type SaveSecuritySettings, type SecurityScreenLabels } from './security-screen.client';
+import SecurityScreen, {
+  type AddIpRange,
+  type RemoveIpRange,
+  type SaveSecuritySettings,
+  type SecurityScreenLabels,
+} from './security-screen.client';
 
 type AuditLogRow = {
   id: string;
@@ -49,17 +54,22 @@ type SecurityScreenData = {
     idleTimeout: '15' | '30' | '60' | '4h' | 'never';
     maximumSessionLength: '4h' | '8h' | '12h' | '24h';
   };
-  ipAllowlist: string[];
+  ipAllowlist: Array<{ id: string; cidr: string; label: string | null }>;
   auditLog: AuditLogRow[];
 };
 
 type TestSaveSecuritySettings = SaveSecuritySettings & ReturnType<typeof vi.fn>;
+type TestAddIpRange = AddIpRange & ReturnType<typeof vi.fn>;
+type TestRemoveIpRange = RemoveIpRange & ReturnType<typeof vi.fn>;
 
 type SecurityPageProps = {
   data: SecurityScreenData;
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canManageSecurity: boolean;
   saveSecuritySettings: TestSaveSecuritySettings;
+  addIpRange: TestAddIpRange;
+  removeIpRange: TestRemoveIpRange;
+  auditLogHref: string;
 };
 
 const securityAuditTables = [
@@ -198,6 +208,21 @@ const labels: SecurityScreenLabels = {
   addIpRangeTitle: 'Add IP range',
   close: 'Close',
   addIpRangeHelp: 'Add a CIDR range for administrator sign-in.',
+  ipCidrLabel: 'CIDR range',
+  ipCidrPlaceholder: '203.0.113.0/24',
+  ipCidrHint: 'IPv4 or IPv6 with a prefix.',
+  ipLabelLabel: 'Label (optional)',
+  ipLabelPlaceholder: 'e.g. HQ office',
+  ipAddSubmit: 'Add range',
+  ipAdding: 'Adding…',
+  ipRemove: 'Remove',
+  ipRemoving: 'Removing…',
+  ipRemoveConfirm: 'Remove this IP range from the admin allowlist?',
+  ipErrorInvalid: 'Enter a valid CIDR range.',
+  ipErrorOverlap: 'The all-internet range cannot be allowlisted.',
+  ipErrorForbidden: 'You do not have permission to change the IP allowlist.',
+  ipErrorFailed: 'Could not save the IP range. Try again.',
+  notAvailableYet: 'Not available yet',
   auditLogTitle: 'Audit log',
   viewFullLog: 'View full log →',
   auditTableLabel: 'Security audit log preview',
@@ -221,6 +246,12 @@ async function renderSecurity(overrides: Partial<SecurityPageProps> = {}) {
     state: 'ready',
     canManageSecurity: true,
     saveSecuritySettings: vi.fn(async (_next: SecurityScreenData) => ({ ok: true as const, data })) as TestSaveSecuritySettings,
+    addIpRange: vi.fn(async (cidr: string, label?: string | null) => ({
+      ok: true as const,
+      data: { id: 'ip-new', cidr, label: label ?? null },
+    })) as TestAddIpRange,
+    removeIpRange: vi.fn(async (id: string) => ({ ok: true as const, data: { id } })) as TestRemoveIpRange,
+    auditLogHref: '/settings/audit',
     ...overrides,
   };
 
@@ -489,5 +520,214 @@ describe('SET-012 security screen prototype parity', () => {
       const tableName = row.getAttribute('data-table-name');
       expect(securityAuditTables).toContain(tableName);
     }
+  });
+});
+
+describe('SET-012 security screen — wired controls persist through one Save', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('wires every editable policy control into the saved payload', async () => {
+    const user = userEvent.setup();
+    const saveSecuritySettings = vi.fn(async (next: SecurityScreenData) => ({
+      ok: true as const,
+      data: next,
+    })) as TestSaveSecuritySettings;
+    await renderSecurity({ saveSecuritySettings });
+
+    // Toggle the two real 2FA enforcement switches.
+    await act(async () => {
+      await user.click(screen.getByRole('checkbox', { name: /enforce 2fa for admins/i })); // true -> false
+      await user.click(screen.getByRole('checkbox', { name: /enforce 2fa for all users/i })); // false -> true
+    });
+    // Drop SMS from the allowed methods (was on).
+    await act(async () => {
+      await user.click(screen.getByRole('checkbox', { name: /^sms$/i }));
+    });
+    // Change the minimum password length (controlled number input).
+    const minLength = screen.getByRole('spinbutton', { name: /minimum length/i });
+    await act(async () => {
+      await user.clear(minLength);
+      await user.type(minLength, '16');
+    });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save security settings/i }));
+    });
+
+    expect(saveSecuritySettings).toHaveBeenCalledTimes(1);
+    const payload = saveSecuritySettings.mock.calls[0][0] as SecurityScreenData;
+    expect(payload.twoFactor.enforceAdmins).toBe(false);
+    expect(payload.twoFactor.enforceAllUsers).toBe(true);
+    expect(payload.twoFactor.allowedMethods).toEqual(['totp']);
+    expect(payload.passwordPolicy.minimumLength).toBe(16);
+  });
+
+  it('changing complexity flows into the saved payload', async () => {
+    const user = userEvent.setup();
+    const saveSecuritySettings = vi.fn(async (next: SecurityScreenData) => ({
+      ok: true as const,
+      data: next,
+    })) as TestSaveSecuritySettings;
+    await renderSecurity({ saveSecuritySettings });
+
+    await act(async () => {
+      await user.click(screen.getByRole('combobox', { name: /complexity/i }));
+    });
+    await act(async () => {
+      await user.click(screen.getByRole('option', { name: /medium/i }));
+    });
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save security settings/i }));
+    });
+
+    const payload = saveSecuritySettings.mock.calls[0][0] as SecurityScreenData;
+    expect(payload.passwordPolicy.complexity).toBe('medium');
+  });
+
+  it('disables controls that have no backing policy field (Not available yet)', async () => {
+    await renderSecurity();
+
+    // Password expiry, both session selects, and SCIM are disabled (no column yet).
+    expect(screen.getByRole('combobox', { name: /password expires/i })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /idle timeout/i })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /maximum session length/i })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /scim provisioning/i })).toBeDisabled();
+    expect(screen.getByRole('spinbutton', { name: /block reuse of last n passwords/i })).toBeDisabled();
+  });
+});
+
+describe('SET-012 security screen — IP allowlist add/remove', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('submits the exact CIDR + label payload to addIpRange and lists the new range', async () => {
+    const user = userEvent.setup();
+    const addIpRange = vi.fn(async (cidr: string, label?: string | null) => ({
+      ok: true as const,
+      data: { id: 'ip-9', cidr, label: label ?? null },
+    })) as TestAddIpRange;
+    await renderSecurity({ addIpRange });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /add range/i }));
+    });
+    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
+
+    await act(async () => {
+      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '203.0.113.0/24');
+      await user.type(within(dialog).getByRole('textbox', { name: /label/i }), 'HQ office');
+    });
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
+    });
+
+    expect(addIpRange).toHaveBeenCalledTimes(1);
+    expect(addIpRange).toHaveBeenCalledWith('203.0.113.0/24', 'HQ office');
+
+    // Dialog closes and the new range appears in the allowlist.
+    expect(screen.queryByRole('dialog', { name: /add ip range/i })).not.toBeInTheDocument();
+    const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
+    expect(within(ipAllowlist).getByText('203.0.113.0/24')).toBeInTheDocument();
+    expect(within(ipAllowlist).getByText('HQ office')).toBeInTheDocument();
+  });
+
+  it('omits the optional label when left blank', async () => {
+    const user = userEvent.setup();
+    const addIpRange = vi.fn(async (cidr: string, label?: string | null) => ({
+      ok: true as const,
+      data: { id: 'ip-10', cidr, label: label ?? null },
+    })) as TestAddIpRange;
+    await renderSecurity({ addIpRange });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /add range/i }));
+    });
+    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
+    await act(async () => {
+      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '10.0.0.0/8');
+    });
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
+    });
+
+    expect(addIpRange).toHaveBeenCalledWith('10.0.0.0/8', null);
+  });
+
+  it('surfaces the add-range error inline and keeps the dialog open', async () => {
+    const user = userEvent.setup();
+    const addIpRange = vi.fn(async () => ({
+      ok: false as const,
+      error: 'CIDR_OVERLAP_DEFAULT' as const,
+    })) as TestAddIpRange;
+    await renderSecurity({ addIpRange });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /add range/i }));
+    });
+    const dialog = screen.getByRole('dialog', { name: /add ip range/i });
+    await act(async () => {
+      await user.type(within(dialog).getByRole('textbox', { name: /cidr range/i }), '0.0.0.0/0');
+    });
+    await act(async () => {
+      await user.click(within(dialog).getByRole('button', { name: /^add range$/i }));
+    });
+
+    expect(await within(dialog).findByText(/all-internet range cannot be allowlisted/i)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /add ip range/i })).toBeInTheDocument();
+  });
+
+  it('removes a range only after the confirm prompt and calls removeIpRange with its id', async () => {
+    const user = userEvent.setup();
+    const removeIpRange = vi.fn(async (id: string) => ({ ok: true as const, data: { id } })) as TestRemoveIpRange;
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    const seeded: SecurityScreenData = {
+      ...data,
+      ipAllowlist: [{ id: 'ip-1', cidr: '198.51.100.0/24', label: 'Branch' }],
+    };
+    await renderSecurity({ data: seeded, removeIpRange });
+
+    const ipAllowlist = screen.getByRole('region', { name: /ip allowlist/i });
+    const removeButton = within(ipAllowlist).getByRole('button', { name: /remove 198\.51\.100\.0\/24/i });
+
+    // Cancel path: confirm returns false -> no action call, row stays.
+    confirmSpy.mockReturnValueOnce(false);
+    await act(async () => {
+      await user.click(removeButton);
+    });
+    expect(removeIpRange).not.toHaveBeenCalled();
+    expect(within(ipAllowlist).getByText('198.51.100.0/24')).toBeInTheDocument();
+
+    // Confirm path: confirm returns true -> action called, row removed.
+    confirmSpy.mockReturnValueOnce(true);
+    await act(async () => {
+      await user.click(removeButton);
+    });
+    expect(removeIpRange).toHaveBeenCalledTimes(1);
+    expect(removeIpRange).toHaveBeenCalledWith('ip-1');
+    expect(within(ipAllowlist).queryByText('198.51.100.0/24')).not.toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+});
+
+describe('SET-012 security screen — view full log link', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders View full log as a real link to the audit screen', async () => {
+    await renderSecurity({ auditLogHref: '/settings/audit' });
+
+    const link = screen.getByTestId('security-view-full-log');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveAttribute('href', '/settings/audit');
+    expect(link).toHaveTextContent(/view full log/i);
   });
 });

@@ -20,8 +20,13 @@
  */
 import {
   listInvitations,
+  resendInvitation,
+  revokeInvitation,
   type ListInvitationsResult,
 } from '../../../../../../actions/users/invitations-lifecycle';
+import { inviteUser } from '../../../../../../actions/users/invite';
+import { getInvitationLifecycleToken } from '../../../../../../actions/invitations/get-invitation-lifecycle-token';
+import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import InvitationsClient, { type InvitationsScreenProps } from './invitations-screen.client';
 
 const VIEW_PERMISSION = 'settings.users.view';
@@ -34,11 +39,22 @@ type PendingInvitation = {
   id: string;
   email: string;
   role: string;
+  roleId?: string;
   invitedBy: string;
   invitedAt: string;
   expiresAt: string;
   status: InvitationStatus;
   inviteToken?: string;
+};
+
+type InviteRoleOption = {
+  id: string;
+  label: string;
+};
+
+type QueryResult<T> = { rows: T[]; rowCount?: number | null };
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<T>>;
 };
 
 type RouteProps = {
@@ -54,6 +70,7 @@ type ListedInvitation = {
   id: string;
   email: string;
   role: string | null;
+  roleId?: string | null;
   invitedBy: string | null;
   invitedAt: string | null;
   expiresAt: string | null;
@@ -72,6 +89,7 @@ function toPendingInvitation(item: ListedInvitation): PendingInvitation | null {
     id: item.id,
     email: item.email,
     role: item.role ?? 'Unassigned',
+    roleId: item.roleId ?? undefined,
     invitedBy: item.invitedBy ?? 'System',
     invitedAt: item.invitedAt ?? '—',
     expiresAt: item.expiresAt ?? '—',
@@ -81,6 +99,26 @@ function toPendingInvitation(item: ListedInvitation): PendingInvitation | null {
     // "Lifecycle action unavailable" until the token is fetched on demand.
     inviteToken: undefined,
   };
+}
+
+async function prefetchInviteRoles(): Promise<InviteRoleOption[]> {
+  try {
+    return await withOrgContext<InviteRoleOption[]>(async ({ client }) => {
+      const queryClient = client as QueryClient;
+      const { rows } = await queryClient.query<{ id: string; code: string; name: string | null }>(
+        `select r.id,
+                r.code,
+                r.name
+           from public.roles r
+          where r.org_id = app.current_org_id()
+            and r.code not in ('owner', 'admin', 'org.access.admin', 'org.platform.admin', 'org.schema.admin')
+          order by r.display_order nulls last, coalesce(r.name, r.code) asc`,
+      );
+      return rows.map((role) => ({ id: role.id, label: role.name ?? role.code }));
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function prefetchInvitations(): Promise<{
@@ -97,7 +135,8 @@ async function prefetchInvitations(): Promise<{
   }
 
   if (!result.ok) {
-    if (result.error === 'forbidden') {
+    const errorCode = 'error' in result ? result.error : 'persistence_failed';
+    if (errorCode === 'forbidden') {
       return {
         invitations: [],
         permissions: [],
@@ -130,18 +169,24 @@ export default async function LocalizedInvitationsPage(props: PageInput = {}) {
 
   // SSR mode: prefetch real org-scoped invitations and render the client as a
   // controlled component so the first paint shows real data, not a skeleton.
-  const { invitations, permissions, state, errorMessage } = await prefetchInvitations();
+  const locale = props.params ? (await props.params).locale : 'en';
+  const [{ invitations, permissions, state, errorMessage }, inviteRoles] = await Promise.all([
+    prefetchInvitations(),
+    prefetchInviteRoles(),
+  ]);
 
-  // Note: lifecycle write actions (resend/revoke) are intentionally NOT wired
-  // here — listInvitations does not surface the raw invite_token, so the client
-  // renders write controls as unavailable until a token is fetched on demand.
-  // Wiring them with the SSR list (token-less) would produce stale_token errors.
   return (
     <InvitationsClient
       invitations={invitations}
       permissions={permissions}
       state={state}
       errorMessage={errorMessage}
+      inviteUser={inviteUser}
+      inviteRoles={inviteRoles}
+      locale={locale}
+      resendInvitation={resendInvitation}
+      revokeInvitation={revokeInvitation}
+      getInvitationLifecycleToken={getInvitationLifecycleToken}
     />
   );
 }

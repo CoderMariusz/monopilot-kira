@@ -20,11 +20,12 @@ type PendingInvitation = {
   id: string;
   email: string;
   role: string;
+  roleId?: string;
   invitedBy: string;
   invitedAt: string;
   expiresAt: string;
   status: InvitationStatus;
-  inviteToken: string;
+  inviteToken?: string;
 };
 
 type InvitationsPageProps = {
@@ -33,8 +34,10 @@ type InvitationsPageProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   errorMessage?: string;
   inviteUser?: ReturnType<typeof vi.fn>;
+  inviteRoles?: Array<{ id: string; label: string }>;
   resendInvitation?: ReturnType<typeof vi.fn>;
   revokeInvitation?: ReturnType<typeof vi.fn>;
+  getInvitationLifecycleToken?: ReturnType<typeof vi.fn>;
 };
 
 type InvitationsPage = (props: InvitationsPageProps) => React.ReactNode | Promise<React.ReactNode>;
@@ -84,10 +87,8 @@ async function loadInvitationsPage(): Promise<InvitationsPage> {
       expect.any(Function),
     );
     return mod.default as InvitationsPage;
-  } catch {
-    return function MissingLocalizedInvitationsPage() {
-      return React.createElement('main', { 'data-testid': 'missing-localized-invitations-page' });
-    };
+  } catch (error) {
+    throw new Error(`Failed to import localized invitations page: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -97,9 +98,11 @@ async function renderInvitationsPage(overrides: Partial<InvitationsPageProps> = 
     invitations,
     permissions: [VIEW_PERMISSION, INVITE_PERMISSION, ROLE_ASSIGN_PERMISSION],
     state: 'ready',
-    inviteUser: vi.fn().mockResolvedValue({ ok: true, invitationId: 'invite-new', auditEventId: 'audit-invite-1' }),
+    inviteUser: vi.fn().mockResolvedValue({ ok: true, data: { email: 'new@example.test', expiresAt: '2026-06-01T00:00:00Z' } }),
+    inviteRoles: [{ id: 'role-viewer', label: 'Viewer' }],
     resendInvitation: vi.fn().mockResolvedValue({ ok: true, expiresAt: '2026-05-26 10:00', auditEventId: 'audit-resend-1' }),
     revokeInvitation: vi.fn().mockResolvedValue({ ok: true, status: 'revoked', auditEventId: 'audit-revoke-1' }),
+    getInvitationLifecycleToken: vi.fn().mockResolvedValue({ token: 'token-pending' }),
     ...overrides,
   };
 
@@ -190,6 +193,62 @@ describe('SET-010 localized Pending Invitations table and lifecycle actions', ()
 
     expect(within(rowForEmail('accepted.wh@example.test')).queryByRole('button', { name: /^revoke$/i })).not.toBeInTheDocument();
     expect(revokeInvitation).not.toHaveBeenCalledWith({ invitationId: 'invite-accepted', inviteToken: 'token-accepted' });
+  });
+
+  it('opens the Invite User modal and surfaces submit errors inline like the users flow', async () => {
+    const user = userEvent.setup();
+    const inviteUser = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: 'invite_failed' })
+      .mockResolvedValueOnce({ ok: true, data: { email: 'new@example.test', expiresAt: '2026-06-01T00:00:00Z' } });
+    await renderInvitationsPage({ inviteUser, inviteRoles: [{ id: 'role-viewer', label: 'Viewer' }] });
+
+    await user.click(screen.getByRole('button', { name: /^invite user$/i }));
+    const inviteDialog = await screen.findByRole('dialog', { name: /invite team member/i });
+    await user.type(within(inviteDialog).getByLabelText(/email address/i), 'new@example.test');
+    await user.click(within(inviteDialog).getByRole('button', { name: /send invitation/i }));
+
+    expect(inviteUser).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'new@example.test',
+      roleId: 'role-viewer',
+      language: 'en',
+    }));
+    expect(await within(inviteDialog).findByRole('alert')).toHaveTextContent(/invite_failed/i);
+
+    await user.click(within(inviteDialog).getByRole('button', { name: /send invitation/i }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/invitation sent to new@example\.test/i);
+  });
+
+  it('fetches pending lifecycle tokens on demand before resend and revoke', async () => {
+    const user = userEvent.setup();
+    const tokenlessPending: PendingInvitation = {
+      id: 'invite-pending',
+      email: 'pending.qa@example.test',
+      role: 'QA Manager',
+      invitedBy: 'Ada Admin',
+      invitedAt: '2026-05-18 10:00',
+      expiresAt: '2026-05-25 10:00',
+      status: 'pending',
+    };
+    const getInvitationLifecycleToken = vi.fn().mockResolvedValue({ token: 'token-fetched' });
+    const resendInvitation = vi.fn().mockResolvedValue({ ok: true, expiresAt: '2026-05-26 10:00', auditEventId: 'audit-resend-1' });
+    const revokeInvitation = vi.fn().mockResolvedValue({ ok: true, status: 'revoked', auditEventId: 'audit-revoke-1' });
+    await renderInvitationsPage({
+      invitations: [tokenlessPending],
+      getInvitationLifecycleToken,
+      resendInvitation,
+      revokeInvitation,
+    });
+
+    await user.click(within(rowForEmail('pending.qa@example.test')).getByRole('button', { name: /^resend$/i }));
+    expect(getInvitationLifecycleToken).toHaveBeenCalledWith({ invitationId: 'invite-pending' });
+    expect(resendInvitation).toHaveBeenCalledWith({ invitationId: 'invite-pending', inviteToken: 'token-fetched' });
+
+    await user.click(within(rowForEmail('pending.qa@example.test')).getByRole('button', { name: /^revoke$/i }));
+    const confirmDialog = await screen.findByRole('dialog', { name: /revoke invitation/i });
+    await user.click(within(confirmDialog).getByRole('button', { name: /confirm revoke|revoke invitation/i }));
+    expect(getInvitationLifecycleToken).toHaveBeenCalledTimes(2);
+    expect(revokeInvitation).toHaveBeenCalledWith({ invitationId: 'invite-pending', inviteToken: 'token-fetched' });
   });
 });
 

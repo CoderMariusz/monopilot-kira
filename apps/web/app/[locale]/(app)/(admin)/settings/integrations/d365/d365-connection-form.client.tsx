@@ -380,7 +380,13 @@ function ReadyD365ConnectionForm({
                 className="form-input font-mono"
                 style={{ width: 200 }}
               />
-              <Button type="button" className="btn-secondary btn-sm" onClick={onRotateSecret}>
+              <Button
+                type="button"
+                className="btn-secondary btn-sm"
+                disabled={!rotateD365ClientSecret}
+                title={!rotateD365ClientSecret ? 'Key rotation is not available yet.' : undefined}
+                onClick={onRotateSecret}
+              >
                 {labels.rotateSecret}
               </Button>
             </div>

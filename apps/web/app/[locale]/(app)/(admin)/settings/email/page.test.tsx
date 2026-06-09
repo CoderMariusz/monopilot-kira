@@ -439,8 +439,7 @@ describe('SET-090 email_templates_screen prototype parity', () => {
     expect(screen.getByRole('combobox', { name: /^provider$/i })).toHaveFocus();
     await user.tab();
     expect(screen.getByLabelText(/^API key$/i)).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole('button', { name: /^Rotate$/i })).toHaveFocus();
+    // Rotate button is disabled (vault not implemented) — skipped in tab order.
     await user.tab();
     expect(screen.getByRole('textbox', { name: /from email/i })).toHaveFocus();
     await user.tab();

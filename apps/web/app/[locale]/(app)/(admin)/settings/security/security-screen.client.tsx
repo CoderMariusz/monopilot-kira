@@ -1,5 +1,6 @@
 "use client";
 
+import Link from 'next/link';
 import React, { useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@monopilot/ui/Button';
@@ -22,6 +23,12 @@ export type AuditLogRow = {
   action: string;
   ipAddress: string | null;
   tableName: string;
+};
+
+export type IpAllowlistEntry = {
+  id: string;
+  cidr: string;
+  label: string | null;
 };
 
 export type SecurityScreenData = {
@@ -48,7 +55,7 @@ export type SecurityScreenData = {
     idleTimeout: '15' | '30' | '60' | '4h' | 'never';
     maximumSessionLength: '4h' | '8h' | '12h' | '24h';
   };
-  ipAllowlist: string[];
+  ipAllowlist: IpAllowlistEntry[];
   auditLog: AuditLogRow[];
 };
 
@@ -57,6 +64,23 @@ export type SaveSecuritySettings = (
 ) => Promise<
   | { ok: true; data?: SecurityScreenData }
   | { ok: false; code?: string; fieldErrors?: Record<string, string>; data?: SecurityScreenData }
+>;
+
+/** Mirrors `actions/security/ip-allowlist-add.addIpRange`. */
+export type AddIpRange = (
+  cidr: string,
+  label?: string | null,
+) => Promise<
+  | { ok: true; data: { id: string; cidr: string; label: string | null } }
+  | { ok: false; error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' }
+>;
+
+/** Mirrors `actions/security/ip-allowlist-remove.removeIpRange`. */
+export type RemoveIpRange = (
+  id: string,
+) => Promise<
+  | { ok: true; data: { id: string } }
+  | { ok: false; error: 'INVALID_INPUT' | 'NOT_FOUND' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' }
 >;
 
 export type SecurityScreenLabels = {
@@ -111,6 +135,21 @@ export type SecurityScreenLabels = {
   addIpRangeTitle: string;
   close: string;
   addIpRangeHelp: string;
+  ipCidrLabel: string;
+  ipCidrPlaceholder: string;
+  ipCidrHint: string;
+  ipLabelLabel: string;
+  ipLabelPlaceholder: string;
+  ipAddSubmit: string;
+  ipAdding: string;
+  ipRemove: string;
+  ipRemoving: string;
+  ipRemoveConfirm: string;
+  ipErrorInvalid: string;
+  ipErrorOverlap: string;
+  ipErrorForbidden: string;
+  ipErrorFailed: string;
+  notAvailableYet: string;
   auditLogTitle: string;
   viewFullLog: string;
   auditTableLabel: string;
@@ -134,6 +173,10 @@ export type SecurityScreenProps = {
   state?: 'ready' | 'loading' | 'empty' | 'error';
   canManageSecurity: boolean;
   saveSecuritySettings: SaveSecuritySettings;
+  addIpRange: AddIpRange;
+  removeIpRange: RemoveIpRange;
+  /** Locale-relative href to the full audit log screen. */
+  auditLogHref: string;
 };
 
 const securityAuditTables = new Set([
@@ -177,15 +220,23 @@ function CheckboxControl({
   checked,
   disabled,
   title,
+  onChange,
 }: {
   label: string;
   checked: boolean;
   disabled?: boolean;
   title?: string;
+  onChange?: (value: boolean) => void;
 }) {
   return (
     <label className="flex items-center gap-2 text-sm text-slate-900">
-      <Checkbox aria-label={label} defaultChecked={checked} disabled={disabled} title={title} />
+      <Checkbox
+        aria-label={label}
+        checked={checked}
+        disabled={disabled}
+        title={title}
+        onCheckedChange={(value) => onChange?.(Boolean(value))}
+      />
       <span>{label}</span>
     </label>
   );
@@ -220,8 +271,86 @@ function StatusView({ kind, labels }: { kind: 'loading' | 'empty' | 'error' | 'p
   );
 }
 
-function AddIpRangeDialog({ open, onClose, labels }: { open: boolean; onClose: () => void; labels: SecurityScreenLabels }) {
+/**
+ * Light client-side CIDR shape check used only to surface an inline hint before
+ * the user submits. Authoritative validation (and the IPv4/IPv6 default-open
+ * `0.0.0.0/0` · `::/0` rejection) lives in the `addIpRange` server action — this
+ * is a UX affordance, not a security boundary.
+ */
+export function looksLikeCidr(value: string): boolean {
+  const trimmed = value.trim();
+  const slash = trimmed.indexOf('/');
+  if (slash < 0) return false;
+  const address = trimmed.slice(0, slash);
+  const prefixText = trimmed.slice(slash + 1);
+  if (!address || !/^[0-9]+$/.test(prefixText)) return false;
+  const prefix = Number(prefixText);
+  if (address.includes(':')) return prefix >= 0 && prefix <= 128;
+  return prefix >= 0 && prefix <= 32 && /^(\d{1,3}\.){3}\d{1,3}$/.test(address);
+}
+
+function ipErrorLabel(
+  error: 'INVALID_INPUT' | 'CIDR_OVERLAP_DEFAULT' | 'FORBIDDEN' | 'PERSISTENCE_FAILED' | 'NOT_FOUND',
+  labels: SecurityScreenLabels,
+): string {
+  switch (error) {
+    case 'CIDR_OVERLAP_DEFAULT':
+      return labels.ipErrorOverlap;
+    case 'FORBIDDEN':
+      return labels.ipErrorForbidden;
+    case 'INVALID_INPUT':
+      return labels.ipErrorInvalid;
+    default:
+      return labels.ipErrorFailed;
+  }
+}
+
+function AddIpRangeDialog({
+  open,
+  onClose,
+  labels,
+  addIpRange,
+  onAdded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  labels: SecurityScreenLabels;
+  addIpRange: AddIpRange;
+  onAdded: (entry: IpAllowlistEntry) => void;
+}) {
+  const [cidr, setCidr] = useState('');
+  const [label, setLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, startSubmit] = useTransition();
+
+  React.useEffect(() => {
+    if (!open) {
+      setCidr('');
+      setLabel('');
+      setError(null);
+    }
+  }, [open]);
+
   if (!open) return null;
+
+  const trimmed = cidr.trim();
+  const showFormatHint = trimmed.length > 0 && !looksLikeCidr(trimmed);
+  const canSubmit = trimmed.length > 0 && !isSubmitting;
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const normalizedLabel = label.trim();
+    startSubmit(async () => {
+      const result = await addIpRange(trimmed, normalizedLabel.length > 0 ? normalizedLabel : null);
+      if (result.ok) {
+        onAdded({ id: result.data.id, cidr: result.data.cidr, label: result.data.label });
+        onClose();
+        return;
+      }
+      setError(ipErrorLabel(result.error, labels));
+    });
+  }
 
   return (
     <div className="modal-overlay" onMouseDown={onClose}>
@@ -243,9 +372,69 @@ function AddIpRangeDialog({ open, onClose, labels }: { open: boolean; onClose: (
             ×
           </Button>
         </div>
-        <div className="modal-body">
+        <form className="modal-body space-y-3" onSubmit={handleSubmit}>
           <p className="muted text-sm">{labels.addIpRangeHelp}</p>
-        </div>
+          <div className="space-y-1">
+            <label className="sg-label text-sm" htmlFor="sm-ip-cidr">
+              {labels.ipCidrLabel}
+            </label>
+            <input
+              id="sm-ip-cidr"
+              aria-label={labels.ipCidrLabel}
+              name="cidr"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full font-mono"
+              placeholder={labels.ipCidrPlaceholder}
+              value={cidr}
+              disabled={isSubmitting}
+              onChange={(event) => {
+                setCidr(event.target.value);
+                setError(null);
+              }}
+            />
+            <p className="sg-hint text-xs" id="sm-ip-cidr-hint">
+              {labels.ipCidrHint}
+            </p>
+            {showFormatHint ? (
+              <p role="status" className="text-xs font-medium text-amber-700">
+                {labels.ipErrorInvalid}
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <label className="sg-label text-sm" htmlFor="sm-ip-label">
+              {labels.ipLabelLabel}
+            </label>
+            <input
+              id="sm-ip-label"
+              aria-label={labels.ipLabelLabel}
+              name="label"
+              type="text"
+              maxLength={120}
+              autoComplete="off"
+              className="w-full"
+              placeholder={labels.ipLabelPlaceholder}
+              value={label}
+              disabled={isSubmitting}
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </div>
+          {error ? (
+            <div role="alert" className="text-xs font-medium text-red-700">
+              {error}
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" className="btn-ghost btn-sm" onClick={onClose} disabled={isSubmitting}>
+              {labels.close}
+            </Button>
+            <Button type="submit" className="btn-primary btn-sm" disabled={!canSubmit}>
+              {isSubmitting ? labels.ipAdding : labels.ipAddSubmit}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -264,12 +453,18 @@ export default function SecurityScreen({
   state = 'ready',
   canManageSecurity,
   saveSecuritySettings,
+  addIpRange,
+  removeIpRange,
+  auditLogHref,
 }: SecurityScreenProps) {
   const [screenData, setScreenData] = useState(data);
   const [enforceSso, setEnforceSso] = useState(data.sso.enforceSso);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [ipDialogOpen, setIpDialogOpen] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [ipError, setIpError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isRemoving, startRemoving] = useTransition();
   const auditRows = useMemo(() => sortSecurityAuditRows(screenData.auditLog), [screenData.auditLog]);
 
   if (state === 'loading') return <StatusView kind="loading" labels={labels} />;
@@ -300,6 +495,38 @@ export default function SecurityScreen({
     });
   }
 
+  function toggleMethod(method: string, next: boolean) {
+    setScreenData((prev) => {
+      const set = new Set(prev.twoFactor.allowedMethods);
+      if (next) set.add(method);
+      else set.delete(method);
+      return { ...prev, twoFactor: { ...prev.twoFactor, allowedMethods: Array.from(set) } };
+    });
+  }
+
+  function handleIpAdded(entry: IpAllowlistEntry) {
+    setIpError(null);
+    setScreenData((prev) => ({ ...prev, ipAllowlist: [entry, ...prev.ipAllowlist] }));
+  }
+
+  function handleRemoveIp(entry: IpAllowlistEntry) {
+    if (!window.confirm(labels.ipRemoveConfirm)) return;
+    setIpError(null);
+    setRemovingId(entry.id);
+    startRemoving(async () => {
+      const result = await removeIpRange(entry.id);
+      if (result.ok) {
+        setScreenData((prev) => ({
+          ...prev,
+          ipAllowlist: prev.ipAllowlist.filter((row) => row.id !== entry.id),
+        }));
+      } else {
+        setIpError(ipErrorLabel(result.error, labels));
+      }
+      setRemovingId(null);
+    });
+  }
+
   return (
     <main className="space-y-5 p-6">
       <div data-region="page-head">
@@ -308,15 +535,39 @@ export default function SecurityScreen({
 
       <RegionSection region="twofa" title={labels.twoFactorTitle} sub={labels.twoFactorSub}>
         <SRow label={labels.enforceAdmins} hint={labels.enforceAdminsHint}>
-          <Toggle aria-label={labels.enforceAdmins} checked={screenData.twoFactor.enforceAdmins} disabled={isPending} />
+          <Toggle
+            aria-label={labels.enforceAdmins}
+            checked={screenData.twoFactor.enforceAdmins}
+            disabled={isPending}
+            onChange={(next) =>
+              setScreenData((prev) => ({ ...prev, twoFactor: { ...prev.twoFactor, enforceAdmins: next } }))
+            }
+          />
         </SRow>
         <SRow label={labels.enforceAllUsers}>
-          <Toggle aria-label={labels.enforceAllUsers} checked={screenData.twoFactor.enforceAllUsers} disabled={isPending} />
+          <Toggle
+            aria-label={labels.enforceAllUsers}
+            checked={screenData.twoFactor.enforceAllUsers}
+            disabled={isPending}
+            onChange={(next) =>
+              setScreenData((prev) => ({ ...prev, twoFactor: { ...prev.twoFactor, enforceAllUsers: next } }))
+            }
+          />
         </SRow>
         <SRow label={labels.allowedMethods}>
           <div className="flex flex-col gap-1.5">
-            <CheckboxControl label={labels.methodTotp} checked={screenData.twoFactor.allowedMethods.includes('totp')} disabled={isPending} />
-            <CheckboxControl label={labels.methodSms} checked={screenData.twoFactor.allowedMethods.includes('sms')} disabled={isPending} />
+            <CheckboxControl
+              label={labels.methodTotp}
+              checked={screenData.twoFactor.allowedMethods.includes('totp')}
+              disabled={isPending}
+              onChange={(next) => toggleMethod('totp', next)}
+            />
+            <CheckboxControl
+              label={labels.methodSms}
+              checked={screenData.twoFactor.allowedMethods.includes('sms')}
+              disabled={isPending}
+              onChange={(next) => toggleMethod('sms', next)}
+            />
             <CheckboxControl
               label={labels.methodWebauthn}
               checked={screenData.twoFactor.allowedMethods.includes('webauthn')}
@@ -334,9 +585,20 @@ export default function SecurityScreen({
             aria-label={labels.minimumLength}
             name={labels.minimumLength}
             type="number"
-            defaultValue={screenData.passwordPolicy.minimumLength}
+            min={8}
+            value={screenData.passwordPolicy.minimumLength}
             disabled={isPending}
             style={{ width: 80 }}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setScreenData((prev) => ({
+                ...prev,
+                passwordPolicy: {
+                  ...prev.passwordPolicy,
+                  minimumLength: Number.isFinite(next) ? next : prev.passwordPolicy.minimumLength,
+                },
+              }));
+            }}
           />
         </SRow>
         <SelectField
@@ -344,64 +606,88 @@ export default function SecurityScreen({
           label={labels.complexity}
           value={screenData.passwordPolicy.complexity}
           disabled={isPending}
+          onChange={(value) =>
+            setScreenData((prev) => ({
+              ...prev,
+              passwordPolicy: {
+                ...prev.passwordPolicy,
+                complexity: value as SecurityScreenData['passwordPolicy']['complexity'],
+              },
+            }))
+          }
           options={[
             { value: 'strong', label: labels.complexityStrong },
             { value: 'medium', label: labels.complexityMedium },
             { value: 'basic', label: labels.complexityBasic },
           ]}
         />
-        <SelectField
-          id="security-password-expires"
-          label={labels.passwordExpires}
-          hint={labels.passwordExpiresHint}
-          value={screenData.passwordPolicy.expires}
-          disabled={isPending}
-          options={[
-            { value: 'never', label: labels.expiresNever },
-            { value: '90', label: labels.expires90 },
-            { value: '180', label: labels.expires180 },
-          ]}
-        />
+        {/* Password expiry has no backing column in `upsertSecurityPolicy`; kept
+            for visual parity but disabled with a 'Not available yet' tooltip so we
+            never fake-save it. */}
+        <div title={labels.notAvailableYet}>
+          <SelectField
+            id="security-password-expires"
+            label={labels.passwordExpires}
+            hint={labels.passwordExpiresHint}
+            value={screenData.passwordPolicy.expires}
+            disabled
+            options={[
+              { value: 'never', label: labels.expiresNever },
+              { value: '90', label: labels.expires90 },
+              { value: '180', label: labels.expires180 },
+            ]}
+          />
+        </div>
+        {/* Block-reuse count has no backing column either — disabled, not fake-saved. */}
         <SRow label={labels.blockReuse} htmlFor="security-block-reuse">
           <input
             id="security-block-reuse"
             aria-label={labels.blockReuse}
             name={labels.blockReuse}
             type="number"
-            defaultValue={screenData.passwordPolicy.blockReuseCount}
-            disabled={isPending}
+            value={screenData.passwordPolicy.blockReuseCount}
+            disabled
+            title={labels.notAvailableYet}
             style={{ width: 80 }}
+            readOnly
           />
         </SRow>
       </RegionSection>
 
+      {/* Session timeouts (idle / max length) have no backing column in the
+          policy action yet — rendered for parity but disabled with a
+          'Not available yet' tooltip rather than fake-saved. */}
       <RegionSection region="sessions" title={labels.sessionTitle}>
-        <SelectField
-          id="security-idle-timeout"
-          label={labels.idleTimeout}
-          hint={labels.idleTimeoutHint}
-          value={screenData.sessionPolicy.idleTimeout}
-          disabled={isPending}
-          options={[
-            { value: '15', label: labels.minutes15 },
-            { value: '30', label: labels.minutes30 },
-            { value: '60', label: labels.minutes60 },
-            { value: '4h', label: labels.hours4 },
-            { value: 'never', label: labels.never },
-          ]}
-        />
-        <SelectField
-          id="security-max-session"
-          label={labels.maximumSessionLength}
-          value={screenData.sessionPolicy.maximumSessionLength}
-          disabled={isPending}
-          options={[
-            { value: '4h', label: labels.hours4 },
-            { value: '8h', label: labels.hours8 },
-            { value: '12h', label: labels.hours12 },
-            { value: '24h', label: labels.hours24 },
-          ]}
-        />
+        <div title={labels.notAvailableYet}>
+          <SelectField
+            id="security-idle-timeout"
+            label={labels.idleTimeout}
+            hint={labels.idleTimeoutHint}
+            value={screenData.sessionPolicy.idleTimeout}
+            disabled
+            options={[
+              { value: '15', label: labels.minutes15 },
+              { value: '30', label: labels.minutes30 },
+              { value: '60', label: labels.minutes60 },
+              { value: '4h', label: labels.hours4 },
+              { value: 'never', label: labels.never },
+            ]}
+          />
+        </div>
+        <div title={labels.notAvailableYet}>
+          <SelectField
+            id="security-max-session"
+            label={labels.maximumSessionLength}
+            value={screenData.sessionPolicy.maximumSessionLength}
+            disabled
+            options={[
+              { value: '4h', label: labels.hours4 },
+              { value: '8h', label: labels.hours8 },
+              { value: '12h', label: labels.hours12 },
+              { value: '24h', label: labels.hours24 },
+            ]}
+          />
+        </div>
       </RegionSection>
 
       <RegionSection
@@ -426,19 +712,44 @@ export default function SecurityScreen({
         </SRow>
       </RegionSection>
 
+      {/* SCIM provisioning is driven by token presence (read-only here); the
+          policy action has no SCIM field, so the toggle is disabled with a
+          'Not available yet' tooltip rather than fake-saved. */}
       <RegionSection region="scim" title={labels.scimTitle}>
-        <SRow label={labels.scimProvisioning}>
-          <Toggle aria-label={labels.scimProvisioning} checked={screenData.scim.enabled} disabled={isPending} />
+        <SRow label={labels.scimProvisioning} hint={labels.notAvailableYet}>
+          <span title={labels.notAvailableYet}>
+            <Toggle aria-label={labels.scimProvisioning} checked={screenData.scim.enabled} disabled />
+          </span>
         </SRow>
       </RegionSection>
 
       <RegionSection region="ip-allowlist" title={labels.ipAllowlistTitle}>
         <SRow label={labels.ipAllowlistTitle} hint={labels.ipAllowlistHint}>
-          <div className="font-mono text-xs text-slate-500">
-            {screenData.ipAllowlist.length > 0 ? screenData.ipAllowlist.join(', ') : labels.notConfigured}{' '}
+          <div className="space-y-2">
+            {screenData.ipAllowlist.length > 0 ? (
+              <ul className="space-y-1.5" aria-label={labels.ipAllowlistTitle}>
+                {screenData.ipAllowlist.map((entry) => (
+                  <li key={entry.id} className="flex items-center gap-3 text-sm" data-ip-id={entry.id}>
+                    <span className="font-mono text-slate-900">{entry.cidr}</span>
+                    {entry.label ? <span className="text-xs text-slate-500">{entry.label}</span> : null}
+                    <Button
+                      type="button"
+                      className="btn-ghost btn-sm ml-auto text-red-600"
+                      aria-label={`${labels.ipRemove} ${entry.cidr}`}
+                      disabled={isRemoving && removingId === entry.id}
+                      onClick={() => handleRemoveIp(entry)}
+                    >
+                      {isRemoving && removingId === entry.id ? labels.ipRemoving : labels.ipRemove}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="font-mono text-xs text-slate-500">{labels.notConfigured}</div>
+            )}
             <Button
               type="button"
-              className="btn-ghost btn-sm ml-1 text-blue-600"
+              className="btn-ghost btn-sm text-blue-600"
               data-modal-target="SM-IP-ALLOWLIST"
               onClick={(event) => {
                 setIpDialogOpen(true);
@@ -447,6 +758,11 @@ export default function SecurityScreen({
             >
               {labels.addRange}
             </Button>
+            {ipError ? (
+              <div role="alert" className="text-xs font-medium text-red-700">
+                {ipError}
+              </div>
+            ) : null}
           </div>
         </SRow>
       </RegionSection>
@@ -454,7 +770,16 @@ export default function SecurityScreen({
       <RegionSection
         region="audit-preview"
         title={labels.auditLogTitle}
-        action={<Button type="button" className="btn-ghost btn-sm">{labels.viewFullLog}</Button>}
+        action={
+          <Link
+            href={auditLogHref}
+            prefetch={false}
+            data-testid="security-view-full-log"
+            className="btn-ghost btn-sm text-blue-600"
+          >
+            {labels.viewFullLog}
+          </Link>
+        }
       >
         <div className="overflow-x-auto">
           <table aria-label={labels.auditTableLabel} className="w-full border-collapse text-sm">
@@ -490,7 +815,13 @@ export default function SecurityScreen({
         </div>
       </div>
 
-      <AddIpRangeDialog open={ipDialogOpen} onClose={() => setIpDialogOpen(false)} labels={labels} />
+      <AddIpRangeDialog
+        open={ipDialogOpen}
+        onClose={() => setIpDialogOpen(false)}
+        labels={labels}
+        addIpRange={addIpRange}
+        onAdded={handleIpAdded}
+      />
     </main>
   );
 }

@@ -12,9 +12,13 @@
  * Parity source: prototypes/design/Monopilot Design System/settings/access-screens.jsx:232-243
  */
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useState, useTransition } from 'react';
 
 import { Button } from '@monopilot/ui/Button';
+import Input from '@monopilot/ui/Input';
+import Modal from '@monopilot/ui/Modal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
+import Textarea from '@monopilot/ui/Textarea';
 
 export type InvitationStatus = 'pending' | 'expired' | 'accepted';
 
@@ -22,6 +26,7 @@ export type PendingInvitation = {
   id: string;
   email: string;
   role: string;
+  roleId?: string;
   invitedBy: string;
   invitedAt: string;
   expiresAt: string;
@@ -37,14 +42,31 @@ export type LifecycleResult = {
   status?: string;
 };
 
+export type InviteRoleOption = {
+  id: string;
+  label: string;
+};
+
+export type InviteUserAction = (input: {
+  email: string;
+  name?: string;
+  roleId: string;
+  site?: string;
+  personalMessage?: string;
+  language?: string;
+}) => Promise<{ ok: true; data: { email: string; expiresAt: string } } | { ok: false; error: string }>;
+
 export type InvitationsScreenProps = {
   invitations: PendingInvitation[];
   permissions: string[];
   state?: 'ready' | 'loading' | 'empty' | 'error';
   errorMessage?: string;
-  inviteUser?: (input: unknown) => Promise<unknown> | unknown;
+  inviteUser?: InviteUserAction;
+  inviteRoles?: InviteRoleOption[];
+  locale?: string;
   resendInvitation?: (input: { invitationId: string; inviteToken: string }) => Promise<LifecycleResult> | LifecycleResult;
   revokeInvitation?: (input: { invitationId: string; inviteToken: string }) => Promise<LifecycleResult> | LifecycleResult;
+  getInvitationLifecycleToken?: (input: { invitationId: string }) => Promise<{ token: string }> | { token: string };
 };
 
 type Feedback = { kind: 'status' | 'alert'; message: string } | null;
@@ -119,6 +141,7 @@ type RuntimeInvitationListItem = {
 type RuntimeActions = {
   resendInvitation?: InvitationsScreenProps['resendInvitation'];
   revokeInvitation?: InvitationsScreenProps['revokeInvitation'];
+  getInvitationLifecycleToken?: InvitationsScreenProps['getInvitationLifecycleToken'];
 };
 
 function normalizeRuntimeInvitation(item: RuntimeInvitationListItem): PendingInvitation | null {
@@ -182,6 +205,156 @@ function RevokeDialog({
   );
 }
 
+function interpolate(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce((acc, [key, value]) => acc.replaceAll(`{${key}}`, String(value)), template);
+}
+
+function InviteDialog({
+  open,
+  onOpenChange,
+  roles,
+  locale,
+  inviteUser,
+  onFeedback,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  roles: InviteRoleOption[];
+  locale: string;
+  inviteUser?: InviteUserAction;
+  onFeedback: (feedback: Feedback) => void;
+}) {
+  const defaultRoleId = roles[0]?.id ?? '';
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [roleId, setRoleId] = useState(defaultRoleId);
+  const [site, setSite] = useState('');
+  const [personalMessage, setPersonalMessage] = useState('');
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!roleId && defaultRoleId) setRoleId(defaultRoleId);
+  }, [defaultRoleId, roleId]);
+
+  function resetForm() {
+    setEmail('');
+    setName('');
+    setSite('');
+    setPersonalMessage('');
+    setInlineError(null);
+    setRoleId(defaultRoleId);
+  }
+
+  function submitInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInlineError(null);
+
+    if (!inviteUser || !email.trim() || !roleId) {
+      setInlineError('Enter a valid email and role.');
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await inviteUser({
+        email: email.trim(),
+        name: name.trim() || undefined,
+        roleId,
+        site: site.trim() || undefined,
+        personalMessage: personalMessage.trim() || undefined,
+        language: locale,
+      });
+
+      if (result.ok) {
+        onFeedback({
+          kind: 'status',
+          message: interpolate('Invitation sent to {email}.', { email: result.data.email }),
+        });
+        resetForm();
+        onOpenChange(false);
+        return;
+      }
+
+      setInlineError(interpolate('Invitation failed: {error}', { error: 'error' in result ? result.error : 'invite_failed' }));
+    });
+  }
+
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} size="md" modalId="SM-06">
+      <Modal.Header title="Invite team member" />
+      <form onSubmit={submitInvite}>
+        <Modal.Body>
+          <div className="space-y-4 px-5 py-4">
+            {inlineError ? (
+              <div role="alert" className="alert alert-red" style={{ marginBottom: 0 }}>
+                {inlineError}
+              </div>
+            ) : null}
+            <label className="block space-y-1 text-sm font-medium">
+              <span>Email address</span>
+              <Input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
+                placeholder="name@example.com"
+                autoFocus
+                required
+              />
+            </label>
+            <label className="block space-y-1 text-sm font-medium">
+              <span>Name (optional)</span>
+              <Input type="text" value={name} onChange={(event) => setName(event.currentTarget.value)} />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1 text-sm font-medium">
+                <span>Role</span>
+                <Select value={roleId} onValueChange={setRoleId} disabled={roles.length === 0}>
+                  <SelectTrigger aria-label="Role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="block space-y-1 text-sm font-medium">
+                <span>Site</span>
+                <Input type="text" value={site} onChange={(event) => setSite(event.currentTarget.value)} />
+              </label>
+            </div>
+            <label className="block space-y-1 text-sm font-medium">
+              <span>Personal message</span>
+              <Textarea
+                rows={2}
+                placeholder="Optional note for the invite email"
+                value={personalMessage}
+                onChange={(event) => setPersonalMessage(event.currentTarget.value)}
+              />
+            </label>
+            <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              The invite link expires after 7 days and is scoped to this organisation.
+            </p>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex justify-end gap-2 rounded-b-xl border-t bg-slate-50 px-5 py-4">
+            <Button type="button" className="btn-secondary" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="btn-primary" disabled={isPending || !inviteUser || !roleId}>
+              Send invitation
+            </Button>
+          </div>
+        </Modal.Footer>
+      </form>
+    </Modal>
+  );
+}
+
 export default function InvitationsScreen(props: Partial<InvitationsScreenProps> = {}) {
   const isControlled = 'invitations' in props || 'permissions' in props || 'state' in props;
   const [runtimeInvitations, setRuntimeInvitations] = useState<PendingInvitation[]>([]);
@@ -191,6 +364,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
   const [runtimeActions, setRuntimeActions] = useState<RuntimeActions>({});
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
 
   useEffect(() => {
     if (isControlled) return;
@@ -198,9 +372,14 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
     async function loadRuntimeInvitations() {
       try {
         const lifecycle = await import('../../../../../../actions/users/invitations-lifecycle.js');
+        const tokenLifecycle = await import('../../../../../../actions/invitations/get-invitation-lifecycle-token.js');
         const result = await lifecycle.listInvitations();
         if (cancelled) return;
-        setRuntimeActions({ resendInvitation: lifecycle.resendInvitation, revokeInvitation: lifecycle.revokeInvitation });
+        setRuntimeActions({
+          resendInvitation: lifecycle.resendInvitation,
+          revokeInvitation: lifecycle.revokeInvitation,
+          getInvitationLifecycleToken: tokenLifecycle.getInvitationLifecycleToken,
+        });
         if (!result.ok) {
           const errorCode = 'error' in result ? result.error : 'persistence_failed';
           setRuntimePermissions([]);
@@ -232,15 +411,37 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
   const state = props.state ?? runtimeState;
   const errorMessage = props.errorMessage ?? runtimeError;
   const inviteUser = props.inviteUser;
+  const inviteRoles = props.inviteRoles ?? [];
+  const locale = props.locale ?? 'en';
   const resendInvitation = props.resendInvitation ?? runtimeActions.resendInvitation;
   const revokeInvitation = props.revokeInvitation ?? runtimeActions.revokeInvitation;
+  const getInvitationLifecycleToken = props.getInvitationLifecycleToken ?? runtimeActions.getInvitationLifecycleToken;
 
   const canView = permissions.includes(VIEW_PERMISSION) || permissions.includes(INVITE_PERMISSION);
   const canWrite = hasWritePermissions(permissions);
   const effectiveState = state === 'empty' || invitations.length === 0 ? 'empty' : state;
 
+  function openInviteDialog() {
+    if (!canWrite) return;
+    setShowInvite(true);
+  }
+
+  async function tokenInput(invitation: PendingInvitation): Promise<{ invitationId: string; inviteToken: string } | null> {
+    const existing = lifecycleInput(invitation);
+    if (existing) return existing;
+    if (invitation.status !== 'pending' || !getInvitationLifecycleToken) return null;
+    const result = await Promise.resolve(getInvitationLifecycleToken({ invitationId: invitation.id }));
+    return { invitationId: invitation.id, inviteToken: result.token };
+  }
+
   async function handleResend(invitation: PendingInvitation) {
-    const input = lifecycleInput(invitation);
+    let input: { invitationId: string; inviteToken: string } | null = null;
+    try {
+      input = await tokenInput(invitation);
+    } catch (error) {
+      setFeedback({ kind: 'alert', message: `Could not resend invitation: ${error instanceof Error ? error.message : 'token_unavailable'}.` });
+      return;
+    }
     if (!resendInvitation || !input) {
       setFeedback({ kind: 'alert', message: 'Could not resend invitation: lifecycle action unavailable.' });
       return;
@@ -258,7 +459,14 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
 
   async function handleRevoke(invitation: PendingInvitation) {
     if (invitation.status !== 'pending') return;
-    const input = lifecycleInput(invitation);
+    let input: { invitationId: string; inviteToken: string } | null = null;
+    try {
+      input = await tokenInput(invitation);
+    } catch (error) {
+      setRevokeTarget(null);
+      setFeedback({ kind: 'alert', message: `Could not revoke invitation: ${error instanceof Error ? error.message : 'token_unavailable'}.` });
+      return;
+    }
     if (!revokeInvitation || !input) {
       setRevokeTarget(null);
       setFeedback({ kind: 'alert', message: 'Could not revoke invitation: lifecycle action unavailable.' });
@@ -310,7 +518,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
           </p>
         </div>
         {canWrite && effectiveState !== 'empty' ? (
-          <Button type="button" className="btn-primary" onClick={() => void inviteUser?.({})}>
+          <Button type="button" className="btn-primary" onClick={openInviteDialog}>
             Invite User
           </Button>
         ) : null}
@@ -336,7 +544,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
           <p className="empty-state-title">No pending invitations.</p>
           <p className="empty-state-body">Invite a team member to get started.</p>
           {canWrite ? (
-            <Button type="button" className="btn-primary empty-state-action" onClick={() => void inviteUser?.({})}>
+            <Button type="button" className="btn-primary empty-state-action" onClick={openInviteDialog}>
               Invite User
             </Button>
           ) : null}
@@ -372,7 +580,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
                       <Badge tone={statusTone(invitation.status)}>{statusLabel(invitation.status)}</Badge>
                     </td>
                     <td className="p-2">
-                      {canWrite && invitation.status === 'pending' && invitation.inviteToken ? (
+                      {canWrite && invitation.status === 'pending' && (invitation.inviteToken || getInvitationLifecycleToken) ? (
                         <div className="flex gap-2">
                           <Button type="button" className="btn-secondary btn-sm" onClick={() => void handleResend(invitation)}>
                             Resend
@@ -393,7 +601,7 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
                       {!canWrite && invitation.status !== 'accepted' ? (
                         <span className="muted text-xs">No actions</span>
                       ) : null}
-                      {canWrite && invitation.status !== 'accepted' && !invitation.inviteToken ? (
+                      {canWrite && invitation.status !== 'accepted' && !invitation.inviteToken && !(invitation.status === 'pending' && getInvitationLifecycleToken) ? (
                         <span className="muted text-xs">Lifecycle action unavailable</span>
                       ) : null}
                     </td>
@@ -408,6 +616,14 @@ export default function InvitationsScreen(props: Partial<InvitationsScreenProps>
       {revokeTarget ? (
         <RevokeDialog invitation={revokeTarget} onCancel={() => setRevokeTarget(null)} onConfirm={() => void handleRevoke(revokeTarget)} />
       ) : null}
+      <InviteDialog
+        open={showInvite}
+        onOpenChange={setShowInvite}
+        roles={inviteRoles}
+        locale={locale}
+        inviteUser={inviteUser}
+        onFeedback={setFeedback}
+      />
     </main>
   );
 }

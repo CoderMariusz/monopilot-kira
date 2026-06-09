@@ -259,7 +259,12 @@ export default function EmailTemplatesScreen({
                   autoComplete="off"
                   className="form-input w-[200px]"
                 />
-                <Button type="button" className="btn-secondary btn-sm">
+                <Button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  disabled
+                  title="Key rotation is not available yet."
+                >
                   {labels.rotate}
                 </Button>
               </div>

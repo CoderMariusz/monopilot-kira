@@ -1,10 +1,14 @@
 import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 
+import { addIpRange as addIpRangeAction } from '../../../../../../actions/security/ip-allowlist-add';
+import { removeIpRange as removeIpRangeAction } from '../../../../../../actions/security/ip-allowlist-remove';
 import { upsertSecurityPolicy } from '../../../../../../actions/security/upsert-policy';
 import { withOrgContext } from '../../../../../../lib/auth/with-org-context';
 import SecurityScreen, {
+  type AddIpRange,
   type AuditLogRow,
+  type RemoveIpRange,
   type SecurityScreenData,
   type SecurityScreenLabels,
   type SaveSecuritySettings,
@@ -44,7 +48,7 @@ type PasswordPolicyRow = {
   password_history_count: number | string | null;
 };
 
-type IpAllowlistRow = { cidr: string };
+type IpAllowlistRow = { id: string; cidr: string; label: string | null };
 type ScimRow = { active_count: string | number };
 type AuditRow = {
   id: string;
@@ -200,7 +204,7 @@ async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<Sec
               and revoked_at is null`,
         ),
         queryClient.query<IpAllowlistRow>(
-          `select cidr::text as cidr
+          `select id::text as id, cidr::text as cidr, label
              from public.admin_ip_allowlist
             where org_id = app.current_org_id()
             order by created_at desc, id desc`,
@@ -279,7 +283,7 @@ async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<Sec
             idleTimeout: mapIdleTimeout(idp?.idle_timeout_min),
             maximumSessionLength: mapMaxSession(idp?.session_max_h),
           },
-          ipAllowlist: ipResult.rows.map((row) => row.cidr),
+          ipAllowlist: ipResult.rows.map((row) => ({ id: row.id, cidr: row.cidr, label: row.label })),
           auditLog: auditResult.rows.map((row) => toAuditRow(row, labels)),
         },
       };
@@ -291,6 +295,10 @@ async function readSecurityScreenData(labels: SecurityScreenLabels): Promise<Sec
 
 async function buildLabels(locale: string): Promise<SecurityScreenLabels> {
   const t = await getTranslations({ locale, namespace: 'settings.security_screen' });
+  // New IP-allowlist / disabled-control strings are pending the i18n-table pass
+  // (owned by a separate lane). Until those keys land in i18n/*.json this falls
+  // back to an English literal so the screen stays functional in all four locales.
+  const tx = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
   return {
     title: t('title'),
     subtitle: t('subtitle'),
@@ -343,6 +351,21 @@ async function buildLabels(locale: string): Promise<SecurityScreenLabels> {
     addIpRangeTitle: t('add_ip_range_title'),
     close: t('close'),
     addIpRangeHelp: t('add_ip_range_help'),
+    ipCidrLabel: tx('ip_cidr_label', 'CIDR range'),
+    ipCidrPlaceholder: tx('ip_cidr_placeholder', '203.0.113.0/24'),
+    ipCidrHint: tx('ip_cidr_hint', 'IPv4 or IPv6 with a prefix, e.g. 203.0.113.0/24. The all-internet range (0.0.0.0/0) is rejected.'),
+    ipLabelLabel: tx('ip_label_label', 'Label (optional)'),
+    ipLabelPlaceholder: tx('ip_label_placeholder', 'e.g. HQ office'),
+    ipAddSubmit: tx('ip_add_submit', 'Add range'),
+    ipAdding: tx('ip_adding', 'Adding…'),
+    ipRemove: tx('ip_remove', 'Remove'),
+    ipRemoving: tx('ip_removing', 'Removing…'),
+    ipRemoveConfirm: tx('ip_remove_confirm', 'Remove this IP range from the admin allowlist?'),
+    ipErrorInvalid: tx('ip_error_invalid', 'Enter a valid CIDR range (e.g. 203.0.113.0/24).'),
+    ipErrorOverlap: tx('ip_error_overlap', 'The all-internet range cannot be allowlisted.'),
+    ipErrorForbidden: tx('ip_error_forbidden', 'You do not have permission to change the IP allowlist.'),
+    ipErrorFailed: tx('ip_error_failed', 'Could not save the IP range. Try again.'),
+    notAvailableYet: tx('not_available_yet', 'Not available yet'),
     auditLogTitle: t('audit_log_title'),
     viewFullLog: t('view_full_log'),
     auditTableLabel: t('audit_table_label'),
@@ -392,6 +415,16 @@ const saveSecuritySettings: SaveSecuritySettings = async (data) => {
   return { ok: true, data };
 };
 
+const addIpRange: AddIpRange = async (cidr, label) => {
+  'use server';
+  return addIpRangeAction(cidr, label);
+};
+
+const removeIpRange: RemoveIpRange = async (id) => {
+  'use server';
+  return removeIpRangeAction(id);
+};
+
 export default async function SecurityPage({ params }: PageProps) {
   const { locale } = await params;
   const labels = await buildLabels(locale);
@@ -404,6 +437,9 @@ export default async function SecurityPage({ params }: PageProps) {
       state={result.state === 'permission-denied' ? 'ready' : result.state}
       canManageSecurity={result.canManageSecurity}
       saveSecuritySettings={saveSecuritySettings}
+      addIpRange={addIpRange}
+      removeIpRange={removeIpRange}
+      auditLogHref="/settings/audit"
     />
   );
 }
