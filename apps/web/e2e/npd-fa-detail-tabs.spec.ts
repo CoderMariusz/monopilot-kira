@@ -3,8 +3,9 @@
  *
  * Browser-level parity for the FA detail tabs container once the merged dept tab
  * components are wired (T-105): Core / Planning / Commercial / Production /
- * Technical / MRP / Procurement / History. For each reachable tab it activates
- * the trigger, captures a per-state screenshot, and runs axe (0 violations).
+ * Technical / MRP / Procurement / BOM (read-only, Lane 12) / History. For each
+ * reachable tab it activates the trigger, captures a per-state screenshot, and
+ * runs axe (0 violations).
  *
  * Prototype anchors (1:1):
  *   prototypes/design/Monopilot Design System/npd/fa-screens.jsx:312-408
@@ -58,6 +59,8 @@ const TABS: Array<{ slug: string; testid: string }> = [
   { slug: 'production', testid: 'fa-production-tab' },
   { slug: 'technical', testid: 'fa-technical-tab' },
   { slug: 'procurement', testid: 'fa-procurement-tab' },
+  // Read-only BOM (computed view) — SCR-03h, fa-screens.jsx:840-886 (Lane 12).
+  { slug: 'bom', testid: 'fa-bom-tab' },
 ];
 
 test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
@@ -70,16 +73,16 @@ test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
     mkdirSync(evidenceDir, { recursive: true });
   });
 
-  test('renders the 8-tab dept bar in prototype order + Built/status header', async ({ page }) => {
+  test('renders the dept bar (8 dept + read-only BOM) in prototype order + Built/status header', async ({ page }) => {
     await page.goto(`${baseURL}${route}`);
 
     const tablist = page.getByRole('tablist');
     await expect(tablist).toBeVisible();
 
     const tabs = tablist.getByRole('tab');
-    await expect(tabs).toHaveCount(8);
+    await expect(tabs).toHaveCount(9);
     const labels = await tabs.allTextContents();
-    // Tab order matches the prototype TABS array (dept tabs + History).
+    // Tab order matches the prototype TABS array (dept tabs + BOM + History).
     expect(labels.map((t) => t.trim().replace(/Locked$/, ''))).toEqual([
       'Core',
       'Planning',
@@ -88,6 +91,7 @@ test.describe('NPD FA detail dept tabs parity (fa-screens.jsx:312-408)', () => {
       'Technical',
       'MRP',
       'Procurement',
+      'BOM',
       'History',
     ]);
 

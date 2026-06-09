@@ -82,6 +82,9 @@ import {
   type FaProcurementColumn,
   type FaProcurementTabLabels,
 } from './_components/fa-procurement-tab';
+import { FaBomTab, type FaBomTabLabels } from './_components/fa-bom-tab';
+import { getFaBom, type FaBomResult } from './_actions/get-fa-bom';
+import { bom_export_csv } from '../../../../../(npd)/fa/actions/bom-export-csv';
 import {
   AllergenCascadeSection,
   buildAllergenLabels,
@@ -577,6 +580,7 @@ const DEFAULT_FA_DETAIL_LABELS: FaDetailLabels = {
       technical: 'Technical',
       mrp: 'MRP',
       procurement: 'Procurement',
+      bom: 'BOM',
       history: 'History',
     },
     deferred: 'Tab content deferred',
@@ -651,6 +655,7 @@ async function buildFaDetailLabels(locale: string): Promise<FaDetailLabels> {
           technical: pick('tabs.technical', d.tabs.tabs.technical),
           mrp: pick('tabs.mrp', d.tabs.tabs.mrp),
           procurement: pick('tabs.procurement', d.tabs.tabs.procurement),
+          bom: pick('tabs.bom', d.tabs.tabs.bom),
           history: pick('tabs.history', d.tabs.tabs.history),
         },
         deferred: pick('deferred', d.tabs.deferred),
@@ -1050,6 +1055,44 @@ async function buildProcurementLabels(
   };
 }
 
+async function buildBomLabels(locale: string): Promise<FaBomTabLabels> {
+  const p = await pickerFor(locale, 'npd.faBomTab');
+  return {
+    title: p('title', 'BOM (computed view)'),
+    readOnlyNote: p(
+      'readOnlyNote',
+      'Read-only view of the shared BOM. Bills of materials are edited in Technical.',
+    ),
+    exportCsv: p('exportCsv', 'Export BOM CSV'),
+    exporting: p('exporting', 'Exporting…'),
+    exportError: p('exportError', 'Could not export the BOM CSV.'),
+    versionLine: p('versionLine', 'v{version} · {status} · {count} lines'),
+    statusLabels: {
+      draft: p('status.draft', 'Draft'),
+      in_review: p('status.in_review', 'In review'),
+      technical_approved: p('status.technical_approved', 'Technical approved'),
+      active: p('status.active', 'Active'),
+    },
+    colType: p('colType', 'Type'),
+    colCode: p('colCode', 'Code'),
+    colName: p('colName', 'Name'),
+    colQty: p('colQty', 'Qty'),
+    colStage: p('colStage', 'Stage'),
+    colSource: p('colSource', 'Source'),
+    colD365: p('colD365', 'D365 status'),
+    d365Found: p('d365Found', 'Found'),
+    d365NoCost: p('d365NoCost', 'No cost'),
+    d365Missing: p('d365Missing', 'Missing'),
+    d365Empty: p('d365Empty', 'Not in D365'),
+    loading: p('loading', 'Loading BOM…'),
+    error: p('error', 'Unable to load the BOM.'),
+    forbidden: p('forbidden', 'You do not have permission to view this BOM.'),
+    empty: p('empty', 'No BOM yet'),
+    emptyBody: p('emptyBody', 'This Finished Good has no bill of materials.'),
+    technicalLink: p('technicalLink', 'Open in Technical'),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
@@ -1192,6 +1235,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     allergenLabels,
     finishWipLabels,
     benchmarkLabels,
+    bomLabels,
   ] = await Promise.all([
     buildCoreLabels(locale, dept.core),
     buildPlanningLabels(locale, dept.planning),
@@ -1202,7 +1246,23 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
     buildAllergenLabels(locale),
     buildFinishWipLabels(locale),
     buildBenchmarkLabels(locale),
+    buildBomLabels(locale),
   ]);
+
+  // Read-only FA BOM (computed view, SCR-03h) — REAL, org-scoped via getFaBom
+  // (own withOrgContext + RLS + server-resolved npd.fa.read). Skipped on the
+  // injected (test-only) path, which renders the empty BOM state instead.
+  const bomLoad: FaBomResult = injected ? { state: 'empty' } : await getFaBom(fa.productCode);
+  const bomSlot = (
+    <FaBomTab
+      productCode={fa.productCode}
+      version={bomLoad.state === 'ready' ? bomLoad.version : null}
+      lines={bomLoad.state === 'ready' ? bomLoad.lines : []}
+      labels={bomLabels}
+      state={bomLoad.state === 'ready' ? 'ready' : 'empty'}
+      onExportCsv={injected ? undefined : bom_export_csv}
+    />
+  );
 
   // Allergen cascade (REAL, org-scoped) — read here so the BUILT T-040 widget is
   // reachable inside the Technical tab. Uses the reused readAllergenCascade
@@ -1336,6 +1396,7 @@ export default async function FaDetailPage(propsInput: unknown = {}) {
         state="ready"
       />
     ),
+    bom: bomSlot,
     history: (
       <FaHistoryTab
         productCode={fa.productCode}

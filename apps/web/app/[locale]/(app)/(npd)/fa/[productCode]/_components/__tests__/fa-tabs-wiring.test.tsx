@@ -241,12 +241,12 @@ describe('T-105 FA dept tabs wiring', () => {
   });
   afterEach(() => cleanup());
 
-  it('renders all 8 tabs in prototype order', () => {
+  it('renders all 8 dept tabs + read-only BOM in prototype order', () => {
     renderTabs({ coreDone: true });
     const tablist = screen.getByRole('tablist');
     const tabs = within(tablist).getAllByRole('tab');
     expect(tabs.map((t) => t.getAttribute('data-value'))).toEqual([
-      'core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement', 'history',
+      'core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement', 'bom', 'history',
     ]);
   });
 

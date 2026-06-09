@@ -32,6 +32,7 @@ const EXPECTED_FA_TABS = [
   'Technical',
   'MRP',
   'Procurement',
+  'BOM',
   'History',
 ] as const;
 
@@ -43,6 +44,7 @@ const TAB_SLUGS = [
   'technical',
   'mrp',
   'procurement',
+  'bom',
   'history',
 ] as const;
 
@@ -119,7 +121,7 @@ describe('T-136 FA detail tabs shell', () => {
     expect(document.querySelector('.subnav-inline')).not.toBeInTheDocument();
 
     const tabs = within(tablist).getAllByRole('tab');
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(9);
     expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([...EXPECTED_FA_TABS]);
 
     tabs.forEach((tab, index) => {

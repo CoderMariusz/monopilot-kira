@@ -97,7 +97,7 @@ const tabLabels: FaTabsLabels = {
   tablistLabel: 'FA detail departments',
   tabs: {
     core: 'Core', planning: 'Planning', commercial: 'Commercial', production: 'Production',
-    technical: 'Technical', mrp: 'MRP', procurement: 'Procurement', history: 'History',
+    technical: 'Technical', mrp: 'MRP', procurement: 'Procurement', bom: 'BOM', history: 'History',
   },
   deferred: 'Tab content deferred',
   deferredBody: 'This department workspace is delivered in a later slice.',
@@ -155,8 +155,8 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
   it('writes the unlocked + locked tab-bar DOM artifacts', () => {
     const unlocked = renderWired('core', true, true);
     writeArtifact('tabbar-unlocked.html', unlocked.container.innerHTML);
-    // all 8 dept tabs present, none locked.
-    expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(8);
+    // all 8 dept tabs + read-only BOM present, none locked.
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(9);
     expect(document.querySelectorAll('[data-locked="true"]')).toHaveLength(0);
     cleanup();
 
@@ -187,7 +187,7 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
     const report = {
       task: 'T-105 (wiring) + T-106 (parity)',
       prototype: 'prototypes/design/Monopilot Design System/npd/fa-screens.jsx:312-408',
-      tabOrder: ['core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement', 'history'],
+      tabOrder: ['core', 'planning', 'commercial', 'production', 'technical', 'mrp', 'procurement', 'bom', 'history'],
       lockModel: {
         never: ['core', 'production', 'history'],
         coreGated: ['planning', 'commercial', 'technical', 'procurement'],
@@ -203,6 +203,7 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
         procurement: 'FaProcurementTab (T-102, fa-screens.jsx:806-838)',
         history: 'FaHistoryTab (T-027, kept working)',
         mrp: 'deferred-empty placeholder (no merged MRP component in scope)',
+        bom: 'FaBomTab (read-only SCR-03h, fa-screens.jsx:840-886, Lane 12)',
       },
       realData:
         'page.tsx reads Reference.DeptColumns + product (to_jsonb) + prod_detail via withOrgContext (RLS app.current_org_id()); columns are schema-driven, not hardcoded.',
@@ -210,6 +211,6 @@ describe('T-105/T-106 FA dept tabs wiring — parity evidence', () => {
         'Live RBAC-authenticated Supabase server not bootable in worktree; e2e/npd-fa-detail-tabs.spec.ts skips without PLAYWRIGHT_BASE_URL. RTL DOM artifacts are the accepted fallback per UI-PROTOTYPE-PARITY-POLICY.md.',
     };
     writeArtifact('parity-report.json', JSON.stringify(report, null, 2));
-    expect(report.tabOrder).toHaveLength(8);
+    expect(report.tabOrder).toHaveLength(9);
   });
 });

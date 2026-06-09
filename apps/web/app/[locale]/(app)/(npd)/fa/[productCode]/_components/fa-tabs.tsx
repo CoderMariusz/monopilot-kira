@@ -8,8 +8,10 @@
  *   The prototype's `subnav-inline` tab bar (lines 387-398) maps here to a tabs
  *   primitive composition. The prototype lists 12 tabs; this shell exposes the 8
  *   *department* tabs (Core/Planning/Commercial/Production/Technical/MRP/
- *   Procurement/History) per the task contract — the extra prototype tabs (BOM/
- *   Formulations/Risks/Docs) live in their own routes/slices and are out of scope.
+ *   Procurement/History) PLUS the read-only BOM tab (SCR-03h, fa-screens.jsx:
+ *   840-886, wired Lane 12) — inserted between Procurement and History per the
+ *   prototype tab order. The remaining prototype tabs (Formulations/Risks/Docs)
+ *   live in their own routes/slices and are out of scope here.
  *
  * shadcn note: the repo's Radix re-export lives in `packages/ui` only; importing
  * `@radix-ui/*` from app code is a Foundation lint red-line. We therefore emit
@@ -46,6 +48,7 @@ const FA_TAB_SLUGS = [
   'technical',
   'mrp',
   'procurement',
+  'bom',
   'history',
 ] as const;
 
@@ -60,6 +63,7 @@ const DEFAULT_TAB_LABELS: Record<FaTabSlug, string> = {
   technical: 'Technical',
   mrp: 'MRP',
   procurement: 'Procurement',
+  bom: 'BOM',
   history: 'History',
 };
 
