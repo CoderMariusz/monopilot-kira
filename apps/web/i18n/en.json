@@ -4672,6 +4672,31 @@
         "close": "Close",
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+      },
+      "create": {
+        "open": "+ New specification",
+        "title": "New specification",
+        "subtitle": "Create a draft factory specification for an FG item.",
+        "close": "Close",
+        "fields": {
+          "specCode": "Specification code",
+          "fgItemId": "FG item ID",
+          "notes": "Notes"
+        },
+        "hints": {
+          "specCode": "Use the canonical technical spec code.",
+          "fgItemId": "UUID of the finished-good item in the item master."
+        },
+        "cancel": "Cancel",
+        "saving": "Creating...",
+        "submit": "Create draft",
+        "errors": {
+          "invalid_input": "Check the specification fields and try again.",
+          "forbidden": "You do not have permission to create specifications.",
+          "not_found": "The finished good item was not found.",
+          "already_exists": "A specification version already exists for this item.",
+          "persistence_failed": "The specification could not be saved."
+        }
       }
     },
     "releaseBundle": {

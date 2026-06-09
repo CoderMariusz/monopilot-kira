@@ -284,9 +284,10 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   // (`?new=<code>`) so the FG picker opens with it chosen — avoids the per-FG
   // detail route 404 that occurs when no BOM header exists yet.
   const isFinishedGood = item.itemType === 'fg';
-  // Relative to /[locale]/technical/items/<code>: one `..` lands on /technical/bom
-  // (same depth as the `../items` breadcrumb); `../../bom` resolved to /<locale>/bom → 404.
-  const createBomHref = `../bom?new=${encodeURIComponent(item.itemCode)}`;
+  // Absolute locale-less href (middleware redirects to the locale) — relative `../bom`
+  // resolved differently depending on the rendering context and produced stray
+  // /<locale>/bom prefetch 404s.
+  const createBomHref = `/technical/bom?new=${encodeURIComponent(item.itemCode)}`;
   const bomCreateCtaKey = 'detail.dataTabs.bom.createCta';
   const bomCreateCtaResolved = t(bomCreateCtaKey);
   const bomCreateCta =

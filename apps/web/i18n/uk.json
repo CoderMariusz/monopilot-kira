@@ -2805,6 +2805,31 @@
         "close": "Close",
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+      },
+      "create": {
+        "open": "+ Нова специфікація",
+        "title": "Нова специфікація",
+        "subtitle": "Створіть чернетку заводської специфікації для готового продукту.",
+        "close": "Закрити",
+        "fields": {
+          "specCode": "Код специфікації",
+          "fgItemId": "ID готового продукту",
+          "notes": "Нотатки"
+        },
+        "hints": {
+          "specCode": "Використовуйте канонічний код технічної специфікації.",
+          "fgItemId": "UUID готового продукту в довіднику позицій."
+        },
+        "cancel": "Скасувати",
+        "saving": "Створення...",
+        "submit": "Створити чернетку",
+        "errors": {
+          "invalid_input": "Перевірте поля специфікації та спробуйте ще раз.",
+          "forbidden": "У вас немає дозволу створювати специфікації.",
+          "not_found": "Готовий продукт не знайдено.",
+          "already_exists": "Версія специфікації для цієї позиції вже існує.",
+          "persistence_failed": "Не вдалося зберегти специфікацію."
+        }
       }
     },
     "releaseBundle": {

@@ -2805,6 +2805,31 @@
         "close": "Close",
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+      },
+      "create": {
+        "open": "+ Nowa specyfikacja",
+        "title": "Nowa specyfikacja",
+        "subtitle": "Utwórz roboczą specyfikację fabryczną dla wyrobu gotowego.",
+        "close": "Zamknij",
+        "fields": {
+          "specCode": "Kod specyfikacji",
+          "fgItemId": "ID wyrobu gotowego",
+          "notes": "Notatki"
+        },
+        "hints": {
+          "specCode": "Użyj kanonicznego kodu specyfikacji technicznej.",
+          "fgItemId": "UUID wyrobu gotowego w kartotece itemów."
+        },
+        "cancel": "Anuluj",
+        "saving": "Tworzenie...",
+        "submit": "Utwórz szkic",
+        "errors": {
+          "invalid_input": "Sprawdź pola specyfikacji i spróbuj ponownie.",
+          "forbidden": "Nie masz uprawnień do tworzenia specyfikacji.",
+          "not_found": "Nie znaleziono wyrobu gotowego.",
+          "already_exists": "Wersja specyfikacji dla tego itemu już istnieje.",
+          "persistence_failed": "Nie udało się zapisać specyfikacji."
+        }
       }
     },
     "releaseBundle": {

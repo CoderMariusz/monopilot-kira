@@ -2805,6 +2805,31 @@
         "close": "Close",
         "markReviewed": "Mark reviewed",
         "permissionDenied": "You do not have the Technical permission to approve this specification for factory use."
+      },
+      "create": {
+        "open": "+ Specificație nouă",
+        "title": "Specificație nouă",
+        "subtitle": "Creează o specificație de fabrică în stadiu de ciornă pentru un produs finit.",
+        "close": "Închide",
+        "fields": {
+          "specCode": "Cod specificație",
+          "fgItemId": "ID articol PF",
+          "notes": "Note"
+        },
+        "hints": {
+          "specCode": "Folosește codul canonic al specificației tehnice.",
+          "fgItemId": "UUID-ul produsului finit din nomenclatorul de articole."
+        },
+        "cancel": "Anulează",
+        "saving": "Se creează...",
+        "submit": "Creează ciorna",
+        "errors": {
+          "invalid_input": "Verifică câmpurile specificației şi încearcă din nou.",
+          "forbidden": "Nu ai permisiunea de a crea specificații.",
+          "not_found": "Produsul finit nu a fost găsit.",
+          "already_exists": "Există deja o versiune de specificație pentru acest articol.",
+          "persistence_failed": "Specificația nu a putut fi salvată."
+        }
       }
     },
     "releaseBundle": {

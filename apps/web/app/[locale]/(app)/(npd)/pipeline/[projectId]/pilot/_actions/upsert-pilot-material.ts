@@ -93,22 +93,36 @@ export async function upsertPilotMaterial(raw: unknown): Promise<UpsertPilotMate
                     updated_by      = $8::uuid
               where id = $1::uuid and pilot_run_id = $2::uuid and org_id = app.current_org_id()
               returning id`
-          : `insert into public.pilot_run_materials
+          : // NOTE: the INSERT branch has its own $1-based numbering — an unreferenced
+            // leading parameter is untypable in the extended protocol and fails every
+            // insert with "could not determine data type of parameter $1" (same bug
+            // class as upsert-pilot-run).
+            `insert into public.pilot_run_materials
                 (org_id, pilot_run_id, ingredient_code, required_kg, available_kg, reserved_kg,
                  status, created_by, updated_by)
-              values (app.current_org_id(), $2::uuid, $3, $4::numeric, $5::numeric, $6::numeric,
-                 $7, $8::uuid, $8::uuid)
+              values (app.current_org_id(), $1::uuid, $2, $3::numeric, $4::numeric, $5::numeric,
+                 $6, $7::uuid, $7::uuid)
               returning id`,
-        [
-          input.materialId ?? null,
-          input.pilotRunId,
-          input.ingredientCode,
-          input.requiredKg,
-          input.availableKg,
-          input.reservedKg,
-          status,
-          ctx.userId,
-        ],
+        input.materialId
+          ? [
+              input.materialId,
+              input.pilotRunId,
+              input.ingredientCode,
+              input.requiredKg,
+              input.availableKg,
+              input.reservedKg,
+              status,
+              ctx.userId,
+            ]
+          : [
+              input.pilotRunId,
+              input.ingredientCode,
+              input.requiredKg,
+              input.availableKg,
+              input.reservedKg,
+              status,
+              ctx.userId,
+            ],
       );
       const materialId = upsert.rows[0]?.id;
       if (!materialId) return { ok: false as const, error: 'not_found' as const };
