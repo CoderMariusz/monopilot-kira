@@ -238,7 +238,22 @@
       "empty": "Nu sunt configurate încă setări de securitate.",
       "error": "Setările de securitate nu au putut fi încărcate.",
       "permission_denied": "Nu aveți permisiunea de a gestiona setările de securitate.",
-      "audit_system_actor": "Sistem"
+      "audit_system_actor": "Sistem",
+      "ip_cidr_label": "Interval CIDR",
+      "ip_cidr_placeholder": "203.0.113.0/24",
+      "ip_cidr_hint": "IPv4 sau IPv6 cu prefix, ex. 203.0.113.0/24. Intervalul întregului internet (0.0.0.0/0) este respins.",
+      "ip_label_label": "Etichetă (opțional)",
+      "ip_label_placeholder": "ex. sediu central",
+      "ip_add_submit": "Adaugă interval",
+      "ip_adding": "Se adaugă…",
+      "ip_remove": "Elimină",
+      "ip_removing": "Se elimină…",
+      "ip_remove_confirm": "Eliminați acest interval IP din lista permisă a administratorului?",
+      "ip_error_invalid": "Introduceți un interval CIDR valid (ex. 203.0.113.0/24).",
+      "ip_error_overlap": "Intervalul întregului internet nu poate fi permis.",
+      "ip_error_forbidden": "Nu aveți permisiunea de a modifica lista IP permise.",
+      "ip_error_failed": "Nu s-a putut salva intervalul IP. Încercați din nou.",
+      "not_available_yet": "Indisponibil încă"
     },
     "audit_log_viewer": {
       "title": "Jurnale de audit",
@@ -3261,7 +3276,12 @@
       "empty": "Nu există încă date nutriționale",
       "emptyBody": "Valorile nutriționale sunt calculate după finalizarea rețetei.",
       "error": "Datele nutriționale nu au putut fi încărcate.",
-      "forbidden": "Nu aveți permisiunea de a vizualiza datele nutriționale."
+      "forbidden": "Nu aveți permisiunea de a vizualiza datele nutriționale.",
+      "computeNutriScore": "Calculează NutriScore",
+      "recomputeNutriScore": "Recalculează NutriScore",
+      "computing": "Se calculează…",
+      "computeError": "NutriScore nu a putut fi calculat. Încearcă din nou.",
+      "computeErrorNotFound": "Nu există încă o rețetă pentru calcul."
     },
     "nutritionPanel": {
       "title": "Valori nutriționale la 100 g",
@@ -3318,7 +3338,13 @@
       "empty": "Nu există încă date de cost",
       "emptyBody": "Costurile sunt calculate după ce rețeta are costuri pentru ingrediente.",
       "error": "Datele de cost nu au putut fi încărcate.",
-      "forbidden": "Nu aveți permisiunea de a vizualiza datele de cost."
+      "forbidden": "Nu aveți permisiunea de a vizualiza datele de cost.",
+      "computeCosting": "Calculează costul",
+      "computing": "Se calculează…",
+      "computeError": "Costul nu a putut fi calculat. Încearcă din nou.",
+      "computeErrorNotFound": "Nu există încă o rețetă pentru calculul costului.",
+      "computeErrorNoCosts": "Fiecare ingredient are nevoie de un cost înainte de calcul.",
+      "computeErrorHardFail": "Marja țintă este negativă, deci defalcarea nu poate fi salvată."
     },
     "risks": {
       "title": "Registru de riscuri",
@@ -3821,7 +3847,18 @@
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
       "compareStatusUnchanged": "Unchanged",
-      "openInTechnical": "Deschide articolul în Technical"
+      "openInTechnical": "Deschide articolul în Technical",
+      "lockRecipe": "Blochează rețeta",
+      "locking": "Se blochează…",
+      "lockConfirmTitle": "Blochează rețeta",
+      "lockConfirmBody": "Blocarea îngheață v{n} — nu mai poate fi editată.",
+      "lockConfirmConfirm": "Blochează rețeta",
+      "lockConfirmCancel": "Anulează",
+      "lockError": "Rețeta nu a putut fi blocată. Încearcă din nou.",
+      "lockErrorForbidden": "Nu ai permisiunea de a bloca această rețetă.",
+      "lockErrorLocked": "Această versiune este deja blocată.",
+      "lockErrorNotSubmitted": "Doar o versiune ciornă sau de probă poate fi blocată.",
+      "lockErrorNotFound": "Această versiune nu a putut fi găsită."
     },
     "costPanel": {
       "title": "Cost și marjă",

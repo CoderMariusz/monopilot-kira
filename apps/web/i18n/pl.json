@@ -238,7 +238,22 @@
       "empty": "No security settings configured yet.",
       "error": "Unable to load security settings.",
       "permission_denied": "You do not have permission to manage security settings.",
-      "audit_system_actor": "System"
+      "audit_system_actor": "System",
+      "ip_cidr_label": "Zakres CIDR",
+      "ip_cidr_placeholder": "203.0.113.0/24",
+      "ip_cidr_hint": "Adres IPv4 lub IPv6 z prefiksem, np. 203.0.113.0/24. Zakres całego internetu (0.0.0.0/0) jest odrzucany.",
+      "ip_label_label": "Etykieta (opcjonalnie)",
+      "ip_label_placeholder": "np. biuro główne",
+      "ip_add_submit": "Dodaj zakres",
+      "ip_adding": "Dodawanie…",
+      "ip_remove": "Usuń",
+      "ip_removing": "Usuwanie…",
+      "ip_remove_confirm": "Usunąć ten zakres IP z listy dozwolonych administratora?",
+      "ip_error_invalid": "Wprowadź prawidłowy zakres CIDR (np. 203.0.113.0/24).",
+      "ip_error_overlap": "Zakresu całego internetu nie można dodać do listy dozwolonych.",
+      "ip_error_forbidden": "Nie masz uprawnień do zmiany listy dozwolonych IP.",
+      "ip_error_failed": "Nie udało się zapisać zakresu IP. Spróbuj ponownie.",
+      "not_available_yet": "Jeszcze niedostępne"
     },
     "audit_log_viewer": {
       "title": "Audit logs",
@@ -3261,7 +3276,12 @@
       "empty": "Brak danych odżywczych",
       "emptyBody": "Wartości odżywcze są obliczane po ukończeniu receptury.",
       "error": "Nie można załadować danych odżywczych.",
-      "forbidden": "Nie masz uprawnień do wyświetlania danych odżywczych."
+      "forbidden": "Nie masz uprawnień do wyświetlania danych odżywczych.",
+      "computeNutriScore": "Oblicz NutriScore",
+      "recomputeNutriScore": "Przelicz NutriScore",
+      "computing": "Obliczanie…",
+      "computeError": "Nie udało się obliczyć NutriScore. Spróbuj ponownie.",
+      "computeErrorNotFound": "Brak receptury do obliczeń."
     },
     "nutritionPanel": {
       "title": "Wartości odżywcze na 100 g",
@@ -3318,7 +3338,13 @@
       "empty": "Brak danych kosztowych",
       "emptyBody": "Koszty są obliczane po wprowadzeniu kosztów składników w recepturze.",
       "error": "Nie można załadować danych kosztowych.",
-      "forbidden": "Nie masz uprawnień do wyświetlania danych kosztowych."
+      "forbidden": "Nie masz uprawnień do wyświetlania danych kosztowych.",
+      "computeCosting": "Oblicz kalkulację",
+      "computing": "Obliczanie…",
+      "computeError": "Nie udało się obliczyć kalkulacji. Spróbuj ponownie.",
+      "computeErrorNotFound": "Brak receptury do obliczenia kalkulacji.",
+      "computeErrorNoCosts": "Każdy składnik musi mieć koszt, aby obliczyć kalkulację.",
+      "computeErrorHardFail": "Marża docelowa jest ujemna, więc kalkulacji nie można zapisać."
     },
     "risks": {
       "title": "Rejestr ryzyk",
@@ -3821,7 +3847,18 @@
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
       "compareStatusUnchanged": "Unchanged",
-      "openInTechnical": "Otwórz pozycję w module technicznym"
+      "openInTechnical": "Otwórz pozycję w module technicznym",
+      "lockRecipe": "Zablokuj recepturę",
+      "locking": "Blokowanie…",
+      "lockConfirmTitle": "Zablokuj recepturę",
+      "lockConfirmBody": "Zablokowanie zamraża wersję v{n} — nie będzie można jej już edytować.",
+      "lockConfirmConfirm": "Zablokuj recepturę",
+      "lockConfirmCancel": "Anuluj",
+      "lockError": "Nie udało się zablokować receptury. Spróbuj ponownie.",
+      "lockErrorForbidden": "Nie masz uprawnień do zablokowania tej receptury.",
+      "lockErrorLocked": "Ta wersja jest już zablokowana.",
+      "lockErrorNotSubmitted": "Zablokować można tylko wersję roboczą lub próbną.",
+      "lockErrorNotFound": "Nie znaleziono tej wersji."
     },
     "costPanel": {
       "title": "Koszt i marża",

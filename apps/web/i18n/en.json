@@ -257,7 +257,22 @@
       "empty": "No security settings configured yet.",
       "error": "Unable to load security settings.",
       "permission_denied": "You do not have permission to manage security settings.",
-      "audit_system_actor": "System"
+      "audit_system_actor": "System",
+      "ip_cidr_label": "CIDR range",
+      "ip_cidr_placeholder": "203.0.113.0/24",
+      "ip_cidr_hint": "IPv4 or IPv6 with a prefix, e.g. 203.0.113.0/24. The all-internet range (0.0.0.0/0) is rejected.",
+      "ip_label_label": "Label (optional)",
+      "ip_label_placeholder": "e.g. HQ office",
+      "ip_add_submit": "Add range",
+      "ip_adding": "Adding…",
+      "ip_remove": "Remove",
+      "ip_removing": "Removing…",
+      "ip_remove_confirm": "Remove this IP range from the admin allowlist?",
+      "ip_error_invalid": "Enter a valid CIDR range (e.g. 203.0.113.0/24).",
+      "ip_error_overlap": "The all-internet range cannot be allowlisted.",
+      "ip_error_forbidden": "You do not have permission to change the IP allowlist.",
+      "ip_error_failed": "Could not save the IP range. Try again.",
+      "not_available_yet": "Not available yet"
     },
     "audit_log_viewer": {
       "title": "Audit logs",
@@ -1342,7 +1357,12 @@
       "empty": "No nutrition data yet",
       "emptyBody": "Nutrition values are computed once the formulation is complete.",
       "error": "Unable to load nutrition data.",
-      "forbidden": "You do not have permission to view nutrition data."
+      "forbidden": "You do not have permission to view nutrition data.",
+      "computeNutriScore": "Compute NutriScore",
+      "recomputeNutriScore": "Recompute NutriScore",
+      "computing": "Computing…",
+      "computeError": "Could not compute the NutriScore. Try again.",
+      "computeErrorNotFound": "No formulation is available to compute from yet."
     },
     "nutritionPanel": {
       "title": "Nutrition per 100g",
@@ -1399,7 +1419,13 @@
       "empty": "No costing data yet",
       "emptyBody": "Costing is computed once the formulation has ingredient costs.",
       "error": "Unable to load costing data.",
-      "forbidden": "You do not have permission to view costing data."
+      "forbidden": "You do not have permission to view costing data.",
+      "computeCosting": "Compute costing",
+      "computing": "Computing…",
+      "computeError": "Could not compute the costing. Try again.",
+      "computeErrorNotFound": "No formulation is available to compute costing from yet.",
+      "computeErrorNoCosts": "Every ingredient needs a cost before costing can be computed.",
+      "computeErrorHardFail": "The target margin is negative, so the breakdown cannot be saved."
     },
     "risks": {
       "title": "Risk register",
@@ -1903,7 +1929,18 @@
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
       "compareStatusUnchanged": "Unchanged",
-      "openInTechnical": "Open item in Technical"
+      "openInTechnical": "Open item in Technical",
+      "lockRecipe": "Lock recipe",
+      "locking": "Locking…",
+      "lockConfirmTitle": "Lock recipe",
+      "lockConfirmBody": "Locking freezes v{n} — it can no longer be edited.",
+      "lockConfirmConfirm": "Lock recipe",
+      "lockConfirmCancel": "Cancel",
+      "lockError": "Could not lock the recipe. Try again.",
+      "lockErrorForbidden": "You do not have permission to lock this recipe.",
+      "lockErrorLocked": "This version is already locked.",
+      "lockErrorNotSubmitted": "Only a draft or trial version can be locked.",
+      "lockErrorNotFound": "This version could not be found."
     },
     "costPanel": {
       "title": "Cost & margin",
