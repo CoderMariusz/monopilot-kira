@@ -34,6 +34,12 @@ import {
   type FormulationPanelLabels,
 } from '../formulation-editor';
 
+// FormulationEditor calls useRouter() for the post-submit router.refresh(); RTL
+// has no App-Router context, so stub next/navigation (repo convention).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
+
 afterEach(() => cleanup());
 
 const LABELS: FormulationLabels = {

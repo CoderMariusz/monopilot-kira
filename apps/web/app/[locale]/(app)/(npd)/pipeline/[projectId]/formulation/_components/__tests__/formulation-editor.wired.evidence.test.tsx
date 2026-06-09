@@ -26,7 +26,7 @@ import path from 'node:path';
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   FormulationEditor,
@@ -35,6 +35,12 @@ import {
   type FormulationPanelLabels,
 } from '../formulation-editor';
 import type { NutritionTargets } from '../nutrition-panel';
+
+// FormulationEditor calls useRouter() for the post-submit router.refresh();
+// stub next/navigation (no App-Router context under RTL).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
 
 afterEach(() => cleanup());
 

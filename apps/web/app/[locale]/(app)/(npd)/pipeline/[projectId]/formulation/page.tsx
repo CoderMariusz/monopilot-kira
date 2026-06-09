@@ -43,6 +43,12 @@ import { getFormulation } from '../../../../../../(npd)/pipeline/[projectId]/for
 import { saveDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/save-draft';
 import { recomputeAndCache } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/recompute';
 import { createFormulationDraft } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/create-draft';
+// Ghost-button wiring: import the two legacy-tree actions DIRECTLY (relative path).
+// They are the actions library; the App-Router page is the only re-export-free seam
+// that may thread them down as Server Action props. NEVER wrap them in a local
+// 'use server' shim — that breaks the production build.
+import { submitForTrial } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/submit-for-trial';
+import { compareVersions } from '../../../../../../(npd)/pipeline/[projectId]/formulation/_actions/compare-versions';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
@@ -74,7 +80,33 @@ const DEFAULT_LABELS: FormulationLabels = {
   saved: 'Saved',
   saveError: 'Could not save the draft. Try again.',
   submitForTrial: 'Submit for trial',
+  submitting: 'Submitting…',
+  submittedForTrial: 'Submitted for trial',
+  submitError: 'Could not submit for trial. Try again.',
+  submitErrorTotalPct: 'Ingredient total must equal 100% before submitting for trial.',
+  submitErrorMissingCost: 'Every ingredient needs a cost before submitting for trial.',
+  submitErrorMissingNutritionTarget: 'Compute nutrition before submitting for trial.',
+  submitErrorNotDraft: 'Only a draft version can be submitted for trial.',
+  submitErrorLocked: 'This version is locked and cannot be submitted.',
+  submitErrorForbidden: 'You do not have permission to submit for trial.',
   compareVersions: 'Compare versions',
+  compareTitle: 'Compare versions',
+  compareVersionA: 'Version A',
+  compareVersionB: 'Version B',
+  compareClose: 'Close',
+  compareRun: 'Compare',
+  compareLoading: 'Loading diff…',
+  compareError: 'Could not load the comparison.',
+  compareColIngredient: 'Ingredient',
+  compareColVersionA: 'Version A',
+  compareColVersionB: 'Version B',
+  compareSamePick: 'Pick two different versions to compare.',
+  compareNoChanges: 'No ingredient differences between these versions.',
+  compareTruncated: 'Showing the first 50 ingredient rows.',
+  compareStatusAdded: 'Added',
+  compareStatusRemoved: 'Removed',
+  compareStatusChanged: 'Changed',
+  compareStatusUnchanged: 'Unchanged',
   ingredients: 'Ingredients',
   addIngredient: 'Add ingredient',
   colIngredient: 'Ingredient',
@@ -373,6 +405,36 @@ async function loadPackWeightG(ctx: OrgContextLike, projectId: string): Promise<
   return rows[0]?.pack_weight_g ?? null;
 }
 
+interface VersionRow {
+  id: string;
+  version_number: number;
+}
+
+/**
+ * Compare-versions data source: load the project's FULL version history (id +
+ * number) so the picker can offer every version and the diff can run across any
+ * two. Cheapest correct source — a single org-scoped read of
+ * `formulation_versions` joined to the project's formulation (getFormulation
+ * only returns the current version, which is not enough to compare). Degrades to
+ * an empty list on any error so the editor still renders.
+ */
+async function loadVersionHistory(
+  ctx: OrgContextLike,
+  projectId: string,
+): Promise<Array<{ id: string; versionNumber: number }>> {
+  if (!projectId) return [];
+  const { rows } = await ctx.client.query<VersionRow>(
+    `select fv.id::text as id, fv.version_number
+       from public.formulation_versions fv
+       join public.formulations f on f.id = fv.formulation_id
+      where f.project_id = $1::uuid
+        and f.org_id = app.current_org_id()
+      order by fv.version_number desc`,
+    [projectId],
+  );
+  return rows.map((r) => ({ id: r.id, versionNumber: r.version_number }));
+}
+
 async function hasPermission(ctx: OrgContextLike, permission: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -396,23 +458,29 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   // context caching (#1) means the JWT/org resolution is shared across both.
   const [result, basics] = await Promise.all([
     getFormulation({ projectId }),
-    (async (): Promise<{ canEdit: boolean; packWeightG: string | null }> => {
+    (async (): Promise<{
+      canEdit: boolean;
+      packWeightG: string | null;
+      versions: Array<{ id: string; versionNumber: number }>;
+    }> => {
       try {
         return await withOrgContext(async (rawCtx) => {
           const ctx = rawCtx as OrgContextLike;
-          const [canEdit, packWeightG] = await Promise.all([
+          const [canEdit, packWeightG, versions] = await Promise.all([
             hasPermission(ctx, EDIT_PERMISSION),
             loadPackWeightG(ctx, projectId),
+            loadVersionHistory(ctx, projectId),
           ]);
-          return { canEdit, packWeightG };
+          return { canEdit, packWeightG, versions };
         });
       } catch {
-        return { canEdit: false, packWeightG: null };
+        return { canEdit: false, packWeightG: null, versions: [] };
       }
     })(),
   ]);
   const canEdit = basics.canEdit;
   const packWeightG = basics.packWeightG;
+  const versionHistory = basics.versions;
 
   // RM codes needed for the per-100g nutrition load (only when we have rows) —
   // depends on the formulation result, so it runs after, and is SKIPPED entirely
@@ -452,7 +520,15 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     packWeightG,
     targetPriceEur: currentVersion.targetPriceEur,
     targetYieldPct: currentVersion.targetYieldPct,
-    versions: [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }],
+    // Full version history (v1, v2…) for the picker + Compare modal. Falls back
+    // to just the current version when the history read returned nothing, and
+    // guarantees the current version is always present (defensive union).
+    versions:
+      versionHistory.length > 0
+        ? versionHistory.some((v) => v.id === currentVersion.id)
+          ? versionHistory
+          : [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }, ...versionHistory]
+        : [{ id: currentVersion.id, versionNumber: currentVersion.versionNumber }],
     ingredients: ingredients.map((ing) => {
       const nutrition = nutritionByRm.get(ing.rm_code);
       return {
@@ -508,6 +584,8 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       canEdit={loaded.canEdit}
       saveDraftAction={saveDraft}
       recomputeAction={recomputeAndCache}
+      submitForTrialAction={submitForTrial}
+      compareVersionsAction={compareVersions}
       projectId={projectId}
       createDraftAction={loaded.canEdit ? createDraftAdapter : undefined}
     />

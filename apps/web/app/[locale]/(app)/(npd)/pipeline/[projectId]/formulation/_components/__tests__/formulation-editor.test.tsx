@@ -31,6 +31,12 @@ import {
   type PageState,
 } from '../formulation-editor';
 
+// FormulationEditor calls useRouter() for the post-submit router.refresh();
+// stub next/navigation (no App-Router context under RTL).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn() }),
+}));
+
 afterEach(() => cleanup());
 beforeEach(() => vi.useRealTimers());
 

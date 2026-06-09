@@ -32,6 +32,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
 import { Button } from '@monopilot/ui/Button';
@@ -40,7 +41,7 @@ import Input from '@monopilot/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@monopilot/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-import { Dec, recomputeCalc, type RecomputeResult } from '@monopilot/domain';
+import { Dec, recomputeCalc, type RecomputeResult, type CompareResult } from '@monopilot/domain';
 
 import {
   IngredientRow,
@@ -128,7 +129,36 @@ export type FormulationLabels = {
   saved: string;
   saveError: string;
   submitForTrial: string;
+  /** Transient toast/inline state after a successful submit-for-trial. */
+  submitting: string;
+  submittedForTrial: string;
+  /** Generic + gate-specific submit-for-trial error messages. */
+  submitError: string;
+  submitErrorTotalPct: string;
+  submitErrorMissingCost: string;
+  submitErrorMissingNutritionTarget: string;
+  submitErrorNotDraft: string;
+  submitErrorLocked: string;
+  submitErrorForbidden: string;
   compareVersions: string;
+  /** Compare-versions modal labels. */
+  compareTitle: string;
+  compareVersionA: string;
+  compareVersionB: string;
+  compareClose: string;
+  compareRun: string;
+  compareLoading: string;
+  compareError: string;
+  compareColIngredient: string;
+  compareColVersionA: string;
+  compareColVersionB: string;
+  compareSamePick: string;
+  compareNoChanges: string;
+  compareTruncated: string;
+  compareStatusAdded: string;
+  compareStatusRemoved: string;
+  compareStatusChanged: string;
+  compareStatusUnchanged: string;
   ingredients: string;
   addIngredient: string;
   colIngredient: string;
@@ -186,6 +216,31 @@ export type RecomputeAction = (input: {
   projectId: string;
   versionId: string;
 }) => Promise<unknown>;
+
+/**
+ * Submit-for-trial Server Action (legacy actions tree, `_actions/submit-for-trial.ts`).
+ * Mirrors that action's result union exactly so the editor can map every gate
+ * error (TOTAL_PCT_OUT_OF_RANGE, MISSING_COST, …) to an inline message. The
+ * editor NEVER re-grants permission — `forbidden` is a server decision surfaced
+ * read-only here.
+ */
+export type SubmitForTrialAction = (input: {
+  projectId: string;
+  versionId: string;
+}) => Promise<
+  | { ok: true; data: { versionId: string } }
+  | { ok: false; error: string }
+>;
+
+/**
+ * Compare-versions Server Action (legacy actions tree, `_actions/compare-versions.ts`).
+ * Returns the pure `CompareResult` diff (row-aligned by sequence). Read-only.
+ */
+export type CompareVersionsAction = (input: {
+  projectId: string;
+  versionAId: string;
+  versionBId: string;
+}) => Promise<CompareResult>;
 
 /** Row-level Zod schema (Costing v2): qtyKg ≥ 0, rm_code required (AC#3). */
 const RowSchema = z.object({
@@ -292,17 +347,31 @@ function toAllergenStatuses(detected: string[], names: Record<string, string>): 
 }
 
 /**
- * Costing v2 — editable rows → CompositionBar segments. Segment widths are the
- * qty share (qtyKg / Σ qtyKg); the bar normalises whatever value it gets in
- * `pct` against the total, so we feed it qtyKg to get the by-mass composition.
+ * Costing v2 — editable rows → CompositionBar segments. The bar's `pct` is a TRUE
+ * percentage (its contract: "decimal STRING percentage % w/w"), so we normalise
+ * each row's by-mass share here: (qtyKg / Σ qtyKg) × 100. Feeding the bar the raw
+ * qtyKg was the live display bug — a lone 0.200 kg ingredient rendered as
+ * "0.200%" in the legend/aria-label instead of its real 100 % share (the width
+ * was already correct because the bar re-normalises, but the printed number was
+ * the raw qty). Computing the share here keeps the bar honest and the printed
+ * percentage right, while the math stays NUMERIC-exact (Dec, never a JS float).
  */
 function toCompositionSegments(rows: EditableIngredient[]): CompositionSegment[] {
-  return rows.map((r) => ({
-    id: r.id,
-    rmCode: r.rmCode,
-    name: r.name,
-    pct: isDecimalString(r.qtyKg) ? r.qtyKg : '0',
-  }));
+  let totalQty = Dec.zero();
+  for (const r of rows) if (isDecimalString(r.qtyKg)) totalQty = totalQty.add(Dec.from(r.qtyKg));
+  const totalNonZero = !totalQty.isZero();
+  return rows.map((r) => {
+    const pct =
+      isDecimalString(r.qtyKg) && totalNonZero
+        ? Dec.from(r.qtyKg).div(totalQty).mul(Dec.from('100')).toFixed(3)
+        : '0';
+    return {
+      id: r.id,
+      rmCode: r.rmCode,
+      name: r.name,
+      pct,
+    };
+  });
 }
 
 function toEditable(data: FormulationEditorData): EditableIngredient[] {
@@ -392,9 +461,12 @@ export function FormulationEditor({
   canEdit = false,
   saveDraftAction,
   recomputeAction,
+  submitForTrialAction,
+  compareVersionsAction,
   searchItemsAction,
   projectId,
   createDraftAction,
+  onRefresh,
 }: {
   state?: PageState;
   data: FormulationEditorData | null;
@@ -414,10 +486,23 @@ export function FormulationEditor({
   canEdit?: boolean;
   saveDraftAction?: SaveDraftAction;
   recomputeAction?: RecomputeAction;
+  /** Submit-for-trial Server Action (gates server-side; editor only mirrors result). */
+  submitForTrialAction?: SubmitForTrialAction;
+  /** Compare-versions Server Action (read-only diff for the Compare modal). */
+  compareVersionsAction?: CompareVersionsAction;
   /** Lane-B: org-scoped item-search action for the ingredient picker (defaults to searchItems). */
   searchItemsAction?: ItemSearchFn;
+  /** Server-side refresh (router.refresh) — called after a successful submit. */
+  onRefresh?: () => void;
 }) {
   const searchAction: ItemSearchFn = searchItemsAction ?? searchItems;
+  const router = useRouter();
+  // Server-side refresh after a successful submit. Test seam: `onRefresh` overrides
+  // router.refresh so RTL (no Next router context) can assert the call.
+  const refresh = React.useCallback(() => {
+    if (onRefresh) onRefresh();
+    else router.refresh();
+  }, [onRefresh, router]);
   const [creatingDraft, setCreatingDraft] = React.useState(false);
   const onCreateDraft = React.useCallback(async () => {
     if (!createDraftAction || !projectId || creatingDraft) return;
@@ -447,6 +532,18 @@ export function FormulationEditor({
   const [yieldPct, setYieldPct] = React.useState<number>(parseYield(data?.targetYieldPct));
   const [versionId, setVersionId] = React.useState<string>(data?.versionId ?? '');
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle');
+
+  // ── Submit for trial (gated server-side; editor only mirrors the result) ──────
+  type SubmitStatus = 'idle' | 'submitting' | 'submitted' | 'error';
+  const [submitStatus, setSubmitStatus] = React.useState<SubmitStatus>('idle');
+  const [submitError, setSubmitError] = React.useState<string>('');
+
+  // ── Compare versions modal state ─────────────────────────────────────────────
+  const [compareOpen, setCompareOpen] = React.useState(false);
+  const [compareA, setCompareA] = React.useState<string>('');
+  const [compareB, setCompareB] = React.useState<string>('');
+  const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
+  const [compareStatus, setCompareStatus] = React.useState<'idle' | 'loading' | 'error'>('idle');
 
   // Per-RM nutrition is reference data (stable across pct edits); derive once.
   const nutritionByRm = React.useMemo(() => {
@@ -631,6 +728,95 @@ export function FormulationEditor({
     [editable, scheduleSave],
   );
 
+  /** Map a server gate-error code → the localized inline message. */
+  const submitErrorMessage = React.useCallback(
+    (error: string): string => {
+      switch (error) {
+        case 'TOTAL_PCT_OUT_OF_RANGE':
+          return labels.submitErrorTotalPct;
+        case 'MISSING_COST':
+          return labels.submitErrorMissingCost;
+        case 'MISSING_NUTRITION_TARGET':
+          return labels.submitErrorMissingNutritionTarget;
+        case 'VERSION_NOT_DRAFT':
+          return labels.submitErrorNotDraft;
+        case 'VERSION_LOCKED':
+          return labels.submitErrorLocked;
+        case 'forbidden':
+          return labels.submitErrorForbidden;
+        default:
+          return labels.submitError;
+      }
+    },
+    [labels],
+  );
+
+  /**
+   * Submit for trial. Server-side action enforces RBAC + the recipe gates; we
+   * only mirror the result. On success we surface the saved/submitted indicator
+   * (same pattern as save) and trigger a server refresh so the version's new
+   * `submitted_for_trial` state re-renders from Supabase.
+   */
+  const onSubmitForTrial = React.useCallback(() => {
+    if (!submitForTrialAction || !data || submitStatus === 'submitting') return;
+    setSubmitStatus('submitting');
+    setSubmitError('');
+    void (async () => {
+      try {
+        const result = await submitForTrialAction({ projectId: data.projectId, versionId });
+        if (result.ok) {
+          setSubmitStatus('submitted');
+          refresh();
+        } else {
+          setSubmitStatus('error');
+          setSubmitError(submitErrorMessage(result.error));
+        }
+      } catch {
+        setSubmitStatus('error');
+        setSubmitError(labels.submitError);
+      }
+    })();
+  }, [submitForTrialAction, data, versionId, submitStatus, refresh, submitErrorMessage, labels.submitError]);
+
+  /** Open the Compare modal — seed A = current version, B = the previous one (if any). */
+  const onOpenCompare = React.useCallback(() => {
+    const versions = data?.versions ?? [];
+    setCompareResult(null);
+    setCompareStatus('idle');
+    setCompareA(data?.versionId ?? versions[0]?.id ?? '');
+    // Default B to the highest version that is NOT the current one (else same as A).
+    const other = versions.find((v) => v.id !== (data?.versionId ?? ''));
+    setCompareB(other?.id ?? data?.versionId ?? '');
+    setCompareOpen(true);
+  }, [data]);
+
+  const onRunCompare = React.useCallback(() => {
+    if (!compareVersionsAction || !data || !compareA || !compareB) return;
+    setCompareStatus('loading');
+    setCompareResult(null);
+    void (async () => {
+      try {
+        const result = await compareVersionsAction({
+          projectId: data.projectId,
+          versionAId: compareA,
+          versionBId: compareB,
+        });
+        setCompareResult(result);
+        setCompareStatus('idle');
+      } catch {
+        setCompareStatus('error');
+      }
+    })();
+  }, [compareVersionsAction, data, compareA, compareB]);
+
+  // Auto-run the diff when the modal opens with two distinct versions selected.
+  React.useEffect(() => {
+    if (compareOpen && compareA && compareB && compareA !== compareB && !compareResult) {
+      onRunCompare();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareOpen]);
+
   // Costing v2 — the table total is now the qty roll-up (kg/pack); the raw cost is
   // the per-pack RM cost. Both come from the same NUMERIC-exact roll-up that feeds
   // the panels, so the table total and the CostPanel never disagree (single source).
@@ -727,7 +913,13 @@ export function FormulationEditor({
         </div>
 
         <div className="flex gap-2">
-          <Button type="button" className="btn-ghost" disabled={!data}>
+          <Button
+            type="button"
+            className="btn-ghost"
+            disabled={!data || !compareVersionsAction}
+            onClick={onOpenCompare}
+            data-testid="compare-versions-trigger"
+          >
             {labels.compareVersions}
           </Button>
           <Button
@@ -739,11 +931,49 @@ export function FormulationEditor({
           >
             {saveLabel}
           </Button>
-          <Button type="button" className="btn-primary" disabled={!editable || !balanced}>
-            {`${labels.submitForTrial} →`}
+          <Button
+            type="button"
+            className="btn-primary"
+            disabled={!editable || !balanced || !submitForTrialAction || submitStatus === 'submitting'}
+            data-status={submitStatus}
+            data-testid="submit-for-trial"
+            onClick={onSubmitForTrial}
+          >
+            {submitStatus === 'submitting'
+              ? labels.submitting
+              : submitStatus === 'submitted'
+                ? labels.submittedForTrial
+                : `${labels.submitForTrial} →`}
           </Button>
         </div>
       </header>
+
+      {submitStatus === 'error' && submitError ? (
+        <div role="alert" className="alert alert-red" data-testid="submit-error">
+          {submitError}
+        </div>
+      ) : null}
+
+      {compareOpen ? (
+        <CompareVersionsModal
+          labels={labels}
+          versions={data?.versions ?? []}
+          versionA={compareA}
+          versionB={compareB}
+          onVersionAChange={(v) => {
+            setCompareA(v);
+            setCompareResult(null);
+          }}
+          onVersionBChange={(v) => {
+            setCompareB(v);
+            setCompareResult(null);
+          }}
+          status={compareStatus}
+          result={compareResult}
+          onRun={onRunCompare}
+          onClose={() => setCompareOpen(false)}
+        />
+      ) : null}
 
       {locked ? (
         <div role="alert" className="alert alert-amber">
@@ -965,6 +1195,13 @@ export function FormulationEditor({
       <span aria-live="polite" className="sr-only" data-testid="save-status">
         {saveStatus === 'saving' ? labels.saving : saveStatus === 'saved' ? labels.saved : ''}
       </span>
+      <span aria-live="polite" className="sr-only" data-testid="submit-status">
+        {submitStatus === 'submitting'
+          ? labels.submitting
+          : submitStatus === 'submitted'
+            ? labels.submittedForTrial
+            : ''}
+      </span>
     </main>
   );
 }
@@ -975,4 +1212,230 @@ function compositionWidth(pct: string, total: string): string {
   const totalDec = Dec.from(total);
   if (totalDec.isZero()) return '0';
   return Dec.from(pct).div(totalDec).mul(Dec.from('100')).toFixed(3);
+}
+
+/** Status → badge tone class (design-system .badge-*). */
+const COMPARE_STATUS_TONE: Record<CompareResult['rows'][number]['status'], string> = {
+  ADDED: 'badge-green',
+  REMOVED: 'badge-red',
+  CHANGED: 'badge-amber',
+  UNCHANGED: 'badge-gray',
+};
+
+/**
+ * Compare-versions modal — a read-only side-by-side diff of two formulation
+ * versions' ingredient rows (compareVersions action output, T-065). Two version
+ * pickers (Select, never raw <select>), a two-column ingredient table with
+ * changed cells highlighted, and a status badge per row. Design-system
+ * .modal-* / .badge-* primitives.
+ */
+function CompareVersionsModal({
+  labels,
+  versions,
+  versionA,
+  versionB,
+  onVersionAChange,
+  onVersionBChange,
+  status,
+  result,
+  onRun,
+  onClose,
+}: {
+  labels: FormulationLabels;
+  versions: Array<{ id: string; versionNumber: number }>;
+  versionA: string;
+  versionB: string;
+  onVersionAChange: (v: string) => void;
+  onVersionBChange: (v: string) => void;
+  status: 'idle' | 'loading' | 'error';
+  result: CompareResult | null;
+  onRun: () => void;
+  onClose: () => void;
+}) {
+  const options = versions.map((v) => ({ value: v.id, label: `v${v.versionNumber}` }));
+  const samePick = !!versionA && versionA === versionB;
+  const statusLabel = (s: CompareResult['rows'][number]['status']): string => {
+    switch (s) {
+      case 'ADDED':
+        return labels.compareStatusAdded;
+      case 'REMOVED':
+        return labels.compareStatusRemoved;
+      case 'CHANGED':
+        return labels.compareStatusChanged;
+      default:
+        return labels.compareStatusUnchanged;
+    }
+  };
+  const cellText = (cell: { pct: string | null; qtyKg: string | null } | null): string =>
+    cell ? `${cell.qtyKg ?? '—'} kg` : '—';
+
+  return (
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={labels.compareTitle}
+      data-testid="compare-versions-modal"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-box wide">
+        <div className="modal-head">
+          <div className="modal-title">{labels.compareTitle}</div>
+          <button
+            type="button"
+            className="modal-close"
+            aria-label={labels.compareClose}
+            onClick={onClose}
+            data-testid="compare-close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="modal-body space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <span className="block text-[10px] uppercase tracking-wide muted">
+                {labels.compareVersionA}
+              </span>
+              <Select
+                value={versionA}
+                onValueChange={onVersionAChange}
+                aria-label={labels.compareVersionA}
+                options={options}
+              >
+                <SelectTrigger aria-label={labels.compareVersionA} data-testid="compare-version-a">
+                  <SelectValue placeholder={labels.compareVersionA} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase tracking-wide muted">
+                {labels.compareVersionB}
+              </span>
+              <Select
+                value={versionB}
+                onValueChange={onVersionBChange}
+                aria-label={labels.compareVersionB}
+                options={options}
+              >
+                <SelectTrigger aria-label={labels.compareVersionB} data-testid="compare-version-b">
+                  <SelectValue placeholder={labels.compareVersionB} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={onRun}
+              disabled={samePick || status === 'loading'}
+              data-testid="compare-run"
+            >
+              {labels.compareRun}
+            </Button>
+          </div>
+
+          {samePick ? (
+            <p className="text-xs muted" data-testid="compare-same-pick">
+              {labels.compareSamePick}
+            </p>
+          ) : null}
+
+          {status === 'loading' ? (
+            <div role="status" aria-live="polite" className="text-xs muted" data-testid="compare-loading">
+              {labels.compareLoading}
+            </div>
+          ) : status === 'error' ? (
+            <div role="alert" className="alert alert-red" data-testid="compare-error">
+              {labels.compareError}
+            </div>
+          ) : result ? (
+            <div data-testid="compare-result">
+              {result.truncated ? (
+                <div role="status" className="alert alert-amber" data-testid="compare-truncated">
+                  {labels.compareTruncated}
+                </div>
+              ) : null}
+              {result.rows.length === 0 ? (
+                <p className="text-xs muted" data-testid="compare-no-changes">
+                  {labels.compareNoChanges}
+                </p>
+              ) : (
+                <Table data-testid="compare-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">{labels.compareColIngredient}</TableHead>
+                      <TableHead scope="col" className="text-right">
+                        {labels.compareColVersionA}
+                      </TableHead>
+                      <TableHead scope="col" className="text-right">
+                        {labels.compareColVersionB}
+                      </TableHead>
+                      <TableHead scope="col" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.rows.map((row) => (
+                      <TableRow
+                        key={row.sequence}
+                        data-testid="compare-row"
+                        data-status={row.status}
+                      >
+                        <TableCell className="mono">{row.rmCode || '—'}</TableCell>
+                        <TableCell
+                          className={[
+                            'text-right mono',
+                            row.changed.qtyKg ? 'bg-amber-50 font-semibold' : '',
+                          ].join(' ')}
+                          data-changed={row.changed.qtyKg ? 'true' : undefined}
+                        >
+                          {cellText(row.a)}
+                        </TableCell>
+                        <TableCell
+                          className={[
+                            'text-right mono',
+                            row.changed.qtyKg ? 'bg-amber-50 font-semibold' : '',
+                          ].join(' ')}
+                          data-changed={row.changed.qtyKg ? 'true' : undefined}
+                        >
+                          {cellText(row.b)}
+                        </TableCell>
+                        <TableCell>
+                          <span className={['badge', COMPARE_STATUS_TONE[row.status]].join(' ')}>
+                            {statusLabel(row.status)}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="modal-foot">
+          <Button type="button" className="btn-secondary" onClick={onClose}>
+            {labels.compareClose}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
