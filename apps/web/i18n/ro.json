@@ -1998,7 +1998,8 @@
       "loading": "Loading BOM…",
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
-      "forbidden": "You do not have permission to view this BOM."
+      "forbidden": "You do not have permission to view this BOM.",
+      "originNpdProject": "Origine: proiect NPD →"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -2419,7 +2420,8 @@
         "unitCost": "Cost/kg",
         "lineCost": "Cost linie",
         "total": "Total"
-      }
+      },
+      "seeNpdCosting": "Vezi calculația NPD →"
     },
     "costHistory": {
       "title": "Istoricul costurilor",
@@ -2514,7 +2516,8 @@
         "error": "Nu s-au putut încărca profilurile nutriționale. Încercați din nou.",
         "emptyTitle": "Niciun profil nutrițional încă",
         "emptyBody": "Profilurile nutriționale sunt materializate din formulările NPD. Nu există încă pentru această organizație."
-      }
+      },
+      "openNpdProject": "Deschide proiectul NPD →"
     },
     "shelfLife": {
       "title": "Configurarea termenului de valabilitate",
@@ -3618,7 +3621,8 @@
       "compareStatusAdded": "Added",
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
-      "compareStatusUnchanged": "Unchanged"
+      "compareStatusUnchanged": "Unchanged",
+      "openInTechnical": "Deschide articolul în Technical"
     },
     "costPanel": {
       "title": "Cost și marjă",

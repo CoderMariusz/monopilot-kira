@@ -1902,7 +1902,8 @@
       "compareStatusAdded": "Added",
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
-      "compareStatusUnchanged": "Unchanged"
+      "compareStatusUnchanged": "Unchanged",
+      "openInTechnical": "Open item in Technical"
     },
     "costPanel": {
       "title": "Cost & margin",
@@ -3864,7 +3865,8 @@
       "loading": "Loading BOM…",
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
-      "forbidden": "You do not have permission to view this BOM."
+      "forbidden": "You do not have permission to view this BOM.",
+      "originNpdProject": "Origin: NPD project →"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -4285,7 +4287,8 @@
         "unitCost": "Cost/kg",
         "lineCost": "Line cost",
         "total": "Total"
-      }
+      },
+      "seeNpdCosting": "See NPD costing →"
     },
     "costHistory": {
       "title": "Cost history",
@@ -4380,7 +4383,8 @@
         "error": "Unable to load nutrition profiles. Please try again.",
         "emptyTitle": "No nutrition profiles yet",
         "emptyBody": "Nutrition profiles are materialized from NPD formulations. None exist for this org yet."
-      }
+      },
+      "openNpdProject": "Open NPD project →"
     },
     "shelfLife": {
       "title": "Shelf-life configuration",

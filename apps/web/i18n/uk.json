@@ -1998,7 +1998,8 @@
       "loading": "Loading BOM…",
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
-      "forbidden": "You do not have permission to view this BOM."
+      "forbidden": "You do not have permission to view this BOM.",
+      "originNpdProject": "Походження: проєкт NPD →"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -2419,7 +2420,8 @@
         "unitCost": "Вартість/кг",
         "lineCost": "Вартість позиції",
         "total": "Разом"
-      }
+      },
+      "seeNpdCosting": "Переглянути калькуляцію NPD →"
     },
     "costHistory": {
       "title": "Історія собівартості",
@@ -2514,7 +2516,8 @@
         "error": "Не вдалося завантажити профілі харчової цінності. Спробуйте ще раз.",
         "emptyTitle": "Ще немає профілів харчової цінності",
         "emptyBody": "Профілі харчової цінності матеріалізуються з рецептур NPD. Для цієї організації їх ще немає."
-      }
+      },
+      "openNpdProject": "Відкрити проєкт NPD →"
     },
     "shelfLife": {
       "title": "Налаштування терміну придатності",
@@ -3618,7 +3621,8 @@
       "compareStatusAdded": "Added",
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
-      "compareStatusUnchanged": "Unchanged"
+      "compareStatusUnchanged": "Unchanged",
+      "openInTechnical": "Відкрити позицію в Technical"
     },
     "costPanel": {
       "title": "Вартість і маржа",

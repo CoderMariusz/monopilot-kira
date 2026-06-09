@@ -1998,7 +1998,8 @@
       "loading": "Loading BOM…",
       "error": "Unable to load this BOM. Please try again.",
       "notFound": "BOM not found.",
-      "forbidden": "You do not have permission to view this BOM."
+      "forbidden": "You do not have permission to view this BOM.",
+      "originNpdProject": "Pochodzenie: projekt NPD →"
     },
     "bomDelete": {
       "title": "Delete BOM version",
@@ -2419,7 +2420,8 @@
         "unitCost": "Koszt/kg",
         "lineCost": "Koszt pozycji",
         "total": "Razem"
-      }
+      },
+      "seeNpdCosting": "Zobacz kosztorys NPD →"
     },
     "costHistory": {
       "title": "Historia kosztów",
@@ -2514,7 +2516,8 @@
         "error": "Nie udało się wczytać profili odżywczych. Spróbuj ponownie.",
         "emptyTitle": "Brak profili odżywczych",
         "emptyBody": "Profile odżywcze są materializowane z receptur NPD. Dla tej organizacji jeszcze nie istnieją."
-      }
+      },
+      "openNpdProject": "Otwórz projekt NPD →"
     },
     "shelfLife": {
       "title": "Konfiguracja terminu przydatności",
@@ -3618,7 +3621,8 @@
       "compareStatusAdded": "Added",
       "compareStatusRemoved": "Removed",
       "compareStatusChanged": "Changed",
-      "compareStatusUnchanged": "Unchanged"
+      "compareStatusUnchanged": "Unchanged",
+      "openInTechnical": "Otwórz pozycję w module technicznym"
     },
     "costPanel": {
       "title": "Koszt i marża",
