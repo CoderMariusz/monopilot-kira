@@ -26,9 +26,13 @@
 import React from 'react';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
+import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
+
+import { PilotRunModal, type PilotRunFormValues } from './pilot-run-modal';
+import { PilotMaterialModal, type PilotMaterialFormValues } from './pilot-material-modal';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -63,9 +67,13 @@ export type PilotRunView = {
   batchSizeKg: string | null;
   expectedYieldPct: string | null;
   durationHours: string | null;
+  /** uuid of the supervisor (for pre-filling the edit modal); null = unassigned. */
+  supervisorUserId: string | null;
   supervisorName: string | null;
   status: 'planned' | 'in_progress' | 'completed';
 };
+
+export type SupervisorOption = { id: string; name: string };
 
 export type PilotScreenData = {
   run: PilotRunView;
@@ -73,6 +81,10 @@ export type PilotScreenData = {
   checklist: PilotChecklistItemView[];
   /** Total short across materials (decimal STRING) for the callout; null = none short. */
   totalShortKg: string | null;
+  /** Org users selectable as supervisor in the run-plan modal. */
+  supervisors: SupervisorOption[];
+  /** True when the caller holds npd.pilot.write (server-resolved, never client-trusted). */
+  canWrite: boolean;
 };
 
 export type PilotLabels = {
@@ -109,10 +121,52 @@ export type PilotLabels = {
   error: string;
   forbidden: string;
   notSet: string;
+  // Edit affordances (additive over the static prototype).
+  planPilotRun: string;
+  editPlan: string;
+  addMaterial: string;
+  editMaterial: string;
+  editAction: string;
+  // Modal fields.
+  fieldPlannedDate: string;
+  fieldLine: string;
+  fieldBatchSize: string;
+  fieldExpectedYield: string;
+  fieldDuration: string;
+  fieldSupervisor: string;
+  fieldIngredient: string;
+  fieldRequired: string;
+  fieldAvailable: string;
+  fieldReserved: string;
+  save: string;
+  saving: string;
+  cancel: string;
+  saveError: string;
 };
 
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
+
+export type PilotActionOutcome = { ok: boolean; error?: string };
+
+export type UpsertRunCall = {
+  pilotRunId: string | null;
+  plannedDate: string | null;
+  line: string | null;
+  batchSizeKg: string | null;
+  expectedYieldPct: string | null;
+  durationHours: string | null;
+  supervisorUserId: string | null;
+};
+
+export type UpsertMaterialCall = {
+  pilotRunId: string;
+  materialId: string | null;
+  ingredientCode: string;
+  requiredKg: string;
+  availableKg: string;
+  reservedKg: string;
+};
 
 /** Replace `{token}` placeholders in an i18n string (no inline strings). */
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -177,32 +231,103 @@ export function PilotScreen({
   state = 'ready',
   data,
   labels,
+  canWrite = false,
+  supervisors = [],
   onToggleChecklistItem,
+  onUpsertRun,
+  onUpsertMaterial,
 }: {
   state?: PageState;
   data: PilotScreenData | null;
   labels: PilotLabels;
+  /** Server-resolved write capability; gates every edit affordance. */
+  canWrite?: boolean;
+  /** Org users selectable as supervisor (also used in the empty-state planner). */
+  supervisors?: SupervisorOption[];
   onToggleChecklistItem?: (call: ToggleChecklistCall) => Promise<ToggleChecklistOutcome>;
+  onUpsertRun?: (call: UpsertRunCall) => Promise<PilotActionOutcome>;
+  onUpsertMaterial?: (call: UpsertMaterialCall) => Promise<PilotActionOutcome>;
 }) {
   // Optimistic checklist state keyed by item id (server is the source of truth).
   const [optimistic, setOptimistic] = React.useState<Record<string, boolean>>({});
+  // Run-plan modal (planning a new run OR editing the existing one).
+  const [runModalOpen, setRunModalOpen] = React.useState(false);
+  // Material modal: the row being edited, or `null` for a brand-new "+ Add".
+  const [materialModalOpen, setMaterialModalOpen] = React.useState(false);
+  const [editingMaterial, setEditingMaterial] = React.useState<PilotMaterialView | null>(null);
+
   React.useEffect(() => {
     setOptimistic({});
   }, [data?.run.id]);
 
+  const supervisorList = data?.supervisors ?? supervisors;
+  // Server-resolved write capability. Each affordance is additionally gated on
+  // the presence of its own action callback (so a screen wired with only one
+  // action still renders correctly).
+  const canEdit = data?.canWrite ?? canWrite;
+  const canEditRun = canEdit && Boolean(onUpsertRun);
+  const canEditMaterial = canEdit && Boolean(onUpsertMaterial);
+
+  async function handleRunSubmit(values: PilotRunFormValues): Promise<PilotActionOutcome> {
+    if (!onUpsertRun) return { ok: false, error: 'persistence_failed' };
+    return onUpsertRun({
+      pilotRunId: data?.run.id ?? null,
+      plannedDate: values.plannedDate.trim() || null,
+      line: values.line.trim() || null,
+      batchSizeKg: values.batchSizeKg.trim() || null,
+      expectedYieldPct: values.expectedYieldPct.trim() || null,
+      durationHours: values.durationHours.trim() || null,
+      supervisorUserId: values.supervisorUserId || null,
+    });
+  }
+
+  async function handleMaterialSubmit(values: PilotMaterialFormValues): Promise<PilotActionOutcome> {
+    if (!onUpsertMaterial || !data) return { ok: false, error: 'persistence_failed' };
+    return onUpsertMaterial({
+      pilotRunId: data.run.id,
+      materialId: editingMaterial?.id ?? null,
+      ingredientCode: values.ingredientCode.trim(),
+      requiredKg: values.requiredKg.trim(),
+      availableKg: values.availableKg.trim(),
+      reservedKg: values.reservedKg.trim(),
+    });
+  }
+
   if (state !== 'ready' || !data) {
+    // Empty + writable → show the "+ Plan pilot run" planner instead of a dead end.
+    const canPlan = state === 'empty' && canEditRun;
     return (
       <main
         data-testid="pilot-screen"
         aria-labelledby="pilot-title"
         className="mx-auto w-full max-w-6xl space-y-4 p-6"
       >
-        <header>
+        <header className="flex flex-row items-start justify-between gap-4">
           <h1 id="pilot-title" className="page-title">
             {labels.title}
           </h1>
+          {canPlan ? (
+            <Button
+              type="button"
+              className="btn-sm"
+              data-testid="plan-pilot-run-button"
+              onClick={() => setRunModalOpen(true)}
+            >
+              {labels.planPilotRun}
+            </Button>
+          ) : null}
         </header>
         <StateNotice state={state} labels={labels} />
+        {canPlan ? (
+          <PilotRunModal
+            open={runModalOpen}
+            onOpenChange={setRunModalOpen}
+            labels={labels}
+            run={null}
+            supervisors={supervisorList}
+            onSubmit={handleRunSubmit}
+          />
+        ) : null}
       </main>
     );
   }
@@ -254,8 +379,18 @@ export function PilotScreen({
 
       {/* Pilot run plan — prototype lines 364-372. */}
       <Card data-testid="pilot-plan-card">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
           <CardTitle>{labels.planTitle}</CardTitle>
+          {canEditRun ? (
+            <Button
+              type="button"
+              className="btn-sm btn-ghost"
+              data-testid="edit-pilot-plan-button"
+              onClick={() => setRunModalOpen(true)}
+            >
+              {labels.editPlan}
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="pilot-plan-grid">
@@ -281,8 +416,21 @@ export function PilotScreen({
 
       {/* Material reservation — prototype lines 374-389. */}
       <Card data-testid="pilot-material-card">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
           <CardTitle>{labels.materialTitle}</CardTitle>
+          {canEditMaterial ? (
+            <Button
+              type="button"
+              className="btn-sm"
+              data-testid="add-pilot-material-button"
+              onClick={() => {
+                setEditingMaterial(null);
+                setMaterialModalOpen(true);
+              }}
+            >
+              {labels.addMaterial}
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           <Table data-testid="pilot-material-table">
@@ -293,6 +441,11 @@ export function PilotScreen({
                 <TableHead scope="col">{labels.colAvailable}</TableHead>
                 <TableHead scope="col">{labels.colReserved}</TableHead>
                 <TableHead scope="col">{labels.colStatus}</TableHead>
+                {canEditMaterial ? (
+                  <TableHead scope="col">
+                    <span className="sr-only">{labels.editAction}</span>
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -316,6 +469,21 @@ export function PilotScreen({
                         : labels.statusReserved}
                     </Badge>
                   </TableCell>
+                  {canEditMaterial ? (
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        className="btn-sm btn-ghost"
+                        data-testid="edit-pilot-material-button"
+                        onClick={() => {
+                          setEditingMaterial(m);
+                          setMaterialModalOpen(true);
+                        }}
+                      >
+                        {labels.editAction}
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -365,6 +533,27 @@ export function PilotScreen({
           </ul>
         </CardContent>
       </Card>
+
+      {canEditRun ? (
+        <PilotRunModal
+          open={runModalOpen}
+          onOpenChange={setRunModalOpen}
+          labels={labels}
+          run={run}
+          supervisors={supervisorList}
+          onSubmit={handleRunSubmit}
+        />
+      ) : null}
+
+      {canEditMaterial ? (
+        <PilotMaterialModal
+          open={materialModalOpen}
+          onOpenChange={setMaterialModalOpen}
+          labels={labels}
+          material={editingMaterial}
+          onSubmit={handleMaterialSubmit}
+        />
+      ) : null}
     </main>
   );
 }

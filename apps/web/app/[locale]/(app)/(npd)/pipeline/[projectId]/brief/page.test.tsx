@@ -47,6 +47,13 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   },
 };
 
+// ── next/navigation: the screen now calls useRouter() for the edit affordance. ──
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/en/pipeline/p1/brief',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock('next-intl/server', () => ({
   getTranslations: vi.fn(async (req?: { locale?: string; namespace?: string }) => {
     const ns = INLINE_MESSAGES[req?.namespace ?? ''] ?? {};
@@ -80,9 +87,12 @@ const READY: ProjectBriefView = {
   notes: 'Carrefour PL listing target',
 };
 
-async function renderPage(args: { state?: string; data?: ProjectBriefView | null }) {
+async function renderPage(args: { state?: string; data?: ProjectBriefView | null; canWrite?: boolean }) {
   const ui = await ProjectBriefPage({
     params: Promise.resolve({ locale: 'en', projectId: 'p1' }),
+    // Pass an explicit canWrite so the page never reaches the live
+    // resolveCanWrite()/Supabase path in unit tests (RBAC is covered separately).
+    canWrite: false,
     ...args,
   });
   return render(ui as React.ReactElement);
@@ -153,5 +163,15 @@ describe('NPD project-stage Brief page (project.jsx:45-105)', () => {
     expect(screen.getByTestId('project-brief-forbidden')).toHaveTextContent(
       'You do not have permission to view this brief.',
     );
+  });
+
+  it('RBAC: Edit button is hidden when the server resolves canWrite=false', async () => {
+    await renderPage({ state: 'ready', data: READY, canWrite: false });
+    expect(screen.queryByTestId('project-brief-edit')).not.toBeInTheDocument();
+  });
+
+  it('RBAC: Edit button surfaces when the server resolves canWrite=true (npd.core.write)', async () => {
+    await renderPage({ state: 'ready', data: READY, canWrite: true });
+    expect(screen.getByTestId('project-brief-edit')).toHaveTextContent('Edit brief');
   });
 });

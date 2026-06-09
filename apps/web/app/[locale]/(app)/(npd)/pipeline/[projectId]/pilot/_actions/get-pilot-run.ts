@@ -50,6 +50,7 @@ export type PilotRunDto = {
   batchSizeKg: string | null;
   expectedYieldPct: string | null;
   durationHours: string | null;
+  supervisorUserId: string | null;
   supervisorName: string | null;
   status: 'planned' | 'in_progress' | 'completed';
 };
@@ -120,6 +121,7 @@ type RunRow = {
   batch_size_kg: string | null;
   expected_yield_pct: string | null;
   duration_hours: string | null;
+  supervisor_user_id: string | null;
   supervisor_name: string | null;
   status: 'planned' | 'in_progress' | 'completed';
 };
@@ -178,6 +180,7 @@ export async function getPilotRun(raw: unknown): Promise<GetPilotRunResult> {
                 pr.batch_size_kg::text         as batch_size_kg,
                 pr.expected_yield_pct::text    as expected_yield_pct,
                 pr.duration_hours::text        as duration_hours,
+                pr.supervisor_user_id::text    as supervisor_user_id,
                 coalesce(u.display_name, u.email::text) as supervisor_name,
                 pr.status
            from public.pilot_runs pr
@@ -235,6 +238,7 @@ export async function getPilotRun(raw: unknown): Promise<GetPilotRunResult> {
             batchSizeKg: run.batch_size_kg,
             expectedYieldPct: run.expected_yield_pct,
             durationHours: run.duration_hours,
+            supervisorUserId: run.supervisor_user_id,
             supervisorName: run.supervisor_name,
             status: run.status,
           },

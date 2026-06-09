@@ -11,10 +11,12 @@
  *   prototypes/design/Monopilot Design System/npd/other-stages.jsx:352-409 (PilotScreen)
  *   (the LEGACY banner at lines 355-361 is intentionally OMITTED — this is a live screen)
  *
- * RBAC: getPilotRun gates on `npd.pilot.read`; the checklist toggle gates on
- * `npd.pilot.write`. permission_denied → the permission-denied state. The write
- * action is wrapped in an inline 'use server' adapter so a serializable function
- * prop crosses the RSC boundary (Next 16 guard).
+ * RBAC: getPilotRun gates on `npd.pilot.read`; the checklist toggle + run/material
+ * upserts gate on `npd.pilot.write`. permission_denied → the permission-denied
+ * state. Each write action is wrapped in an inline 'use server' adapter so a
+ * serializable function prop crosses the RSC boundary (Next 16 guard). The
+ * actions own their own RBAC — `canWrite` here only decides which affordances to
+ * render and is NEVER trusted as the authorization gate.
  */
 
 import { getTranslations } from 'next-intl/server';
@@ -24,11 +26,18 @@ import {
   type PageState,
   type PilotLabels,
   type PilotScreenData,
+  type SupervisorOption,
   type ToggleChecklistCall,
   type ToggleChecklistOutcome,
+  type PilotActionOutcome,
+  type UpsertRunCall,
+  type UpsertMaterialCall,
 } from './_components/pilot-screen';
-import { getPilotRun } from './_actions/get-pilot-run';
+import { getPilotRun, hasPilotPermission } from './_actions/get-pilot-run';
 import { togglePilotChecklistItem } from './_actions/toggle-pilot-checklist-item';
+import { upsertPilotRun } from './_actions/upsert-pilot-run';
+import { upsertPilotMaterial } from './_actions/upsert-pilot-material';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +48,18 @@ type PilotPageProps = {
   state?: PageState;
 };
 
-type LoaderResult = { state: PageState; data: PilotScreenData | null };
+type LoaderResult = {
+  state: PageState;
+  data: PilotScreenData | null;
+  canWrite: boolean;
+  supervisors: SupervisorOption[];
+};
+
+type QueryClient = {
+  query<T = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<{ rows: T[] }>;
+};
+
+const WRITE_PERMISSION = 'npd.pilot.write';
 
 const DEFAULT_LABELS: PilotLabels = {
   title: 'Pilot production',
@@ -72,6 +92,25 @@ const DEFAULT_LABELS: PilotLabels = {
   error: 'Unable to load pilot data.',
   forbidden: 'You do not have permission to view the pilot stage.',
   notSet: '—',
+  planPilotRun: '+ Plan pilot run',
+  editPlan: 'Edit plan',
+  addMaterial: '+ Add material',
+  editMaterial: 'Edit material',
+  editAction: 'Edit',
+  fieldPlannedDate: 'Planned date',
+  fieldLine: 'Line',
+  fieldBatchSize: 'Batch size (kg)',
+  fieldExpectedYield: 'Expected yield (%)',
+  fieldDuration: 'Duration (hours)',
+  fieldSupervisor: 'Supervisor',
+  fieldIngredient: 'Ingredient',
+  fieldRequired: 'Required (kg)',
+  fieldAvailable: 'Available (kg)',
+  fieldReserved: 'Reserved (kg)',
+  save: 'Save',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  saveError: 'Could not save. Check the values and try again.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof PilotLabels>;
@@ -97,20 +136,50 @@ async function buildLabels(locale: string): Promise<PilotLabels> {
   }
 }
 
+/** Resolve write capability + the supervisor picker options (org-scoped). */
+async function readWriteContext(): Promise<{ canWrite: boolean; supervisors: SupervisorOption[] }> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as { userId: string; orgId: string; client: QueryClient };
+      const canWrite = await hasPilotPermission(ctx, WRITE_PERMISSION);
+      const supervisors = await ctx.client.query<{ id: string; name: string }>(
+        `select id::text as id, coalesce(display_name, email::text, id::text) as name
+           from public.users
+          where org_id = app.current_org_id()
+          order by name asc
+          limit 200`,
+      );
+      return { canWrite, supervisors: supervisors.rows.map((u) => ({ id: u.id, name: u.name })) };
+    });
+  } catch (error) {
+    console.error('[pilot] write-context read failed:', error);
+    return { canWrite: false, supervisors: [] };
+  }
+}
+
 async function readPageData(projectId: string): Promise<LoaderResult> {
-  const result = await getPilotRun({ projectId });
+  const [{ canWrite, supervisors }, result] = await Promise.all([
+    readWriteContext(),
+    getPilotRun({ projectId }),
+  ]);
+
   if (result.ok) {
-    return { state: 'ready', data: result.data };
+    return {
+      state: 'ready',
+      data: { ...result.data, supervisors, canWrite },
+      canWrite,
+      supervisors,
+    };
   }
   switch (result.error) {
     case 'forbidden':
-      return { state: 'permission_denied', data: null };
+      return { state: 'permission_denied', data: null, canWrite: false, supervisors: [] };
     case 'not_found':
-      return { state: 'empty', data: null };
+      return { state: 'empty', data: null, canWrite, supervisors };
     case 'invalid_input':
-      return { state: 'error', data: null };
+      return { state: 'error', data: null, canWrite, supervisors };
     default:
-      return { state: 'error', data: null };
+      return { state: 'error', data: null, canWrite, supervisors };
   }
 }
 
@@ -122,8 +191,8 @@ export default async function PilotPage(propsInput: unknown = {}) {
 
   const labels = await buildLabels(locale);
 
-  // Inline 'use server' adapter — serializable function prop across the RSC
-  // boundary (Next 16). The action owns its own RBAC (npd.pilot.write).
+  // Inline 'use server' adapters — serializable function props across the RSC
+  // boundary (Next 16). Each action owns its own RBAC (npd.pilot.write).
   async function toggleChecklistAction(call: ToggleChecklistCall): Promise<ToggleChecklistOutcome> {
     'use server';
     const result = await togglePilotChecklistItem({
@@ -134,9 +203,43 @@ export default async function PilotPage(propsInput: unknown = {}) {
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   }
 
+  async function upsertRunAction(call: UpsertRunCall): Promise<PilotActionOutcome> {
+    'use server';
+    const result = await upsertPilotRun({
+      projectId,
+      pilotRunId: call.pilotRunId,
+      plannedDate: call.plannedDate,
+      line: call.line,
+      batchSizeKg: call.batchSizeKg,
+      expectedYieldPct: call.expectedYieldPct,
+      durationHours: call.durationHours,
+      supervisorUserId: call.supervisorUserId,
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+
+  async function upsertMaterialAction(call: UpsertMaterialCall): Promise<PilotActionOutcome> {
+    'use server';
+    const result = await upsertPilotMaterial({
+      projectId,
+      pilotRunId: call.pilotRunId,
+      materialId: call.materialId,
+      ingredientCode: call.ingredientCode,
+      requiredKg: call.requiredKg,
+      availableKg: call.availableKg,
+      reservedKg: call.reservedKg,
+    });
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+
   const injected = props.data !== undefined || props.state !== undefined;
   const loaded: LoaderResult = injected
-    ? { state: props.state ?? (props.data ? 'ready' : 'empty'), data: props.data ?? null }
+    ? {
+        state: props.state ?? (props.data ? 'ready' : 'empty'),
+        data: props.data ?? null,
+        canWrite: props.data?.canWrite ?? false,
+        supervisors: props.data?.supervisors ?? [],
+      }
     : await readPageData(projectId);
 
   return (
@@ -144,7 +247,11 @@ export default async function PilotPage(propsInput: unknown = {}) {
       state={loaded.state}
       data={loaded.data}
       labels={labels}
+      canWrite={loaded.canWrite}
+      supervisors={loaded.supervisors}
       onToggleChecklistItem={toggleChecklistAction}
+      onUpsertRun={upsertRunAction}
+      onUpsertMaterial={upsertMaterialAction}
     />
   );
 }

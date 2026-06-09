@@ -54,6 +54,7 @@ export function PackagingComponentModal({
   defaultTier,
   labels,
   onUpsert,
+  onMutated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +63,8 @@ export function PackagingComponentModal({
   defaultTier: PackagingTier;
   labels: PackagingLabels;
   onUpsert: (call: UpsertCall) => Promise<MutationOutcome>;
+  /** Called after a successful add/edit so the parent can refresh the RSC loader. */
+  onMutated?: () => void;
 }) {
   const [form, setForm] = React.useState<FormState>(() => rowToForm(editing, defaultTier));
   const [saving, setSaving] = React.useState(false);
@@ -108,6 +111,7 @@ export function PackagingComponentModal({
       });
       if (result.ok) {
         onOpenChange(false);
+        onMutated?.();
       } else {
         setError(labels.saveError);
         setSaving(false);

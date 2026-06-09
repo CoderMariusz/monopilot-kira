@@ -38,7 +38,8 @@ vi.mock('../../../../../../../../../lib/auth/with-org-context', () => ({
     }),
 }));
 
-import { logTrialBatch, updateTrialBatch } from '../log-trial-batch';
+import { logTrialBatch } from '../log-trial-batch';
+import { updateTrialBatch } from '../update-trial-batch';
 import { listTrialBatches } from '../list-trial-batches';
 import { TRIAL_READ_PERMISSION, TRIAL_WRITE_PERMISSION } from '../errors';
 
@@ -79,8 +80,20 @@ function grantHandler(opts: {
     }
     if (sql.includes('insert into public.audit_log')) return { rows: [] };
     if (sql.includes('update public.trial_batches')) return { rows: [{ id: opts.insertId ?? 'tb-1' }] };
-    if (sql.includes('select trial_no, result from public.trial_batches')) {
-      return { rows: opts.projectExists === false ? [] : [{ trial_no: 'T-012', result: 'pending' }] };
+    if (sql.includes('select trial_no') && sql.includes('from public.trial_batches')) {
+      return {
+        rows: opts.projectExists === false
+          ? []
+          : [{
+              trial_no: 'T-012',
+              trial_date: '2025-12-01',
+              batch_size_kg: '500',
+              yield_pct: '78',
+              technologist_user_id: null,
+              result: 'pending',
+              notes: null,
+            }],
+      };
     }
     if (sql.includes('from public.trial_batches')) return { rows: [] };
     return { rows: [] };

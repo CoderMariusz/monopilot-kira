@@ -59,6 +59,25 @@ const LABELS: PilotLabels = {
   error: 'Unable to load pilot data.',
   forbidden: 'You do not have permission to view the pilot stage.',
   notSet: '—',
+  planPilotRun: '+ Plan pilot run',
+  editPlan: 'Edit plan',
+  addMaterial: '+ Add material',
+  editMaterial: 'Edit material',
+  editAction: 'Edit',
+  fieldPlannedDate: 'Planned date',
+  fieldLine: 'Line',
+  fieldBatchSize: 'Batch size (kg)',
+  fieldExpectedYield: 'Expected yield (%)',
+  fieldDuration: 'Duration (hours)',
+  fieldSupervisor: 'Supervisor',
+  fieldIngredient: 'Ingredient',
+  fieldRequired: 'Required (kg)',
+  fieldAvailable: 'Available (kg)',
+  fieldReserved: 'Reserved (kg)',
+  save: 'Save',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  saveError: 'Could not save. Check the values and try again.',
 };
 
 const DATA: PilotScreenData = {
@@ -70,6 +89,7 @@ const DATA: PilotScreenData = {
     batchSizeKg: '500.0000',
     expectedYieldPct: '78.00',
     durationHours: '6.00',
+    supervisorUserId: 'u-1',
     supervisorName: 'M. Johnson',
     status: 'planned',
   },
@@ -98,6 +118,11 @@ const DATA: PilotScreenData = {
     { id: 'c2', label: 'Materials reserved', isChecked: false, displayOrder: 2 },
   ],
   totalShortKg: '1.3000',
+  supervisors: [
+    { id: 'u-1', name: 'M. Johnson' },
+    { id: 'u-2', name: 'A. Smith' },
+  ],
+  canWrite: true,
 };
 
 function renderReady(extra?: Partial<React.ComponentProps<typeof PilotScreen>>) {
@@ -222,5 +247,120 @@ describe('PilotScreen — optimistic toggle', () => {
         .find((i) => within(i).getByTestId('pilot-checklist-label').textContent === 'Materials reserved')!;
       expect(after.dataset.checked).toBe('false');
     });
+  });
+});
+
+describe('PilotScreen — run-plan edit affordance', () => {
+  it('shows "+ Plan pilot run" in the writable empty state and opens the modal', () => {
+    const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <PilotScreen
+        state="empty"
+        data={null}
+        labels={LABELS}
+        canWrite
+        supervisors={DATA.supervisors}
+        onUpsertRun={onUpsertRun}
+      />,
+    );
+    const button = screen.getByTestId('plan-pilot-run-button');
+    expect(button).toHaveTextContent(LABELS.planPilotRun);
+    fireEvent.click(button);
+    expect(screen.getByTestId('pilot-run-form')).toBeInTheDocument();
+  });
+
+  it('does NOT show the planner CTA in the empty state when the caller cannot write', () => {
+    render(<PilotScreen state="empty" data={null} labels={LABELS} canWrite={false} />);
+    expect(screen.queryByTestId('plan-pilot-run-button')).toBeNull();
+  });
+
+  it('opens the pre-filled "Edit plan" modal and submits to onUpsertRun with the run id', async () => {
+    const onUpsertRun = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpsertRun });
+
+    fireEvent.click(screen.getByTestId('edit-pilot-plan-button'));
+    const form = screen.getByTestId('pilot-run-form');
+    expect(within(form).getByLabelText(LABELS.fieldLine)).toHaveValue('Line 2 — Slicing/MAP');
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(onUpsertRun).toHaveBeenCalledTimes(1));
+    expect(onUpsertRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pilotRunId: 'run-1',
+        line: 'Line 2 — Slicing/MAP',
+        batchSizeKg: '500.0000',
+        supervisorUserId: 'u-1',
+      }),
+    );
+  });
+
+  it('hides the edit-plan button when the caller cannot write', () => {
+    render(<PilotScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />);
+    expect(screen.queryByTestId('edit-pilot-plan-button')).toBeNull();
+  });
+});
+
+describe('PilotScreen — material add/edit affordance (no delete)', () => {
+  it('opens the "+ Add material" modal and submits a new material to onUpsertMaterial', async () => {
+    const onUpsertMaterial = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpsertMaterial });
+
+    fireEvent.click(screen.getByTestId('add-pilot-material-button'));
+    const form = screen.getByTestId('pilot-material-form');
+    fireEvent.change(within(form).getByLabelText(LABELS.fieldIngredient), {
+      target: { value: 'Carrageenan' },
+    });
+    fireEvent.change(within(form).getByLabelText(LABELS.fieldRequired), { target: { value: '1.75' } });
+    fireEvent.change(within(form).getByLabelText(LABELS.fieldAvailable), { target: { value: '12' } });
+    fireEvent.change(within(form).getByLabelText(LABELS.fieldReserved), { target: { value: '1.75' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(onUpsertMaterial).toHaveBeenCalledTimes(1));
+    expect(onUpsertMaterial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pilotRunId: 'run-1',
+        materialId: null,
+        ingredientCode: 'Carrageenan',
+        requiredKg: '1.75',
+        availableKg: '12',
+        reservedKg: '1.75',
+      }),
+    );
+  });
+
+  it('opens the pre-filled per-row Edit modal and submits with the material id', async () => {
+    const onUpsertMaterial = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpsertMaterial });
+
+    const editButtons = screen.getAllByTestId('edit-pilot-material-button');
+    expect(editButtons).toHaveLength(2);
+    fireEvent.click(editButtons[0]!);
+
+    const form = screen.getByTestId('pilot-material-form');
+    expect(within(form).getByLabelText(LABELS.fieldIngredient)).toHaveValue('Pork Ham, trimmed');
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(onUpsertMaterial).toHaveBeenCalledTimes(1));
+    expect(onUpsertMaterial).toHaveBeenCalledWith(
+      expect.objectContaining({ materialId: 'm1', ingredientCode: 'Pork Ham, trimmed' }),
+    );
+  });
+
+  it('never renders a delete affordance for materials (no delete backend)', () => {
+    renderReady({ onUpsertMaterial: vi.fn() });
+    expect(screen.queryByTestId('delete-pilot-material-button')).toBeNull();
+  });
+
+  it('hides material add/edit affordances when the caller cannot write', () => {
+    render(
+      <PilotScreen
+        state="ready"
+        data={{ ...DATA, canWrite: false }}
+        labels={LABELS}
+        onUpsertMaterial={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('add-pilot-material-button')).toBeNull();
+    expect(screen.queryByTestId('edit-pilot-material-button')).toBeNull();
   });
 });

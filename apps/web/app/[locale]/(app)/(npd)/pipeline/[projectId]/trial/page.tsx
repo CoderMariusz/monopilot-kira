@@ -26,8 +26,9 @@
 
 import { getTranslations } from 'next-intl/server';
 
-import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type TrialActionOutcome } from './_components/trial-screen';
+import { TrialScreen, type TrialScreenData, type TrialLabels, type PageState, type LogTrialCall, type UpdateTrialCall, type TrialActionOutcome } from './_components/trial-screen';
 import { logTrialBatch } from './_actions/log-trial-batch';
+import { updateTrialBatch } from './_actions/update-trial-batch';
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { TRIAL_READ_PERMISSION, TRIAL_WRITE_PERMISSION, type TrialBatchView, type TrialResult } from './_actions/errors';
 
@@ -59,10 +60,13 @@ const DEFAULT_LABELS: TrialLabels = {
   colTechnologist: 'Technologist',
   colResult: 'Result',
   colNotes: 'Notes',
+  colActions: 'Actions',
   resultPass: 'Pass',
   resultFail: 'Fail',
   resultPending: 'In progress',
+  editTrial: 'Edit',
   modalTitle: 'Log new trial',
+  editModalTitle: 'Edit trial',
   fieldTrialNo: 'Trial #',
   fieldDate: 'Trial date',
   fieldBatch: 'Batch size (kg)',
@@ -72,6 +76,7 @@ const DEFAULT_LABELS: TrialLabels = {
   fieldNotes: 'Notes',
   technologistNone: 'Unassigned',
   save: 'Save trial',
+  saveEdit: 'Save changes',
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save the trial. Try again.',
@@ -223,6 +228,13 @@ async function logTrialAction(call: LogTrialCall): Promise<TrialActionOutcome> {
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+/** Server Action adapter for editing a logged trial (updateTrialBatch owns it). */
+async function updateTrialAction(call: UpdateTrialCall): Promise<TrialActionOutcome> {
+  'use server';
+  const result = await updateTrialBatch(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
 export default async function TrialPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as TrialPageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -237,8 +249,24 @@ export default async function TrialPage(propsInput: unknown = {}) {
   // When empty but the caller can write, render the screen with an empty table +
   // the "Log new trial" CTA rather than the read-only empty notice.
   if (loaded.state === 'empty' && loaded.data?.canWrite) {
-    return <TrialScreen state="ready" data={loaded.data} labels={labels} onLogTrial={logTrialAction} />;
+    return (
+      <TrialScreen
+        state="ready"
+        data={loaded.data}
+        labels={labels}
+        onLogTrial={logTrialAction}
+        onUpdateTrial={updateTrialAction}
+      />
+    );
   }
 
-  return <TrialScreen state={loaded.state} data={loaded.data} labels={labels} onLogTrial={logTrialAction} />;
+  return (
+    <TrialScreen
+      state={loaded.state}
+      data={loaded.data}
+      labels={labels}
+      onLogTrial={logTrialAction}
+      onUpdateTrial={updateTrialAction}
+    />
+  );
 }

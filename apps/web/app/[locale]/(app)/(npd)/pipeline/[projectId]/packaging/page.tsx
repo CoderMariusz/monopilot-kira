@@ -81,6 +81,7 @@ const DEFAULT_LABELS: PackagingLabels = {
   artworkPreview: 'Preview',
   artworkNewVersion: 'New version',
   artworkNone: 'No artwork uploaded yet.',
+  artworkUnavailable: 'Not available yet',
   fieldComponent: 'Component name',
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
@@ -191,10 +192,11 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
         [projectId],
       );
 
-      if (rows.length === 0) {
-        return { state: 'empty' as const, data: null, canWrite };
-      }
-
+      // NOTE: an existing project with zero components is NOT the 'empty' state.
+      // The screen must still render the tables + the "+ Add component" affordances
+      // (the empty-state notice is reserved for a missing/foreign project) — this
+      // is what unblocks the previous dead-end where a write-capable user saw a
+      // bare "Add … to get started" card with no buttons.
       const components = rows.map(toRow);
       const data: PackagingScreenData = {
         projectId,

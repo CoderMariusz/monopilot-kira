@@ -15,7 +15,31 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ── next/navigation: capture router.refresh for the revalidation assertion. ──
+const refreshMock = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/en/pipeline/p1/packaging',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+// ── @monopilot/ui/Modal: render body/footer inline when open (jsdom-friendly). ──
+vi.mock('@monopilot/ui/Modal', () => {
+  function Modal({ children, open, modalId }: { children: React.ReactNode; open: boolean; modalId?: string }) {
+    if (!open) return null;
+    return (
+      <div role="dialog" aria-modal="true" data-modal-id={modalId}>
+        {children}
+      </div>
+    );
+  }
+  Modal.Header = ({ title }: { title: string }) => <h2>{title}</h2>;
+  Modal.Body = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-body">{children}</div>;
+  Modal.Footer = ({ children }: { children: React.ReactNode }) => <div data-testid="modal-footer">{children}</div>;
+  return { __esModule: true, default: Modal };
+});
 
 import {
   PackagingScreen,
@@ -24,6 +48,9 @@ import {
 } from '../packaging-screen';
 import type { PackagingComponentRow } from '../../_actions/shared';
 
+beforeEach(() => {
+  refreshMock.mockClear();
+});
 afterEach(() => cleanup());
 
 const LABELS: PackagingLabels = {
@@ -49,6 +76,7 @@ const LABELS: PackagingLabels = {
   artworkPreview: 'Preview',
   artworkNewVersion: 'New version',
   artworkNone: 'No artwork uploaded yet.',
+  artworkUnavailable: 'Not available yet',
   fieldComponent: 'Component name',
   fieldMaterial: 'Material',
   fieldSupplier: 'Supplier',
@@ -224,9 +252,141 @@ describe('PackagingScreen — UI states', () => {
   });
 });
 
+const EMPTY_DATA: PackagingScreenData = {
+  projectId: '99999999-9999-4999-8999-999999999999',
+  productName: 'Sliced Ham 200g',
+  primary: [],
+  secondary: [],
+  artwork: null,
+};
+
+describe('PackagingScreen — no-component CTA (dead-end fix)', () => {
+  it('renders the inline empty hint AND an Add button when a write-capable project has zero components', () => {
+    render(
+      <PackagingScreen
+        state="ready"
+        data={EMPTY_DATA}
+        labels={LABELS}
+        canWrite
+        onUpsert={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    // The empty hint is rendered INSIDE the live table (not a bare dead-end card).
+    expect(screen.getByTestId('packaging-empty-hint')).toHaveTextContent('No packaging components yet');
+    // The header Add button AND the inline empty CTA are both present → no dead end.
+    expect(screen.getByTestId('add-primary-component')).toBeInTheDocument();
+    expect(screen.getByTestId('add-component-empty')).toBeInTheDocument();
+  });
+
+  it('opens the modal from the inline empty CTA', () => {
+    render(
+      <PackagingScreen
+        state="ready"
+        data={EMPTY_DATA}
+        labels={LABELS}
+        canWrite
+        onUpsert={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('packaging-component-form')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('add-component-empty'));
+    expect(screen.getByTestId('packaging-component-form')).toBeInTheDocument();
+  });
+
+  it('hides every Add affordance in the empty state when canWrite is false', () => {
+    render(<PackagingScreen state="ready" data={EMPTY_DATA} labels={LABELS} canWrite={false} />);
+    expect(screen.getByTestId('packaging-empty-hint')).toBeInTheDocument();
+    expect(screen.queryByTestId('add-primary-component')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('add-component-empty')).not.toBeInTheDocument();
+  });
+});
+
+describe('PackagingScreen — add via modal calls the Server Action', () => {
+  it('submitting the modal calls onUpsert with the schema-shaped payload, then refreshes', async () => {
+    const onUpsert = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <PackagingScreen
+        state="ready"
+        data={EMPTY_DATA}
+        labels={LABELS}
+        canWrite
+        onUpsert={onUpsert}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('add-component-empty'));
+    fireEvent.change(screen.getByTestId('field-component-name'), { target: { value: 'MAP tray' } });
+    fireEvent.change(screen.getByTestId('field-material'), { target: { value: 'PET / PE 300µm' } });
+    fireEvent.change(screen.getByTestId('field-cost'), { target: { value: '0.18' } });
+
+    fireEvent.submit(screen.getByTestId('packaging-component-form'));
+
+    await waitFor(() => expect(onUpsert).toHaveBeenCalledTimes(1));
+    expect(onUpsert).toHaveBeenCalledWith({
+      id: undefined,
+      projectId: EMPTY_DATA.projectId,
+      tier: 'primary',
+      componentName: 'MAP tray',
+      material: 'PET / PE 300µm',
+      supplierCode: null,
+      spec: null,
+      costPerUnit: '0.18',
+      status: 'draft',
+    });
+    // After a successful upsert the RSC loader is re-run.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+  });
+});
+
+describe('PackagingScreen — artwork buttons are disabled until backend exists', () => {
+  it('renders Preview / New version as disabled with the "Not available yet" tooltip', () => {
+    renderReady({ canWrite: true, onUpsert: vi.fn(), onDelete: vi.fn() });
+    const preview = screen.getByTestId('artwork-preview');
+    const newVersion = screen.getByTestId('artwork-new-version');
+    expect(preview).toBeDisabled();
+    expect(preview).toHaveAttribute('title', 'Not available yet');
+    expect(newVersion).toBeDisabled();
+    expect(newVersion).toHaveAttribute('title', 'Not available yet');
+  });
+});
+
+describe('PackagingScreen — delete confirmation', () => {
+  it('does NOT call onDelete when the confirm dialog is cancelled', () => {
+    const onDelete = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderReady({ canWrite: true, onUpsert: vi.fn(), onDelete });
+
+    const table = screen.getByTestId('primary-packaging-table');
+    const firstRow = within(table).getAllByTestId('primary-component-row')[0];
+    fireEvent.click(within(firstRow).getByTestId('delete-component'));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('calls onDelete and refreshes when the confirm dialog is accepted', async () => {
+    const onDelete = vi.fn().mockResolvedValue({ ok: true });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderReady({ canWrite: true, onUpsert: vi.fn(), onDelete });
+
+    const table = screen.getByTestId('primary-packaging-table');
+    const firstRow = within(table).getAllByTestId('primary-component-row')[0];
+    fireEvent.click(within(firstRow).getByTestId('delete-component'));
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith({ id: PRIMARY[0].id, projectId: DATA.projectId }));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    confirmSpy.mockRestore();
+  });
+});
+
 describe('PackagingScreen — optimistic delete', () => {
   it('optimistically removes a row, then restores it when the action fails', async () => {
     const onDelete = vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderReady({ canWrite: true, onUpsert: vi.fn(), onDelete });
 
     const table = screen.getByTestId('primary-packaging-table');
@@ -252,5 +412,6 @@ describe('PackagingScreen — optimistic delete', () => {
       id: PRIMARY[0].id,
       projectId: DATA.projectId,
     });
+    confirmSpy.mockRestore();
   });
 });

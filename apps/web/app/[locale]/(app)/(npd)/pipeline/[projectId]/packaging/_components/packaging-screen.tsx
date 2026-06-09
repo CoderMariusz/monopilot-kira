@@ -25,6 +25,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
@@ -78,6 +79,7 @@ export type PackagingLabels = {
   artworkPreview: string;
   artworkNewVersion: string;
   artworkNone: string;
+  artworkUnavailable: string;
   // Modal field labels.
   fieldComponent: string;
   fieldMaterial: string;
@@ -222,11 +224,19 @@ export function PackagingScreen({
   onUpsert?: (call: UpsertCall) => Promise<MutationOutcome>;
   onDelete?: (call: { id: string; projectId: string }) => Promise<MutationOutcome>;
 }) {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<PackagingComponentRow | null>(null);
   const [defaultTier, setDefaultTier] = React.useState<PackagingTier>('primary');
   // Optimistic: ids currently being deleted are visually dimmed/removed.
   const [pendingDeletes, setPendingDeletes] = React.useState<Set<string>>(new Set());
+
+  // After a successful mutation the write Server Action has already
+  // revalidatePath'd on the server; router.refresh() re-runs the RSC loader so
+  // the freshly inserted/edited row appears (mirrors the gate screen pattern).
+  const handleMutated = React.useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   if (state !== 'ready' || !data) {
     return (
@@ -259,10 +269,16 @@ export function PackagingScreen({
 
   async function handleDelete(row: PackagingComponentRow) {
     if (!onDelete) return;
+    // Confirm before a destructive delete (parity: row action guard).
+    if (typeof window !== 'undefined' && !window.confirm(labels.confirmDelete)) {
+      return;
+    }
     // Optimistic remove — restore on failure.
     setPendingDeletes((prev) => new Set(prev).add(row.id));
     const result = await onDelete({ id: row.id, projectId: data!.projectId });
-    if (!result.ok) {
+    if (result.ok) {
+      handleMutated();
+    } else {
       setPendingDeletes((prev) => {
         const next = new Set(prev);
         next.delete(row.id);
@@ -273,6 +289,11 @@ export function PackagingScreen({
 
   const visiblePrimary = data.primary.filter((r) => !pendingDeletes.has(r.id));
   const visibleSecondary = data.secondary.filter((r) => !pendingDeletes.has(r.id));
+  // A populated project with zero components still renders the tables + the
+  // "+ Add component" affordances; this inline hint replaces the old dead-end
+  // empty card so a write-capable user is never stranded with no buttons.
+  const noComponents = visiblePrimary.length === 0 && visibleSecondary.length === 0;
+  const primaryColSpan = canWrite ? 7 : 6;
 
   return (
     <main
@@ -297,7 +318,7 @@ export function PackagingScreen({
           {canWrite && (
             <Button
               type="button"
-              className="btn-secondary btn-sm"
+              className="btn-primary btn-sm"
               data-testid="add-primary-component"
               onClick={() => openAdd('primary')}
             >
@@ -319,6 +340,29 @@ export function PackagingScreen({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {noComponents && (
+                <TableRow data-testid="packaging-empty-row">
+                  <TableCell colSpan={primaryColSpan}>
+                    <div className="empty-state" data-testid="packaging-empty-hint">
+                      <div className="empty-state-icon" aria-hidden="true">📦</div>
+                      <div className="empty-state-title">{labels.empty}</div>
+                      <div className="empty-state-body">{labels.emptyBody}</div>
+                      {canWrite && (
+                        <div style={{ marginTop: 10 }}>
+                          <Button
+                            type="button"
+                            className="btn-primary btn-sm"
+                            data-testid="add-component-empty"
+                            onClick={() => openAdd('primary')}
+                          >
+                            {labels.addComponent}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
               {visiblePrimary.map((row) => (
                 <TableRow key={row.id} data-testid="primary-component-row">
                   <TableCell data-testid="component-name" style={{ fontWeight: 500 }}>
@@ -377,7 +421,7 @@ export function PackagingScreen({
             {canWrite && (
               <Button
                 type="button"
-                className="btn-secondary btn-sm"
+                className="btn-primary btn-sm"
                 data-testid="add-secondary-component"
                 onClick={() => openAdd('secondary')}
               >
@@ -457,11 +501,27 @@ export function PackagingScreen({
                     {data.artwork.uploadedAt} · {data.artwork.fileSize}
                   </div>
                   <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                    <Button type="button" className="btn-ghost btn-sm" data-testid="artwork-preview">
+                    {/* Artwork file store is a future deliverable (mig 232 leaves
+                        artwork_file_id a soft nullable ref). These buttons stay
+                        visible but disabled until that backend exists — never an
+                        invented artwork API. */}
+                    <Button
+                      type="button"
+                      className="btn-ghost btn-sm"
+                      data-testid="artwork-preview"
+                      disabled
+                      title={labels.artworkUnavailable}
+                    >
                       {labels.artworkPreview}
                     </Button>
                     {canWrite && (
-                      <Button type="button" className="btn-secondary btn-sm" data-testid="artwork-new-version">
+                      <Button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        data-testid="artwork-new-version"
+                        disabled
+                        title={labels.artworkUnavailable}
+                      >
                         {labels.artworkNewVersion}
                       </Button>
                     )}
@@ -486,6 +546,7 @@ export function PackagingScreen({
           defaultTier={defaultTier}
           labels={labels}
           onUpsert={onUpsert}
+          onMutated={handleMutated}
         />
       )}
     </main>

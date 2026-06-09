@@ -33,14 +33,24 @@ import {
   type ProjectBriefState,
   type ProjectBriefView,
 } from './_actions/read-project-brief';
+import { updateProjectBrief } from './_actions/update-project-brief';
+import type { UpdateBriefCall, UpdateBriefOutcome } from './_components/edit-brief-modal';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
+import {
+  hasPermission,
+  type OrgContextLike,
+} from '../../../../../../(npd)/pipeline/_actions/shared';
 
 export const dynamic = 'force-dynamic';
+
+const WRITE_PERMISSION = 'npd.core.write';
 
 type ProjectBriefPageProps = {
   params?: Promise<{ locale: string; projectId: string }>;
   // Test-only injection seam (mirrors costing/nutrition/fa pages).
   data?: ProjectBriefView | null;
   state?: ProjectBriefState;
+  canWrite?: boolean;
 };
 
 const DEFAULT_LABELS: ProjectBriefLabels = {
@@ -68,6 +78,15 @@ const DEFAULT_LABELS: ProjectBriefLabels = {
   emptyBody: 'This project was created without a brief, or the brief is not visible to you.',
   error: 'Unable to load the brief.',
   forbidden: 'You do not have permission to view this brief.',
+  editBrief: 'Edit brief',
+  editModalTitle: 'Edit project brief',
+  save: 'Save',
+  saving: 'Saving…',
+  cancel: 'Cancel',
+  errInvalidInput: 'Some fields are invalid. Check the values and try again.',
+  errForbidden: 'You do not have permission to edit this brief.',
+  errNotFound: 'This project could not be found.',
+  errPersistence: 'Could not save the brief. Please try again.',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof ProjectBriefLabels>;
@@ -93,6 +112,26 @@ async function buildLabels(locale: string): Promise<ProjectBriefLabels> {
   }
 }
 
+// Server-side write capability — never trusted from the client. Resolved with
+// the SAME permission the updateProjectBrief action enforces ('npd.core.write').
+async function resolveCanWrite(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (ctx) =>
+      hasPermission(ctx as OrgContextLike, WRITE_PERMISSION),
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Server Action adapter (passed across the RSC boundary, Next16 guard). Maps the
+// reviewed action's discriminated result to the modal's UpdateBriefOutcome shape.
+async function updateBriefAction(call: UpdateBriefCall): Promise<UpdateBriefOutcome> {
+  'use server';
+  const result = await updateProjectBrief(call);
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
 export default async function ProjectBriefPage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as ProjectBriefPageProps;
   const { locale, projectId } = props.params
@@ -109,11 +148,20 @@ export default async function ProjectBriefPage(propsInput: unknown = {}) {
       }
     : await readProjectBrief(projectId);
 
+  const canWrite =
+    props.canWrite !== undefined
+      ? props.canWrite
+      : loaded.state === 'ready'
+        ? await resolveCanWrite()
+        : false;
+
   return (
     <ProjectBriefScreen
       state={loaded.state}
       data={loaded.data}
       labels={labels}
+      canWrite={canWrite}
+      onUpdate={updateBriefAction}
     />
   );
 }

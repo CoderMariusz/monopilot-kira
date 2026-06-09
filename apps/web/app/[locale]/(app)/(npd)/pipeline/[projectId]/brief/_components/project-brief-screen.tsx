@@ -24,10 +24,13 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge } from '@monopilot/ui/Badge';
+import { Button } from '@monopilot/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@monopilot/ui/Card';
 
+import { EditBriefModal, type UpdateBriefCall, type UpdateBriefOutcome } from './edit-brief-modal';
 import type { ProjectBriefState, ProjectBriefView } from '../_actions/read-project-brief';
 
 export type ProjectBriefLabels = {
@@ -55,12 +58,26 @@ export type ProjectBriefLabels = {
   emptyBody: string;
   error: string;
   forbidden: string;
+  // Edit affordance (additive).
+  editBrief: string;
+  editModalTitle: string;
+  save: string;
+  saving: string;
+  cancel: string;
+  errInvalidInput: string;
+  errForbidden: string;
+  errNotFound: string;
+  errPersistence: string;
 };
 
 export type ProjectBriefScreenProps = {
   state: ProjectBriefState;
   data: ProjectBriefView | null;
   labels: ProjectBriefLabels;
+  /** Server-resolved write capability (page.tsx) — never trusted from client. */
+  canWrite?: boolean;
+  /** Mutation Server Action passed across the RSC boundary (Next16 guard). */
+  onUpdate?: (call: UpdateBriefCall) => Promise<UpdateBriefOutcome>;
 };
 
 function ReadField({ label, value, placeholder }: { label: string; value: string | null; placeholder: string }) {
@@ -92,7 +109,23 @@ function StatePanel({ testId, title, body }: { testId: string; title: string; bo
   );
 }
 
-export function ProjectBriefScreen({ state, data, labels }: ProjectBriefScreenProps) {
+export function ProjectBriefScreen({
+  state,
+  data,
+  labels,
+  canWrite = false,
+  onUpdate,
+}: ProjectBriefScreenProps) {
+  const router = useRouter();
+  const [editOpen, setEditOpen] = React.useState(false);
+
+  // After a successful save the write Server Action has already
+  // revalidatePath'd on the server; router.refresh() re-runs the RSC loader so
+  // the freshly persisted brief values appear (mirrors the packaging pattern).
+  const handleSaved = React.useCallback(() => {
+    router.refresh();
+  }, [router]);
+
   if (state === 'loading') {
     return (
       <Card data-testid="project-brief-loading" aria-busy="true">
@@ -123,9 +156,21 @@ export function ProjectBriefScreen({ state, data, labels }: ProjectBriefScreenPr
       <Card>
         <CardHeader className="card-head">
           <CardTitle data-testid="project-brief-card-title">{labels.cardTitle}</CardTitle>
-          <Badge variant="success" data-testid="project-brief-completed-badge">
-            {`✓ ${labels.completed}`}
-          </Badge>
+          <div className="card-head__actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Badge variant="success" data-testid="project-brief-completed-badge">
+              {`✓ ${labels.completed}`}
+            </Badge>
+            {canWrite && onUpdate ? (
+              <Button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => setEditOpen(true)}
+                data-testid="project-brief-edit"
+              >
+                {labels.editBrief}
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="form-grid">
@@ -167,6 +212,18 @@ export function ProjectBriefScreen({ state, data, labels }: ProjectBriefScreenPr
           </p>
         </CardContent>
       </Card>
+
+      {canWrite && onUpdate ? (
+        <EditBriefModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          projectId={data.briefId}
+          data={data}
+          labels={labels}
+          onUpdate={onUpdate}
+          onSaved={handleSaved}
+        />
+      ) : null}
     </div>
   );
 }

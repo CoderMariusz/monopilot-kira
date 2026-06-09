@@ -1,16 +1,25 @@
 'use client';
 
 /**
- * 01-NPD TRIAL stage — LogTrialModal ("+ Log new trial" dialog).
+ * 01-NPD TRIAL stage — TrialFormModal (Log-new-trial + Edit-trial dialog).
  *
  * Prototype parity source (1:1):
  *   prototypes/design/Monopilot Design System/npd/other-stages.jsx:237 (+ Log new trial CTA)
+ *   The Edit affordance reuses THIS one form component in `mode="edit"` (a
+ *   sibling modal would duplicate every field) — the table structure at 222-257
+ *   is unchanged; Edit is purely additive.
  *
  * shadcn-only: @monopilot/ui Modal/Input/Textarea/Select/Button. No raw
  * <select> (the technologist + result pickers use the @monopilot/ui Select
  * primitive). The submit handler calls the trial write Server Action passed in
  * by the screen; on a duplicate trial_no the friendly `duplicate_trial_no`
  * error is surfaced inline.
+ *
+ * One form component, two modes:
+ *   - mode="create" → blank form, title = labels.modalTitle, submit = labels.save
+ *   - mode="edit"   → form PRE-FILLED from `initialValues`, title =
+ *     labels.editModalTitle, submit = labels.saveEdit
+ * `LogTrialModal` is kept as a thin create-mode alias for back-compat.
  */
 
 import React from 'react';
@@ -44,13 +53,17 @@ const EMPTY: TrialFormValues = {
   notes: '',
 };
 
-export function LogTrialModal({
+export type TrialFormMode = 'create' | 'edit';
+
+export function TrialFormModal({
   open,
   onOpenChange,
   labels,
   technologists,
   technologistNone,
   onSubmit,
+  mode = 'create',
+  initialValues,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,18 +71,34 @@ export function LogTrialModal({
   technologists: TechnologistOption[];
   technologistNone: string;
   onSubmit: (values: TrialFormValues) => Promise<TrialActionOutcome>;
+  /** create = blank form; edit = pre-filled from `initialValues`. */
+  mode?: TrialFormMode;
+  /** Pre-fill values for `mode="edit"`. Ignored in create mode. */
+  initialValues?: TrialFormValues;
 }) {
-  const [values, setValues] = React.useState<TrialFormValues>(EMPTY);
+  const seed = mode === 'edit' && initialValues ? initialValues : EMPTY;
+  const [values, setValues] = React.useState<TrialFormValues>(seed);
   const [submitState, setSubmitState] = React.useState<'idle' | 'saving' | 'error'>('idle');
   const [errorCode, setErrorCode] = React.useState<string | null>(null);
 
+  // Re-seed the form whenever the modal (re)opens. In edit mode this pre-fills
+  // from the selected row; in create mode it resets to blank.
   React.useEffect(() => {
     if (open) {
-      setValues(EMPTY);
+      setValues(mode === 'edit' && initialValues ? initialValues : EMPTY);
       setSubmitState('idle');
       setErrorCode(null);
     }
-  }, [open]);
+    // initialValues is a fresh object per open; deps intentionally narrow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode]);
+
+  const dialogTitle = mode === 'edit' ? labels.editModalTitle : labels.modalTitle;
+  const submitLabel = mode === 'edit' ? labels.saveEdit : labels.save;
+  const modalId = mode === 'edit' ? 'npd-trial-edit' : 'npd-trial-log';
+  const formTestId = mode === 'edit' ? 'edit-trial-form' : 'log-trial-form';
+  const errorTestId = mode === 'edit' ? 'edit-trial-error' : 'log-trial-error';
+  const submitTestId = mode === 'edit' ? 'edit-trial-submit' : 'log-trial-submit';
 
   function update<K extends keyof TrialFormValues>(key: K, next: TrialFormValues[K]) {
     setSubmitState('idle');
@@ -107,9 +136,9 @@ export function LogTrialModal({
   ];
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} modalId="npd-trial-log" size="md">
-      <Modal.Header title={labels.modalTitle} />
-      <form onSubmit={handleSubmit} data-testid="log-trial-form">
+    <Modal open={open} onOpenChange={onOpenChange} modalId={modalId} size="md">
+      <Modal.Header title={dialogTitle} />
+      <form onSubmit={handleSubmit} data-testid={formTestId}>
         <Modal.Body>
           <div className="space-y-3">
             <div className="field">
@@ -177,7 +206,7 @@ export function LogTrialModal({
               />
             </div>
             {submitState === 'error' ? (
-              <div role="alert" className="alert alert-red" data-testid="log-trial-error">
+              <div role="alert" className="alert alert-red" data-testid={errorTestId}>
                 {errorCode === 'duplicate_trial_no' ? labels.duplicateError : labels.saveError}
               </div>
             ) : null}
@@ -187,11 +216,22 @@ export function LogTrialModal({
           <Button type="button" variant="default" className="btn-ghost" onClick={() => onOpenChange(false)}>
             {labels.cancel}
           </Button>
-          <Button type="submit" disabled={submitState === 'saving'} data-testid="log-trial-submit">
-            {submitState === 'saving' ? labels.saving : labels.save}
+          <Button type="submit" disabled={submitState === 'saving'} data-testid={submitTestId}>
+            {submitState === 'saving' ? labels.saving : submitLabel}
           </Button>
         </Modal.Footer>
       </form>
     </Modal>
   );
+}
+
+/**
+ * Back-compat create-mode alias. New call-sites should prefer `TrialFormModal`
+ * with an explicit `mode`. This keeps the original "+ Log new trial" entry
+ * point identical (same testids: log-trial-form / log-trial-submit / log-trial-error).
+ */
+export function LogTrialModal(
+  props: Omit<React.ComponentProps<typeof TrialFormModal>, 'mode' | 'initialValues'>,
+) {
+  return <TrialFormModal {...props} mode="create" />;
 }

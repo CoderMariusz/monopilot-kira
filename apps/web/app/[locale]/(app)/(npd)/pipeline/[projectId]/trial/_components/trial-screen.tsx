@@ -25,13 +25,14 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 import { Button } from '@monopilot/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
-import { LogTrialModal, type TrialFormValues } from './log-trial-modal';
+import { LogTrialModal, TrialFormModal, type TrialFormValues } from './log-trial-modal';
 import type { TrialBatchView, TrialResult } from '../_actions/errors';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
@@ -58,11 +59,15 @@ export type TrialLabels = {
   colTechnologist: string;
   colResult: string;
   colNotes: string;
+  colActions: string;
   resultPass: string;
   resultFail: string;
   resultPending: string;
+  // Row actions
+  editTrial: string;
   // Modal
   modalTitle: string;
+  editModalTitle: string;
   fieldTrialNo: string;
   fieldDate: string;
   fieldBatch: string;
@@ -72,6 +77,7 @@ export type TrialLabels = {
   fieldNotes: string;
   technologistNone: string;
   save: string;
+  saveEdit: string;
   saving: string;
   cancel: string;
   saveError: string;
@@ -96,6 +102,9 @@ export type LogTrialCall = {
   result: TrialResult;
   notes: string | null;
 };
+
+/** Edit payload — same shape as LogTrialCall plus the batch `id` to update. */
+export type UpdateTrialCall = LogTrialCall & { id: string };
 
 function resultVariant(result: TrialResult): BadgeVariant {
   switch (result) {
@@ -145,6 +154,23 @@ function formatBatch(value: string | null): string {
   return `${frac ? `${intPart}.${frac}` : intPart} kg`;
 }
 
+/**
+ * Build the edit-modal pre-fill from a row. NUMERIC decimals are carried as the
+ * raw DB strings (never reformatted through float math) so a round-trip save of
+ * an untouched field re-writes the identical value.
+ */
+function rowToFormValues(row: TrialBatchView): TrialFormValues {
+  return {
+    trialNo: row.trialNo,
+    trialDate: row.trialDate ?? '',
+    batchSizeKg: row.batchSizeKg ?? '',
+    yieldPct: row.yieldPct ?? '',
+    technologistUserId: row.technologistUserId ?? '',
+    result: row.result,
+    notes: row.notes ?? '',
+  };
+}
+
 function StateNotice({ state, labels }: { state: PageState; labels: TrialLabels }) {
   if (state === 'loading') {
     return (
@@ -186,13 +212,18 @@ export function TrialScreen({
   data,
   labels,
   onLogTrial,
+  onUpdateTrial,
 }: {
   state?: PageState;
   data: TrialScreenData | null;
   labels: TrialLabels;
   onLogTrial?: (call: LogTrialCall) => Promise<TrialActionOutcome>;
+  onUpdateTrial?: (call: UpdateTrialCall) => Promise<TrialActionOutcome>;
 }) {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = React.useState(false);
+  // The row currently being edited (null = edit modal closed).
+  const [editingRow, setEditingRow] = React.useState<TrialBatchView | null>(null);
 
   // The Log-new-trial button + modal are an OPTIMISTIC affordance: on a
   // successful action the list is revalidated server-side (RSC re-render).
@@ -254,6 +285,28 @@ export function TrialScreen({
     return result;
   }
 
+  async function handleUpdate(values: TrialFormValues): Promise<TrialActionOutcome> {
+    if (!onUpdateTrial || !editingRow) return { ok: false, error: 'persistence_failed' };
+    const call: UpdateTrialCall = {
+      id: editingRow.id,
+      projectId: data!.projectId,
+      trialNo: values.trialNo,
+      trialDate: values.trialDate || null,
+      batchSizeKg: values.batchSizeKg || null,
+      yieldPct: values.yieldPct || null,
+      technologistUserId: values.technologistUserId || null,
+      result: values.result,
+      notes: values.notes || null,
+    };
+    const result = await onUpdateTrial(call);
+    if (result.ok) {
+      // The Server Action persisted + revalidated the path; refresh the RSC tree
+      // so the row reflects the saved values (no client-trusted optimistic edit).
+      router.refresh();
+    }
+    return result;
+  }
+
   return (
     <main
       data-testid="trial-screen"
@@ -297,6 +350,11 @@ export function TrialScreen({
                 <TableHead scope="col">{labels.colTechnologist}</TableHead>
                 <TableHead scope="col">{labels.colResult}</TableHead>
                 <TableHead scope="col">{labels.colNotes}</TableHead>
+                {data.canWrite ? (
+                  <TableHead scope="col" data-testid="trial-actions-head">
+                    <span className="sr-only">{labels.colActions}</span>
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -317,6 +375,23 @@ export function TrialScreen({
                     </Badge>
                   </TableCell>
                   <TableCell className="muted">{t.notes ?? ''}</TableCell>
+                  {data.canWrite ? (
+                    <TableCell className="text-right">
+                      {/* Optimistic rows have a transient id and aren't yet
+                          persisted, so they can't be edited until the refresh. */}
+                      {t.id.startsWith('optimistic-') ? null : (
+                        <Button
+                          type="button"
+                          variant="default"
+                          className="btn-ghost btn-sm"
+                          data-testid={`edit-trial-button-${t.id}`}
+                          onClick={() => setEditingRow(t)}
+                        >
+                          {labels.editTrial}
+                        </Button>
+                      )}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -332,6 +407,25 @@ export function TrialScreen({
           technologists={data.technologists}
           technologistNone={labels.technologistNone}
           onSubmit={handleSubmit}
+        />
+      ) : null}
+
+      {data.canWrite ? (
+        <TrialFormModal
+          mode="edit"
+          open={editingRow !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingRow(null);
+          }}
+          labels={labels}
+          technologists={data.technologists}
+          technologistNone={labels.technologistNone}
+          initialValues={editingRow ? rowToFormValues(editingRow) : undefined}
+          onSubmit={async (values) => {
+            const outcome = await handleUpdate(values);
+            if (outcome.ok) setEditingRow(null);
+            return outcome;
+          }}
         />
       ) : null}
     </main>

@@ -22,7 +22,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TrialScreen, type TrialLabels, type TrialScreenData } from '../trial-screen';
 import type { TrialBatchView } from '../../_actions/errors';
 
-afterEach(() => cleanup());
+// TrialScreen calls useRouter().refresh() after a successful edit.
+const refresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh }),
+}));
+
+afterEach(() => {
+  cleanup();
+  refresh.mockClear();
+});
 
 const LABELS: TrialLabels = {
   title: 'Lab & kitchen trials',
@@ -35,10 +44,13 @@ const LABELS: TrialLabels = {
   colTechnologist: 'Technologist',
   colResult: 'Result',
   colNotes: 'Notes',
+  colActions: 'Actions',
   resultPass: 'Pass',
   resultFail: 'Fail',
   resultPending: 'In progress',
+  editTrial: 'Edit',
   modalTitle: 'Log new trial',
+  editModalTitle: 'Edit trial',
   fieldTrialNo: 'Trial #',
   fieldDate: 'Trial date',
   fieldBatch: 'Batch size (kg)',
@@ -48,6 +60,7 @@ const LABELS: TrialLabels = {
   fieldNotes: 'Notes',
   technologistNone: 'Unassigned',
   save: 'Save trial',
+  saveEdit: 'Save changes',
   saving: 'Saving…',
   cancel: 'Cancel',
   saveError: 'Could not save the trial. Try again.',
@@ -118,8 +131,10 @@ describe('TrialScreen — parity', () => {
     expect(screen.getByText(LABELS.subtitle)).toBeInTheDocument();
   });
 
-  it('renders the 7-column table header in prototype order', () => {
-    renderReady();
+  it('renders the 7 prototype data columns in order (Edit affordance is additive)', () => {
+    // canWrite=false → the additive Actions column is absent, so the header is
+    // byte-identical to the prototype's 7-column table (222-257).
+    render(<TrialScreen state="ready" data={{ ...DATA, canWrite: false }} labels={LABELS} />);
     const heads = within(screen.getByTestId('trial-table'))
       .getAllByRole('columnheader')
       .map((h) => h.textContent);
@@ -132,6 +147,25 @@ describe('TrialScreen — parity', () => {
       LABELS.colResult,
       LABELS.colNotes,
     ]);
+  });
+
+  it('keeps the 7 prototype data columns first when an additive Actions column is shown', () => {
+    renderReady({ onUpdateTrial: vi.fn() });
+    const heads = within(screen.getByTestId('trial-table'))
+      .getAllByRole('columnheader')
+      .map((h) => h.textContent);
+    // First 7 columns unchanged; an 8th (sr-only "Actions") is appended.
+    expect(heads.slice(0, 7)).toEqual([
+      LABELS.colTrialNo,
+      LABELS.colDate,
+      LABELS.colBatch,
+      LABELS.colYield,
+      LABELS.colTechnologist,
+      LABELS.colResult,
+      LABELS.colNotes,
+    ]);
+    expect(heads).toHaveLength(8);
+    expect(screen.getByTestId('trial-actions-head')).toHaveTextContent(LABELS.colActions);
   });
 
   it('renders a row per trial with NUMERIC strings (never float math)', () => {
@@ -235,5 +269,83 @@ describe('TrialScreen — modal + optimistic', () => {
     expect(
       within(screen.getByTestId('trial-table')).getAllByTestId('trial-row'),
     ).toHaveLength(3);
+  });
+});
+
+describe('TrialScreen — edit logged trial', () => {
+  it('renders a per-row Edit button when the caller can write', () => {
+    renderReady({ onUpdateTrial: vi.fn() });
+    // one Edit button per persisted row
+    expect(screen.getByTestId('edit-trial-button-t1')).toBeInTheDocument();
+    expect(screen.getByTestId('edit-trial-button-t2')).toBeInTheDocument();
+    expect(screen.getByTestId('edit-trial-button-t3')).toBeInTheDocument();
+  });
+
+  it('hides the Edit affordance entirely when the caller cannot write (RBAC)', () => {
+    render(
+      <TrialScreen
+        state="ready"
+        data={{ ...DATA, canWrite: false }}
+        labels={LABELS}
+        onUpdateTrial={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId('edit-trial-button-t1')).toBeNull();
+    expect(screen.queryByTestId('trial-actions-head')).toBeNull();
+  });
+
+  it('opens the edit modal PRE-FILLED with the row values', () => {
+    renderReady({ onUpdateTrial: vi.fn() });
+    fireEvent.click(screen.getByTestId('edit-trial-button-t1'));
+    const form = screen.getByTestId('edit-trial-form');
+    expect(form).toBeInTheDocument();
+    // Pre-filled from BATCHES[0] = T-012.
+    expect(screen.getByLabelText(LABELS.fieldTrialNo)).toHaveValue('T-012');
+    expect(screen.getByLabelText(LABELS.fieldDate)).toHaveValue('2025-12-01');
+    // NUMERIC strings carried verbatim (no float reformat).
+    expect(screen.getByLabelText(LABELS.fieldBatch)).toHaveValue('500.0000');
+    expect(screen.getByLabelText(LABELS.fieldYield)).toHaveValue('78.00');
+    expect(screen.getByLabelText(LABELS.fieldNotes)).toHaveValue('Good texture');
+    // Edit-mode submit label.
+    expect(within(form).getByTestId('edit-trial-submit')).toHaveTextContent(LABELS.saveEdit);
+  });
+
+  it('submits the update with the row batch id + edited values, then refreshes', async () => {
+    const onUpdateTrial = vi.fn().mockResolvedValue({ ok: true });
+    renderReady({ onUpdateTrial });
+    fireEvent.click(screen.getByTestId('edit-trial-button-t1'));
+    fireEvent.change(screen.getByLabelText(LABELS.fieldTrialNo), {
+      target: { value: 'T-012-rev' },
+    });
+    fireEvent.submit(screen.getByTestId('edit-trial-form'));
+    await waitFor(() => expect(onUpdateTrial).toHaveBeenCalledTimes(1));
+    expect(onUpdateTrial).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 't1',
+        projectId: 'project-1',
+        trialNo: 'T-012-rev',
+        result: 'pass',
+      }),
+    );
+    // On success the RSC tree is refreshed (no client-trusted optimistic edit).
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    // Modal closes on success.
+    await waitFor(() => expect(screen.queryByTestId('edit-trial-form')).toBeNull());
+  });
+
+  it('surfaces the friendly duplicate_trial_no error on edit and keeps the modal open', async () => {
+    const onUpdateTrial = vi.fn().mockResolvedValue({ ok: false, error: 'duplicate_trial_no' });
+    renderReady({ onUpdateTrial });
+    fireEvent.click(screen.getByTestId('edit-trial-button-t2'));
+    fireEvent.change(screen.getByLabelText(LABELS.fieldTrialNo), {
+      target: { value: 'T-012' },
+    });
+    fireEvent.submit(screen.getByTestId('edit-trial-form'));
+    await waitFor(() =>
+      expect(screen.getByTestId('edit-trial-error')).toHaveTextContent(LABELS.duplicateError),
+    );
+    // No refresh on failure; modal stays open for correction.
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByTestId('edit-trial-form')).toBeInTheDocument();
   });
 });
