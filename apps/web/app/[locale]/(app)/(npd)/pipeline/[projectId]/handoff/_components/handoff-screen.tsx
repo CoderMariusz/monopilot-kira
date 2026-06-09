@@ -29,6 +29,8 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Checkbox } from '@monopilot/ui/Checkbox';
 
+import { downloadJson, fileSafe, isoDateStamp } from '../../../../../../../../lib/shared/download';
+
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
 export type HandoffChecklistItemView = {
@@ -99,6 +101,53 @@ export type PromoteCall = { projectId: string };
 export type PromoteOutcome = { ok: boolean; error?: string };
 export type ToggleChecklistCall = { itemId: string; isChecked: boolean };
 export type ToggleChecklistOutcome = { ok: boolean; error?: string };
+
+/**
+ * Build the machine-readable handoff packet from data the screen already holds
+ * (no backend round-trip). Keys are stable English identifiers (export format,
+ * not UI copy). `effectiveChecklist` is the optimistic-projected checklist so the
+ * packet reflects what the user currently sees. `generatedAt` is injectable for
+ * deterministic tests.
+ */
+export function buildHandoffPacket(
+  data: HandoffScreenData,
+  effectiveChecklist: HandoffChecklistItemView[],
+  generatedAt: string,
+): Record<string, unknown> {
+  return {
+    packet: 'npd.handoff',
+    version: 1,
+    generatedAt,
+    project: {
+      projectId: data.projectId,
+      productSku: data.destinationBom.productSku,
+      productName: data.destinationBom.productName,
+    },
+    status: {
+      ready: effectiveChecklist.length > 0 && effectiveChecklist.every((i) => i.isChecked),
+      promoted: data.promoted,
+      bomVerificationStatus: data.bomVerificationStatus,
+      promoteToProductionDate: data.promoteToProductionDate,
+    },
+    destinationBom: {
+      bomCode: data.destinationBom.bomCode,
+      effectiveFrom: data.destinationBom.effectiveFrom,
+      warehouseName: data.destinationBom.warehouseName,
+      releaseStatus: data.destinationBom.releaseStatus,
+      releaseBomHeaderId: data.destinationBom.releaseBomHeaderId,
+    },
+    checklist: effectiveChecklist
+      .slice()
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((i) => ({ label: i.label, checked: i.isChecked, displayOrder: i.displayOrder })),
+  };
+}
+
+/** Filename for the downloaded packet: `handoff-<sku-or-projectId>-<date>.json`. */
+export function handoffPacketFilename(data: HandoffScreenData, dateStamp: string): string {
+  const code = data.destinationBom.productSku ?? data.projectId;
+  return `handoff-${fileSafe(code)}-${dateStamp}.json`;
+}
 
 function StateNotice({ state, labels }: { state: PageState; labels: HandoffLabels }) {
   if (state === 'loading') {
@@ -211,6 +260,13 @@ export function HandoffScreen({
     } finally {
       setPromoting(false);
     }
+  }
+
+  function handleExportPacket() {
+    if (!data) return;
+    const stamp = isoDateStamp();
+    const packet = buildHandoffPacket(data, effectiveChecklist, new Date().toISOString());
+    downloadJson(packet, handoffPacketFilename(data, stamp));
   }
 
   const steps = [
@@ -350,7 +406,13 @@ export function HandoffScreen({
 
       {/* Footer actions — prototype lines 530-533. */}
       <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-secondary" data-testid="handoff-export-btn">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          data-testid="handoff-export-btn"
+          onClick={handleExportPacket}
+          title={labels.exportPacket}
+        >
           {labels.exportPacket}
         </button>
         <button

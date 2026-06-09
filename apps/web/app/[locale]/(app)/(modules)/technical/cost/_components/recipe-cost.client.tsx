@@ -24,6 +24,7 @@ import { Select } from '@monopilot/ui/Select';
 import { getRecipeCost, type RecipeCost } from '../_actions/list-recipe-cost';
 import type { CostedProductOption } from '../_actions/list-recipe-cost';
 import { formatCost } from './numeric';
+import { downloadCsv, fileSafe, toCsv } from '../../../../../../../lib/shared/download';
 
 export type RecipeCostCopy = {
   selectLabel: string;
@@ -46,6 +47,16 @@ export type RecipeCostCopy = {
   /** Template with `{version}` / `{status}` placeholders — functions cannot cross the RSC boundary. */
   bomNote: string;
   uncosted: string;
+  // "Export cost sheet" (prototype other-screens.jsx:547) + CSV column headers.
+  exportCostSheet: string;
+  csvComponent: string;
+  csvComponentName: string;
+  csvComponentType: string;
+  csvQuantity: string;
+  csvUom: string;
+  csvUnitCost: string;
+  csvLineCost: string;
+  csvTotal: string;
   // Recompute confirm modal (prototype MODAL-10 · costRollupRecompute).
   recompute: string;
   recomputeTitle: string;
@@ -64,6 +75,36 @@ const BAR_TONES = [
   'var(--green)',
   'var(--info)',
 ];
+
+/**
+ * Build the cost-sheet CSV from the rolled-up RecipeCost the screen already holds
+ * (no extra fetch). Columns are the localized headers; values are the verbatim
+ * NUMERIC decimal STRINGS (quantity / cost-per-kg / line cost) — never re-parsed
+ * to a float. A trailing total row carries `totalMaterialCost`. RFC-4180 quoting
+ * via the shared `toCsv`.
+ */
+export function buildCostSheetCsv(cost: RecipeCost, copy: RecipeCostCopy): string {
+  const header = [
+    copy.csvComponent,
+    copy.csvComponentName,
+    copy.csvComponentType,
+    copy.csvQuantity,
+    copy.csvUom,
+    copy.csvUnitCost,
+    copy.csvLineCost,
+  ];
+  const rows: Array<Array<string>> = cost.lines.map((l) => [
+    l.componentCode,
+    l.componentName ?? '',
+    l.componentType ?? '',
+    l.quantity,
+    l.uom,
+    l.unitCost ?? '',
+    l.lineCost ?? '',
+  ]);
+  rows.push([copy.csvTotal, '', '', '', '', '', cost.totalMaterialCost ?? '']);
+  return toCsv(header, rows);
+}
 
 // ── Local accessible dialog styled to .modal-* (same React-19/jsdom deviation as
 //    the cost-manager island) — prototype MODAL-10 costRollupRecompute. ──────────
@@ -279,14 +320,29 @@ export function RecipeCostClient({
             </div>
           </label>
           {selected ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              data-modal-id="TEC-COST-RECOMPUTE"
-              onClick={() => setRecomputeOpen(true)}
-            >
-              ↻ {copy.recompute}
-            </button>
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-testid="technical-cost-export"
+                disabled={!cost || cost.lines.length === 0}
+                title={copy.exportCostSheet}
+                onClick={() => {
+                  if (!cost || cost.lines.length === 0) return;
+                  downloadCsv(buildCostSheetCsv(cost, copy), `cost-sheet-${fileSafe(cost.productCode)}.csv`);
+                }}
+              >
+                {copy.exportCostSheet}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-modal-id="TEC-COST-RECOMPUTE"
+                onClick={() => setRecomputeOpen(true)}
+              >
+                ↻ {copy.recompute}
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

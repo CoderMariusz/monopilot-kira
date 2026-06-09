@@ -23,6 +23,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HandoffScreen,
+  buildHandoffPacket,
+  handoffPacketFilename,
   type HandoffLabels,
   type HandoffScreenData,
 } from '../handoff-screen';
@@ -178,5 +180,48 @@ describe('HandoffScreen — interactions', () => {
     await waitFor(() =>
       expect(screen.getByTestId('handoff-promote-error')).toHaveTextContent('L_PROMOTE_ERR'),
     );
+  });
+});
+
+describe('HandoffScreen — Export handoff packet (LANE 14)', () => {
+  it('builds a packet from the screen data (header + checklist + destination BOM)', () => {
+    const packet = buildHandoffPacket(
+      dataReady(true),
+      dataReady(true).checklist,
+      '2026-06-09T00:00:00.000Z',
+    );
+    expect(packet).toMatchObject({
+      packet: 'npd.handoff',
+      version: 1,
+      generatedAt: '2026-06-09T00:00:00.000Z',
+      project: { productSku: 'SKU-2451', productName: 'Sliced Ham 200g' },
+      status: { ready: true, promoted: false },
+      destinationBom: { bomCode: 'BOM-238', warehouseName: 'Main WH' },
+    });
+    expect((packet.checklist as unknown[]).length).toBe(2);
+  });
+
+  it('names the file handoff-<sku>-<date>.json', () => {
+    expect(handoffPacketFilename(dataReady(true), '2026-06-09')).toBe('handoff-SKU-2451-2026-06-09.json');
+  });
+
+  it('downloads a JSON packet on click (mocked object URL + anchor click)', () => {
+    const createObjectURL = vi.fn(() => 'blob:packet');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(globalThis.URL, { createObjectURL, revokeObjectURL }));
+    const downloads: string[] = [];
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
+
+    render(<HandoffScreen state="ready" data={dataReady(true)} labels={LABELS} />);
+    fireEvent.click(screen.getByTestId('handoff-export-btn'));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(downloads[0]).toMatch(/^handoff-SKU-2451-\d{4}-\d{2}-\d{2}\.json$/);
+    vi.restoreAllMocks();
   });
 });

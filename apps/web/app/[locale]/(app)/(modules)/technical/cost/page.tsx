@@ -32,6 +32,11 @@ export default async function TechnicalRecipeCostPage() {
   const t = await getTranslations('technical.recipeCost');
   const { products, state } = await listCostedProducts();
 
+  // LANE 14 export-sheet labels — resolved with English fallbacks so the
+  // "Export cost sheet" CTA (prototype other-screens.jsx:547) works before the
+  // i18n keys are merged. `t.has` avoids the missing-key throw.
+  const tf = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+
   const copy: RecipeCostCopy = {
     selectLabel: t('selectLabel'),
     selectPlaceholder: t('selectPlaceholder'),
@@ -52,6 +57,15 @@ export default async function TechnicalRecipeCostPage() {
     noCost: t('noCost'),
     bomNote: t('bomNote', { version: '{version}', status: '{status}' }),
     uncosted: t('uncosted'),
+    exportCostSheet: tf('exportCostSheet', 'Export cost sheet'),
+    csvComponent: tf('csv.component', 'Component'),
+    csvComponentName: tf('csv.componentName', 'Name'),
+    csvComponentType: tf('csv.componentType', 'Type'),
+    csvQuantity: tf('csv.quantity', 'Quantity'),
+    csvUom: tf('csv.uom', 'UoM'),
+    csvUnitCost: tf('csv.unitCost', 'Cost/kg'),
+    csvLineCost: tf('csv.lineCost', 'Line cost'),
+    csvTotal: tf('csv.total', 'Total'),
     recompute: t('recompute'),
     recomputeTitle: t('recomputeModal.title'),
     recomputeIntro: t('recomputeModal.intro'),

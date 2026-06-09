@@ -35,6 +35,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@monopilot/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@monopilot/ui/Table';
 
 import { SensoryRadar, type SensoryRadarPoint } from './sensory-radar';
+import { downloadCsv, fileSafe, toCsv } from '../../../../../../../../lib/shared/download';
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 
@@ -152,6 +153,22 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_m, k) => (k in vars ? vars[k] : `{${k}}`));
 }
 
+/**
+ * Build the sensory-scores CSV from the data the screen already renders. Columns
+ * are the visible header labels; values are the verbatim NUMERIC decimal STRINGS
+ * (never re-parsed to a float) so the export is byte-faithful to the panel. The
+ * last row is the Overall summary. RFC-4180 quoting via the shared `toCsv`.
+ */
+export function buildSensoryCsv(data: SensoryScreenData, labels: SensoryLabels): string {
+  const header = [labels.colAttribute, labels.colScore, labels.colVsBenchmark];
+  const rows: Array<Array<string>> = data.attributes
+    .slice()
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((a) => [a.attributeName, a.scoreOutOf10 ?? '', a.vsBenchmark ?? '']);
+  rows.push([labels.overall, data.overallScore ?? '', '']);
+  return toCsv(header, rows);
+}
+
 function StateNotice({ state, labels }: { state: PageState; labels: SensoryLabels }) {
   if (state === 'loading') {
     return (
@@ -217,6 +234,11 @@ export function SensoryScreen({
     score: a.scoreOutOf10,
   }));
 
+  function handleExportScores() {
+    const csv = buildSensoryCsv(data!, labels);
+    downloadCsv(csv, `sensory-${fileSafe(data!.productCode)}.csv`);
+  }
+
   // Overall "✓ Above benchmark" decision (prototype's highlighted summary row).
   // A panel is shown above benchmark only when it scored against a benchmark
   // product AND it is not net-negative across attributes (at least one positive
@@ -252,7 +274,14 @@ export function SensoryScreen({
               })}
             </p>
           </div>
-          <Button type="button" className="btn-secondary btn-sm" data-testid="sensory-export">
+          <Button
+            type="button"
+            className="btn-secondary btn-sm"
+            data-testid="sensory-export"
+            onClick={handleExportScores}
+            disabled={data.attributes.length === 0}
+            title={labels.exportScores}
+          >
             {labels.exportScores}
           </Button>
         </CardHeader>

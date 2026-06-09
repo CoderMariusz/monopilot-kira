@@ -17,11 +17,12 @@
 
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   SensoryScreen,
+  buildSensoryCsv,
   type SensoryLabels,
   type SensoryScreenData,
 } from '../sensory-screen';
@@ -181,5 +182,42 @@ describe('SensoryScreen — UI states', () => {
     render(<SensoryScreen state="ready" data={DATA} labels={custom} />);
     expect(screen.getByText('PANEL_SENSORYCZNY — Sliced Ham 200g')).toBeInTheDocument();
     expect(screen.getByText('KOMENTARZE')).toBeInTheDocument();
+  });
+});
+
+describe('SensoryScreen — Export scores (LANE 14)', () => {
+  it('builds a CSV with verbatim NUMERIC strings + an Overall row', () => {
+    expect(buildSensoryCsv(DATA, LABELS)).toBe(
+      [
+        'Attribute,Score /10,vs benchmark',
+        'Aroma,8.10,0.90',
+        'Flavour,7.80,0.60',
+        'Texture,6.40,-0.80',
+        'Saltiness,5.20,-2.00',
+        'Overall,7.60,',
+      ].join('\r\n'),
+    );
+  });
+
+  it('enables Export with data and downloads sensory-<code>.csv on click', () => {
+    const createObjectURL = vi.fn(() => 'blob:scores');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(globalThis.URL, { createObjectURL, revokeObjectURL }));
+    const downloads: string[] = [];
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
+
+    renderReady();
+    const btn = screen.getByTestId('sensory-export');
+    expect(btn).not.toBeDisabled();
+    fireEvent.click(btn);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(downloads).toEqual(['sensory-FA1001.csv']);
+    vi.restoreAllMocks();
   });
 });

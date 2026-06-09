@@ -24,7 +24,7 @@ vi.mock('../../_actions/list-recipe-cost', () => ({
   listCostedProducts: vi.fn(),
 }));
 
-import { RecipeCostClient, type RecipeCostCopy } from '../recipe-cost.client';
+import { RecipeCostClient, buildCostSheetCsv, type RecipeCostCopy } from '../recipe-cost.client';
 import type { CostedProductOption } from '../../_actions/list-recipe-cost';
 
 const PRODUCTS: CostedProductOption[] = [
@@ -38,6 +38,9 @@ const COPY: RecipeCostCopy = {
   kpiComponents: 'Components', kpiComponentsSub: 'lines', kpiCosted: 'Costed', kpiCostedSub: 'with cost',
   breakdownTitle: 'Cost breakdown', totalLabel: 'Total', noLines: 'No lines', noCost: 'No cost',
   bomNote: 'BOM v{version} {status}', uncosted: 'no cost',
+  exportCostSheet: 'Export cost sheet',
+  csvComponent: 'Component', csvComponentName: 'Name', csvComponentType: 'Type',
+  csvQuantity: 'Quantity', csvUom: 'UoM', csvUnitCost: 'Cost/kg', csvLineCost: 'Line cost', csvTotal: 'Total',
   recompute: 'Recompute', recomputeTitle: 'Recompute standard cost',
   recomputeIntro: 'Re-roll BOM costs from current rates.',
   recomputeNote: 'Non-destructive — re-rolls from current material rates.',
@@ -105,5 +108,41 @@ describe('RecipeCostClient (TEC-013)', () => {
     // Confirm re-invokes the live roll-up for the selected product.
     await waitFor(() => expect(getRecipeCost).toHaveBeenCalledTimes(2));
     expect(getRecipeCost).toHaveBeenLastCalledWith('FG5101');
+  });
+});
+
+describe('RecipeCostClient — Export cost sheet (LANE 14)', () => {
+  it('builds a cost-sheet CSV from RecipeCost (verbatim NUMERIC strings + total row)', () => {
+    expect(buildCostSheetCsv(COST.cost, COPY)).toBe(
+      [
+        'Component,Name,Type,Quantity,UoM,Cost/kg,Line cost',
+        'RM1001,Pork,RM,1.000000,kg,12.0000,12.0000',
+        'RM2002,Salt,RM,0.020000,kg,,',
+        'Total,,,,,,15.0000',
+      ].join('\r\n'),
+    );
+  });
+
+  it('enables Export once a cost is loaded and downloads cost-sheet-<code>.csv', async () => {
+    getRecipeCost.mockResolvedValue(COST);
+    const createObjectURL = vi.fn(() => 'blob:cost');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(globalThis.URL, { createObjectURL, revokeObjectURL }));
+    const downloads: string[] = [];
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloads.push(this.download);
+      });
+
+    render(<RecipeCostClient products={PRODUCTS} copy={COPY} />);
+    const btn = await screen.findByTestId('technical-cost-export');
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(downloads).toEqual(['cost-sheet-FG5101.csv']);
+    vi.restoreAllMocks();
   });
 });
