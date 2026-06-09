@@ -23,6 +23,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { Badge, type BadgeVariant } from '@monopilot/ui/Badge';
 
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 import { getItem } from '../_actions/get-item';
 import type { ItemStatus, ItemType } from '../_actions/shared';
 import { ItemDetailActions } from './_components/item-detail-actions';
@@ -65,6 +66,44 @@ const TYPE_LABEL: Record<ItemType, string> = {
 type PageProps = {
   params: Promise<{ locale: string; item_code: string }>;
 };
+
+type OrgContextLike = {
+  userId: string;
+  orgId: string;
+  client: {
+    query<T = Record<string, unknown>>(
+      sql: string,
+      params?: readonly unknown[],
+    ): Promise<{ rows: T[]; rowCount?: number | null }>;
+  };
+};
+
+/**
+ * Resolves whether the caller may create BOMs (`technical.bom.create`), so the FG
+ * item-detail BOM tab only shows the "+ New BOM" CTA when the action would
+ * actually succeed. Server-side only — never trusted from the client.
+ */
+async function resolveCanCreateBom(): Promise<boolean> {
+  try {
+    return await withOrgContext(async (rawCtx) => {
+      const ctx = rawCtx as OrgContextLike;
+      const { rows } = await ctx.client.query<{ ok: boolean }>(
+        `select true as ok
+           from public.user_roles ur
+           join public.roles r on r.id = ur.role_id and r.org_id = ur.org_id
+           left join public.role_permissions rp
+             on rp.role_id = r.id and rp.permission = 'technical.bom.create'
+          where ur.user_id = $1::uuid and ur.org_id = $2::uuid
+            and (rp.permission is not null or coalesce(r.permissions, '[]'::jsonb) ? 'technical.bom.create')
+          limit 1`,
+        [ctx.userId, ctx.orgId],
+      );
+      return rows.length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
 
 export default async function TechnicalItemDetailPage({ params }: PageProps) {
   const { locale, item_code: rawCode } = await params;
@@ -218,17 +257,40 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
   };
 
   // ── deferred-tab data: real Supabase reads under withOrgContext + RLS ────────
-  const [dataTabLabels, allergensTabLabels, bomData, costData, routingData, labData, d365Data, supplierSpecsData] =
-    await Promise.all([
-      buildDataTabLabels(locale),
-      buildAllergensTabLabels(locale),
-      loadBomTab(item.itemCode),
-      loadCostTab(item.itemCode),
-      loadRoutingTab(item.itemCode),
-      loadLabTab(item.itemCode),
-      loadD365Tab(item.itemCode),
-      listSupplierSpecs(item.itemCode),
-    ]);
+  const [
+    dataTabLabels,
+    allergensTabLabels,
+    bomData,
+    costData,
+    routingData,
+    labData,
+    d365Data,
+    supplierSpecsData,
+    canCreateBom,
+  ] = await Promise.all([
+    buildDataTabLabels(locale),
+    buildAllergensTabLabels(locale),
+    loadBomTab(item.itemCode),
+    loadCostTab(item.itemCode),
+    loadRoutingTab(item.itemCode),
+    loadLabTab(item.itemCode),
+    loadD365Tab(item.itemCode),
+    listSupplierSpecs(item.itemCode),
+    resolveCanCreateBom(),
+  ]);
+
+  // Item-detail BOM tab "+ New BOM" CTA: only a finished good gets a BOM, and only
+  // when the caller may create. Routes to the BOM list with this FG preselected
+  // (`?new=<code>`) so the FG picker opens with it chosen — avoids the per-FG
+  // detail route 404 that occurs when no BOM header exists yet.
+  const isFinishedGood = item.itemType === 'fg';
+  const createBomHref = `../../bom?new=${encodeURIComponent(item.itemCode)}`;
+  const bomCreateCtaKey = 'detail.dataTabs.bom.createCta';
+  const bomCreateCtaResolved = t(bomCreateCtaKey);
+  const bomCreateCta =
+    bomCreateCtaResolved === bomCreateCtaKey || bomCreateCtaResolved.endsWith('.createCta')
+      ? '+ New BOM'
+      : bomCreateCtaResolved;
 
   return (
     <main data-screen="technical-item-detail" className="flex w-full flex-col gap-4 px-6 py-6">
@@ -266,7 +328,15 @@ export default async function TechnicalItemDetailPage({ params }: PageProps) {
         panels={{
           overview: <ItemOverviewTab item={item} labels={overviewLabels} />,
           allergens: <AllergensTabServer itemCode={item.itemCode} labels={allergensTabLabels} />,
-          bom: <BomTab data={bomData} labels={dataTabLabels.bom} />,
+          bom: (
+            <BomTab
+              data={bomData}
+              labels={{ ...dataTabLabels.bom, createCta: bomCreateCta }}
+              isFinishedGood={isFinishedGood}
+              canCreateBom={canCreateBom}
+              createBomHref={createBomHref}
+            />
+          ),
           cost: <CostTab data={costData} labels={dataTabLabels.cost} />,
           routing: <RoutingTab data={routingData} labels={dataTabLabels.routing} />,
           labResults: <LabTab data={labData} labels={dataTabLabels.lab} />,

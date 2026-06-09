@@ -15,6 +15,8 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 
+import Link from 'next/link';
+
 import type {
   BomTabData,
   CostTabData,
@@ -88,13 +90,24 @@ const SECTION_HEAD: CSSProperties = {
   borderBottom: '1px solid var(--border)',
 };
 
-function EmptyCard({ icon, title, body }: { icon: string; title: string; body: string }) {
+function EmptyCard({
+  icon,
+  title,
+  body,
+  action,
+}: {
+  icon: string;
+  title: string;
+  body: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="card" style={{ padding: 0 }}>
       <div className="empty-state">
         <div className="empty-state-icon">{icon}</div>
         <div className="empty-state-title">{title}</div>
         <div className="empty-state-body">{body}</div>
+        {action ? <div className="empty-state-action">{action}</div> : null}
       </div>
     </div>
   );
@@ -118,12 +131,48 @@ export type BomTabLabels = TabStateLabels & {
   lines: string;
   approved: string;
   none: string;
+  /** "+ New BOM" CTA label, shown in the empty state for an FG item. */
+  createCta?: string;
 };
 
-export function BomTab({ data, labels }: { data: BomTabData; labels: BomTabLabels }) {
+/**
+ * The BOM tab. When an item has NO shared BOM version it renders the empty
+ * state; for a finished good (and when the caller may create), that empty state
+ * gets a "+ New BOM" CTA that links straight to the BOM authoring entry for this
+ * FG (`createBomHref`) — closing the previously dead-end where an FG item had no
+ * way to start its first BOM from the detail screen.
+ */
+export function BomTab({
+  data,
+  labels,
+  isFinishedGood = false,
+  canCreateBom = false,
+  createBomHref,
+}: {
+  data: BomTabData;
+  labels: BomTabLabels;
+  isFinishedGood?: boolean;
+  canCreateBom?: boolean;
+  createBomHref?: string;
+}) {
   if (data.state === 'error') return <ErrorCard message={labels.error} />;
-  if (data.state === 'empty')
-    return <EmptyCard icon="🧬" title={labels.empty} body={labels.emptyBody} />;
+  if (data.state === 'empty') {
+    const showCta = isFinishedGood && canCreateBom && Boolean(createBomHref);
+    return (
+      <EmptyCard
+        icon="🧬"
+        title={labels.empty}
+        body={labels.emptyBody}
+        action={
+          showCta ? (
+            <Link href={createBomHref!} className="btn btn-primary btn-sm" data-testid="item-bom-new-cta">
+              {labels.createCta ?? '+ New BOM'}
+            </Link>
+          ) : undefined
+        }
+      />
+    );
+  }
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto' }} data-testid="bom-tab">
       <div className="card-head" style={SECTION_HEAD}>

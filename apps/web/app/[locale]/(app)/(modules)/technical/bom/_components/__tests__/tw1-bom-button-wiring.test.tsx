@@ -31,7 +31,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, replace: vi.fn(), prefetch: vi.fn(), refresh: mocks.refresh }),
 }));
-vi.mock('../../items/_actions/list-items', () => ({ listItems: mocks.listItems }));
+// The modal imports `listItems` from `bom/_components` → `../../items/_actions/...`
+// which resolves to `technical/items/_actions/list-items`. From THIS test file
+// (one level deeper, in `__tests__`) that same module is `../../../items/...`.
+vi.mock('../../../items/_actions/list-items', () => ({ listItems: mocks.listItems }));
 vi.mock('../../_actions/workflow', () => ({ approveBom: mocks.approveBom }));
 vi.mock('../../_actions/delete-bom-version', () => ({ deleteBomVersion: mocks.deleteBomVersion }));
 
@@ -108,6 +111,58 @@ describe('TW1-bom — list CTAs are wired', () => {
     expect(screen.queryByTestId('new-bom-modal')).not.toBeInTheDocument();
     await user.click(screen.getByTestId('bom-new-cta'));
     expect(await screen.findByTestId('new-bom-modal')).toBeInTheDocument();
+  });
+
+  it('renders eligible + blocked FGs with status badges; blocked is disabled', async () => {
+    const user = userEvent.setup();
+    mocks.listItems.mockResolvedValue({
+      state: 'ready',
+      items: [
+        { id: 'a', itemCode: 'FG-A', name: 'Active FG', itemType: 'fg', status: 'active' },
+        { id: 'b', itemCode: 'FG-B', name: 'Blocked FG', itemType: 'fg', status: 'blocked' },
+      ],
+    });
+    render(<BomListScreen state="ready" data={LIST_DATA} labels={LIST_LABELS} canCreate canGenerate />);
+    await user.click(screen.getByTestId('bom-new-cta'));
+
+    const options = await screen.findAllByTestId('new-bom-fg-option');
+    expect(options).toHaveLength(2);
+    // Active FG is selectable; blocked FG is disabled (visible, not hidden).
+    const active = options.find((o) => o.getAttribute('data-eligible') === 'true')!;
+    const blocked = options.find((o) => o.getAttribute('data-eligible') === 'false')!;
+    expect(active).toHaveTextContent('FG-A');
+    expect(blocked).toBeDisabled();
+    expect(blocked).toHaveTextContent('FG-B');
+
+    // Continue stays disabled until an ELIGIBLE FG is picked.
+    expect(screen.getByTestId('new-bom-confirm')).toBeDisabled();
+    await user.click(active);
+    expect(screen.getByTestId('new-bom-confirm')).not.toBeDisabled();
+  });
+
+  it('shows a proper empty-state with an items link when there are no FGs (no infinite loading)', async () => {
+    const user = userEvent.setup();
+    mocks.listItems.mockResolvedValue({ state: 'ready', items: [] });
+    render(<BomListScreen state="ready" data={LIST_DATA} labels={LIST_LABELS} canCreate canGenerate />);
+    await user.click(screen.getByTestId('bom-new-cta'));
+
+    const empty = await screen.findByTestId('new-bom-empty');
+    expect(empty).toBeInTheDocument();
+    // The loading skeleton is gone (loading state was left) and a link is offered.
+    expect(screen.queryByTestId('new-bom-loading')).not.toBeInTheDocument();
+    expect(empty.querySelector('a')).toHaveAttribute('href', '/technical/items');
+  });
+
+  it('does NOT hang on loading when listItems rejects — surfaces the error state', async () => {
+    const user = userEvent.setup();
+    mocks.listItems.mockRejectedValue(new Error('RSC boundary blew up'));
+    render(<BomListScreen state="ready" data={LIST_DATA} labels={LIST_LABELS} canCreate canGenerate />);
+    await user.click(screen.getByTestId('bom-new-cta'));
+
+    // The error branch renders (loading skeleton cleared) — the live forever-hang
+    // happened because a rejected Server Action was never caught.
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('new-bom-loading')).not.toBeInTheDocument());
   });
 
   it('Generate BOMs opens the batch generator modal when no host override', async () => {

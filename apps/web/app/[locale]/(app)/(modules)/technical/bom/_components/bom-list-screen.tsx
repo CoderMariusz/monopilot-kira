@@ -245,6 +245,8 @@ export function BomListScreen({
   canCreate = false,
   canGenerate = false,
   onGenerate,
+  openNew = false,
+  prefillFg,
 }: {
   state: PageState;
   data: BomListData | null;
@@ -252,11 +254,20 @@ export function BomListScreen({
   canCreate?: boolean;
   canGenerate?: boolean;
   onGenerate?: () => void;
+  /** Deep-link: auto-open the New BOM modal on mount (`?new=<code>`). */
+  openNew?: boolean;
+  /** Deep-link: preselect this FG code in the New BOM modal. */
+  prefillFg?: string;
 }) {
   const [filter, setFilter] = React.useState<FilterKey>('all');
   const [q, setQ] = React.useState('');
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
+  // Auto-open the FG picker when arrived via the item-detail "+ New BOM" CTA
+  // (`/technical/bom?new=<code>`) and the caller actually holds create.
   const [newBomOpen, setNewBomOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (openNew && canCreate) setNewBomOpen(true);
+  }, [openNew, canCreate]);
 
   // The Generate CTA opens the (already real-data-wired) batch generator unless
   // the host overrides onGenerate; the New BOM CTA opens the FG-picker modal that
@@ -445,6 +456,7 @@ export function BomListScreen({
           open={newBomOpen}
           onClose={() => setNewBomOpen(false)}
           detailHrefBase={data?.detailHrefBase ?? '/technical/bom'}
+          prefillCode={prefillFg}
         />
       ) : null}
 

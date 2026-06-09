@@ -20,7 +20,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
-import { getBomDetailPage } from '../_actions/detail-page';
+import { getBomDetailPage, getBomFgSummary } from '../_actions/detail-page';
 import {
   BomDetailScreen,
   type BomDetailData,
@@ -28,6 +28,10 @@ import {
   type PageState,
 } from '../_components/bom-detail-screen';
 import { BomDetailActions } from '../_components/bom-detail-actions';
+import {
+  BomFirstAuthoring,
+  type BomFirstAuthoringLabels,
+} from '../_components/bom-first-authoring';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,12 +155,47 @@ async function buildLabels(locale: string): Promise<BomDetailLabels> {
   }
 }
 
+const DEFAULT_FIRST_AUTHORING_LABELS: BomFirstAuthoringLabels = {
+  breadcrumbRoot: 'BOMs & recipes',
+  emptyTitle: 'No BOM yet',
+  emptyBody: 'No BOM yet for {code} — add the first component to create the v1 draft.',
+  addFirstComponent: '+ Add first component',
+  draftBadge: 'Not started',
+};
+
+const FIRST_AUTHORING_KEYS = Object.keys(
+  DEFAULT_FIRST_AUTHORING_LABELS,
+) as Array<keyof BomFirstAuthoringLabels>;
+
+async function buildFirstAuthoringLabels(locale: string): Promise<BomFirstAuthoringLabels> {
+  try {
+    const t = await getTranslations({ locale, namespace: 'technical.bom.firstAuthoring' });
+    return FIRST_AUTHORING_KEYS.reduce((labels, key) => {
+      try {
+        const value = t(key);
+        labels[key] = value === key ? DEFAULT_FIRST_AUTHORING_LABELS[key] : value;
+      } catch {
+        labels[key] = DEFAULT_FIRST_AUTHORING_LABELS[key];
+      }
+      return labels;
+    }, {} as BomFirstAuthoringLabels);
+  } catch {
+    return { ...DEFAULT_FIRST_AUTHORING_LABELS };
+  }
+}
+
 type BomDetailPageProps = {
   params?: Promise<{ locale: string; itemCode: string }>;
   searchParams?: Promise<{ v?: string }>;
   // Test-only injection seam.
   data?: BomDetailData | null;
   state?: PageState;
+  // Test-only injection seam for the FIRST-AUTHORING state (FG exists, no BOM yet).
+  firstAuthoring?: {
+    productId: string;
+    productName: string | null;
+    canCreate: boolean;
+  } | null;
 };
 
 export default async function BomDetailPage(propsInput: unknown = {}) {
@@ -167,6 +206,20 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
   const sp = props.searchParams ? await props.searchParams : {};
 
   const labels = await buildLabels(locale);
+
+  // Test-only injection seam for the first-authoring shell.
+  if (props.firstAuthoring !== undefined && props.firstAuthoring !== null) {
+    const firstAuthoringLabels = await buildFirstAuthoringLabels(locale);
+    return (
+      <BomFirstAuthoring
+        productId={props.firstAuthoring.productId}
+        productName={props.firstAuthoring.productName}
+        detailHrefBase={DETAIL_HREF_BASE}
+        canCreate={props.firstAuthoring.canCreate}
+        labels={firstAuthoringLabels}
+      />
+    );
+  }
 
   const injected = props.data !== undefined || props.state !== undefined;
   if (injected) {
@@ -189,7 +242,27 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
   ]);
 
   if (!result.ok) {
-    if (result.error === 'not_found') notFound();
+    if (result.error === 'not_found') {
+      // The FG has no bom_headers row yet — distinguish a real FG awaiting its
+      // FIRST BOM (→ authoring shell) from a truly unknown item code (→ 404).
+      const fg = await getBomFgSummary(productId);
+      if (fg.ok) {
+        const firstAuthoringLabels = await buildFirstAuthoringLabels(locale);
+        return (
+          <BomFirstAuthoring
+            productId={fg.data.productId}
+            productName={fg.data.productName}
+            detailHrefBase={DETAIL_HREF_BASE}
+            canCreate={perms.canCreate}
+            labels={firstAuthoringLabels}
+          />
+        );
+      }
+      if (fg.error === 'load_failed') {
+        return <BomDetailScreen state="error" data={null} labels={labels} />;
+      }
+      notFound();
+    }
     return <BomDetailScreen state="error" data={null} labels={labels} />;
   }
 

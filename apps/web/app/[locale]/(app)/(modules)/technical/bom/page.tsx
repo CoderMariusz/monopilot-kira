@@ -132,7 +132,7 @@ async function resolvePermissions(): Promise<{ canCreate: boolean; canGenerate: 
 
 type BomListPageProps = {
   params?: Promise<{ locale: string }>;
-  searchParams?: Promise<{ page?: string; status?: string; q?: string }>;
+  searchParams?: Promise<{ page?: string; status?: string; q?: string; new?: string }>;
   // Test-only injection seam (mirrors costing/page.tsx).
   data?: BomListData | null;
   state?: PageState;
@@ -194,6 +194,10 @@ export default async function BomListPage(propsInput: unknown = {}) {
 
   const { state, data } = buildData(result);
 
+  // Deep-link from the item-detail BOM tab CTA: `?new=<fgCode>` auto-opens the
+  // FG picker with that finished good preselected (server-gated by canCreate).
+  const prefillFg = typeof sp.new === 'string' && sp.new.length > 0 ? sp.new : undefined;
+
   return (
     <BomListScreen
       state={perms === null ? 'error' : state}
@@ -201,6 +205,8 @@ export default async function BomListPage(propsInput: unknown = {}) {
       labels={labels}
       canCreate={perms?.canCreate ?? false}
       canGenerate={perms?.canGenerate ?? false}
+      openNew={Boolean(prefillFg)}
+      prefillFg={prefillFg}
     />
   );
 }

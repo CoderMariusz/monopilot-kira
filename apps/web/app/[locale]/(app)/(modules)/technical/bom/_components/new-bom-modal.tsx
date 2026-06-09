@@ -20,26 +20,71 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@monopilot/ui/Button';
 
 import { listItems } from '../../items/_actions/list-items';
-import type { ItemListItem } from '../../items/_actions/shared';
+import type { ItemListItem, ItemStatus } from '../../items/_actions/shared';
+
+// 5 semantic tones (MON-design-system rule 8) for the FG status badge shown
+// next to each pickable item. Only `active` FGs are eligible to author a BOM
+// against; the rest are shown DISABLED with their status so the user understands
+// why they cannot be picked (rather than being silently hidden).
+const FG_STATUS_TONE: Record<ItemStatus, string> = {
+  draft: 'badge-gray',
+  active: 'badge-green',
+  deprecated: 'badge-amber',
+  blocked: 'badge-red',
+};
+
+function isEligibleFg(item: ItemListItem): boolean {
+  return item.status === 'active';
+}
 
 export function NewBomModal({
   open,
   onClose,
   detailHrefBase,
+  itemsHref = '/technical/items',
+  prefillCode,
 }: {
   open: boolean;
   onClose: () => void;
   detailHrefBase: string;
+  /** Where the "create an FG first" empty-state link points. */
+  itemsHref?: string;
+  /** Preselect this FG code (deep-link from the item-detail BOM tab CTA). */
+  prefillCode?: string;
 }) {
   const t = useTranslations('technical.bom.newBom');
   const router = useRouter();
   const titleId = React.useId();
+
+  // Graceful fallback for keys that may not yet exist in every locale bundle.
+  // next-intl's default `getMessageFallback` returns the FULL dotted key path for
+  // a missing key (and the RTL test mock does the same) — so a resolved value that
+  // still ends with `.<key>` means "missing" and we substitute a readable default.
+  const tt = React.useCallback(
+    (key: string, fallback: string): string => {
+      let resolved: string;
+      try {
+        resolved = t(key);
+      } catch {
+        return fallback;
+      }
+      return resolved === key || resolved.endsWith(`.${key}`) ? fallback : resolved;
+    },
+    [t],
+  );
+  const FG_STATUS_LABEL: Record<ItemStatus, string> = {
+    draft: tt('status.draft', 'Draft'),
+    active: tt('status.active', 'Active'),
+    deprecated: tt('status.deprecated', 'Deprecated'),
+    blocked: tt('status.blocked', 'Blocked'),
+  };
   const contentRef = React.useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = React.useState('');
@@ -51,6 +96,10 @@ export function NewBomModal({
     if (!open) {
       setSearch('');
       setPicked(null);
+      // Re-arm the loader so re-opening the modal re-fetches a fresh FG list
+      // (e.g. after the user created the missing FG item from the empty state).
+      setListState('idle');
+      setItems(null);
       return;
     }
     contentRef.current?.focus();
@@ -66,19 +115,40 @@ export function NewBomModal({
     let cancelled = false;
     setListState('loading');
     void (async () => {
-      const res = await listItems();
-      if (cancelled) return;
-      if (res.state === 'error') {
-        setListState('error');
-      } else {
+      try {
+        // Constrain the read to FG in SQL (under RLS); the action returns
+        // state:'error' on a handled failure. A REJECTED promise (e.g. a Server
+        // Action that throws at the RSC boundary) is caught below so the modal
+        // can NEVER hang on the loading skeleton forever — the live failure mode.
+        const res = await listItems({ itemTypes: ['fg'] });
+        if (cancelled) return;
+        if (res.state === 'error') {
+          setListState('error');
+          return;
+        }
+        // Defensive: also filter client-side in case a caller widened the read.
         setItems(res.items.filter((m) => m.itemType === 'fg'));
         setListState('ready');
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[technical/bom] NewBomModal listItems failed', err);
+        setListState('error');
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [open, listState]);
+
+  // Deep-link prefill: when opened from the item-detail BOM tab CTA
+  // (`?new=<code>`), seed the search with the FG code and auto-select it once the
+  // list resolves — but only if that FG is eligible (active).
+  React.useEffect(() => {
+    if (!open || !prefillCode || listState !== 'ready' || items === null) return;
+    setSearch((prev) => (prev ? prev : prefillCode));
+    const match = items.find((m) => m.itemCode === prefillCode);
+    if (match && isEligibleFg(match)) setPicked((prev) => prev ?? match);
+  }, [open, prefillCode, listState, items]);
 
   const filtered = React.useMemo(() => {
     const list = items ?? [];
@@ -90,7 +160,7 @@ export function NewBomModal({
   }, [items, search]);
 
   function onConfirm() {
-    if (!picked) return;
+    if (!picked || !isEligibleFg(picked)) return;
     onClose();
     router.push(`${detailHrefBase}/${encodeURIComponent(picked.itemCode)}`);
   }
@@ -144,7 +214,7 @@ export function NewBomModal({
             aria-label={t('title')}
           >
             {listState === 'loading' ? (
-              <div className="space-y-2 p-3">
+              <div className="space-y-2 p-3" data-testid="new-bom-loading">
                 <div className="h-6 animate-pulse rounded bg-slate-100" />
                 <div className="h-6 animate-pulse rounded bg-slate-100" />
                 <p className="sr-only">{t('loading')}</p>
@@ -154,28 +224,60 @@ export function NewBomModal({
                 {t('error')}
               </p>
             ) : filtered.length === 0 ? (
-              <p className="p-5 text-center" style={{ color: 'var(--muted)' }}>
-                {t('noFgs')}
-              </p>
+              // No eligible/visible FG matched — proper empty-state (not a bare
+              // line) explaining why, with a link to create an FG item first.
+              <div className="empty-state" data-testid="new-bom-empty">
+                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-title">{t('noFgs')}</div>
+                <div className="empty-state-body">
+                  {tt(
+                    'emptyBody',
+                    'A BOM is authored against an active finished good. Create or activate an FG item first, then return to add its components.',
+                  )}
+                </div>
+                <div className="empty-state-action">
+                  <Link href={itemsHref} className="btn btn-secondary btn-sm" onClick={onClose}>
+                    {tt('viewItems', 'Go to items')}
+                  </Link>
+                </div>
+              </div>
             ) : (
-              filtered.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="option"
-                  aria-selected={picked?.id === m.id}
-                  data-testid="new-bom-fg-option"
-                  onClick={() => setPicked(m)}
-                  className="grid w-full grid-cols-[120px_1fr] items-center gap-2 px-3 py-2 text-left text-[13px]"
-                  style={{
-                    borderBottom: '1px solid var(--border)',
-                    background: picked?.id === m.id ? 'var(--blue-050)' : '#fff',
-                  }}
-                >
-                  <span className="mono">{m.itemCode}</span>
-                  <span className="truncate">{m.name}</span>
-                </button>
-              ))
+              filtered.map((m) => {
+                const eligible = isEligibleFg(m);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="option"
+                    aria-selected={picked?.id === m.id}
+                    aria-disabled={!eligible}
+                    disabled={!eligible}
+                    data-testid="new-bom-fg-option"
+                    data-eligible={eligible ? 'true' : 'false'}
+                    title={
+                      eligible
+                        ? undefined
+                        : tt('blockedHint', 'Only active finished goods can have a BOM authored against them.')
+                    }
+                    onClick={() => {
+                      if (eligible) setPicked(m);
+                    }}
+                    className="grid w-full grid-cols-[120px_1fr_auto] items-center gap-2 px-3 py-2 text-left text-[13px]"
+                    style={{
+                      borderBottom: '1px solid var(--border)',
+                      background: picked?.id === m.id ? 'var(--blue-050)' : '#fff',
+                      cursor: eligible ? 'pointer' : 'not-allowed',
+                      opacity: eligible ? 1 : 0.6,
+                    }}
+                  >
+                    <span className="mono">{m.itemCode}</span>
+                    <span className="truncate">{m.name}</span>
+                    <span className={`badge ${FG_STATUS_TONE[m.status] ?? 'badge-gray'}`}>
+                      {FG_STATUS_LABEL[m.status] ?? m.status}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -188,7 +290,7 @@ export function NewBomModal({
             type="button"
             className="btn-primary btn-sm"
             data-testid="new-bom-confirm"
-            disabled={!picked}
+            disabled={!picked || !isEligibleFg(picked)}
             onClick={onConfirm}
           >
             {t('confirm')}

@@ -108,6 +108,47 @@ describe('BomTab', () => {
     render(<BomTab data={{ state: 'error', versions: [] }} labels={bomLabels} />);
     expect(screen.getByRole('alert')).toHaveTextContent('BOM error');
   });
+
+  it('shows a "+ New BOM" CTA in the empty state for an FG the caller can create against', () => {
+    render(
+      <BomTab
+        data={{ state: 'empty', versions: [] }}
+        labels={{ ...bomLabels, createCta: '+ New BOM' }}
+        isFinishedGood
+        canCreateBom
+        createBomHref="/technical/bom?new=FG-1"
+      />,
+    );
+    const cta = screen.getByTestId('item-bom-new-cta');
+    expect(cta).toHaveTextContent('+ New BOM');
+    expect(cta).toHaveAttribute('href', '/technical/bom?new=FG-1');
+  });
+
+  it('hides the create CTA when the item is NOT a finished good', () => {
+    render(
+      <BomTab
+        data={{ state: 'empty', versions: [] }}
+        labels={{ ...bomLabels, createCta: '+ New BOM' }}
+        isFinishedGood={false}
+        canCreateBom
+        createBomHref="/technical/bom?new=RM-1"
+      />,
+    );
+    expect(screen.queryByTestId('item-bom-new-cta')).not.toBeInTheDocument();
+  });
+
+  it('hides the create CTA when the caller lacks bom.create', () => {
+    render(
+      <BomTab
+        data={{ state: 'empty', versions: [] }}
+        labels={{ ...bomLabels, createCta: '+ New BOM' }}
+        isFinishedGood
+        canCreateBom={false}
+        createBomHref="/technical/bom?new=FG-1"
+      />,
+    );
+    expect(screen.queryByTestId('item-bom-new-cta')).not.toBeInTheDocument();
+  });
 });
 
 describe('CostTab (NUMERIC-exact)', () => {

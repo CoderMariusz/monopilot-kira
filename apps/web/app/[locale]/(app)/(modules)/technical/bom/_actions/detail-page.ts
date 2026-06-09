@@ -79,6 +79,65 @@ export type GetBomDetailPageResult =
   | { ok: true; data: BomDetailPage }
   | { ok: false; error: 'not_found' | 'load_failed' };
 
+/**
+ * Lightweight FG resolver for the FIRST-AUTHORING state.
+ *
+ * `getBomDetailPage` returns `not_found` for BOTH a truly unknown item code AND a
+ * known FG that simply has no `bom_headers` row yet (the "create the first BOM"
+ * case). To tell them apart the route asks this loader whether the `:itemCode`
+ * resolves to a real finished good in the org-scoped items master. When it does,
+ * the route renders the authoring shell instead of a 404 so the New-BOM picker's
+ * "route an active FG → /technical/bom/{code}" flow no longer dead-ends.
+ *
+ * `:itemCode` = `public.items.item_code` (= `bom_headers.product_id`). Cross-org
+ * rows are invisible (RLS), so an unknown/cross-org code returns null → 404.
+ */
+export type BomFgSummary = {
+  /** FG natural key (item_code = product_id). */
+  productId: string;
+  /** Display name from the items master (falls back to the code in the UI). */
+  productName: string | null;
+  /** Items-master lifecycle status (`draft | active | deprecated | blocked`). */
+  status: string;
+  /** Whether a BOM may be authored against it (only active FGs are eligible). */
+  eligible: boolean;
+};
+
+export async function getBomFgSummary(
+  itemCode: string,
+): Promise<{ ok: true; data: BomFgSummary } | { ok: false; error: 'not_found' | 'load_failed' }> {
+  try {
+    return await withOrgContext(async ({ client }) => {
+      const c = client as QueryClient;
+      const { rows } = await c.query<{ item_code: string; name: string | null; status: string }>(
+        `select item_code, name, status
+           from public.items
+          where org_id = app.current_org_id()
+            and item_code = $1
+            and item_type = 'fg'
+          limit 1`,
+        [itemCode],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' } as const;
+      return {
+        ok: true,
+        data: {
+          productId: row.item_code,
+          productName: row.name,
+          status: row.status,
+          eligible: row.status === 'active',
+        },
+      } as const;
+    });
+  } catch (err) {
+    console.error('[technical/bom] getBomFgSummary load_failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false, error: 'load_failed' };
+  }
+}
+
 type VersionSqlRow = {
   id: string;
   version: number;
