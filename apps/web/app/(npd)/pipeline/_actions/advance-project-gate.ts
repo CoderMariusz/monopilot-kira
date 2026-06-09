@@ -94,7 +94,9 @@ export async function advanceProjectGate(rawInput: unknown): Promise<AdvanceProj
 
       // Blockers are checked against the CURRENT stage's gate checklist.
       const blockers = await getBlockers(context, project, targetStage);
-      if (blockers.length > 0) return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
+      if (blockers.length > 0) {
+        return { ok: false, error: 'BLOCKERS_PRESENT', status: 409, blockers };
+      }
 
       // ─── Per-transition side effects ───
       let productCode = project.product_code;

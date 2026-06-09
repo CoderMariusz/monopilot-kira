@@ -54,7 +54,25 @@ export type CriteriaLabels = {
   c5Detail: string;
   c6Detail: string;
   c7Detail: string;
+  // Per-criterion "how to satisfy" hints — surfaced only while the criterion is
+  // pending/warn so the approver can navigate to the owning stage and resolve it.
+  c1Hint: string;
+  c2Hint: string;
+  c3Hint: string;
+  c4Hint: string;
+  c5Hint: string;
+  c6Hint: string;
+  c7Hint: string;
+  fixLink: string;
 };
+
+/**
+ * Project-relative (or absolute) hrefs that take the approver to the stage that
+ * owns each criterion so a `pending`/`warn` row is actionable. Built server-side
+ * in page.tsx (locale + product_code aware); omitted for criteria with no in-app
+ * remediation (e.g. C4 sensory, which is a Technical-owned read-model).
+ */
+export type CriterionLinks = Partial<Record<ApprovalCriterionKey, string>>;
 
 function criterionName(key: ApprovalCriterionKey, labels: CriteriaLabels): string {
   return labels[`${key.toLowerCase() as 'c1'}Name` as keyof CriteriaLabels] as string;
@@ -62,6 +80,15 @@ function criterionName(key: ApprovalCriterionKey, labels: CriteriaLabels): strin
 
 function criterionDetail(key: ApprovalCriterionKey, labels: CriteriaLabels): string {
   return labels[`${key.toLowerCase() as 'c1'}Detail` as keyof CriteriaLabels] as string;
+}
+
+function criterionHint(key: ApprovalCriterionKey, labels: CriteriaLabels): string {
+  return labels[`${key.toLowerCase() as 'c1'}Hint` as keyof CriteriaLabels] as string;
+}
+
+/** A criterion is unsatisfied (and therefore actionable) when it is pending or warn. */
+function isUnsatisfied(status: ApprovalCriterionStatus): boolean {
+  return status === 'pending' || status === 'warn';
 }
 
 /** Design-system 5-tone badge class (globals `.badge-*`). */
@@ -150,9 +177,11 @@ function StatusBadge({ status, labels }: { status: ApprovalCriterionStatus; labe
 export function CriteriaCard({
   criteria,
   labels,
+  links,
 }: {
   criteria: Record<ApprovalCriterionKey, ApprovalCriterionStatus>;
   labels: CriteriaLabels;
+  links?: CriterionLinks;
 }) {
   const counts = tallyCriteria(criteria);
   return (
@@ -182,6 +211,9 @@ export function CriteriaCard({
       <ul className="list-none p-0" style={{ margin: 0 }}>
         {CRITERIA_ORDER.map((key) => {
           const status = criteria[key];
+          const unsatisfied = isUnsatisfied(status);
+          const hint = criterionHint(key, labels);
+          const href = links?.[key];
           return (
             <li
               key={key}
@@ -221,6 +253,26 @@ export function CriteriaCard({
                 <div className="muted" style={{ fontSize: 12 }}>
                   {criterionDetail(key, labels)}
                 </div>
+                {unsatisfied && hint ? (
+                  <div
+                    data-testid={`criterion-hint-${key}`}
+                    className="muted"
+                    style={{ fontSize: 12, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'baseline' }}
+                  >
+                    <span aria-hidden="true">→</span>
+                    <span>{hint}</span>
+                    {href ? (
+                      <a
+                        data-testid={`criterion-fix-link-${key}`}
+                        href={href}
+                        className="link"
+                        style={{ fontWeight: 500 }}
+                      >
+                        {labels.fixLink}
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <StatusBadge status={status} labels={labels} />
             </li>

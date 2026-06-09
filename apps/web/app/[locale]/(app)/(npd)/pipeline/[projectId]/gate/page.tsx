@@ -31,6 +31,7 @@ import {
 } from '../../../../../../(npd)/pipeline/_actions/get-project';
 import { advanceProjectGate as advanceProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/advance-project-gate';
 import { approveProjectGate as approveProjectGateAction } from '../../../../../../(npd)/pipeline/_actions/approve-project-gate';
+import { toggleGateChecklistItem as toggleGateChecklistItemAction } from '../../../../../../(npd)/pipeline/_actions/toggle-gate-checklist-item';
 import { GATE_ADVANCE_PERMISSION, GATE_APPROVE_PERMISSION, nextStage } from '../../../../../../(npd)/pipeline/_actions/_lib/gate-helpers';
 import {
   PROJECT_VIEW_PERMISSION,
@@ -143,10 +144,11 @@ const DEFAULT_ADVANCE_LABELS: AdvanceGateLabels = {
   approvalRequired: 'This transition requires gate approval.',
   checklistSummary: '{gate} checklist — {label}',
   done: 'Done',
-  blocking: 'Blocking',
+  blocking: 'Required',
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
-  blockersTitle: '{count} blocker(s) must be resolved first',
+  blockersTitle: '{count} required item(s) incomplete',
+  requiredIncompleteWarning: '{count} required checklist items are not complete — you can still advance.',
   readyAlert: 'All required items complete — ready to advance.',
   notesLabel: 'Advance notes',
   notesPlaceholder: 'Add a note for this gate transition…',
@@ -440,6 +442,12 @@ async function approveAdapter(
   return result.ok ? { ok: true as const } : { ok: false as const, error: result.error };
 }
 
+async function toggleChecklistAdapter(projectId: string, itemId: string, done: boolean) {
+  'use server';
+  const result = await toggleGateChecklistItemAction({ projectId, itemId, completed: done });
+  return result.ok ? { ok: true as const } : { ok: false as const, code: result.code };
+}
+
 export default async function GatePage(propsInput: unknown = {}) {
   const props = (propsInput ?? {}) as GatePageProps;
   const { locale, projectId } = props.params ? await props.params : { locale: 'en', projectId: '' };
@@ -497,7 +505,7 @@ export default async function GatePage(propsInput: unknown = {}) {
       canWrite={loaded.canWrite}
       canAdvance={loaded.canAdvance}
       canApprove={loaded.canApprove}
-      toggleGateChecklistItem={undefined}
+      toggleGateChecklistItem={loaded.canWrite ? toggleChecklistAdapter.bind(null, projectId) : undefined}
       advanceProjectGate={advanceAdapter}
       approveProjectGate={approveAdapter}
     />

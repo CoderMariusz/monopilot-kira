@@ -30,6 +30,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   KanbanView,
+  resolveAdvanceError,
   type KanbanLabels,
   type KanbanProject,
 } from '../kanban-view';
@@ -122,6 +123,8 @@ const LABELS: KanbanLabels = {
   forbidden: 'lbl.forbidden',
   advanceError: 'lbl.advanceError',
   adjacencyError: 'lbl.adjacencyError',
+  esignRequiredError: 'lbl.esignRequiredError',
+  checklistIncompleteError: 'lbl.checklistIncompleteError',
 };
 
 function renderView(overrides: Partial<React.ComponentProps<typeof KanbanView>> = {}) {
@@ -248,6 +251,25 @@ describe('KanbanView — advance affordance (advanceProjectGate / §17.12)', () 
     expect(screen.getByRole('alert')).toHaveTextContent(LABELS.adjacencyError);
   });
 
+  it('surfaces the ESIGN_REQUIRED-specific alert (not the generic revert message)', async () => {
+    const advanceAction = vi.fn(async () => ({
+      ok: false as const,
+      error: 'ESIGN_REQUIRED',
+      status: 403,
+    }));
+    renderView({ advanceAction });
+
+    const card = screen.getByTestId('kanban-card-DEV-061');
+    await act(async () => {
+      fireEvent.click(within(card).getByRole('button', { name: LABELS.advance }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(LABELS.esignRequiredError);
+    });
+    expect(screen.getByRole('alert')).not.toHaveTextContent(LABELS.advanceError);
+  });
+
   it('does not render an advance affordance on a Launched card (terminal gate)', () => {
     renderView();
     const card = screen.getByTestId('kanban-card-DEV-070'); // Launched
@@ -296,5 +318,21 @@ describe('KanbanView — required UI states', () => {
   it('populated: renders one card per project across the columns', () => {
     renderView();
     expect(screen.getAllByTestId(/^kanban-card-/)).toHaveLength(PROJECTS.length);
+  });
+});
+
+describe('resolveAdvanceError — error → toast mapping', () => {
+  it('maps ESIGN_REQUIRED to the e-sign-required label', () => {
+    expect(resolveAdvanceError('ESIGN_REQUIRED', LABELS)).toBe(LABELS.esignRequiredError);
+  });
+  it('maps CHECKLIST_INCOMPLETE to the checklist label', () => {
+    expect(resolveAdvanceError('CHECKLIST_INCOMPLETE', LABELS)).toBe(LABELS.checklistIncompleteError);
+  });
+  it('maps ADJACENCY_VIOLATION to the adjacency label', () => {
+    expect(resolveAdvanceError('ADJACENCY_VIOLATION', LABELS)).toBe(LABELS.adjacencyError);
+  });
+  it('falls back to the generic revert label for unknown codes', () => {
+    expect(resolveAdvanceError('PERSISTENCE_FAILED', LABELS)).toBe(LABELS.advanceError);
+    expect(resolveAdvanceError('WHATEVER', LABELS)).toBe(LABELS.advanceError);
   });
 });

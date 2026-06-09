@@ -123,6 +123,10 @@ const DEFAULT_LABELS: KanbanLabels = {
   forbidden: 'You do not have permission to view the pipeline.',
   advanceError: 'Could not advance the project. The change was reverted.',
   adjacencyError: 'Projects can only advance to the next gate. The change was reverted.',
+  esignRequiredError:
+    'Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.',
+  checklistIncompleteError:
+    'The gate checklist is incomplete — finish the open checklist items before advancing.',
 };
 
 const DEFAULT_TABLE_LABELS: TableLabels = {

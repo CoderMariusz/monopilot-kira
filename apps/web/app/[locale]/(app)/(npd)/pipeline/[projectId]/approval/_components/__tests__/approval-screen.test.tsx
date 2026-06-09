@@ -65,6 +65,14 @@ const LABELS: ApprovalLabels = {
   c5Detail: 'All allergens audited and declared.',
   c6Detail: 'No open high-severity risks remain.',
   c7Detail: 'All compliance documents valid.',
+  c1Hint: 'Lock the formulation version on the Formulation stage.',
+  c2Hint: 'Compute a passing NutriScore on the Nutrition stage.',
+  c3Hint: 'Reach the target-scenario margin on the Costing stage.',
+  c4Hint: 'Sensory is owned by Technical — no action needed.',
+  c5Hint: 'Audit and declare every allergen.',
+  c6Hint: 'Close every open high-severity risk.',
+  c7Hint: 'Add valid compliance documents.',
+  fixLink: 'Go fix →',
   stepDone: 'Approved',
   stepCurrent: 'Awaiting',
   stepPending: 'Pending',
@@ -83,7 +91,10 @@ const LABELS: ApprovalLabels = {
   forbidden: 'You do not have permission to view this approval.',
 };
 
-function makeData(overrides?: Partial<Record<ApprovalCriterionKey, ApprovalCriterionStatus>>): ApprovalScreenData {
+function makeData(
+  overrides?: Partial<Record<ApprovalCriterionKey, ApprovalCriterionStatus>>,
+  criterionLinks?: ApprovalScreenData['criterionLinks'],
+): ApprovalScreenData {
   const base: Record<ApprovalCriterionKey, ApprovalCriterionStatus> = {
     C1: 'pass',
     C2: 'pass',
@@ -101,6 +112,7 @@ function makeData(overrides?: Partial<Record<ApprovalCriterionKey, ApprovalCrite
     approvalMode: 'single',
     criteria: { ...base, ...overrides },
     steps: [{ who: 'NPD Manager', name: 'A. Davis', status: 'current', when: 'pending' }],
+    criterionLinks,
   };
 }
 
@@ -180,6 +192,49 @@ describe('ApprovalScreen — parity + gating + e-sign', () => {
       notes: 'Approved at G4',
       password: 'pin-1234',
     });
+  });
+
+  it('surfaces a "how to satisfy" hint + remediation link for an unsatisfied (pending) criterion', () => {
+    render(
+      <ApprovalScreen
+        state="ready"
+        data={makeData(
+          { C1: 'pending' },
+          { C1: '/en/pipeline/p1/formulation' },
+        )}
+        labels={LABELS}
+        canApprove
+      />,
+    );
+    const hint = screen.getByTestId('criterion-hint-C1');
+    expect(hint).toHaveTextContent(LABELS.c1Hint);
+    const link = screen.getByTestId('criterion-fix-link-C1');
+    expect(link).toHaveAttribute('href', '/en/pipeline/p1/formulation');
+    expect(link).toHaveTextContent(LABELS.fixLink);
+  });
+
+  it('shows a hint for a warn criterion too', () => {
+    render(
+      <ApprovalScreen
+        state="ready"
+        data={makeData({ C6: 'warn' }, { C6: '/en/fa/PC-1/risks' })}
+        labels={LABELS}
+        canApprove
+      />,
+    );
+    expect(screen.getByTestId('criterion-hint-C6')).toHaveTextContent(LABELS.c6Hint);
+    expect(screen.getByTestId('criterion-fix-link-C6')).toHaveAttribute('href', '/en/fa/PC-1/risks');
+  });
+
+  it('does NOT show a hint for a satisfied (pass) criterion', () => {
+    render(<ApprovalScreen state="ready" data={makeData()} labels={LABELS} canApprove />);
+    expect(screen.queryByTestId('criterion-hint-C1')).not.toBeInTheDocument();
+  });
+
+  it('renders the hint without a link when no remediation href is provided', () => {
+    render(<ApprovalScreen state="ready" data={makeData({ C4: 'warn' })} labels={LABELS} canApprove />);
+    expect(screen.getByTestId('criterion-hint-C4')).toHaveTextContent(LABELS.c4Hint);
+    expect(screen.queryByTestId('criterion-fix-link-C4')).not.toBeInTheDocument();
   });
 
   it('hides the Submit affordance when caller lacks approve permission (no render-then-disable leak)', () => {

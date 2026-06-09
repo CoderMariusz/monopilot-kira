@@ -44,6 +44,29 @@ import { KanbanCard } from './kanban-card';
 export type { KanbanLabels, KanbanProject, PageState, ProjectGate, ProjectStage } from './kanban-types';
 export type { AdvanceAction, AdvanceResult, AdvanceInput } from './kanban-types';
 
+/**
+ * Maps an advanceProjectGate error code to a specific, actionable toast.
+ *
+ * - ESIGN_REQUIRED — the approval→handoff transition is gated by the BRCGS/CFR-21
+ *   G4 e-signature (assertG4ESignForHandoff). Tell the user WHERE to sign instead
+ *   of the generic "reverted" message, otherwise the gate looks broken.
+ * - CHECKLIST_INCOMPLETE — the current stage's gate checklist still has open items.
+ * - ADJACENCY_VIOLATION — non-adjacent gate move.
+ * Anything else falls back to the generic revert message.
+ */
+export function resolveAdvanceError(error: string, labels: KanbanLabels): string {
+  switch (error) {
+    case 'ESIGN_REQUIRED':
+      return labels.esignRequiredError;
+    case 'CHECKLIST_INCOMPLETE':
+      return labels.checklistIncompleteError;
+    case 'ADJACENCY_VIOLATION':
+      return labels.adjacencyError;
+    default:
+      return labels.advanceError;
+  }
+}
+
 function StateNotice({ state, labels }: { state: PageState; labels: KanbanLabels }) {
   if (state === 'loading') {
     return (
@@ -124,11 +147,9 @@ export function KanbanView({
         return;
       }
 
-      setAdvanceError(
-        result.error === 'ADJACENCY_VIOLATION' ? labels.adjacencyError : labels.advanceError,
-      );
+      setAdvanceError(resolveAdvanceError(result.error, labels));
     },
-    [advanceAction, router, labels.adjacencyError, labels.advanceError],
+    [advanceAction, router, labels],
   );
 
   if (state !== 'ready' && state !== 'empty') {

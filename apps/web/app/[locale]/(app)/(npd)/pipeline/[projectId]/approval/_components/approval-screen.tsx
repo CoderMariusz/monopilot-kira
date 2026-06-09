@@ -39,11 +39,12 @@ import {
   type ApprovalCriterionKey,
   type ApprovalCriterionStatus,
   type CriteriaLabels,
+  type CriterionLinks,
 } from './criteria-card';
 import { GateApprovalModal, type GateApprovalModalLabels } from './gate-approval-modal';
 
 export { CRITERIA_ORDER };
-export type { ApprovalCriterionKey, ApprovalCriterionStatus };
+export type { ApprovalCriterionKey, ApprovalCriterionStatus, CriterionLinks };
 
 export type PageState = 'ready' | 'loading' | 'empty' | 'error' | 'permission_denied';
 export type ApprovalMode = 'single' | 'multi';
@@ -65,6 +66,8 @@ export type ApprovalScreenData = {
   approvalMode: ApprovalMode;
   criteria: Record<ApprovalCriterionKey, ApprovalCriterionStatus>;
   steps: ApprovalChainStep[];
+  /** Per-criterion remediation hrefs (locale + product-code aware; built in page.tsx). */
+  criterionLinks?: CriterionLinks;
 };
 
 /** approveProjectGate Server Action contract (T-061 owns the action; the page passes an adapter). */
@@ -213,7 +216,7 @@ export function ApprovalScreen({
       </header>
 
       {/* Card 1 — 7-criteria gates summary */}
-      <CriteriaCard criteria={data.criteria} labels={labels} />
+      <CriteriaCard criteria={data.criteria} labels={labels} links={data.criterionLinks} />
 
       {/* Card 2 — approval chain status + Submit-for-approval CTA */}
       <div data-slot="card" data-testid="approval-chain-card" className="card">

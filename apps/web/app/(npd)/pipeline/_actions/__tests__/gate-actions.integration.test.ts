@@ -21,10 +21,14 @@ const viewerRoleId = randomUUID();
 const projectId = randomUUID();
 const otherProjectId = randomUUID();
 const checklistProjectId = randomUUID();
+const uncheckedG0ProjectId = randomUUID();
+const checkedG0ProjectId = randomUUID();
 const rollbackProjectId = randomUUID();
 const rejectProjectId = randomUUID();
 const approveProjectId = randomUUID();
 const handoffProjectId = randomUUID();
+const formulationId = randomUUID();
+const formulationVersionId = randomUUID();
 const productCode = `FG-T095-${randomUUID().slice(0, 8).toUpperCase()}`;
 const pin = '123456';
 
@@ -57,6 +61,7 @@ async function seedGateFixtures(): Promise<void> {
        ($1, 'npd.gate.advance'),
        ($1, 'npd.gate.approve'),
        ($1, 'admin'),
+       ($1, 'npd.core.write'),
        ($2, 'npd.gate.advance'),
        ($2, 'npd.gate.approve')
      on conflict (role_id, permission) do nothing`,
@@ -81,10 +86,12 @@ async function seedGateFixtures(): Promise<void> {
        ($1, $2, 'NPD-T058-A', 'Gate action project', 'standard', 'G0', 'brief', $3),
        ($4, $5, 'NPD-T058-B', 'Other org project', 'standard', 'G2', 'recipe', $6),
        ($7, $2, 'NPD-T058-C', 'Checklist blocker project', 'standard', 'G2', 'recipe', $3),
-       ($8, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3),
-       ($9, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3),
-       ($10, $2, 'NPD-T058-P', 'Approval project', 'standard', 'G4', 'approval', $3),
-       ($11, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
+       ($8, $2, 'NPD-T058-G0-U', 'Unchecked G0 project', 'standard', 'G0', 'brief', $3),
+       ($9, $2, 'NPD-T058-G0-C', 'Checked G0 project', 'standard', 'G0', 'brief', $3),
+       ($10, $2, 'NPD-T058-R', 'Rollback project', 'standard', 'G3', 'trial', $3),
+       ($11, $2, 'NPD-T058-J', 'Reject project', 'standard', 'G3', 'trial', $3),
+       ($12, $2, 'NPD-T058-P', 'Approval project', 'standard', 'G4', 'approval', $3),
+       ($13, $2, 'NPD-T058-H', 'Handoff e-sign project', 'standard', 'G4', 'approval', $3)
      on conflict (id) do nothing`,
     [
       projectId,
@@ -94,6 +101,8 @@ async function seedGateFixtures(): Promise<void> {
       seed.orgBId,
       seed.userBId,
       checklistProjectId,
+      uncheckedG0ProjectId,
+      checkedG0ProjectId,
       rollbackProjectId,
       rejectProjectId,
       approveProjectId,
@@ -105,9 +114,36 @@ async function seedGateFixtures(): Promise<void> {
        (org_id, project_id, gate_code, category_code, item_text, required, completed_at, completed_by_user)
      values
        ($1, $2, 'G2', 'technical', 'Required G2 blocker', true, null, null),
-       ($1, $3, 'G2', 'technical', 'Ready G2 item', true, now(), $4)
+       ($1, $3, 'G2', 'technical', 'Ready G2 item', true, now(), $4),
+       ($1, $5, 'G0', 'technical', 'Required G0 blocker', true, null, null),
+       ($1, $6, 'G0', 'technical', 'Ready G0 item', true, now(), $4)
      on conflict (id) do nothing`,
-    [seed.orgAId, checklistProjectId, projectId, seed.userAId],
+    [seed.orgAId, checklistProjectId, projectId, seed.userAId, uncheckedG0ProjectId, checkedG0ProjectId],
+  );
+  await owner.query(
+    `insert into public.formulations (id, org_id, project_id, created_by_user)
+     values ($1, $2, $3, $4)
+     on conflict (id) do nothing`,
+    [formulationId, seed.orgAId, projectId, seed.userAId],
+  );
+  await owner.query(
+    `insert into public.formulation_versions (id, formulation_id, version_number, state, batch_size_kg, created_by_user)
+     values ($1, $2, 1, 'draft', 100, $3)
+     on conflict (id) do nothing`,
+    [formulationVersionId, formulationId, seed.userAId],
+  );
+  await owner.query(
+    `update public.formulations
+        set current_version_id = $2
+      where id = $1`,
+    [formulationId, formulationVersionId],
+  );
+  await owner.query(
+    `insert into public.formulation_ingredients
+       (version_id, rm_code, qty_kg, pct, cost_per_kg_eur, sequence)
+     values ($1, 'RM-T058', 10, 10, 1.23, 1)
+     on conflict (version_id, sequence) do nothing`,
+    [formulationVersionId],
   );
 }
 
@@ -116,6 +152,8 @@ async function cleanup(): Promise<void> {
   await owner.query(`delete from public.audit_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.outbox_events where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.gate_approvals where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
+  await owner.query(`delete from public.formulation_ingredients where version_id = $1`, [formulationVersionId]);
+  await owner.query(`delete from public.formulations where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.gate_checklist_items where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.npd_projects where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
   await owner.query(`delete from public.product where org_id in ($1, $2)`, [seed.orgAId, seed.orgBId]);
@@ -150,7 +188,80 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
     await owner.end();
   });
 
-  it('advances brief→recipe (G1→G2) and rejects recipe→packaging when required checklist blockers remain', async () => {
+  it('allows G0→recipe advancement when required current-gate checklist items are unchecked', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+
+    const advanced = await withActionActor(seed.userAId, seed.orgAId, () =>
+      advanceProjectGate({ projectId: uncheckedG0ProjectId, targetStage: 'recipe' }),
+    );
+
+    expect(advanced).toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
+
+    const gate = await owner.query<{ current_gate: string; current_stage: string }>(
+      `select current_gate, current_stage from public.npd_projects where id = $1::uuid`,
+      [uncheckedG0ProjectId],
+    );
+    expect(gate.rows[0]).toMatchObject({ current_gate: 'G2', current_stage: 'recipe' });
+  });
+
+  it('allows G0→recipe advancement when all required current-gate checklist items are checked', async () => {
+    const { advanceProjectGate } = await import('../advance-project-gate');
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        advanceProjectGate({ projectId: checkedG0ProjectId, targetStage: 'recipe' }),
+      ),
+    ).resolves.toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
+  });
+
+  it('toggles checklist completion through the org-scoped action', async () => {
+    const { toggleGateChecklistItem } = await import('../toggle-gate-checklist-item');
+    const item = await owner.query<{ id: string }>(
+      `select id
+         from public.gate_checklist_items
+        where org_id = $1::uuid
+          and project_id = $2::uuid
+          and gate_code = 'G2'
+        limit 1`,
+      [seed.orgAId, checklistProjectId],
+    );
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        toggleGateChecklistItem({ projectId: checklistProjectId, itemId: item.rows[0]!.id, completed: true }),
+      ),
+    ).resolves.toEqual({ ok: true });
+
+    const persisted = await owner.query<{ completed: boolean; completed_by_user: string | null }>(
+      `select completed_at is not null as completed,
+              completed_by_user::text as completed_by_user
+         from public.gate_checklist_items
+        where id = $1::uuid`,
+      [item.rows[0]!.id],
+    );
+    expect(persisted.rows[0]).toEqual({ completed: true, completed_by_user: seed.userAId });
+  });
+
+  it('returns NOT_FOUND when toggling a checklist item against a different project scope', async () => {
+    const { toggleGateChecklistItem } = await import('../toggle-gate-checklist-item');
+    const item = await owner.query<{ id: string }>(
+      `select id
+         from public.gate_checklist_items
+        where org_id = $1::uuid
+          and project_id = $2::uuid
+          and gate_code = 'G2'
+        limit 1`,
+      [seed.orgAId, checklistProjectId],
+    );
+
+    await expect(
+      withActionActor(seed.userAId, seed.orgAId, () =>
+        toggleGateChecklistItem({ projectId: otherProjectId, itemId: item.rows[0]!.id, completed: false }),
+      ),
+    ).resolves.toEqual({ ok: false, error: 'NOT_FOUND', status: 404 });
+  });
+
+  it('advances brief→recipe (G1→G2) and rejects recipe→packaging when recipe ingredients are missing', async () => {
     const { advanceProjectGate } = await import('../advance-project-gate');
 
     // Stage-native: brief → recipe (derived gate G1 → G2).
@@ -158,12 +269,17 @@ run('T-058 + T-095 gate actions — REAL DB integration', () => {
       withActionActor(seed.userAId, seed.orgAId, () => advanceProjectGate({ projectId, targetStage: 'recipe' })),
     ).resolves.toMatchObject({ ok: true, data: { currentStage: 'recipe', currentGate: 'G2' } });
 
-    // checklistProjectId starts at recipe/G2 with an INCOMPLETE required G2 checklist
-    // item → advancing recipe → packaging (entering G3, creates FG) must be blocked.
+    // checklistProjectId starts at recipe/G2. Checklist items are advisory, but
+    // leaving recipe still requires at least one current-version ingredient.
     const blocked = await withActionActor(seed.userAId, seed.orgAId, () =>
       advanceProjectGate({ projectId: checklistProjectId, targetStage: 'packaging', productCode: `FG-BLOCK-${randomUUID().slice(0, 6)}` }),
     );
-    expect(blocked).toMatchObject({ ok: false, error: 'BLOCKERS_PRESENT' });
+    expect(blocked).toMatchObject({
+      ok: false,
+      error: 'BLOCKERS_PRESENT',
+      status: 409,
+      blockers: [expect.objectContaining({ code: 'RECIPE_INGREDIENTS_REQUIRED' })],
+    });
 
     const gate = await owner.query<{ current_gate: string; current_stage: string }>(
       `select current_gate, current_stage from public.npd_projects where id = $1::uuid`,

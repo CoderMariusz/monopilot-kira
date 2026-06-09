@@ -12,14 +12,14 @@
  *   - GATE_INFO / STAGE_TO_GATE / resolveItems mock → REAL gate metadata + checklist items are resolved
  *     server-side (T-057 getProject) and passed in as `gateInfo` + `items` props. This island NEVER queries
  *     the DB (risk red-line); it is a pure controlled component.
- *   - blockers = items.filter(required && !done)     → computed locally from the items prop (no override mutation;
- *     toggling lives in GateChecklistPanel/T-107). Submit is gated by blockers.length === 0 to mirror the
- *     advanceProjectGate server check (rejects 409 BLOCKERS_PRESENT) — defence in depth, not the source of truth.
+ *   - incompleteRequired = items.filter(required && !done) → computed locally from the items prop (no override
+ *     mutation; toggling lives in GateChecklistPanel/T-107). Checklist completeness is advisory, so submit stays
+ *     available; hard guards are enforced by advanceProjectGate.
  *   - gate-transition card + dashed-when-blocked arrow → CSS card; arrow exposes data-blocked for parity evidence.
- *   - Progress div + per-item rows with Done/Blocking/Optional badges → role="progressbar" + @monopilot/ui Badge
+ *   - Progress div + per-item rows with Done/Required/Optional badges → role="progressbar" + @monopilot/ui Badge
  *     (every status pairs colour with a glyph + text — a11y: never colour-only).
- *   - red blocker box / green ready alert            → role="alert" (blockers) / role="status" (ready) notices.
- *   - notes <textarea> disabled when blockers        → @monopilot/ui Textarea, disabled when blockers > 0, RHF-bound.
+ *   - amber advisory box / green ready alert         → role="note" (advisory) / role="status" (ready) notices.
+ *   - notes <textarea>                               → @monopilot/ui Textarea, RHF-bound.
  *   - handleSubmit setTimeout mock                    → calls the injected advanceProjectGate Server Action
  *     (T-058, merged: apps/web/app/(npd)/pipeline/_actions/advance-project-gate.ts) with
  *     { projectId, targetGate, notes }; success alert mirrors the prototype's "Gate advanced …" panel.
@@ -91,6 +91,7 @@ export type AdvanceGateLabels = {
   optional: string;
   requiredComplete: string; // "{done} of {total} required items complete"
   blockersTitle: string; // "{count} blocker(s)"
+  requiredIncompleteWarning?: string; // "{n} required checklist items are not complete — you can still advance."
   readyAlert: string;
   notesLabel: string;
   notesPlaceholder: string;
@@ -357,14 +358,18 @@ export function AdvanceGateModal({
 
             {/* ——— Advisory pending items / ready ——— */}
             {incompleteRequired.length > 0 ? (
-              <div role="note" data-testid="advance-gate-blockers" className="alert alert-amber">
+              <div role="note" data-testid="advance-gate-required-warning" className="alert alert-amber">
                 <p className="alert-title text-amber-800">
                   <span aria-hidden="true">ℹ</span>{' '}
-                  {fmt(labels.blockersTitle, { count: incompleteRequired.length })}
+                  {fmt(
+                    labels.requiredIncompleteWarning ??
+                      '{n} required checklist items are not complete — you can still advance.',
+                    { n: incompleteRequired.length },
+                  )}
                 </p>
-                <ul data-testid="advance-gate-blocker-list" className="list-none p-0">
+                <ul data-testid="advance-gate-required-warning-list" className="list-none p-0">
                   {incompleteRequired.map((b) => (
-                    <li key={b.id} data-testid="advance-gate-blocker-item" className="text-xs text-amber-900">
+                    <li key={b.id} data-testid="advance-gate-required-warning-item" className="text-xs text-amber-900">
                       <span aria-hidden="true">○</span> {b.text}
                     </li>
                   ))}

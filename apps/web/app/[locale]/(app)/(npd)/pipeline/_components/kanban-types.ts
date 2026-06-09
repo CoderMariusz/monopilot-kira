@@ -132,6 +132,8 @@ export type KanbanLabels = {
   forbidden: string;
   advanceError: string;
   adjacencyError: string;
+  esignRequiredError: string;
+  checklistIncompleteError: string;
 };
 
 export function stageLabel(stage: ProjectStage, labels: KanbanLabels): string {

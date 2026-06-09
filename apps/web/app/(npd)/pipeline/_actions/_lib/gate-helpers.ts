@@ -130,11 +130,7 @@ export type GateProjectRow = {
 };
 
 export type GateBlocker = {
-  code:
-    | 'CHECKLIST_REQUIRED'
-    | 'FG_CANDIDATE_REQUIRED'
-    | 'FG_ALREADY_LINKED'
-    | 'RECIPE_INGREDIENTS_REQUIRED';
+  code: 'FG_CANDIDATE_REQUIRED' | 'FG_ALREADY_LINKED' | 'RECIPE_INGREDIENTS_REQUIRED';
   message: string;
   gateCode?: ProjectGate;
   itemId?: string;
@@ -243,8 +239,8 @@ export async function loadProjectForUpdate(ctx: OrgContextLike, projectId: strin
 
 /**
  * Blockers that must be resolved before advancing the project's CURRENT stage.
- * Checklist completeness is checked against the CURRENT stage's gate (the gate the
- * project currently sits at), preserving the existing gate_checklist_items behaviour.
+ * Checklist completeness is advisory by product decision: seeded checklist rows are
+ * progress markers, but required/uncompleted items do not hard-block stage advance.
  * The FG-already-linked guard fires only when ENTERING the FG candidate stage.
  */
 export async function getBlockers(
@@ -252,13 +248,10 @@ export async function getBlockers(
   project: GateProjectRow,
   targetStage: AnyStage,
 ): Promise<GateBlocker[]> {
-  // 2026-06-06 pivot: the gate checklist is ADVISORY in the simplified R&D pipeline
-  // (the user has no UI to tick the seeded ideation items, and stage/brief fields are
-  // the real completeness signal). It NO LONGER hard-blocks a stage advance. The only
-  // hard gates are: (1) the recipe-has-ingredients guard, (2) the FG-conflict guard,
-  // and (3) the approval→handoff e-signature (enforced in advance-project-gate via
-  // assertG4ESignForHandoff).
   const blockers: GateBlocker[] = [];
+
+  // Gate checklist rows are advisory progress markers. Required-but-unchecked
+  // items must stay visible to the UI, but they do not hard-block stage advance.
 
   // Recipe guard: leaving the `recipe` stage requires the formulation's current
   // version to have at least one ingredient. This is the ONLY real completeness

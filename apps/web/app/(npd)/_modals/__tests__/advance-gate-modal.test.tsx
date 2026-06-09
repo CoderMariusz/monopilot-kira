@@ -13,9 +13,8 @@
  *     arrow switches to a "blocked" (dashed) state when blockers > 0.
  *   - requiresApproval note rendered for gates that need sign-off (G3/G4).
  *   - Checklist summary: progressbar (aria-valuenow) + per-item rows with
- *     Done/Blocking/Optional badges + "{done} of {total} required items complete".
- *   - Blockers > 0  → red role="alert" listing every blocker text; notes Textarea disabled;
- *     Advance disabled.
+ *     Done/Required/Optional badges + "{done} of {total} required items complete".
+ *   - Incomplete required items → amber role="note"; notes and Advance remain enabled.
  *   - Blockers === 0 → green ready role="status" note; notes enabled; Advance enabled once
  *     notes.trim().length > 0.
  *   - Advance click calls advanceProjectGate({ projectId, targetGate, notes }) exactly once;
@@ -62,15 +61,21 @@ vi.mock('@monopilot/ui/Modal', async () => {
       return () => document.removeEventListener('keydown', onEsc);
     }, [onOpenChange, open]);
     if (!open) return null;
-    return (
-      <div role="dialog" aria-modal="true" aria-labelledby="advance-gate-title" data-modal-id={modalId}>
-        {children}
-      </div>
+    return ReactModule.createElement(
+      'div',
+      {
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'advance-gate-title',
+        'data-modal-id': modalId,
+      },
+      children,
     );
   }
-  Modal.Header = ({ title }: { title: string }) => <h2 id="advance-gate-title">{title}</h2>;
-  Modal.Body = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
-  Modal.Footer = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  Modal.Header = ({ title }: { title: string }) =>
+    ReactModule.createElement('h2', { id: 'advance-gate-title' }, title);
+  Modal.Body = ({ children }: { children: React.ReactNode }) => ReactModule.createElement('div', null, children);
+  Modal.Footer = ({ children }: { children: React.ReactNode }) => ReactModule.createElement('div', null, children);
   return { default: Modal };
 });
 
@@ -82,10 +87,11 @@ const labels: AdvanceGateLabels = {
   approvalRequired: 'Approval required — a Manager/Director must sign off on this gate.',
   checklistSummary: 'Checklist summary — {gate}: {label}',
   done: 'Done',
-  blocking: 'Blocking',
+  blocking: 'Required',
   optional: 'Optional',
   requiredComplete: '{done} of {total} required items complete',
   blockersTitle: '{count} blocker(s)',
+  requiredIncompleteWarning: '{n} required checklist items are not complete — you can still advance.',
   readyAlert: 'No blockers — ready to advance!',
   notesLabel: 'Gate advancement notes',
   notesPlaceholder: 'Summarise completion, conditions, or observations for the audit trail…',
@@ -136,19 +142,26 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function renderModal(
+  overrides: Partial<React.ComponentProps<typeof AdvanceGateModal>> = {},
+) {
+  return render(
+    React.createElement(AdvanceGateModal, {
+      open: true,
+      labels,
+      project,
+      gateInfo,
+      items: readyItems,
+      advanceProjectGate: vi.fn(),
+      onClose: vi.fn(),
+      ...overrides,
+    }),
+  );
+}
+
 describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () => {
   it('parity: renders title, gate-transition card (current → target), checklist progressbar, item badges and notes textarea', () => {
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal();
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Advance gate')).toBeInTheDocument();
@@ -176,18 +189,8 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(within(dialog).getByText('Advance to G3: Development')).toBeInTheDocument();
   });
 
-  it('blocker state: when blockers > 0 the arrow is blocked, a red alert lists each blocker, notes is disabled and Advance is disabled', () => {
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={blockedItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+  it('advisory state: when required items are incomplete, the warning lists each item while notes and Advance stay enabled', () => {
+    renderModal({ items: blockedItems });
 
     const dialog = screen.getByRole('dialog');
 
@@ -196,11 +199,12 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
     expect(within(dialog).getByTestId('advance-gate-arrow')).toHaveAttribute('data-blocked', 'false');
 
     // incomplete required items are surfaced as an advisory note (role="note"), not a blocker.
-    const advisory = within(dialog).getByTestId('advance-gate-blockers');
+    const advisory = within(dialog).getByTestId('advance-gate-required-warning');
     expect(advisory).toHaveAttribute('role', 'note');
     expect(within(advisory).getByText('Target margin confirmed')).toBeInTheDocument();
     expect(within(advisory).getByText('Resource plan approved')).toBeInTheDocument();
-    expect(within(advisory).getByText(/2 blocker/)).toBeInTheDocument();
+    expect(within(advisory).getByText('2 required checklist items are not complete — you can still advance.')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Required').length).toBeGreaterThan(0);
 
     // notes enabled + Advance enabled despite incomplete checklist.
     expect(within(dialog).getByLabelText(/Gate advancement notes/)).toBeEnabled();
@@ -208,17 +212,7 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
   });
 
   it('ready state: with all required items done, the green ready note shows and Advance is enabled (notes optional)', async () => {
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal();
 
     const dialog = screen.getByRole('dialog');
     const ready = within(dialog).getByTestId('advance-gate-ready');
@@ -243,17 +237,7 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
       },
     });
 
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={advance}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ advanceProjectGate: advance });
 
     await user.type(screen.getByLabelText(/Gate advancement notes/), 'All required evidence captured.');
     await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
@@ -271,34 +255,16 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
   });
 
   it('approval-required: renders the approval note when gateInfo.requiresApproval is true', () => {
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={{ ...gateInfo, current: 'G3', currentLabel: 'Development', next: 'G4', nextLabel: 'Testing', requiresApproval: true }}
-        items={readyItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({
+      gateInfo: { ...gateInfo, current: 'G3', currentLabel: 'Development', next: 'G4', nextLabel: 'Testing', requiresApproval: true },
+    });
     expect(screen.getByTestId('advance-gate-approval-note')).toHaveTextContent(/sign off/i);
   });
 
   it('error state: surfaces a role=alert error when the action rejects and does not show success', async () => {
     const user = userEvent.setup();
     const advance = vi.fn().mockRejectedValue(new Error('boom'));
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={advance}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ advanceProjectGate: advance });
 
     await user.type(screen.getByLabelText(/Gate advancement notes/), 'All required evidence captured.');
     await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
@@ -311,17 +277,7 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
   it('error state: surfaces a role=alert error when the action returns ok:false (no DB submit on rejection)', async () => {
     const user = userEvent.setup();
     const advance = vi.fn().mockResolvedValue({ ok: false as const, error: 'BLOCKERS_PRESENT', status: 409 });
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={advance}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ advanceProjectGate: advance });
 
     await user.type(screen.getByLabelText(/Gate advancement notes/), 'All required evidence captured.');
     await user.click(screen.getByRole('button', { name: /Advance to G3/ }));
@@ -332,67 +288,25 @@ describe('AdvanceGateModal — T-108 (prototype gate-screens.jsx:261-373)', () =
   });
 
   it('permission-denied state: renders the forbidden notice and no form', () => {
-    render(
-      <AdvanceGateModal
-        open
-        state="permission_denied"
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ state: 'permission_denied' });
     expect(screen.getByText('You do not have permission to advance this gate.')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Gate advancement notes/)).not.toBeInTheDocument();
   });
 
   it('loading state: renders the loading notice', () => {
-    render(
-      <AdvanceGateModal
-        open
-        state="loading"
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={readyItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ state: 'loading' });
     expect(screen.getByText('Loading gate details…')).toBeInTheDocument();
   });
 
   it('no items: with no checklist items the modal is ready (advisory checklist) and Advance is enabled', () => {
-    render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={[]}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    renderModal({ items: [] });
     // Checklist is advisory now — no items means nothing pending, so the modal is ready.
     expect(screen.getByTestId('advance-gate-ready')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to G3/ })).toBeEnabled();
   });
 
   it('parity evidence: writes a DOM snapshot artifact', () => {
-    const { container } = render(
-      <AdvanceGateModal
-        open
-        labels={labels}
-        project={project}
-        gateInfo={gateInfo}
-        items={blockedItems}
-        advanceProjectGate={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    const { container } = renderModal({ items: blockedItems });
     const dir = resolve(process.cwd(), 'e2e/parity-evidence/T-108');
     mkdirSync(dir, { recursive: true });
     writeFileSync(resolve(dir, 'advance-gate-modal.dom.html'), container.innerHTML, 'utf8');

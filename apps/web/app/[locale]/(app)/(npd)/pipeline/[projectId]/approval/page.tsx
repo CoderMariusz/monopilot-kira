@@ -71,7 +71,8 @@ const DEFAULT_LABELS: ApprovalLabels = {
   chainSingle: '(single approver)',
   chainMulti: '(multi-step)',
   submit: 'Submit for approval',
-  submitBlocked: 'All criteria must pass before you can submit.',
+  submitBlocked:
+    'Every criterion must pass (or be not-required) before you can e-sign this gate. Resolve the pending/warning rows above using their links, then return here to submit.',
   view: 'View',
   statusPass: 'Pass',
   statusWarn: 'Warning',
@@ -91,6 +92,14 @@ const DEFAULT_LABELS: ApprovalLabels = {
   c5Detail: 'All allergens are audited and declared.',
   c6Detail: 'No open high-severity risks remain.',
   c7Detail: 'All compliance documents are valid.',
+  c1Hint: 'Lock the formulation version on the Formulation stage.',
+  c2Hint: 'Compute a passing NutriScore (A–C) on the Nutrition stage.',
+  c3Hint: 'Reach the target-scenario margin on the Costing stage.',
+  c4Hint: 'Sensory sign-off is owned by Technical — no action needed here.',
+  c5Hint: 'Audit and declare every allergen on the Allergens screen.',
+  c6Hint: 'Close or downgrade every open high-severity risk on the Risks screen.',
+  c7Hint: 'Add valid, in-date compliance documents on the Docs screen.',
+  fixLink: 'Go fix →',
   stepDone: 'Approved',
   stepCurrent: 'Awaiting',
   stepPending: 'Pending',
@@ -162,7 +171,34 @@ const EMPTY_CRITERIA: Record<ApprovalCriterionKey, ApprovalCriterionStatus> = {
   C7: 'pending',
 };
 
-async function readPageData(projectId: string): Promise<LoaderResult> {
+/**
+ * Per-criterion remediation hrefs (criteria-card §"how to satisfy").
+ * - C1/C2/C3 live on this project's stage screens (pipeline-relative).
+ * - C5/C6/C7 live on the FA aggregate screens keyed by product_code.
+ * - C4 (sensory) is a Technical-owned read-model — no in-app remediation link.
+ */
+function buildCriterionLinks(
+  locale: string,
+  projectId: string,
+  productCode: string | null,
+): Record<string, string> {
+  const stage = (segment: string) => `/${locale}/pipeline/${projectId}/${segment}`;
+  const links: Record<string, string> = {
+    C1: stage('formulation'),
+    C2: stage('nutrition'),
+    C3: stage('costing'),
+  };
+  if (productCode) {
+    const fa = (segment: string) =>
+      `/${locale}/fa/${encodeURIComponent(productCode)}/${segment}`;
+    links.C5 = fa('allergens');
+    links.C6 = fa('risks');
+    links.C7 = fa('docs');
+  }
+  return links;
+}
+
+async function readPageData(projectId: string, locale: string): Promise<LoaderResult> {
   try {
     const stage = await withOrgContext(async (rawCtx): Promise<LoaderStage> => {
       const ctx = rawCtx as OrgContextLike;
@@ -236,7 +272,11 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     if (evaluation.ok) {
       return {
         state: 'ready',
-        data: { ...stage.data, criteria: evaluation.data },
+        data: {
+          ...stage.data,
+          criteria: evaluation.data,
+          criterionLinks: buildCriterionLinks(locale, projectId, stage.productCode),
+        },
         canApprove: stage.canApprove,
       };
     }
@@ -273,7 +313,7 @@ export default async function ApprovalPage(propsInput: unknown = {}) {
         data: props.data ?? null,
         canApprove: props.canApprove ?? false,
       }
-    : await readPageData(projectId);
+    : await readPageData(projectId, locale);
 
   return (
     <ApprovalScreen
