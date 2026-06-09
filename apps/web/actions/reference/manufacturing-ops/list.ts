@@ -16,13 +16,13 @@ type ManufacturingOperation = {
   operation_seq: number;
   industry_code: 'bakery' | 'pharma' | 'fmcg' | 'generic' | 'custom';
   is_active: boolean;
-  marker: 'ORG-CONFIG';
+  marker: 'ORG-CONFIG' | 'APEX-CONFIG';
   created_at?: string;
 };
 
 type ListInput = { industryCode?: ManufacturingOperation['industry_code']; includeInactive: boolean };
 
-export type ListManufacturingOperationsResult =
+type ListManufacturingOperationsResult =
   | { ok: true; data: ManufacturingOperation[] }
   | { ok: false; error: 'invalid_input' | 'forbidden' | 'persistence_failed' };
 
@@ -39,7 +39,7 @@ export async function listManufacturingOperations(rawInput: unknown = {}): Promi
                 industry_code, is_active, marker, created_at
            from "Reference"."ManufacturingOperations" as manufacturing_operations
           where org_id = app.current_org_id()
-            and marker = 'ORG-CONFIG'
+            and marker in ('ORG-CONFIG', 'APEX-CONFIG')
             and ($1::text is null or industry_code = $1)
             ${activeSql}
           order by operation_seq asc, operation_name asc`,
@@ -94,4 +94,3 @@ async function hasPermission(ctx: OrgContext, permission: string): Promise<boole
   );
   return rows.length > 0;
 }
-

@@ -111,7 +111,10 @@ export function NewBomModal({
   }, [open, onClose]);
 
   React.useEffect(() => {
-    if (!open || listState !== 'idle') return;
+    // Depend ONLY on `open`: with `listState` in the deps the setListState('loading')
+    // below re-ran the effect, whose cleanup flipped `cancelled` and discarded every
+    // resolved list — the permanent "Loading finished goods…" skeleton seen live.
+    if (!open) return;
     let cancelled = false;
     setListState('loading');
     void (async () => {
@@ -138,7 +141,7 @@ export function NewBomModal({
     return () => {
       cancelled = true;
     };
-  }, [open, listState]);
+  }, [open]);
 
   // Deep-link prefill: when opened from the item-detail BOM tab CTA
   // (`?new=<code>`), seed the search with the FG code and auto-select it once the

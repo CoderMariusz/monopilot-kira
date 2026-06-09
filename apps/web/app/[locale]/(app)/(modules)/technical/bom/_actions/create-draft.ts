@@ -41,6 +41,49 @@ function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
 }
 
+async function ensureBomProductReference(
+  c: QueryClient,
+  input: { productId: string; userId: string },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { rows: productRows } = await c.query<{ product_code: string }>(
+    `select product_code
+       from public.product
+      where org_id = app.current_org_id()
+        and product_code = $1
+      limit 1`,
+    [input.productId],
+  );
+  if (productRows[0]) return { ok: true };
+
+  const { rows: itemRows } = await c.query<{
+    item_code: string;
+    name: string | null;
+    status: string;
+    item_type: string;
+  }>(
+    `select item_code, name, status, item_type
+       from public.items
+      where org_id = app.current_org_id()
+        and item_code = $1
+      limit 1`,
+    [input.productId],
+  );
+  const item = itemRows[0];
+  if (!item || item.item_type !== 'fg' || item.status !== 'active') {
+    return { ok: false, message: 'invalid reference' };
+  }
+
+  await c.query(
+    `insert into public.product
+       (org_id, product_code, product_name, status_overall, created_by_user, app_version)
+     values
+       (app.current_org_id(), $1, $2, $3, $4::uuid, 'technical-bom-v1')
+     on conflict (org_id, product_code) do nothing`,
+    [item.item_code, item.name ?? item.item_code, item.status, input.userId],
+  );
+  return { ok: true };
+}
+
 export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftResult> {
   const parsed = CreateBomDraftInput.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: 'invalid_input', message: parsed.error.message };
@@ -99,6 +142,11 @@ export async function createBomDraft(rawInput: unknown): Promise<CreateBomDraftR
 
       // ── V-TEC-11 advisory: warn (non-blocking) if any line scrap_pct >= 50 ──────
       if (input.lines.some((l) => (l.scrapPct ?? 0) >= 50)) warnings.push('V-TEC-11');
+
+      const productReference = await ensureBomProductReference(c, { productId: input.productId, userId });
+      if (!productReference.ok) {
+        return { ok: false, error: 'invalid_input', message: productReference.message };
+      }
 
       // ── version = previous_max + 1 (org + product scoped) ──────────────────────
       const { rows: verRows } = await c.query<{ next_version: number }>(

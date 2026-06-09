@@ -268,6 +268,15 @@ describe('Submit for trial wiring (#1)', () => {
     renderEditor({ submitForTrialAction: undefined });
     expect(screen.getByTestId('submit-for-trial')).toBeDisabled();
   });
+
+  it('disables submit when the project has moved past the recipe stage', () => {
+    const submit = vi.fn().mockResolvedValue({ ok: true });
+    renderEditor({ submitForTrialAction: submit, submitAllowed: false });
+    const btn = screen.getByTestId('submit-for-trial');
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(submit).not.toHaveBeenCalled();
+  });
 });
 
 describe('Compare versions wiring (#2 / #4)', () => {

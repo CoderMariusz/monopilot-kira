@@ -405,6 +405,19 @@ async function loadPackWeightG(ctx: OrgContextLike, projectId: string): Promise<
   return rows[0]?.pack_weight_g ?? null;
 }
 
+async function loadCurrentStage(ctx: OrgContextLike, projectId: string): Promise<string | null> {
+  if (!projectId) return null;
+  const { rows } = await ctx.client.query<{ current_stage: string | null }>(
+    `select current_stage
+       from public.npd_projects
+      where id = $1::uuid
+        and org_id = app.current_org_id()
+      limit 1`,
+    [projectId],
+  );
+  return rows[0]?.current_stage ?? null;
+}
+
 interface VersionRow {
   id: string;
   version_number: number;
@@ -450,7 +463,7 @@ async function hasPermission(ctx: OrgContextLike, permission: string): Promise<b
   return rows.length > 0;
 }
 
-type LoaderResult = { state: PageState; data: FormulationEditorData | null; canEdit: boolean };
+type LoaderResult = { state: PageState; data: FormulationEditorData | null; canEdit: boolean; submitAllowed: boolean };
 
 async function readPageData(projectId: string): Promise<LoaderResult> {
   // Perf (#1 + #3): editability (RBAC) + pack weight do NOT depend on the
@@ -462,23 +475,26 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
       canEdit: boolean;
       packWeightG: string | null;
       versions: Array<{ id: string; versionNumber: number }>;
+      currentStage: string | null;
     }> => {
       try {
         return await withOrgContext(async (rawCtx) => {
           const ctx = rawCtx as OrgContextLike;
-          const [canEdit, packWeightG, versions] = await Promise.all([
+          const [canEdit, packWeightG, versions, currentStage] = await Promise.all([
             hasPermission(ctx, EDIT_PERMISSION),
             loadPackWeightG(ctx, projectId),
             loadVersionHistory(ctx, projectId),
+            loadCurrentStage(ctx, projectId),
           ]);
-          return { canEdit, packWeightG, versions };
+          return { canEdit, packWeightG, versions, currentStage };
         });
       } catch {
-        return { canEdit: false, packWeightG: null, versions: [] };
+        return { canEdit: false, packWeightG: null, versions: [], currentStage: null };
       }
     })(),
   ]);
   const canEdit = basics.canEdit;
+  const submitAllowed = basics.currentStage === 'recipe';
   const packWeightG = basics.packWeightG;
   const versionHistory = basics.versions;
 
@@ -499,14 +515,14 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
   }
 
   if (!result.ok) {
-    if (result.error === 'not_found') return { state: 'empty', data: null, canEdit };
-    if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit };
-    return { state: 'error', data: null, canEdit };
+    if (result.error === 'not_found') return { state: 'empty', data: null, canEdit, submitAllowed };
+    if (result.error === 'invalid_input') return { state: 'empty', data: null, canEdit, submitAllowed };
+    return { state: 'error', data: null, canEdit, submitAllowed };
   }
 
   const { formulation, currentVersion, ingredients } = result.data;
   if (!currentVersion) {
-    return { state: 'empty', data: null, canEdit };
+    return { state: 'empty', data: null, canEdit, submitAllowed };
   }
 
   const data: FormulationEditorData = {
@@ -548,7 +564,7 @@ async function readPageData(projectId: string): Promise<LoaderResult> {
     }),
   };
 
-  return { state: 'ready', data, canEdit };
+  return { state: 'ready', data, canEdit, submitAllowed };
 }
 
 export default async function FormulationPage(propsInput: unknown = {}) {
@@ -569,6 +585,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
         state: props.state ?? (props.data ? 'ready' : 'empty'),
         data: props.data ?? null,
         canEdit: props.canEdit ?? false,
+        submitAllowed: true,
       }
     : await readPageData(projectId);
 
@@ -582,6 +599,7 @@ export default async function FormulationPage(propsInput: unknown = {}) {
       allergenNames={allergenNames}
       currency="EUR"
       canEdit={loaded.canEdit}
+      submitAllowed={loaded.submitAllowed}
       saveDraftAction={saveDraft}
       recomputeAction={recomputeAndCache}
       submitForTrialAction={submitForTrial}

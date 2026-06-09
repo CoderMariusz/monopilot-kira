@@ -1794,7 +1794,9 @@
       "stageSensory": "Sensory",
       "stagePilot": "Pilot",
       "stageApproval": "Approval",
-      "stageHandoff": "Handoff"
+      "stageHandoff": "Handoff",
+      "esignRequiredError": "Gate G4 e-signature approval is required before handoff — approve it on the Approval stage.",
+      "checklistIncompleteError": "The gate checklist is incomplete — finish the open checklist items before advancing."
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -1931,7 +1933,7 @@
       "completedBy": "Completed by {by} · {at}",
       "required": "Required",
       "optional": "Optional",
-      "blocking": "Blocking",
+      "blocking": "Required",
       "attach": "Attach",
       "catTechnical": "Technical",
       "catBusiness": "Business",
@@ -1957,7 +1959,7 @@
       "approvalRequired": "Approval required — a Manager/Director must sign off on this gate.",
       "checklistSummary": "Checklist summary — {gate}: {label}",
       "done": "Done",
-      "blocking": "Blocking",
+      "blocking": "Required",
       "optional": "Optional",
       "requiredComplete": "{done} of {total} required items complete",
       "blockersTitle": "{count} blocker(s)",
@@ -2107,7 +2109,15 @@
       "empty": "No approval criteria yet",
       "emptyBody": "Approval criteria appear once the project reaches the approval gate.",
       "error": "Unable to load the approval criteria.",
-      "forbidden": "You do not have permission to view this approval."
+      "forbidden": "You do not have permission to view this approval.",
+      "c1Hint": "Lock the formulation version on the Formulation stage.",
+      "c2Hint": "Compute a passing NutriScore (A–C) on the Nutrition stage.",
+      "c3Hint": "Reach the target-scenario margin on the Costing stage.",
+      "c4Hint": "Sensory sign-off is owned by Technical — no action needed here.",
+      "c5Hint": "Audit and declare every allergen on the Allergens screen.",
+      "c6Hint": "Close or downgrade every open high-severity risk on the Risks screen.",
+      "c7Hint": "Add valid, in-date compliance documents on the Docs screen.",
+      "fixLink": "Go fix →"
     },
     "gateApprovalModal": {
       "title": "Gate Approval",

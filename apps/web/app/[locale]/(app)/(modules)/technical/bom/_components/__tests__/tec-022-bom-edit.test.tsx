@@ -131,6 +131,22 @@ describe('ComponentAddModal (TEC-022 parity + behavior)', () => {
     expect(mocks.refresh).toHaveBeenCalled();
   });
 
+  it('keeps the dialog open and surfaces createBomDraft invalid-reference failures', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    mocks.createBomDraft.mockResolvedValue({ ok: false, error: 'invalid_input', message: 'invalid reference' });
+    render(<ComponentAddModal open onClose={onClose} context={DRAFT_CTX} />);
+    await user.click(await screen.findByRole('option', { name: /RM-1001/ }));
+    await screen.findByText('Component is usable.');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Mixing' }));
+    await user.click(screen.getByRole('button', { name: 'Add component' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('invalid reference');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('shows clone-on-write notice when the source BOM is released/active (AC6)', async () => {
     render(<ComponentAddModal open onClose={() => {}} context={{ ...DRAFT_CTX, sourceStatus: 'active' }} />);
     expect(await screen.findByText(/Saving creates a new draft version/)).toBeInTheDocument();

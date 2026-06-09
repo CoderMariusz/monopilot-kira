@@ -275,7 +275,7 @@ export function ComponentAddModal({
       } else if (result.error === 'validation_failed') {
         setUsability({ kind: 'blocked', code: result.code ?? 'V-TEC-14', message: result.message ?? '' });
       } else {
-        setError(t('saveError'));
+        setError(result.message ?? t('saveError'));
       }
     });
   }

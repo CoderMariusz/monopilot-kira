@@ -459,6 +459,7 @@ export function FormulationEditor({
   allergenNames,
   currency = 'EUR',
   canEdit = false,
+  submitAllowed = true,
   saveDraftAction,
   recomputeAction,
   submitForTrialAction,
@@ -484,6 +485,8 @@ export function FormulationEditor({
   /** ISO-4217 currency code for the CostPanel (default EUR). */
   currency?: string;
   canEdit?: boolean;
+  /** True only while the project is in the recipe stage; server action still enforces state. */
+  submitAllowed?: boolean;
   saveDraftAction?: SaveDraftAction;
   recomputeAction?: RecomputeAction;
   /** Submit-for-trial Server Action (gates server-side; editor only mirrors result). */
@@ -934,7 +937,7 @@ export function FormulationEditor({
           <Button
             type="button"
             className="btn-primary"
-            disabled={!editable || !balanced || !submitForTrialAction || submitStatus === 'submitting'}
+            disabled={!editable || !submitAllowed || !balanced || !submitForTrialAction || submitStatus === 'submitting'}
             data-status={submitStatus}
             data-testid="submit-for-trial"
             onClick={onSubmitForTrial}

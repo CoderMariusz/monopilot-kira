@@ -3500,7 +3500,9 @@
       "stageSensory": "Senzorial",
       "stagePilot": "Pilot",
       "stageApproval": "Aprobare",
-      "stageHandoff": "Predare"
+      "stageHandoff": "Predare",
+      "esignRequiredError": "Înainte de handoff este necesară aprobarea cu semnătură electronică G4 — aprob-o în etapa Approval.",
+      "checklistIncompleteError": "Checklist-ul porții este incomplet — finalizează elementele deschise înainte de a avansa."
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -3636,7 +3638,7 @@
       "completedBy": "Finalizat de {by} · {at}",
       "required": "Obligatoriu",
       "optional": "Opțional",
-      "blocking": "Blocant",
+      "blocking": "Obligatoriu",
       "attach": "Atașează",
       "catTechnical": "Tehnic",
       "catBusiness": "Comercial",
@@ -3662,7 +3664,7 @@
       "approvalRequired": "Aprobare necesară — un manager/director trebuie să aprobe această poartă.",
       "checklistSummary": "Rezumat listă de verificare — {gate}: {label}",
       "done": "Finalizat",
-      "blocking": "Blocant",
+      "blocking": "Obligatoriu",
       "optional": "Opțional",
       "requiredComplete": "{done} din {total} elemente obligatorii finalizate",
       "blockersTitle": "{count} blocaj(e)",
@@ -3812,7 +3814,15 @@
       "empty": "Încă nu există criterii de aprobare",
       "emptyBody": "Criteriile de aprobare apar când proiectul ajunge la poarta de aprobare.",
       "error": "Nu se pot încărca criteriile de aprobare.",
-      "forbidden": "Nu aveți permisiunea de a vizualiza această aprobare."
+      "forbidden": "Nu aveți permisiunea de a vizualiza această aprobare.",
+      "c1Hint": "Blochează versiunea rețetei în etapa Formulation.",
+      "c2Hint": "Calculează un NutriScore admis (A–C) în etapa Nutrition.",
+      "c3Hint": "Atinge marja scenariului țintă în etapa Costing.",
+      "c4Hint": "Aprobarea senzorială aparține Technical — nicio acțiune aici.",
+      "c5Hint": "Auditează şi declară toți alergenii pe ecranul Allergens.",
+      "c6Hint": "Închide sau retrogradează toate riscurile majore deschise pe ecranul Risks.",
+      "c7Hint": "Adaugă documente de conformitate valide şi în termen pe ecranul Docs.",
+      "fixLink": "Rezolvă →"
     },
     "gateApprovalModal": {
       "title": "Aprobare poartă",

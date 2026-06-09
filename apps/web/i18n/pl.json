@@ -3500,7 +3500,9 @@
       "stageSensory": "Sensoryka",
       "stagePilot": "Pilotaż",
       "stageApproval": "Zatwierdzenie",
-      "stageHandoff": "Przekazanie"
+      "stageHandoff": "Przekazanie",
+      "esignRequiredError": "Przed handoffem wymagany jest e-podpis bramki G4 — zatwierdź ją na etapie Approval.",
+      "checklistIncompleteError": "Checklista bramki jest nieukończona — dokończ otwarte pozycje przed przejściem dalej."
     },
     "pipelineTable": {
       "title": "Pipeline",
@@ -3636,7 +3638,7 @@
       "completedBy": "Ukończono przez {by} · {at}",
       "required": "Wymagane",
       "optional": "Opcjonalne",
-      "blocking": "Blokujące",
+      "blocking": "Wymagane",
       "attach": "Załącz",
       "catTechnical": "Techniczne",
       "catBusiness": "Biznesowe",
@@ -3662,7 +3664,7 @@
       "approvalRequired": "Wymagane zatwierdzenie — kierownik/dyrektor musi zatwierdzić tę bramkę.",
       "checklistSummary": "Podsumowanie listy kontrolnej — {gate}: {label}",
       "done": "Gotowe",
-      "blocking": "Blokujące",
+      "blocking": "Wymagane",
       "optional": "Opcjonalne",
       "requiredComplete": "Ukończono {done} z {total} wymaganych pozycji",
       "blockersTitle": "Blokady: {count}",
@@ -3812,7 +3814,15 @@
       "empty": "Brak kryteriów zatwierdzania",
       "emptyBody": "Kryteria zatwierdzania pojawią się, gdy projekt osiągnie bramkę zatwierdzania.",
       "error": "Nie można załadować kryteriów zatwierdzania.",
-      "forbidden": "Nie masz uprawnień do wyświetlenia tego zatwierdzenia."
+      "forbidden": "Nie masz uprawnień do wyświetlenia tego zatwierdzenia.",
+      "c1Hint": "Zablokuj wersję receptury na etapie Formulation.",
+      "c2Hint": "Oblicz zaliczający NutriScore (A–C) na etapie Nutrition.",
+      "c3Hint": "Osiągnij docelową marżę scenariusza na etapie Costing.",
+      "c4Hint": "Zatwierdzenie sensoryczne należy do Technical — tu nic nie robisz.",
+      "c5Hint": "Zaudytuj i zadeklaruj wszystkie alergeny na ekranie Allergens.",
+      "c6Hint": "Zamknij lub obniż wszystkie otwarte ryzyka wysokiej wagi na ekranie Risks.",
+      "c7Hint": "Dodaj ważne, aktualne dokumenty zgodności na ekranie Docs.",
+      "fixLink": "Napraw →"
     },
     "gateApprovalModal": {
       "title": "Zatwierdzenie bramki",

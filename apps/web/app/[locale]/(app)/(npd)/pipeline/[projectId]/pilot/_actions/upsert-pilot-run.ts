@@ -110,24 +110,39 @@ export async function upsertPilotRun(raw: unknown): Promise<UpsertPilotRunResult
                     updated_by         = $10::uuid
               where id = $1::uuid and project_id = $2::uuid and org_id = app.current_org_id()
               returning id`
-          : `insert into public.pilot_runs
+          : // NOTE: the INSERT branch has its own $1-based numbering — an unreferenced
+            // leading parameter is untypable in the extended protocol and fails every
+            // insert with "could not determine data type of parameter $1".
+            `insert into public.pilot_runs
                 (org_id, project_id, planned_date, line, batch_size_kg, expected_yield_pct,
                  duration_hours, supervisor_user_id, status, created_by, updated_by)
-              values (app.current_org_id(), $2::uuid, $3::date, $4, $5::numeric, $6::numeric,
-                 $7::numeric, $8::uuid, coalesce($9, 'planned'), $10::uuid, $10::uuid)
+              values (app.current_org_id(), $1::uuid, $2::date, $3, $4::numeric, $5::numeric,
+                 $6::numeric, $7::uuid, coalesce($8, 'planned'), $9::uuid, $9::uuid)
               returning id`,
-        [
-          input.pilotRunId ?? null,
-          input.projectId,
-          input.plannedDate ?? null,
-          input.line ?? null,
-          input.batchSizeKg ?? null,
-          input.expectedYieldPct ?? null,
-          input.durationHours ?? null,
-          input.supervisorUserId ?? null,
-          input.status ?? null,
-          ctx.userId,
-        ],
+        input.pilotRunId
+          ? [
+              input.pilotRunId,
+              input.projectId,
+              input.plannedDate ?? null,
+              input.line ?? null,
+              input.batchSizeKg ?? null,
+              input.expectedYieldPct ?? null,
+              input.durationHours ?? null,
+              input.supervisorUserId ?? null,
+              input.status ?? null,
+              ctx.userId,
+            ]
+          : [
+              input.projectId,
+              input.plannedDate ?? null,
+              input.line ?? null,
+              input.batchSizeKg ?? null,
+              input.expectedYieldPct ?? null,
+              input.durationHours ?? null,
+              input.supervisorUserId ?? null,
+              input.status ?? null,
+              ctx.userId,
+            ],
       );
       const pilotRunId = upsert.rows[0]?.id;
       if (!pilotRunId) return { ok: false as const, error: 'persistence_failed' as const };

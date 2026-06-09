@@ -286,6 +286,43 @@ describe('Reference.ManufacturingOperations Server Actions (T-038)', () => {
     expect(currentClient.outboxEntries.some((entry) => entry.event_type === 'manufacturing_operations.created')).toBe(true);
   });
 
+  it('lists seeded APEX-CONFIG and manually-authored ORG-CONFIG rows for the current org', async () => {
+    currentClient.rows.set(
+      'op-apex-smoke',
+      makeOperation({
+        id: 'op-apex-smoke',
+        operation_name: 'Smoke',
+        process_suffix: 'SM',
+        description: 'Smokehouse',
+        operation_seq: 6,
+        industry_code: 'fmcg',
+        marker: 'APEX-CONFIG',
+      }),
+    );
+    currentClient.rows.set(
+      'op-org-mixing',
+      makeOperation({
+        id: 'op-org-mixing',
+        operation_name: 'Mixing',
+        process_suffix: 'MX2',
+        description: 'Manual live row',
+        operation_seq: 1,
+        industry_code: 'fmcg',
+        marker: 'ORG-CONFIG',
+      }),
+    );
+    const listManufacturingOperations = await loadAction<
+      (input?: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation[] }>
+    >('manufacturing-ops/list.ts', 'listManufacturingOperations', () => import(`${__dirname}/manufacturing-ops/list.ts`) as Promise<Record<string, unknown>>);
+
+    const result = await listManufacturingOperations({ industryCode: 'fmcg', includeInactive: false });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.data?.map((row) => row.operation_name)).toEqual(['Mixing', 'Smoke']);
+    const listSql = currentClient.calls.map((call) => normalizeSql(call.sql)).find((sql) => sql.includes('from "reference"."manufacturingoperations"'));
+    expect(listSql).toContain("marker in ('org-config', 'apex-config')");
+  });
+
   it('updates mutable fields only and rejects attempts to change immutable suffix or operation name', async () => {
     const updateManufacturingOperation = await loadAction<
       (input: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; data?: ManufacturingOperation }>
