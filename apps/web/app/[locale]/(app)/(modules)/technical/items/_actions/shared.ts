@@ -36,6 +36,7 @@ export const ITEM_TYPES = ['rm', 'ingredient', 'intermediate', 'fg', 'co_product
 export const ITEM_STATUSES = ['draft', 'active', 'deprecated', 'blocked'] as const;
 export const WEIGHT_MODES = ['fixed', 'catch'] as const;
 export const SHELF_LIFE_MODES = ['use_by', 'best_before'] as const;
+const GS1_GTIN_RE = /^(?:\d{8}|\d{12}|\d{13}|\d{14})$/;
 
 export type ItemType = (typeof ITEM_TYPES)[number];
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
@@ -57,6 +58,15 @@ export type ItemsActionError =
   | 'not_found'
   | 'persistence_failed';
 
+const OptionalNumeric = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().nonnegative().optional(),
+);
+const OptionalGs1Gtin = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().trim().regex(GS1_GTIN_RE, 'gs1_gtin must be 8, 12, 13, or 14 digits').optional(),
+);
+
 // ── List row shape returned to the page ───────────────────────────────────────
 export type ItemListItem = {
   id: string;
@@ -65,7 +75,15 @@ export type ItemListItem = {
   itemType: ItemType;
   status: ItemStatus;
   uomBase: string;
+  uomSecondary: string | null;
+  gs1Gtin: string | null;
   weightMode: WeightMode;
+  nominalWeight: string | null;
+  tareWeight: string | null;
+  grossWeightMax: string | null;
+  varianceTolerancePct: string | null;
+  shelfLifeDays: number | null;
+  shelfLifeMode: string | null;
   costPerKg: string | null;
   updatedAt: string;
   /** Declared allergen names from item_allergen_profiles (empty when none). */
@@ -94,6 +112,10 @@ export const CreateItemInput = z.object({
   description: z.string().trim().max(2000).optional(),
   productGroup: z.string().trim().max(128).optional(),
   uomSecondary: z.string().trim().max(32).optional(),
+  gs1Gtin: OptionalGs1Gtin,
+  nominalWeight: OptionalNumeric,
+  tareWeight: OptionalNumeric,
+  grossWeightMax: OptionalNumeric,
   // Cost writes must go through item_cost_history; keep decimal strings exact.
   costPerKg: CostPerKgInput.optional(),
   // numeric(5,2) in [0,100]
@@ -120,6 +142,10 @@ export const UpdateItemInput = z.object({
   description: z.string().trim().max(2000).optional(),
   productGroup: z.string().trim().max(128).optional(),
   uomSecondary: z.string().trim().max(32).optional(),
+  gs1Gtin: OptionalGs1Gtin,
+  nominalWeight: OptionalNumeric,
+  tareWeight: OptionalNumeric,
+  grossWeightMax: OptionalNumeric,
   // Accepted for legacy callers/import payloads, but updateItem never writes cost.
   costPerKg: CostPerKgInput.optional(),
   varianceTolerancePct: z.coerce.number().min(0).max(100).optional(),

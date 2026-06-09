@@ -73,7 +73,9 @@ export type ItemWizardLabels = {
     productGroup: string;
     weightMode: string;
     nominalWeight: string;
+    tareWeight: string;
     grossWeightMax: string;
+    gs1Gtin: string;
     varianceTolerance: string;
     shelfLifeDays: string;
     shelfLifeMode: string;
@@ -105,7 +107,9 @@ export const DEFAULT_WIZARD_LABELS: ItemWizardLabels = {
     productGroup: 'Product group',
     weightMode: 'Weight mode',
     nominalWeight: 'Nominal weight',
+    tareWeight: 'Tare weight',
     grossWeightMax: 'Gross weight max',
+    gs1Gtin: 'GS1 GTIN',
     varianceTolerance: 'Variance tolerance (%)',
     shelfLifeDays: 'Shelf life (days)',
     shelfLifeMode: 'Shelf-life mode',
@@ -168,7 +172,9 @@ export type WizardFormState = {
   uomSecondary: string;
   weightMode: (typeof WEIGHT_MODES)[number];
   nominalWeight: string;
+  tareWeight: string;
   grossWeightMax: string;
+  gs1Gtin: string;
   varianceTolerancePct: string;
   shelfLifeDays: string;
   shelfLifeMode: '' | (typeof SHELF_LIFE_MODES)[number];
@@ -186,7 +192,9 @@ export function emptyWizardForm(): WizardFormState {
     uomSecondary: '',
     weightMode: 'fixed',
     nominalWeight: '',
+    tareWeight: '',
     grossWeightMax: '',
+    gs1Gtin: '',
     varianceTolerancePct: '',
     shelfLifeDays: '',
     shelfLifeMode: '',
@@ -421,6 +429,10 @@ export function ItemWizard({
       description: trimOrUndefined(form.description),
       productGroup: trimOrUndefined(form.productGroup),
       uomSecondary: trimOrUndefined(form.uomSecondary),
+      gs1Gtin: trimOrUndefined(form.gs1Gtin),
+      nominalWeight: numOrUndefined(form.nominalWeight),
+      tareWeight: numOrUndefined(form.tareWeight),
+      grossWeightMax: numOrUndefined(form.grossWeightMax),
       varianceTolerancePct: numOrUndefined(form.varianceTolerancePct),
       shelfLifeDays: numOrUndefined(form.shelfLifeDays),
       shelfLifeMode: form.shelfLifeMode === '' ? undefined : form.shelfLifeMode,
@@ -618,6 +630,19 @@ export function ItemWizard({
               ariaLabel={labels.fields.weightMode}
             />
           </Field>
+          <Field label={labels.fields.gs1Gtin} htmlFor="wiz-gs1-gtin">
+            <Input
+              id="wiz-gs1-gtin"
+              name="gs1Gtin"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={14}
+              aria-label={labels.fields.gs1Gtin}
+              className="form-input"
+              value={form.gs1Gtin}
+              onChange={(e) => update('gs1Gtin', e.currentTarget.value)}
+            />
+          </Field>
           {form.weightMode === 'catch' ? (
             <div
               className="alert alert-blue"
@@ -628,7 +653,7 @@ export function ItemWizard({
                 <span aria-hidden="true">ⓘ</span>
                 <span>{labels.catchHint}</span>
               </div>
-              <div className="ff-inline" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div className="ff-inline" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 <Field label={labels.fields.nominalWeight} htmlFor="wiz-nominal-weight">
                   <Input
                     id="wiz-nominal-weight"
@@ -640,6 +665,19 @@ export function ItemWizard({
                     className="form-input"
                     value={form.nominalWeight}
                     onChange={(e) => update('nominalWeight', e.currentTarget.value)}
+                  />
+                </Field>
+                <Field label={labels.fields.tareWeight} htmlFor="wiz-tare-weight">
+                  <Input
+                    id="wiz-tare-weight"
+                    name="tareWeight"
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    aria-label={labels.fields.tareWeight}
+                    className="form-input"
+                    value={form.tareWeight}
+                    onChange={(e) => update('tareWeight', e.currentTarget.value)}
                   />
                 </Field>
                 <Field label={labels.fields.grossWeightMax} htmlFor="wiz-gross-weight">
@@ -719,6 +757,10 @@ export function ItemWizard({
                 [labels.fields.status, STATUS_LABELS[form.status], false],
                 [labels.fields.uomBase, form.uomBase, true],
                 [labels.fields.weightMode, WEIGHT_MODE_LABELS[form.weightMode], false],
+                [labels.fields.gs1Gtin, form.gs1Gtin, true],
+                [labels.fields.nominalWeight, form.nominalWeight, true],
+                [labels.fields.tareWeight, form.tareWeight, true],
+                [labels.fields.grossWeightMax, form.grossWeightMax, true],
               ] as Array<[string, string, boolean]>
             ).map(([label, value, mono], i, rows) => (
               <div

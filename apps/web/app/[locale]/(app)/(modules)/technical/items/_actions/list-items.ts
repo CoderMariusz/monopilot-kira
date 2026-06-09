@@ -45,7 +45,15 @@ type ItemRow = {
   item_type: string;
   status: string;
   uom_base: string;
+  uom_secondary: string | null;
+  gs1_gtin: string | null;
   weight_mode: string;
+  nominal_weight: string | null;
+  tare_weight: string | null;
+  gross_weight_max: string | null;
+  variance_tolerance_pct: string | null;
+  shelf_life_days: number | null;
+  shelf_life_mode: string | null;
   cost_per_kg: string | null;
   updated_at: string | Date;
   d365_sync_status: string | null;
@@ -68,7 +76,15 @@ function mapRow(row: ItemRow): ItemListItem | null {
     itemType: row.item_type as ItemType,
     status: row.status as ItemStatus,
     uomBase: row.uom_base,
+    uomSecondary: row.uom_secondary,
+    gs1Gtin: row.gs1_gtin,
     weightMode: WEIGHT_MODE_SET.has(row.weight_mode as WeightMode) ? (row.weight_mode as WeightMode) : 'fixed',
+    nominalWeight: row.nominal_weight,
+    tareWeight: row.tare_weight,
+    grossWeightMax: row.gross_weight_max,
+    varianceTolerancePct: row.variance_tolerance_pct,
+    shelfLifeDays: row.shelf_life_days,
+    shelfLifeMode: row.shelf_life_mode,
     costPerKg: row.cost_per_kg,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
     allergens: Array.isArray(row.allergens) ? row.allergens.filter((a): a is string => typeof a === 'string') : [],
@@ -106,7 +122,9 @@ export async function listItems(opts?: {
       const ctx: OrgActionContext = { userId, orgId, client: client as QueryClient };
       const [itemsResult, canCreate, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemRow>(
-          `select i.id, i.item_code, i.name, i.item_type, i.status, i.uom_base, i.weight_mode,
+          `select i.id, i.item_code, i.name, i.item_type, i.status, i.uom_base, i.uom_secondary,
+                  i.gs1_gtin, i.weight_mode, i.nominal_weight, i.tare_weight, i.gross_weight_max,
+                  i.variance_tolerance_pct, i.shelf_life_days, i.shelf_life_mode,
                   i.cost_per_kg, i.updated_at, i.d365_sync_status,
                   -- bom_headers.product_id is TEXT and FKs to product(org_id, product_code);
                   -- the items-master code namespace joins on item_code, not items.id (uuid).

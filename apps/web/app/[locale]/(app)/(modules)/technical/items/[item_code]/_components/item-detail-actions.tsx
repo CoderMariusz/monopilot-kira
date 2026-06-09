@@ -38,7 +38,9 @@ function detailToForm(item: ItemDetail): WizardFormState {
     uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
     nominalWeight: item.nominalWeight ?? '',
+    tareWeight: item.tareWeight ?? '',
     grossWeightMax: item.grossWeightMax ?? '',
+    gs1Gtin: item.gs1Gtin ?? '',
     varianceTolerancePct: item.varianceTolerancePct ?? '',
     shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),
     shelfLifeMode:

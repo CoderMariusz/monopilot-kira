@@ -55,13 +55,16 @@ function rowToForm(item: ItemListItem): WizardFormState {
     status: item.status,
     productGroup: '',
     uomBase: item.uomBase,
-    uomSecondary: '',
+    uomSecondary: item.uomSecondary ?? '',
     weightMode: item.weightMode,
-    nominalWeight: '',
-    grossWeightMax: '',
-    varianceTolerancePct: '',
-    shelfLifeDays: '',
-    shelfLifeMode: '',
+    nominalWeight: item.nominalWeight ?? '',
+    tareWeight: item.tareWeight ?? '',
+    grossWeightMax: item.grossWeightMax ?? '',
+    gs1Gtin: item.gs1Gtin ?? '',
+    varianceTolerancePct: item.varianceTolerancePct ?? '',
+    shelfLifeDays: item.shelfLifeDays === null ? '' : String(item.shelfLifeDays),
+    shelfLifeMode:
+      item.shelfLifeMode === 'use_by' || item.shelfLifeMode === 'best_before' ? item.shelfLifeMode : '',
   };
 }
 

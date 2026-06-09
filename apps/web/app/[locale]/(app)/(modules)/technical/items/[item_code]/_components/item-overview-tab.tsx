@@ -26,7 +26,9 @@ export type ItemOverviewLabels = {
   description: string;
   weightMode: string;
   nominalWeight: string;
+  tareWeight: string;
   grossWeightMax: string;
+  gs1Gtin: string;
   varianceTolerance: string;
   shelfLife: string;
   costPerKg: string;
@@ -93,6 +95,7 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
           <Row label={labels.status} value={STATUS_LABEL[item.status]} />
           <Row label={labels.productGroup} value={item.productGroup ?? none} />
           <Row label={labels.description} value={item.description ?? none} />
+          <Row label={labels.gs1Gtin} value={item.gs1Gtin ?? none} mono />
         </dl>
       </div>
 
@@ -103,13 +106,10 @@ export function ItemOverviewTab({ item, labels }: { item: ItemDetail; labels: It
           <Row label={labels.uomSecondary} value={item.uomSecondary ?? none} mono />
           <Row label={labels.costPerKg} value={fmtNum(item.costPerKg, none)} mono />
           <Row label={labels.weightMode} value={item.weightMode} mono />
-          {item.weightMode === 'catch' ? (
-            <>
-              <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />
-              <Row label={labels.grossWeightMax} value={fmtNum(item.grossWeightMax, none)} mono />
-              <Row label={labels.varianceTolerance} value={fmtNum(item.varianceTolerancePct, none)} mono />
-            </>
-          ) : null}
+          <Row label={labels.nominalWeight} value={fmtNum(item.nominalWeight, none)} mono />
+          <Row label={labels.tareWeight} value={fmtNum(item.tareWeight, none)} mono />
+          <Row label={labels.grossWeightMax} value={fmtNum(item.grossWeightMax, none)} mono />
+          <Row label={labels.varianceTolerance} value={fmtNum(item.varianceTolerancePct, none)} mono />
           <Row label={labels.shelfLife} value={shelf} mono />
           <Row label={labels.updated} value={fmtDate(item.updatedAt, none)} mono />
         </dl>

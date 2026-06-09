@@ -84,6 +84,7 @@ describe('ItemWizard create mode (TEC-011)', () => {
 
     expect(screen.getByText(L.catchHint)).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.nominalWeight })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: L.fields.tareWeight })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax })).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance })).toBeInTheDocument();
   });
@@ -94,6 +95,13 @@ describe('ItemWizard create mode (TEC-011)', () => {
     render(<ItemWizard open onClose={vi.fn()} mode={{ kind: 'create' }} />);
     await fillBasicAndAdvance(user); // → classification
     await user.click(screen.getByRole('button', { name: L.next })); // → weight
+    await user.type(screen.getByLabelText(L.fields.gs1Gtin), '01234567890123');
+    await user.click(screen.getByRole('combobox', { name: L.fields.weightMode }));
+    await user.click(screen.getByRole('option', { name: 'Catch weight' }));
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.nominalWeight }), '0.2500');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.tareWeight }), '0.0200');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.grossWeightMax }), '0.3000');
+    await user.type(screen.getByRole('spinbutton', { name: L.fields.varianceTolerance }), '5');
     await user.click(screen.getByRole('button', { name: L.next })); // → review
     await user.click(screen.getByRole('button', { name: L.create }));
 
@@ -103,7 +111,12 @@ describe('ItemWizard create mode (TEC-011)', () => {
       name: 'Cure salt',
       itemType: 'rm',
       uomBase: 'kg',
-      weightMode: 'fixed',
+      weightMode: 'catch',
+      gs1Gtin: '01234567890123',
+      nominalWeight: 0.25,
+      tareWeight: 0.02,
+      grossWeightMax: 0.3,
+      varianceTolerancePct: 5,
     });
   });
 });
@@ -112,7 +125,16 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
   it('uses updateItem and renders the code as read-only', async () => {
     const user = userEvent.setup();
     updateItem.mockResolvedValue({ ok: true, data: { id: 'abc' } });
-    const initial = { ...emptyWizardForm(), itemCode: 'RM-9', name: 'Existing' };
+    const initial = {
+      ...emptyWizardForm(),
+      itemCode: 'RM-9',
+      name: 'Existing',
+      weightMode: 'catch' as const,
+      nominalWeight: '0.2500',
+      tareWeight: '0.0200',
+      grossWeightMax: '0.3000',
+      gs1Gtin: '01234567890123',
+    };
     render(
       <ItemWizard
         open
@@ -131,6 +153,13 @@ describe('ItemWizard edit mode (TEC-013 reuse)', () => {
     await user.click(screen.getByRole('button', { name: L.create }));
 
     expect(updateItem).toHaveBeenCalledTimes(1);
-    expect(updateItem.mock.calls[0][0]).toMatchObject({ id: 'abc-id', name: 'Existing' });
+    expect(updateItem.mock.calls[0][0]).toMatchObject({
+      id: 'abc-id',
+      name: 'Existing',
+      nominalWeight: 0.25,
+      tareWeight: 0.02,
+      grossWeightMax: 0.3,
+      gs1Gtin: '01234567890123',
+    });
   });
 });

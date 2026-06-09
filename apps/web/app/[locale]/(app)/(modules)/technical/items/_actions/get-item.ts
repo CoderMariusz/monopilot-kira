@@ -33,8 +33,10 @@ export type ItemDetail = {
   productGroup: string | null;
   uomBase: string;
   uomSecondary: string | null;
+  gs1Gtin: string | null;
   weightMode: WeightMode;
   nominalWeight: string | null;
+  tareWeight: string | null;
   grossWeightMax: string | null;
   varianceTolerancePct: string | null;
   shelfLifeDays: number | null;
@@ -58,8 +60,10 @@ type ItemDetailRow = {
   product_group: string | null;
   uom_base: string;
   uom_secondary: string | null;
+  gs1_gtin: string | null;
   weight_mode: string;
   nominal_weight: string | null;
+  tare_weight: string | null;
   gross_weight_max: string | null;
   variance_tolerance_pct: string | null;
   shelf_life_days: number | null;
@@ -85,8 +89,10 @@ function mapDetail(row: ItemDetailRow): ItemDetail | null {
     productGroup: row.product_group,
     uomBase: row.uom_base,
     uomSecondary: row.uom_secondary,
+    gs1Gtin: row.gs1_gtin,
     weightMode: WEIGHT_MODE_SET.has(row.weight_mode as WeightMode) ? (row.weight_mode as WeightMode) : 'fixed',
     nominalWeight: row.nominal_weight,
+    tareWeight: row.tare_weight,
     grossWeightMax: row.gross_weight_max,
     varianceTolerancePct: row.variance_tolerance_pct,
     shelfLifeDays: row.shelf_life_days,
@@ -106,7 +112,7 @@ export async function getItem(itemCode: string): Promise<GetItemResult> {
       const [rowResult, canEdit, canDeactivate] = await Promise.all([
         (client as QueryClient).query<ItemDetailRow>(
           `select id, item_code, name, item_type, status, description, product_group,
-                  uom_base, uom_secondary, weight_mode, nominal_weight, gross_weight_max,
+                  uom_base, uom_secondary, gs1_gtin, weight_mode, nominal_weight, tare_weight, gross_weight_max,
                   variance_tolerance_pct, shelf_life_days, shelf_life_mode, cost_per_kg, updated_at
              from public.items
             where org_id = app.current_org_id()

@@ -77,6 +77,27 @@ describe('Items master input validation (migration 153 parity)', () => {
     expect(CreateItemInput.safeParse({ ...base, varianceTolerancePct: 5 }).success).toBe(true);
   });
 
+  it('accepts item weight columns and loose GS1 GTIN lengths', () => {
+    const parsed = CreateItemInput.parse({
+      ...base,
+      nominalWeight: '0.2500',
+      tareWeight: '0.0200',
+      grossWeightMax: '0.3000',
+      gs1Gtin: '01234567890123',
+    });
+    expect(parsed.nominalWeight).toBe(0.25);
+    expect(parsed.tareWeight).toBe(0.02);
+    expect(parsed.grossWeightMax).toBe(0.3);
+    expect(parsed.gs1Gtin).toBe('01234567890123');
+
+    for (const gs1Gtin of ['12345678', '123456789012', '1234567890123', '12345678901234']) {
+      expect(CreateItemInput.safeParse({ ...base, gs1Gtin }).success).toBe(true);
+    }
+    expect(CreateItemInput.safeParse({ ...base, nominalWeight: -0.1 }).success).toBe(false);
+    expect(CreateItemInput.safeParse({ ...base, gs1Gtin: '123456789' }).success).toBe(false);
+    expect(CreateItemInput.safeParse({ ...base, gs1Gtin: '1234567890123A' }).success).toBe(false);
+  });
+
   it('rejects a negative shelf_life_days (items_shelf_life_days_check)', () => {
     expect(CreateItemInput.safeParse({ ...base, shelfLifeDays: -1 }).success).toBe(false);
     expect(CreateItemInput.safeParse({ ...base, shelfLifeDays: 30 }).success).toBe(true);
@@ -97,6 +118,10 @@ describe('Items master input validation (migration 153 parity)', () => {
         status: 'active',
         uomBase: 'kg',
         weightMode: 'fixed',
+        nominalWeight: '1.5000',
+        tareWeight: '0.0500',
+        grossWeightMax: '1.7000',
+        gs1Gtin: '1234567890123',
       }).success,
     ).toBe(true);
   });

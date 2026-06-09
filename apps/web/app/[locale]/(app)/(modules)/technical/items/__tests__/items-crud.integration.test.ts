@@ -258,6 +258,67 @@ run('03-technical items CRUD (RLS + RBAC, real DB)', () => {
     expect(history.rows[0]).toMatchObject({ count: 1, cost_per_kg: '7.2500' });
   });
 
+  it('persists item weights and GS1 GTIN on create and update', async () => {
+    const code = `RM-${randomUUID().slice(0, 8)}`;
+    const created = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      createItem({
+        itemCode: code,
+        name: 'Weighted item',
+        itemType: 'rm',
+        uomBase: 'kg',
+        weightMode: 'catch',
+        nominalWeight: '0.2500',
+        tareWeight: '0.0200',
+        grossWeightMax: '0.3000',
+        gs1Gtin: '01234567890123',
+      }),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const persisted = await owner.query(
+      `select nominal_weight::text, tare_weight::text, gross_weight_max::text, gs1_gtin
+         from public.items
+        where org_id = $1 and id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(persisted.rows[0]).toMatchObject({
+      nominal_weight: '0.2500',
+      tare_weight: '0.0200',
+      gross_weight_max: '0.3000',
+      gs1_gtin: '01234567890123',
+    });
+
+    const updated = await withActionActor(seed.adminAUserId, seed.orgAId, () =>
+      updateItem({
+        id: created.data.id,
+        name: 'Weighted item updated',
+        itemType: 'rm',
+        status: 'active',
+        uomBase: 'kg',
+        weightMode: 'catch',
+        nominalWeight: '0.5000',
+        tareWeight: '0.0300',
+        grossWeightMax: '0.6000',
+        gs1Gtin: '1234567890123',
+      }),
+    );
+    expect(updated.ok).toBe(true);
+
+    const after = await owner.query(
+      `select nominal_weight::text, tare_weight::text, gross_weight_max::text, gs1_gtin
+         from public.items
+        where org_id = $1 and id = $2`,
+      [seed.orgAId, created.data.id],
+    );
+    expect(after.rows[0]).toMatchObject({
+      nominal_weight: '0.5000',
+      tare_weight: '0.0300',
+      gross_weight_max: '0.6000',
+      gs1_gtin: '1234567890123',
+    });
+  });
+
   it('forbids create for a user WITHOUT technical.items.create', async () => {
     const code = `RM-${randomUUID().slice(0, 8)}`;
     const result = await withActionActor(seed.viewerAUserId, seed.orgAId, () =>

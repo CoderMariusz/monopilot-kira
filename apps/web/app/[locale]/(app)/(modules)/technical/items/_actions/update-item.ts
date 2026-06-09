@@ -27,6 +27,10 @@ type BeforeRow = {
   status: string;
   uom_base: string;
   weight_mode: string;
+  nominal_weight: string | null;
+  tare_weight: string | null;
+  gross_weight_max: string | null;
+  gs1_gtin: string | null;
 };
 
 export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
@@ -40,7 +44,8 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
       if (!(await hasPermission(ctx, ITEMS_EDIT_PERMISSION))) return { ok: false, error: 'forbidden' };
 
       const before = await (client as QueryClient).query<BeforeRow>(
-        `select name, item_type, status, uom_base, weight_mode
+        `select name, item_type, status, uom_base, weight_mode,
+                nominal_weight, tare_weight, gross_weight_max, gs1_gtin
            from public.items
           where org_id = app.current_org_id() and id = $1::uuid`,
         [input.id],
@@ -57,9 +62,13 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
                 description = $7,
                 product_group = $8,
                 uom_secondary = $9,
-                variance_tolerance_pct = $10::numeric,
-                shelf_life_days = $11::integer,
-                shelf_life_mode = $12
+                gs1_gtin = $10,
+                nominal_weight = $11::numeric,
+                tare_weight = $12::numeric,
+                gross_weight_max = $13::numeric,
+                variance_tolerance_pct = $14::numeric,
+                shelf_life_days = $15::integer,
+                shelf_life_mode = $16
           where org_id = app.current_org_id()
             and id = $1::uuid
         returning id`,
@@ -73,6 +82,10 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           input.description ?? null,
           input.productGroup ?? null,
           input.uomSecondary ?? null,
+          input.gs1Gtin ?? null,
+          input.nominalWeight ?? null,
+          input.tareWeight ?? null,
+          input.grossWeightMax ?? null,
           input.varianceTolerancePct ?? null,
           input.shelfLifeDays ?? null,
           input.shelfLifeMode ?? null,
@@ -92,6 +105,10 @@ export async function updateItem(rawInput: unknown): Promise<UpdateItemResult> {
           status: input.status,
           uomBase: input.uomBase,
           weightMode: input.weightMode,
+          nominalWeight: input.nominalWeight ?? null,
+          tareWeight: input.tareWeight ?? null,
+          grossWeightMax: input.grossWeightMax ?? null,
+          gs1Gtin: input.gs1Gtin ?? null,
         },
       });
 

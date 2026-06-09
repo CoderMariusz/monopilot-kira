@@ -819,7 +819,6 @@ export function FormulationEditor({
     if (compareOpen && compareA && compareB && compareA !== compareB && !compareResult) {
       onRunCompare();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compareOpen]);
 
   // Costing v2 — the table total is now the qty roll-up (kg/pack); the raw cost is

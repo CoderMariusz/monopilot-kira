@@ -90,7 +90,6 @@ export function TrialFormModal({
       setErrorCode(null);
     }
     // initialValues is a fresh object per open; deps intentionally narrow.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode]);
 
   const dialogTitle = mode === 'edit' ? labels.editModalTitle : labels.modalTitle;
