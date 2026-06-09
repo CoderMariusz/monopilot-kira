@@ -140,6 +140,8 @@ const DEFAULT_LABELS: FormulationLabels = {
   locked: 'This version is locked and cannot be edited.',
   noAllergen: '—',
   chooseItem: 'Choose item',
+  // Phase-3 NPD↔Technical shortcut — "↗" link title on each picked ingredient row.
+  openInTechnical: 'Open item in Technical',
   picker: {
     trigger: 'Pick item',
     searchLabel: 'Search items',

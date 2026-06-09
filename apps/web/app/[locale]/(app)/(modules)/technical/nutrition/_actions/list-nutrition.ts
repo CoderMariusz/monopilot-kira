@@ -77,9 +77,29 @@ export async function listNutritionProducts(): Promise<ListNutritionProductsResu
           order by np.product_code asc`,
       );
 
+      // Phase-3 NPD↔Technical shortcut: one cheap org-scoped read mapping each
+      // product_code to the owning NPD project (npd_projects.product_code). Null
+      // when none maps → the nutrition client omits the "Open NPD project →" link.
+      const codes = rows.map((r) => r.product_code).filter((c): c is string => !!c);
+      const npdByCode = new Map<string, string>();
+      if (codes.length > 0) {
+        const { rows: npdRows } = await qc.query<{ product_code: string; project_id: string }>(
+          `select distinct on (np.product_code)
+                  np.product_code,
+                  np.id as project_id
+             from public.npd_projects np
+            where np.org_id = app.current_org_id()
+              and np.product_code = any($1::text[])
+            order by np.product_code, np.created_at desc`,
+          [codes],
+        );
+        for (const r of npdRows) npdByCode.set(r.product_code, r.project_id);
+      }
+
       const products: NutritionProductOption[] = rows.map((r) => ({
         productCode: r.product_code,
         productName: r.product_name,
+        npdProjectId: npdByCode.get(r.product_code) ?? null,
       }));
 
       return { products, state: products.length ? 'ready' : 'empty' };

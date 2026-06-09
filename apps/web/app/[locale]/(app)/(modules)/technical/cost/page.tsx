@@ -72,6 +72,8 @@ export default async function TechnicalRecipeCostPage() {
     recomputeNote: t('recomputeModal.note'),
     recomputeConfirm: t('recomputeModal.confirm'),
     cancel: t('recomputeModal.cancel'),
+    // Phase-3 NPD↔Technical shortcut (English fallback until i18n keys merge).
+    seeNpdCosting: tf('seeNpdCosting', 'See NPD costing →'),
   };
 
   return (

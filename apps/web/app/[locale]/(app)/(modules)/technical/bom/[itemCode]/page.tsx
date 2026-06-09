@@ -130,6 +130,8 @@ const DEFAULT_LABELS: BomDetailLabels = {
   error: 'Unable to load this BOM. Please try again.',
   notFound: 'BOM not found.',
   forbidden: 'You do not have permission to view this BOM.',
+  // Phase-3 cross-link to the source NPD project (rendered only when set).
+  originNpdProject: 'Origin: NPD project →',
 };
 
 const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof BomDetailLabels>;
@@ -271,6 +273,11 @@ export default async function BomDetailPage(propsInput: unknown = {}) {
     productId: d.productId,
     productName: d.productName,
     category: d.category,
+    // Phase-3 NPD↔Technical shortcut: when the shared-BOM header records its NPD
+    // origin (bom_headers.npd_project_id, stamped by the factory-release flow), the
+    // header renders a muted "Origin: NPD project →" link to /pipeline/<id>. Null
+    // for Technical/imported-origin BOMs → the link is omitted gracefully.
+    npdProjectId: d.header.npdProjectId ?? null,
     selectedVersion: d.selectedVersion,
     status: d.header.status,
     yieldPct: d.header.yieldPct,

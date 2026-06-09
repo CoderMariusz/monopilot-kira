@@ -16,6 +16,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Select } from '@monopilot/ui/Select';
 
@@ -46,6 +47,8 @@ export type NutritionCopy = {
   loading: string;
   loadError: string;
   selectPrompt: string;
+  /** Phase-3 NPD↔Technical shortcut — "Open NPD project →" link label. */
+  openNpdProject: string;
 };
 
 // 5-tone semantic badges: contains → bad(red), may_contain → warn(amber),
@@ -207,6 +210,11 @@ export function NutritionPanelClient({
     label: p.productName ? `${p.productCode} · ${p.productName}` : p.productCode,
   }));
 
+  // Phase-3 NPD↔Technical shortcut: NPD project id mapped to the selected product
+  // (server-resolved in the page loader). Null → no link is rendered.
+  const selectedNpdProjectId =
+    products.find((p) => p.productCode === selected)?.npdProjectId ?? null;
+
   return (
     <div className="flex flex-col gap-4" data-screen="technical-nutrition">
       <div className="card">
@@ -223,6 +231,20 @@ export function NutritionPanelClient({
               />
             </div>
           </label>
+          {/* Phase-3 NPD↔Technical shortcut — read-level link to the source NPD
+              project. Rendered ONLY when the selected product maps to an
+              npd_projects row; omitted gracefully otherwise. prefetch={false}. */}
+          {selectedNpdProjectId ? (
+            <Link
+              href={`/pipeline/${selectedNpdProjectId}`}
+              prefetch={false}
+              data-testid="technical-nutrition-npd-link"
+              className="btn btn-ghost btn-sm"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {copy.openNpdProject}
+            </Link>
+          ) : null}
         </div>
       </div>
 

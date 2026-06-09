@@ -45,6 +45,7 @@ const COPY: RecipeCostCopy = {
   recomputeIntro: 'Re-roll BOM costs from current rates.',
   recomputeNote: 'Non-destructive — re-rolls from current material rates.',
   recomputeConfirm: 'Recompute now', cancel: 'Cancel',
+  seeNpdCosting: 'See NPD costing →',
 };
 
 const COST = {
@@ -144,5 +145,29 @@ describe('RecipeCostClient — Export cost sheet (LANE 14)', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(downloads).toEqual(['cost-sheet-FG5101.csv']);
     vi.restoreAllMocks();
+  });
+});
+
+// Phase-3 (Lane 16) — NPD↔Technical shortcut: "See NPD costing →" link.
+describe('RecipeCostClient — NPD costing shortcut (Phase-3)', () => {
+  it('renders "See NPD costing →" → /pipeline/<id>/costing when the selected product maps to an NPD project', async () => {
+    getRecipeCost.mockResolvedValue(COST);
+    const products: CostedProductOption[] = [
+      { productCode: 'FG5101', name: 'Sausage', bomVersion: 7, bomStatus: 'active', npdProjectId: 'c5cf521b-aaaa-bbbb-cccc-ddddeeeeffff' },
+    ];
+    render(<RecipeCostClient products={products} copy={COPY} />);
+    await waitFor(() => expect(getRecipeCost).toHaveBeenCalledWith('FG5101'));
+
+    const link = await screen.findByTestId('technical-cost-npd-link');
+    expect(link).toHaveTextContent('See NPD costing →');
+    expect(link).toHaveAttribute('href', '/pipeline/c5cf521b-aaaa-bbbb-cccc-ddddeeeeffff/costing');
+  });
+
+  it('omits the link when the selected product has no NPD project mapping', async () => {
+    getRecipeCost.mockResolvedValue(COST);
+    // PRODUCTS has no npdProjectId — link must not render.
+    render(<RecipeCostClient products={PRODUCTS} copy={COPY} />);
+    await waitFor(() => expect(getRecipeCost).toHaveBeenCalledWith('FG5101'));
+    expect(screen.queryByTestId('technical-cost-npd-link')).not.toBeInTheDocument();
   });
 });

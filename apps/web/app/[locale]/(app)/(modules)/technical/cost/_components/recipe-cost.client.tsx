@@ -18,6 +18,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Select } from '@monopilot/ui/Select';
 
@@ -64,6 +65,8 @@ export type RecipeCostCopy = {
   recomputeNote: string;
   recomputeConfirm: string;
   cancel: string;
+  /** Phase-3 NPD↔Technical shortcut — "See NPD costing →" link label. */
+  seeNpdCosting: string;
 };
 
 // Breakdown bar tones — design tokens (golden rule #1: no hardcoded hex).
@@ -303,6 +306,11 @@ export function RecipeCostClient({
     label: p.name ? `${p.productCode} · ${p.name}` : p.productCode,
   }));
 
+  // Phase-3 NPD↔Technical shortcut: the NPD project id mapped to the selected
+  // product (server-resolved in the page loader). Null → no link is rendered.
+  const selectedNpdProjectId =
+    products.find((p) => p.productCode === selected)?.npdProjectId ?? null;
+
   return (
     <div className="flex flex-col gap-4" data-screen="technical-recipe-cost">
       <div className="card">
@@ -342,6 +350,21 @@ export function RecipeCostClient({
               >
                 ↻ {copy.recompute}
               </button>
+              {/* Phase-3 NPD↔Technical shortcut — read-level link to the source
+                  NPD project's costing screen. Rendered ONLY when the selected
+                  product maps to an npd_projects row; omitted gracefully otherwise.
+                  prefetch={false} per the project perf rule. */}
+              {selectedNpdProjectId ? (
+                <Link
+                  href={`/pipeline/${selectedNpdProjectId}/costing`}
+                  prefetch={false}
+                  data-testid="technical-cost-npd-link"
+                  className="btn btn-ghost btn-sm"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {copy.seeNpdCosting}
+                </Link>
+              ) : null}
             </div>
           ) : null}
         </div>

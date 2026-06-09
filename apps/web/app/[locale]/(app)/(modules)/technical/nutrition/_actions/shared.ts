@@ -33,6 +33,12 @@ export type QueryClient = {
 export type NutritionProductOption = {
   productCode: string;
   productName: string | null;
+  /**
+   * Phase-3 NPD↔Technical shortcut: the NPD project id whose product_code matches
+   * this product, when one exists (org-scoped, read-only). Null → no "Open NPD
+   * project →" link. Resolved server-side in the page loader.
+   */
+  npdProjectId?: string | null;
 };
 
 /** One macronutrient row (per-100g + per-portion), NUMERIC kept as string. */

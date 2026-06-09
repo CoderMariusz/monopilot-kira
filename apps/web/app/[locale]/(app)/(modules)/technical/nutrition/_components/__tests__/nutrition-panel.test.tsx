@@ -49,6 +49,7 @@ const COPY: NutritionCopy = {
   loading: 'Loading',
   loadError: 'Could not load',
   selectPrompt: 'Pick a product',
+  openNpdProject: 'Open NPD project →',
 };
 
 const PANEL = {
@@ -103,5 +104,28 @@ describe('NutritionPanelClient (TEC-012)', () => {
   it('shows the empty prompt when no product is selected', () => {
     render(<NutritionPanelClient products={[]} copy={COPY} />);
     expect(screen.getByText('Pick a product')).toBeInTheDocument();
+  });
+});
+
+// Phase-3 (Lane 16) — NPD↔Technical shortcut: "Open NPD project →" link.
+describe('NutritionPanelClient — NPD project shortcut (Phase-3)', () => {
+  it('renders "Open NPD project →" → /pipeline/<id> when the selected product maps to an NPD project', async () => {
+    getNutritionPanel.mockResolvedValue(PANEL);
+    const products: NutritionProductOption[] = [
+      { productCode: 'FG5101', productName: 'Kiełbasa śląska 450g', npdProjectId: 'c5cf521b-aaaa-bbbb-cccc-ddddeeeeffff' },
+    ];
+    render(<NutritionPanelClient products={products} copy={COPY} />);
+    await waitFor(() => expect(getNutritionPanel).toHaveBeenCalledWith('FG5101'));
+
+    const link = await screen.findByTestId('technical-nutrition-npd-link');
+    expect(link).toHaveTextContent('Open NPD project →');
+    expect(link).toHaveAttribute('href', '/pipeline/c5cf521b-aaaa-bbbb-cccc-ddddeeeeffff');
+  });
+
+  it('omits the link when the selected product has no NPD project mapping', async () => {
+    getNutritionPanel.mockResolvedValue(PANEL);
+    render(<NutritionPanelClient products={PRODUCTS} copy={COPY} />);
+    await waitFor(() => expect(getNutritionPanel).toHaveBeenCalledWith('FG5101'));
+    expect(screen.queryByTestId('technical-nutrition-npd-link')).not.toBeInTheDocument();
   });
 });

@@ -285,3 +285,42 @@ describe('FormulationEditor — states + RBAC', () => {
     expect(screen.getByTestId('panel-allergen')).toBeInTheDocument();
   });
 });
+
+// Phase-3 (Lane 16) — NPD↔Technical shortcut: per-row "↗ Open item in Technical".
+describe('FormulationEditor — ingredient → Technical item shortcut (Phase-3)', () => {
+  it('renders an "↗" link to /technical/items/<code> on each picked-item row, leaving the row controls intact', () => {
+    renderEditor();
+    const rows = screen.getAllByTestId('ingredient-row');
+    expect(rows).toHaveLength(2);
+
+    // Both DATA rows have a picked item (rmCode present) → each gets the link.
+    const links = screen.getAllByTestId('ingredient-open-in-technical');
+    expect(links).toHaveLength(2);
+    expect(within(rows[0]).getByTestId('ingredient-open-in-technical')).toHaveAttribute(
+      'href',
+      '/technical/items/RM-1001',
+    );
+    expect(within(rows[1]).getByTestId('ingredient-open-in-technical')).toHaveAttribute(
+      'href',
+      '/technical/items/RM-2002',
+    );
+    // The link is read-level (a real anchor with href), not a button.
+    expect(links[0].tagName).toBe('A');
+
+    // SURGICAL: the existing row controls are unchanged (qty input + delete still present).
+    expect(within(rows[0]).getByLabelText(LABELS.colQtyPerPack)).toBeInTheDocument();
+    expect(within(rows[0]).getByRole('button', { name: LABELS.deleteRow })).toBeInTheDocument();
+  });
+
+  it('omits the "↗" link on a freshly added row that has no picked item yet (no rmCode)', () => {
+    renderEditor();
+    // Add a blank row — rmCode is empty until an item is picked → no link on it.
+    fireEvent.click(screen.getByRole('button', { name: LABELS.addIngredient }));
+    const rows = screen.getAllByTestId('ingredient-row');
+    expect(rows).toHaveLength(3);
+    // The new (last) row has no picked item → no shortcut link.
+    expect(within(rows[2]).queryByTestId('ingredient-open-in-technical')).toBeNull();
+    // The two seeded rows still have theirs.
+    expect(screen.getAllByTestId('ingredient-open-in-technical')).toHaveLength(2);
+  });
+});

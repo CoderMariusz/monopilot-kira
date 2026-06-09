@@ -29,6 +29,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@monopilot/ui/Tabs';
 
@@ -94,6 +95,12 @@ export type BomDetailData = {
   productId: string;
   productName: string | null;
   category: string | null;
+  /**
+   * Phase-3 NPD↔Technical shortcut: the source NPD project id when this shared BOM
+   * originated from an NPD release (bom_headers.npd_project_id). Null for
+   * Technical/imported-origin BOMs — the header origin link is then omitted.
+   */
+  npdProjectId?: string | null;
   selectedVersion: number;
   status: BomStatus;
   yieldPct: string;
@@ -178,6 +185,8 @@ export type BomDetailLabels = {
   error: string;
   notFound: string;
   forbidden: string;
+  /** Phase-3 cross-link label to the source NPD project. */
+  originNpdProject: string;
 };
 
 const STATUS_TONE: Record<BomStatus, string> = {
@@ -318,6 +327,21 @@ export function BomDetailScreen({
             {labels.yieldLabel}: <span className="mono">{Number(data.yieldPct).toFixed(0)}%</span>
             {data.category ? <> · {data.category}</> : null}
           </p>
+          {/* Phase-3 NPD↔Technical shortcut — muted read-level link back to the
+              source NPD project. Rendered ONLY when the shared-BOM header carries
+              its npd_project_id origin; omitted entirely otherwise (no layout
+              shift). prefetch={false} per the project perf rule (kanban precedent). */}
+          {data.npdProjectId && labels.originNpdProject ? (
+            <Link
+              href={`/pipeline/${data.npdProjectId}`}
+              prefetch={false}
+              data-testid="bom-origin-npd-link"
+              className="helper text-xs text-shell-muted underline-offset-2 hover:underline"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {labels.originNpdProject}
+            </Link>
+          ) : null}
         </div>
         {actions ?? null}
       </header>

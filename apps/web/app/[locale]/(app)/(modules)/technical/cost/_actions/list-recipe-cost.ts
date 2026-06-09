@@ -33,6 +33,13 @@ export type CostedProductOption = {
   /** Latest BOM version surfaced for context. */
   bomVersion: number;
   bomStatus: string;
+  /**
+   * Phase-3 NPD↔Technical shortcut: the NPD project id whose product_code matches
+   * this product, when one exists (org-scoped, read-only). Null → no "See NPD
+   * costing →" link is rendered for the product. Resolved server-side in the page
+   * loader, never fetched client-side.
+   */
+  npdProjectId?: string | null;
 };
 
 export type ListCostedProductsResult = {
@@ -78,6 +85,8 @@ type ProductRow = {
   bom_status: string;
 };
 
+type NpdProjectRow = { product_code: string; project_id: string };
+
 type HeaderRow = {
   id: string;
   product_code: string;
@@ -120,11 +129,31 @@ export async function listCostedProducts(): Promise<ListCostedProductsResult> {
           order by bh.product_id, bh.version desc`,
       );
 
+      // Phase-3 NPD↔Technical shortcut: one cheap org-scoped read mapping each
+      // product_code to the NPD project that owns it (npd_projects.product_code).
+      // Read-only; null when no project maps → the cost client omits the link.
+      const codes = rows.map((r) => r.product_code).filter((c): c is string => !!c);
+      const npdByCode = new Map<string, string>();
+      if (codes.length > 0) {
+        const { rows: npdRows } = await qc.query<NpdProjectRow>(
+          `select distinct on (np.product_code)
+                  np.product_code,
+                  np.id as project_id
+             from public.npd_projects np
+            where np.org_id = app.current_org_id()
+              and np.product_code = any($1::text[])
+            order by np.product_code, np.created_at desc`,
+          [codes],
+        );
+        for (const r of npdRows) npdByCode.set(r.product_code, r.project_id);
+      }
+
       const products: CostedProductOption[] = rows.map((r) => ({
         productCode: r.product_code,
         name: r.name,
         bomVersion: Number(r.bom_version),
         bomStatus: r.bom_status,
+        npdProjectId: npdByCode.get(r.product_code) ?? null,
       }));
 
       return { products, state: products.length ? 'ready' : 'empty' };

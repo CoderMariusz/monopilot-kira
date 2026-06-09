@@ -86,6 +86,7 @@ const LABELS: BomDetailLabels = {
   error: 'Unable to load this BOM. Please try again.',
   notFound: 'BOM not found.',
   forbidden: 'You do not have permission to view this BOM.',
+  originNpdProject: 'Origin: NPD project →',
 };
 
 const DATA: BomDetailData = {
@@ -302,5 +303,36 @@ describe('BomDetailScreen — required states', () => {
   it('permission_denied shows the forbidden copy', () => {
     render(<BomDetailScreen state="permission_denied" data={null} labels={LABELS} />);
     expect(screen.getByText(LABELS.forbidden)).toBeInTheDocument();
+  });
+});
+
+// Phase-3 (Lane 16) — NPD↔Technical shortcut: source-NPD-project origin link.
+describe('BomDetailScreen — NPD origin shortcut (Phase-3)', () => {
+  it('renders a muted "Origin: NPD project →" link to /pipeline/<id> when the BOM has an NPD origin', () => {
+    render(
+      <BomDetailScreen
+        state="ready"
+        data={{ ...DATA, npdProjectId: 'c5cf521b-1111-2222-3333-444455556666' }}
+        labels={LABELS}
+      />,
+    );
+    const link = screen.getByTestId('bom-origin-npd-link');
+    expect(link).toHaveTextContent('Origin: NPD project →');
+    expect(link).toHaveAttribute('href', '/pipeline/c5cf521b-1111-2222-3333-444455556666');
+    // i18n: label comes from injected labels, never a hardcoded inline string.
+    expect(link).toHaveTextContent(LABELS.originNpdProject as string);
+  });
+
+  it('omits the origin link when the BOM has no NPD origin (null)', () => {
+    render(
+      <BomDetailScreen state="ready" data={{ ...DATA, npdProjectId: null }} labels={LABELS} />,
+    );
+    expect(screen.queryByTestId('bom-origin-npd-link')).not.toBeInTheDocument();
+  });
+
+  it('omits the origin link when npdProjectId is absent (back-compat default data)', () => {
+    // DATA has no npdProjectId key at all — the link must not render.
+    render(<BomDetailScreen state="ready" data={DATA} labels={LABELS} />);
+    expect(screen.queryByTestId('bom-origin-npd-link')).not.toBeInTheDocument();
   });
 });

@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import Link from 'next/link';
 
 import { Dec } from '@monopilot/domain';
 import { Badge } from '@monopilot/ui/Badge';
@@ -66,6 +67,12 @@ export type IngredientRowLabels = {
   rmCodeRequired: string;
   /** "Choose item" affordance text shown when no item is picked yet. */
   chooseItem: string;
+  /**
+   * Phase-3 NPD↔Technical shortcut — "↗" link title to open the picked item in
+   * Technical. Optional (English fallback in the row) for back-compat with callers
+   * that have not threaded the new label yet.
+   */
+  openInTechnical?: string;
   /** Item-picker (combobox over the real items master) labels. */
   picker: ItemPickerLabels;
 };
@@ -135,6 +142,24 @@ export function IngredientRow({
           ) : (
             <span className="text-xs muted">{labels.chooseItem}</span>
           )}
+          {/* Phase-3 NPD↔Technical shortcut — subtle "↗" read-level link to the
+              picked item's Technical item card. Rendered ONLY when a real item is
+              wired (rmCode present); omitted otherwise (no layout shift). Muted,
+              no underline; prefetch={false} per the project perf rule. Existing
+              row controls are unchanged. */}
+          {ingredient.rmCode ? (
+            <Link
+              href={`/technical/items/${encodeURIComponent(ingredient.rmCode)}`}
+              prefetch={false}
+              data-testid="ingredient-open-in-technical"
+              title={labels.openInTechnical ?? 'Open item in Technical'}
+              aria-label={labels.openInTechnical ?? 'Open item in Technical'}
+              className="text-xs muted no-underline hover:underline"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <span aria-hidden="true">↗</span>
+            </Link>
+          ) : null}
           <ItemPicker
             labels={labels.picker}
             searchItemsAction={searchItemsAction}

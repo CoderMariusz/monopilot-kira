@@ -194,6 +194,8 @@ export type FormulationLabels = {
   noAllergen: string;
   /** Lane-B: ingredient-row item-picker labels (combobox over the items master). */
   chooseItem: string;
+  /** Phase-3 NPD↔Technical shortcut — "↗ Open item in Technical" link title. */
+  openInTechnical: string;
   picker: IngredientRowLabels['picker'];
 };
 

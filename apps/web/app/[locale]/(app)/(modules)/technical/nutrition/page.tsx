@@ -32,6 +32,9 @@ export default async function TechnicalNutritionPage() {
   const t = await getTranslations('technical.nutrition');
   const { products, state } = await listNutritionProducts();
 
+  // Phase-3 NPD↔Technical shortcut label (English fallback until i18n keys merge).
+  const tf = (key: string, fallback: string): string => (t.has(key) ? t(key) : fallback);
+
   const copy: NutritionCopy = {
     selectLabel: t('selectLabel'),
     selectPlaceholder: t('selectPlaceholder'),
@@ -56,6 +59,7 @@ export default async function TechnicalNutritionPage() {
     loading: t('loading'),
     loadError: t('loadError'),
     selectPrompt: t('selectPrompt'),
+    openNpdProject: tf('openNpdProject', 'Open NPD project →'),
   };
 
   return (
