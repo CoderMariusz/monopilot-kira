@@ -27,6 +27,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { listFactorySpecs } from './_actions/list-factory-specs';
 import type { FactorySpecListItem, FactorySpecStatus } from './_actions/shared';
+import { CreateFactorySpecButton } from './_components/create-factory-spec-modal.client';
 import { FactorySpecRowActions } from './_components/review-modal.client';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,15 @@ const STATUS_TONE: Record<FactorySpecStatus, string> = {
 
 function formatShelfLife(days: number | null): string {
   return days === null ? '—' : `${days} d`;
+}
+
+function safeLabel(t: Awaited<ReturnType<typeof getTranslations>>, key: string, fallback: string): string {
+  try {
+    const value = t(key);
+    return value === key || value.endsWith(`.${key}`) ? fallback : value;
+  } catch {
+    return fallback;
+  }
 }
 
 export default async function FactorySpecsPage() {
@@ -62,6 +72,7 @@ export default async function FactorySpecsPage() {
           <h1 className="page-title">{t('title')}</h1>
           <p className="helper mt-1 max-w-3xl">{t('subtitle')}</p>
         </div>
+        {canApprove ? <CreateFactorySpecButton label={safeLabel(t, 'create.open', '+ New specification')} /> : null}
       </header>
 
       {state === 'error' ? (

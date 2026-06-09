@@ -25,6 +25,7 @@ import type { ReleaseBundleData } from '../../_actions/bundle-data';
 const approveMock = vi.fn();
 const rejectMock = vi.fn();
 const loadBundleMock = vi.fn();
+const createFactorySpecMock = vi.fn();
 const refreshMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -41,8 +42,12 @@ vi.mock('../../_actions/bundle-data', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../../_actions/bundle-data');
   return { ...actual, loadReleaseBundle: (...args: unknown[]) => loadBundleMock(...args) };
 });
+vi.mock('../../actions/create-factory-spec', () => ({
+  createFactorySpec: (...args: unknown[]) => createFactorySpecMock(...args),
+}));
 
 // Imported AFTER the mocks above so the components pick up the mocked modules.
+const { CreateFactorySpecButton } = await import('../create-factory-spec-modal.client');
 const { FactorySpecRowActions } = await import('../review-modal.client');
 const { ReleaseBundlePanelButton } = await import('../release-bundle-panel.client');
 
@@ -67,6 +72,53 @@ const baseSpec: FactorySpecListItem = {
   d365ItemId: null,
   updatedAt: '2026-04-30T11:22:00.000Z',
 };
+
+describe('Factory spec create modal', () => {
+  it('submits the minimal schema-required fields and refreshes the list', async () => {
+    createFactorySpecMock.mockResolvedValue({
+      ok: true,
+      data: { id: 'spec-new', specCode: 'FS-FG5101', version: 1 },
+    });
+
+    render(<CreateFactorySpecButton label="+ New specification" />);
+    fireEvent.click(screen.getByRole('button', { name: '+ New specification' }));
+
+    fireEvent.change(screen.getByLabelText('Specification code'), {
+      target: { value: 'FS-FG5101' },
+    });
+    fireEvent.change(screen.getByLabelText('FG item ID'), {
+      target: { value: '33333333-3333-4333-8333-333333333333' },
+    });
+    fireEvent.change(screen.getByLabelText('Notes'), {
+      target: { value: 'Initial technical draft' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    await waitFor(() =>
+      expect(createFactorySpecMock).toHaveBeenCalledWith({
+        fgItemId: '33333333-3333-4333-8333-333333333333',
+        specCode: 'FS-FG5101',
+        notes: 'Initial technical draft',
+      }),
+    );
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('surfaces create action errors inline', async () => {
+    createFactorySpecMock.mockResolvedValue({ ok: false, error: 'forbidden' });
+
+    render(<CreateFactorySpecButton label="+ New specification" />);
+    fireEvent.click(screen.getByRole('button', { name: '+ New specification' }));
+    fireEvent.change(screen.getByLabelText('Specification code'), { target: { value: 'FS-FG5101' } });
+    fireEvent.change(screen.getByLabelText('FG item ID'), {
+      target: { value: '33333333-3333-4333-8333-333333333333' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission to create specifications.');
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+});
 
 function bundleData(overrides: Partial<ReleaseBundleData> = {}): ReleaseBundleData {
   return {
