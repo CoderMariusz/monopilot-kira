@@ -2408,6 +2408,17 @@
         "note": "Non-destructive — re-rolls Σ(line qty × current cost/kg) live for the selected product. Nothing is overwritten; the figure simply refreshes from the latest item costs.",
         "confirm": "Recompute now",
         "cancel": "Cancel"
+      },
+      "exportCostSheet": "Exportă fişa de costuri",
+      "csv": {
+        "component": "Component",
+        "componentName": "Denumire",
+        "componentType": "Tip",
+        "quantity": "Cantitate",
+        "uom": "UM",
+        "unitCost": "Cost/kg",
+        "lineCost": "Cost linie",
+        "total": "Total"
       }
     },
     "costHistory": {
@@ -3318,7 +3329,8 @@
         "mrp": "MRP",
         "procurement": "Achiziții",
         "history": "Istoric",
-        "locked": "Blocat"
+        "locked": "Blocat",
+        "bom": "BOM"
       },
       "deptStrip": {
         "ariaLabel": "Progres departamente",
@@ -4651,6 +4663,37 @@
       "errorForbidden": "Nu ai permisiunea de a crea proiecte.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200"
+    },
+    "faBomTab": {
+      "title": "BOM (vizualizare calculată)",
+      "readOnlyNote": "Vizualizare doar pentru citire a BOM-ului partajat. Listele de materiale se editează în Tehnic.",
+      "exportCsv": "Exportă BOM CSV",
+      "exporting": "Se exportă…",
+      "exportError": "Exportul CSV al BOM-ului a eşuat.",
+      "versionLine": "v{version} · {status} · {count} linii",
+      "status": {
+        "draft": "Ciornă",
+        "in_review": "În revizuire",
+        "technical_approved": "Aprobat tehnic",
+        "active": "Activ"
+      },
+      "colType": "Tip",
+      "colCode": "Cod",
+      "colName": "Nume",
+      "colQty": "Cant.",
+      "colStage": "Etapă",
+      "colSource": "Sursă",
+      "colD365": "Stare D365",
+      "d365Found": "Găsit",
+      "d365NoCost": "Fără cost",
+      "d365Missing": "Lipsă",
+      "d365Empty": "Inexistent în D365",
+      "loading": "Se încarcă BOM…",
+      "error": "Nu se poate încărca BOM-ul.",
+      "forbidden": "Nu aveți permisiunea de a vizualiza acest BOM.",
+      "empty": "Niciun BOM încă",
+      "emptyBody": "Acest produs finit nu are listă de materiale.",
+      "technicalLink": "Deschide în Tehnic"
     }
   }
 }

@@ -1612,7 +1612,8 @@
         "mrp": "MRP",
         "procurement": "Procurement",
         "history": "History",
-        "locked": "Locked"
+        "locked": "Locked",
+        "bom": "BOM"
       },
       "deptStrip": {
         "ariaLabel": "Department gate progress",
@@ -2989,6 +2990,37 @@
       "errorForbidden": "You do not have permission to create projects.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200"
+    },
+    "faBomTab": {
+      "title": "BOM (computed view)",
+      "readOnlyNote": "Read-only view of the shared BOM. Bills of materials are edited in Technical.",
+      "exportCsv": "Export BOM CSV",
+      "exporting": "Exporting…",
+      "exportError": "Could not export the BOM CSV.",
+      "versionLine": "v{version} · {status} · {count} lines",
+      "status": {
+        "draft": "Draft",
+        "in_review": "In review",
+        "technical_approved": "Technical approved",
+        "active": "Active"
+      },
+      "colType": "Type",
+      "colCode": "Code",
+      "colName": "Name",
+      "colQty": "Qty",
+      "colStage": "Stage",
+      "colSource": "Source",
+      "colD365": "D365 status",
+      "d365Found": "Found",
+      "d365NoCost": "No cost",
+      "d365Missing": "Missing",
+      "d365Empty": "Not in D365",
+      "loading": "Loading BOM…",
+      "error": "Unable to load the BOM.",
+      "forbidden": "You do not have permission to view this BOM.",
+      "empty": "No BOM yet",
+      "emptyBody": "This Finished Good has no bill of materials.",
+      "technicalLink": "Open in Technical"
     }
   },
   "technical": {
@@ -4242,6 +4274,17 @@
         "note": "Non-destructive — re-rolls Σ(line qty × current cost/kg) live for the selected product. Nothing is overwritten; the figure simply refreshes from the latest item costs.",
         "confirm": "Recompute now",
         "cancel": "Cancel"
+      },
+      "exportCostSheet": "Export cost sheet",
+      "csv": {
+        "component": "Component",
+        "componentName": "Name",
+        "componentType": "Type",
+        "quantity": "Quantity",
+        "uom": "UoM",
+        "unitCost": "Cost/kg",
+        "lineCost": "Line cost",
+        "total": "Total"
       }
     },
     "costHistory": {

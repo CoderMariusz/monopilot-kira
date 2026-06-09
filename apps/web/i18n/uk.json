@@ -2408,6 +2408,17 @@
         "note": "Non-destructive — re-rolls Σ(line qty × current cost/kg) live for the selected product. Nothing is overwritten; the figure simply refreshes from the latest item costs.",
         "confirm": "Recompute now",
         "cancel": "Cancel"
+      },
+      "exportCostSheet": "Експортувати калькуляцію",
+      "csv": {
+        "component": "Компонент",
+        "componentName": "Назва",
+        "componentType": "Тип",
+        "quantity": "Кількість",
+        "uom": "ОВ",
+        "unitCost": "Вартість/кг",
+        "lineCost": "Вартість позиції",
+        "total": "Разом"
       }
     },
     "costHistory": {
@@ -3318,7 +3329,8 @@
         "mrp": "MRP",
         "procurement": "Закупівлі",
         "history": "Історія",
-        "locked": "Заблоковано"
+        "locked": "Заблоковано",
+        "bom": "BOM"
       },
       "deptStrip": {
         "ariaLabel": "Прогрес відділів",
@@ -4651,6 +4663,37 @@
       "errorForbidden": "У вас немає дозволу створювати проєкти.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200"
+    },
+    "faBomTab": {
+      "title": "BOM (обчислений вигляд)",
+      "readOnlyNote": "Перегляд спільного BOM лише для читання. Специфікації матеріалів редагуються в Технічному модулі.",
+      "exportCsv": "Експортувати BOM CSV",
+      "exporting": "Експортування…",
+      "exportError": "Не вдалося експортувати CSV BOM.",
+      "versionLine": "v{version} · {status} · {count} рядків",
+      "status": {
+        "draft": "Чернетка",
+        "in_review": "На розгляді",
+        "technical_approved": "Технічно затверджено",
+        "active": "Активний"
+      },
+      "colType": "Тип",
+      "colCode": "Код",
+      "colName": "Назва",
+      "colQty": "К-сть",
+      "colStage": "Етап",
+      "colSource": "Джерело",
+      "colD365": "Статус D365",
+      "d365Found": "Знайдено",
+      "d365NoCost": "Без вартості",
+      "d365Missing": "Відсутній",
+      "d365Empty": "Немає в D365",
+      "loading": "Завантаження BOM…",
+      "error": "Не вдалося завантажити BOM.",
+      "forbidden": "У вас немає дозволу переглядати цей BOM.",
+      "empty": "BOM ще немає",
+      "emptyBody": "Цей готовий продукт не має специфікації матеріалів.",
+      "technicalLink": "Відкрити в Технічному"
     }
   }
 }

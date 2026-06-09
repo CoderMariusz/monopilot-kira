@@ -2408,6 +2408,17 @@
         "note": "Non-destructive — re-rolls Σ(line qty × current cost/kg) live for the selected product. Nothing is overwritten; the figure simply refreshes from the latest item costs.",
         "confirm": "Recompute now",
         "cancel": "Cancel"
+      },
+      "exportCostSheet": "Eksportuj kartę kosztów",
+      "csv": {
+        "component": "Składnik",
+        "componentName": "Nazwa",
+        "componentType": "Typ",
+        "quantity": "Ilość",
+        "uom": "JM",
+        "unitCost": "Koszt/kg",
+        "lineCost": "Koszt pozycji",
+        "total": "Razem"
       }
     },
     "costHistory": {
@@ -3318,7 +3329,8 @@
         "mrp": "MRP",
         "procurement": "Zakupy",
         "history": "Historia",
-        "locked": "Zablokowane"
+        "locked": "Zablokowane",
+        "bom": "BOM"
       },
       "deptStrip": {
         "ariaLabel": "Postęp działów",
@@ -4651,6 +4663,37 @@
       "errorForbidden": "Nie masz uprawnień do tworzenia projektów.",
       "fieldPackWeight": "Pack weight (g)",
       "fieldPackWeightPlaceholder": "e.g. 200"
+    },
+    "faBomTab": {
+      "title": "BOM (widok obliczony)",
+      "readOnlyNote": "Widok tylko do odczytu współdzielonego BOM. Listy materiałowe edytuje się w module Technicznym.",
+      "exportCsv": "Eksportuj BOM CSV",
+      "exporting": "Eksportowanie…",
+      "exportError": "Nie udało się wyeksportować pliku CSV BOM.",
+      "versionLine": "wer. {version} · {status} · {count} pozycji",
+      "status": {
+        "draft": "Wersja robocza",
+        "in_review": "W recenzji",
+        "technical_approved": "Zatwierdzony technicznie",
+        "active": "Aktywny"
+      },
+      "colType": "Typ",
+      "colCode": "Kod",
+      "colName": "Nazwa",
+      "colQty": "Ilość",
+      "colStage": "Etap",
+      "colSource": "Źródło",
+      "colD365": "Status D365",
+      "d365Found": "Znaleziono",
+      "d365NoCost": "Brak kosztu",
+      "d365Missing": "Brak",
+      "d365Empty": "Brak w D365",
+      "loading": "Wczytywanie BOM…",
+      "error": "Nie można wczytać BOM.",
+      "forbidden": "Nie masz uprawnień do wyświetlenia tego BOM.",
+      "empty": "Brak BOM",
+      "emptyBody": "Ten wyrób gotowy nie ma listy materiałowej.",
+      "technicalLink": "Otwórz w module Technicznym"
     }
   }
 }
