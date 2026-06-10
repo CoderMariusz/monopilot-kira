@@ -71,6 +71,8 @@ describe('materializeNpdBom', () => {
       if (sql.startsWith('update public.bom_headers')) return [];
       if (sql.startsWith('select id from public.factory_specs')) return [];
       if (sql.startsWith('insert into public.factory_specs')) return [{ id: SPEC }];
+      // allergen cascade recompute over the materialized BOM (no parents in fixture)
+      if (sql.startsWith('with recursive parents as')) return [];
       throw new Error(`Unhandled SQL: ${sql}`);
     });
 

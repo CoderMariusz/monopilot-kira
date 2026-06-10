@@ -1,3 +1,4 @@
+import { cascadeAllergensForChangedItem } from '../../../../../lib/technical/allergens/cascade';
 import { type GateProjectRow } from './gate-helpers';
 import { type OrgContextLike } from '../shared';
 
@@ -83,6 +84,31 @@ export async function materializeNpdBom(
   const createdSpec = !existingSpec && bom
     ? await createApprovedFactorySpec(ctx, project, item.id, bom)
     : null;
+
+  // Recompute the allergen cascade over the just-materialized BOM and stamp the
+  // close-out timestamp — closeOutLegacyStagesForLaunch requires
+  // trial_allergens_cascade_recomputed_at, and nothing else in the pipeline ever
+  // writes it (live walk-5: every project 409'd at handoff→launched on it). The
+  // stamp is honest: the recompute genuinely ran here, right after the BOM landed.
+  if (bom) {
+    for (const ingredient of ingredients) {
+      if (!ingredient.item_id) continue;
+      await cascadeAllergensForChangedItem(
+        ctx.client as Parameters<typeof cascadeAllergensForChangedItem>[0],
+        ctx.orgId,
+        ingredient.item_id,
+      );
+    }
+    await ctx.client.query(
+      `update public.product
+          set private_jsonb = private_jsonb
+            || jsonb_build_object('trial_allergens_cascade_recomputed_at', now())
+        where org_id = app.current_org_id()
+          and product_code = $1
+          and (private_jsonb -> 'trial_allergens_cascade_recomputed_at') is null`,
+      [project.product_code],
+    );
+  }
 
   return {
     projectId: project.id,

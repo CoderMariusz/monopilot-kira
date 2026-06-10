@@ -16,6 +16,7 @@ import {
   type GateProjectRow,
 } from './_lib/gate-helpers';
 import { LEGACY_STAGES_CLOSED_EVENT, type OrgContextLike } from './shared';
+import { materializeNpdBom } from './_lib/materialize-npd-bom';
 
 const inputSchema = z.object({
   projectId: z.string().uuid(),
@@ -154,6 +155,12 @@ export async function closeOutLegacyStagesForLaunch(
   if (existing) throw new GateActionError('ALREADY_CLOSED', 200);
 
   if (!project.product_code) throw new GateActionError('HANDOFF_BOM_NOT_APPROVED', 409);
+
+  // Idempotent self-heal: projects promoted BEFORE the materializer learned to
+  // stamp the allergen-recompute timestamp (walk-5) would 409 here forever.
+  // Re-running fills only what is missing (BOM/spec/stamps already present are
+  // left untouched).
+  await materializeNpdBom(ctx, { projectId: project.id });
 
   const [release, product, g4Approval] = await Promise.all([
     loadRelease(ctx, project),
