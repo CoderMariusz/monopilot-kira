@@ -2798,7 +2798,15 @@
       "emptyBody": "Tu pojawią się zmiany produktów, BOM-ów, specyfikacji i zleceń zmian.",
       "error": "Nie udało się wczytać historii zmian. Spróbuj ponownie.",
       "denied": "Brak dostępu do historii zmian.",
-      "resultCount": "Liczba zmian: {count}"
+      "resultCount": "Liczba zmian: {count}",
+      "subtitle": "Każda zmiana produktów, BOM-ów, specyfikacji i zleceń zmian.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "revisions": "Historia zmian"
+      },
+      "searchLabel": "Szukaj zmian",
+      "revisionPrefix": "rew.",
+      "loading": "Wczytywanie historii zmian…"
     },
     "traceability": {
       "title": "Wyszukiwanie identyfikowalności",
@@ -2806,7 +2814,8 @@
       "direction": {
         "backward": "Wstecz",
         "forward": "Wprzód",
-        "both": "Oba"
+        "both": "Oba",
+        "label": "Kierunek"
       },
       "prompt": "Wpisz LP, partię, lot lub zlecenie",
       "promptBody": "Prześledź wstecz zużyte składniki i wprzód wyprodukowane wyroby.",
@@ -2827,7 +2836,18 @@
         "consumed_by": "zużyte przez",
         "produced": "wyprodukowane",
         "requires_component": "wymaga komponentu"
-      }
+      },
+      "subtitle": "Prześledź partię wstecz do surowców i wprzód do wyrobów.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "traceability": "Wyszukiwanie identyfikowalności"
+      },
+      "searchPlaceholder": "Kod LP, partia, lot lub zlecenie…",
+      "searchLabel": "Zapytanie identyfikowalności",
+      "hint": "Przeszukuje LP, wyniki zleceń, zużycie i pozycje BOM.",
+      "qtyLabel": "Ilość",
+      "lotLabel": "Partia",
+      "statusLabel": "Status"
     }
   },
   "Technical": {

@@ -317,6 +317,21 @@ a {
 .btn-success { background: var(--green); color: #fff; border-color: var(--green); }
 .btn-success:hover:not(:disabled) { background: #15803d; }
 
+/* The @monopilot/ui <Checkbox> primitive emits .checkbox/.checkbox__indicator,
+   which this design system never defined — unchecked boxes rendered 0×0 px and
+   were unclickable (live: the handoff checklist). */
+.checkbox {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex: 0 0 18px;
+  border: 1.5px solid var(--border); border-radius: 4px;
+  background: #fff; cursor: pointer; padding: 0;
+  transition: background 0.12s, border-color 0.12s;
+}
+.checkbox:hover:not(:disabled) { border-color: var(--blue); }
+.checkbox[data-state='checked'] { background: var(--blue); border-color: var(--blue); }
+.checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
+.checkbox__indicator { font-size: 12px; line-height: 1; color: #fff; }
+
 /* BEM aliases — the @monopilot/ui <Button> primitive emits double-dash variant
    classes (.btn--primary etc.); mirror the single-dash design-system tones so any
    <Button variant> / className="btn--*" renders styled instead of as the bare

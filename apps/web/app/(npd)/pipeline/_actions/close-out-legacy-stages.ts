@@ -83,6 +83,17 @@ type BomRow = {
   status: string;
 };
 
+type PilotEvidence = {
+  id: string;
+  source: 'work_order' | 'pilot_run';
+  woReference: string | null;
+};
+
+type PilotRunEvidenceRow = {
+  id: string;
+  wo_reference: string | null;
+};
+
 type CloseoutInsertRow = {
   id: string;
   fg_product_code: string;
@@ -159,11 +170,8 @@ export async function closeOutLegacyStagesForLaunch(
   const allergenRecomputedAt = await resolveAllergenRecomputedAt(ctx, project.product_code, product.private_jsonb);
   if (!allergenRecomputedAt) throw new GateActionError('TRIAL_SHELF_LIFE_MISSING', 409);
 
-  const pilotWoId = stringFromPrivateJson(product.private_jsonb, 'npd_project_pilot_wo_id')
-    ?? stringFromPrivateJson(product.private_jsonb, 'pilot_wo_id');
-  if (!pilotWoId || !isUuid(pilotWoId) || !(await pilotWorkOrderExists(ctx, pilotWoId))) {
-    throw new GateActionError('PILOT_WO_NOT_LINKED', 409);
-  }
+  const pilotEvidence = await resolvePilotEvidence(ctx, project.id, product.private_jsonb);
+  if (!pilotEvidence) throw new GateActionError('PILOT_WO_NOT_LINKED', 409);
 
   const bom = await loadBom(ctx, release.active_bom_header_id, project.id, project.product_code);
   if (!bom || !['active', 'technical_approved'].includes(bom.status)) {
@@ -192,7 +200,7 @@ export async function closeOutLegacyStagesForLaunch(
       ctx.userId,
       release.release_event_id,
       allergenRecomputedAt,
-      pilotWoId,
+      pilotEvidence.id,
       g4Approval.id,
       bom.id,
       JSON.stringify(packagingSnapshot),
@@ -220,7 +228,9 @@ export async function closeOutLegacyStagesForLaunch(
         allergens_cascade_recomputed_at: allergenRecomputedAt,
       },
       pilot: {
-        wo_id: pilotWoId,
+        evidence_id: pilotEvidence.id,
+        source: pilotEvidence.source,
+        wo_reference: pilotEvidence.woReference,
       },
       handoff: {
         g4_esign_id: g4Approval.id,
@@ -318,6 +328,21 @@ async function resolveAllergenRecomputedAt(
   return processedAt instanceof Date ? processedAt.toISOString() : new Date(processedAt).toISOString();
 }
 
+async function resolvePilotEvidence(
+  ctx: OrgContextLike,
+  projectId: string,
+  privateJsonb: Record<string, unknown> | null,
+): Promise<PilotEvidence | null> {
+  const pilotWoId = stringFromPrivateJson(privateJsonb, 'npd_project_pilot_wo_id')
+    ?? stringFromPrivateJson(privateJsonb, 'pilot_wo_id');
+  if (pilotWoId && isUuid(pilotWoId) && await pilotWorkOrderExists(ctx, pilotWoId)) {
+    return { id: pilotWoId, source: 'work_order', woReference: null };
+  }
+
+  const pilotRun = await loadCompletedPilotRun(ctx, projectId);
+  return pilotRun ? { id: pilotRun.id, source: 'pilot_run', woReference: pilotRun.wo_reference } : null;
+}
+
 async function pilotWorkOrderExists(ctx: OrgContextLike, pilotWoId: string): Promise<boolean> {
   const { rows } = await ctx.client.query<{ ok: boolean }>(
     `select true as ok
@@ -327,7 +352,31 @@ async function pilotWorkOrderExists(ctx: OrgContextLike, pilotWoId: string): Pro
       limit 1`,
     [pilotWoId],
   );
-  return rows.length > 0;
+  if (rows.length > 0) return true;
+
+  const planned = await ctx.client.query<{ ok: boolean }>(
+    `select true as ok
+       from public.work_orders
+      where org_id = app.current_org_id()
+        and id = $1::uuid
+      limit 1`,
+    [pilotWoId],
+  );
+  return planned.rows.length > 0;
+}
+
+async function loadCompletedPilotRun(ctx: OrgContextLike, projectId: string): Promise<PilotRunEvidenceRow | null> {
+  const { rows } = await ctx.client.query<PilotRunEvidenceRow>(
+    `select id, wo_reference
+       from public.pilot_runs
+      where org_id = app.current_org_id()
+        and project_id = $1::uuid
+        and status = 'completed'
+      order by planned_date desc nulls last, created_at desc
+      limit 1`,
+    [projectId],
+  );
+  return rows[0] ?? null;
 }
 
 async function loadBom(

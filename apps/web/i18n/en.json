@@ -4689,7 +4689,15 @@
       "emptyBody": "Changes to products, BOMs, factory specs and change orders will appear here.",
       "error": "Could not load revision history. Please try again.",
       "denied": "You do not have access to revision history.",
-      "resultCount": "{count} revisions"
+      "resultCount": "{count} revisions",
+      "subtitle": "Every change to items, BOMs, factory specs and change orders.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "revisions": "Revision history"
+      },
+      "searchLabel": "Search revisions",
+      "revisionPrefix": "rev",
+      "loading": "Loading revision history…"
     },
     "traceability": {
       "title": "Traceability search",
@@ -4697,7 +4705,8 @@
       "direction": {
         "backward": "Backward",
         "forward": "Forward",
-        "both": "Both"
+        "both": "Both",
+        "label": "Direction"
       },
       "prompt": "Enter a license plate, batch, lot or work order",
       "promptBody": "Trace backward components consumed and forward outputs produced.",
@@ -4718,7 +4727,18 @@
         "consumed_by": "consumed by",
         "produced": "produced",
         "requires_component": "requires component"
-      }
+      },
+      "subtitle": "Trace a lot backward to its inputs and forward to its outputs.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "traceability": "Traceability search"
+      },
+      "searchPlaceholder": "LP code, batch, lot or work order…",
+      "searchLabel": "Traceability query",
+      "hint": "Searches license plates, WO outputs, consumption and BOM lines.",
+      "qtyLabel": "Qty",
+      "lotLabel": "Lot",
+      "statusLabel": "Status"
     }
   },
   "Technical": {

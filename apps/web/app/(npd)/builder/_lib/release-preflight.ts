@@ -129,20 +129,23 @@ export async function runReleasePreflight(
 
 async function loadExistingFactorySpecId(
   ctx: OrgContextLike,
-  projectId: string,
+  _projectId: string,
   productCode: string | null,
 ): Promise<string | null> {
   if (!productCode) return null;
-  const { rows } = await ctx.client.query<{ active_factory_spec_id: string | null }>(
-    `select active_factory_spec_id
-       from public.factory_release_status
-      where org_id = app.current_org_id()
-        and project_id = $1::uuid
-        and product_code = $2
-        and active_factory_spec_id is not null
-      order by updated_at desc
+  const { rows } = await ctx.client.query<{ id: string }>(
+    `select fs.id
+       from public.factory_specs fs
+       join public.items i
+         on i.org_id = fs.org_id
+        and i.id = fs.fg_item_id
+      where fs.org_id = app.current_org_id()
+        and i.item_code = $1
+        and i.item_type = 'fg'
+        and fs.status in ('approved_for_factory', 'released_to_factory')
+      order by fs.version desc, fs.updated_at desc
       limit 1`,
-    [projectId, productCode],
+    [productCode],
   );
-  return rows[0]?.active_factory_spec_id ?? null;
+  return rows[0]?.id ?? null;
 }

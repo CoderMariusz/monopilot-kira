@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { withOrgContext } from '../../../../lib/auth/with-org-context';
 import { type OrgContextLike } from '../../pipeline/_actions/shared';
+import { materializeNpdBom } from '../../pipeline/_actions/_lib/materialize-npd-bom';
 import {
   ReleasePreflightError,
   runReleasePreflight,
@@ -60,6 +61,7 @@ export async function releaseNpdProjectToFactory(rawInput: unknown): Promise<Rel
     return await withOrgContext<ReleaseNpdProjectToFactoryResult>(async (ctx) => {
       const context = ctx as OrgContextLike;
       await requireReleasePermission(context);
+      await materializeNpdBom(context, { projectId: parsed.data.projectId });
       const ready = await runReleasePreflight(context, parsed.data);
 
       const releaseEventId = await insertReleasedToFactoryEvent(context, {

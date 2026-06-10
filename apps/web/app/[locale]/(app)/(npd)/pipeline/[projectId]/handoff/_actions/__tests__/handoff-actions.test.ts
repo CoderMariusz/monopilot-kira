@@ -226,6 +226,43 @@ describe('promoteToProduction — RBAC + checklist gate + release reuse', () => 
     expect(calls.some((s) => /insert into public.audit_events/.test(s))).toBe(true);
   });
 
+  it('records a self-service release result when no destination BOM was pre-seeded on the checklist', async () => {
+    handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
+      if (/from public.handoff_checklists/.test(sql)) {
+        return { rows: [{ id: CHECKLIST, destination_bom_code: null }] };
+      }
+      if (/count\(\*\) filter/.test(sql)) {
+        return { rows: [{ total: 1, checked: 1 }] };
+      }
+      if (/update public.handoff_checklists/.test(sql)) {
+        return { rows: [{ id: CHECKLIST, promote_to_production_date: '2026-06-10' }] };
+      }
+      return { rows: [] };
+    });
+    releaseMock.mockResolvedValue({
+      ok: true,
+      data: {
+        projectId: PROJECT,
+        productCode: 'SKU-2451',
+        activeBomHeaderId: 'materialized-bom-header',
+        activeFactorySpecId: 'materialized-factory-spec',
+      },
+    });
+
+    const r = await promoteToProduction({ projectId: PROJECT });
+
+    expect(r).toEqual({
+      ok: true,
+      data: {
+        projectId: PROJECT,
+        destinationBomCode: 'materialized-bom-header',
+        promoteToProductionDate: '2026-06-10',
+        releasedToFactory: true,
+      },
+    });
+    expect(releaseMock).toHaveBeenCalledWith(PROJECT);
+  });
+
   it('surfaces release_blocked honestly when the release flow has preflight blockers (no fake BOM)', async () => {
     handlerHolder.handler = permHandler(['npd.handoff.promote'], (sql) => {
       if (/from public.handoff_checklists/.test(sql)) {

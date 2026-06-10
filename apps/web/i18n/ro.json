@@ -2798,7 +2798,15 @@
       "emptyBody": "Modificările la produse, BOM-uri, specificații şi ordine de modificare vor apărea aici.",
       "error": "Istoricul reviziilor nu a putut fi încărcat. Încearcă din nou.",
       "denied": "Nu ai acces la istoricul reviziilor.",
-      "resultCount": "{count} revizii"
+      "resultCount": "{count} revizii",
+      "subtitle": "Fiecare modificare la articole, BOM-uri, specificații şi ordine de modificare.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "revisions": "Istoric revizii"
+      },
+      "searchLabel": "Caută revizii",
+      "revisionPrefix": "rev",
+      "loading": "Se încarcă istoricul reviziilor…"
     },
     "traceability": {
       "title": "Căutare trasabilitate",
@@ -2806,7 +2814,8 @@
       "direction": {
         "backward": "Înapoi",
         "forward": "Înainte",
-        "both": "Ambele"
+        "both": "Ambele",
+        "label": "Direcție"
       },
       "prompt": "Introdu un LP, lot, şarjă sau comandă",
       "promptBody": "Urmăreşte înapoi componentele consumate şi înainte produsele rezultate.",
@@ -2827,7 +2836,18 @@
         "consumed_by": "consumat de",
         "produced": "produs",
         "requires_component": "necesită componentă"
-      }
+      },
+      "subtitle": "Urmăreşte un lot înapoi la intrări şi înainte la ieşiri.",
+      "breadcrumb": {
+        "technical": "Technical",
+        "traceability": "Căutare trasabilitate"
+      },
+      "searchPlaceholder": "Cod LP, lot, şarjă sau comandă…",
+      "searchLabel": "Interogare trasabilitate",
+      "hint": "Caută plăcuțe LP, ieşiri WO, consum şi linii BOM.",
+      "qtyLabel": "Cant.",
+      "lotLabel": "Lot",
+      "statusLabel": "Stare"
     }
   },
   "Technical": {
