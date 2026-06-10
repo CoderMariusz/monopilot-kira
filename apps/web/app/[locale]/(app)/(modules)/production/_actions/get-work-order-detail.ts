@@ -42,8 +42,13 @@ export type WoDetailHeader = {
   id: string;
   woNumber: string;
   productId: string;
+  /** items.item_code / items.name — null when the product row is missing. */
+  itemCode: string | null;
+  productName: string | null;
   status: WorkOrderDetailStatus;
   lineId: string | null;
+  /** production_lines.code — null when no line is assigned. */
+  lineCode: string | null;
   machineId: string | null;
   plannedQty: number;
   uom: string;
@@ -165,8 +170,11 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         id: string;
         wo_number: string | null;
         product_id: string;
+        item_code: string | null;
+        product_name: string | null;
         status: string;
         production_line_id: string | null;
+        line_code: string | null;
         machine_id: string | null;
         planned_quantity: string | number | null;
         uom: string | null;
@@ -183,6 +191,9 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         `select w.id::text as id,
                 w.wo_number,
                 w.product_id::text as product_id,
+                i.item_code,
+                i.name as product_name,
+                pl.code as line_code,
                 coalesce(
                   e.status,
                   case w.status
@@ -221,6 +232,10 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
            from public.work_orders w
            left join public.wo_executions e
              on e.org_id = w.org_id and e.wo_id = w.id
+           left join public.items i
+             on i.org_id = w.org_id and i.id = w.product_id
+           left join public.production_lines pl
+             on pl.org_id = w.org_id and pl.id = w.production_line_id
           where w.org_id = app.current_org_id() and w.id = $1::uuid`,
         [woId],
       );
@@ -444,8 +459,11 @@ export async function getWorkOrderDetail(woId: string): Promise<WorkOrderDetailR
         id: h.id,
         woNumber: h.wo_number ?? h.id.slice(0, 8),
         productId: h.product_id,
+        itemCode: h.item_code,
+        productName: h.product_name,
         status,
         lineId: h.production_line_id,
+        lineCode: h.line_code,
         machineId: h.machine_id,
         plannedQty: Number(h.planned_quantity ?? 0),
         uom: h.uom ?? 'kg',

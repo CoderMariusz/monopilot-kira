@@ -257,8 +257,12 @@ export function WoDetailScreen({
               ) : null}
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              <span className="font-mono">{h.productId.slice(0, 8)}</span>
-              {h.lineId ? <> · {h.lineId.slice(0, 8)}</> : null}
+              <span className={h.productName ? undefined : 'font-mono'}>
+                {h.productName
+                  ? `${h.productName}${h.itemCode ? ` (${h.itemCode})` : ''}`
+                  : h.productId.slice(0, 8)}
+              </span>
+              {h.lineCode ? <> · {h.lineCode}</> : h.lineId ? <> · {h.lineId.slice(0, 8)}</> : null}
               {' · '}
               {labels.overview.elapsed} <b>{h.elapsedMin === null ? '—' : `${h.elapsedMin} ${labels.overview.elapsedMin}`}</b>
             </p>
@@ -324,8 +328,20 @@ export function WoDetailScreen({
             <h3 className="mb-3 text-sm font-semibold text-slate-900">{labels.overview.summaryTitle}</h3>
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <Fact label={labels.overview.wo} value={h.woNumber} mono />
-              <Fact label={labels.overview.product} value={h.productId.slice(0, 8)} mono />
-              <Fact label={labels.overview.line} value={h.lineId ? h.lineId.slice(0, 8) : '—'} mono />
+              <Fact
+                label={labels.overview.product}
+                value={
+                  h.productName
+                    ? `${h.productName}${h.itemCode ? ` (${h.itemCode})` : ''}`
+                    : h.productId.slice(0, 8)
+                }
+                mono={!h.productName}
+              />
+              <Fact
+                label={labels.overview.line}
+                value={h.lineCode ?? (h.lineId ? h.lineId.slice(0, 8) : '—')}
+                mono
+              />
               <Fact label={labels.overview.machine} value={h.machineId ? h.machineId.slice(0, 8) : '—'} mono />
               <Fact label={labels.overview.planned} value={`${fmtQty(h.plannedQty)} ${h.uom}`} mono />
               <Fact label={labels.overview.output} value={`${fmtQty(h.outputKg)} ${h.uom}`} mono />

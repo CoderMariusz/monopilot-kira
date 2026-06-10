@@ -28,7 +28,7 @@ import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@monopilot/ui/PageHeader';
 
 import { listPurchaseOrders, createPurchaseOrder } from './_actions/actions';
-import { listPoSuppliers, searchPoItems } from './_actions/po-form-data';
+import { listPoSuppliers, listPurchaseOrderLineCounts, searchPoItems } from './_actions/po-form-data';
 import { PoListView, type PoListLabels } from './_components/po-list-view';
 
 export const dynamic = 'force-dynamic';
@@ -129,7 +129,11 @@ function buildLabels(t: Awaited<ReturnType<typeof getTranslations>>): PoListLabe
 
 async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpenCreate: boolean }) {
   const t = await getTranslations('Planning.purchaseOrders');
-  const [listResult, suppliers] = await Promise.all([listPurchaseOrders({ limit: 200 }), listPoSuppliers()]);
+  const [listResult, suppliers, lineCounts] = await Promise.all([
+    listPurchaseOrders({ limit: 200 }),
+    listPoSuppliers(),
+    listPurchaseOrderLineCounts(),
+  ]);
 
   if (!listResult.ok) {
     return (
@@ -152,10 +156,7 @@ async function ListContent({ locale, autoOpenCreate }: { locale: string; autoOpe
         expectedDelivery: po.expectedDelivery,
         currency: po.currency,
         notes: po.notes,
-        // The list query does not roll line counts into the header; we surface 0
-        // and the real count appears on the detail page. (No header count column
-        // in mig 262 — honest, not faked.)
-        lineCount: 0,
+        lineCount: lineCounts[po.id] ?? 0,
       }))}
       suppliers={suppliers}
       autoOpenCreate={autoOpenCreate}

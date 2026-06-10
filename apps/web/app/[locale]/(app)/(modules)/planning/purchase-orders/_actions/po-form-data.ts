@@ -24,6 +24,7 @@
 
 import { listSuppliers } from '../../suppliers/_actions/actions';
 import { searchItems, type ItemPickerOption, type SearchItemsInput } from '../../../../../../(npd)/fa/actions/search-items';
+import { withOrgContext } from '../../../../../../../lib/auth/with-org-context';
 
 export type PoSupplierOption = {
   id: string;
@@ -45,5 +46,28 @@ export async function searchPoItems(input: SearchItemsInput = {}): Promise<ItemP
     return await searchItems(input);
   } catch {
     return [];
+  }
+}
+
+/**
+ * Per-PO line counts for the list "Lines" column. listPurchaseOrders returns
+ * headers only (no aggregate on mig 262), so this is a single grouped count,
+ * org-scoped. Mirrors transfer-orders' listTransferOrderLineCounts.
+ */
+export async function listPurchaseOrderLineCounts(): Promise<Record<string, number>> {
+  try {
+    return await withOrgContext<Record<string, number>>(async (ctx) => {
+      const { rows } = await ctx.client.query<{ po_id: string; n: string }>(
+        `select po_id, count(*)::text as n
+           from public.purchase_order_lines
+          where org_id = app.current_org_id()
+          group by po_id`,
+      );
+      const map: Record<string, number> = {};
+      for (const r of rows) map[r.po_id] = Number(r.n);
+      return map;
+    });
+  } catch {
+    return {};
   }
 }
