@@ -92,10 +92,12 @@ create trigger transfer_order_lines_set_updated_at
   for each row execute function public.planning_procurement_set_updated_at();
 
 with demo_warehouses as (
+  -- NOTE: Postgres has no max()/min() aggregate for uuid — the original
+  -- aggregate form failed on live apply. Ordered array_agg instead.
   select
-    max(id) filter (where is_default) as default_warehouse_id,
-    min(id) as first_warehouse_id,
-    max(id) as last_warehouse_id
+    (array_agg(id order by created_at, id) filter (where is_default))[1] as default_warehouse_id,
+    (array_agg(id order by created_at, id))[1] as first_warehouse_id,
+    (array_agg(id order by created_at desc, id desc))[1] as last_warehouse_id
   from public.warehouses
   where org_id = '00000000-0000-0000-0000-000000000002'::uuid
 ),
